@@ -1,0 +1,393 @@
+// Trip Planner — Prisma schema.
+//
+// Local dev uses SQLite (DATABASE_URL="file:./dev.db"); production swaps to
+// Postgres by changing the datasource `provider` + URL. To keep the schema
+// portable across both:
+//   * NO Prisma `enum`  — store enum-ish values as `String`, validate in app
+//     code with the Zod unions in lib/enums.ts + lib/categories.ts.
+//   * NO Prisma `Json`  — store JSON-ish data as a `String` of JSON.
+// Money is `Int` minor units. Calendar dates are `String` "YYYY-MM-DD".
+// Instants (transport dep/arr, timestamps) are `DateTime`. Lat/lng are `Float?`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  // Connection URL lives in prisma.config.ts (Prisma 7 no longer supports
+  // `url` here). The PrismaClient is constructed with a driver adapter in
+  // lib/db.ts.
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js (NextAuth v5) models — standard shapes required by
+// @auth/prisma-adapter. Do not rename fields.
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+
+  accounts Account[]
+  sessions Session[]
+
+  // Domain relations
+  createdTrips     Trip[]            @relation("TripCreatedBy")
+  memberships      TripMember[]
+  notes            Note[]
+  votes            Vote[]
+  attachments      Attachment[]      @relation("AttachmentUploadedBy")
+  assignedTasks    ChecklistItem[]   @relation("ChecklistAssignedTo")
+  packingTemplates PackingTemplate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ---------------------------------------------------------------------------
+// Domain models
+// ---------------------------------------------------------------------------
+
+model Trip {
+  id           String @id @default(cuid())
+  name         String
+  startDate    String // "YYYY-MM-DD"
+  endDate      String // "YYYY-MM-DD"
+  homeCurrency String // ISO 4217, e.g. "AUD"
+  createdById  String
+
+  createdBy User @relation("TripCreatedBy", fields: [createdById], references: [id])
+
+  members        TripMember[]
+  invites        Invite[]
+  stops          Stop[]
+  transports     Transport[]
+  accommodations Accommodation[]
+  items          Item[]
+  costs          Cost[]
+  exchangeRates  ExchangeRate[]
+  notes          Note[]
+  votes          Vote[]
+  checklistItems ChecklistItem[]
+  attachments    Attachment[]
+  reminders      Reminder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdById])
+}
+
+model TripMember {
+  id     String @id @default(cuid())
+  tripId String
+  userId String
+  role   String // lib/enums.ts MEMBER_ROLES: "owner" | "member"
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([tripId, userId])
+  @@index([userId])
+}
+
+model Invite {
+  id         String    @id @default(cuid())
+  tripId     String
+  email      String
+  token      String    @unique
+  role       String    @default("member")
+  acceptedAt DateTime?
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([tripId])
+  @@index([email])
+}
+
+model Stop {
+  id         String  @id @default(cuid())
+  tripId     String
+  name       String
+  country    String?
+  lat        Float?
+  lng        Float?
+  timezone   String // IANA, e.g. "Europe/London"
+  arriveDate String // "YYYY-MM-DD"
+  departDate String // "YYYY-MM-DD"
+  sortOrder  Int
+  notes      String?
+
+  trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  accommodations Accommodation[]
+  items          Item[]
+  fromTransports Transport[]     @relation("TransportFromStop")
+  toTransports   Transport[]     @relation("TransportToStop")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tripId])
+}
+
+model Transport {
+  id         String    @id @default(cuid())
+  tripId     String
+  fromStopId String?
+  toStopId   String?
+  mode       String // lib/enums.ts TRANSPORT_MODES
+  depPlace   String?
+  depAt      DateTime?
+  arrPlace   String?
+  arrAt      DateTime?
+  reference  String?
+  notes      String?
+  sortOrder  Int       @default(0)
+
+  trip     Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fromStop Stop? @relation("TransportFromStop", fields: [fromStopId], references: [id], onDelete: SetNull)
+  toStop   Stop? @relation("TransportToStop", fields: [toStopId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tripId])
+}
+
+model Accommodation {
+  id           String  @id @default(cuid())
+  tripId       String
+  stopId       String
+  name         String
+  address      String?
+  checkIn      String // "YYYY-MM-DD"
+  checkOut     String // "YYYY-MM-DD"
+  confirmation String?
+  notes        String?
+  lat          Float?
+  lng          Float?
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  stop Stop @relation(fields: [stopId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tripId])
+  @@index([stopId])
+}
+
+model Item {
+  id        String  @id @default(cuid())
+  tripId    String
+  stopId    String?
+  title     String
+  category  String // lib/categories.ts CATEGORY_VALUES
+  date      String? // "YYYY-MM-DD" — null = unscheduled (wishlist)
+  startTime String? // "HH:mm" in the stop's local timezone
+  endTime   String? // "HH:mm"
+  lat       Float?
+  lng       Float?
+  address   String?
+  link      String?
+  booking   String?
+  notes     String?
+  sortOrder Int     @default(0)
+
+  trip  Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  stop  Stop?  @relation(fields: [stopId], references: [id], onDelete: SetNull)
+  votes Vote[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tripId])
+  @@index([stopId])
+}
+
+model Cost {
+  id             String    @id @default(cuid())
+  tripId         String
+  estimatedMinor Int // minor units, always present
+  actualMinor    Int? // minor units, optional
+  currency       String // ISO 4217
+  rateToHome     Float? // snapshotted FX rate at entry, or null if same currency
+  paidAt         DateTime?
+  ownerType      String // lib/enums.ts COST_OWNER_TYPES
+  ownerId        String? // null when ownerType == OTHER
+  label          String? // names an OTHER cost (e.g. "Travel insurance")
+  category       String?
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tripId])
+  @@index([ownerType, ownerId])
+}
+
+model ExchangeRate {
+  id        String   @id @default(cuid())
+  tripId    String
+  base      String // ISO 4217
+  quote     String // ISO 4217
+  rate      Float
+  fetchedAt DateTime
+  manual    Boolean  @default(false)
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, base, quote])
+  @@index([tripId])
+}
+
+model Note {
+  id         String @id @default(cuid())
+  tripId     String
+  authorId   String
+  targetType String // lib/enums.ts TARGET_TYPES
+  targetId   String
+  body       String
+
+  trip   Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([tripId])
+  @@index([targetType, targetId])
+}
+
+model Vote {
+  id     String @id @default(cuid())
+  tripId String
+  itemId String
+  userId String
+  level  String // lib/enums.ts VOTE_LEVELS
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  item Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([tripId, itemId, userId])
+  @@index([itemId])
+}
+
+model ChecklistItem {
+  id           String  @id @default(cuid())
+  tripId       String
+  kind         String // lib/enums.ts CHECKLIST_KINDS
+  text         String
+  done         Boolean @default(false)
+  dueDate      String? // "YYYY-MM-DD"
+  sortOrder    Int     @default(0)
+  assignedToId String?
+
+  trip       Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  assignedTo User? @relation("ChecklistAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tripId])
+}
+
+model Attachment {
+  id           String  @id @default(cuid())
+  tripId       String
+  targetType   String // lib/enums.ts TARGET_TYPES
+  targetId     String?
+  filename     String
+  mime         String
+  size         Int
+  url          String
+  uploadedById String
+
+  trip       Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  uploadedBy User @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([tripId])
+  @@index([targetType, targetId])
+}
+
+model PackingTemplate {
+  id        String @id @default(cuid())
+  ownerId   String
+  name      String
+  itemsJson String // JSON-encoded array of template items (no Prisma Json on SQLite)
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ownerId])
+}
+
+model Reminder {
+  id         String   @id @default(cuid())
+  tripId     String
+  title      String
+  fireAt     DateTime
+  sent       Boolean  @default(false)
+  targetType String?
+  targetId   String?
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([tripId])
+}
