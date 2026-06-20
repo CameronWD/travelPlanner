@@ -1,26 +1,302 @@
 @import "tailwindcss";
 
+/* Class-based dark mode (Tailwind v4) */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ---------------------------------------------------------------------------
+   Design tokens — warm & playful
+   Light + dark, expressed as HSL channels so utilities can apply opacity
+   (e.g. bg-success/10). Consumed via the @theme inline mapping below.
+--------------------------------------------------------------------------- */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: 36 40% 97%;
+  --foreground: 24 14% 15%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 24 14% 15%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 24 14% 15%;
+
+  --muted: 32 26% 93%;
+  --muted-foreground: 28 8% 42%;
+
+  --border: 30 20% 87%;
+  --input: 30 20% 87%;
+  --ring: 12 84% 60%;
+
+  --primary: 12 84% 60%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 32 32% 92%;
+  --secondary-foreground: 24 14% 18%;
+
+  --accent: 174 60% 38%;
+  --accent-foreground: 0 0% 100%;
+
+  --success: 152 52% 40%;
+  --success-foreground: 0 0% 100%;
+  --warning: 35 92% 52%;
+  --warning-foreground: 24 14% 15%;
+  --destructive: 2 75% 55%;
+  --destructive-foreground: 0 0% 100%;
+
+  --radius: 1rem;
+
+  /* Soft, slightly warm-tinted shadows */
+  --shadow-soft: 0 1px 2px hsl(24 30% 20% / 0.04),
+    0 4px 12px hsl(24 30% 20% / 0.06);
+  --shadow-soft-lg: 0 2px 6px hsl(24 30% 20% / 0.06),
+    0 12px 32px hsl(24 30% 20% / 0.10);
 }
 
+.dark {
+  --background: 24 14% 9%;
+  --foreground: 36 30% 92%;
+
+  --card: 24 12% 13%;
+  --card-foreground: 36 30% 92%;
+
+  --popover: 24 12% 13%;
+  --popover-foreground: 36 30% 92%;
+
+  --muted: 24 10% 18%;
+  --muted-foreground: 30 10% 64%;
+
+  --border: 24 10% 22%;
+  --input: 24 10% 22%;
+  --ring: 12 84% 63%;
+
+  --primary: 12 84% 63%;
+  --primary-foreground: 24 14% 10%;
+
+  --secondary: 24 10% 20%;
+  --secondary-foreground: 36 30% 92%;
+
+  --accent: 174 52% 46%;
+  --accent-foreground: 24 14% 10%;
+
+  --success: 152 48% 50%;
+  --success-foreground: 24 14% 10%;
+  --warning: 35 90% 60%;
+  --warning-foreground: 24 14% 10%;
+  --destructive: 2 72% 58%;
+  --destructive-foreground: 0 0% 100%;
+
+  /* Deeper shadows on dark surfaces */
+  --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.30),
+    0 4px 12px hsl(0 0% 0% / 0.36);
+  --shadow-soft-lg: 0 2px 6px hsl(0 0% 0% / 0.36),
+    0 12px 32px hsl(0 0% 0% / 0.48);
+}
+
+/* ---------------------------------------------------------------------------
+   Map tokens into Tailwind v4's theme so utilities resolve.
+--------------------------------------------------------------------------- */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  /* Fonts (provided by next/font in app/layout.tsx) */
+  --font-sans: var(--font-sans-google), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display-google), ui-serif, Georgia, serif;
+
+  /* Generous radii */
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 0.35rem);
+  --radius-sm: calc(var(--radius) - 0.6rem);
+
+  /* Soft shadows as utilities (shadow-soft / shadow-soft-lg) */
+  --shadow-soft: var(--shadow-soft);
+  --shadow-soft-lg: var(--shadow-soft-lg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* ---------------------------------------------------------------------------
+   Animation primitives for Radix overlays (no external plugin).
+   Components apply these via data-[state=open]/closed variants.
+--------------------------------------------------------------------------- */
+@keyframes tp-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes tp-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes tp-zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes tp-zoom-out {
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes tp-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes tp-slide-down {
+  to {
+    transform: translateY(100%);
+  }
+}
+@keyframes tp-slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+}
+@keyframes tp-slide-out-right {
+  to {
+    transform: translateX(100%);
+  }
+}
+@keyframes tp-slide-in-left {
+  from {
+    transform: translateX(-100%);
+  }
+}
+@keyframes tp-slide-out-left {
+  to {
+    transform: translateX(-100%);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@utility tp-fade-in {
+  animation: tp-fade-in 150ms ease-out;
+}
+@utility tp-fade-out {
+  animation: tp-fade-out 150ms ease-in;
+}
+@utility tp-pop-in {
+  animation: tp-zoom-in 150ms ease-out;
+}
+@utility tp-pop-out {
+  animation: tp-zoom-out 120ms ease-in;
+}
+@utility tp-slide-up {
+  animation: tp-slide-up 250ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@utility tp-slide-down {
+  animation: tp-slide-down 200ms ease-in;
+}
+@utility tp-slide-in-right {
+  animation: tp-slide-in-right 250ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@utility tp-slide-out-right {
+  animation: tp-slide-out-right 200ms ease-in;
+}
+@utility tp-slide-in-left {
+  animation: tp-slide-in-left 250ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+@utility tp-slide-out-left {
+  animation: tp-slide-out-left 200ms ease-in;
+}
+
+/* ---------------------------------------------------------------------------
+   Base styles + typographic scale.
+   Headings use Fraunces (display), body uses Plus Jakarta Sans.
+--------------------------------------------------------------------------- */
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+
+  body {
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
+    font-family: var(--font-sans);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    color: hsl(var(--foreground));
+    text-wrap: balance;
+  }
+
+  /* Hero / trip titles */
+  .text-display {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(2.5rem, 5vw + 1rem, 4rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    font-optical-sizing: auto;
+  }
+
+  h1 {
+    font-size: clamp(2rem, 3vw + 1rem, 2.75rem);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  h2 {
+    font-size: clamp(1.5rem, 2vw + 0.75rem, 2rem);
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+  }
+
+  h3 {
+    font-size: clamp(1.25rem, 1.5vw + 0.5rem, 1.5rem);
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+  }
+
+  h4 {
+    font-size: 1.125rem;
+    line-height: 1.4;
+  }
+
+  /* Respect reduced-motion preferences across animated primitives. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
