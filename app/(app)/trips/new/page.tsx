@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { requireUser } from "@/lib/guards";
 import { NewTripForm } from "./new-trip-form";
 
 export const metadata = {
@@ -7,10 +6,7 @@ export const metadata = {
 };
 
 export default async function NewTripPage() {
-  const session = await auth();
-  if (!session?.user?.id) {
-    redirect("/signin");
-  }
+  await requireUser();
 
   return (
     <div className="mx-auto max-w-lg space-y-8">
