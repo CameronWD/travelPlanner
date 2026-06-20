@@ -11,3 +11,12 @@ coverage/
 .vercel
 *.tsbuildinfo
 next-env.d.ts
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+*.pem
+dev.db
