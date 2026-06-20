@@ -1,0 +1,369 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+/**
+ * Tests for items server actions.
+ *
+ * Mocks: lib/db, lib/guards, next/cache
+ */
+
+const {
+  requireTripAccessMock,
+  revalidatePathMock,
+  itemFindUniqueMock,
+  itemFindFirstMock,
+  itemCreateMock,
+  itemUpdateMock,
+  itemDeleteMock,
+  stopFindUniqueMock,
+} = vi.hoisted(() => {
+  return {
+    requireTripAccessMock: vi.fn().mockResolvedValue({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+    }),
+    revalidatePathMock: vi.fn(),
+    itemFindUniqueMock: vi.fn(),
+    itemFindFirstMock: vi.fn(),
+    itemCreateMock: vi.fn(),
+    itemUpdateMock: vi.fn(),
+    itemDeleteMock: vi.fn(),
+    stopFindUniqueMock: vi.fn(),
+  };
+});
+
+vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/db", () => ({
+  db: {
+    item: {
+      findUnique: itemFindUniqueMock,
+      findFirst: itemFindFirstMock,
+      create: itemCreateMock,
+      update: itemUpdateMock,
+      delete: itemDeleteMock,
+    },
+    stop: {
+      findUnique: stopFindUniqueMock,
+    },
+  },
+}));
+
+import {
+  createItem,
+  updateItem,
+  deleteItem,
+  scheduleItem,
+  unscheduleItem,
+} from "./items";
+
+const VALID_INPUT = {
+  title: "Visit the Museum",
+  category: "SIGHTSEEING" as const,
+};
+
+afterEach(() => {
+  vi.clearAllMocks();
+  requireTripAccessMock.mockResolvedValue({
+    user: { id: "user-1" },
+    membership: { role: "owner" },
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createItem
+// ---------------------------------------------------------------------------
+
+describe("createItem", () => {
+  it("creates an item with sortOrder = max + 1", async () => {
+    itemFindFirstMock.mockResolvedValue({ sortOrder: 4 });
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+
+    const result = await createItem("trip-1", VALID_INPUT);
+
+    expect(result.success).toBe(true);
+    expect(itemCreateMock).toHaveBeenCalledOnce();
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        tripId: "trip-1",
+        title: "Visit the Museum",
+        category: "SIGHTSEEING",
+        sortOrder: 5,
+      }),
+    });
+  });
+
+  it("sets sortOrder to 0 when no existing items", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+
+    const result = await createItem("trip-1", VALID_INPUT);
+
+    expect(result.success).toBe(true);
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ sortOrder: 0 }),
+    });
+  });
+
+  it("revalidates wishlist and calendar paths", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+
+    await createItem("trip-1", VALID_INPUT);
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/wishlist");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/calendar");
+  });
+
+  it("access-checks via requireTripAccess", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+
+    await createItem("trip-99", VALID_INPUT);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-99");
+  });
+
+  it("rejects a stopId that belongs to a different trip", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-OTHER" });
+    itemFindFirstMock.mockResolvedValue(null);
+
+    const result = await createItem("trip-1", {
+      ...VALID_INPUT,
+      stopId: "stop-1",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.stopId).toBeDefined();
+    }
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts a stopId that belongs to the same trip", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+
+    const result = await createItem("trip-1", {
+      ...VALID_INPUT,
+      stopId: "stop-1",
+    });
+
+    expect(result.success).toBe(true);
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ stopId: "stop-1" }),
+    });
+  });
+
+  it("returns validation error for empty title and does not write", async () => {
+    const result = await createItem("trip-1", { ...VALID_INPUT, title: "" });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.title).toBeDefined();
+    }
+    expect(itemCreateMock).not.toHaveBeenCalled();
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("returns validation error for unknown category and does not write", async () => {
+    const result = await createItem("trip-1", {
+      ...VALID_INPUT,
+      // @ts-expect-error intentional bad category
+      category: "INVALID",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.category).toBeDefined();
+    }
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateItem
+// ---------------------------------------------------------------------------
+
+describe("updateItem", () => {
+  it("updates and revalidates", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    itemUpdateMock.mockResolvedValue({});
+
+    const result = await updateItem("item-1", {
+      ...VALID_INPUT,
+      title: "Updated Museum",
+    });
+
+    expect(result.success).toBe(true);
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "item-1" },
+      data: expect.objectContaining({ title: "Updated Museum" }),
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/wishlist");
+  });
+
+  it("access-checks via item's tripId", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-5" });
+    itemUpdateMock.mockResolvedValue({});
+
+    await updateItem("item-1", VALID_INPUT);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
+  });
+
+  it("returns validation error and does not write", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+
+    const result = await updateItem("item-1", { ...VALID_INPUT, title: "" });
+
+    expect(result.success).toBe(false);
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deleteItem
+// ---------------------------------------------------------------------------
+
+describe("deleteItem", () => {
+  it("deletes and revalidates", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    itemDeleteMock.mockResolvedValue({});
+
+    const result = await deleteItem("item-1");
+
+    expect(result.success).toBe(true);
+    expect(itemDeleteMock).toHaveBeenCalledWith({ where: { id: "item-1" } });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("access-checks via item's tripId", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-7" });
+    itemDeleteMock.mockResolvedValue({});
+
+    await deleteItem("item-1");
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-7");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scheduleItem
+// ---------------------------------------------------------------------------
+
+describe("scheduleItem", () => {
+  it("sets date and times on the item", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    itemUpdateMock.mockResolvedValue({});
+
+    const result = await scheduleItem("item-1", {
+      date: "2026-08-10",
+      startTime: "10:00",
+      endTime: "12:00",
+    });
+
+    expect(result.success).toBe(true);
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "item-1" },
+      data: {
+        date: "2026-08-10",
+        startTime: "10:00",
+        endTime: "12:00",
+      },
+    });
+  });
+
+  it("allows scheduling without times", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    itemUpdateMock.mockResolvedValue({});
+
+    const result = await scheduleItem("item-1", { date: "2026-08-10" });
+
+    expect(result.success).toBe(true);
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "item-1" },
+      data: {
+        date: "2026-08-10",
+        startTime: null,
+        endTime: null,
+      },
+    });
+  });
+
+  it("revalidates wishlist and calendar paths", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    itemUpdateMock.mockResolvedValue({});
+
+    await scheduleItem("item-1", { date: "2026-08-10" });
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/wishlist");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/calendar");
+  });
+
+  it("access-checks via item's tripId", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-3" });
+    itemUpdateMock.mockResolvedValue({});
+
+    await scheduleItem("item-1", { date: "2026-08-10" });
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-3");
+  });
+
+  it("returns validation error for invalid date format", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+
+    const result = await scheduleItem("item-1", {
+      date: "not-a-date",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.date).toBeDefined();
+    }
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// unscheduleItem
+// ---------------------------------------------------------------------------
+
+describe("unscheduleItem", () => {
+  it("clears date and times on the item", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    itemUpdateMock.mockResolvedValue({});
+
+    const result = await unscheduleItem("item-1");
+
+    expect(result.success).toBe(true);
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "item-1" },
+      data: {
+        date: null,
+        startTime: null,
+        endTime: null,
+      },
+    });
+  });
+
+  it("revalidates wishlist and calendar paths", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    itemUpdateMock.mockResolvedValue({});
+
+    await unscheduleItem("item-1");
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/wishlist");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/calendar");
+  });
+
+  it("access-checks via item's tripId", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-8" });
+    itemUpdateMock.mockResolvedValue({});
+
+    await unscheduleItem("item-1");
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-8");
+  });
+});
