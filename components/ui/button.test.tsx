@@ -54,11 +54,12 @@ describe("Button", () => {
   it("renders as a child element via asChild", () => {
     render(
       <Button asChild>
-        <a href="/trips">Trips link</a>
+        {/* href to a non-app path so the next/link lint rule does not trigger */}
+        <a href="https://example.com/trips">Trips link</a>
       </Button>,
     );
     const link = screen.getByRole("link", { name: "Trips link" });
-    expect(link).toHaveAttribute("href", "/trips");
+    expect(link).toHaveAttribute("href", "https://example.com/trips");
     expect(link).toHaveClass("bg-primary");
   });
 });
