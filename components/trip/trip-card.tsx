@@ -12,14 +12,14 @@ import { cn } from "@/lib/cn";
  * strings (not dynamic) so the compiler can include them in the bundle.
  */
 const GRADIENT_CLASSES: readonly string[] = [
-  "bg-gradient-to-br from-rose-400 to-amber-300",
-  "bg-gradient-to-br from-sky-400 to-teal-300",
-  "bg-gradient-to-br from-violet-400 to-pink-300",
-  "bg-gradient-to-br from-amber-400 to-orange-300",
-  "bg-gradient-to-br from-emerald-400 to-cyan-300",
-  "bg-gradient-to-br from-rose-500 to-pink-300",
-  "bg-gradient-to-br from-indigo-400 to-purple-300",
-  "bg-gradient-to-br from-yellow-400 to-amber-300",
+  "bg-gradient-to-br from-orange-400 to-amber-300",
+  "bg-gradient-to-br from-rose-400 to-orange-300",
+  "bg-gradient-to-br from-teal-400 to-emerald-300",
+  "bg-gradient-to-br from-amber-400 to-rose-400",
+  "bg-gradient-to-br from-rose-500 via-orange-400 to-amber-300",
+  "bg-gradient-to-br from-teal-500 to-cyan-300",
+  "bg-gradient-to-br from-orange-500 to-amber-400",
+  "bg-gradient-to-br from-red-400 to-rose-300",
 ];
 
 function hashString(s: string): number {
