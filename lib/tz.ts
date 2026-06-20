@@ -241,3 +241,62 @@ export function guessTimezoneForCountry(country?: string | null): string {
   const key = country.trim().toLowerCase();
   return COUNTRY_TO_TZ[key] ?? "UTC";
 }
+
+// ---------------------------------------------------------------------------
+// Instant → zoned calendar date / time helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Convert an instant (Date object or ISO string) to the calendar date
+ * (YYYY-MM-DD) it falls on in the given IANA timezone.
+ *
+ * Uses `Intl.DateTimeFormat` with locale `en-CA` which naturally yields
+ * YYYY-MM-DD output. Falls back to UTC if the timezone identifier is invalid.
+ */
+export function instantToZonedDateISO(
+  instant: Date | string,
+  timeZone: string,
+): string {
+  const date = instant instanceof Date ? instant : new Date(instant);
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+  } catch {
+    // Invalid timezone — fall back to UTC
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "UTC",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(date);
+  }
+}
+
+/**
+ * Convert an instant to a 24-hour HH:MM time string in the given IANA timezone.
+ *
+ * Falls back to UTC if the timezone identifier is invalid.
+ */
+export function instantToZonedTime(
+  instant: Date | string,
+  timeZone: string,
+): string {
+  const date = instant instanceof Date ? instant : new Date(instant);
+  const format = (tz: string) =>
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: tz,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(date);
+
+  try {
+    return format(timeZone);
+  } catch {
+    return format("UTC");
+  }
+}

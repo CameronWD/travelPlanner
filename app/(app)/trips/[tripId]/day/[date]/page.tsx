@@ -1,29 +1,49 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarDays, MapPin } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
+import { DayNav } from "@/components/trip/day-nav";
+import { AddItemButton } from "@/components/trip/item-form-dialog";
 import type { TransportMode } from "@/lib/enums";
 
-export default async function CalendarPage({
+export default async function DayPage({
   params,
 }: {
-  params: Promise<{ tripId: string }>;
+  params: Promise<{ tripId: string; date: string }>;
 }) {
-  const { tripId } = await params;
+  const { tripId, date } = await params;
   await requireTripAccess(tripId);
 
-  // Fetch the trip dates + all relevant data
+  // Validate date param format
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    notFound();
+  }
+
   const trip = await db.trip.findUnique({
     where: { id: tripId },
     select: { startDate: true, endDate: true },
   });
   if (!trip) notFound();
+
+  // Allow a small buffer (2 days) so links from nearby days still work gracefully
+  const BUFFER = 2;
+  const bufferStart = adjustDate(trip.startDate, -BUFFER);
+  const bufferEnd = adjustDate(trip.endDate, BUFFER);
+  if (date < bufferStart || date > bufferEnd) {
+    notFound();
+  }
+
+  // Clamp the date to the real trip range for rendering
+  const effectiveDate =
+    date < trip.startDate
+      ? trip.startDate
+      : date > trip.endDate
+        ? trip.endDate
+        : date;
 
   const [stops, items, transports, accommodations] = await Promise.all([
     db.stop.findMany({
@@ -88,26 +108,6 @@ export default async function CalendarPage({
     }),
   ]);
 
-  // Graceful empty state — no stops means no real itinerary to show
-  if (stops.length === 0) {
-    return (
-      <EmptyState
-        icon={CalendarDays}
-        title="No itinerary yet"
-        description="Add stops on the Overview page to start building your day-by-day calendar."
-        action={
-          <Link
-            href={`/trips/${tripId}`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <MapPin className="size-4" aria-hidden="true" />
-            Go to Overview
-          </Link>
-        }
-      />
-    );
-  }
-
   const itinerary = buildItinerary({
     startDate: trip.startDate,
     endDate: trip.endDate,
@@ -157,50 +157,67 @@ export default async function CalendarPage({
     })),
   });
 
+  const dayPlan = itinerary.find((d) => d.dateISO === effectiveDate);
+  if (!dayPlan) {
+    return (
+      <EmptyState
+        icon={CalendarDays}
+        title="Day not found"
+        description="This date doesn't appear to fall within your trip range."
+      />
+    );
+  }
+
+  const stopOptions = stops.map((s) => ({ id: s.id, name: s.name }));
+
   return (
-    <div className="flex flex-col gap-0 divide-y divide-border/50">
-      {itinerary.map((day) => {
-        const isTravelDay =
-          day.transportEntries.length > 0;
-        const dayHref = `/trips/${tripId}/day/${day.dateISO}`;
+    <div className="flex flex-col gap-6">
+      {/* Day header */}
+      <div className="flex flex-col gap-1">
+        <h2 className="font-display text-2xl font-semibold text-foreground">
+          {formatLongDate(effectiveDate)}
+        </h2>
+        {dayPlan.stop && (
+          <p className="text-sm text-muted-foreground">
+            {dayPlan.stop.name}
+            {dayPlan.stop.country ? `, ${dayPlan.stop.country}` : ""}
+          </p>
+        )}
+      </div>
 
-        return (
-          <section key={day.dateISO} className="py-5 first:pt-0">
-            {/* Day header */}
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-              <div className="flex flex-col gap-0.5">
-                <Link
-                  href={dayHref}
-                  className="group flex items-center gap-2 font-display text-base font-semibold text-foreground hover:text-primary transition-colors"
-                >
-                  {formatLongDate(day.dateISO)}
-                  <span className="text-xs text-muted-foreground group-hover:text-primary/70 transition-colors">
-                    →
-                  </span>
-                </Link>
-                {day.stop && (
-                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <MapPin className="size-3 shrink-0" aria-hidden="true" />
-                    {day.stop.name}
-                    {day.stop.country ? `, ${day.stop.country}` : ""}
-                  </p>
-                )}
-              </div>
+      {/* Prev / Next navigation */}
+      <DayNav
+        tripId={tripId}
+        currentDate={effectiveDate}
+        startDate={trip.startDate}
+        endDate={trip.endDate}
+      />
 
-              {isTravelDay && (
-                <Badge variant="accent" className="text-xs shrink-0">
-                  Travel day
-                </Badge>
-              )}
-            </div>
+      {/* Detailed timeline */}
+      <div className="rounded-xl border border-border bg-card px-4 py-4">
+        <Timeline day={dayPlan} variant="day" />
+      </div>
 
-            {/* Timeline for this day */}
-            <div className="pl-1">
-              <Timeline day={day} variant="agenda" />
-            </div>
-          </section>
-        );
-      })}
+      {/* Quick add */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">Add something to this day</p>
+        <AddItemButton
+          tripId={tripId}
+          stops={stopOptions}
+          tripStartDate={effectiveDate}
+          defaultUnscheduled={false}
+        />
+      </div>
     </div>
   );
+}
+
+/**
+ * Add or subtract days from a YYYY-MM-DD string.
+ * Tiny inline helper to avoid extra imports.
+ */
+function adjustDate(dateISO: string, days: number): string {
+  const d = new Date(`${dateISO}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }

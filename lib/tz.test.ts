@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { TIMEZONES, guessTimezoneForCountry } from "./tz";
+import {
+  TIMEZONES,
+  guessTimezoneForCountry,
+  instantToZonedDateISO,
+  instantToZonedTime,
+} from "./tz";
 
 describe("TIMEZONES", () => {
   it("is a non-empty array", () => {
@@ -77,5 +82,65 @@ describe("guessTimezoneForCountry", () => {
 
   it("trims whitespace before matching", () => {
     expect(guessTimezoneForCountry("  France  ")).toBe("Europe/Paris");
+  });
+});
+
+describe("instantToZonedDateISO", () => {
+  // 2026-07-01T23:30:00Z is still 2026-07-01 in UTC but already 2026-07-02 in Europe/Paris (UTC+2)
+  const instant = new Date("2026-07-01T23:30:00Z");
+
+  it("returns the correct calendar date in Europe/Paris (UTC+2 in summer)", () => {
+    expect(instantToZonedDateISO(instant, "Europe/Paris")).toBe("2026-07-02");
+  });
+
+  it("returns the correct calendar date in UTC", () => {
+    expect(instantToZonedDateISO(instant, "UTC")).toBe("2026-07-01");
+  });
+
+  it("accepts an ISO string as well as a Date", () => {
+    expect(instantToZonedDateISO("2026-07-01T23:30:00Z", "Europe/Paris")).toBe(
+      "2026-07-02",
+    );
+  });
+
+  it("falls back to UTC for an invalid timezone", () => {
+    // Should not throw; should return the UTC date
+    expect(instantToZonedDateISO(instant, "Not/A/Zone")).toBe("2026-07-01");
+  });
+
+  it("handles Asia/Tokyo (UTC+9)", () => {
+    // 2026-07-01T23:30:00Z → 2026-07-02T08:30:00+09:00 → date 2026-07-02
+    expect(instantToZonedDateISO(instant, "Asia/Tokyo")).toBe("2026-07-02");
+  });
+
+  it("handles America/New_York (UTC-4 in summer, EDT)", () => {
+    // 2026-07-01T23:30:00Z → 2026-07-01T19:30:00-04:00 → date 2026-07-01
+    expect(instantToZonedDateISO(instant, "America/New_York")).toBe(
+      "2026-07-01",
+    );
+  });
+});
+
+describe("instantToZonedTime", () => {
+  const instant = new Date("2026-07-01T23:30:00Z");
+
+  it("returns 01:30 in Europe/Paris (UTC+2 in summer)", () => {
+    expect(instantToZonedTime(instant, "Europe/Paris")).toBe("01:30");
+  });
+
+  it("returns 23:30 in UTC", () => {
+    expect(instantToZonedTime(instant, "UTC")).toBe("23:30");
+  });
+
+  it("accepts an ISO string", () => {
+    expect(instantToZonedTime("2026-07-01T23:30:00Z", "UTC")).toBe("23:30");
+  });
+
+  it("falls back to UTC for an invalid timezone", () => {
+    expect(instantToZonedTime(instant, "Not/A/Zone")).toBe("23:30");
+  });
+
+  it("returns 08:30 in Asia/Tokyo (UTC+9)", () => {
+    expect(instantToZonedTime(instant, "Asia/Tokyo")).toBe("08:30");
   });
 });
