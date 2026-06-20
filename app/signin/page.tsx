@@ -13,6 +13,9 @@ export const metadata = {
 
 export default function SignInPage() {
   const devLogin = process.env.ALLOW_DEV_LOGIN === "true";
+  const googleConfigured = Boolean(
+    process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET,
+  );
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center p-6">
@@ -29,7 +32,14 @@ export default function SignInPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <GoogleSignInButton />
+          {googleConfigured && <GoogleSignInButton />}
+
+          {!googleConfigured && !devLogin && (
+            <p className="text-center text-sm text-muted-foreground">
+              No sign-in method is configured yet. Add Google OAuth credentials
+              (or enable dev login in development) to continue.
+            </p>
+          )}
 
           {devLogin && (
             <>
