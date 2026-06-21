@@ -6,8 +6,8 @@
  * React — completely unit-testable.
  */
 
-import { addDays, daysBetween } from "@/lib/dates";
-import { instantToZonedDateISO } from "@/lib/tz";
+import { addDays, daysBetween, isDateWithin } from "@/lib/dates";
+import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
 
 // ---------------------------------------------------------------------------
 // Minimal input shapes
@@ -78,11 +78,26 @@ export type TransportDepartureEntry = {
    * when there is no arrAt.
    */
   arrivalDateISO?: string;
+  /**
+   * Precomputed departure time string (HH:MM) in the fromStop's local timezone.
+   * Undefined when depAt is absent.
+   */
+  depTimeLabel?: string;
+  /**
+   * Precomputed arrival time string (HH:MM) in the toStop's local timezone.
+   * Only set on departure entries when arrivesSameDay is true AND arrAt is present.
+   */
+  arrTimeLabel?: string;
 };
 
 export type TransportArrivalEntry = {
   kind: "transport-arrival";
   transport: ItineraryTransport;
+  /**
+   * Precomputed arrival time string (HH:MM) in the toStop's local timezone.
+   * Undefined when arrAt is absent.
+   */
+  arrTimeLabel?: string;
 };
 
 export type AccommodationCheckinEntry = {
@@ -260,6 +275,15 @@ export function buildItinerary({
     const arrivalDateISO =
       arrDayISO && !arrivesSameDay ? arrDayISO : undefined;
 
+    // Precompute time labels (HH:MM in local timezone)
+    const depTimeLabel = instantToZonedTime(depDate, depTz);
+
+    let depEntryArrTimeLabel: string | undefined;
+    if (arrDate && arrivesSameDay) {
+      const arrTz = tzOf(toStop ?? fromStop);
+      depEntryArrTimeLabel = instantToZonedTime(arrDate, arrTz);
+    }
+
     // Departure entry
     transportDateEntries.push({
       dateISO: depDayISO,
@@ -268,16 +292,21 @@ export function buildItinerary({
         transport,
         arrivesSameDay,
         arrivalDateISO,
+        depTimeLabel,
+        arrTimeLabel: depEntryArrTimeLabel,
       },
     });
 
     // Arrival entry on a different day
-    if (arrDayISO && arrDayISO !== depDayISO) {
+    if (arrDate && arrDayISO && arrDayISO !== depDayISO) {
+      const arrTz = tzOf(toStop ?? fromStop);
+      const arrTimeLabel = instantToZonedTime(arrDate, arrTz);
       transportDateEntries.push({
         dateISO: arrDayISO,
         entry: {
           kind: "transport-arrival",
           transport,
+          arrTimeLabel,
         },
       });
     }
@@ -327,7 +356,7 @@ export function buildItinerary({
   }
 
   // Build one DayPlan per day
-  return days.map((dateISO) => {
+  return days.map<DayPlan>((dateISO) => {
     const stop = stopForDate(stops, dateISO);
 
     // Items for this day
@@ -350,4 +379,35 @@ export function buildItinerary({
       accommodationEntries: accomByDate.get(dateISO) ?? [],
     };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Today-view selectors
+// ---------------------------------------------------------------------------
+
+/**
+ * Return the date the "Today" view should focus on:
+ *
+ * - Today is within [tripStart, tripEnd] → use today.
+ * - Today is before tripStart → use tripStart (trip hasn't started yet).
+ * - Today is after tripEnd   → use tripEnd   (trip has ended).
+ */
+export function effectiveTodayISO(
+  todayISO: string,
+  tripStart: string,
+  tripEnd: string,
+): string {
+  if (isDateWithin(todayISO, tripStart, tripEnd)) return todayISO;
+  if (todayISO < tripStart) return tripStart;
+  return tripEnd;
+}
+
+/**
+ * Return the DayPlan whose dateISO matches `dateISO`, or null if not found.
+ */
+export function pickDayPlan(
+  dayPlans: DayPlan[],
+  dateISO: string,
+): DayPlan | null {
+  return dayPlans.find((d) => d.dateISO === dateISO) ?? null;
 }

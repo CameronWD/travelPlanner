@@ -126,10 +126,19 @@ function TransportRow({
   const Icon = meta?.icon;
 
   const isDep = entry.kind === "transport-departure";
-  const depEntry = entry as TransportDepartureEntry;
+  const depEntry = isDep ? (entry as TransportDepartureEntry) : null;
+  const arrEntry = !isDep ? (entry as TransportArrivalEntry) : null;
 
   const fromLabel = t.depPlace ?? null;
   const toLabel = t.arrPlace ?? null;
+
+  // Time to show in the gutter: departure time for dep rows, arrival time for arr rows
+  const gutterTime = isDep
+    ? (depEntry?.depTimeLabel ?? null)
+    : (arrEntry?.arrTimeLabel ?? null);
+
+  // For same-day trips, show "dep → arr" inline
+  const sameDay = depEntry?.arrivesSameDay && depEntry?.arrTimeLabel;
 
   return (
     <div
@@ -140,7 +149,7 @@ function TransportRow({
           : "bg-transparent",
       )}
     >
-      <TimeGutter time={null} isDay={isDay} />
+      <TimeGutter time={gutterTime} isDay={isDay} />
 
       {/* Mode icon */}
       <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center">
@@ -170,6 +179,12 @@ function TransportRow({
               {t.reference}
             </span>
           )}
+          {/* Same-day time summary: "08:24 → 11:47" */}
+          {sameDay && (
+            <span className="text-[11px] font-mono text-muted-foreground">
+              {depEntry!.depTimeLabel} → {depEntry!.arrTimeLabel}
+            </span>
+          )}
         </div>
 
         {/* From → To */}
@@ -184,7 +199,7 @@ function TransportRow({
         )}
 
         {/* Multi-day notice */}
-        {isDep && !depEntry.arrivesSameDay && depEntry.arrivalDateISO && (
+        {isDep && depEntry && !depEntry.arrivesSameDay && depEntry.arrivalDateISO && (
           <p className="mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
             Arrives {depEntry.arrivalDateISO}
           </p>

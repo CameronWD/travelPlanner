@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { accommodationDateWarnings } from "@/lib/validations/accommodation";
 import { CostEditor } from "./cost-editor";
+import { MapLink } from "./map-link";
 import type { CostRow } from "@/server/actions/costs";
 
 // ---------------------------------------------------------------------------
@@ -82,6 +83,7 @@ export function AccommodationCard({
             <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
               <MapPin className="size-3 shrink-0" aria-hidden="true" />
               <span className="truncate">{a.address}</span>
+              <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} className="ml-0.5 text-muted-foreground/60" />
             </div>
           )}
         </div>

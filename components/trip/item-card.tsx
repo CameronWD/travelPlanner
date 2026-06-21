@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { CategoryPill } from "./category-pill";
 import type { Category } from "@/lib/categories";
 import { CostEditor } from "./cost-editor";
+import { MapLink } from "./map-link";
 import type { CostRow } from "@/server/actions/costs";
 
 // ---------------------------------------------------------------------------
@@ -36,6 +37,8 @@ export interface ItemCardItem {
   notes?: string | null;
   stopId?: string | null;
   stopName?: string | null; // resolved from stop relation
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface ItemCardProps {
@@ -184,6 +187,7 @@ export function ItemCard({
             <span className="flex items-center gap-1">
               <MapPin className="size-3 shrink-0" aria-hidden="true" />
               <span className="truncate max-w-[18ch]">{item.address}</span>
+              <MapLink lat={item.lat} lng={item.lng} address={item.address} label={item.title} className="text-muted-foreground/60" />
             </span>
           )}
           {item.link && (

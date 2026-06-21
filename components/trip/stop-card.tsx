@@ -3,6 +3,7 @@ import { ChevronUp, ChevronDown, Pencil, Trash2, MapPin, Calendar, Clock } from 
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
+import { MapLink } from "./map-link";
 
 export interface StopCardStop {
   id: string;
@@ -68,6 +69,12 @@ export function StopCard({
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
               <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
               <span>{stop.country}</span>
+              <MapLink
+                lat={stop.lat}
+                lng={stop.lng}
+                label={stop.country ? `${stop.name}, ${stop.country}` : stop.name}
+                className="text-muted-foreground/60"
+              />
             </div>
           )}
         </div>
