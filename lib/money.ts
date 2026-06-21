@@ -1,8 +1,11 @@
 /**
- * Pure money helpers for the money input. Kept framework-free so they are
- * trivially testable. For now we assume 2 decimal places; zero-decimal
- * currencies (JPY, etc.) are handled generically in a later phase via
- * `decimalsFor`, which currently always returns 2.
+ * Pure money helpers. Kept framework-free so they are trivially testable.
+ *
+ * Amounts are stored as integer minor units + an ISO 4217 currency code.
+ * Minor unit count depends on the currency's decimal places:
+ *   - 0 decimals: JPY, KRW, VND, CLP, ISK
+ *   - 2 decimals: most currencies (AUD, USD, EUR, GBP, …)
+ *   - 3 decimals: BHD, KWD, OMR, TND
  */
 
 export interface MoneyValue {
@@ -13,12 +16,27 @@ export interface MoneyValue {
 }
 
 /**
- * Decimal places for a currency. Generic seam for zero-decimal currencies
- * (JPY, KRW, …); for now every currency uses 2 places. The lookup table is
- * intentionally empty until that work lands.
+ * Decimal places by ISO 4217 code.
+ * Only non-2 entries need to be listed; 2 is the default.
  */
-const CURRENCY_DECIMALS: Record<string, number> = {};
+const CURRENCY_DECIMALS: Record<string, number> = {
+  // Zero-decimal currencies
+  JPY: 0,
+  KRW: 0,
+  VND: 0,
+  CLP: 0,
+  ISK: 0,
+  // Three-decimal currencies
+  BHD: 3,
+  KWD: 3,
+  OMR: 3,
+  TND: 3,
+};
 
+/**
+ * Return the number of minor-unit decimal places for a currency.
+ * Defaults to 2 for unknown currencies.
+ */
 export function decimalsFor(currency: string): number {
   return CURRENCY_DECIMALS[currency.toUpperCase()] ?? 2;
 }
@@ -74,4 +92,135 @@ export function toMoneyValue(
 export function formatMinor(amountMinor: number, currency: string): string {
   const decimals = decimalsFor(currency);
   return (amountMinor / 10 ** decimals).toFixed(decimals);
+}
+
+/**
+ * Format minor units as a localised currency string using Intl.NumberFormat.
+ *
+ *   formatMoney(1000, "JPY")          → "¥1,000"
+ *   formatMoney(1250, "AUD")          → "A$12.50"
+ *   formatMoney(-1250, "EUR", "de-DE") → "-12,50 €"
+ *
+ * Falls back to a plain `"1234.56 XYZ"` string when the currency code is
+ * unknown to the runtime (avoids throwing on bad input).
+ */
+export function formatMoney(
+  amountMinor: number,
+  currency: string,
+  locale: string = "en-AU",
+): string {
+  const decimals = decimalsFor(currency);
+  const value = amountMinor / 10 ** decimals;
+
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: currency.toUpperCase(),
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    }).format(value);
+  } catch {
+    // Invalid currency code — return a readable fallback.
+    return `${value.toFixed(decimals)} ${currency.toUpperCase()}`;
+  }
+}
+
+/**
+ * Format minor units as a plain number string without the currency symbol.
+ * Useful for inputs or tables where the symbol is shown separately.
+ *
+ *   formatAmountOnly(1000, "JPY")  → "1,000"
+ *   formatAmountOnly(1250, "AUD")  → "12.50"
+ */
+export function formatAmountOnly(
+  amountMinor: number,
+  currency: string,
+  locale: string = "en-AU",
+): string {
+  const decimals = decimalsFor(currency);
+  const value = amountMinor / 10 ** decimals;
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(value);
+}
+
+/**
+ * Round-half-up (always rounds 0.5 toward positive infinity).
+ * JavaScript's Math.round does this for positive numbers, but for negative
+ * numbers -0.5 rounds to 0 (half-up toward +∞). This function is consistent.
+ */
+function roundHalfUp(n: number): number {
+  return Math.floor(n + 0.5);
+}
+
+/**
+ * Convert an amount in minor units from one currency to another using a
+ * provided rate where `rate` = (1 unit of fromCurrency) / (1 unit of toCurrency).
+ *
+ *   convertMinor(1250, "EUR", "AUD", 1.65)  → 2063   (€12.50 * 1.65 = A$20.625 → 2063 minor)
+ *   convertMinor(1000, "JPY", "AUD", 0.011) → 1100   (¥1000 * 0.011 = A$11.00 → 1100 minor)
+ *   convertMinor(2000, "AUD", "JPY", 96.5)  → 1930   (A$20 * 96.5 = ¥1930 → 1930 minor)
+ *   convertMinor(1250, "EUR", "EUR", 1)     → 1250   (same currency → passthrough)
+ *
+ * Uses round-half-up for the final minor-unit rounding step.
+ */
+export function convertMinor(
+  amountMinor: number,
+  fromCurrency: string,
+  toCurrency: string,
+  rate: number,
+): number {
+  if (fromCurrency.toUpperCase() === toCurrency.toUpperCase()) {
+    return amountMinor;
+  }
+
+  const fromDecimals = decimalsFor(fromCurrency);
+  const toDecimals = decimalsFor(toCurrency);
+
+  // Convert minor → major, apply rate, convert back to minor.
+  const majorAmount = amountMinor / 10 ** fromDecimals;
+  const convertedMajor = majorAmount * rate;
+  return roundHalfUp(convertedMajor * 10 ** toDecimals);
+}
+
+/**
+ * Sum a list of money amounts (each in its own currency) into a single total
+ * in the home currency.
+ *
+ * `rateLookup(fromCurrency)` should return the rate (1 fromCurrency = X homeCurrency)
+ * or `undefined` if the rate is unknown. When `fromCurrency === homeCurrency`
+ * the function expects the lookup to return 1 (or the caller can rely on the
+ * same-currency shortcut inside convertMinor).
+ *
+ * Currencies with unknown rates are EXCLUDED from the total and collected in
+ * `missingRates` (deduplicated).
+ */
+export function sumMinorToHome(
+  items: { amountMinor: number; currency: string }[],
+  homeCurrency: string,
+  rateLookup: (fromCurrency: string) => number | undefined,
+): { totalMinor: number; missingRates: string[] } {
+  let totalMinor = 0;
+  const missingSet = new Set<string>();
+
+  for (const item of items) {
+    const from = item.currency.toUpperCase();
+    const home = homeCurrency.toUpperCase();
+
+    if (from === home) {
+      totalMinor += item.amountMinor;
+      continue;
+    }
+
+    const rate = rateLookup(from);
+    if (rate === undefined) {
+      missingSet.add(from);
+      continue;
+    }
+
+    totalMinor += convertMinor(item.amountMinor, from, home, rate);
+  }
+
+  return { totalMinor, missingRates: Array.from(missingSet) };
 }
