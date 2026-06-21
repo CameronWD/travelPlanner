@@ -1,49 +1,76 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Tests for the createTrip server action.
+ * Tests for the trips server actions.
  *
  * We mock:
  *   - lib/db → so we can assert Prisma call shapes without hitting SQLite
- *   - lib/guards → so requireUser() returns a predictable user object
+ *   - lib/guards → so requireUser/requireTripAccess return predictable values
  *   - next/navigation → so redirect() is interceptable (it throws in Next.js)
+ *   - next/cache → so revalidatePath is a spy
  */
 
-const { requireUserMock, redirectMock, tripCreateMock, memberCreateMock, transactionMock } =
-  vi.hoisted(() => {
-    const tripCreateMock = vi.fn();
-    const memberCreateMock = vi.fn();
+const {
+  requireUserMock,
+  requireTripAccessMock,
+  redirectMock,
+  revalidatePathMock,
+  tripCreateMock,
+  tripUpdateMock,
+  tripDeleteMock,
+  memberCreateMock,
+  transactionMock,
+} = vi.hoisted(() => {
+  const tripCreateMock = vi.fn();
+  const tripUpdateMock = vi.fn();
+  const tripDeleteMock = vi.fn();
+  const memberCreateMock = vi.fn();
 
-    // $transaction executes the callback synchronously-ish in tests;
-    // we simulate it by calling the callback with a fake tx object.
-    const transactionMock = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
-      const tx = {
-        trip: { create: tripCreateMock },
-        tripMember: { create: memberCreateMock },
-      };
-      return cb(tx);
-    });
-
-    return {
-      requireUserMock: vi.fn(),
-      redirectMock: vi.fn(() => {
-        throw new Error("NEXT_REDIRECT");
-      }),
-      tripCreateMock,
-      memberCreateMock,
-      transactionMock,
+  // $transaction executes the callback synchronously-ish in tests;
+  // we simulate it by calling the callback with a fake tx object.
+  const transactionMock = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
+    const tx = {
+      trip: { create: tripCreateMock },
+      tripMember: { create: memberCreateMock },
     };
+    return cb(tx);
   });
 
-vi.mock("@/lib/guards", () => ({ requireUser: requireUserMock }));
+  return {
+    requireUserMock: vi.fn(),
+    requireTripAccessMock: vi.fn().mockResolvedValue({
+      user: { id: "user-1", email: "you@example.com" },
+      membership: { role: "owner" },
+    }),
+    redirectMock: vi.fn(() => {
+      throw new Error("NEXT_REDIRECT");
+    }),
+    revalidatePathMock: vi.fn(),
+    tripCreateMock,
+    tripUpdateMock,
+    tripDeleteMock,
+    memberCreateMock,
+    transactionMock,
+  };
+});
+
+vi.mock("@/lib/guards", () => ({
+  requireUser: requireUserMock,
+  requireTripAccess: requireTripAccessMock,
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     $transaction: transactionMock,
+    trip: {
+      update: tripUpdateMock,
+      delete: tripDeleteMock,
+    },
   },
 }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
+vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 
-import { createTrip } from "./trips";
+import { createTrip, updateTrip, deleteTrip } from "./trips";
 
 const VALID_INPUT = {
   name: "Japan 2026",
@@ -52,9 +79,15 @@ const VALID_INPUT = {
   homeCurrency: "AUD",
 };
 
+const TRIP_ID = "trip-abc";
+
 afterEach(() => {
   vi.clearAllMocks();
 });
+
+// ---------------------------------------------------------------------------
+// createTrip
+// ---------------------------------------------------------------------------
 
 describe("createTrip", () => {
   it("creates a Trip and an owner TripMember for the current user on valid input", async () => {
@@ -138,5 +171,129 @@ describe("createTrip", () => {
       expect(result.errors.homeCurrency).toBeDefined();
     }
     expect(tripCreateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateTrip
+// ---------------------------------------------------------------------------
+
+describe("updateTrip", () => {
+  it("is access-checked — calls requireTripAccess with the tripId", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    await updateTrip(TRIP_ID, VALID_INPUT);
+
+    expect(requireTripAccessMock).toHaveBeenCalledOnce();
+    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+  });
+
+  it("updates the trip and returns success on valid input", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    const result = await updateTrip(TRIP_ID, VALID_INPUT);
+
+    expect(result.success).toBe(true);
+    expect(tripUpdateMock).toHaveBeenCalledOnce();
+    expect(tripUpdateMock).toHaveBeenCalledWith({
+      where: { id: TRIP_ID },
+      data: expect.objectContaining({
+        name: "Japan 2026",
+        startDate: "2026-03-01",
+        endDate: "2026-03-14",
+        homeCurrency: "AUD",
+      }),
+    });
+  });
+
+  it("revalidates trip pages after updating", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    await updateTrip(TRIP_ID, VALID_INPUT);
+
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+  });
+
+  it("returns validation error on empty name", async () => {
+    const result = await updateTrip(TRIP_ID, { ...VALID_INPUT, name: "" });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.name).toBeDefined();
+    }
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("returns validation error when endDate is before startDate", async () => {
+    const result = await updateTrip(TRIP_ID, {
+      ...VALID_INPUT,
+      startDate: "2026-03-14",
+      endDate: "2026-03-01",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.endDate).toBeDefined();
+    }
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("returns validation error for unknown currency", async () => {
+    const result = await updateTrip(TRIP_ID, {
+      ...VALID_INPUT,
+      homeCurrency: "ZZZ",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.homeCurrency).toBeDefined();
+    }
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deleteTrip
+// ---------------------------------------------------------------------------
+
+describe("deleteTrip", () => {
+  it("is access-checked — calls requireTripAccess with the tripId", async () => {
+    // owner role — will succeed
+    tripDeleteMock.mockResolvedValue({});
+
+    await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+  });
+
+  it("deletes the trip and redirects to /trips when caller is owner", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+    });
+    tripDeleteMock.mockResolvedValue({});
+
+    await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(tripDeleteMock).toHaveBeenCalledOnce();
+    expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
+    expect(redirectMock).toHaveBeenCalledWith("/trips");
+  });
+
+  it("returns a forbidden error and does NOT delete when caller is a member (not owner)", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-2" },
+      membership: { role: "member" },
+    });
+
+    const result = await deleteTrip(TRIP_ID);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/owner/i);
+    }
+    expect(tripDeleteMock).not.toHaveBeenCalled();
+    expect(redirectMock).not.toHaveBeenCalled();
   });
 });

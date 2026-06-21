@@ -32,3 +32,9 @@ export const createTripSchema = z
   });
 
 export type CreateTripInput = z.infer<typeof createTripSchema>;
+
+/**
+ * Alias used by updateTrip. Same rules as createTripSchema.
+ */
+export const tripSchema = createTripSchema;
+export type TripInput = z.infer<typeof tripSchema>;

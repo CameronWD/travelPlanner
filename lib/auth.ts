@@ -4,6 +4,7 @@ import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
+import { acceptPendingInvitesForUser } from "@/lib/invites";
 
 /**
  * Auth.js (NextAuth v5) configuration.
@@ -69,6 +70,18 @@ export const authConfig: NextAuthConfig = {
         session.user.id = token.id as string;
       }
       return session;
+    },
+  },
+  events: {
+    /**
+     * Fires after a successful sign-in. We use it to auto-accept any pending
+     * trip invites for this user's email so invited partners join immediately
+     * on first sign-in.
+     */
+    async signIn({ user }) {
+      if (user.id && user.email) {
+        await acceptPendingInvitesForUser(user.id, user.email);
+      }
     },
   },
 };
