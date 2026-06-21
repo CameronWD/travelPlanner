@@ -10,6 +10,7 @@ import { parseISODate } from "@/lib/dates";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { TransportMode } from "@/lib/enums";
 import type { DayPlan } from "@/lib/itinerary";
+import { PACKED_DAY_THRESHOLD } from "@/lib/flags";
 
 /** Subtle left-border colour per stop, keyed by stop.sortOrder (purge-safe static strings). */
 const STOP_BAND_CLASSES = [
@@ -39,9 +40,6 @@ function dotClassFor(category: string): string {
   return DOT_BY_CATEGORY[category] ?? "bg-muted-foreground";
 }
 
-// NOTE: lib/flags.ts (Task 12) exports its own PACKED_DAY_THRESHOLD; once that lands,
-// import it here instead of redeclaring. Keep the two values in sync until then.
-const PACKED_DAY_THRESHOLD = 6;
 const MAX_VISIBLE_ITEMS = 3;
 
 export interface MonthGridProps {

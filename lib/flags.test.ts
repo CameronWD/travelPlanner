@@ -6,6 +6,8 @@ import {
   flagTransportDateMismatches,
   flagVeryShortStays,
   flagRouteBacktracking,
+  flagItemTimeOverlaps,
+  flagPackedDays,
   type FlagStop,
   type FlagTransport,
   type FlagAccommodation,
@@ -52,6 +54,8 @@ const makeItem = (
 ): FlagItem => ({
   stopId: null,
   date: null,
+  startTime: null,
+  endTime: null,
   ...overrides,
 });
 
@@ -456,5 +460,78 @@ describe("detectFlags", () => {
     expect(ids.some((id) => id.startsWith("stop-no-accom"))).toBe(true);
     expect(ids.some((id) => id.startsWith("short-stay"))).toBe(true);
     expect(ids.some((id) => id.startsWith("empty-day"))).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule 6: Item time overlap
+// ---------------------------------------------------------------------------
+
+describe("flagItemTimeOverlaps", () => {
+  it("fires a warning when two timed items overlap on the same day", () => {
+    const items: FlagItem[] = [
+      makeItem({ id: "i1", date: "2026-07-02", startTime: "10:00", endTime: "12:00" }),
+      makeItem({ id: "i2", date: "2026-07-02", startTime: "11:00", endTime: "13:00" }),
+    ];
+    const flags = flagItemTimeOverlaps(items);
+    expect(flags).toHaveLength(1);
+    expect(flags[0].severity).toBe("warning");
+    expect(flags[0].targetType).toBe("DAY");
+    expect(flags[0].date).toBe("2026-07-02");
+  });
+
+  it("does NOT fire for back-to-back items that merely touch", () => {
+    const items: FlagItem[] = [
+      makeItem({ id: "i1", date: "2026-07-02", startTime: "10:00", endTime: "11:00" }),
+      makeItem({ id: "i2", date: "2026-07-02", startTime: "11:00", endTime: "12:00" }),
+    ];
+    expect(flagItemTimeOverlaps(items)).toHaveLength(0);
+  });
+
+  it("ignores items without an endTime (no duration to overlap)", () => {
+    const items: FlagItem[] = [
+      makeItem({ id: "i1", date: "2026-07-02", startTime: "10:00" }),
+      makeItem({ id: "i2", date: "2026-07-02", startTime: "10:30" }),
+    ];
+    expect(flagItemTimeOverlaps(items)).toHaveLength(0);
+  });
+
+  it("does not fire across different days", () => {
+    const items: FlagItem[] = [
+      makeItem({ id: "i1", date: "2026-07-02", startTime: "10:00", endTime: "12:00" }),
+      makeItem({ id: "i2", date: "2026-07-03", startTime: "11:00", endTime: "13:00" }),
+    ];
+    expect(flagItemTimeOverlaps(items)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule 7: Packed day
+// ---------------------------------------------------------------------------
+
+describe("flagPackedDays", () => {
+  it("fires an info flag when a day has more than 6 timed items", () => {
+    const items: FlagItem[] = Array.from({ length: 7 }, (_, i) =>
+      makeItem({ id: `i${i}`, date: "2026-07-02", startTime: "09:00" }),
+    );
+    const flags = flagPackedDays(items);
+    expect(flags).toHaveLength(1);
+    expect(flags[0].severity).toBe("info");
+    expect(flags[0].date).toBe("2026-07-02");
+  });
+
+  it("does NOT fire at exactly 6 timed items", () => {
+    const items: FlagItem[] = Array.from({ length: 6 }, (_, i) =>
+      makeItem({ id: `i${i}`, date: "2026-07-02", startTime: "09:00" }),
+    );
+    expect(flagPackedDays(items)).toHaveLength(0);
+  });
+
+  it("counts only timed items toward the threshold", () => {
+    const items: FlagItem[] = [
+      ...Array.from({ length: 6 }, (_, i) => makeItem({ id: `t${i}`, date: "2026-07-02", startTime: "09:00" })),
+      ...Array.from({ length: 5 }, (_, i) => makeItem({ id: `u${i}`, date: "2026-07-02" })),
+    ];
+    expect(flagPackedDays(items)).toHaveLength(0); // only 6 timed → not packed
   });
 });

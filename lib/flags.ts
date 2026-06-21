@@ -70,6 +70,8 @@ export interface FlagItem {
   id: string;
   stopId?: string | null;
   date?: string | null; // YYYY-MM-DD
+  startTime?: string | null; // HH:MM
+  endTime?: string | null; // HH:MM
 }
 
 export interface DetectFlagsInput {
@@ -340,6 +342,76 @@ export function flagRouteBacktracking(stops: FlagStop[]): Flag[] {
 }
 
 // ---------------------------------------------------------------------------
+// Rule 6: Item time overlap (warning)
+//
+// Two timed items on the same day whose [startTime, endTime] intervals overlap.
+// Items without an endTime have no duration and are ignored. One flag per day.
+// ---------------------------------------------------------------------------
+
+export function flagItemTimeOverlaps(items: FlagItem[]): Flag[] {
+  const byDate = new Map<string, { start: string; end: string }[]>();
+  for (const item of items) {
+    if (!item.date || !item.startTime || !item.endTime) continue;
+    const list = byDate.get(item.date) ?? [];
+    list.push({ start: item.startTime, end: item.endTime });
+    byDate.set(item.date, list);
+  }
+
+  const flags: Flag[] = [];
+  for (const [date, intervals] of byDate) {
+    const sorted = [...intervals].sort((a, b) => (a.start < b.start ? -1 : 1));
+    let overlaps = false;
+    for (let i = 1; i < sorted.length; i++) {
+      // Overlap when the next item starts strictly before the previous ends.
+      if (sorted[i].start < sorted[i - 1].end) {
+        overlaps = true;
+        break;
+      }
+    }
+    if (overlaps) {
+      flags.push({
+        id: `item-overlap-${date}`,
+        severity: "warning",
+        message: `Two or more items overlap in time on ${date}.`,
+        targetType: "DAY",
+        date,
+      });
+    }
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
+// Rule 7: Packed day (info)
+//
+// More than PACKED_DAY_THRESHOLD timed items scheduled on one day.
+// ---------------------------------------------------------------------------
+
+export const PACKED_DAY_THRESHOLD = 6;
+
+export function flagPackedDays(items: FlagItem[]): Flag[] {
+  const countByDate = new Map<string, number>();
+  for (const item of items) {
+    if (!item.date || !item.startTime) continue; // timed items only
+    countByDate.set(item.date, (countByDate.get(item.date) ?? 0) + 1);
+  }
+
+  const flags: Flag[] = [];
+  for (const [date, count] of countByDate) {
+    if (count > PACKED_DAY_THRESHOLD) {
+      flags.push({
+        id: `packed-day-${date}`,
+        severity: "info",
+        message: `Busy day: ${count} items scheduled on ${date}.`,
+        targetType: "DAY",
+        date,
+      });
+    }
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -352,6 +424,8 @@ export function flagRouteBacktracking(stops: FlagStop[]): Flag[] {
  *   3. Transport date mismatch (warning)
  *   4. Very short stay (info)
  *   5. Route backtracking (info)
+ *   6. Item time overlap (warning)
+ *   7. Packed day (info)
  */
 export function detectFlags({
   stops,
@@ -367,5 +441,7 @@ export function detectFlags({
     ...flagTransportDateMismatches(stops, transports),
     ...flagVeryShortStays(stops),
     ...flagRouteBacktracking(stops),
+    ...flagItemTimeOverlaps(items),
+    ...flagPackedDays(items),
   ];
 }
