@@ -268,10 +268,14 @@ export function flagVeryShortStays(stops: FlagStop[]): Flag[] {
     .filter((stop) => nightsBetween(stop.arriveDate, stop.departDate) <= 1)
     .map((stop) => {
       const nights = nightsBetween(stop.arriveDate, stop.departDate);
+      const message =
+        nights === 0
+          ? `Same-day stop in ${stop.name} — no overnight stay.`
+          : `Only 1 night in ${stop.name}.`;
       return {
         id: `short-stay-${stop.id}`,
         severity: "info" as const,
-        message: `Only ${nights} night${nights === 1 ? "" : "s"} in ${stop.name}.`,
+        message,
         targetType: "STOP" as const,
         targetId: stop.id,
       };

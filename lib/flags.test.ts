@@ -292,7 +292,7 @@ describe("flagVeryShortStays", () => {
     const flags = flagVeryShortStays([stop]);
     expect(flags).toHaveLength(1);
     expect(flags[0].severity).toBe("info");
-    expect(flags[0].message).toContain("0 nights");
+    expect(flags[0].message).toContain("Same-day");
     expect(flags[0].targetId).toBe("s1");
   });
 

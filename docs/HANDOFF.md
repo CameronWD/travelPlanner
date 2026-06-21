@@ -107,15 +107,32 @@ Prisma 7 requires an explicit driver adapter — the client will not fall back t
    DATABASE_URL="postgresql://user:password@host:5432/dbname?sslmode=require"
    ```
 
-4. **Run migrations** in production:
+4. **Regenerate the migration history for Postgres.** The committed migrations
+   under `prisma/migrations/` are **SQLite-specific DDL** (and `migration_lock.toml`
+   pins `provider = "sqlite"`), so `prisma migrate deploy` will *not* apply them to
+   Postgres. For the first Postgres deploy you must create a Postgres migration
+   baseline. Two options:
 
-   ```bash
-   npx prisma migrate deploy
-   ```
+   - **Simplest (fresh DB):** delete the existing `prisma/migrations/` folder, then
+     against your empty Postgres database run:
 
-   (`migrate deploy` applies pending migrations without prompting — use this in CI/CD, not `migrate dev`.)
+     ```bash
+     npx prisma migrate dev --name init   # generates Postgres DDL + applies it
+     ```
 
-> **Schema compatibility note:** The schema deliberately avoids Prisma `enum` and `Json` field types to stay portable across SQLite and Postgres. All enum-ish values are stored as `String`; all JSON-ish data is stored as `String` of JSON. Switching providers does not require schema changes beyond the `provider` line.
+     Commit the new migration, and use `npx prisma migrate deploy` in CI/CD from then on.
+
+   - **Or, no migration files:** push the schema directly to a fresh Postgres DB:
+
+     ```bash
+     npx prisma db push
+     ```
+
+   Either way you end up with Postgres-correct DDL. (`migrate deploy` is still the
+   right command for *subsequent* deploys once a Postgres baseline exists — use it
+   in CI/CD, not `migrate dev`.)
+
+> **Schema compatibility note:** The schema deliberately avoids Prisma `enum` and `Json` field types to stay portable across SQLite and Postgres. All enum-ish values are stored as `String`; all JSON-ish data is stored as `String` of JSON. Switching providers requires only the one-line `provider` change in `schema.prisma` **plus regenerating the migration baseline** (step 4 above) — no model/field changes are needed.
 
 ---
 
@@ -334,3 +351,35 @@ The app is platform-agnostic and will run on any Node.js host (Railway, Fly.io, 
 | `CRON_SECRET` | No (reminders not sent) | Protects `/api/cron/reminders` | `openssl rand -hex 32` |
 | `ANTHROPIC_API_KEY` | No (AI disabled) | Enables AI assistant features | [console.anthropic.com](https://console.anthropic.com/) |
 | `AI_MODEL` | No | Anthropic model ID (default: `claude-opus-4-8`) | Any valid Anthropic model ID |
+
+---
+
+## 10. Known limitations & fast-follows
+
+A pre-ship hardening review fixed all blocking issues (multi-currency budget
+correctness, a stored-XSS vector, a service-worker cross-user cache leak, error
+boundaries, orphaned file blobs, constant-time cron auth). The following are
+**known, low-severity, accepted-for-now** items — none are data-loss or security
+holes, but they're worth a fast-follow:
+
+- **Concurrent reorder is last-write-wins.** Stop / checklist reordering does a
+  read-then-swap of `sortOrder`. If both partners reorder the *same* list within
+  the same instant, the orders can transpose. It's visually obvious and fixed by
+  re-dragging; no data is lost. A future fix would do the swap inside an
+  interactive transaction (or model order as `@@unique([tripId, sortOrder])`).
+- **Cost + FX-rate snapshot are written separately.** Creating a cost caches the
+  FX rate, then writes the cost in a second statement. If the cost write fails
+  after the rate is cached, you're left with a harmless cached rate (identical to
+  the state after merely viewing the budget page) — no corruption. Not wrapped in
+  one transaction because the rate resolution makes a network call, which
+  shouldn't hold a DB transaction open.
+- **Duplicate pending invites are possible under a race.** Inviting the same
+  email twice simultaneously can create two pending `Invite` rows. Acceptance
+  de-dupes membership, so it's cosmetic (two rows in the settings list). A
+  `@@unique([tripId, email])` constraint would close it.
+- **FX staleness threshold differs by view.** The `/api/fx` route treats rates
+  older than 5 minutes as stale while the budget page uses 24 hours, so the same
+  rate pair can render a different "stale" badge in two places. Consolidate onto
+  one threshold in `lib/fx.ts`.
+- **Leaflet marker icons load from the unpkg CDN** (see §5) — self-host for
+  production reliability.

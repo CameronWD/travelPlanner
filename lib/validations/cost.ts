@@ -24,12 +24,16 @@ export const costSchema = z
     estimatedMinor: z
       .number()
       .int("Estimated amount must be a whole number in minor units")
-      .min(0, "Estimated amount must be 0 or greater"),
+      .min(0, "Estimated amount must be 0 or greater")
+      // Cap at 32-bit signed max: Prisma maps Int to Postgres INTEGER, so a
+      // larger value would error on insert in production (SQLite is laxer).
+      .max(2_147_483_647, "Amount is too large"),
 
     actualMinor: z
       .number()
       .int("Actual amount must be a whole number in minor units")
       .min(0, "Actual amount must be 0 or greater")
+      .max(2_147_483_647, "Amount is too large")
       .optional(),
 
     currency: z

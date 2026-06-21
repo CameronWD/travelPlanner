@@ -196,6 +196,20 @@ describe("costSchema — rejection cases", () => {
     }
   });
 
+  it("rejects an estimatedMinor above the 32-bit signed max (Postgres INTEGER)", () => {
+    const result = costSchema.safeParse({
+      estimatedMinor: 2_147_483_648,
+      currency: "AUD",
+      ownerType: "ITEM",
+      ownerId: "item-1",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const flat = result.error.flatten();
+      expect(flat.fieldErrors.estimatedMinor).toBeDefined();
+    }
+  });
+
   it("rejects negative actualMinor", () => {
     const result = costSchema.safeParse({
       estimatedMinor: 1000,
