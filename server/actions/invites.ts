@@ -112,6 +112,12 @@ export async function cancelInvite(
   // Access-check: caller must be a member of the invite's trip.
   await requireTripAccess(invite.tripId);
 
+  // Don't delete an invite that's already been accepted — it records that the
+  // partner joined. Cancelling only applies to still-pending invites.
+  if (invite.acceptedAt) {
+    return { success: false, error: "This invite has already been accepted." };
+  }
+
   await db.invite.delete({ where: { id: inviteId } });
 
   revalidatePath(`/trips/${invite.tripId}/settings`);
