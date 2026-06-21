@@ -15,6 +15,7 @@ function navItems(tripId: string): NavItem[] {
     { label: "Overview", href: base },
     { label: "Calendar", href: `${base}/calendar` },
     { label: "Today", href: `${base}/today` },
+    { label: "Journal", href: `${base}/journal` },
     { label: "Wishlist", href: `${base}/wishlist` },
     { label: "Budget", href: `${base}/budget` },
     { label: "Summary", href: `${base}/summary` },

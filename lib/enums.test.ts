@@ -54,6 +54,7 @@ describe("enums", () => {
       "ITEM",
       "TRANSPORT",
       "ACCOMMODATION",
+      "JOURNAL",
     ]);
   });
 

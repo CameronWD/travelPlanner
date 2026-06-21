@@ -19,6 +19,7 @@ const TARGET_TYPE_LABELS: Record<TargetType, string> = {
   ITEM: "Activities",
   TRANSPORT: "Transport",
   ACCOMMODATION: "Accommodation",
+  JOURNAL: "Journal",
 };
 
 // ---------------------------------------------------------------------------

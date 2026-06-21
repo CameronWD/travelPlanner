@@ -44,6 +44,7 @@ model User {
   assignedTasks      ChecklistItem[]    @relation("ChecklistAssignedTo")
   packingTemplates   PackingTemplate[]
   pushSubscriptions  PushSubscription[]
+  journalEntries     JournalEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -116,6 +117,7 @@ model Trip {
   attachments    Attachment[]
   reminders      Reminder[]
   shareLink      ShareLink?
+  journalEntries JournalEntry[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -415,4 +417,21 @@ model PushSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model JournalEntry {
+  id       String @id @default(cuid())
+  tripId   String
+  date     String // "YYYY-MM-DD"
+  body     String
+  authorId String
+
+  trip   Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tripId, date])
+  @@index([tripId])
 }

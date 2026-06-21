@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { CalendarDays } from "lucide-react";
+import { BookOpen, CalendarDays } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
 import { DayNav } from "@/components/trip/day-nav";
 import { AddItemButton } from "@/components/trip/item-form-dialog";
+import { JournalEditor } from "@/components/trip/journal-editor";
 import type { TransportMode } from "@/lib/enums";
 
 export default async function DayPage({
@@ -45,68 +46,91 @@ export default async function DayPage({
         ? trip.endDate
         : date;
 
-  const [stops, items, transports, accommodations] = await Promise.all([
-    db.stop.findMany({
-      where: { tripId },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        name: true,
-        country: true,
-        timezone: true,
-        arriveDate: true,
-        departDate: true,
-        sortOrder: true,
-      },
-    }),
-    db.item.findMany({
-      where: { tripId, date: { not: null } },
-      orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        date: true,
-        startTime: true,
-        endTime: true,
-        stopId: true,
-        address: true,
-        link: true,
-        booking: true,
-        notes: true,
-      },
-    }),
-    db.transport.findMany({
-      where: { tripId },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        mode: true,
-        fromStopId: true,
-        toStopId: true,
-        depPlace: true,
-        arrPlace: true,
-        depAt: true,
-        arrAt: true,
-        reference: true,
-        notes: true,
-      },
-    }),
-    db.accommodation.findMany({
-      where: { tripId },
-      orderBy: { checkIn: "asc" },
-      select: {
-        id: true,
-        stopId: true,
-        name: true,
-        address: true,
-        checkIn: true,
-        checkOut: true,
-        confirmation: true,
-        notes: true,
-      },
-    }),
-  ]);
+  const [stops, items, transports, accommodations, journalEntry, journalPhotos] =
+    await Promise.all([
+      db.stop.findMany({
+        where: { tripId },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          name: true,
+          country: true,
+          timezone: true,
+          arriveDate: true,
+          departDate: true,
+          sortOrder: true,
+        },
+      }),
+      db.item.findMany({
+        where: { tripId, date: { not: null } },
+        orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+        select: {
+          id: true,
+          title: true,
+          category: true,
+          date: true,
+          startTime: true,
+          endTime: true,
+          stopId: true,
+          address: true,
+          link: true,
+          booking: true,
+          notes: true,
+        },
+      }),
+      db.transport.findMany({
+        where: { tripId },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          mode: true,
+          fromStopId: true,
+          toStopId: true,
+          depPlace: true,
+          arrPlace: true,
+          depAt: true,
+          arrAt: true,
+          reference: true,
+          notes: true,
+        },
+      }),
+      db.accommodation.findMany({
+        where: { tripId },
+        orderBy: { checkIn: "asc" },
+        select: {
+          id: true,
+          stopId: true,
+          name: true,
+          address: true,
+          checkIn: true,
+          checkOut: true,
+          confirmation: true,
+          notes: true,
+        },
+      }),
+      db.journalEntry.findUnique({
+        where: { tripId_date: { tripId, date: effectiveDate } },
+        select: {
+          id: true,
+          body: true,
+          updatedAt: true,
+          author: { select: { id: true, name: true, image: true } },
+        },
+      }),
+      db.attachment.findMany({
+        where: { tripId, targetType: "JOURNAL", targetId: effectiveDate },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          filename: true,
+          mime: true,
+          size: true,
+          url: true,
+          uploadedById: true,
+          createdAt: true,
+        },
+      }),
+    ]);
 
   const itinerary = buildItinerary({
     startDate: trip.startDate,
@@ -208,6 +232,29 @@ export default async function DayPage({
           defaultUnscheduled={false}
         />
       </div>
+
+      {/* Journal */}
+      <section aria-labelledby="journal-heading">
+        <div className="mb-3 flex items-center gap-2">
+          <BookOpen className="size-4 text-primary" aria-hidden />
+          <h3
+            id="journal-heading"
+            className="font-display text-lg font-semibold text-foreground"
+          >
+            Journal
+          </h3>
+        </div>
+        <div className="rounded-xl border border-border bg-card px-4 py-4">
+          <JournalEditor
+            tripId={tripId}
+            date={effectiveDate}
+            initialBody={journalEntry?.body ?? ""}
+            updatedAt={journalEntry?.updatedAt ?? null}
+            author={journalEntry?.author ?? null}
+            photos={journalPhotos}
+          />
+        </div>
+      </section>
     </div>
   );
 }
