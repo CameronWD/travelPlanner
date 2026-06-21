@@ -265,29 +265,25 @@ export async function deleteCost(costId: string): Promise<CostActionResult> {
 // ---------------------------------------------------------------------------
 
 /**
- * Fetch all costs for a specific owner entity.
- * Used by server components that render cards.
+ * Shape of a cost row as rendered by the entity cards. Pages fetch costs
+ * inline via `db.cost.findMany` (after `requireTripAccess`) and pass rows
+ * matching this shape to the cards.
+ *
+ * NOTE: this module is `"use server"`, so every runtime export must be an
+ * async server action. We therefore keep this an explicit (compile-time only)
+ * type rather than deriving it from an exported query helper — which would
+ * have been an unauthenticated, callable server action that leaks cost rows
+ * by entity id.
  */
-export async function getCostsForEntity(
-  ownerType: "TRANSPORT" | "ACCOMMODATION" | "ITEM",
-  ownerId: string,
-) {
-  return db.cost.findMany({
-    where: { ownerType, ownerId },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      estimatedMinor: true,
-      actualMinor: true,
-      currency: true,
-      rateToHome: true,
-      paidAt: true,
-      ownerType: true,
-      ownerId: true,
-      label: true,
-      category: true,
-    },
-  });
-}
-
-export type CostRow = Awaited<ReturnType<typeof getCostsForEntity>>[number];
+export type CostRow = {
+  id: string;
+  estimatedMinor: number;
+  actualMinor: number | null;
+  currency: string;
+  rateToHome: number | null;
+  paidAt: Date | null;
+  ownerType: string;
+  ownerId: string | null;
+  label: string | null;
+  category: string | null;
+};

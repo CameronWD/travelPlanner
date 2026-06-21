@@ -47,37 +47,34 @@ export interface CostEditorProps {
 
 interface FormState {
   estimatedAmount: string;
-  estimatedCurrency: string;
+  // A cost has a single currency (the DB model has one `currency` field).
+  // Both the estimated and actual inputs share this value.
+  currency: string;
   actualAmount: string;
-  actualCurrency: string;
   paidAt: string;
 }
 
 function defaultFormState(defaultCurrency: string): FormState {
   return {
     estimatedAmount: "",
-    estimatedCurrency: defaultCurrency,
+    currency: defaultCurrency,
     actualAmount: "",
-    actualCurrency: defaultCurrency,
     paidAt: "",
   };
 }
 
 function costToFormState(cost: CostRow): FormState {
-  const decimals = cost.currency === "JPY" ? 0 : 2;
   return {
     estimatedAmount: formatMinor(cost.estimatedMinor, cost.currency),
-    estimatedCurrency: cost.currency,
+    currency: cost.currency,
     actualAmount:
       cost.actualMinor !== null && cost.actualMinor !== undefined
         ? formatMinor(cost.actualMinor, cost.currency)
         : "",
-    actualCurrency: cost.currency,
     paidAt: cost.paidAt
       ? new Date(cost.paidAt).toISOString().slice(0, 10)
       : "",
   };
-  void decimals; // referenced only for documentation
 }
 
 // ---------------------------------------------------------------------------
@@ -134,16 +131,10 @@ function CostDialogForm({
           >
             <MoneyInput
               amount={form.estimatedAmount}
-              currency={form.estimatedCurrency}
+              currency={form.currency}
               currencies={CURRENCY_CODES}
               onAmountChange={(v) => setForm((f) => ({ ...f, estimatedAmount: v }))}
-              onCurrencyChange={(v) =>
-                setForm((f) => ({
-                  ...f,
-                  estimatedCurrency: v,
-                  actualCurrency: v, // keep actual in same currency
-                }))
-              }
+              onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
               disabled={submitting}
               invalid={Boolean(errors.estimatedMinor)}
               aria-label="Estimated cost amount"
@@ -158,12 +149,10 @@ function CostDialogForm({
           >
             <MoneyInput
               amount={form.actualAmount}
-              currency={form.actualCurrency}
+              currency={form.currency}
               currencies={CURRENCY_CODES}
               onAmountChange={(v) => setForm((f) => ({ ...f, actualAmount: v }))}
-              onCurrencyChange={(v) =>
-                setForm((f) => ({ ...f, actualCurrency: v }))
-              }
+              onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
               disabled={submitting}
               invalid={Boolean(errors.actualMinor)}
               aria-label="Actual cost amount"
@@ -251,16 +240,16 @@ export function CostEditor({
 
   function parseFormToInput(form: FormState): CostRawInput {
     // Parse estimated amount → minor units
-    const estimatedMinor = parseAmountToMinor(form.estimatedAmount, form.estimatedCurrency) ?? 0;
+    const estimatedMinor = parseAmountToMinor(form.estimatedAmount, form.currency) ?? 0;
     const actualMinor =
       form.actualAmount.trim() !== ""
-        ? (parseAmountToMinor(form.actualAmount, form.actualCurrency) ?? undefined)
+        ? (parseAmountToMinor(form.actualAmount, form.currency) ?? undefined)
         : undefined;
 
     return {
       estimatedMinor,
       actualMinor,
-      currency: form.estimatedCurrency,
+      currency: form.currency,
       paidAt: form.paidAt || undefined,
       ownerType,
       ownerId,
