@@ -104,9 +104,8 @@ export default async function SharePage({
         arrPlace: true,
         depAt: true,
         arrAt: true,
-        reference: true,
+        // reference (booking number) and notes intentionally omitted — private
         sortOrder: true,
-        // notes intentionally omitted
       },
     }),
     db.accommodation.findMany({
@@ -172,7 +171,6 @@ export default async function SharePage({
       arrPlace: t.arrPlace,
       depAt: t.depAt,
       arrAt: t.arrAt,
-      reference: t.reference,
     })),
     accommodations: accommodations.map((a) => ({
       id: a.id,
@@ -331,11 +329,6 @@ export default async function SharePage({
                               <span>{transport.arrPlace}</span>
                             </>
                           )}
-                          {transport.reference && (
-                            <span className="ml-auto font-mono text-xs">
-                              {transport.reference}
-                            </span>
-                          )}
                         </div>
                       )}
                     </div>
@@ -428,11 +421,6 @@ export default async function SharePage({
                               <span className="font-medium text-foreground">
                                 {isDep ? "Departs" : "Arrives"} — {modeLabel(t.mode)}
                               </span>
-                              {t.reference && (
-                                <span className="ml-1 rounded bg-muted px-1 font-mono text-[11px] text-muted-foreground">
-                                  {t.reference}
-                                </span>
-                              )}
                               {(t.depPlace || t.arrPlace) && (
                                 <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
                                   {t.depPlace && <span>{t.depPlace}</span>}

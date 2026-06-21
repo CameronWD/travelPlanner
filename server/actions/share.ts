@@ -59,9 +59,11 @@ export async function rotateShareLink(
 
   const newToken = crypto.randomUUID();
 
-  const updated = await db.shareLink.update({
+  // upsert so rotating works whether or not a link already exists.
+  const updated = await db.shareLink.upsert({
     where: { tripId },
-    data: { token: newToken },
+    update: { token: newToken },
+    create: { tripId, token: newToken },
     select: { token: true },
   });
 
@@ -77,7 +79,8 @@ export async function rotateShareLink(
 export async function revokeShareLink(tripId: string): Promise<void> {
   await requireTripAccess(tripId);
 
-  await db.shareLink.delete({
+  // deleteMany so revoking is a no-op (not an error) when no link exists.
+  await db.shareLink.deleteMany({
     where: { tripId },
   });
 

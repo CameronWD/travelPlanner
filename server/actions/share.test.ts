@@ -14,9 +14,8 @@ const {
   revalidatePathMock,
   shareFindFirstMock,
   shareCreateMock,
-  shareUpdateMock,
-  shareDeleteMock,
   shareUpsertMock,
+  shareDeleteManyMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "user-1" },
@@ -25,9 +24,8 @@ const {
   revalidatePathMock: vi.fn(),
   shareFindFirstMock: vi.fn(),
   shareCreateMock: vi.fn(),
-  shareUpdateMock: vi.fn(),
-  shareDeleteMock: vi.fn(),
   shareUpsertMock: vi.fn(),
+  shareDeleteManyMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
@@ -37,9 +35,8 @@ vi.mock("@/lib/db", () => ({
     shareLink: {
       findFirst: shareFindFirstMock,
       create: shareCreateMock,
-      update: shareUpdateMock,
-      delete: shareDeleteMock,
       upsert: shareUpsertMock,
+      deleteMany: shareDeleteManyMock,
     },
   },
 }));
@@ -127,31 +124,32 @@ describe("createShareLink", () => {
 
 describe("rotateShareLink", () => {
   it("is access-checked", async () => {
-    shareUpdateMock.mockResolvedValue({ token: "new-tok" });
+    shareUpsertMock.mockResolvedValue({ token: "new-tok" });
 
     await rotateShareLink(TRIP_ID);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
   });
 
-  it("updates the token to a new value and returns it", async () => {
+  it("upserts a new token and returns it (works with or without an existing link)", async () => {
     const newToken = "fresh-token";
-    shareUpdateMock.mockResolvedValue({ token: newToken });
+    shareUpsertMock.mockResolvedValue({ token: newToken });
 
     const result = await rotateShareLink(TRIP_ID);
 
-    expect(shareUpdateMock).toHaveBeenCalledOnce();
-    expect(shareUpdateMock).toHaveBeenCalledWith(
+    expect(shareUpsertMock).toHaveBeenCalledOnce();
+    expect(shareUpsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { tripId: TRIP_ID },
-        data: expect.objectContaining({ token: expect.any(String) }),
+        update: expect.objectContaining({ token: expect.any(String) }),
+        create: expect.objectContaining({ tripId: TRIP_ID, token: expect.any(String) }),
       }),
     );
     expect(result).toEqual({ token: newToken });
   });
 
   it("revalidates the settings path after rotating", async () => {
-    shareUpdateMock.mockResolvedValue({ token: "tok" });
+    shareUpsertMock.mockResolvedValue({ token: "tok" });
 
     await rotateShareLink(TRIP_ID);
 
@@ -167,26 +165,26 @@ describe("rotateShareLink", () => {
 
 describe("revokeShareLink", () => {
   it("is access-checked", async () => {
-    shareDeleteMock.mockResolvedValue({});
+    shareDeleteManyMock.mockResolvedValue({ count: 1 });
 
     await revokeShareLink(TRIP_ID);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
   });
 
-  it("deletes the share link for the given tripId", async () => {
-    shareDeleteMock.mockResolvedValue({});
+  it("deletes the share link for the given tripId (no-op if none)", async () => {
+    shareDeleteManyMock.mockResolvedValue({ count: 1 });
 
     await revokeShareLink(TRIP_ID);
 
-    expect(shareDeleteMock).toHaveBeenCalledOnce();
-    expect(shareDeleteMock).toHaveBeenCalledWith({
+    expect(shareDeleteManyMock).toHaveBeenCalledOnce();
+    expect(shareDeleteManyMock).toHaveBeenCalledWith({
       where: { tripId: TRIP_ID },
     });
   });
 
   it("revalidates the settings path after revoking", async () => {
-    shareDeleteMock.mockResolvedValue({});
+    shareDeleteManyMock.mockResolvedValue({ count: 0 });
 
     await revokeShareLink(TRIP_ID);
 
