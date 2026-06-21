@@ -10,7 +10,27 @@ import { MonthGrid } from "@/components/trip/month-grid";
 import { addMonths, startOfMonthISO, formatMonthYear, monthKey } from "@/lib/dates";
 import { rescheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
+import { CATEGORIES } from "@/lib/categories";
+import { cn } from "@/lib/cn";
 import type { DayPlan } from "@/lib/itinerary";
+
+/** Category dot colour (purge-safe static strings), keyed by a category's colour name. */
+const DOT_CLASSES_RAIL: Record<string, string> = {
+  sky: "bg-sky-500",
+  amber: "bg-amber-500",
+  emerald: "bg-emerald-500",
+  violet: "bg-violet-500",
+  rose: "bg-rose-500",
+  stone: "bg-stone-500",
+};
+
+/** Map category value → dot class, tolerating unknown/legacy values without throwing. */
+const DOT_RAIL: Record<string, string> = Object.fromEntries(
+  CATEGORIES.map((c) => [c.value, DOT_CLASSES_RAIL[c.color] ?? "bg-muted-foreground"]),
+);
+function dotClassForRail(category: string): string {
+  return DOT_RAIL[category] ?? "bg-muted-foreground";
+}
 
 const STORAGE_KEY = "trip-planner-calendar-view";
 type View = "month" | "agenda";
@@ -64,14 +84,21 @@ function getViewServerSnapshot(): View {
 
 // ---------------------------------------------------------------------------
 
+export interface WishlistRailItem {
+  id: string;
+  title: string;
+  category: string;
+}
+
 export interface CalendarViewsProps {
   tripId: string;
   days: DayPlan[];
   tripStart: string;
   tripEnd: string;
+  wishlistItems: WishlistRailItem[];
 }
 
-export function CalendarViews({ tripId, days, tripStart, tripEnd }: CalendarViewsProps) {
+export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems }: CalendarViewsProps) {
   // useSyncExternalStore gives us the SSR-safe default (agenda on server) and
   // the resolved preference on the client without ever calling setState in an effect.
   const view = React.useSyncExternalStore(
@@ -108,6 +135,8 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd }: CalendarView
     },
     [router],
   );
+
+  const [railOpen, setRailOpen] = React.useState(true);
 
   // `view` is "agenda" on the server and during hydration (getViewServerSnapshot),
   // resolving to the stored/responsive preference only after hydration — so gating
@@ -160,15 +189,48 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd }: CalendarView
 
       {/* Body */}
       {view === "month" ? (
-        <div className={pending ? "pointer-events-none opacity-70" : undefined}>
-          <MonthGrid
-            tripId={tripId}
-            monthAnchorISO={monthAnchor}
-            days={days}
-            tripStart={tripStart}
-            tripEnd={tripEnd}
-            onDropItem={handleDropItem}
-          />
+        <div className="flex flex-col gap-4 lg:flex-row">
+          <div className={cn("flex-1", pending && "pointer-events-none opacity-70")}>
+            <MonthGrid
+              tripId={tripId}
+              monthAnchorISO={monthAnchor}
+              days={days}
+              tripStart={tripStart}
+              tripEnd={tripEnd}
+              onDropItem={handleDropItem}
+            />
+          </div>
+
+          {wishlistItems.length > 0 && (
+            <aside className="lg:w-56 lg:shrink-0">
+              <button
+                type="button"
+                onClick={() => setRailOpen((o) => !o)}
+                className="mb-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                Wishlist ({wishlistItems.length}) {railOpen ? "▾" : "▸"}
+              </button>
+              {railOpen && (
+                <ul className="flex flex-col gap-1.5">
+                  {wishlistItems.map((w) => (
+                    <li
+                      key={w.id}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData("text/item-id", w.id);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      className="flex cursor-grab items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5 text-xs active:cursor-grabbing"
+                    >
+                      <span className={cn("size-2 shrink-0 rounded-full", dotClassForRail(w.category))} />
+                      <span className="truncate">{w.title}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-2 text-[11px] text-muted-foreground">Drag onto a day to schedule.</p>
+            </aside>
+          )}
         </div>
       ) : (
         <AgendaView tripId={tripId} days={days} />

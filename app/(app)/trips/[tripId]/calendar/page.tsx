@@ -23,7 +23,7 @@ export default async function CalendarPage({
   });
   if (!trip) notFound();
 
-  const [stops, items, transports, accommodations] = await Promise.all([
+  const [stops, items, transports, accommodations, wishlistItems] = await Promise.all([
     db.stop.findMany({
       where: { tripId },
       orderBy: { sortOrder: "asc" },
@@ -83,6 +83,11 @@ export default async function CalendarPage({
         confirmation: true,
         notes: true,
       },
+    }),
+    db.item.findMany({
+      where: { tripId, date: null },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, title: true, category: true, stopId: true },
     }),
   ]);
 
@@ -161,6 +166,7 @@ export default async function CalendarPage({
       days={itinerary}
       tripStart={trip.startDate}
       tripEnd={trip.endDate}
+      wishlistItems={wishlistItems}
     />
   );
 }
