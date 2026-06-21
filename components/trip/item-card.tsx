@@ -13,6 +13,7 @@ import {
   CalendarCheck,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { safeWebHref } from "@/lib/url";
 import { Button } from "@/components/ui/button";
 import { CategoryPill } from "./category-pill";
 import type { Category } from "@/lib/categories";
@@ -212,9 +213,9 @@ export function ItemCard({
               <MapLink lat={item.lat} lng={item.lng} address={item.address} label={item.title} className="text-muted-foreground/60" />
             </span>
           )}
-          {item.link && (
+          {safeWebHref(item.link) && (
             <a
-              href={item.link}
+              href={safeWebHref(item.link)!}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1 underline-offset-2 hover:underline"

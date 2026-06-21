@@ -65,6 +65,22 @@ describe("itemSchema — valid inputs", () => {
     expect(result.success).toBe(true);
   });
 
+  it("rejects a javascript: link (stored XSS vector)", () => {
+    const result = itemSchema.safeParse({
+      ...VALID_SCHEDULED,
+      link: "javascript:alert(document.cookie)",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a scheme-less link", () => {
+    const result = itemSchema.safeParse({
+      ...VALID_SCHEDULED,
+      link: "example.com/tickets",
+    });
+    expect(result.success).toBe(true);
+  });
+
   it("coerces empty stopId to undefined", () => {
     const result = itemSchema.safeParse({ ...VALID_UNSCHEDULED, stopId: "" });
     expect(result.success).toBe(true);

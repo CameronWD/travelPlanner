@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { categorySchema } from "@/lib/categories";
+import { safeWebHref } from "@/lib/url";
 
 /** YYYY-MM-DD regex */
 const isoDate = z
@@ -50,7 +51,16 @@ export const itemSchema = z
       .optional()
       .transform((v) => (v === "" || v === undefined ? undefined : v)),
     address: z.string().trim().optional(),
-    link: z.string().trim().optional(),
+    // Only accept links that resolve to a safe http(s) address. Rejects
+    // javascript:/data: scheme links that would otherwise be a stored XSS
+    // vector when rendered into an href for the other traveller.
+    link: z
+      .string()
+      .trim()
+      .optional()
+      .refine((v) => v == null || v === "" || safeWebHref(v) !== null, {
+        message: "Link must be a valid web address (http/https)",
+      }),
     booking: z.string().trim().optional(),
     notes: z.string().trim().optional(),
     lat: z.number().optional(),
