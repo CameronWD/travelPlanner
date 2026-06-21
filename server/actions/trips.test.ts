@@ -20,11 +20,15 @@ const {
   tripDeleteMock,
   memberCreateMock,
   transactionMock,
+  attachmentFindManyMock,
+  storageDeleteMock,
 } = vi.hoisted(() => {
   const tripCreateMock = vi.fn();
   const tripUpdateMock = vi.fn();
   const tripDeleteMock = vi.fn();
   const memberCreateMock = vi.fn();
+  const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
+  const storageDeleteMock = vi.fn().mockResolvedValue(undefined);
 
   // $transaction executes the callback synchronously-ish in tests;
   // we simulate it by calling the callback with a fake tx object.
@@ -51,6 +55,8 @@ const {
     tripDeleteMock,
     memberCreateMock,
     transactionMock,
+    attachmentFindManyMock,
+    storageDeleteMock,
   };
 });
 
@@ -65,7 +71,13 @@ vi.mock("@/lib/db", () => ({
       update: tripUpdateMock,
       delete: tripDeleteMock,
     },
+    attachment: {
+      findMany: attachmentFindManyMock,
+    },
   },
+}));
+vi.mock("@/lib/storage", () => ({
+  getStorage: () => ({ delete: storageDeleteMock }),
 }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
@@ -279,6 +291,24 @@ describe("deleteTrip", () => {
     expect(tripDeleteMock).toHaveBeenCalledOnce();
     expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
     expect(redirectMock).toHaveBeenCalledWith("/trips");
+  });
+
+  it("deletes attachment blobs before cascading the trip rows away", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+    });
+    attachmentFindManyMock.mockResolvedValueOnce([
+      { storageKey: "trips/trip-abc/k1" },
+      { storageKey: "trips/trip-abc/k2" },
+    ]);
+    tripDeleteMock.mockResolvedValue({});
+
+    await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/k1");
+    expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/k2");
+    expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
   });
 
   it("returns a forbidden error and does NOT delete when caller is a member (not owner)", async () => {

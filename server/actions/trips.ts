@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
+import { getStorage } from "@/lib/storage";
 import { requireUser, requireTripAccess } from "@/lib/guards";
 import {
   createTripSchema,
@@ -135,6 +136,21 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
 
   if (membership.role !== "owner") {
     return { success: false, error: "Only the trip owner can delete the trip." };
+  }
+
+  // Best-effort: remove attachment blobs before the rows cascade away, so we
+  // don't orphan files in storage. Failures here must not block the delete.
+  const attachments = await db.attachment.findMany({
+    where: { tripId, storageKey: { not: null } },
+    select: { storageKey: true },
+  });
+  if (attachments.length > 0) {
+    const storage = getStorage();
+    await Promise.all(
+      attachments.map((a) =>
+        a.storageKey ? storage.delete(a.storageKey).catch(() => {}) : null,
+      ),
+    );
   }
 
   await db.trip.delete({ where: { id: tripId } });
