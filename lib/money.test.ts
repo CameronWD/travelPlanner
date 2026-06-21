@@ -224,12 +224,11 @@ describe("convertMinor", () => {
     expect(convertMinor(0, "EUR", "AUD", 1.65)).toBe(0);
   });
 
-  it("handles negative amounts", () => {
-    // -12.50 EUR * 1.65 = -20.625 AUD = -2063 minor (round half-up toward positive infinity)
-    // round-half-up: Math.round(-20.625) = -21, so -2063 -> actually Math.round(-2062.5) = -2062
-    // Let's be explicit: the spec says round-half-up
+  it("handles negative amounts with round-half-up toward positive infinity", () => {
+    // -1250 (€-12.50) @ 1.65 = -2062.5 minor; round-half-up (floor(n + 0.5))
+    // pulls .5 toward +∞, so floor(-2062.5 + 0.5) = floor(-2062) = -2062.
     const result = convertMinor(-1250, "EUR", "AUD", 1.65);
-    expect(result).toBeLessThan(0);
+    expect(result).toBe(-2062);
   });
 });
 

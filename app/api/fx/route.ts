@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTripAccess } from "@/lib/guards";
-import { getRateForTrip } from "@/lib/fx";
+import { getRateForTrip, type RateSource } from "@/lib/fx";
 import { db } from "@/lib/db";
 
 /**
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
     select: { manual: true, fetchedAt: true, rate: true },
   });
 
-  let source: string;
+  let source: RateSource;
   let stale: boolean;
 
   if (rate === null) {

@@ -103,5 +103,6 @@ export async function refreshRates(
     results.push({ base: B, rate });
   }
 
+  revalidatePath(`/trips/${tripId}/budget`);
   return { results };
 }

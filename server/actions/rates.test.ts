@@ -172,4 +172,9 @@ describe("refreshRates", () => {
     expect(getRateForTripMock).toHaveBeenCalledTimes(1);
     expect(getRateForTripMock).toHaveBeenCalledWith("trip-1", "EUR", "AUD", expect.anything());
   });
+
+  it("revalidates the budget path", async () => {
+    await refreshRates("trip-1", ["EUR"], "AUD");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/budget");
+  });
 });
