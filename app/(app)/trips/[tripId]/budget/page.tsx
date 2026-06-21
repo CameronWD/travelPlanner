@@ -13,6 +13,7 @@ import {
 import { OtherCostEditor } from "@/components/trip/other-cost-editor";
 import { RatesPanel } from "@/components/trip/rates-panel";
 import { buildBudget } from "@/lib/budget";
+import { isRateStale } from "@/lib/fx";
 import type { RateEntry } from "@/components/trip/rates-panel";
 import type { BudgetCost, BudgetStop, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
 
@@ -166,7 +167,6 @@ export default async function BudgetPage({
   );
 
   const now = new Date();
-  const staleThresholdMs = 24 * 60 * 60 * 1000;
 
   const rateEntries: RateEntry[] = foreignCurrencies.map((currency) => {
     const stored = rateByBase.get(currency);
@@ -174,9 +174,7 @@ export default async function BudgetPage({
       return { currency, rate: null, source: "none" as const, stale: false };
     }
     const source = stored.manual ? "manual" : "fetched";
-    // "stale" if the rate was fetched more than 24 hours ago
-    const ageMs = now.getTime() - stored.fetchedAt.getTime();
-    const stale = !stored.manual && ageMs > staleThresholdMs;
+    const stale = !stored.manual && isRateStale(stored.fetchedAt.getTime(), now.getTime());
     return {
       currency,
       rate: stored.rate,

@@ -20,6 +20,14 @@ export interface MergeRateResult {
   stale: boolean;
 }
 
+/** A fetched rate is considered stale for display once older than this. */
+export const FX_STALE_AFTER_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/** True when a non-manual rate fetched at `fetchedAtMs` is stale relative to `nowMs`. */
+export function isRateStale(fetchedAtMs: number, nowMs: number): boolean {
+  return nowMs - fetchedAtMs > FX_STALE_AFTER_MS;
+}
+
 /** Minimal shape of an ExchangeRate row we work with. */
 interface StoredRate {
   rate: number;

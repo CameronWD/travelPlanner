@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireTripAccess } from "@/lib/guards";
-import { getRateForTrip, type RateSource } from "@/lib/fx";
+import { getRateForTrip, isRateStale, type RateSource } from "@/lib/fx";
 import { db } from "@/lib/db";
 
 /**
@@ -58,10 +58,8 @@ export async function GET(request: NextRequest) {
     source = "manual";
     stale = false;
   } else if (stored !== null && stored.rate === rate) {
-    // Rate matched the stored value — it was either freshly upserted (fetched)
-    // or returned as stale. A freshly upserted record has fetchedAt very recent.
-    const ageMs = Date.now() - stored.fetchedAt.getTime();
-    stale = ageMs > 5 * 60 * 1000; // older than 5 minutes = stale
+    // Rate matched the stored value — treat it as stale once past the shared threshold.
+    stale = isRateStale(stored.fetchedAt.getTime(), Date.now());
     source = stale ? "stale" : "fetched";
   } else {
     source = "fetched";

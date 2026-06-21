@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mergeRate, getRateForTrip } from "./fx";
+import { mergeRate, getRateForTrip, FX_STALE_AFTER_MS, isRateStale } from "./fx";
 
 // ---------------------------------------------------------------------------
 // mergeRate — pure policy, no I/O
@@ -194,5 +194,31 @@ describe("getRateForTrip", () => {
     });
 
     expect(result).toBeNull();
+  });
+});
+
+describe("isRateStale", () => {
+  it("FX_STALE_AFTER_MS is 24 hours", () => {
+    expect(FX_STALE_AFTER_MS).toBe(24 * 60 * 60 * 1000);
+  });
+
+  it("returns false for a rate fetched just now", () => {
+    const now = 1_000_000_000_000;
+    expect(isRateStale(now, now)).toBe(false);
+  });
+
+  it("returns false within the threshold (23h old)", () => {
+    const now = 1_000_000_000_000;
+    expect(isRateStale(now - 23 * 60 * 60 * 1000, now)).toBe(false);
+  });
+
+  it("returns false exactly at the threshold (strict >, so 24h is not yet stale)", () => {
+    const now = 1_000_000_000_000;
+    expect(isRateStale(now - FX_STALE_AFTER_MS, now)).toBe(false);
+  });
+
+  it("returns true once older than 24h", () => {
+    const now = 1_000_000_000_000;
+    expect(isRateStale(now - 25 * 60 * 60 * 1000, now)).toBe(true);
   });
 });
