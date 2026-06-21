@@ -4,6 +4,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enums";
+import type { NoteView } from "@/components/trip/note-thread";
 
 const COST_SELECT = {
   id: true,
@@ -24,7 +25,7 @@ export default async function TripOverviewPage({
   params: Promise<{ tripId: string }>;
 }) {
   const { tripId } = await params;
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
   const [trip, stops, transports, allCosts] = await Promise.all([
     db.trip.findUnique({
@@ -91,6 +92,42 @@ export default async function TripOverviewPage({
     }),
   ]);
 
+  // Fetch stop notes
+  const stopIds = stops.map((s) => s.id);
+  const stopNotes =
+    stopIds.length > 0
+      ? await db.note.findMany({
+          where: {
+            tripId,
+            targetType: "STOP",
+            targetId: { in: stopIds },
+          },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            body: true,
+            createdAt: true,
+            targetId: true,
+            author: {
+              select: { id: true, name: true, image: true },
+            },
+          },
+        })
+      : [];
+
+  // Group stop notes by stopId
+  const notesByStopId = new Map<string, NoteView[]>();
+  for (const note of stopNotes) {
+    const existing = notesByStopId.get(note.targetId) ?? [];
+    existing.push({
+      id: note.id,
+      body: note.body,
+      createdAt: note.createdAt,
+      author: note.author,
+    });
+    notesByStopId.set(note.targetId, existing);
+  }
+
   // Group costs by ownerId for quick lookup
   const costsByOwnerId = new Map<string, typeof allCosts>();
   for (const cost of allCosts) {
@@ -122,6 +159,8 @@ export default async function TripOverviewPage({
       <ItineraryManager
         tripId={tripId}
         homeCurrency={trip?.homeCurrency}
+        notesByStopId={notesByStopId}
+        currentUserId={user.id}
         initialStops={stops.map((stop) => ({
           ...stop,
           accommodations: stop.accommodations.map((acc) => ({

@@ -19,6 +19,8 @@ import type { Category } from "@/lib/categories";
 import { CostEditor } from "./cost-editor";
 import { MapLink } from "./map-link";
 import type { CostRow } from "@/server/actions/costs";
+import { NoteThread, type NoteView } from "./note-thread";
+import { VoteControl, type VoteView } from "./vote-control";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,6 +58,12 @@ export interface ItemCardProps {
   tripId?: string;
   /** Trip's home currency */
   homeCurrency?: string;
+  /** Notes on this item — only shown in wishlist mode */
+  notes?: NoteView[];
+  /** Votes on this item — only shown in wishlist mode */
+  votes?: VoteView[];
+  /** Current user's ID — required for notes & votes */
+  currentUserId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -73,6 +81,9 @@ export function ItemCard({
   costs,
   tripId,
   homeCurrency,
+  notes,
+  votes,
+  currentUserId,
 }: ItemCardProps) {
   const hasTime = Boolean(item.startTime);
   const timeLabel = hasTime
@@ -151,6 +162,17 @@ export function ItemCard({
             </Button>
           )}
 
+          {/* Notes trigger (wishlist mode) */}
+          {mode === "wishlist" && notes !== undefined && tripId && currentUserId && (
+            <NoteThread
+              tripId={tripId}
+              targetType="ITEM"
+              targetId={item.id}
+              notes={notes}
+              currentUserId={currentUserId}
+            />
+          )}
+
           {/* Delete */}
           {onDelete && (
             <Button
@@ -219,6 +241,18 @@ export function ItemCard({
             aria-hidden="true"
           />
           <p className="line-clamp-2">{item.notes}</p>
+        </div>
+      )}
+
+      {/* Vote control (wishlist mode only) */}
+      {mode === "wishlist" && votes !== undefined && tripId && currentUserId && (
+        <div className="border-t border-border/40 pt-2">
+          <VoteControl
+            tripId={tripId}
+            itemId={item.id}
+            votes={votes}
+            currentUserId={currentUserId}
+          />
         </div>
       )}
 

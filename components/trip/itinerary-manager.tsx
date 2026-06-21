@@ -14,6 +14,7 @@ import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import type { TransportMode } from "@/lib/enums";
 import type { CostRow } from "@/server/actions/costs";
+import type { NoteView } from "./note-thread";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -50,6 +51,10 @@ interface ItineraryManagerProps {
   initialTransports: ItineraryTransport[];
   /** Trip's home currency — passed to cost display */
   homeCurrency?: string;
+  /** Map of stopId → notes for that stop */
+  notesByStopId?: Map<string, NoteView[]>;
+  /** Current authenticated user's ID */
+  currentUserId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -83,6 +88,8 @@ export function ItineraryManager({
   initialStops,
   initialTransports,
   homeCurrency,
+  notesByStopId,
+  currentUserId,
 }: ItineraryManagerProps) {
   // ── Stop dialog state ──
   const [editingStop, setEditingStop] = React.useState<StopCardStop | null>(null);
@@ -219,6 +226,9 @@ export function ItineraryManager({
                     onMoveUp={(id) => handleMoveStop(id, "up")}
                     onMoveDown={(id) => handleMoveStop(id, "down")}
                     onDelete={handleDeleteStop}
+                    notes={notesByStopId?.get(stop.id) ?? []}
+                    tripId={tripId}
+                    currentUserId={currentUserId}
                   />
 
                   {/* Accommodations under this stop */}

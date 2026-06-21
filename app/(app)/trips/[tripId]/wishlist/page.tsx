@@ -4,6 +4,8 @@ import { requireTripAccess } from "@/lib/guards";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
 import type { ItemCardItem } from "@/components/trip/item-card";
 import type { CostRow } from "@/server/actions/costs";
+import type { NoteView } from "@/components/trip/note-thread";
+import type { VoteView } from "@/components/trip/vote-control";
 
 export default async function WishlistPage({
   params,
@@ -12,7 +14,7 @@ export default async function WishlistPage({
 }) {
   const { tripId } = await params;
 
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -45,6 +47,8 @@ export default async function WishlistPage({
           booking: true,
           notes: true,
           stopId: true,
+          lat: true,
+          lng: true,
           stop: {
             select: { name: true },
           },
@@ -57,37 +61,113 @@ export default async function WishlistPage({
     notFound();
   }
 
-  // Fetch ITEM costs for wishlist items
   const itemIds = trip.items.map((i) => i.id);
-  const itemCosts: CostRow[] = itemIds.length > 0
-    ? await db.cost.findMany({
-        where: {
-          ownerType: "ITEM",
-          ownerId: { in: itemIds },
-        },
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          estimatedMinor: true,
-          actualMinor: true,
-          currency: true,
-          rateToHome: true,
-          paidAt: true,
-          ownerType: true,
-          ownerId: true,
-          label: true,
-          category: true,
-        },
-      })
-    : [];
 
-  // Group by itemId
+  // Fetch ITEM costs, notes, and votes in parallel
+  const [itemCosts, itemNotes, itemVotes] = await Promise.all([
+    itemIds.length > 0
+      ? db.cost.findMany({
+          where: {
+            ownerType: "ITEM",
+            ownerId: { in: itemIds },
+          },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            estimatedMinor: true,
+            actualMinor: true,
+            currency: true,
+            rateToHome: true,
+            paidAt: true,
+            ownerType: true,
+            ownerId: true,
+            label: true,
+            category: true,
+          },
+        })
+      : Promise.resolve([] as CostRow[]),
+
+    itemIds.length > 0
+      ? db.note.findMany({
+          where: {
+            tripId,
+            targetType: "ITEM",
+            targetId: { in: itemIds },
+          },
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            body: true,
+            createdAt: true,
+            targetId: true,
+            author: {
+              select: { id: true, name: true, image: true },
+            },
+          },
+        })
+      : Promise.resolve([] as Array<{
+          id: string;
+          body: string;
+          createdAt: Date;
+          targetId: string;
+          author: { id: string; name: string | null; image: string | null };
+        }>),
+
+    itemIds.length > 0
+      ? db.vote.findMany({
+          where: {
+            tripId,
+            itemId: { in: itemIds },
+          },
+          select: {
+            itemId: true,
+            userId: true,
+            level: true,
+            user: {
+              select: { name: true, image: true },
+            },
+          },
+        })
+      : Promise.resolve([] as Array<{
+          itemId: string;
+          userId: string;
+          level: string;
+          user: { name: string | null; image: string | null };
+        }>),
+  ]);
+
+  // Group costs by itemId
   const costsByItemId = new Map<string, CostRow[]>();
   for (const cost of itemCosts) {
     if (!cost.ownerId) continue;
     const existing = costsByItemId.get(cost.ownerId) ?? [];
     existing.push(cost);
     costsByItemId.set(cost.ownerId, existing);
+  }
+
+  // Group notes by targetId (= itemId)
+  const notesByItemId = new Map<string, NoteView[]>();
+  for (const note of itemNotes) {
+    const existing = notesByItemId.get(note.targetId) ?? [];
+    existing.push({
+      id: note.id,
+      body: note.body,
+      createdAt: note.createdAt,
+      author: note.author,
+    });
+    notesByItemId.set(note.targetId, existing);
+  }
+
+  // Group votes by itemId
+  const votesByItemId = new Map<string, VoteView[]>();
+  for (const vote of itemVotes) {
+    const existing = votesByItemId.get(vote.itemId) ?? [];
+    existing.push({
+      userId: vote.userId,
+      level: vote.level as VoteView["level"],
+      user: vote.user,
+    });
+    votesByItemId.set(vote.itemId, existing);
   }
 
   // Shape items for the board: resolve stop name
@@ -104,6 +184,8 @@ export default async function WishlistPage({
     notes: item.notes,
     stopId: item.stopId,
     stopName: item.stop?.name ?? null,
+    lat: item.lat,
+    lng: item.lng,
   }));
 
   return (
@@ -114,6 +196,9 @@ export default async function WishlistPage({
       items={items}
       costsByItemId={costsByItemId}
       homeCurrency={trip.homeCurrency}
+      notesByItemId={notesByItemId}
+      votesByItemId={votesByItemId}
+      currentUserId={user.id}
     />
   );
 }

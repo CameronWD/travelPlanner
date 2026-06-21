@@ -9,6 +9,9 @@ import { ItemFormDialog, type StopOption } from "./item-form-dialog";
 import { ScheduleItemDialog } from "./schedule-item-dialog";
 import { AddItemButton } from "./item-form-dialog";
 import { deleteItem, unscheduleItem } from "@/server/actions/items";
+import type { NoteView } from "./note-thread";
+import type { VoteView } from "./vote-control";
+import { sortItemsByVotes } from "@/lib/votes";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,6 +32,12 @@ export interface WishlistBoardProps {
   /** Map of itemId → costs for that item */
   costsByItemId?: Map<string, CostRow[]>;
   homeCurrency?: string;
+  /** Map of itemId → notes for that item */
+  notesByItemId?: Map<string, NoteView[]>;
+  /** Map of itemId → votes for that item */
+  votesByItemId?: Map<string, VoteView[]>;
+  /** Current authenticated user's ID */
+  currentUserId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -42,6 +51,9 @@ export function WishlistBoard({
   items,
   costsByItemId,
   homeCurrency,
+  notesByItemId,
+  votesByItemId,
+  currentUserId,
 }: WishlistBoardProps) {
   const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
 
@@ -70,7 +82,7 @@ export function WishlistBoard({
     }
   }
 
-  // ── Group items by stopId ──
+  // ── Group items by stopId, sorted by combined vote score ──
   const grouped = React.useMemo(() => {
     const byStop = new Map<string | null, ItemCardItem[]>();
     byStop.set(null, []); // "Anywhere" group always first
@@ -82,8 +94,20 @@ export function WishlistBoard({
       byStop.set(key, arr);
     }
 
+    // Sort each group by combined vote score (desc), tie-break by title
+    if (votesByItemId) {
+      for (const [key, groupItems] of byStop.entries()) {
+        const enriched = groupItems.map((item) => ({
+          ...item,
+          votes: (votesByItemId.get(item.id) ?? []).map((v) => ({ level: v.level })),
+        }));
+        const sorted = sortItemsByVotes(enriched);
+        byStop.set(key, sorted);
+      }
+    }
+
     return byStop;
-  }, [items]);
+  }, [items, votesByItemId]);
 
   // Stops that actually have items
   const stopsWithItems = stops.filter((s) => (grouped.get(s.id)?.length ?? 0) > 0);
@@ -153,6 +177,9 @@ export function WishlistBoard({
                       costs={costsByItemId?.get(item.id)}
                       tripId={tripId}
                       homeCurrency={homeCurrency}
+                      notes={notesByItemId?.get(item.id) ?? []}
+                      votes={votesByItemId?.get(item.id) ?? []}
+                      currentUserId={currentUserId}
                     />
                   ))}
                 </div>
@@ -186,6 +213,9 @@ export function WishlistBoard({
                     costs={costsByItemId?.get(item.id)}
                     tripId={tripId}
                     homeCurrency={homeCurrency}
+                    notes={notesByItemId?.get(item.id) ?? []}
+                    votes={votesByItemId?.get(item.id) ?? []}
+                    currentUserId={currentUserId}
                   />
                 ))}
               </div>

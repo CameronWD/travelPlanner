@@ -4,6 +4,7 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { MapLink } from "./map-link";
+import { NoteThread, type NoteView } from "./note-thread";
 
 export interface StopCardStop {
   id: string;
@@ -32,6 +33,12 @@ export interface StopCardProps {
   onDelete?: (stopId: string) => void;
   /** Pending state (e.g. while a server action is in flight) */
   isPending?: boolean;
+  /** Notes attached to this stop */
+  notes?: NoteView[];
+  /** Trip ID (required for notes) */
+  tripId?: string;
+  /** Current user's ID (required for notes) */
+  currentUserId?: string;
 }
 
 /**
@@ -48,6 +55,9 @@ export function StopCard({
   onMoveDown,
   onDelete,
   isPending = false,
+  notes,
+  tripId,
+  currentUserId,
 }: StopCardProps) {
   const nights = nightsBetween(stop.arriveDate, stop.departDate);
   const dateRange = formatDateRange(stop.arriveDate, stop.departDate);
@@ -117,6 +127,17 @@ export function StopCard({
           >
             <Pencil className="size-4" aria-hidden="true" />
           </Button>
+
+          {/* Notes trigger */}
+          {notes !== undefined && tripId && currentUserId && (
+            <NoteThread
+              tripId={tripId}
+              targetType="STOP"
+              targetId={stop.id}
+              notes={notes}
+              currentUserId={currentUserId}
+            />
+          )}
 
           {/* Delete */}
           <Button
