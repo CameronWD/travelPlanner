@@ -6,6 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { itemSchema, type ItemInput } from "@/lib/validations/item";
+import { stopForDate } from "@/lib/itinerary";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -283,6 +284,64 @@ export async function unscheduleItem(
       startTime: null,
       endTime: null,
     },
+  });
+
+  revalidateItemPaths(item.tripId);
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Rescheduling
+// ---------------------------------------------------------------------------
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * Move an item to `targetDateISO`, reassigning its stop to whichever stop covers
+ * that day (null on a gap day). Keeps the item's existing start/end time. Used by
+ * month-grid drag-to-reschedule and wishlist→day drops. Rejects dates outside the
+ * trip window.
+ */
+export async function rescheduleItem(
+  itemId: string,
+  targetDateISO: string,
+): Promise<ItemActionResult> {
+  const item = await requireItemAccess(itemId);
+
+  if (!ISO_DATE_RE.test(targetDateISO)) {
+    return { success: false, errors: { date: ["Date must be in YYYY-MM-DD format"] } };
+  }
+
+  const trip = await db.trip.findUnique({
+    where: { id: item.tripId },
+    select: { startDate: true, endDate: true },
+  });
+  if (!trip) notFound();
+
+  if (targetDateISO < trip.startDate || targetDateISO > trip.endDate) {
+    return { success: false, errors: { date: ["That day is outside the trip."] } };
+  }
+
+  const stops = await db.stop.findMany({
+    where: { tripId: item.tripId },
+    select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
+  });
+
+  const covering = stopForDate(
+    stops.map((s) => ({
+      id: s.id,
+      name: s.name ?? "",
+      timezone: s.timezone ?? "UTC",
+      arriveDate: s.arriveDate,
+      departDate: s.departDate,
+      sortOrder: s.sortOrder,
+    })),
+    targetDateISO,
+  );
+
+  await db.item.update({
+    where: { id: itemId },
+    data: { date: targetDateISO, stopId: covering?.id ?? null },
   });
 
   revalidateItemPaths(item.tripId);
