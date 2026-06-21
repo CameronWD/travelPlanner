@@ -114,6 +114,7 @@ model Trip {
   checklistItems ChecklistItem[]
   attachments    Attachment[]
   reminders      Reminder[]
+  shareLink      ShareLink?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -391,4 +392,13 @@ model Reminder {
   createdAt DateTime @default(now())
 
   @@index([tripId])
+}
+
+model ShareLink {
+  id        String   @id @default(cuid())
+  tripId    String   @unique
+  token     String   @unique
+  createdAt DateTime @default(now())
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 }
