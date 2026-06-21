@@ -14,6 +14,10 @@ import { MapLink } from "@/components/trip/map-link";
 import { TransportCountdown } from "@/components/trip/transport-countdown";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { TransportMode } from "@/lib/enums";
+import {
+  RemindersCard,
+  type ReminderItem,
+} from "@/components/trip/reminders-card";
 
 export default async function TodayPage({
   params,
@@ -35,8 +39,8 @@ export default async function TodayPage({
   const isBeforeTrip = today < trip.startDate;
   const isAfterTrip = today > trip.endDate;
 
-  // Fetch all itinerary data
-  const [stops, items, transports, accommodations] = await Promise.all([
+  // Fetch all itinerary data (plus reminders)
+  const [stops, items, transports, accommodations, reminders] = await Promise.all([
     db.stop.findMany({
       where: { tripId },
       orderBy: { sortOrder: "asc" },
@@ -99,6 +103,16 @@ export default async function TodayPage({
         notes: true,
         lat: true,
         lng: true,
+      },
+    }),
+    db.reminder.findMany({
+      where: { tripId },
+      orderBy: { fireAt: "asc" },
+      select: {
+        id: true,
+        title: true,
+        fireAt: true,
+        sent: true,
       },
     }),
   ]);
@@ -304,6 +318,17 @@ export default async function TodayPage({
           </div>
         </section>
       )}
+
+      {/* ── Reminders ── */}
+      <section className="flex flex-col gap-1">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+          Reminders
+        </h3>
+        <RemindersCard
+          tripId={tripId}
+          reminders={reminders as ReminderItem[]}
+        />
+      </section>
 
       {/* ── Quick links ── */}
       <div className="flex flex-wrap gap-3 text-sm">

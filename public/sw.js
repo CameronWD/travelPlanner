@@ -224,3 +224,61 @@ async function staleWhileRevalidate(request) {
     });
   }
 }
+
+// ---------------------------------------------------------------------------
+// Push: receive and display notifications
+// ---------------------------------------------------------------------------
+
+self.addEventListener('push', (event) => {
+  try {
+    const data = event.data ? event.data.json() : null;
+    if (!data) return; // no payload — nothing to show
+
+    const title = data.title ?? 'Trip Planner';
+    const options = {
+      body: data.body ?? '',
+      data: { url: data.url ?? '/' },
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+    };
+
+    event.waitUntil(self.registration.showNotification(title, options));
+  } catch (err) {
+    // Guard against malformed JSON or missing push data — never crash the SW.
+    console.warn('[SW] push handler error:', err);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Notification click: focus existing tab or open new window
+// ---------------------------------------------------------------------------
+
+self.addEventListener('notificationclick', (event) => {
+  try {
+    event.notification.close();
+
+    const url = (event.notification.data && event.notification.data.url) || '/';
+
+    event.waitUntil(
+      self.clients
+        .matchAll({ type: 'window', includeUncontrolled: true })
+        .then((clientList) => {
+          // Try to focus an existing tab at the target URL
+          for (const client of clientList) {
+            if (client.url === url && 'focus' in client) {
+              return client.focus();
+            }
+          }
+          // No existing tab — open a new one
+          if (self.clients.openWindow) {
+            return self.clients.openWindow(url);
+          }
+        })
+        .catch((err) => {
+          console.warn('[SW] notificationclick navigation error:', err);
+        })
+    );
+  } catch (err) {
+    console.warn('[SW] notificationclick handler error:', err);
+  }
+});

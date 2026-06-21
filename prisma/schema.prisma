@@ -37,12 +37,13 @@ model User {
 
   // Domain relations
   createdTrips     Trip[]            @relation("TripCreatedBy")
-  memberships      TripMember[]
-  notes            Note[]
-  votes            Vote[]
-  attachments      Attachment[]      @relation("AttachmentUploadedBy")
-  assignedTasks    ChecklistItem[]   @relation("ChecklistAssignedTo")
-  packingTemplates PackingTemplate[]
+  memberships        TripMember[]
+  notes              Note[]
+  votes              Vote[]
+  attachments        Attachment[]       @relation("AttachmentUploadedBy")
+  assignedTasks      ChecklistItem[]    @relation("ChecklistAssignedTo")
+  packingTemplates   PackingTemplate[]
+  pushSubscriptions  PushSubscription[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -401,4 +402,17 @@ model ShareLink {
   createdAt DateTime @default(now())
 
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
