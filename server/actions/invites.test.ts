@@ -13,8 +13,7 @@ const {
   requireTripAccessMock,
   revalidatePathMock,
   tripMemberFindManyMock,
-  inviteFindFirstMock,
-  inviteCreateMock,
+  inviteUpsertMock,
   inviteFindUniqueMock,
   inviteDeleteMock,
 } = vi.hoisted(() => ({
@@ -24,8 +23,7 @@ const {
   }),
   revalidatePathMock: vi.fn(),
   tripMemberFindManyMock: vi.fn(),
-  inviteFindFirstMock: vi.fn(),
-  inviteCreateMock: vi.fn(),
+  inviteUpsertMock: vi.fn(),
   inviteFindUniqueMock: vi.fn(),
   inviteDeleteMock: vi.fn(),
 }));
@@ -38,8 +36,7 @@ vi.mock("@/lib/db", () => ({
       findMany: tripMemberFindManyMock,
     },
     invite: {
-      findFirst: inviteFindFirstMock,
-      create: inviteCreateMock,
+      upsert: inviteUpsertMock,
       findUnique: inviteFindUniqueMock,
       delete: inviteDeleteMock,
     },
@@ -62,8 +59,7 @@ afterEach(() => {
 describe("inviteToTrip", () => {
   it("is access-checked — calls requireTripAccess with the tripId", async () => {
     tripMemberFindManyMock.mockResolvedValue([]);
-    inviteFindFirstMock.mockResolvedValue(null);
-    inviteCreateMock.mockResolvedValue({ id: "new-invite" });
+    inviteUpsertMock.mockResolvedValue({ id: "new-invite" });
 
     await inviteToTrip(TRIP_ID, "friend@example.com");
 
@@ -78,7 +74,7 @@ describe("inviteToTrip", () => {
     if (!result.success) {
       expect(result.error).toMatch(/email/i);
     }
-    expect(inviteCreateMock).not.toHaveBeenCalled();
+    expect(inviteUpsertMock).not.toHaveBeenCalled();
   });
 
   it("returns error when the email is already a member", async () => {
@@ -93,13 +89,12 @@ describe("inviteToTrip", () => {
     if (!result.success) {
       expect(result.error).toMatch(/already a member/i);
     }
-    expect(inviteCreateMock).not.toHaveBeenCalled();
+    expect(inviteUpsertMock).not.toHaveBeenCalled();
   });
 
   it("creates a new invite and returns success when none exists", async () => {
     tripMemberFindManyMock.mockResolvedValue([]);
-    inviteFindFirstMock.mockResolvedValue(null);
-    inviteCreateMock.mockResolvedValue({ id: "new-invite-id" });
+    inviteUpsertMock.mockResolvedValue({ id: "new-invite-id" });
 
     const result = await inviteToTrip(TRIP_ID, "partner@example.com");
 
@@ -107,10 +102,10 @@ describe("inviteToTrip", () => {
     if (result.success) {
       expect(result.inviteId).toBe("new-invite-id");
     }
-    expect(inviteCreateMock).toHaveBeenCalledOnce();
-    expect(inviteCreateMock).toHaveBeenCalledWith(
+    expect(inviteUpsertMock).toHaveBeenCalledOnce();
+    expect(inviteUpsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({
+        create: expect.objectContaining({
           tripId: TRIP_ID,
           email: "partner@example.com",
           role: "member",
@@ -121,21 +116,22 @@ describe("inviteToTrip", () => {
 
   it("normalises email to lowercase", async () => {
     tripMemberFindManyMock.mockResolvedValue([]);
-    inviteFindFirstMock.mockResolvedValue(null);
-    inviteCreateMock.mockResolvedValue({ id: "inv-1" });
+    inviteUpsertMock.mockResolvedValue({ id: "inv-1" });
 
     await inviteToTrip(TRIP_ID, "Partner@EXAMPLE.COM");
 
-    expect(inviteCreateMock).toHaveBeenCalledWith(
+    expect(inviteUpsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ email: "partner@example.com" }),
+        create: expect.objectContaining({ email: "partner@example.com" }),
       }),
     );
   });
 
-  it("keeps existing pending invite (no duplicate create)", async () => {
+  it("returns the upsert's resolved id on the no-duplicate path (idempotent)", async () => {
     tripMemberFindManyMock.mockResolvedValue([]);
-    inviteFindFirstMock.mockResolvedValue({ id: "existing-invite" });
+    // Simulate the conflict path: a row for (tripId, email) already exists, so
+    // the compound-key upsert resolves to that existing row's id.
+    inviteUpsertMock.mockResolvedValue({ id: "existing-invite" });
 
     const result = await inviteToTrip(TRIP_ID, "friend@example.com");
 
@@ -143,17 +139,43 @@ describe("inviteToTrip", () => {
     if (result.success) {
       expect(result.inviteId).toBe("existing-invite");
     }
-    expect(inviteCreateMock).not.toHaveBeenCalled();
+    // A single upsert keyed on the compound (tripId, email) — never two rows.
+    expect(inviteUpsertMock).toHaveBeenCalledOnce();
+    expect(inviteUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tripId_email: { tripId: TRIP_ID, email: "friend@example.com" } },
+      }),
+    );
   });
 
   it("revalidates the settings path after inviting", async () => {
     tripMemberFindManyMock.mockResolvedValue([]);
-    inviteFindFirstMock.mockResolvedValue(null);
-    inviteCreateMock.mockResolvedValue({ id: "inv" });
+    inviteUpsertMock.mockResolvedValue({ id: "inv" });
 
     await inviteToTrip(TRIP_ID, "new@example.com");
 
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+  });
+
+  it("upserts on (tripId, email) so a duplicate cannot be created", async () => {
+    tripMemberFindManyMock.mockResolvedValue([]);
+    inviteUpsertMock.mockResolvedValue({ id: INVITE_ID });
+
+    const result = await inviteToTrip(TRIP_ID, "Friend@Example.com ");
+
+    expect(result.success).toBe(true);
+    expect(inviteUpsertMock).toHaveBeenCalledOnce();
+    expect(inviteUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tripId_email: { tripId: TRIP_ID, email: "friend@example.com" } },
+        update: {},
+        create: expect.objectContaining({
+          tripId: TRIP_ID,
+          email: "friend@example.com",
+          role: "member",
+        }),
+      }),
+    );
   });
 });
 

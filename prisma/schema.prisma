@@ -152,6 +152,7 @@ model Invite {
 
   createdAt DateTime @default(now())
 
+  @@unique([tripId, email])
   @@index([tripId])
   @@index([email])
 }

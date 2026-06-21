@@ -39,7 +39,7 @@ export async function inviteToTrip(
 ): Promise<InviteResult> {
   await requireTripAccess(tripId);
 
-  const parsed = emailSchema.safeParse(email);
+  const parsed = emailSchema.safeParse(email.trim());
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid email" };
   }
@@ -60,20 +60,13 @@ export async function inviteToTrip(
     return { success: false, error: "That person is already a member of this trip." };
   }
 
-  // Check for an existing non-accepted invite. If one exists, keep it.
-  const existingInvite = await db.invite.findFirst({
-    where: { tripId, email: normalised, acceptedAt: null },
-    select: { id: true },
-  });
-
-  if (existingInvite) {
-    revalidatePath(`/trips/${tripId}/settings`);
-    return { success: true, inviteId: existingInvite.id };
-  }
-
-  // Create a fresh invite.
-  const invite = await db.invite.create({
-    data: {
+  // Idempotent + race-safe: the (tripId, email) unique constraint guarantees
+  // at most one invite row per email per trip. An existing row (pending OR
+  // accepted) is left untouched; acceptance de-dupes membership anyway.
+  const invite = await db.invite.upsert({
+    where: { tripId_email: { tripId, email: normalised } },
+    update: {},
+    create: {
       tripId,
       email: normalised,
       token: crypto.randomUUID(),
