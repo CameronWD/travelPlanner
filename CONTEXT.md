@@ -23,7 +23,7 @@ A first-class place you sleep, attached to a Stop — check-in/out dates, addres
 _Avoid_: Hotel, lodging, stay (note: "Stay" is too close to "Stop")
 
 **Timeline**:
-The dated, time-ordered list of Items within a Stop (and across the whole Trip). The "calendar" the user sees is a view onto the Timeline.
+The dated, time-ordered list of Items within a Stop (and across the whole Trip). The "calendar" the user sees is a view onto the Timeline — either an **Agenda** (day-by-day list) or a **Month** (calendar grid) view of the same underlying days.
 _Avoid_: Schedule, agenda
 
 **Item**:
@@ -67,7 +67,7 @@ The read-only overview of a whole Trip: each Stop with its nights, the Transport
 _Avoid_: Report, dashboard
 
 **Flag**:
-An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, an empty day, Transport times that don't line up with Stop dates, a very short stay, or backtracking in the route.
+An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, an empty day, Transport times that don't line up with Stop dates, a very short stay, backtracking in the route, a **packed day** (more scheduled than is realistic), or Items whose times **overlap**.
 _Avoid_: Warning, alert, issue, error
 
 ### Supporting concepts
@@ -87,6 +87,10 @@ _Avoid_: Document, upload, file
 **Note**:
 A free-text comment left by either traveller on a Stop, Item or booking — lightweight collaboration between the two of you.
 _Avoid_: Comment, remark
+
+**Calendar feed**:
+A private, read-only subscription of a Trip's Timeline that an external calendar app (Google/Apple/Outlook) can follow by URL. It reflects the Trip's scheduled Items, Transport and Accommodation and refreshes on the *external* app's own schedule (not instantly). One per Trip, shared by both Travellers, and revocable (resetting it invalidates the old URL). One-way: the app publishes the feed; it never reads changes back from the external calendar.
+_Avoid_: Sync (implies two-way), integration
 
 **Vote**:
 A traveller's interest mark on a Wishlist Item (e.g. must-do / keen / meh) used to decide together what makes the cut.
