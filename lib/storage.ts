@@ -45,20 +45,34 @@ function uploadsRoot(): string {
   return path.join(process.cwd(), ".uploads");
 }
 
+/**
+ * Resolve `key` to an absolute path and assert it stays INSIDE the uploads
+ * root. Defence-in-depth: even if a malicious/corrupted key contains `..`,
+ * it can never escape `.uploads/`. Throws on containment violation.
+ */
+function resolveWithinUploads(key: string): string {
+  const root = uploadsRoot();
+  const dest = path.resolve(root, key);
+  if (dest !== root && !dest.startsWith(root + path.sep)) {
+    throw new Error("Storage key escapes the uploads root");
+  }
+  return dest;
+}
+
 const localDiskStorage: Storage = {
   async save(key, data) {
-    const dest = path.join(uploadsRoot(), key);
+    const dest = resolveWithinUploads(key);
     await fs.mkdir(path.dirname(dest), { recursive: true });
     await fs.writeFile(dest, data);
   },
 
   async delete(key) {
-    const dest = path.join(uploadsRoot(), key);
+    const dest = resolveWithinUploads(key);
     await fs.rm(dest, { force: true });
   },
 
   async read(key) {
-    const dest = path.join(uploadsRoot(), key);
+    const dest = resolveWithinUploads(key);
     try {
       return await fs.readFile(dest);
     } catch (err: unknown) {

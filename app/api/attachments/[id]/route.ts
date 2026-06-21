@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireUser } from "@/lib/guards";
 import { getStorage } from "@/lib/storage";
 
 /**
@@ -27,6 +27,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
+
+  // 0. Require a valid session BEFORE touching the db, so an unauthenticated
+  // caller can't distinguish "id exists" (redirect) from "id missing" (404).
+  await requireUser();
 
   // 1. Look up the attachment row.
   const attachment = await db.attachment.findUnique({
@@ -67,9 +71,12 @@ export async function GET(
   const isInline =
     attachment.mime.startsWith("image/") || attachment.mime === "application/pdf";
 
+  // Strip CR/LF/quotes so a crafted filename can't inject headers (response
+  // splitting) or break the Content-Disposition value.
+  const safeName = attachment.filename.replace(/[\r\n"]/g, "_");
   const disposition = isInline
-    ? `inline; filename="${attachment.filename}"`
-    : `attachment; filename="${attachment.filename}"`;
+    ? `inline; filename="${safeName}"`
+    : `attachment; filename="${safeName}"`;
 
   const headers = new Headers();
   headers.set("Content-Type", attachment.mime);

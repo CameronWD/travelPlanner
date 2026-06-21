@@ -206,4 +206,13 @@ describe("localDiskStorage (round-trip)", async () => {
     const result = await storage.read(key);
     expect(result?.toString()).toBe("pdf bytes");
   });
+
+  it("refuses keys that escape the uploads root (path traversal)", async () => {
+    const storage = await withStorage();
+    await expect(
+      storage.save("../escape.txt", Buffer.from("x"), "text/plain"),
+    ).rejects.toThrow(/escapes/i);
+    await expect(storage.read("../../etc/passwd")).rejects.toThrow(/escapes/i);
+    await expect(storage.delete("../../oops")).rejects.toThrow(/escapes/i);
+  });
 });
