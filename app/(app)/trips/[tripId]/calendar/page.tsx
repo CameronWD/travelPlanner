@@ -3,11 +3,9 @@ import { notFound } from "next/navigation";
 import { CalendarDays, MapPin } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { formatLongDate } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
-import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Timeline } from "@/components/trip/timeline";
+import { AgendaView } from "@/components/trip/agenda-view";
 import type { TransportMode } from "@/lib/enums";
 
 export default async function CalendarPage({
@@ -157,50 +155,5 @@ export default async function CalendarPage({
     })),
   });
 
-  return (
-    <div className="flex flex-col gap-0 divide-y divide-border/50">
-      {itinerary.map((day) => {
-        const isTravelDay =
-          day.transportEntries.length > 0;
-        const dayHref = `/trips/${tripId}/day/${day.dateISO}`;
-
-        return (
-          <section key={day.dateISO} className="py-5 first:pt-0">
-            {/* Day header */}
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-              <div className="flex flex-col gap-0.5">
-                <Link
-                  href={dayHref}
-                  className="group flex items-center gap-2 font-display text-base font-semibold text-foreground hover:text-primary transition-colors"
-                >
-                  {formatLongDate(day.dateISO)}
-                  <span className="text-xs text-muted-foreground group-hover:text-primary/70 transition-colors">
-                    →
-                  </span>
-                </Link>
-                {day.stop && (
-                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <MapPin className="size-3 shrink-0" aria-hidden="true" />
-                    {day.stop.name}
-                    {day.stop.country ? `, ${day.stop.country}` : ""}
-                  </p>
-                )}
-              </div>
-
-              {isTravelDay && (
-                <Badge variant="accent" className="text-xs shrink-0">
-                  Travel day
-                </Badge>
-              )}
-            </div>
-
-            {/* Timeline for this day */}
-            <div className="pl-1">
-              <Timeline day={day} variant="agenda" />
-            </div>
-          </section>
-        );
-      })}
-    </div>
-  );
+  return <AgendaView tripId={tripId} days={itinerary} />;
 }
