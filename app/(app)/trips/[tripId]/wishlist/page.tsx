@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { isAiConfigured } from "@/lib/ai";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
 import type { ItemCardItem } from "@/components/trip/item-card";
 import type { CostRow } from "@/server/actions/costs";
@@ -199,6 +200,7 @@ export default async function WishlistPage({
       notesByItemId={notesByItemId}
       votesByItemId={votesByItemId}
       currentUserId={user.id}
+      aiConfigured={isAiConfigured()}
     />
   );
 }

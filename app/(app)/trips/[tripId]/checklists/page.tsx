@@ -1,10 +1,13 @@
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { isAiConfigured } from "@/lib/ai";
 import { sortChecklist } from "@/lib/checklists";
 import { listTemplates } from "@/server/actions/checklists";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checklist } from "@/components/trip/checklist";
 import { PackingTemplatesBar } from "@/components/trip/packing-templates-bar";
+import { AiPackingSuggestions } from "@/components/trip/ai-packing-suggestions";
+import { AiBookingParser } from "@/components/trip/ai-booking-parser";
 import type { ChecklistKind } from "@/lib/enums";
 
 export default async function ChecklistsPage({
@@ -15,6 +18,8 @@ export default async function ChecklistsPage({
   const { tripId } = await params;
 
   await requireTripAccess(tripId);
+
+  const aiConfigured = isAiConfigured();
 
   // Fetch all checklist items for this trip
   const rawItems = await db.checklistItem.findMany({
@@ -86,6 +91,9 @@ export default async function ChecklistsPage({
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="booking" className="flex-1 sm:flex-initial">
+            Booking parser
+          </TabsTrigger>
         </TabsList>
 
         {/* ── Pre-trip tab ── */}
@@ -124,6 +132,9 @@ export default async function ChecklistsPage({
               </p>
             </div>
 
+            {/* AI packing list suggestions */}
+            <AiPackingSuggestions tripId={tripId} aiConfigured={aiConfigured} />
+
             {/* Templates bar — above the list */}
             <PackingTemplatesBar tripId={tripId} templates={templates} />
 
@@ -135,6 +146,13 @@ export default async function ChecklistsPage({
               showDueDate={false}
               showAssignee={false}
             />
+          </div>
+        </TabsContent>
+
+        {/* ── Booking parser tab ── */}
+        <TabsContent value="booking">
+          <div className="flex flex-col gap-4">
+            <AiBookingParser tripId={tripId} aiConfigured={aiConfigured} />
           </div>
         </TabsContent>
       </Tabs>

@@ -12,6 +12,7 @@ import { deleteItem, unscheduleItem } from "@/server/actions/items";
 import type { NoteView } from "./note-thread";
 import type { VoteView } from "./vote-control";
 import { sortItemsByVotes } from "@/lib/votes";
+import { AiActivitySuggestions } from "./ai-activity-suggestions";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -38,6 +39,8 @@ export interface WishlistBoardProps {
   votesByItemId?: Map<string, VoteView[]>;
   /** Current authenticated user's ID */
   currentUserId?: string;
+  /** Whether the AI features are configured (key is set). */
+  aiConfigured?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,6 +57,7 @@ export function WishlistBoard({
   notesByItemId,
   votesByItemId,
   currentUserId,
+  aiConfigured = false,
 }: WishlistBoardProps) {
   const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
 
@@ -109,9 +113,11 @@ export function WishlistBoard({
     return byStop;
   }, [items, votesByItemId]);
 
-  // Stops that actually have items
+  // Stops that actually have items (still used for the no-key empty-state variant)
   const stopsWithItems = stops.filter((s) => (grouped.get(s.id)?.length ?? 0) > 0);
   const anywhereItems = grouped.get(null) ?? [];
+  // When AI is configured, show all stops (even empty) so users can request suggestions per-stop
+  const stopsToShow = aiConfigured ? stops : stopsWithItems;
 
   const isEmpty = items.length === 0;
 
@@ -145,13 +151,12 @@ export function WishlistBoard({
         />
       )}
 
-      {/* Items grouped by stop */}
-      {!isEmpty && (
+      {/* Items grouped by stop — always shown when AI is configured (even empty stops) */}
+      {(!isEmpty || aiConfigured) && stops.length > 0 && (
         <div className="flex flex-col gap-6">
           {/* Stop-grouped sections */}
-          {stopsWithItems.map((stop) => {
+          {stopsToShow.map((stop) => {
             const stopItems = grouped.get(stop.id) ?? [];
-            if (stopItems.length === 0) return null;
             return (
               <section key={stop.id} className="flex flex-col gap-3">
                 <div className="flex items-center gap-2">
@@ -159,30 +164,40 @@ export function WishlistBoard({
                   <h3 className="font-display text-base font-semibold text-foreground">
                     {stop.name}
                   </h3>
-                  <span className="text-xs text-muted-foreground">
-                    ({stopItems.length})
-                  </span>
+                  {stopItems.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                      ({stopItems.length})
+                    </span>
+                  )}
                 </div>
-                <div className="flex flex-col gap-2">
-                  {stopItems.map((item) => (
-                    <ItemCard
-                      key={item.id}
-                      item={item}
-                      mode="wishlist"
-                      isPending={pendingId === item.id}
-                      onEdit={setEditingItem}
-                      onDelete={handleDelete}
-                      onSchedule={setSchedulingItem}
-                      onUnschedule={handleUnschedule}
-                      costs={costsByItemId?.get(item.id)}
-                      tripId={tripId}
-                      homeCurrency={homeCurrency}
-                      notes={notesByItemId?.get(item.id) ?? []}
-                      votes={votesByItemId?.get(item.id) ?? []}
-                      currentUserId={currentUserId}
-                    />
-                  ))}
-                </div>
+                <AiActivitySuggestions
+                  tripId={tripId}
+                  stopId={stop.id}
+                  stopName={stop.name}
+                  aiConfigured={aiConfigured}
+                />
+                {stopItems.length > 0 && (
+                  <div className="flex flex-col gap-2">
+                    {stopItems.map((item) => (
+                      <ItemCard
+                        key={item.id}
+                        item={item}
+                        mode="wishlist"
+                        isPending={pendingId === item.id}
+                        onEdit={setEditingItem}
+                        onDelete={handleDelete}
+                        onSchedule={setSchedulingItem}
+                        onUnschedule={handleUnschedule}
+                        costs={costsByItemId?.get(item.id)}
+                        tripId={tripId}
+                        homeCurrency={homeCurrency}
+                        notes={notesByItemId?.get(item.id) ?? []}
+                        votes={votesByItemId?.get(item.id) ?? []}
+                        currentUserId={currentUserId}
+                      />
+                    ))}
+                  </div>
+                )}
               </section>
             );
           })}
