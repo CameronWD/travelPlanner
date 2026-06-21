@@ -9,7 +9,12 @@
  */
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
-const USER_AGENT = "TripPlanner/1.0 (cameron.williams@hismileteeth.com)";
+// Nominatim's usage policy asks for a contact in the User-Agent. Configure a
+// real contact via NOMINATIM_CONTACT in production; the default avoids baking a
+// personal email into the source.
+const NOMINATIM_CONTACT =
+  process.env.NOMINATIM_CONTACT ?? "contact@example.com";
+const USER_AGENT = `TripPlanner/1.0 (${NOMINATIM_CONTACT})`;
 const TIMEOUT_MS = 5_000;
 
 export interface LatLng {
