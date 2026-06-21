@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { buildItinerary } from "@/lib/itinerary";
 import { EmptyState } from "@/components/ui/empty-state";
-import { AgendaView } from "@/components/trip/agenda-view";
+import { CalendarViews } from "@/components/trip/calendar-views";
 import type { TransportMode } from "@/lib/enums";
 
 export default async function CalendarPage({
@@ -155,5 +155,12 @@ export default async function CalendarPage({
     })),
   });
 
-  return <AgendaView tripId={tripId} days={itinerary} />;
+  return (
+    <CalendarViews
+      tripId={tripId}
+      days={itinerary}
+      tripStart={trip.startDate}
+      tripEnd={trip.endDate}
+    />
+  );
 }
