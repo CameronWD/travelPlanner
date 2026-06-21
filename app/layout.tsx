@@ -3,6 +3,7 @@ import { Fraunces, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
+import { PwaRegister } from "@/components/pwa-register";
 
 // Fraunces is a variable font: omitting `weight` keeps the full variable
 // range (400–600 used in the type scale) and lets us enable optical sizing.
@@ -39,6 +40,7 @@ export default function RootLayout({
         <ThemeProvider>
           {children}
           <Toaster />
+          <PwaRegister />
         </ThemeProvider>
       </body>
     </html>
