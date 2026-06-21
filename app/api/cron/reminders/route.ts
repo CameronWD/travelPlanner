@@ -45,7 +45,9 @@ function isAuthorized(req: NextRequest): boolean {
   const authHeader = req.headers.get("authorization");
   if (authHeader === `Bearer ${secret}`) return true;
 
-  // Check query param
+  // Check query param. NOTE: a secret in the URL can land in access logs, so
+  // this branch is only safe over HTTPS (Vercel enforces this; for other hosts
+  // prefer the Authorization header).
   const url = new URL(req.url);
   if (url.searchParams.get("secret") === secret) return true;
 
