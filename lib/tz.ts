@@ -277,6 +277,49 @@ export function instantToZonedDateISO(
 }
 
 /**
+ * Offset (ms) of `timeZone` from UTC at the moment represented by `utcDate`.
+ * Positive east of UTC. Uses Intl to read the zone's wall-clock for that instant.
+ */
+function tzOffsetMs(utcDate: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = dtf.formatToParts(utcDate);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  let hour = get("hour");
+  if (hour === 24) hour = 0; // some engines emit "24" for midnight
+  const asUTC = Date.UTC(get("year"), get("month") - 1, get("day"), hour, get("minute"), get("second"));
+  return asUTC - utcDate.getTime();
+}
+
+/**
+ * Convert a wall-clock time (`dateISO` = YYYY-MM-DD, `hhmm` = HH:MM) in `timeZone`
+ * to the corresponding UTC instant. DST-correct (two-pass to settle transitions).
+ * Falls back to treating the input as UTC if `timeZone` is invalid.
+ */
+export function zonedWallTimeToInstant(dateISO: string, hhmm: string, timeZone: string): Date {
+  const naiveUTC = Date.parse(`${dateISO}T${hhmm}:00Z`);
+  if (Number.isNaN(naiveUTC)) return new Date(NaN);
+  try {
+    // First guess: subtract the offset at the naive instant.
+    const offset1 = tzOffsetMs(new Date(naiveUTC), timeZone);
+    const guess = naiveUTC - offset1;
+    // Second pass: recompute offset at the guessed instant (settles DST edges).
+    const offset2 = tzOffsetMs(new Date(guess), timeZone);
+    return new Date(naiveUTC - offset2);
+  } catch {
+    return new Date(naiveUTC);
+  }
+}
+
+/**
  * Convert an instant to a 24-hour HH:MM time string in the given IANA timezone.
  *
  * Falls back to UTC if the timezone identifier is invalid.

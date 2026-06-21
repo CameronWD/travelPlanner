@@ -4,6 +4,7 @@ import {
   guessTimezoneForCountry,
   instantToZonedDateISO,
   instantToZonedTime,
+  zonedWallTimeToInstant,
 } from "./tz";
 
 describe("TIMEZONES", () => {
@@ -142,5 +143,29 @@ describe("instantToZonedTime", () => {
 
   it("returns 08:30 in Asia/Tokyo (UTC+9)", () => {
     expect(instantToZonedTime(instant, "Asia/Tokyo")).toBe("08:30");
+  });
+});
+
+describe("zonedWallTimeToInstant", () => {
+  it("converts a UTC wall time to the same instant", () => {
+    const d = zonedWallTimeToInstant("2026-07-09", "10:00", "UTC");
+    expect(d.toISOString()).toBe("2026-07-09T10:00:00.000Z");
+  });
+
+  it("converts a summer Paris wall time (UTC+2) back to UTC", () => {
+    // 10:00 in Paris in July = 08:00 UTC.
+    const d = zonedWallTimeToInstant("2026-07-09", "10:00", "Europe/Paris");
+    expect(d.toISOString()).toBe("2026-07-09T08:00:00.000Z");
+  });
+
+  it("converts a winter Paris wall time (UTC+1) back to UTC", () => {
+    // 10:00 in Paris in January = 09:00 UTC.
+    const d = zonedWallTimeToInstant("2026-01-09", "10:00", "Europe/Paris");
+    expect(d.toISOString()).toBe("2026-01-09T09:00:00.000Z");
+  });
+
+  it("converts a New York summer wall time (UTC-4) to UTC", () => {
+    const d = zonedWallTimeToInstant("2026-07-09", "10:00", "America/New_York");
+    expect(d.toISOString()).toBe("2026-07-09T14:00:00.000Z");
   });
 });
