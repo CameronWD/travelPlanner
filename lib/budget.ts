@@ -518,7 +518,11 @@ interface SpreadContext {
  * Spread an accommodation cost evenly across the nights between checkIn and
  * checkOut, constrained to [tripStart, tripEnd].
  *
- * Distributes the remainder to the first nights so parts sum exactly to total.
+ * Per-night amounts are computed over the FULL stay duration; only nights that
+ * fall within [tripStart, tripEnd] are placed on byDay. For a stay fully inside
+ * the trip the per-night parts sum exactly to the total; for a stay that
+ * straddles a trip boundary, only the in-window nights' shares appear in byDay
+ * (the full cost always appears in grandTotal regardless of clamping).
  */
 function spreadAcrossNights(
   checkIn: string,

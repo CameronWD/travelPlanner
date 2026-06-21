@@ -419,7 +419,7 @@ describe("buildBudget", () => {
     expect(depDay?.estimatedMinor).toBe(25000);
   });
 
-  it("transport cost with no depAt → not placed on any day (not in grandTotal though)", () => {
+  it("transport cost with no depAt → not placed on any day (still counted in grandTotal)", () => {
     const transports: BudgetTransport[] = [
       { id: "t-1", fromStopId: "stop-london", toStopId: "stop-paris", depAt: null },
     ];
