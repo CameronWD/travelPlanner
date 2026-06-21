@@ -4,6 +4,7 @@ import * as React from "react";
 import { Heart, MapPin } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ItemCard, type ItemCardItem } from "./item-card";
+import type { CostRow } from "@/server/actions/costs";
 import { ItemFormDialog, type StopOption } from "./item-form-dialog";
 import { ScheduleItemDialog } from "./schedule-item-dialog";
 import { AddItemButton } from "./item-form-dialog";
@@ -25,6 +26,9 @@ export interface WishlistBoardProps {
   tripStartDate: string;
   stops: WishlistStop[];
   items: ItemCardItem[];
+  /** Map of itemId → costs for that item */
+  costsByItemId?: Map<string, CostRow[]>;
+  homeCurrency?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -36,6 +40,8 @@ export function WishlistBoard({
   tripStartDate,
   stops,
   items,
+  costsByItemId,
+  homeCurrency,
 }: WishlistBoardProps) {
   const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
 
@@ -144,6 +150,9 @@ export function WishlistBoard({
                       onDelete={handleDelete}
                       onSchedule={setSchedulingItem}
                       onUnschedule={handleUnschedule}
+                      costs={costsByItemId?.get(item.id)}
+                      tripId={tripId}
+                      homeCurrency={homeCurrency}
                     />
                   ))}
                 </div>
@@ -174,6 +183,9 @@ export function WishlistBoard({
                     onDelete={handleDelete}
                     onSchedule={setSchedulingItem}
                     onUnschedule={handleUnschedule}
+                    costs={costsByItemId?.get(item.id)}
+                    tripId={tripId}
+                    homeCurrency={homeCurrency}
                   />
                 ))}
               </div>

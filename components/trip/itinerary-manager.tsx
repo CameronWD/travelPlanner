@@ -13,13 +13,19 @@ import { deleteStop, moveStop } from "@/server/actions/stops";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import type { TransportMode } from "@/lib/enums";
+import type { CostRow } from "@/server/actions/costs";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
+export interface AccommodationCardAccommodationWithCosts
+  extends AccommodationCardAccommodation {
+  costs?: CostRow[];
+}
+
 export interface ItineraryStop extends StopCardStop {
-  accommodations: AccommodationCardAccommodation[];
+  accommodations: AccommodationCardAccommodationWithCosts[];
 }
 
 export interface ItineraryTransport {
@@ -34,12 +40,16 @@ export interface ItineraryTransport {
   reference?: string | null;
   notes?: string | null;
   sortOrder: number;
+  /** Costs attached to this transport */
+  costs?: CostRow[];
 }
 
 interface ItineraryManagerProps {
   tripId: string;
   initialStops: ItineraryStop[];
   initialTransports: ItineraryTransport[];
+  /** Trip's home currency — passed to cost display */
+  homeCurrency?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -72,6 +82,7 @@ export function ItineraryManager({
   tripId,
   initialStops,
   initialTransports,
+  homeCurrency,
 }: ItineraryManagerProps) {
   // ── Stop dialog state ──
   const [editingStop, setEditingStop] = React.useState<StopCardStop | null>(null);
@@ -224,6 +235,9 @@ export function ItineraryManager({
                             setEditingAccStop(stop);
                           }}
                           onDelete={handleDeleteAccommodation}
+                          costs={acc.costs}
+                          tripId={tripId}
+                          homeCurrency={homeCurrency}
                         />
                       ))}
                     </div>
@@ -252,6 +266,9 @@ export function ItineraryManager({
                           isPending={pendingId === t.id}
                           onEdit={(tr) => setEditingTransport(tr)}
                           onDelete={handleDeleteTransport}
+                          costs={t.costs}
+                          tripId={tripId}
+                          homeCurrency={homeCurrency}
                         />
                       ))}
 
@@ -292,6 +309,9 @@ export function ItineraryManager({
                   isPending={pendingId === t.id}
                   onEdit={(tr) => setEditingTransport(tr)}
                   onDelete={handleDeleteTransport}
+                  costs={t.costs}
+                  tripId={tripId}
+                  homeCurrency={homeCurrency}
                 />
               ))}
             </div>

@@ -4,6 +4,8 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { TRANSPORT_MODE_META, durationMinutes, formatDuration } from "@/lib/transport";
 import type { TransportMode } from "@/lib/enums";
+import { CostEditor } from "./cost-editor";
+import type { CostRow } from "@/server/actions/costs";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,6 +38,12 @@ interface TransportCardProps {
   isPending?: boolean;
   onEdit?: (t: TransportCardTransport) => void;
   onDelete?: (id: string) => void;
+  /** Costs attached to this transport */
+  costs?: CostRow[];
+  /** Trip ID (required when costs are provided) */
+  tripId?: string;
+  /** Trip's home currency */
+  homeCurrency?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -73,6 +81,9 @@ export function TransportCard({
   isPending = false,
   onEdit,
   onDelete,
+  costs,
+  tripId,
+  homeCurrency,
 }: TransportCardProps) {
   const meta = TRANSPORT_MODE_META[t.mode];
   const Icon = meta.icon;
@@ -175,6 +186,20 @@ export function TransportCard({
         <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <StickyNote className="size-3.5 mt-0.5 shrink-0" aria-hidden="true" />
           <p className="line-clamp-2">{t.notes}</p>
+        </div>
+      )}
+
+      {/* Costs */}
+      {costs !== undefined && tripId && (
+        <div className="border-t border-border/40 pt-2">
+          <CostEditor
+            tripId={tripId}
+            ownerType="TRANSPORT"
+            ownerId={t.id}
+            costs={costs}
+            homeCurrency={homeCurrency}
+            defaultCurrency={homeCurrency}
+          />
         </div>
       )}
     </div>

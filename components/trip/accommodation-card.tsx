@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { accommodationDateWarnings } from "@/lib/validations/accommodation";
+import { CostEditor } from "./cost-editor";
+import type { CostRow } from "@/server/actions/costs";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -34,6 +36,12 @@ interface AccommodationCardProps {
   isPending?: boolean;
   onEdit?: (a: AccommodationCardAccommodation) => void;
   onDelete?: (id: string) => void;
+  /** Costs attached to this accommodation */
+  costs?: CostRow[];
+  /** Trip ID (required when costs are provided) */
+  tripId?: string;
+  /** Trip's home currency */
+  homeCurrency?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -46,6 +54,9 @@ export function AccommodationCard({
   isPending = false,
   onEdit,
   onDelete,
+  costs,
+  tripId,
+  homeCurrency,
 }: AccommodationCardProps) {
   const nights = nightsBetween(a.checkIn, a.checkOut);
   const dateRange = formatDateRange(a.checkIn, a.checkOut);
@@ -141,6 +152,20 @@ export function AccommodationCard({
               {w}
             </Badge>
           ))}
+        </div>
+      )}
+
+      {/* Costs */}
+      {costs !== undefined && tripId && (
+        <div className="border-t border-border/40 pt-2">
+          <CostEditor
+            tripId={tripId}
+            ownerType="ACCOMMODATION"
+            ownerId={a.id}
+            costs={costs}
+            homeCurrency={homeCurrency}
+            defaultCurrency={homeCurrency}
+          />
         </div>
       )}
     </div>

@@ -16,6 +16,8 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { CategoryPill } from "./category-pill";
 import type { Category } from "@/lib/categories";
+import { CostEditor } from "./cost-editor";
+import type { CostRow } from "@/server/actions/costs";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,6 +47,12 @@ export interface ItemCardProps {
   onDelete?: (itemId: string) => void;
   onSchedule?: (item: ItemCardItem) => void;
   onUnschedule?: (itemId: string) => void;
+  /** Costs attached to this item */
+  costs?: CostRow[];
+  /** Trip ID (required when costs are provided) */
+  tripId?: string;
+  /** Trip's home currency */
+  homeCurrency?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -59,6 +67,9 @@ export function ItemCard({
   onDelete,
   onSchedule,
   onUnschedule,
+  costs,
+  tripId,
+  homeCurrency,
 }: ItemCardProps) {
   const hasTime = Boolean(item.startTime);
   const timeLabel = hasTime
@@ -204,6 +215,20 @@ export function ItemCard({
             aria-hidden="true"
           />
           <p className="line-clamp-2">{item.notes}</p>
+        </div>
+      )}
+
+      {/* Costs */}
+      {costs !== undefined && tripId && (
+        <div className="border-t border-border/40 pt-2">
+          <CostEditor
+            tripId={tripId}
+            ownerType="ITEM"
+            ownerId={item.id}
+            costs={costs}
+            homeCurrency={homeCurrency}
+            defaultCurrency={homeCurrency}
+          />
         </div>
       )}
     </div>

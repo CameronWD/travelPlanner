@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
 import type { ItemCardItem } from "@/components/trip/item-card";
+import type { CostRow } from "@/server/actions/costs";
 
 export default async function WishlistPage({
   params,
@@ -19,6 +20,7 @@ export default async function WishlistPage({
       id: true,
       startDate: true,
       endDate: true,
+      homeCurrency: true,
       stops: {
         orderBy: { sortOrder: "asc" },
         select: {
@@ -55,6 +57,39 @@ export default async function WishlistPage({
     notFound();
   }
 
+  // Fetch ITEM costs for wishlist items
+  const itemIds = trip.items.map((i) => i.id);
+  const itemCosts: CostRow[] = itemIds.length > 0
+    ? await db.cost.findMany({
+        where: {
+          ownerType: "ITEM",
+          ownerId: { in: itemIds },
+        },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          estimatedMinor: true,
+          actualMinor: true,
+          currency: true,
+          rateToHome: true,
+          paidAt: true,
+          ownerType: true,
+          ownerId: true,
+          label: true,
+          category: true,
+        },
+      })
+    : [];
+
+  // Group by itemId
+  const costsByItemId = new Map<string, CostRow[]>();
+  for (const cost of itemCosts) {
+    if (!cost.ownerId) continue;
+    const existing = costsByItemId.get(cost.ownerId) ?? [];
+    existing.push(cost);
+    costsByItemId.set(cost.ownerId, existing);
+  }
+
   // Shape items for the board: resolve stop name
   const items: ItemCardItem[] = trip.items.map((item) => ({
     id: item.id,
@@ -77,6 +112,8 @@ export default async function WishlistPage({
       tripStartDate={trip.startDate}
       stops={trip.stops}
       items={items}
+      costsByItemId={costsByItemId}
+      homeCurrency={trip.homeCurrency}
     />
   );
 }
