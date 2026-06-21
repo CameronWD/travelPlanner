@@ -11,7 +11,11 @@
 // Types
 // ---------------------------------------------------------------------------
 
-export type CacheStrategy = 'network-only' | 'stale-while-revalidate' | 'cache-first';
+export type CacheStrategy =
+  | 'network-only'
+  | 'network-first'
+  | 'stale-while-revalidate'
+  | 'cache-first';
 
 export interface StrategyInput {
   method: string;
@@ -61,7 +65,15 @@ export function isApiRoute(url: string): boolean {
  * 2. Cross-origin → network-only  (tile servers, FX API, etc.)
  * 3. Same-origin /api/* → network-only  (auth & live data)
  * 4. Same-origin /_next/static/* → cache-first  (immutable hashed assets)
- * 5. Everything else (navigations, RSC, pages) → stale-while-revalidate
+ * 5. Everything else (navigations, RSC, pages) → network-first
+ *
+ * Navigations render PRIVATE, per-user trip data, so they must NOT be served
+ * stale from a shared (URL-keyed) cache — that would leak one traveller's trip
+ * to another user on the same device/browser. network-first always fetches
+ * fresh from the server (which is authenticated by the session cookie) when
+ * online, and only falls back to the cache when genuinely offline. Combined
+ * with clearing the cache on sign-out, the offline fallback can only ever be
+ * the same user's own data.
  */
 export function cacheStrategyFor({ method, url, sameOrigin }: StrategyInput): CacheStrategy {
   // Rule 1: never cache mutations
@@ -84,6 +96,6 @@ export function cacheStrategyFor({ method, url, sameOrigin }: StrategyInput): Ca
     return 'cache-first';
   }
 
-  // Rule 5: stale-while-revalidate for navigations / pages / RSC
-  return 'stale-while-revalidate';
+  // Rule 5: network-first for navigations / pages / RSC (private per-user data)
+  return 'network-first';
 }

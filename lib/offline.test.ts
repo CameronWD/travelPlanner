@@ -128,36 +128,37 @@ describe('cacheStrategyFor', () => {
     ).toBe('cache-first');
   });
 
-  // Rule 5: same-origin page/navigation GET → stale-while-revalidate
-  it('returns stale-while-revalidate for same-origin GET to home page', () => {
+  // Rule 5: same-origin page/navigation GET → network-first
+  // (private per-user pages must never be served stale from a shared cache)
+  it('returns network-first for same-origin GET to home page', () => {
     expect(
       cacheStrategyFor({ method: 'GET', url: `${origin}/`, sameOrigin: true })
-    ).toBe('stale-while-revalidate');
+    ).toBe('network-first');
   });
 
-  it('returns stale-while-revalidate for same-origin GET to a trip page', () => {
+  it('returns network-first for same-origin GET to a trip page', () => {
     expect(
       cacheStrategyFor({
         method: 'GET',
         url: `${origin}/trips/abc123/budget`,
         sameOrigin: true,
       })
-    ).toBe('stale-while-revalidate');
+    ).toBe('network-first');
   });
 
-  it('returns stale-while-revalidate for same-origin GET to RSC payload', () => {
+  it('returns network-first for same-origin GET to RSC payload', () => {
     expect(
       cacheStrategyFor({
         method: 'GET',
         url: `${origin}/trips/abc123?_rsc=xyz`,
         sameOrigin: true,
       })
-    ).toBe('stale-while-revalidate');
+    ).toBe('network-first');
   });
 
-  it('returns stale-while-revalidate for same-origin GET to sign-in page', () => {
+  it('returns network-first for same-origin GET to sign-in page', () => {
     expect(
       cacheStrategyFor({ method: 'GET', url: `${origin}/signin`, sameOrigin: true })
-    ).toBe('stale-while-revalidate');
+    ).toBe('network-first');
   });
 });

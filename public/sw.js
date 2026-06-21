@@ -9,13 +9,21 @@
  *   - Cross-origin requests                  → network-only
  *   - Same-origin /api/*                     → network-only  (auth + live data)
  *   - Same-origin /_next/static/*            → cache-first   (immutable hashed assets)
- *   - Everything else (navigations, pages)   → stale-while-revalidate
+ *   - Everything else (navigations, pages)   → network-first (private per-user data)
+ *
+ * SECURITY: navigations render private trip data, so they are network-first
+ * (fresh from the authenticated server when online; cache only as an offline
+ * fallback) and the runtime cache is cleared on sign-out via a CLEAR_CACHE
+ * message — never serve one user's cached pages to another on a shared device.
  */
 
-const CACHE_VERSION = 'trip-planner-v1';
+// Bump on cache-policy changes so old caches (incl. any authenticated pages
+// cached under the previous stale-while-revalidate policy) are purged.
+const CACHE_VERSION = 'trip-planner-v2';
 
-// App shell resources to precache on install
-const PRECACHE_URLS = ['/', '/offline.html'];
+// App shell resources to precache on install. Only truly public assets —
+// NEVER '/', which redirects to the authenticated app.
+const PRECACHE_URLS = ['/offline.html'];
 
 // ---------------------------------------------------------------------------
 // URL classification helpers (mirrors lib/offline.ts)
@@ -68,8 +76,8 @@ function getCacheStrategy(request) {
   // Rule 4: cache-first for immutable static assets
   if (isNextStaticAsset(url)) return 'cache-first';
 
-  // Rule 5: stale-while-revalidate for navigations / pages
-  return 'stale-while-revalidate';
+  // Rule 5: network-first for navigations / pages (private per-user data)
+  return 'network-first';
 }
 
 // ---------------------------------------------------------------------------
@@ -133,9 +141,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  if (strategy === 'stale-while-revalidate') {
-    event.respondWith(staleWhileRevalidate(event.request));
+  if (strategy === 'network-first') {
+    event.respondWith(networkFirst(event.request));
     return;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Message: allow the app to clear the runtime cache (e.g. on sign-out) so a
+// different user on the same device can't read the previous user's cached
+// private pages while offline.
+// ---------------------------------------------------------------------------
+
+self.addEventListener('message', (event) => {
+  const data = event.data;
+  if (data && data.type === 'CLEAR_CACHE') {
+    event.waitUntil(
+      caches
+        .keys()
+        .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+        .catch((err) => console.warn('[SW] cache clear failed:', err))
+    );
   }
 });
 
@@ -167,51 +193,29 @@ async function cacheFirst(request) {
 }
 
 /**
- * stale-while-revalidate: respond immediately from cache (if present),
- * then update cache from network in background.
- * On cache miss + network failure for a navigation, serve offline fallback.
+ * network-first: always try the network first so an online user gets fresh,
+ * authenticated content (never another user's cached page). Cache successful
+ * responses so they can serve as an OFFLINE-ONLY fallback. On network failure,
+ * serve the cached copy if present, else the offline page for navigations.
+ *
+ * The cache is purged on sign-out (CLEAR_CACHE message), so the offline
+ * fallback can only ever be the currently signed-in user's own pages.
  */
-async function staleWhileRevalidate(request) {
+async function networkFirst(request) {
   const cache = await caches.open(CACHE_VERSION);
 
   try {
-    const cached = await caches.match(request);
-
-    // Kick off background revalidation (non-blocking)
-    const networkPromise = fetch(request)
-      .then((response) => {
-        if (response.ok) {
-          cache.put(request, response.clone()).catch(() => {});
-        }
-        return response;
-      })
-      .catch(() => null);
-
-    if (cached) {
-      // Respond immediately from cache; background update runs concurrently
-      return cached;
+    const response = await fetch(request);
+    if (response.ok) {
+      cache.put(request, response.clone()).catch(() => {}); // non-blocking
     }
-
-    // Cache miss — wait for network
-    const networkResponse = await networkPromise;
-    if (networkResponse) return networkResponse;
-
-    // Both cache and network failed — serve offline fallback for navigations
-    if (request.mode === 'navigate') {
-      const fallback = await caches.match('/offline.html');
-      if (fallback) return fallback;
-    }
-
-    // No fallback available — fail gracefully
-    return new Response('Offline', {
-      status: 503,
-      statusText: 'Service Unavailable',
-      headers: { 'Content-Type': 'text/plain' },
-    });
+    return response;
   } catch (err) {
-    console.warn('[SW] stale-while-revalidate error:', err);
+    console.warn('[SW] network-first fetch failed, falling back to cache:', err);
 
-    // On any unexpected error, try the offline fallback for navigations
+    const cached = await caches.match(request);
+    if (cached) return cached;
+
     if (request.mode === 'navigate') {
       const fallback = await caches.match('/offline.html').catch(() => null);
       if (fallback) return fallback;
