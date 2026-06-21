@@ -230,6 +230,7 @@ export default async function DayPage({
           stops={stopOptions}
           tripStartDate={effectiveDate}
           defaultUnscheduled={false}
+          label="Add to this day"
         />
       </div>
 

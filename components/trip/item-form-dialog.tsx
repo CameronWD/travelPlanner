@@ -112,18 +112,21 @@ export function AddItemButton({
   stops,
   tripStartDate,
   defaultUnscheduled = true,
+  label = "Add idea",
 }: {
   tripId: string;
   stops: StopOption[];
   tripStartDate?: string;
   defaultUnscheduled?: boolean;
+  /** Button label. Defaults to "Add idea". */
+  label?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   return (
     <>
       <Button variant="primary" size="sm" onClick={() => setOpen(true)}>
         <Plus className="size-4" aria-hidden="true" />
-        Add idea
+        {label}
       </Button>
       <ItemFormDialog
         tripId={tripId}

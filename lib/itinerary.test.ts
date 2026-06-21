@@ -141,6 +141,28 @@ describe("stopForDate", () => {
     expect(stopForDate(stops, "2026-06-30")).toBeNull();
   });
 
+  it("returns null for a genuine gap day between two non-adjacent stops", () => {
+    const stop1 = makeStop({
+      id: "gap-stop-1",
+      name: "London",
+      arriveDate: "2026-07-01",
+      departDate: "2026-07-03",
+      sortOrder: 0,
+    });
+    const stop2 = makeStop({
+      id: "gap-stop-2",
+      name: "Berlin",
+      arriveDate: "2026-07-05",
+      departDate: "2026-07-08",
+      sortOrder: 1,
+    });
+    // 2026-07-04 falls between the two stops — genuine gap day
+    expect(stopForDate([stop1, stop2], "2026-07-04")).toBeNull();
+    // Sanity: days within each stop are still found
+    expect(stopForDate([stop1, stop2], "2026-07-02")).toEqual(stop1);
+    expect(stopForDate([stop1, stop2], "2026-07-06")).toEqual(stop2);
+  });
+
   it("returns null for a date after all stops", () => {
     expect(stopForDate(stops, "2026-07-20")).toBeNull();
   });
@@ -277,6 +299,30 @@ describe("buildItinerary", () => {
     });
     const allTransport = plans.flatMap((p) => p.transportEntries);
     expect(allTransport).toHaveLength(0);
+  });
+
+  it("handles transport with depAt set but arrAt null — departure entry present, no arrival entry, no crash", () => {
+    const transport = makeTransport({
+      id: "t-dep-only",
+      mode: "BUS",
+      fromStopId: "stop-paris",
+      toStopId: null,
+      depAt: new Date("2026-07-03T08:00:00Z"), // 10:00 Europe/Paris
+      arrAt: null,
+    });
+    const plans = buildItinerary({
+      ...BASE,
+      items: [],
+      transports: [transport],
+      accommodations: [],
+    });
+    const allTransport = plans.flatMap((p) => p.transportEntries);
+    // Exactly one entry — the departure
+    expect(allTransport).toHaveLength(1);
+    expect(allTransport[0].kind).toBe("transport-departure");
+    // No crash; no arrival entry anywhere
+    const arrivals = allTransport.filter((e) => e.kind === "transport-arrival");
+    expect(arrivals).toHaveLength(0);
   });
 
   it("places transport departure on the correct day (same-day arrival)", () => {

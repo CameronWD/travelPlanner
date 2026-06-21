@@ -186,14 +186,18 @@ interface TransportFormProps {
 /** Sentinel for "none selected" in stop selects */
 const NONE = "__none__";
 
-/** Format a Date to datetime-local input value (YYYY-MM-DDTHH:mm) */
+/**
+ * Format a Date to datetime-local input value (YYYY-MM-DDTHH:mm).
+ * Uses local (wall-clock) getters so the displayed value matches what the user
+ * originally entered — not the UTC equivalent.
+ */
 function toDatetimeLocal(dt: Date | null | undefined): string {
   if (!dt) return "";
-  const y = dt.getUTCFullYear();
-  const mo = String(dt.getUTCMonth() + 1).padStart(2, "0");
-  const d = String(dt.getUTCDate()).padStart(2, "0");
-  const h = String(dt.getUTCHours()).padStart(2, "0");
-  const mi = String(dt.getUTCMinutes()).padStart(2, "0");
+  const y = dt.getFullYear();
+  const mo = String(dt.getMonth() + 1).padStart(2, "0");
+  const d = String(dt.getDate()).padStart(2, "0");
+  const h = String(dt.getHours()).padStart(2, "0");
+  const mi = String(dt.getMinutes()).padStart(2, "0");
   return `${y}-${mo}-${d}T${h}:${mi}`;
 }
 
