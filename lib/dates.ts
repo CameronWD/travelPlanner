@@ -40,6 +40,11 @@ const MONTH_SHORT = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
+const MONTH_LONG = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /**
@@ -147,6 +152,47 @@ export function clampISODate(
   if (min && date < min) return min;
   if (max && date > max) return max;
   return date;
+}
+
+// ---------------------------------------------------------------------------
+// Month arithmetic helpers
+// ---------------------------------------------------------------------------
+
+/** First day (YYYY-MM-DD) of the month containing `s`. */
+export function startOfMonthISO(s: string): string {
+  const d = parseISODate(s);
+  return formatISODate(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)));
+}
+
+/** Last day (YYYY-MM-DD) of the month containing `s`. */
+export function endOfMonthISO(s: string): string {
+  const d = parseISODate(s);
+  // Day 0 of next month = last day of this month.
+  return formatISODate(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)));
+}
+
+/** Add `n` calendar months, clamping the day to the target month's length. */
+export function addMonths(s: string, n: number): string {
+  const d = parseISODate(s);
+  const targetMonthFirst = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + n, 1));
+  const lastDay = new Date(
+    Date.UTC(targetMonthFirst.getUTCFullYear(), targetMonthFirst.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  const day = Math.min(d.getUTCDate(), lastDay);
+  return formatISODate(
+    new Date(Date.UTC(targetMonthFirst.getUTCFullYear(), targetMonthFirst.getUTCMonth(), day)),
+  );
+}
+
+/** "July 2026" for any day in that month. */
+export function formatMonthYear(s: string): string {
+  const d = parseISODate(s);
+  return `${MONTH_LONG[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+/** "YYYY-MM" — handy for clamping month navigation by string compare. */
+export function monthKey(s: string): string {
+  return s.slice(0, 7);
 }
 
 /**

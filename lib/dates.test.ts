@@ -11,6 +11,11 @@ import {
   todayISO,
   clampISODate,
   suggestNextStopDates,
+  addMonths,
+  startOfMonthISO,
+  endOfMonthISO,
+  formatMonthYear,
+  monthKey,
 } from "./dates";
 
 describe("parseISODate", () => {
@@ -233,5 +238,44 @@ describe("suggestNextStopDates", () => {
       arriveDate: "",
       departDate: "",
     });
+  });
+});
+
+describe("month helpers", () => {
+  it("startOfMonthISO returns the first of the month", () => {
+    expect(startOfMonthISO("2026-07-14")).toBe("2026-07-01");
+  });
+
+  it("endOfMonthISO returns the last day (July = 31)", () => {
+    expect(endOfMonthISO("2026-07-14")).toBe("2026-07-31");
+  });
+
+  it("endOfMonthISO handles February in a non-leap year", () => {
+    expect(endOfMonthISO("2026-02-10")).toBe("2026-02-28");
+  });
+
+  it("addMonths rolls forward across a year boundary", () => {
+    expect(addMonths("2026-11-01", 2)).toBe("2027-01-01");
+  });
+
+  it("addMonths rolls backward", () => {
+    expect(addMonths("2026-01-01", -1)).toBe("2025-12-01");
+  });
+
+  it("addMonths clamps the day when the target month is shorter", () => {
+    expect(addMonths("2026-01-31", 1)).toBe("2026-02-28");
+  });
+
+  it("addMonths clamps a leap-day to Feb 28 when the target year is not a leap year", () => {
+    // 2024 is a leap year; +12 months lands in 2025 (non-leap) → clamp 29→28.
+    expect(addMonths("2024-02-29", 12)).toBe("2025-02-28");
+  });
+
+  it("formatMonthYear renders a human label", () => {
+    expect(formatMonthYear("2026-07-01")).toBe("July 2026");
+  });
+
+  it("monthKey returns YYYY-MM", () => {
+    expect(monthKey("2026-07-14")).toBe("2026-07");
   });
 });
