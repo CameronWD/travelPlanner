@@ -9,7 +9,7 @@
 
 import { convertMinor } from "@/lib/money";
 import { categoryLabel } from "@/lib/categories";
-import { addDays, nightsBetween } from "@/lib/dates";
+import { addDays, daysBetween, nightsBetween } from "@/lib/dates";
 import { enumerateTripDays } from "@/lib/itinerary";
 import { instantToZonedDateISO } from "@/lib/tz";
 
@@ -536,9 +536,14 @@ function spreadAcrossNights(
   const totalNights = nightsBetween(checkIn, checkOut);
   if (totalNights <= 0) return;
 
-  // Effective date range: clamp to trip
+  // Effective date range: clamp to trip. A "night" is keyed by its check-in
+  // date, so the nights of a [checkIn, checkOut) stay are [checkIn, checkOut).
+  // When the guest stays through/past the trip's last day, the night of
+  // `tripEnd` itself is in-window, so the exclusive end clamps to tripEnd + 1
+  // (not tripEnd) — otherwise that final night is silently dropped.
   const effectiveStart = checkIn >= tripStart ? checkIn : tripStart;
-  const effectiveEnd = checkOut <= tripEnd ? checkOut : tripEnd;
+  const effectiveEnd =
+    checkOut <= tripEnd ? checkOut : addDays(tripEnd, 1);
 
   if (effectiveStart >= effectiveEnd) return;
 
@@ -562,9 +567,11 @@ function spreadAcrossNights(
 
   for (let i = 0; i < numNights; i++) {
     const day = nights[i];
-    // Use night index relative to full checkIn for remainder distribution
-    // (first nights within effective range get the remainder)
-    const nightIndex = i; // remainder goes to first nights in the clamped range
+    // Remainder cents are distributed to the first nights of the FULL stay
+    // (offset from the real check-in), so a stay that straddles the trip start
+    // doesn't misattribute an out-of-window night's remainder to an in-window
+    // night.
+    const nightIndex = daysBetween(checkIn, day);
     const estForNight = baseEst + (nightIndex < remainderEst ? 1 : 0);
     const actForNight = baseAct + (nightIndex < remainderAct ? 1 : 0);
 

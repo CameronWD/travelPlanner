@@ -72,7 +72,12 @@ export function parseAmountToMinor(
   if (!Number.isFinite(value)) return null;
 
   const factor = 10 ** decimalsFor(currency);
-  return Math.round(value * factor);
+  // Multiply in float, then strip binary-representation noise before rounding:
+  // e.g. 1.005 * 100 === 100.49999999999999, which a naive Math.round would
+  // truncate to 100 instead of the intended 101. Normalising to a few decimal
+  // places via toFixed removes the ~1e-13 error without affecting genuine
+  // fractional minor units, then we round half-up to the nearest minor unit.
+  return Math.round(Number((value * factor).toFixed(4)));
 }
 
 /**

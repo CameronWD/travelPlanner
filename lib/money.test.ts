@@ -24,6 +24,13 @@ describe("parseAmountToMinor", () => {
     expect(parseAmountToMinor("0.1", "EUR")).toBe(10);
   });
 
+  it("rounds half-up without floating-point drift (1.005 -> 101, not 100)", () => {
+    // 1.005 * 100 === 100.49999999999999 in IEEE-754; a naive Math.round drops a cent.
+    expect(parseAmountToMinor("1.005", "EUR")).toBe(101);
+    expect(parseAmountToMinor("1.015", "EUR")).toBe(102);
+    expect(parseAmountToMinor("2.675", "EUR")).toBe(268);
+  });
+
   it("strips thousands separators", () => {
     expect(parseAmountToMinor("1,234.56", "USD")).toBe(123456);
     expect(parseAmountToMinor("1 000", "USD")).toBe(100000);

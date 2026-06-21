@@ -403,6 +403,56 @@ describe("buildBudget", () => {
     expect(totalFromDays).toBe(99);
   });
 
+  it("accommodation spread: stay running THROUGH trip end keeps the last in-window night", () => {
+    // checkIn before trip end, checkOut well after; trip ends 2026-07-10.
+    // Nights stayed within the trip: Jul 8, Jul 9, Jul 10. 10000/10 nights = 1000/night.
+    const accommodations: BudgetAccommodation[] = [
+      { id: "acc-1", stopId: "stop-london", checkIn: "2026-07-08", checkOut: "2026-07-18" },
+    ];
+    const costs: BudgetCost[] = [
+      makeCost({ id: "c1", estimatedMinor: 10000, actualMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
+    ];
+    const result = buildBudget({ ...baseInput, costs, accommodations });
+    const day8 = result.byDay.find((d) => d.dateISO === "2026-07-08");
+    const day9 = result.byDay.find((d) => d.dateISO === "2026-07-09");
+    const day10 = result.byDay.find((d) => d.dateISO === "2026-07-10");
+    expect(day8?.estimatedMinor).toBe(1000);
+    expect(day9?.estimatedMinor).toBe(1000);
+    // The night of the trip's final day must NOT be dropped.
+    expect(day10?.estimatedMinor).toBe(1000);
+  });
+
+  it("accommodation spread: single-night stay on the trip's final day still appears in byDay", () => {
+    const accommodations: BudgetAccommodation[] = [
+      { id: "acc-1", stopId: "stop-london", checkIn: "2026-07-10", checkOut: "2026-07-11" },
+    ];
+    const costs: BudgetCost[] = [
+      makeCost({ id: "c1", estimatedMinor: 5000, actualMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
+    ];
+    const result = buildBudget({ ...baseInput, costs, accommodations });
+    const day10 = result.byDay.find((d) => d.dateISO === "2026-07-10");
+    expect(day10?.estimatedMinor).toBe(5000);
+  });
+
+  it("accommodation spread: stay straddling trip START puts remainder on the true first night, not the first in-window night", () => {
+    // 6-night stay (Jun28..Jul3); trip starts Jul 1. 601 over 6 nights = 100 base + 1 remainder.
+    // The remainder cent belongs to the true first night (Jun 28, out of window),
+    // so the in-window nights (Jul 1,2,3) each get exactly the base 100.
+    const accommodations: BudgetAccommodation[] = [
+      { id: "acc-1", stopId: "stop-london", checkIn: "2026-06-28", checkOut: "2026-07-04" },
+    ];
+    const costs: BudgetCost[] = [
+      makeCost({ id: "c1", estimatedMinor: 601, actualMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
+    ];
+    const result = buildBudget({ ...baseInput, costs, accommodations });
+    const jul1 = result.byDay.find((d) => d.dateISO === "2026-07-01");
+    const jul2 = result.byDay.find((d) => d.dateISO === "2026-07-02");
+    const jul3 = result.byDay.find((d) => d.dateISO === "2026-07-03");
+    expect(jul1?.estimatedMinor).toBe(100);
+    expect(jul2?.estimatedMinor).toBe(100);
+    expect(jul3?.estimatedMinor).toBe(100);
+  });
+
   // ---------------------------------------------------------------------------
   // byDay — transport on departure day
   // ---------------------------------------------------------------------------
