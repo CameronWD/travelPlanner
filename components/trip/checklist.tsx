@@ -262,8 +262,9 @@ function EditItemForm({
     startTransition(async () => {
       const result = await updateChecklistItem(item.id, {
         text: text.trim(),
-        dueDate: dueDate || undefined,
-        assignedToId: assignedToId || undefined,
+        // Pass the raw value: "" is an explicit clear, the schema maps it to null.
+        dueDate,
+        assignedToId,
       });
       if (result.success) {
         onClose();

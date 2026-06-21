@@ -46,15 +46,17 @@ export const checklistItemUpdateSchema = z.object({
     .min(1, "Text is required")
     .max(200, "Text must be 200 characters or fewer")
     .optional(),
+  // On update, an omitted field (undefined) means "leave unchanged"; an empty
+  // string is an explicit "clear this field" and maps to null.
   dueDate: z
     .union([isoDate, z.literal("")])
     .optional()
-    .transform((v) => (v === "" || v === undefined ? undefined : v)),
+    .transform((v) => (v === undefined ? undefined : v === "" ? null : v)),
   assignedToId: z
     .string()
     .trim()
     .optional()
-    .transform((v) => (v === "" ? undefined : v)),
+    .transform((v) => (v === undefined ? undefined : v === "" ? null : v)),
 });
 
 export type ChecklistItemUpdateInput = z.input<typeof checklistItemUpdateSchema>;

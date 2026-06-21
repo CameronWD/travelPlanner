@@ -74,6 +74,7 @@ vi.mock("@/lib/db", () => ({
       findMany: vi.fn().mockResolvedValue([]),
       delete: packingTemplateDeleteMock,
     },
+    $transaction: (ops: unknown[]) => Promise.all(ops),
   },
 }));
 
@@ -625,6 +626,31 @@ describe("updateChecklistItem", () => {
       expect(result.errors.assignedToId).toBeDefined();
     }
     expect(checklistItemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("clears the assignee and due date when passed empty strings", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({
+      id: "ci-1",
+      tripId: "trip-1",
+      kind: "PRETRIP",
+    });
+    checklistItemUpdateMock.mockResolvedValue({});
+
+    const result = await updateChecklistItem("ci-1", {
+      assignedToId: "",
+      dueDate: "",
+    });
+
+    expect(result.success).toBe(true);
+    // No membership check when clearing (empty string → null, not a user id).
+    expect(tripMemberFindUniqueMock).not.toHaveBeenCalled();
+    expect(checklistItemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "ci-1" },
+      data: expect.objectContaining({
+        assignedToId: null,
+        dueDate: null,
+      }),
+    });
   });
 });
 

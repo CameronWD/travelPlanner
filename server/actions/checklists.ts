@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireUser } from "@/lib/guards";
 import {
   checklistItemSchema,
   checklistItemUpdateSchema,
@@ -254,15 +254,17 @@ export async function reorderChecklistItem(
     return { success: true };
   }
 
-  // Swap sortOrders
-  await db.checklistItem.update({
-    where: { id: current.id },
-    data: { sortOrder: adjacent.sortOrder },
-  });
-  await db.checklistItem.update({
-    where: { id: adjacent.id },
-    data: { sortOrder: current.sortOrder },
-  });
+  // Swap sortOrders atomically so a mid-swap failure can't leave them inconsistent.
+  await db.$transaction([
+    db.checklistItem.update({
+      where: { id: current.id },
+      data: { sortOrder: adjacent.sortOrder },
+    }),
+    db.checklistItem.update({
+      where: { id: adjacent.id },
+      data: { sortOrder: current.sortOrder },
+    }),
+  ]);
 
   revalidateChecklistPaths(item.tripId);
   return { success: true };
@@ -381,9 +383,6 @@ export async function applyTemplate(
  * List the current user's packing templates with item counts.
  */
 export async function listTemplates(): Promise<TemplateListItem[]> {
-  // requireUser via auth is implicit — we call requireTripAccess in other
-  // actions; here we need just the user.
-  const { requireUser } = await import("@/lib/guards");
   const user = await requireUser();
 
   const templates = await db.packingTemplate.findMany({
@@ -410,7 +409,6 @@ export async function listTemplates(): Promise<TemplateListItem[]> {
 export async function deleteTemplate(
   templateId: string,
 ): Promise<ChecklistActionResult> {
-  const { requireUser } = await import("@/lib/guards");
   const user = await requireUser();
 
   const template = await db.packingTemplate.findUnique({
