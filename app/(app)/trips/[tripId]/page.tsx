@@ -30,7 +30,7 @@ export default async function TripOverviewPage({
   const [trip, stops, transports, allCosts] = await Promise.all([
     db.trip.findUnique({
       where: { id: tripId },
-      select: { homeCurrency: true },
+      select: { homeCurrency: true, startDate: true, endDate: true },
     }),
     db.stop.findMany({
       where: { tripId },
@@ -148,6 +148,8 @@ export default async function TripOverviewPage({
             tripId={tripId}
             initialStops={[]}
             initialTransports={[]}
+            tripStartDate={trip?.startDate}
+            tripEndDate={trip?.endDate}
           />
         }
       />
@@ -159,6 +161,8 @@ export default async function TripOverviewPage({
       <ItineraryManager
         tripId={tripId}
         homeCurrency={trip?.homeCurrency}
+        tripStartDate={trip?.startDate}
+        tripEndDate={trip?.endDate}
         notesByStopId={notesByStopId}
         currentUserId={user.id}
         initialStops={stops.map((stop) => ({

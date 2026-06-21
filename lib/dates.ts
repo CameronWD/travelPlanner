@@ -134,3 +134,48 @@ export function isDateWithin(date: string, start: string, end: string): boolean 
 export function todayISO(): string {
   return formatISODate(new Date());
 }
+
+/**
+ * Clamp a YYYY-MM-DD date into the inclusive range [min, max].
+ * `min`/`max` are optional; a nullish bound means "no bound on that side".
+ */
+export function clampISODate(
+  date: string,
+  min?: string | null,
+  max?: string | null,
+): string {
+  if (min && date < min) return min;
+  if (max && date > max) return max;
+  return date;
+}
+
+/**
+ * Suggest sensible default dates for a NEW stop so date pickers open inside the
+ * trip window instead of today's month.
+ *
+ * - With existing stops: arrive where the latest stop departs (so the next leg
+ *   picks up where the last one ended), clamped into the trip window.
+ * - With no stops yet: arrive on the trip's start date.
+ * - Depart defaults to the same day as arrive (the user sets the real length).
+ *
+ * Returns empty strings when there's no trip start date to anchor to, leaving
+ * the inputs blank (no worse than today's default).
+ */
+export function suggestNextStopDates(
+  stops: { departDate: string; sortOrder: number }[],
+  tripStartDate?: string | null,
+  tripEndDate?: string | null,
+): { arriveDate: string; departDate: string } {
+  if (!tripStartDate) return { arriveDate: "", departDate: "" };
+
+  let arrive: string;
+  if (stops.length > 0) {
+    const last = stops.reduce((a, b) => (b.sortOrder > a.sortOrder ? b : a));
+    arrive = last.departDate || tripStartDate;
+  } else {
+    arrive = tripStartDate;
+  }
+
+  arrive = clampISODate(arrive, tripStartDate, tripEndDate);
+  return { arriveDate: arrive, departDate: arrive };
+}

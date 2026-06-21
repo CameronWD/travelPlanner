@@ -9,6 +9,8 @@ import {
   addDays,
   isDateWithin,
   todayISO,
+  clampISODate,
+  suggestNextStopDates,
 } from "./dates";
 
 describe("parseISODate", () => {
@@ -161,5 +163,75 @@ describe("todayISO", () => {
   it("returns a YYYY-MM-DD string", () => {
     const today = todayISO();
     expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe("clampISODate", () => {
+  it("returns the date when within bounds", () => {
+    expect(clampISODate("2026-07-04", "2026-07-01", "2026-07-12")).toBe(
+      "2026-07-04",
+    );
+  });
+  it("clamps to min when before the range", () => {
+    expect(clampISODate("2026-06-20", "2026-07-01", "2026-07-12")).toBe(
+      "2026-07-01",
+    );
+  });
+  it("clamps to max when after the range", () => {
+    expect(clampISODate("2026-08-01", "2026-07-01", "2026-07-12")).toBe(
+      "2026-07-12",
+    );
+  });
+  it("ignores nullish bounds", () => {
+    expect(clampISODate("2026-07-04", null, null)).toBe("2026-07-04");
+    expect(clampISODate("2026-06-01", "2026-07-01", null)).toBe("2026-07-01");
+  });
+});
+
+describe("suggestNextStopDates", () => {
+  const start = "2026-07-01";
+  const end = "2026-07-12";
+
+  it("defaults to the trip start when there are no stops", () => {
+    expect(suggestNextStopDates([], start, end)).toEqual({
+      arriveDate: start,
+      departDate: start,
+    });
+  });
+
+  it("picks up where the latest stop departs", () => {
+    const stops = [
+      { departDate: "2026-07-05", sortOrder: 0 },
+      { departDate: "2026-07-09", sortOrder: 1 },
+    ];
+    expect(suggestNextStopDates(stops, start, end)).toEqual({
+      arriveDate: "2026-07-09",
+      departDate: "2026-07-09",
+    });
+  });
+
+  it("uses sortOrder (not array order) to find the latest stop", () => {
+    const stops = [
+      { departDate: "2026-07-09", sortOrder: 1 },
+      { departDate: "2026-07-05", sortOrder: 0 },
+    ];
+    expect(suggestNextStopDates(stops, start, end).arriveDate).toBe(
+      "2026-07-09",
+    );
+  });
+
+  it("clamps a previous depart that runs past the trip end", () => {
+    const stops = [{ departDate: "2026-07-20", sortOrder: 0 }];
+    expect(suggestNextStopDates(stops, start, end)).toEqual({
+      arriveDate: end,
+      departDate: end,
+    });
+  });
+
+  it("returns empty strings when there is no trip start to anchor to", () => {
+    expect(suggestNextStopDates([], undefined, undefined)).toEqual({
+      arriveDate: "",
+      departDate: "",
+    });
   });
 });

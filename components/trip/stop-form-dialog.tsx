@@ -43,6 +43,12 @@ export interface StopFormDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Called after a successful save. */
   onSaved?: () => void;
+  /** Trip date window — constrains the date pickers so they open in-range. */
+  tripStartDate?: string;
+  tripEndDate?: string;
+  /** Default dates for a NEW stop (ignored in edit mode). */
+  defaultArriveDate?: string;
+  defaultDepartDate?: string;
 }
 
 /**
@@ -57,6 +63,10 @@ export function StopFormDialog({
   open,
   onOpenChange,
   onSaved,
+  tripStartDate,
+  tripEndDate,
+  defaultArriveDate,
+  defaultDepartDate,
 }: StopFormDialogProps) {
   // The key causes React to remount the form component whenever the dialog
   // opens or the stop changes, giving us fresh initial state for free.
@@ -76,6 +86,10 @@ export function StopFormDialog({
           stop={stop}
           onClose={() => onOpenChange(false)}
           onSaved={onSaved}
+          tripStartDate={tripStartDate}
+          tripEndDate={tripEndDate}
+          defaultArriveDate={defaultArriveDate}
+          defaultDepartDate={defaultDepartDate}
         />
       </DialogContent>
     </Dialog>
@@ -91,9 +105,22 @@ interface StopFormProps {
   stop?: StopCardStop | null;
   onClose: () => void;
   onSaved?: () => void;
+  tripStartDate?: string;
+  tripEndDate?: string;
+  defaultArriveDate?: string;
+  defaultDepartDate?: string;
 }
 
-function StopForm({ tripId, stop, onClose, onSaved }: StopFormProps) {
+function StopForm({
+  tripId,
+  stop,
+  onClose,
+  onSaved,
+  tripStartDate,
+  tripEndDate,
+  defaultArriveDate,
+  defaultDepartDate,
+}: StopFormProps) {
   const isEdit = Boolean(stop);
 
   // State is initialised once from props when the component mounts.
@@ -103,8 +130,14 @@ function StopForm({ tripId, stop, onClose, onSaved }: StopFormProps) {
   const [timezone, setTimezone] = React.useState(
     stop?.timezone ?? guessTimezoneForCountry(stop?.country) ?? "UTC",
   );
-  const [arriveDate, setArriveDate] = React.useState(stop?.arriveDate ?? "");
-  const [departDate, setDepartDate] = React.useState(stop?.departDate ?? "");
+  // New stops default into the trip window (so the picker opens in the right
+  // month); editing keeps the stop's own dates.
+  const [arriveDate, setArriveDate] = React.useState(
+    stop?.arriveDate ?? defaultArriveDate ?? "",
+  );
+  const [departDate, setDepartDate] = React.useState(
+    stop?.departDate ?? defaultDepartDate ?? "",
+  );
   const [notes, setNotes] = React.useState(stop?.notes ?? "");
   const [errors, setErrors] = React.useState<FormErrors>({});
   const [isPending, startTransition] = React.useTransition();
@@ -197,6 +230,8 @@ function StopForm({ tripId, stop, onClose, onSaved }: StopFormProps) {
           required
           value={arriveDate}
           onChange={(e) => setArriveDate(e.target.value)}
+          min={tripStartDate}
+          max={tripEndDate}
           error={errors.arriveDate?.[0]}
           disabled={isPending}
         />
@@ -205,7 +240,8 @@ function StopForm({ tripId, stop, onClose, onSaved }: StopFormProps) {
           required
           value={departDate}
           onChange={(e) => setDepartDate(e.target.value)}
-          min={arriveDate}
+          min={arriveDate || tripStartDate}
+          max={tripEndDate}
           error={errors.departDate?.[0]}
           disabled={isPending}
         />

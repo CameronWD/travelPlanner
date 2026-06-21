@@ -10,6 +10,7 @@ import { TransportFormDialog, type StopOption } from "./transport-form-dialog";
 import { AccommodationCard, type AccommodationCardAccommodation } from "./accommodation-card";
 import { AccommodationFormDialog } from "./accommodation-form-dialog";
 import { deleteStop, moveStop } from "@/server/actions/stops";
+import { suggestNextStopDates } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import type { TransportMode } from "@/lib/enums";
@@ -51,6 +52,9 @@ interface ItineraryManagerProps {
   initialTransports: ItineraryTransport[];
   /** Trip's home currency — passed to cost display */
   homeCurrency?: string;
+  /** Trip date window — used to default + constrain stop date pickers */
+  tripStartDate?: string;
+  tripEndDate?: string;
   /** Map of stopId → notes for that stop */
   notesByStopId?: Map<string, NoteView[]>;
   /** Current authenticated user's ID */
@@ -88,6 +92,8 @@ export function ItineraryManager({
   initialStops,
   initialTransports,
   homeCurrency,
+  tripStartDate,
+  tripEndDate,
   notesByStopId,
   currentUserId,
 }: ItineraryManagerProps) {
@@ -192,6 +198,14 @@ export function ItineraryManager({
   }, [initialTransports, stops]);
 
   const hasStops = stops.length > 0;
+
+  // Default a new stop to pick up where the last one departs (or trip start),
+  // so the date picker opens in the trip's window rather than today.
+  const suggestedStopDates = suggestNextStopDates(
+    stops,
+    tripStartDate,
+    tripEndDate,
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -369,6 +383,10 @@ export function ItineraryManager({
         tripId={tripId}
         open={addStopOpen}
         onOpenChange={setAddStopOpen}
+        tripStartDate={tripStartDate}
+        tripEndDate={tripEndDate}
+        defaultArriveDate={suggestedStopDates.arriveDate}
+        defaultDepartDate={suggestedStopDates.departDate}
       />
 
       {/* Edit stop */}
@@ -380,6 +398,8 @@ export function ItineraryManager({
           onOpenChange={(open) => {
             if (!open) setEditingStop(null);
           }}
+          tripStartDate={tripStartDate}
+          tripEndDate={tripEndDate}
         />
       )}
 
