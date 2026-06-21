@@ -1,12 +1,15 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Button } from "@/components/ui/button";
 import { AgendaView } from "@/components/trip/agenda-view";
 import { MonthGrid } from "@/components/trip/month-grid";
 import { addMonths, startOfMonthISO, formatMonthYear, monthKey } from "@/lib/dates";
+import { rescheduleItem } from "@/server/actions/items";
+import { toast } from "@/components/ui/use-toast";
 import type { DayPlan } from "@/lib/itinerary";
 
 const STORAGE_KEY = "trip-planner-calendar-view";
@@ -86,6 +89,26 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd }: CalendarView
 
   const [monthAnchor, setMonthAnchor] = React.useState(() => startOfMonthISO(tripStart));
 
+  const router = useRouter();
+  const [pending, startTransition] = React.useTransition();
+
+  const handleDropItem = React.useCallback(
+    (itemId: string, dateISO: string) => {
+      startTransition(async () => {
+        const result = await rescheduleItem(itemId, dateISO);
+        if (!result.success) {
+          toast({
+            variant: "destructive",
+            title: result.errors.date?.[0] ?? "Couldn't move that item.",
+          });
+          return;
+        }
+        router.refresh();
+      });
+    },
+    [router],
+  );
+
   // `view` is "agenda" on the server and during hydration (getViewServerSnapshot),
   // resolving to the stored/responsive preference only after hydration — so gating
   // the month UI on `view === "month"` is already SSR-safe with no extra mount flag.
@@ -137,13 +160,16 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd }: CalendarView
 
       {/* Body */}
       {view === "month" ? (
-        <MonthGrid
-          tripId={tripId}
-          monthAnchorISO={monthAnchor}
-          days={days}
-          tripStart={tripStart}
-          tripEnd={tripEnd}
-        />
+        <div className={pending ? "pointer-events-none opacity-70" : undefined}>
+          <MonthGrid
+            tripId={tripId}
+            monthAnchorISO={monthAnchor}
+            days={days}
+            tripStart={tripStart}
+            tripEnd={tripEnd}
+            onDropItem={handleDropItem}
+          />
+        </div>
       ) : (
         <AgendaView tripId={tripId} days={days} />
       )}
