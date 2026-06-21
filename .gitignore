@@ -20,4 +20,5 @@ next-env.d.ts
 !.yarn/versions
 *.pem
 dev.db
+.uploads/
 .verify/

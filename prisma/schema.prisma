@@ -350,7 +350,8 @@ model Attachment {
   filename     String
   mime         String
   size         Int
-  url          String
+  url          String // public serve path: /api/attachments/<id>
+  storageKey   String? // opaque key used by the Storage abstraction
   uploadedById String
 
   trip       Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
