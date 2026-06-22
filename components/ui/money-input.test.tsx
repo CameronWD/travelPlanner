@@ -69,4 +69,14 @@ describe("MoneyInput", () => {
       screen.getByRole("combobox", { name: "Currency" }),
     ).toHaveTextContent("GBP");
   });
+
+  it("amount input has min-w-0 class so it can shrink on narrow screens", () => {
+    render(<MoneyInput currency="EUR" amount="" onValueChange={() => {}} />);
+    expect(screen.getByLabelText("Amount")).toHaveClass("min-w-0");
+  });
+
+  it("currency trigger has w-24 class for the narrower picker width", () => {
+    render(<MoneyInput currency="EUR" amount="" onValueChange={() => {}} />);
+    expect(screen.getByLabelText("Currency")).toHaveClass("w-24");
+  });
 });

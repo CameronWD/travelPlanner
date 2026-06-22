@@ -101,7 +101,7 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
           disabled={disabled}
           invalid={invalid}
           aria-label={ariaLabel ?? "Amount"}
-          className="flex-1"
+          className="min-w-0 flex-1"
         />
         <Select
           value={currency}
@@ -109,7 +109,7 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
           disabled={disabled}
         >
           <SelectTrigger
-            className="w-28 shrink-0"
+            className="w-24 shrink-0"
             aria-label="Currency"
           >
             <SelectValue placeholder="Currency" />
