@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { getShareLink } from "@/server/actions/share";
+import { getCalendarFeed } from "@/server/actions/calendar-feed";
 import {
   Card,
   CardContent,
@@ -12,6 +13,7 @@ import {
 import { TripDetailsForm } from "@/components/trip/settings/trip-details-form";
 import { InvitePanel } from "@/components/trip/settings/invite-panel";
 import { SharePanel } from "@/components/trip/settings/share-panel";
+import { CalendarFeedPanel } from "@/components/trip/settings/calendar-feed-panel";
 import { DangerZone } from "@/components/trip/settings/danger-zone";
 
 export default async function SettingsPage({
@@ -53,6 +55,7 @@ export default async function SettingsPage({
   if (!trip) notFound();
 
   const shareLink = await getShareLink(tripId);
+  const calendarFeed = await getCalendarFeed(tripId);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -105,6 +108,20 @@ export default async function SettingsPage({
         </CardHeader>
         <CardContent>
           <SharePanel tripId={tripId} initialToken={shareLink?.token ?? null} />
+        </CardContent>
+      </Card>
+
+      {/* ── Calendar feed ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Calendar feed</CardTitle>
+          <CardDescription>
+            Subscribe to this trip in Google, Apple or Outlook Calendar. Updates one-way as you
+            edit the itinerary.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <CalendarFeedPanel tripId={tripId} initialToken={calendarFeed?.token ?? null} />
         </CardContent>
       </Card>
 
