@@ -117,6 +117,7 @@ model Trip {
   attachments    Attachment[]
   reminders      Reminder[]
   shareLink      ShareLink?
+  calendarFeed   CalendarFeed?
   journalEntries JournalEntry[]
 
   createdAt DateTime @default(now())
@@ -399,6 +400,15 @@ model Reminder {
 }
 
 model ShareLink {
+  id        String   @id @default(cuid())
+  tripId    String   @unique
+  token     String   @unique
+  createdAt DateTime @default(now())
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+}
+
+model CalendarFeed {
   id        String   @id @default(cuid())
   tripId    String   @unique
   token     String   @unique
