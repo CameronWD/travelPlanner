@@ -85,7 +85,7 @@ const Field = React.forwardRef<HTMLDivElement, FieldProps>(
             </p>
           ) : null}
           {error ? (
-            <p id={errorId} className="text-xs font-medium text-destructive">
+            <p id={errorId} className="text-sm font-medium text-destructive">
               {error}
             </p>
           ) : null}
