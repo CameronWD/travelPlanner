@@ -31,6 +31,8 @@ In production you need: Postgres, Google OAuth, a strong `AUTH_SECRET`, and `ALL
 
 ## 1. Database (Postgres)
 
+> **Status: done.** The app now ships on Postgres (`@prisma/adapter-pg`) with a committed Postgres migration baseline. The steps below are background; for the actual deploy follow `docs/DEPLOY.md`.
+
 ### Why you need to switch
 
 The local dev setup uses SQLite via `@prisma/adapter-better-sqlite3`. Postgres is strongly recommended for production (concurrent writes, proper connection pooling, managed backups).
@@ -191,6 +193,8 @@ Files are written to `.uploads/<key>` at the repo root (`lib/storage.ts` → `lo
 
 ### Production
 
+> **Status: done.** The `r2`/`s3` driver is implemented in `lib/storage.ts`. Just set the env vars.
+
 Set `STORAGE_DRIVER` to `"r2"` or `"s3"`. The `prodStubStorage` in `lib/storage.ts` currently throws on every operation with a clear error message — you must wire up the real implementation before uploads will work.
 
 **For Cloudflare R2**, install `@aws-sdk/client-s3` (R2 is S3-compatible) and implement the `save`, `read`, and `delete` methods in `lib/storage.ts` using these env vars:
@@ -229,11 +233,11 @@ Users can manually override any rate on the Budget page — the manual flag is s
 
 Powered by [Leaflet](https://leafletjs.com/) with [OpenStreetMap](https://www.openstreetmap.org/) tiles and [Nominatim](https://nominatim.org/) for geocoding. No API key is required for either service.
 
-**Marker icons**: Leaflet's default marker icons currently load from the unpkg CDN (`https://unpkg.com/leaflet/dist/images/`). For production reliability (or air-gapped environments) self-host the PNG assets from `node_modules/leaflet/dist/images/` and update the icon URL config in the map components.
-
 ---
 
 ## 6. Reminders / Web Push
+
+> The repo ships a GitHub Actions cron (`.github/workflows/reminders-cron.yml`) — the recommended path on Vercel Hobby (whose own cron is daily-only).
 
 ### Generate VAPID keys
 
@@ -381,5 +385,3 @@ holes, but they're worth a fast-follow:
   older than 5 minutes as stale while the budget page uses 24 hours, so the same
   rate pair can render a different "stale" badge in two places. Consolidate onto
   one threshold in `lib/fx.ts`.
-- **Leaflet marker icons load from the unpkg CDN** (see §5) — self-host for
-  production reliability.
