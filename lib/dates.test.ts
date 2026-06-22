@@ -16,6 +16,7 @@ import {
   endOfMonthISO,
   formatMonthYear,
   monthKey,
+  tzAbbrev,
 } from "./dates";
 
 describe("parseISODate", () => {
@@ -277,5 +278,16 @@ describe("month helpers", () => {
 
   it("monthKey returns YYYY-MM", () => {
     expect(monthKey("2026-07-14")).toBe("2026-07");
+  });
+});
+
+describe("tzAbbrev", () => {
+  it("returns a short zone name for a valid IANA zone on a given date", () => {
+    // Brisbane has no DST → AEST year-round.
+    expect(tzAbbrev("Australia/Brisbane", "2026-07-01")).toBe("AEST");
+  });
+  it("returns null for a missing or invalid zone", () => {
+    expect(tzAbbrev(null, "2026-07-01")).toBeNull();
+    expect(tzAbbrev("Not/AZone", "2026-07-01")).toBeNull();
   });
 });

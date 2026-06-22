@@ -79,6 +79,28 @@ export function formatDateRange(start: string, end: string): string {
 }
 
 /**
+ * Short timezone abbreviation (e.g. "AEST", "GMT+1") for an IANA zone on a
+ * given calendar date. Returns null when the zone is missing or invalid.
+ */
+export function tzAbbrev(
+  timezone: string | null | undefined,
+  onDateISO: string,
+): string | null {
+  if (!timezone) return null;
+  try {
+    const d = parseISODate(onDateISO);
+    const parts = new Intl.DateTimeFormat("en-AU", {
+      timeZone: timezone,
+      timeZoneName: "short",
+    }).formatToParts(d);
+    const name = parts.find((p) => p.type === "timeZoneName")?.value;
+    return name ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Format a YYYY-MM-DD string to a long date like "Fri 3 Jul 2026".
  */
 export function formatLongDate(s: string): string {

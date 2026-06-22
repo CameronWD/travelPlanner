@@ -2,7 +2,7 @@ import * as React from "react";
 import { ChevronUp, ChevronDown, Pencil, Trash2, MapPin, Calendar, Clock } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
-import { formatDateRange, nightsBetween } from "@/lib/dates";
+import { formatDateRange, nightsBetween, tzAbbrev } from "@/lib/dates";
 import { MapLink } from "./map-link";
 import { NoteThread, type NoteView } from "./note-thread";
 import { MoreActionsMenu } from "./card-actions";
@@ -62,6 +62,7 @@ export function StopCard({
 }: StopCardProps) {
   const nights = nightsBetween(stop.arriveDate, stop.departDate);
   const dateRange = formatDateRange(stop.arriveDate, stop.departDate);
+  const tz = tzAbbrev(stop.timezone, stop.arriveDate);
 
   return (
     <div
@@ -185,6 +186,11 @@ export function StopCard({
         <div className="flex items-center gap-1.5">
           <Calendar className="size-3.5 shrink-0" aria-hidden="true" />
           <span>{dateRange}</span>
+          {tz && (
+            <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
+              {tz}
+            </span>
+          )}
         </div>
         {nights > 0 && (
           <div className="flex items-center gap-1.5">
