@@ -23,7 +23,7 @@ A collaborative trip planner built for two partners — plan a multi-stop journe
 | Framework | Next.js 16 (App Router) |
 | UI | React 19, Tailwind CSS v4, Radix UI primitives |
 | Language | TypeScript 5 |
-| ORM / DB | Prisma 7 with driver adapter; SQLite (dev) / Postgres (prod) |
+| ORM / DB | Prisma 7 with driver adapter; Postgres |
 | Auth | Auth.js v5 (NextAuth) — Google OAuth + dev-login shim |
 | Maps | Leaflet 1.x + OpenStreetMap tiles + Nominatim geocoding |
 | FX rates | Frankfurter public API (no key) |
@@ -42,7 +42,9 @@ nvm use      # or: nvm install 22
 node -v      # must be >= 20.19
 ```
 
-No external accounts, databases, or API keys are needed for local development — it runs on SQLite with a dev-login bypass.
+**Docker** (for the local Postgres container). Any recent Docker Desktop or Docker Engine install is fine.
+
+No external accounts or API keys are needed for local development — it runs on a local Postgres container with a dev-login bypass.
 
 ### 1. Install dependencies
 
@@ -50,7 +52,7 @@ No external accounts, databases, or API keys are needed for local development �
 npm install
 ```
 
-> Native module note: `better-sqlite3` is compiled per-platform. Always run `npm install` on your own machine — never copy `node_modules` from elsewhere.
+> Native module note: some build-toolchain packages (`@tailwindcss/oxide`, `lightningcss`) are compiled per-platform. Always run `npm install` on your own machine — never copy `node_modules` from elsewhere.
 
 ### 2. Configure environment
 
@@ -61,7 +63,7 @@ cp .env.example .env
 Open `.env` and set at minimum:
 
 ```
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://trip:trip@localhost:5432/trip?schema=public"
 AUTH_SECRET="<output of: openssl rand -base64 32>"
 ALLOW_DEV_LOGIN="true"
 ```
@@ -71,8 +73,9 @@ Google OAuth credentials are **not** required for local development — the dev-
 ### 3. Set up the database
 
 ```bash
-npx prisma migrate dev   # create dev.db and run migrations
-npm run db:seed          # seed two test users and a sample trip
+docker compose up -d        # start local Postgres 16
+npx prisma migrate deploy   # apply the committed migration baseline
+npm run db:seed             # seed two test users + a Europe Summer 2026 demo trip (London → Paris → Rome)
 ```
 
 ### 4. Start the dev server
@@ -97,8 +100,8 @@ npm run lint      # ESLint
 ### Troubleshooting
 
 - **`Prisma only supports Node.js versions 20.19+ ...`** during `npm install` — your Node is too old. Upgrade to Node 22 LTS (`nvm install 22 && nvm use 22`), then `rm -rf node_modules && npm install`.
-- **`better_sqlite3.node ... slice is not valid mach-o file`** (or similar `dlopen`/`ELF`/arch error) on sign-in — the native SQLite binary is for the wrong platform, usually from a copied `node_modules`. Fix: `rm -rf node_modules && npm install` (or `npm rebuild better-sqlite3`). `dev.db` itself is portable and does not need reseeding.
-- **Sign-in shows `error=Configuration`** — almost always a downstream symptom of one of the two issues above (the dev-login provider couldn't reach the database). Resolve the install, and it clears.
+- **`Can't reach database server at localhost:5432`** — the Postgres container isn't running. Start it with `docker compose up -d`, then retry. Check status with `docker compose ps`.
+- **Native binding errors (`@tailwindcss/oxide-*`, `lightningcss`, `pg`) during `npm run build`** — usually a `node_modules` copied across platforms. Fix: `rm -rf node_modules package-lock.json && npm install`.
 
 ## Design
 

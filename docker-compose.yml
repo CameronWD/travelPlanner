@@ -1,0 +1,27 @@
+# Local Postgres for development. The connection matches DATABASE_URL /
+# DIRECT_URL in .env.example.
+#
+#   docker compose up -d        # start
+#   npx prisma migrate deploy   # apply the committed baseline
+#   npm run db:seed             # seed sample data
+#
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: trip
+      POSTGRES_PASSWORD: trip
+      POSTGRES_DB: trip
+    ports:
+      - "5432:5432"
+    volumes:
+      - trip-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trip -d trip"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  trip-pgdata:
