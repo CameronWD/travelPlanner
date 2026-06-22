@@ -413,6 +413,12 @@ model CalendarFeed {
   token     String   @unique
   createdAt DateTime @default(now())
 
+  // Which event types this feed publishes. All default true so existing
+  // feeds keep publishing everything until a member narrows them.
+  includeTransport     Boolean @default(true)
+  includeAccommodation Boolean @default(true)
+  includeActivities    Boolean @default(true)
+
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 }
 
