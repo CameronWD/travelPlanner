@@ -121,7 +121,19 @@ export default async function SettingsPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <CalendarFeedPanel tripId={tripId} initialToken={calendarFeed?.token ?? null} />
+          <CalendarFeedPanel
+            tripId={tripId}
+            initialToken={calendarFeed?.token ?? null}
+            initialFilter={
+              calendarFeed
+                ? {
+                    includeTransport: calendarFeed.includeTransport,
+                    includeAccommodation: calendarFeed.includeAccommodation,
+                    includeActivities: calendarFeed.includeActivities,
+                  }
+                : undefined
+            }
+          />
         </CardContent>
       </Card>
 

@@ -7,17 +7,43 @@ import {
   createCalendarFeed,
   rotateCalendarFeed,
   revokeCalendarFeed,
+  updateCalendarFeedFilter,
 } from "@/server/actions/calendar-feed";
 
 export interface CalendarFeedPanelProps {
   tripId: string;
   initialToken: string | null;
+  initialFilter?: {
+    includeTransport: boolean;
+    includeAccommodation: boolean;
+    includeActivities: boolean;
+  };
 }
 
-export function CalendarFeedPanel({ tripId, initialToken }: CalendarFeedPanelProps) {
+export function CalendarFeedPanel({
+  tripId,
+  initialToken,
+  initialFilter = {
+    includeTransport: true,
+    includeAccommodation: true,
+    includeActivities: true,
+  },
+}: CalendarFeedPanelProps) {
   const [token, setToken] = React.useState<string | null>(initialToken);
   const [copied, setCopied] = React.useState(false);
+  const [filter, setFilter] = React.useState(initialFilter);
   const [isPending, startTransition] = React.useTransition();
+
+  const setType = (
+    key: "includeTransport" | "includeAccommodation" | "includeActivities",
+    value: boolean,
+  ) => {
+    const next = { ...filter, [key]: value };
+    setFilter(next);
+    startTransition(async () => {
+      await updateCalendarFeedFilter(tripId, next);
+    });
+  };
 
   const path = token ? `/api/calendar/${token}` : null;
   const httpsUrl =
@@ -70,6 +96,26 @@ export function CalendarFeedPanel({ tripId, initialToken }: CalendarFeedPanelPro
         <LinkIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="flex-1 truncate font-mono text-sm text-foreground">{httpsUrl}</span>
       </div>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium text-foreground">Include in feed</legend>
+        {([
+          ["includeTransport", "Transport"],
+          ["includeAccommodation", "Accommodation"],
+          ["includeActivities", "Activities"],
+        ] as const).map(([key, label]) => (
+          <label key={key} className="flex items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              className="size-4 accent-primary"
+              checked={filter[key]}
+              disabled={isPending}
+              onChange={(e) => setType(key, e.target.checked)}
+            />
+            {label}
+          </label>
+        ))}
+      </fieldset>
 
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" size="sm" onClick={handleCopy} disabled={isPending}>
