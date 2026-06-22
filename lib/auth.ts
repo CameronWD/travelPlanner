@@ -56,6 +56,9 @@ if (process.env.ALLOW_DEV_LOGIN === "true") {
 
 export const authConfig: NextAuthConfig = {
   adapter: PrismaAdapter(db),
+  // Trust the deployment host's forwarded headers (X-Forwarded-Host/Proto) so
+  // OAuth callback URLs are correct behind Vercel's proxy.
+  trustHost: true,
   session: { strategy: "jwt" },
   pages: { signIn: "/signin" },
   providers,
