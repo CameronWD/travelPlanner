@@ -48,7 +48,7 @@ export async function inviteToTrip(
 
   // Check if this email is already a trip member.
   // We look up members for this trip and compare email in application code
-  // because SQLite doesn't support `mode: "insensitive"` on Prisma's StringFilter.
+  // to keep the case-insensitive match portable across database providers.
   const tripMembers = await db.tripMember.findMany({
     where: { tripId },
     select: { user: { select: { email: true } } },

@@ -25,8 +25,8 @@ export const costSchema = z
       .number()
       .int("Estimated amount must be a whole number in minor units")
       .min(0, "Estimated amount must be 0 or greater")
-      // Cap at 32-bit signed max: Prisma maps Int to Postgres INTEGER, so a
-      // larger value would error on insert in production (SQLite is laxer).
+      // Cap at 32-bit signed max: Prisma maps Int to Postgres INTEGER which
+      // enforces this bound, so we validate it here before attempting an insert.
       .max(2_147_483_647, "Amount is too large"),
 
     actualMinor: z

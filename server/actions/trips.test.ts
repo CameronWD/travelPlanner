@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * Tests for the trips server actions.
  *
  * We mock:
- *   - lib/db → so we can assert Prisma call shapes without hitting SQLite
+ *   - lib/db → so we can assert Prisma call shapes without hitting the database
  *   - lib/guards → so requireUser/requireTripAccess return predictable values
  *   - next/navigation → so redirect() is interceptable (it throws in Next.js)
  *   - next/cache → so revalidatePath is a spy

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * Tests for share link server actions.
  *
  * Mocks:
- *   - lib/db        — so we can assert Prisma calls without hitting SQLite
+ *   - lib/db        — so we can assert Prisma calls without hitting the database
  *   - lib/guards    — so requireTripAccess returns a predictable result
  *   - next/cache    — so revalidatePath is interceptable
  */

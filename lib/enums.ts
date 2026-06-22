@@ -3,10 +3,10 @@ import { z } from "zod";
 /**
  * Shared allowed-value lists for the domain's "enum-ish" string columns.
  *
- * We deliberately avoid Prisma `enum` (SQLite, our local-dev datasource, does
- * not support them) and store these as plain `String` columns, validating the
- * allowed values in app code with the Zod unions exported here. Keeping the
- * constants here means UI, server actions, and the schema all agree.
+ * We deliberately avoid Prisma `enum` and store these as plain `String` columns
+ * to keep the schema portable across database providers, validating the allowed
+ * values in app code with the Zod unions exported here. Keeping the constants
+ * here means UI, server actions, and the schema all agree.
  */
 
 /** `Transport.mode` */

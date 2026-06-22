@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /**
  * Item categories. Stored on `Item.category` as a `String` (no Prisma enum —
- * SQLite portability) and validated in app code via `categorySchema`.
+ * keeps the schema portable) and validated in app code via `categorySchema`.
  *
  * `color` is a Tailwind color *name* (e.g. "amber", "rose") used to build the
  * coloured pills / budget grouping. Concrete utility classes are derived from

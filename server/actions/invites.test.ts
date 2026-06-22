@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * Tests for the invite server actions.
  *
  * Mocks:
- *   - lib/db     — assert Prisma call shapes without hitting SQLite
+ *   - lib/db     — assert Prisma call shapes without hitting the database
  *   - lib/guards — requireTripAccess returns a predictable membership
  *   - next/cache — revalidatePath is a spy
  */
