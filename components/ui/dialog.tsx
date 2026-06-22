@@ -38,17 +38,31 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed left-1/2 top-1/2 z-50 grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl border border-border bg-card p-6 text-card-foreground shadow-soft-lg",
-        "data-[state=open]:tp-pop-in data-[state=closed]:tp-pop-out",
+        // Frame: column layout, height-capped, NOT itself the scroll container.
+        "fixed z-50 flex flex-col overflow-hidden border-border bg-card text-card-foreground shadow-soft-lg",
+        // Mobile (default): bottom sheet anchored to the bottom edge.
+        "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-t",
+        "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
+        // Desktop (sm+): centered modal.
+        "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-w-lg sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border",
+        "sm:data-[state=open]:tp-pop-in sm:data-[state=closed]:tp-pop-out",
         className,
       )}
       {...props}
     >
-      {children}
+      {/* Mobile grab handle (decorative) */}
+      <div
+        aria-hidden="true"
+        className="mx-auto mt-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30 sm:hidden"
+      />
+      {/* Scrollable body — the frame above never scrolls, so the ✕ stays put. */}
+      <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-6 pt-4 sm:pt-6">
+        {children}
+      </div>
       {!hideClose ? (
         <DialogPrimitive.Close
           className={cn(
-            "absolute right-4 top-4 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            "absolute right-4 top-4 z-20 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           )}
         >
@@ -66,7 +80,13 @@ function DialogHeader({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("flex flex-col gap-1.5 text-left", className)} {...props} />
+    <div
+      className={cn(
+        "sticky top-0 z-10 -mx-6 -mt-4 flex flex-col gap-1.5 border-b border-border/60 bg-card px-6 pr-10 pb-3 pt-4 text-left sm:-mt-6 sm:pt-6",
+        className,
+      )}
+      {...props}
+    />
   );
 }
 DialogHeader.displayName = "DialogHeader";
