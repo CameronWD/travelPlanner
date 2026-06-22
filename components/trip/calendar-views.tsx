@@ -10,27 +10,9 @@ import { MonthGrid } from "@/components/trip/month-grid";
 import { addMonths, startOfMonthISO, formatMonthYear, monthKey } from "@/lib/dates";
 import { rescheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
-import { CATEGORIES } from "@/lib/categories";
+import { categoryDotClass } from "@/components/trip/category-dot";
 import { cn } from "@/lib/cn";
 import type { DayPlan } from "@/lib/itinerary";
-
-/** Category dot colour (purge-safe static strings), keyed by a category's colour name. */
-const DOT_CLASSES_RAIL: Record<string, string> = {
-  sky: "bg-sky-500",
-  amber: "bg-amber-500",
-  emerald: "bg-emerald-500",
-  violet: "bg-violet-500",
-  rose: "bg-rose-500",
-  stone: "bg-stone-500",
-};
-
-/** Map category value → dot class, tolerating unknown/legacy values without throwing. */
-const DOT_RAIL: Record<string, string> = Object.fromEntries(
-  CATEGORIES.map((c) => [c.value, DOT_CLASSES_RAIL[c.color] ?? "bg-muted-foreground"]),
-);
-function dotClassForRail(category: string): string {
-  return DOT_RAIL[category] ?? "bg-muted-foreground";
-}
 
 const STORAGE_KEY = "trip-planner-calendar-view";
 type View = "month" | "agenda";
@@ -222,7 +204,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems 
                       }}
                       className="flex cursor-grab items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5 text-xs active:cursor-grabbing"
                     >
-                      <span className={cn("size-2 shrink-0 rounded-full", dotClassForRail(w.category))} />
+                      <span className={cn("size-2 shrink-0 rounded-full", categoryDotClass(w.category))} />
                       <span className="truncate">{w.title}</span>
                     </li>
                   ))}

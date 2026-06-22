@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { LogIn, LogOut, Navigation } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { CATEGORIES } from "@/lib/categories";
+import { categoryDotClass } from "@/components/trip/category-dot";
 import { buildMonthGrid, MONTH_GRID_WEEKDAYS } from "@/lib/month-grid";
 import { parseISODate } from "@/lib/dates";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
@@ -21,24 +21,6 @@ const STOP_BAND_CLASSES = [
   "border-l-rose-400",
   "border-l-teal-400",
 ];
-
-/** Category dot colour (purge-safe static strings), keyed by a category's colour name. */
-const DOT_CLASSES: Record<string, string> = {
-  sky: "bg-sky-500",
-  amber: "bg-amber-500",
-  emerald: "bg-emerald-500",
-  violet: "bg-violet-500",
-  rose: "bg-rose-500",
-  stone: "bg-stone-500",
-};
-
-/** Map a category value → its dot class, tolerating unknown/legacy values without throwing. */
-const DOT_BY_CATEGORY: Record<string, string> = Object.fromEntries(
-  CATEGORIES.map((c) => [c.value, DOT_CLASSES[c.color] ?? "bg-muted-foreground"]),
-);
-function dotClassFor(category: string): string {
-  return DOT_BY_CATEGORY[category] ?? "bg-muted-foreground";
-}
 
 const MAX_VISIBLE_ITEMS = 3;
 
@@ -157,7 +139,7 @@ export function MonthGrid({
                       onDropItem && "cursor-grab active:cursor-grabbing",
                     )}
                   >
-                    <span className={cn("size-1.5 shrink-0 rounded-full", dotClassFor(entry.item.category))} />
+                    <span className={cn("size-1.5 shrink-0 rounded-full", categoryDotClass(entry.item.category))} />
                     <span className="truncate">{entry.item.title}</span>
                   </li>
                 ))}
