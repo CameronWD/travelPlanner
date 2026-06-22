@@ -75,7 +75,7 @@ export default async function ChecklistsPage({
     <div className="flex flex-col gap-6">
       <Tabs defaultValue="pretrip" className="w-full">
         <TabsList className="w-full sm:w-auto">
-          <TabsTrigger value="pretrip" className="flex-1 sm:flex-initial">
+          <TabsTrigger value="pretrip">
             Pre-trip
             {pretripItems.length > 0 && (
               <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
@@ -83,7 +83,7 @@ export default async function ChecklistsPage({
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="packing" className="flex-1 sm:flex-initial">
+          <TabsTrigger value="packing">
             Packing
             {packingItems.length > 0 && (
               <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
@@ -91,7 +91,7 @@ export default async function ChecklistsPage({
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="booking" className="flex-1 sm:flex-initial">
+          <TabsTrigger value="booking">
             Booking parser
           </TabsTrigger>
         </TabsList>
