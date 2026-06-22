@@ -6,9 +6,9 @@
  *   git-ignored and created on demand.
  *
  * Production wiring (STORAGE_DRIVER="r2" or "s3"):
- *   Return a Storage impl that talks to your cloud bucket. Set up the bucket,
- *   credentials, and install the relevant SDK (e.g. @aws-sdk/client-s3 or the
- *   Cloudflare Workers R2 client), then replace the stub here.
+ *   The production S3-compatible driver IS implemented in `makeS3Storage` below.
+ *   To use it, set STORAGE_DRIVER to "r2" or "s3" and supply the credentials
+ *   listed for the chosen driver — no code changes required.
  *
  *   For R2 you need:
  *     CLOUDFLARE_ACCOUNT_ID, R2_BUCKET_NAME, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY
@@ -21,6 +21,12 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import {
+  S3Client,
+  PutObjectCommand,
+  GetObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 
 // ---------------------------------------------------------------------------
 // Interface
@@ -90,26 +96,99 @@ const localDiskStorage: Storage = {
 };
 
 // ---------------------------------------------------------------------------
-// Production stub (R2 / S3)
+// S3-compatible implementation (production: Cloudflare R2 or AWS S3)
 // ---------------------------------------------------------------------------
 
-const prodStubStorage: Storage = {
-  async save() {
+/** Read a required env var or throw a clear, actionable error. */
+function requireEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) {
     throw new Error(
-      "R2/S3 storage not configured — set up the bucket and credentials; see lib/storage.ts",
+      `Storage misconfigured: environment variable ${name} is required for the selected STORAGE_DRIVER. See lib/storage.ts and docs/DEPLOY.md.`,
     );
-  },
-  async delete() {
-    throw new Error(
-      "R2/S3 storage not configured — set up the bucket and credentials; see lib/storage.ts",
-    );
-  },
-  async read() {
-    throw new Error(
-      "R2/S3 storage not configured — set up the bucket and credentials; see lib/storage.ts",
-    );
-  },
-};
+  }
+  return v;
+}
+
+/** True for the S3/R2 "object does not exist" error shapes. */
+function isNotFound(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const e = err as {
+    name?: string;
+    Code?: string;
+    $metadata?: { httpStatusCode?: number };
+  };
+  return (
+    e.name === "NoSuchKey" ||
+    e.name === "NotFound" ||
+    e.Code === "NoSuchKey" ||
+    e.$metadata?.httpStatusCode === 404
+  );
+}
+
+/**
+ * Build an S3-compatible Storage for the given driver from env vars.
+ *   - "r2": Cloudflare R2. Endpoint derived from the account id; region "auto".
+ *   - "s3": AWS S3. Region from AWS_REGION; default AWS endpoint.
+ */
+function makeS3Storage(driver: "r2" | "s3"): Storage {
+  let client: S3Client;
+  let bucket: string;
+
+  if (driver === "r2") {
+    const accountId = requireEnv("CLOUDFLARE_ACCOUNT_ID");
+    bucket = requireEnv("R2_BUCKET_NAME");
+    client = new S3Client({
+      region: "auto",
+      endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: requireEnv("R2_ACCESS_KEY_ID"),
+        secretAccessKey: requireEnv("R2_SECRET_ACCESS_KEY"),
+      },
+    });
+  } else {
+    bucket = requireEnv("S3_BUCKET_NAME");
+    client = new S3Client({
+      region: requireEnv("AWS_REGION"),
+      credentials: {
+        accessKeyId: requireEnv("AWS_ACCESS_KEY_ID"),
+        secretAccessKey: requireEnv("AWS_SECRET_ACCESS_KEY"),
+      },
+    });
+  }
+
+  return {
+    async save(key, data, mime) {
+      await client.send(
+        new PutObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          Body: Buffer.isBuffer(data) ? data : Buffer.from(data),
+          ContentType: mime,
+        }),
+      );
+    },
+
+    async delete(key) {
+      // S3/R2 DeleteObject is idempotent — deleting a missing key succeeds.
+      await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: key }));
+    },
+
+    async read(key) {
+      try {
+        const res = await client.send(
+          new GetObjectCommand({ Bucket: bucket, Key: key }),
+        );
+        if (!res.Body) return null;
+        const bytes = await res.Body.transformToByteArray();
+        return Buffer.from(bytes);
+      } catch (err: unknown) {
+        if (isNotFound(err)) return null;
+        throw err;
+      }
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Factory
@@ -118,15 +197,18 @@ const prodStubStorage: Storage = {
 /**
  * Returns the appropriate Storage impl based on the STORAGE_DRIVER env var.
  *   - unset / "local" → local-disk (`.uploads/`)
- *   - "r2" / "s3"     → stub that throws; wire up the real impl for production
+ *   - "r2" / "s3"     → S3-compatible implementation via `makeS3Storage`; requires the relevant env vars listed in the file-level docblock
  */
 export function getStorage(): Storage {
   const driver = process.env.STORAGE_DRIVER ?? "local";
   if (driver === "local") {
     return localDiskStorage;
   }
-  if (driver === "r2" || driver === "s3") {
-    return prodStubStorage;
+  if (driver === "r2") {
+    return makeS3Storage("r2");
+  }
+  if (driver === "s3") {
+    return makeS3Storage("s3");
   }
   throw new Error(`Unknown STORAGE_DRIVER="${driver}". Use "local", "r2", or "s3".`);
 }

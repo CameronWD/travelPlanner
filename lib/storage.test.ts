@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs/promises";
@@ -214,5 +214,147 @@ describe("localDiskStorage (round-trip)", async () => {
     ).rejects.toThrow(/escapes/i);
     await expect(storage.read("../../etc/passwd")).rejects.toThrow(/escapes/i);
     await expect(storage.delete("../../oops")).rejects.toThrow(/escapes/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S3-compatible storage (R2) — SDK mocked, no network
+// ---------------------------------------------------------------------------
+
+const sendMock = vi.fn();
+vi.mock("@aws-sdk/client-s3", () => {
+  class S3Client {
+    send = sendMock;
+  }
+  class PutObjectCommand {
+    constructor(public input: unknown) {}
+  }
+  class GetObjectCommand {
+    constructor(public input: unknown) {}
+  }
+  class DeleteObjectCommand {
+    constructor(public input: unknown) {}
+  }
+  return { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand };
+});
+
+describe("S3-compatible storage (R2 driver)", () => {
+  const R2_ENV: Record<string, string> = {
+    STORAGE_DRIVER: "r2",
+    CLOUDFLARE_ACCOUNT_ID: "acct123",
+    R2_BUCKET_NAME: "trip-files",
+    R2_ACCESS_KEY_ID: "ak",
+    R2_SECRET_ACCESS_KEY: "sk",
+  };
+  let saved: Record<string, string | undefined>;
+
+  beforeEach(() => {
+    sendMock.mockReset();
+    saved = {};
+    for (const [k, v] of Object.entries(R2_ENV)) {
+      saved[k] = process.env[k];
+      process.env[k] = v;
+    }
+  });
+
+  afterEach(() => {
+    for (const k of Object.keys(R2_ENV)) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  it("save() sends a PutObjectCommand with bucket, key, body, content-type", async () => {
+    sendMock.mockResolvedValueOnce({});
+    const { getStorage } = await import("./storage");
+    await getStorage().save("trips/t1/uid-a.png", Buffer.from("img"), "image/png");
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const cmd = sendMock.mock.calls[0][0] as { input: Record<string, unknown> };
+    expect(cmd.input).toMatchObject({
+      Bucket: "trip-files",
+      Key: "trips/t1/uid-a.png",
+      ContentType: "image/png",
+    });
+    expect((cmd.input.Body as Buffer).toString()).toBe("img");
+  });
+
+  it("read() returns a Buffer of the object bytes", async () => {
+    sendMock.mockResolvedValueOnce({
+      Body: { transformToByteArray: async () => new Uint8Array([104, 105]) },
+    });
+    const { getStorage } = await import("./storage");
+    const buf = await getStorage().read("trips/t1/uid-a.png");
+    expect(buf?.toString()).toBe("hi");
+  });
+
+  it("read() returns null when the object is missing (NoSuchKey)", async () => {
+    sendMock.mockRejectedValueOnce(
+      Object.assign(new Error("missing"), { name: "NoSuchKey" }),
+    );
+    const { getStorage } = await import("./storage");
+    expect(await getStorage().read("trips/t1/missing.png")).toBeNull();
+  });
+
+  it("read() rethrows non-not-found errors", async () => {
+    sendMock.mockRejectedValueOnce(
+      Object.assign(new Error("boom"), { name: "AccessDenied" }),
+    );
+    const { getStorage } = await import("./storage");
+    await expect(getStorage().read("trips/t1/x.png")).rejects.toThrow(/boom/);
+  });
+
+  it("delete() sends a DeleteObjectCommand", async () => {
+    sendMock.mockResolvedValueOnce({});
+    const { getStorage } = await import("./storage");
+    await getStorage().delete("trips/t1/uid-a.png");
+    const cmd = sendMock.mock.calls[0][0] as { input: Record<string, unknown> };
+    expect(cmd.input).toMatchObject({ Bucket: "trip-files", Key: "trips/t1/uid-a.png" });
+  });
+
+  it("throws a clear error when a required env var is missing", async () => {
+    delete process.env.R2_BUCKET_NAME;
+    const { getStorage } = await import("./storage");
+    expect(() => getStorage()).toThrow(/R2_BUCKET_NAME is required/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// S3-compatible storage (S3 driver) — SDK mocked, no network
+// ---------------------------------------------------------------------------
+
+describe("S3-compatible storage (S3 driver)", () => {
+  const S3_ENV: Record<string, string> = {
+    STORAGE_DRIVER: "s3",
+    AWS_REGION: "us-east-1",
+    S3_BUCKET_NAME: "trip-files-s3",
+    AWS_ACCESS_KEY_ID: "ak",
+    AWS_SECRET_ACCESS_KEY: "sk",
+  };
+  let saved: Record<string, string | undefined>;
+
+  beforeEach(() => {
+    sendMock.mockReset();
+    saved = {};
+    for (const [k, v] of Object.entries(S3_ENV)) {
+      saved[k] = process.env[k];
+      process.env[k] = v;
+    }
+  });
+
+  afterEach(() => {
+    for (const k of Object.keys(S3_ENV)) {
+      if (saved[k] === undefined) delete process.env[k];
+      else process.env[k] = saved[k];
+    }
+  });
+
+  it("save() sends a PutObjectCommand with the S3 bucket and key", async () => {
+    sendMock.mockResolvedValueOnce({});
+    const { getStorage } = await import("./storage");
+    await getStorage().save("trips/t1/x.png", Buffer.from("img"), "image/png");
+    expect(sendMock.mock.calls[0][0].input).toMatchObject({
+      Bucket: "trip-files-s3",
+      Key: "trips/t1/x.png",
+    });
   });
 });
