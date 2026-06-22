@@ -10,7 +10,12 @@ export async function GET(
 
   const feed = await db.calendarFeed.findUnique({
     where: { token },
-    select: { trip: { select: { id: true, name: true } } },
+    select: {
+      includeTransport: true,
+      includeAccommodation: true,
+      includeActivities: true,
+      trip: { select: { id: true, name: true } },
+    },
   });
   if (!feed) {
     return NextResponse.json({ error: "Feed not found" }, { status: 404 });
@@ -39,9 +44,9 @@ export async function GET(
   const ics = buildICS({
     tripName: feed.trip.name,
     stops,
-    items,
-    transports,
-    accommodations,
+    items: feed.includeActivities ? items : [],
+    transports: feed.includeTransport ? transports : [],
+    accommodations: feed.includeAccommodation ? accommodations : [],
     generatedAt: new Date(),
   });
 
