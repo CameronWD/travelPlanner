@@ -195,9 +195,9 @@ Files are written to `.uploads/<key>` at the repo root (`lib/storage.ts` → `lo
 
 > **Status: done.** The `r2`/`s3` driver is implemented in `lib/storage.ts`. Just set the env vars.
 
-Set `STORAGE_DRIVER` to `"r2"` or `"s3"`. The `prodStubStorage` in `lib/storage.ts` currently throws on every operation with a clear error message — you must wire up the real implementation before uploads will work.
+The `r2`/`s3` driver is fully implemented in `lib/storage.ts` (`makeS3Storage`); `@aws-sdk/client-s3` is already a dependency. No code changes are required — just set the environment variables for the chosen backend.
 
-**For Cloudflare R2**, install `@aws-sdk/client-s3` (R2 is S3-compatible) and implement the `save`, `read`, and `delete` methods in `lib/storage.ts` using these env vars:
+**For Cloudflare R2**, set:
 
 ```
 STORAGE_DRIVER="r2"
@@ -207,7 +207,7 @@ R2_ACCESS_KEY_ID="<R2 access key>"
 R2_SECRET_ACCESS_KEY="<R2 secret key>"
 ```
 
-**For AWS S3**:
+**For AWS S3**, set:
 
 ```
 STORAGE_DRIVER="s3"
