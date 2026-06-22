@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { OtherCostEditor } from "@/components/trip/other-cost-editor";
+import { CostAmounts } from "@/components/trip/cost-amounts";
 import { RatesPanel } from "@/components/trip/rates-panel";
 import { buildBudget } from "@/lib/budget";
 import { isRateStale } from "@/lib/fx";
@@ -276,6 +277,12 @@ export default async function BudgetPage({
         </CardContent>
       </Card>
 
+      {/* Legend for the estimated-vs-spent columns shown in the sections below */}
+      <div className="flex items-center justify-end gap-4 px-1 text-xs text-muted-foreground">
+        <span>Estimated</span>
+        <span className="text-emerald-600 dark:text-emerald-400">Spent</span>
+      </div>
+
       {/* By category */}
       {budget.byCategory.length > 0 && (
         <Card>
@@ -295,14 +302,11 @@ export default async function BudgetPage({
                       <span className="font-medium">{cat.category}</span>
                       <div className="flex items-center gap-3 tabular-nums text-right">
                         <span className="text-muted-foreground text-xs">{pct}%</span>
-                        <span className="min-w-[5rem] text-right">
-                          {formatMoney(cat.estimatedMinor, homeCurrency)}
-                        </span>
-                        {cat.actualMinor > 0 && (
-                          <span className="text-emerald-600 dark:text-emerald-400 min-w-[5rem] text-right">
-                            {formatMoney(cat.actualMinor, homeCurrency)}
-                          </span>
-                        )}
+                        <CostAmounts
+                          estimatedMinor={cat.estimatedMinor}
+                          actualMinor={cat.actualMinor}
+                          currency={homeCurrency}
+                        />
                       </div>
                     </div>
                     <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
@@ -334,14 +338,11 @@ export default async function BudgetPage({
                   className="flex items-center justify-between py-2.5 gap-2"
                 >
                   <span className="text-sm font-medium">{stop.stopName}</span>
-                  <div className="flex items-center gap-4 tabular-nums text-sm text-right">
-                    <span>{formatMoney(stop.estimatedMinor, homeCurrency)}</span>
-                    {stop.actualMinor > 0 && (
-                      <span className="text-emerald-600 dark:text-emerald-400">
-                        {formatMoney(stop.actualMinor, homeCurrency)}
-                      </span>
-                    )}
-                  </div>
+                  <CostAmounts
+                    estimatedMinor={stop.estimatedMinor}
+                    actualMinor={stop.actualMinor}
+                    currency={homeCurrency}
+                  />
                 </div>
               ))}
             </div>
@@ -365,14 +366,11 @@ export default async function BudgetPage({
                   <span className="text-sm text-muted-foreground tabular-nums font-mono">
                     {day.dateISO}
                   </span>
-                  <div className="flex items-center gap-4 tabular-nums text-sm text-right">
-                    <span>{formatMoney(day.estimatedMinor, homeCurrency)}</span>
-                    {day.actualMinor > 0 && (
-                      <span className="text-emerald-600 dark:text-emerald-400">
-                        {formatMoney(day.actualMinor, homeCurrency)}
-                      </span>
-                    )}
-                  </div>
+                  <CostAmounts
+                    estimatedMinor={day.estimatedMinor}
+                    actualMinor={day.actualMinor}
+                    currency={homeCurrency}
+                  />
                 </div>
               ))}
             </div>
