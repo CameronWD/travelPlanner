@@ -1,8 +1,7 @@
 // Trip Planner — Prisma schema.
 //
-// Local dev uses SQLite (DATABASE_URL="file:./dev.db"); production swaps to
-// Postgres by changing the datasource `provider` + URL. To keep the schema
-// portable across both:
+// All environments use Postgres: local dev runs a Postgres container via
+// docker-compose; production uses Neon. To keep the schema portable:
 //   * NO Prisma `enum`  — store enum-ish values as `String`, validate in app
 //     code with the Zod unions in lib/enums.ts + lib/categories.ts.
 //   * NO Prisma `Json`  — store JSON-ish data as a `String` of JSON.
@@ -14,7 +13,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   // Connection URL lives in prisma.config.ts (Prisma 7 no longer supports
   // `url` here). The PrismaClient is constructed with a driver adapter in
   // lib/db.ts.
@@ -373,7 +372,7 @@ model PackingTemplate {
   id        String @id @default(cuid())
   ownerId   String
   name      String
-  itemsJson String // JSON-encoded array of template items (no Prisma Json on SQLite)
+  itemsJson String // JSON-encoded array of template items (schema avoids Prisma Json by design)
 
   owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
