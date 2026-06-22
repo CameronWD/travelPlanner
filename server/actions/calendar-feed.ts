@@ -13,22 +13,34 @@ import { requireTripAccess } from "@/lib/guards";
 // Revoking deletes the row entirely (deleteMany so it's a no-op when none exists).
 // ---------------------------------------------------------------------------
 
+export type CalendarFeedState = {
+  token: string;
+  includeTransport: boolean;
+  includeAccommodation: boolean;
+  includeActivities: boolean;
+};
+
 /**
- * Return { token } for the trip's existing calendar feed, or null if none exists.
+ * Return the trip's calendar feed (token + type filters), or null if none.
  *
  * Access-checked: the calling user must be a member of the trip.
  */
 export async function getCalendarFeed(
   tripId: string,
-): Promise<{ token: string } | null> {
+): Promise<CalendarFeedState | null> {
   await requireTripAccess(tripId);
 
   const feed = await db.calendarFeed.findFirst({
     where: { tripId },
-    select: { token: true },
+    select: {
+      token: true,
+      includeTransport: true,
+      includeAccommodation: true,
+      includeActivities: true,
+    },
   });
 
-  return feed ? { token: feed.token } : null;
+  return feed ?? null;
 }
 
 /**
@@ -98,6 +110,35 @@ export async function revokeCalendarFeed(tripId: string): Promise<void> {
   // deleteMany so revoking is a no-op (not an error) when no feed exists.
   await db.calendarFeed.deleteMany({
     where: { tripId },
+  });
+
+  revalidatePath(`/trips/${tripId}/settings`);
+}
+
+/**
+ * Update which event types the trip's calendar feed publishes. No-op (safe)
+ * when no feed exists. Same token/URL — calendars pick up the change on their
+ * next refresh.
+ *
+ * Access-checked: the calling user must be a member of the trip.
+ */
+export async function updateCalendarFeedFilter(
+  tripId: string,
+  filter: {
+    includeTransport: boolean;
+    includeAccommodation: boolean;
+    includeActivities: boolean;
+  },
+): Promise<void> {
+  await requireTripAccess(tripId);
+
+  await db.calendarFeed.updateMany({
+    where: { tripId },
+    data: {
+      includeTransport: filter.includeTransport,
+      includeAccommodation: filter.includeAccommodation,
+      includeActivities: filter.includeActivities,
+    },
   });
 
   revalidatePath(`/trips/${tripId}/settings`);

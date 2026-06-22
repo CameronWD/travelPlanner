@@ -7,6 +7,7 @@ const {
   feedCreateMock,
   feedUpsertMock,
   feedDeleteManyMock,
+  feedUpdateManyMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: { role: "owner" } }),
   revalidatePathMock: vi.fn(),
@@ -14,6 +15,7 @@ const {
   feedCreateMock: vi.fn(),
   feedUpsertMock: vi.fn(),
   feedDeleteManyMock: vi.fn().mockResolvedValue({ count: 1 }),
+  feedUpdateManyMock: vi.fn().mockResolvedValue({ count: 1 }),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
@@ -25,19 +27,36 @@ vi.mock("@/lib/db", () => ({
       create: feedCreateMock,
       upsert: feedUpsertMock,
       deleteMany: feedDeleteManyMock,
+      updateMany: feedUpdateManyMock,
     },
   },
 }));
 
-import { getCalendarFeed, createCalendarFeed, rotateCalendarFeed, revokeCalendarFeed } from "./calendar-feed";
+import {
+  getCalendarFeed,
+  createCalendarFeed,
+  rotateCalendarFeed,
+  revokeCalendarFeed,
+  updateCalendarFeedFilter,
+} from "./calendar-feed";
 
 const TRIP_ID = "trip-abc";
 afterEach(() => vi.clearAllMocks());
 
 describe("calendar feed actions", () => {
-  it("getCalendarFeed returns the token when one exists", async () => {
-    feedFindFirstMock.mockResolvedValue({ token: "tok-1" });
-    expect(await getCalendarFeed(TRIP_ID)).toEqual({ token: "tok-1" });
+  it("getCalendarFeed returns the token and type filters when one exists", async () => {
+    feedFindFirstMock.mockResolvedValue({
+      token: "tok-1",
+      includeTransport: false,
+      includeAccommodation: true,
+      includeActivities: true,
+    });
+    expect(await getCalendarFeed(TRIP_ID)).toEqual({
+      token: "tok-1",
+      includeTransport: false,
+      includeAccommodation: true,
+      includeActivities: true,
+    });
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
   });
 
@@ -71,5 +90,20 @@ describe("calendar feed actions", () => {
   it("revokeCalendarFeed deletes the feed", async () => {
     await revokeCalendarFeed(TRIP_ID);
     expect(feedDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: TRIP_ID } });
+  });
+
+  it("updateCalendarFeedFilter updates the feed with the given flags", async () => {
+    const filter = {
+      includeTransport: false,
+      includeAccommodation: true,
+      includeActivities: false,
+    };
+    await updateCalendarFeedFilter(TRIP_ID, filter);
+    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expect(feedUpdateManyMock).toHaveBeenCalledWith({
+      where: { tripId: TRIP_ID },
+      data: filter,
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
   });
 });
