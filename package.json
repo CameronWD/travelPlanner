@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:seed": "tsx prisma/seed.ts",
+    "db:seed:demo": "tsx prisma/seed-ai-trip.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

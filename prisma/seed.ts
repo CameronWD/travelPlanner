@@ -1,4 +1,5 @@
 import { db } from "../lib/db";
+import { seedAiTrip } from "./seed-ai-trip";
 
 /**
  * Idempotent demo seed. Re-running it must not create duplicates, so every
@@ -357,6 +358,9 @@ async function main() {
   });
 
   console.log("Seed complete: trip", trip.name, "with 3 stops, 2 transports.");
+
+  // Also seed the rich demo trip so a fresh DB sees the full feature set.
+  await seedAiTrip();
 }
 
 main()

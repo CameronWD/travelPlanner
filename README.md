@@ -76,6 +76,9 @@ Google OAuth credentials are **not** required for local development — the dev-
 docker compose up -d        # start local Postgres 16
 npx prisma migrate deploy   # apply the committed migration baseline
 npm run db:seed             # seed two test users + a Europe Summer 2026 demo trip (London → Paris → Rome)
+                            # and the full "AI TRIP - EU Christmas" demo (6-country itinerary, ~45 items,
+                            # costs, checklists, journal, attachments, share link, calendar feed, and more)
+                            # Re-seed just the AI demo at any time: npm run db:seed:demo  (idempotent)
 ```
 
 ### 4. Start the dev server
