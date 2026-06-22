@@ -92,24 +92,24 @@ export function AccommodationCard({
           <Button
             variant="ghost"
             size="icon"
-            className="size-7"
+            className="size-9"
             disabled={isPending}
             onClick={() => onEdit?.(a)}
             aria-label={`Edit ${a.name}`}
             title="Edit"
           >
-            <Pencil className="size-3.5" aria-hidden="true" />
+            <Pencil className="size-4" aria-hidden="true" />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className="size-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
             disabled={isPending}
             onClick={() => onDelete?.(a.id)}
             aria-label={`Delete ${a.name}`}
             title="Delete"
           >
-            <Trash2 className="size-3.5" aria-hidden="true" />
+            <Trash2 className="size-4" aria-hidden="true" />
           </Button>
         </div>
       </div>

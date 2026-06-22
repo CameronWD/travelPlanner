@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { MapLink } from "./map-link";
 import { NoteThread, type NoteView } from "./note-thread";
+import { MoreActionsMenu } from "./card-actions";
 
 export interface StopCardStop {
   id: string;
@@ -91,29 +92,31 @@ export function StopCard({
 
         {/* Action buttons */}
         <div className="flex shrink-0 items-center gap-1">
-          {/* Reorder */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            disabled={isFirst || isPending}
-            onClick={() => onMoveUp?.(stop.id)}
-            aria-label={`Move ${stop.name} up`}
-            title="Move up"
-          >
-            <ChevronUp className="size-4" aria-hidden="true" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            disabled={isLast || isPending}
-            onClick={() => onMoveDown?.(stop.id)}
-            aria-label={`Move ${stop.name} down`}
-            title="Move down"
-          >
-            <ChevronDown className="size-4" aria-hidden="true" />
-          </Button>
+          {/* Reorder — inline on sm+, collapsed into the overflow menu on mobile */}
+          <div className="hidden items-center gap-1 sm:flex">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              disabled={isFirst || isPending}
+              onClick={() => onMoveUp?.(stop.id)}
+              aria-label={`Move ${stop.name} up`}
+              title="Move up"
+            >
+              <ChevronUp className="size-4" aria-hidden="true" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              disabled={isLast || isPending}
+              onClick={() => onMoveDown?.(stop.id)}
+              aria-label={`Move ${stop.name} down`}
+              title="Move down"
+            >
+              <ChevronDown className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
 
           {/* Edit */}
           <Button
@@ -151,6 +154,29 @@ export function StopCard({
           >
             <Trash2 className="size-4" aria-hidden="true" />
           </Button>
+
+          {/* Reorder overflow — mobile only */}
+          <div className="sm:hidden">
+            <MoreActionsMenu
+              label={`More actions for ${stop.name}`}
+              items={[
+                {
+                  key: "up",
+                  label: "Move up",
+                  icon: <ChevronUp className="size-4" aria-hidden="true" />,
+                  onSelect: () => onMoveUp?.(stop.id),
+                  disabled: isFirst || isPending,
+                },
+                {
+                  key: "down",
+                  label: "Move down",
+                  icon: <ChevronDown className="size-4" aria-hidden="true" />,
+                  onSelect: () => onMoveDown?.(stop.id),
+                  disabled: isLast || isPending,
+                },
+              ]}
+            />
+          </div>
         </div>
       </div>
 
