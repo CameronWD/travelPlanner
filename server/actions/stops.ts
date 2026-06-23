@@ -181,36 +181,37 @@ export async function moveStop(
 ): Promise<StopActionResult> {
   const stop = await requireStopAccess(stopId);
 
-  // Find all stops for this trip ordered by sortOrder
-  const siblings = await db.stop.findMany({
-    where: { tripId: stop.tripId },
-    orderBy: { sortOrder: "asc" },
-    select: { id: true, sortOrder: true },
-  });
+  // READ COMMITTED is sufficient here — the FOR UPDATE row lock is what serializes concurrent reorders.
+  await db.$transaction(async (tx) => {
+    // Lock the trip's stops in sortOrder. A concurrent reorder blocks here until
+    // we commit, then re-reads the corrected order — closing the read-then-swap
+    // race. Prisma can't express SELECT ... FOR UPDATE on findMany, so use raw SQL.
+    const siblings = await tx.$queryRaw<Array<{ id: string; sortOrder: number }>>`
+      SELECT "id", "sortOrder"
+      FROM "Stop"
+      WHERE "tripId" = ${stop.tripId}
+      ORDER BY "sortOrder" ASC
+      FOR UPDATE
+    `;
 
-  const idx = siblings.findIndex((s) => s.id === stopId);
-  if (idx === -1) return { success: true }; // shouldn't happen
+    const idx = siblings.findIndex((s) => s.id === stopId);
+    if (idx === -1) return; // stop vanished mid-flight — nothing to do
 
-  const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-  if (swapIdx < 0 || swapIdx >= siblings.length) {
-    // No neighbour — no-op
-    return { success: true };
-  }
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= siblings.length) return; // no neighbour — no-op
 
-  const current = siblings[idx];
-  const neighbour = siblings[swapIdx];
+    const current = siblings[idx];
+    const neighbour = siblings[swapIdx];
 
-  // Swap sort orders in a transaction
-  await db.$transaction([
-    db.stop.update({
+    await tx.stop.update({
       where: { id: current.id },
       data: { sortOrder: neighbour.sortOrder },
-    }),
-    db.stop.update({
+    });
+    await tx.stop.update({
       where: { id: neighbour.id },
       data: { sortOrder: current.sortOrder },
-    }),
-  ]);
+    });
+  });
 
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
