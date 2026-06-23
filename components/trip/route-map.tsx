@@ -28,12 +28,23 @@ export interface RouteMapStop {
   lng?: number | null;
   arriveDate: string;
   departDate: string;
+  /** Resolved hex colour for the chapter this stop belongs to (e.g. "#0ea5e9"). */
+  chapterColour?: string | null;
+  /** Display name of the chapter this stop belongs to. */
+  chapterName?: string | null;
 }
 
 export interface RouteMapProps {
   stops: RouteMapStop[];
   /** Height of the map container in px. Defaults to 360. */
   height?: number;
+}
+
+/**
+ * Escape user-controlled strings before interpolating into Leaflet popup HTML.
+ */
+function escapeHtml(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
 /**
@@ -135,18 +146,21 @@ export function RouteMap({ stops, height = 360 }: RouteMapProps) {
         maxZoom: 18,
       }).addTo(map);
 
-      // Markers and polyline
+      // Markers and per-segment polylines
+      const DEFAULT_COLOUR = "hsl(221, 83%, 53%)";
       const latlngs: [number, number][] = [];
 
       coordStops.forEach((stop, index) => {
         latlngs.push([stop.lat, stop.lng]);
+
+        const markerBg = stop.chapterColour ?? DEFAULT_COLOUR;
 
         // Use a div icon with a number badge
         const icon = L!.divIcon({
           html: `<div style="
             width:28px;height:28px;
             border-radius:50%;
-            background:hsl(var(--primary, 221 83% 53%));
+            background:${markerBg};
             color:#fff;
             display:flex;align-items:center;justify-content:center;
             font-size:12px;font-weight:700;font-family:sans-serif;
@@ -159,9 +173,13 @@ export function RouteMap({ stops, height = 360 }: RouteMapProps) {
           popupAnchor: [0, -16],
         });
 
+        const chapterLine = stop.chapterName
+          ? `<br/><span style="font-size:11px;color:#888">${escapeHtml(stop.chapterName)}</span>`
+          : "";
+
         const popupContent = `
           <div style="min-width:140px;line-height:1.4">
-            <strong style="font-size:14px">${stop.name}</strong><br/>
+            <strong style="font-size:14px">${escapeHtml(stop.name)}</strong>${chapterLine}<br/>
             <span style="font-size:12px;color:#666">
               ${formatDateRange(stop.arriveDate, stop.departDate)}
             </span>
@@ -172,14 +190,18 @@ export function RouteMap({ stops, height = 360 }: RouteMapProps) {
           .bindPopup(popupContent);
       });
 
-      // Polyline
+      // Per-segment polylines — each segment coloured by the destination stop's chapter
       if (latlngs.length >= 2) {
-        L.polyline(latlngs, {
-          color: "hsl(221, 83%, 53%)",
-          weight: 3,
-          opacity: 0.7,
-          dashArray: "6 4",
-        }).addTo(map);
+        for (let i = 0; i < latlngs.length - 1; i++) {
+          const destStop = coordStops[i + 1];
+          const segmentColour = destStop.chapterColour ?? DEFAULT_COLOUR;
+          L.polyline([latlngs[i], latlngs[i + 1]], {
+            color: segmentColour,
+            weight: 3,
+            opacity: 0.7,
+            dashArray: "6 4",
+          }).addTo(map);
+        }
       }
 
       // Fit bounds to all markers
@@ -194,7 +216,7 @@ export function RouteMap({ stops, height = 360 }: RouteMapProps) {
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasEnoughCoords, stops.map((s) => `${s.id}:${s.lat},${s.lng}`).join("|")]);
+  }, [hasEnoughCoords, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.chapterColour ?? ""}:${s.chapterName ?? ""}`).join("|")]);
 
   if (!hasEnoughCoords) {
     return <MapFallback stops={stops} />;
