@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ui/theme-provider";
+import { MotionProvider } from "@/components/ui/motion-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { PwaRegister } from "@/components/pwa-register";
 
@@ -38,9 +39,11 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ThemeProvider>
-          {children}
-          <Toaster />
-          <PwaRegister />
+          <MotionProvider>
+            {children}
+            <Toaster />
+            <PwaRegister />
+          </MotionProvider>
         </ThemeProvider>
       </body>
     </html>
