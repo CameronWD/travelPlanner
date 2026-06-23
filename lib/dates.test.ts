@@ -17,6 +17,7 @@ import {
   formatMonthYear,
   monthKey,
   tzAbbrev,
+  dayNumberInTrip,
 } from "./dates";
 
 describe("parseISODate", () => {
@@ -289,5 +290,14 @@ describe("tzAbbrev", () => {
   it("returns null for a missing or invalid zone", () => {
     expect(tzAbbrev(null, "2026-07-01")).toBeNull();
     expect(tzAbbrev("Not/AZone", "2026-07-01")).toBeNull();
+  });
+});
+
+describe("dayNumberInTrip", () => {
+  it("is 1 on the trip start date", () => {
+    expect(dayNumberInTrip("2026-06-26", "2026-06-26")).toBe(1);
+  });
+  it("counts inclusive days from the start", () => {
+    expect(dayNumberInTrip("2026-06-30", "2026-06-26")).toBe(5);
   });
 });
