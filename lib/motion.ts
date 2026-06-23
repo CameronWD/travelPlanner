@@ -23,9 +23,9 @@ export const EASE_OUT: [number, number, number, number] = [0, 0, 0.2, 1];
 export const STAGGER_STEP = 0.03;
 
 /** Spring for satisfying pops (vote, checklist tick). */
-export const SPRING_POP: Transition = {
+export const SPRING_POP = {
   type: "spring",
   stiffness: 500,
   damping: 28,
   mass: 0.6,
-};
+} as const satisfies Transition;
