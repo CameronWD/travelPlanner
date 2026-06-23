@@ -17,7 +17,8 @@ import { RatesPanel } from "@/components/trip/rates-panel";
 import { buildBudget } from "@/lib/budget";
 import { isRateStale } from "@/lib/fx";
 import type { RateEntry } from "@/components/trip/rates-panel";
-import type { BudgetCost, BudgetStop, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
+import { ChapterChip } from "@/components/trip/chapter-chip";
+import type { BudgetCost, BudgetStopWithDates, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -69,7 +70,7 @@ export default async function BudgetPage({
   const { homeCurrency, startDate, endDate } = trip;
 
   // Fetch everything in parallel
-  const [allCosts, stops, items, accommodations, transports, exchangeRates] = await Promise.all([
+  const [allCosts, stops, items, accommodations, transports, exchangeRates, chapters] = await Promise.all([
     db.cost.findMany({
       where: { tripId },
       orderBy: { createdAt: "asc" },
@@ -78,7 +79,7 @@ export default async function BudgetPage({
     db.stop.findMany({
       where: { tripId },
       orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, timezone: true },
+      select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
     }),
     db.item.findMany({
       where: { tripId },
@@ -95,6 +96,11 @@ export default async function BudgetPage({
     db.exchangeRate.findMany({
       where: { tripId },
       select: { base: true, quote: true, rate: true, manual: true, fetchedAt: true },
+    }),
+    db.chapter.findMany({
+      where: { tripId },
+      orderBy: { startDate: "asc" },
+      select: { id: true, name: true, colour: true, startDate: true, endDate: true },
     }),
   ]);
 
@@ -114,10 +120,13 @@ export default async function BudgetPage({
     category: c.category,
   }));
 
-  const budgetStops: BudgetStop[] = stops.map((s) => ({
+  const budgetStops: BudgetStopWithDates[] = stops.map((s) => ({
     id: s.id,
     name: s.name,
     timezone: s.timezone,
+    arriveDate: s.arriveDate,
+    departDate: s.departDate,
+    sortOrder: s.sortOrder,
   }));
 
   const budgetItems: BudgetItem[] = items.map((i) => ({
@@ -150,6 +159,7 @@ export default async function BudgetPage({
     transports: budgetTransports,
     tripStart: startDate,
     tripEnd: endDate,
+    chapters,
   });
 
   // Build rates data for the panel
@@ -346,6 +356,69 @@ export default async function BudgetPage({
                   />
                 </div>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* By chapter */}
+      {budget.byChapter.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>By chapter</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="divide-y divide-border">
+              {budget.byChapter.map((row) => (
+                <div
+                  key={row.chapterId}
+                  className="flex items-center justify-between py-2.5 gap-2"
+                >
+                  <ChapterChip name={row.chapterName} colour={row.colour} />
+                  <CostAmounts
+                    estimatedMinor={row.estimatedMinor}
+                    actualMinor={row.actualMinor}
+                    currency={homeCurrency}
+                  />
+                </div>
+              ))}
+              {/* Reconciliation rows — shown only when non-zero */}
+              {(budget.chapterReconciliation.ungrouped.estimatedMinor > 0 ||
+                budget.chapterReconciliation.ungrouped.actualMinor > 0) && (
+                <div className="flex items-center justify-between py-2.5 gap-2">
+                  <span className="text-sm text-muted-foreground">Ungrouped</span>
+                  <CostAmounts
+                    estimatedMinor={budget.chapterReconciliation.ungrouped.estimatedMinor}
+                    actualMinor={budget.chapterReconciliation.ungrouped.actualMinor}
+                    currency={homeCurrency}
+                    className="text-muted-foreground"
+                  />
+                </div>
+              )}
+              {(budget.chapterReconciliation.betweenLegs.estimatedMinor > 0 ||
+                budget.chapterReconciliation.betweenLegs.actualMinor > 0) && (
+                <div className="flex items-center justify-between py-2.5 gap-2">
+                  <span className="text-sm text-muted-foreground">Between legs</span>
+                  <CostAmounts
+                    estimatedMinor={budget.chapterReconciliation.betweenLegs.estimatedMinor}
+                    actualMinor={budget.chapterReconciliation.betweenLegs.actualMinor}
+                    currency={homeCurrency}
+                    className="text-muted-foreground"
+                  />
+                </div>
+              )}
+              {(budget.chapterReconciliation.otherCosts.estimatedMinor > 0 ||
+                budget.chapterReconciliation.otherCosts.actualMinor > 0) && (
+                <div className="flex items-center justify-between py-2.5 gap-2">
+                  <span className="text-sm text-muted-foreground">Other costs</span>
+                  <CostAmounts
+                    estimatedMinor={budget.chapterReconciliation.otherCosts.estimatedMinor}
+                    actualMinor={budget.chapterReconciliation.otherCosts.actualMinor}
+                    currency={homeCurrency}
+                    className="text-muted-foreground"
+                  />
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
