@@ -25,28 +25,47 @@ const {
   packingTemplateFindUniqueMock,
   packingTemplateCreateMock,
   packingTemplateDeleteMock,
-} = vi.hoisted(() => ({
-  requireTripAccessMock: vi.fn().mockResolvedValue({
-    user: { id: "user-1" },
-    membership: { role: "owner" },
-  }),
-  requireUserMock: vi.fn().mockResolvedValue({ id: "user-1" }),
-  revalidatePathMock: vi.fn(),
-  notFoundMock: vi.fn(() => {
-    throw new Error("NOT_FOUND");
-  }),
-  checklistItemFindUniqueMock: vi.fn(),
-  checklistItemFindFirstMock: vi.fn(),
-  checklistItemFindManyMock: vi.fn(),
-  checklistItemCreateMock: vi.fn(),
-  checklistItemCreateManyMock: vi.fn(),
-  checklistItemUpdateMock: vi.fn(),
-  checklistItemDeleteMock: vi.fn(),
-  tripMemberFindUniqueMock: vi.fn(),
-  packingTemplateFindUniqueMock: vi.fn(),
-  packingTemplateCreateMock: vi.fn(),
-  packingTemplateDeleteMock: vi.fn(),
-}));
+  queryRawMock,
+  transactionMock,
+} = vi.hoisted(() => {
+  const checklistItemUpdateMock = vi.fn();
+  const queryRawMock = vi.fn();
+  const transactionMock = vi.fn(async (arg: unknown) => {
+    if (typeof arg === "function") {
+      return (arg as (tx: unknown) => unknown)({
+        $queryRaw: queryRawMock,
+        checklistItem: { update: checklistItemUpdateMock },
+      });
+    }
+    if (Array.isArray(arg)) return Promise.all(arg);
+    return arg;
+  });
+
+  return {
+    requireTripAccessMock: vi.fn().mockResolvedValue({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+    }),
+    requireUserMock: vi.fn().mockResolvedValue({ id: "user-1" }),
+    revalidatePathMock: vi.fn(),
+    notFoundMock: vi.fn(() => {
+      throw new Error("NOT_FOUND");
+    }),
+    checklistItemFindUniqueMock: vi.fn(),
+    checklistItemFindFirstMock: vi.fn(),
+    checklistItemFindManyMock: vi.fn(),
+    checklistItemCreateMock: vi.fn(),
+    checklistItemCreateManyMock: vi.fn(),
+    checklistItemUpdateMock,
+    checklistItemDeleteMock: vi.fn(),
+    tripMemberFindUniqueMock: vi.fn(),
+    packingTemplateFindUniqueMock: vi.fn(),
+    packingTemplateCreateMock: vi.fn(),
+    packingTemplateDeleteMock: vi.fn(),
+    queryRawMock,
+    transactionMock,
+  };
+});
 
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: requireTripAccessMock,
@@ -74,7 +93,7 @@ vi.mock("@/lib/db", () => ({
       findMany: vi.fn().mockResolvedValue([]),
       delete: packingTemplateDeleteMock,
     },
-    $transaction: (ops: unknown[]) => Promise.all(ops),
+    $transaction: transactionMock,
   },
 }));
 
@@ -659,39 +678,66 @@ describe("updateChecklistItem", () => {
 // ---------------------------------------------------------------------------
 
 describe("reorderChecklistItem", () => {
-  it("swaps sortOrder with the item above when direction is up", async () => {
-    checklistItemFindUniqueMock.mockResolvedValue({
-      id: "ci-2",
-      tripId: "trip-1",
-      kind: "PRETRIP",
-    });
-    // First findUnique is the access check, second is for fetching sortOrder
-    checklistItemFindUniqueMock
-      .mockResolvedValueOnce({ id: "ci-2", tripId: "trip-1", kind: "PRETRIP" })
-      .mockResolvedValueOnce({ id: "ci-2", sortOrder: 2, kind: "PRETRIP" });
-    checklistItemFindFirstMock.mockResolvedValue({ id: "ci-1", sortOrder: 1 });
+  const items = [
+    { id: "ci-1", sortOrder: 0 },
+    { id: "ci-2", sortOrder: 1 },
+    { id: "ci-3", sortOrder: 2 },
+  ];
+
+  it("locks the (trip, kind) list with FOR UPDATE inside a transaction before swapping", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ id: "ci-2", tripId: "trip-1", kind: "PRETRIP" });
+    queryRawMock.mockResolvedValue(items);
     checklistItemUpdateMock.mockResolvedValue({});
 
     const result = await reorderChecklistItem("ci-2", "up");
 
     expect(result.success).toBe(true);
-    expect(checklistItemUpdateMock).toHaveBeenCalledWith({
-      where: { id: "ci-2" },
-      data: { sortOrder: 1 },
-    });
-    expect(checklistItemUpdateMock).toHaveBeenCalledWith({
-      where: { id: "ci-1" },
-      data: { sortOrder: 2 },
-    });
+    expect(transactionMock).toHaveBeenCalledOnce();
+    const sqlParts = queryRawMock.mock.calls[0][0] as string[];
+    expect(sqlParts.join(" ")).toContain("FOR UPDATE");
+    // Bound params: tripId then kind.
+    expect(queryRawMock.mock.calls[0][1]).toBe("trip-1");
+    expect(queryRawMock.mock.calls[0][2]).toBe("PRETRIP");
   });
 
-  it("is a no-op when already at the top", async () => {
-    checklistItemFindUniqueMock
-      .mockResolvedValueOnce({ id: "ci-1", tripId: "trip-1", kind: "PRETRIP" })
-      .mockResolvedValueOnce({ id: "ci-1", sortOrder: 0, kind: "PRETRIP" });
-    checklistItemFindFirstMock.mockResolvedValue(null); // no item above
+  it("swaps sortOrder with the previous item when moving up", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ id: "ci-2", tripId: "trip-1", kind: "PRETRIP" });
+    queryRawMock.mockResolvedValue(items);
+    checklistItemUpdateMock.mockResolvedValue({});
+
+    await reorderChecklistItem("ci-2", "up");
+
+    expect(checklistItemUpdateMock).toHaveBeenCalledTimes(2);
+    expect(checklistItemUpdateMock).toHaveBeenCalledWith({ where: { id: "ci-2" }, data: { sortOrder: 0 } });
+    expect(checklistItemUpdateMock).toHaveBeenCalledWith({ where: { id: "ci-1" }, data: { sortOrder: 1 } });
+  });
+
+  it("swaps sortOrder with the next item when moving down", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ id: "ci-2", tripId: "trip-1", kind: "PRETRIP" });
+    queryRawMock.mockResolvedValue(items);
+    checklistItemUpdateMock.mockResolvedValue({});
+
+    await reorderChecklistItem("ci-2", "down");
+
+    expect(checklistItemUpdateMock).toHaveBeenCalledWith({ where: { id: "ci-2" }, data: { sortOrder: 2 } });
+    expect(checklistItemUpdateMock).toHaveBeenCalledWith({ where: { id: "ci-3" }, data: { sortOrder: 1 } });
+  });
+
+  it("is a no-op at the top boundary", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ id: "ci-1", tripId: "trip-1", kind: "PRETRIP" });
+    queryRawMock.mockResolvedValue(items);
 
     const result = await reorderChecklistItem("ci-1", "up");
+
+    expect(result.success).toBe(true);
+    expect(checklistItemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op at the bottom boundary", async () => {
+    checklistItemFindUniqueMock.mockResolvedValue({ id: "ci-3", tripId: "trip-1", kind: "PRETRIP" });
+    queryRawMock.mockResolvedValue(items);
+
+    const result = await reorderChecklistItem("ci-3", "down");
 
     expect(result.success).toBe(true);
     expect(checklistItemUpdateMock).not.toHaveBeenCalled();

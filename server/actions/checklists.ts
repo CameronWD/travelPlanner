@@ -217,6 +217,9 @@ export async function deleteChecklistItem(
  * of the same (trip, kind) in the given direction.
  *
  * If the item is already at the top/bottom, this is a no-op.
+ *
+ * READ COMMITTED is sufficient here because the FOR UPDATE row lock serializes
+ * concurrent reorders on the same (trip, kind) list.
  */
 export async function reorderChecklistItem(
   itemId: string,
@@ -224,47 +227,36 @@ export async function reorderChecklistItem(
 ): Promise<ChecklistActionResult> {
   const item = await requireChecklistItemAccess(itemId);
 
-  // Load the current item's sortOrder
-  const current = await db.checklistItem.findUnique({
-    where: { id: itemId },
-    select: { id: true, sortOrder: true, kind: true },
-  });
-  if (!current) {
-    notFound();
-  }
+  await db.$transaction(async (tx) => {
+    // Lock this (trip, kind) checklist in sortOrder so a concurrent reorder blocks
+    // until we commit, then re-reads the corrected order. Raw SQL because Prisma
+    // can't express SELECT ... FOR UPDATE on findMany.
+    const siblings = await tx.$queryRaw<Array<{ id: string; sortOrder: number }>>`
+      SELECT "id", "sortOrder"
+      FROM "ChecklistItem"
+      WHERE "tripId" = ${item.tripId} AND "kind" = ${item.kind}
+      ORDER BY "sortOrder" ASC
+      FOR UPDATE
+    `;
 
-  // Find the adjacent item in the same (trip, kind) list
-  const adjacent = await db.checklistItem.findFirst({
-    where: {
-      tripId: item.tripId,
-      kind: item.kind,
-      sortOrder:
-        direction === "up"
-          ? { lt: current.sortOrder }
-          : { gt: current.sortOrder },
-    },
-    orderBy: {
-      sortOrder: direction === "up" ? "desc" : "asc",
-    },
-    select: { id: true, sortOrder: true },
-  });
+    const idx = siblings.findIndex((s) => s.id === itemId);
+    if (idx === -1) return; // item vanished mid-flight — nothing to do
 
-  if (!adjacent) {
-    // Already at the boundary; nothing to do
-    return { success: true };
-  }
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    if (swapIdx < 0 || swapIdx >= siblings.length) return; // boundary — no-op
 
-  // Swap sortOrders atomically so a mid-swap failure can't leave them inconsistent.
-  await db.$transaction([
-    db.checklistItem.update({
+    const current = siblings[idx];
+    const neighbour = siblings[swapIdx];
+
+    await tx.checklistItem.update({
       where: { id: current.id },
-      data: { sortOrder: adjacent.sortOrder },
-    }),
-    db.checklistItem.update({
-      where: { id: adjacent.id },
+      data: { sortOrder: neighbour.sortOrder },
+    });
+    await tx.checklistItem.update({
+      where: { id: neighbour.id },
       data: { sortOrder: current.sortOrder },
-    }),
-  ]);
+    });
+  });
 
   revalidateChecklistPaths(item.tripId);
   return { success: true };
