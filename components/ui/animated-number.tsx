@@ -48,7 +48,12 @@ export function AnimatedNumber({
 
   return (
     <span className={className} aria-label={format(value)}>
-      <span aria-hidden="true">{format(shown)}</span>
+      {/* Server renders the from-0 (or final, under reduced motion) value; the
+          client may differ on first paint. The text is aria-hidden and purely
+          decorative, so suppress the expected hydration diff. */}
+      <span aria-hidden="true" suppressHydrationWarning>
+        {format(shown)}
+      </span>
     </span>
   );
 }
