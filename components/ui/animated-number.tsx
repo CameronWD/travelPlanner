@@ -22,15 +22,13 @@ export function AnimatedNumber({
   className?: string;
 }) {
   const reduce = useReducedMotion();
-  const [display, setDisplay] = React.useState(reduce ? value : 0);
-  const prev = React.useRef(reduce ? value : 0);
+  const [display, setDisplay] = React.useState(0);
+  const prev = React.useRef(0);
 
   React.useEffect(() => {
-    if (reduce) {
-      setDisplay(value);
-      prev.current = value;
-      return;
-    }
+    // Reduced motion: don't animate. We render `value` directly below, so
+    // there's nothing to do here (and no setState-in-effect).
+    if (reduce) return;
     const controls = animate(prev.current, value, {
       duration: durationSec,
       ease: EASE_EMPHASIZED,
@@ -44,9 +42,13 @@ export function AnimatedNumber({
     return () => controls.stop();
   }, [value, reduce, durationSec]);
 
+  // Under reduced motion show the final value with no count-up; otherwise the
+  // animated `display` drives the digits.
+  const shown = reduce ? value : display;
+
   return (
     <span className={className} aria-label={format(value)}>
-      <span aria-hidden="true">{format(display)}</span>
+      <span aria-hidden="true">{format(shown)}</span>
     </span>
   );
 }
