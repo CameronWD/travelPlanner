@@ -15,6 +15,7 @@ import { InvitePanel } from "@/components/trip/settings/invite-panel";
 import { SharePanel } from "@/components/trip/settings/share-panel";
 import { CalendarFeedPanel } from "@/components/trip/settings/calendar-feed-panel";
 import { DangerZone } from "@/components/trip/settings/danger-zone";
+import { ChaptersManager } from "@/components/trip/chapters-manager";
 
 export default async function SettingsPage({
   params,
@@ -54,8 +55,21 @@ export default async function SettingsPage({
 
   if (!trip) notFound();
 
-  const shareLink = await getShareLink(tripId);
-  const calendarFeed = await getCalendarFeed(tripId);
+  const [shareLink, calendarFeed, chapters] = await Promise.all([
+    getShareLink(tripId),
+    getCalendarFeed(tripId),
+    db.chapter.findMany({
+      where: { tripId },
+      orderBy: { startDate: "asc" },
+      select: {
+        id: true,
+        name: true,
+        colour: true,
+        startDate: true,
+        endDate: true,
+      },
+    }),
+  ]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -77,6 +91,20 @@ export default async function SettingsPage({
               homeCurrency: trip.homeCurrency,
             }}
           />
+        </CardContent>
+      </Card>
+
+      {/* ── Chapters ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Chapters</CardTitle>
+          <CardDescription>
+            Group stops into named segments of your trip, each with its own
+            colour. Chapters are optional.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ChaptersManager tripId={tripId} chapters={chapters} />
         </CardContent>
       </Card>
 
