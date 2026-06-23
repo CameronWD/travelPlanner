@@ -6,8 +6,14 @@ name: Reminders cron
 # scheduled runs under load, and disables schedules after 60 days of repo
 # inactivity — fine for a low-stakes reminder ping.
 on:
-  schedule:
-    - cron: "*/5 * * * *"
+  # Scheduled runs are DISABLED for now. They were firing every 5 minutes and
+  # failing (the curl to ${APP_URL}/api/cron/reminders errored out), which spammed
+  # failure emails. Re-enable by uncommenting the schedule block below once the
+  # cron is configured and the app is live — see docs/DEPLOY.md §5 (repo Secret
+  # CRON_SECRET + repo Variable APP_URL). workflow_dispatch stays on so the job
+  # can still be triggered manually from the Actions tab to test the wiring.
+  # schedule:
+  #   - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 jobs:
