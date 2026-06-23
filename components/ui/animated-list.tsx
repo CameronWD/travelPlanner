@@ -7,6 +7,10 @@ import { DURATION, EASE_EMPHASIZED, STAGGER_STEP } from "@/lib/motion";
 type ListTag = "div" | "ul" | "ol";
 type ItemTag = "div" | "li" | "section";
 
+// Cap the mount-stagger delay so long lists don't get a multi-second tail —
+// items past this index all enter together.
+const MAX_STAGGER_INDEX = 12;
+
 /**
  * Container for an animated list. Renders a plain element (div/ul/ol) wrapping
  * an AnimatePresence so its AnimatedItem children animate on add/remove.
@@ -58,7 +62,7 @@ export function AnimatedItem({
       initial={{ opacity: 0, y: 8, scale: 0.98 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.96, transition: { duration: DURATION.exit } }}
-      transition={{ duration: DURATION.base, ease: EASE_EMPHASIZED, delay: index * STAGGER_STEP }}
+      transition={{ duration: DURATION.base, ease: EASE_EMPHASIZED, delay: Math.min(index, MAX_STAGGER_INDEX) * STAGGER_STEP }}
       className={className}
     >
       {children}
