@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { mergeRate, getRateForTrip, FX_STALE_AFTER_MS, isRateStale } from "./fx";
+import {
+  mergeRate,
+  getRateForTrip,
+  resolveRateForTrip,
+  persistRate,
+  FX_STALE_AFTER_MS,
+  isRateStale,
+} from "./fx";
 
 // ---------------------------------------------------------------------------
 // mergeRate — pure policy, no I/O
@@ -194,6 +201,109 @@ describe("getRateForTrip", () => {
     });
 
     expect(result).toBeNull();
+  });
+});
+
+describe("resolveRateForTrip", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns rate 1 and no persist when base === quote (no db, no fetch)", async () => {
+    const fetcherMock = vi.fn();
+    const db = makeDb(null);
+
+    const result = await resolveRateForTrip("trip-1", "AUD", "AUD", {
+      db: db as never,
+      fetcher: fetcherMock,
+    });
+
+    expect(result).toEqual({ rate: 1, persist: null });
+    expect(fetcherMock).not.toHaveBeenCalled();
+    expect(db.exchangeRate.findUnique).not.toHaveBeenCalled();
+  });
+
+  it("returns the manual stored rate and no persist (skips fetch)", async () => {
+    const manual: StoredRate = {
+      id: "r1", tripId: "trip-1", base: "EUR", quote: "AUD",
+      rate: 1.6, fetchedAt: new Date(), manual: true,
+    };
+    const fetcherMock = vi.fn();
+    const db = makeDb(manual);
+
+    const result = await resolveRateForTrip("trip-1", "EUR", "AUD", {
+      db: db as never,
+      fetcher: fetcherMock,
+    });
+
+    expect(result).toEqual({ rate: 1.6, persist: null });
+    expect(fetcherMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a persist descriptor for a fresh fetch and does NOT write", async () => {
+    const fetcherMock = vi.fn().mockResolvedValue(1.65);
+    const db = makeDb(null);
+
+    const result = await resolveRateForTrip("trip-1", "eur", "aud", {
+      db: db as never,
+      fetcher: fetcherMock,
+    });
+
+    expect(result).toEqual({ rate: 1.65, persist: { base: "EUR", quote: "AUD", rate: 1.65 } });
+    expect(db._upsertMock).not.toHaveBeenCalled(); // resolve never writes
+  });
+
+  it("falls back to the stale stored rate with no persist when the fetch fails", async () => {
+    const stale: StoredRate = {
+      id: "r1", tripId: "trip-1", base: "EUR", quote: "AUD",
+      rate: 1.5, fetchedAt: new Date(), manual: false,
+    };
+    const fetcherMock = vi.fn().mockResolvedValue(null);
+    const db = makeDb(stale);
+
+    const result = await resolveRateForTrip("trip-1", "EUR", "AUD", {
+      db: db as never,
+      fetcher: fetcherMock,
+    });
+
+    expect(result).toEqual({ rate: 1.5, persist: null });
+  });
+
+  it("returns null rate and no persist when the fetch fails and nothing is stored", async () => {
+    const fetcherMock = vi.fn().mockResolvedValue(null);
+    const db = makeDb(null);
+
+    const result = await resolveRateForTrip("trip-1", "EUR", "AUD", {
+      db: db as never,
+      fetcher: fetcherMock,
+    });
+
+    expect(result).toEqual({ rate: null, persist: null });
+  });
+});
+
+describe("persistRate", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("upserts the rate with manual: false against a db-like client", async () => {
+    const db = makeDb(null);
+
+    await persistRate(db as never, "trip-1", { base: "EUR", quote: "AUD", rate: 1.65 });
+
+    expect(db._upsertMock).toHaveBeenCalledOnce();
+    const call = db._upsertMock.mock.calls[0][0];
+    expect(call.where).toEqual({ tripId_base_quote: { tripId: "trip-1", base: "EUR", quote: "AUD" } });
+    expect(call.create.manual).toBe(false);
+    expect(call.create.rate).toBe(1.65);
+    expect(call.update.rate).toBe(1.65);
+    expect(call.update.manual).toBeUndefined();
+  });
+
+  it("accepts a transaction client (any exchangeRate-bearing client)", async () => {
+    const upsert = vi.fn().mockResolvedValue({});
+    const tx = { exchangeRate: { upsert } };
+
+    await persistRate(tx as never, "trip-1", { base: "USD", quote: "AUD", rate: 1.5 });
+
+    expect(upsert).toHaveBeenCalledOnce();
   });
 });
 
