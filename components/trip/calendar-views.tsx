@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Button } from "@/components/ui/button";
 import { AgendaView } from "@/components/trip/agenda-view";
@@ -12,6 +13,7 @@ import { rescheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { cn } from "@/lib/cn";
+import { DURATION } from "@/lib/motion";
 import type { DayPlan } from "@/lib/itinerary";
 
 const STORAGE_KEY = "trip-planner-calendar-view";
@@ -170,53 +172,63 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems 
       </div>
 
       {/* Body */}
-      {view === "month" ? (
-        <div className="flex flex-col gap-4 lg:flex-row">
-          <div className={cn("flex-1", pending && "pointer-events-none opacity-70")}>
-            <MonthGrid
-              tripId={tripId}
-              monthAnchorISO={monthAnchor}
-              days={days}
-              tripStart={tripStart}
-              tripEnd={tripEnd}
-              onDropItem={handleDropItem}
-            />
-          </div>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={view}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: DURATION.fast }}
+        >
+          {view === "month" ? (
+            <div className="flex flex-col gap-4 lg:flex-row">
+              <div className={cn("flex-1", pending && "pointer-events-none opacity-70")}>
+                <MonthGrid
+                  tripId={tripId}
+                  monthAnchorISO={monthAnchor}
+                  days={days}
+                  tripStart={tripStart}
+                  tripEnd={tripEnd}
+                  onDropItem={handleDropItem}
+                />
+              </div>
 
-          {wishlistItems.length > 0 && (
-            <aside className="lg:w-56 lg:shrink-0">
-              <button
-                type="button"
-                onClick={() => setRailOpen((o) => !o)}
-                className="mb-2 text-sm font-medium text-muted-foreground hover:text-foreground"
-              >
-                Wishlist ({wishlistItems.length}) {railOpen ? "▾" : "▸"}
-              </button>
-              {railOpen && (
-                <ul className="flex flex-col gap-1.5">
-                  {wishlistItems.map((w) => (
-                    <li
-                      key={w.id}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData("text/item-id", w.id);
-                        e.dataTransfer.effectAllowed = "move";
-                      }}
-                      className="flex cursor-grab items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5 text-xs active:cursor-grabbing"
-                    >
-                      <span className={cn("size-2 shrink-0 rounded-full", categoryDotClass(w.category))} />
-                      <span className="truncate">{w.title}</span>
-                    </li>
-                  ))}
-                </ul>
+              {wishlistItems.length > 0 && (
+                <aside className="lg:w-56 lg:shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setRailOpen((o) => !o)}
+                    className="mb-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                  >
+                    Wishlist ({wishlistItems.length}) {railOpen ? "▾" : "▸"}
+                  </button>
+                  {railOpen && (
+                    <ul className="flex flex-col gap-1.5">
+                      {wishlistItems.map((w) => (
+                        <li
+                          key={w.id}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("text/item-id", w.id);
+                            e.dataTransfer.effectAllowed = "move";
+                          }}
+                          className="flex cursor-grab items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5 text-xs active:cursor-grabbing"
+                        >
+                          <span className={cn("size-2 shrink-0 rounded-full", categoryDotClass(w.category))} />
+                          <span className="truncate">{w.title}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="mt-2 text-[11px] text-muted-foreground">Drag onto a day to schedule.</p>
+                </aside>
               )}
-              <p className="mt-2 text-[11px] text-muted-foreground">Drag onto a day to schedule.</p>
-            </aside>
+            </div>
+          ) : (
+            <AgendaView tripId={tripId} days={days} />
           )}
-        </div>
-      ) : (
-        <AgendaView tripId={tripId} days={days} />
-      )}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
