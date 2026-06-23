@@ -86,10 +86,18 @@ describe("isTransportBetweenLegs / chapterIdForTransport", () => {
 describe("suggestChapterRuns", () => {
   it("proposes one run per consecutive same-country block, skipping country-less stops", () => {
     const runs = suggestChapterRuns(stops);
+    // Finland's endDate is trimmed to the day before UK's startDate so the
+    // bands are contiguous but non-overlapping.
     expect(runs).toEqual([
-      { name: "Finland", startDate: "2026-06-26", endDate: "2026-07-03" },
+      { name: "Finland", startDate: "2026-06-26", endDate: "2026-07-02" },
       { name: "United Kingdom", startDate: "2026-07-03", endDate: "2026-07-07" },
     ]);
+  });
+  it("returns adjacent runs that do not overlap each other", () => {
+    const runs = suggestChapterRuns(stops);
+    for (let i = 0; i < runs.length - 1; i++) {
+      expect(chaptersOverlap(runs[i], runs[i + 1])).toBe(false);
+    }
   });
   it("splits a revisited country into separate runs", () => {
     const there: StopLike[] = [

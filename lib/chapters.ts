@@ -1,4 +1,4 @@
-import { isDateWithin } from "./dates";
+import { addDays, isDateWithin } from "./dates";
 
 export interface ChapterLike {
   id: string;
@@ -106,6 +106,17 @@ export function suggestChapterRuns(stops: readonly StopLike[]): ChapterRun[] {
     } else {
       current = null;
       currentCountry = null;
+    }
+  }
+  // Trim adjacent runs so they are contiguous but never share a boundary day.
+  // Each run's endDate starts as the last stop's departDate, which equals the
+  // next run's startDate (stops are contiguous). Subtract one day from the
+  // earlier run's end so chaptersOverlap (inclusive) won't fire on the seam.
+  for (let i = 0; i < runs.length - 1; i++) {
+    if (runs[i].endDate >= runs[i + 1].startDate) {
+      const trimmed = addDays(runs[i + 1].startDate, -1);
+      // Guard: never let the trimmed end fall before the run's own start.
+      runs[i].endDate = trimmed >= runs[i].startDate ? trimmed : runs[i].startDate;
     }
   }
   return runs;

@@ -104,4 +104,23 @@ describe("suggestChaptersFromCountries", () => {
     expect(r.success).toBe(true);
     expect(chapterCreateManyMock).toHaveBeenCalledWith({ data: [expect.objectContaining({ name: "Finland", tripId: "trip-1" })] });
   });
+
+  it("creates chapters for BOTH countries in a back-to-back trip sharing a boundary day", async () => {
+    // Finland departs 2026-07-03; UK arrives 2026-07-03 — the shared boundary day
+    // used to cause chaptersOverlap to fire and skip UK. After the fix, the runs
+    // are trimmed so Finland ends 2026-07-02 and both chapters are created.
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", arriveDate: "2026-06-26", departDate: "2026-06-30", country: "Finland", sortOrder: 0 },
+      { id: "b", arriveDate: "2026-06-30", departDate: "2026-07-03", country: "Finland", sortOrder: 1 },
+      { id: "c", arriveDate: "2026-07-03", departDate: "2026-07-07", country: "United Kingdom", sortOrder: 2 },
+    ]);
+    chapterFindManyMock.mockResolvedValue([]);
+    const r = await suggestChaptersFromCountries("trip-1");
+    expect(r.success).toBe(true);
+    const callArg = chapterCreateManyMock.mock.calls[0][0] as { data: { name: string }[] };
+    expect(callArg.data).toHaveLength(2);
+    const names = callArg.data.map((d) => d.name);
+    expect(names).toContain("Finland");
+    expect(names).toContain("United Kingdom");
+  });
 });
