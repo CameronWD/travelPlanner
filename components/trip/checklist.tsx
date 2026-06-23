@@ -42,6 +42,8 @@ import {
 } from "@/server/actions/checklists";
 import type { ChecklistKind } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
+import { motion } from "motion/react";
+import { SPRING_POP } from "@/lib/motion";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -445,11 +447,19 @@ function ChecklistRow({
           aria-label={item.done ? "Mark incomplete" : "Mark complete"}
           className="mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-primary"
         >
-          {item.done ? (
-            <CheckSquare className="size-5 text-primary" aria-hidden="true" />
-          ) : (
-            <Square className="size-5" aria-hidden="true" />
-          )}
+          <motion.span
+            key={item.done ? "done" : "todo"}
+            initial={{ scale: 0.6 }}
+            animate={{ scale: 1 }}
+            transition={SPRING_POP}
+            className="inline-flex"
+          >
+            {item.done ? (
+              <CheckSquare className="size-5 text-primary" aria-hidden="true" />
+            ) : (
+              <Square className="size-5" aria-hidden="true" />
+            )}
+          </motion.span>
         </button>
 
         {/* Content */}
