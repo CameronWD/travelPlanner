@@ -20,15 +20,16 @@ export function AnimatedList({
   className,
   as = "div",
   staggerOnMount = false,
+  ...rest
 }: {
   children: React.ReactNode;
   className?: string;
   as?: ListTag;
   staggerOnMount?: boolean;
-}) {
+} & Omit<React.HTMLAttributes<HTMLElement>, "children" | "className">) {
   const Tag = as;
   return (
-    <Tag className={className}>
+    <Tag className={className} {...rest}>
       <AnimatePresence initial={staggerOnMount}>{children}</AnimatePresence>
     </Tag>
   );

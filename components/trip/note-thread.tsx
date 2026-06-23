@@ -106,7 +106,7 @@ function ThreadBody({
     <div className="flex flex-col gap-3">
       {/* Notes list */}
       {notes.length > 0 ? (
-        <AnimatedList as="ul" className="flex flex-col gap-2.5">
+        <AnimatedList as="ul" role="list" className="flex flex-col gap-2.5">
           {notes.map((note) => (
             <AnimatedItem key={note.id} as="li" className="group flex gap-2">
               <Avatar className="mt-0.5 size-6 shrink-0">
