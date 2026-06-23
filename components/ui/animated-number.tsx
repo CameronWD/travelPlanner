@@ -34,9 +34,13 @@ export function AnimatedNumber({
     const controls = animate(prev.current, value, {
       duration: durationSec,
       ease: EASE_EMPHASIZED,
-      onUpdate: (v) => setDisplay(v),
+      // Track the live visual position so that if `value` changes mid-flight
+      // the next animation resumes from where the digits actually are.
+      onUpdate: (v) => {
+        prev.current = v;
+        setDisplay(v);
+      },
     });
-    prev.current = value;
     return () => controls.stop();
   }, [value, reduce, durationSec]);
 
