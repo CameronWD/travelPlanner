@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
 import type { TargetType } from "@/lib/enums";
+import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -116,10 +117,11 @@ export function AttachmentList({
     <div className="space-y-3">
       {/* File list */}
       {attachments.length > 0 ? (
-        <ul className="divide-y divide-border rounded-xl border border-border bg-card">
+        <AnimatedList as="ul" className="divide-y divide-border rounded-xl border border-border bg-card">
           {attachments.map((att) => (
-            <li
+            <AnimatedItem
               key={att.id}
+              as="li"
               className={cn(
                 "flex items-center gap-3 px-4",
                 compact ? "py-2.5" : "py-3",
@@ -171,9 +173,9 @@ export function AttachmentList({
                   )}
                 </Button>
               </div>
-            </li>
+            </AnimatedItem>
           ))}
-        </ul>
+        </AnimatedList>
       ) : null}
 
       {/* Upload error */}

@@ -27,6 +27,7 @@ import { formatMoney, formatMinor, parseAmountToMinor } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
+import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -328,9 +329,9 @@ export function OtherCostEditor({
           className="py-8"
         />
       ) : (
-        <div className="flex flex-col gap-1">
+        <AnimatedList className="flex flex-col gap-1">
           {costs.map((cost) => (
-            <div
+            <AnimatedItem
               key={cost.id}
               className={cn(
                 "flex items-center justify-between gap-2 rounded-lg px-3 py-2 bg-muted/40 border border-border/50",
@@ -397,9 +398,9 @@ export function OtherCostEditor({
                   <X className="size-3.5" aria-hidden="true" />
                 </Button>
               </div>
-            </div>
+            </AnimatedItem>
           ))}
-        </div>
+        </AnimatedList>
       )}
 
       <Button

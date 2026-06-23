@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TripCard } from "@/components/trip/trip-card";
+import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 
 export const metadata = {
   title: "Your trips · Trip Planner",
@@ -53,18 +54,19 @@ export default async function TripsPage() {
           }
         />
       ) : (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {trips.map((trip) => (
-            <TripCard
-              key={trip.id}
-              id={trip.id}
-              name={trip.name}
-              startDate={trip.startDate}
-              endDate={trip.endDate}
-              stopCount={trip._count.stops}
-            />
+        <AnimatedList className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" staggerOnMount>
+          {trips.map((trip, idx) => (
+            <AnimatedItem key={trip.id} index={idx}>
+              <TripCard
+                id={trip.id}
+                name={trip.name}
+                startDate={trip.startDate}
+                endDate={trip.endDate}
+                stopCount={trip._count.stops}
+              />
+            </AnimatedItem>
           ))}
-        </div>
+        </AnimatedList>
       )}
     </div>
   );

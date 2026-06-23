@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
+import { motion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { setVote, clearVote } from "@/server/actions/votes";
 import { VOTE_LEVELS, type VoteLevel } from "@/lib/enums";
+import { SPRING_POP } from "@/lib/motion";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -115,7 +117,20 @@ export function VoteControl({
               }
             }}
           >
-            <span aria-hidden="true">{LEVEL_EMOJI[level]}</span>
+            {/* Pop only the chosen level: the active emoji mounts fresh and
+                springs in; inactive levels are plain spans (no mount pop). */}
+            {myVote?.level === level ? (
+              <motion.span
+                aria-hidden="true"
+                initial={{ scale: 0.6 }}
+                animate={{ scale: 1 }}
+                transition={SPRING_POP}
+              >
+                {LEVEL_EMOJI[level]}
+              </motion.span>
+            ) : (
+              <span aria-hidden="true">{LEVEL_EMOJI[level]}</span>
+            )}
             {LEVEL_LABEL[level]}
           </SegmentedItem>
         ))}

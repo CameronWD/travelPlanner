@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { StopCard, type StopCardStop } from "./stop-card";
 import { StopFormDialog } from "./stop-form-dialog";
 import { deleteStop, moveStop } from "@/server/actions/stops";
+import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 
 interface StopsManagerProps {
   tripId: string;
@@ -51,22 +52,23 @@ export function StopsManager({ tripId, initialStops }: StopsManagerProps) {
     <div className="flex flex-col gap-4">
       {hasStops && (
         <>
-          {/* Stop cards list */}
-          <div className="flex flex-col gap-3">
+          {/* Stop cards list — staggered entrance, animated add/remove/reorder */}
+          <AnimatedList className="flex flex-col gap-3" staggerOnMount>
             {initialStops.map((stop, idx) => (
-              <StopCard
-                key={stop.id}
-                stop={stop}
-                isFirst={idx === 0}
-                isLast={idx === initialStops.length - 1}
-                isPending={pendingId === stop.id}
-                onEdit={(s) => setEditingStop(s)}
-                onMoveUp={(id) => handleMove(id, "up")}
-                onMoveDown={(id) => handleMove(id, "down")}
-                onDelete={handleDelete}
-              />
+              <AnimatedItem key={stop.id} index={idx}>
+                <StopCard
+                  stop={stop}
+                  isFirst={idx === 0}
+                  isLast={idx === initialStops.length - 1}
+                  isPending={pendingId === stop.id}
+                  onEdit={(s) => setEditingStop(s)}
+                  onMoveUp={(id) => handleMove(id, "up")}
+                  onMoveDown={(id) => handleMove(id, "down")}
+                  onDelete={handleDelete}
+                />
+              </AnimatedItem>
             ))}
-          </div>
+          </AnimatedList>
 
           {/* Add stop button at the bottom of the list */}
           <div className="flex justify-end">

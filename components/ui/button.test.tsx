@@ -51,6 +51,11 @@ describe("Button", () => {
     expect(screen.queryByTestId("button-spinner")).not.toBeInTheDocument();
   });
 
+  it("includes press-feedback scale on the base, gated by motion-safe", () => {
+    render(<Button>Press me</Button>);
+    expect(screen.getByRole("button")).toHaveClass("motion-safe:active:scale-[0.98]");
+  });
+
   it("renders as a child element via asChild", () => {
     render(
       <Button asChild>

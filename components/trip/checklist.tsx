@@ -41,6 +41,9 @@ import {
   reorderChecklistItem,
 } from "@/server/actions/checklists";
 import type { ChecklistKind } from "@/lib/enums";
+import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
+import { motion } from "motion/react";
+import { SPRING_POP } from "@/lib/motion";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -428,7 +431,8 @@ function ChecklistRow({
         onOpenChange={setEditOpen}
       />
 
-      <li
+      <AnimatedItem
+        as="li"
         className={cn(
           "group flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors",
           "hover:bg-muted/40",
@@ -443,11 +447,19 @@ function ChecklistRow({
           aria-label={item.done ? "Mark incomplete" : "Mark complete"}
           className="mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-primary"
         >
-          {item.done ? (
-            <CheckSquare className="size-5 text-primary" aria-hidden="true" />
-          ) : (
-            <Square className="size-5" aria-hidden="true" />
-          )}
+          <motion.span
+            key={item.done ? "done" : "todo"}
+            initial={{ scale: 0.6 }}
+            animate={{ scale: 1 }}
+            transition={SPRING_POP}
+            className="inline-flex"
+          >
+            {item.done ? (
+              <CheckSquare className="size-5 text-primary" aria-hidden="true" />
+            ) : (
+              <Square className="size-5" aria-hidden="true" />
+            )}
+          </motion.span>
         </button>
 
         {/* Content */}
@@ -545,7 +557,7 @@ function ChecklistRow({
             <Trash2 className="size-4" aria-hidden="true" />
           </button>
         </div>
-      </li>
+      </AnimatedItem>
     </>
   );
 }
@@ -633,7 +645,7 @@ export function Checklist({
       <ProgressBar done={doneCount} total={items.length} />
 
       {/* Items */}
-      <ul className="flex flex-col divide-y divide-border/50 rounded-xl border border-border bg-card">
+      <AnimatedList as="ul" className="flex flex-col divide-y divide-border/50 rounded-xl border border-border bg-card">
         {items.map((item, idx) => (
           <ChecklistRow
             key={item.id}
@@ -645,7 +657,7 @@ export function Checklist({
             showAssignee={showAssignee}
           />
         ))}
-      </ul>
+      </AnimatedList>
 
       {/* Add form */}
       <AddItemForm

@@ -3,6 +3,7 @@ import { Wallet, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatMoney } from "@/lib/money";
+import { AnimatedMoney } from "@/components/trip/animated-money";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Card,
@@ -241,7 +242,7 @@ export default async function BudgetPage({
                 Estimated total
               </p>
               <p className="font-display text-4xl font-semibold tracking-tight">
-                {formatMoney(budget.grandTotal.estimatedMinor, homeCurrency)}
+                <AnimatedMoney minor={budget.grandTotal.estimatedMinor} currency={homeCurrency} />
               </p>
             </div>
 
@@ -251,7 +252,7 @@ export default async function BudgetPage({
                   Spent so far
                 </p>
                 <p className="font-display text-2xl font-semibold">
-                  {formatMoney(budget.grandTotal.actualMinor, homeCurrency)}
+                  <AnimatedMoney minor={budget.grandTotal.actualMinor} currency={homeCurrency} />
                 </p>
                 {gapMinor !== null && (
                   <div className="flex items-center gap-1 text-sm sm:justify-end">

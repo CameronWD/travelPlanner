@@ -21,6 +21,7 @@ import { cn } from "@/lib/cn";
 import type { CostOwnerType } from "@/lib/enums";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
+import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -309,9 +310,9 @@ export function CostEditor({
     <div className="flex flex-col gap-1.5">
       {/* Existing costs */}
       {costs.length > 0 && (
-        <div className="flex flex-col gap-1">
+        <AnimatedList className="flex flex-col gap-1">
           {costs.map((cost) => (
-            <div
+            <AnimatedItem
               key={cost.id}
               className={cn(
                 "flex items-center justify-between gap-2 rounded-md px-2 py-1 bg-muted/40",
@@ -349,9 +350,9 @@ export function CostEditor({
                   <X className="size-3" aria-hidden="true" />
                 </Button>
               </div>
-            </div>
+            </AnimatedItem>
           ))}
-        </div>
+        </AnimatedList>
       )}
 
       {/* Add cost button */}
