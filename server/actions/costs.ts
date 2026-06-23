@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { getRateForTrip } from "@/lib/fx";
+import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { costSchema, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
 
@@ -104,21 +104,6 @@ async function verifyOwnerEntity(
   return null;
 }
 
-/**
- * Snapshot the FX rate for the given currency vs the trip's home currency.
- * Returns 1 if same currency, the rate from getRateForTrip otherwise (may be null).
- */
-async function snapshotRate(
-  tripId: string,
-  currency: string,
-  homeCurrency: string,
-): Promise<number | null> {
-  if (currency.toUpperCase() === homeCurrency.toUpperCase()) {
-    return 1;
-  }
-  return getRateForTrip(tripId, currency, homeCurrency, { db });
-}
-
 function revalidateTripPaths(tripId: string) {
   revalidatePath(`/trips/${tripId}`);
   revalidatePath(`/trips/${tripId}/budget`);
@@ -166,23 +151,31 @@ export async function createCost(
     };
   }
 
-  // Snapshot the rate
-  const rateToHome = await snapshotRate(tripId, data.currency, trip.homeCurrency);
+  // Resolve the rate (incl. any network fetch) BEFORE opening a transaction —
+  // a network call must never hold a DB transaction open (ADR 0007).
+  const resolved = await resolveRateForTrip(tripId, data.currency, trip.homeCurrency, { db });
 
-  const cost = await db.cost.create({
-    data: {
-      tripId,
-      estimatedMinor: data.estimatedMinor,
-      actualMinor: data.actualMinor ?? null,
-      currency: data.currency,
-      rateToHome,
-      paidAt: data.paidAt ?? null,
-      ownerType: data.ownerType,
-      ownerId: data.ownerId ?? null,
-      label: data.label ?? null,
-      category: data.category ?? null,
-    },
-    select: { id: true },
+  // Persist a freshly fetched rate (if any) and create the cost atomically, so a
+  // failed cost write never leaves a half-written rate cache behind.
+  const cost = await db.$transaction(async (tx) => {
+    if (resolved.persist) {
+      await persistRate(tx, tripId, resolved.persist);
+    }
+    return tx.cost.create({
+      data: {
+        tripId,
+        estimatedMinor: data.estimatedMinor,
+        actualMinor: data.actualMinor ?? null,
+        currency: data.currency,
+        rateToHome: resolved.rate,
+        paidAt: data.paidAt ?? null,
+        ownerType: data.ownerType,
+        ownerId: data.ownerId ?? null,
+        label: data.label ?? null,
+        category: data.category ?? null,
+      },
+      select: { id: true },
+    });
   });
 
   revalidateTripPaths(tripId);
@@ -226,22 +219,26 @@ export async function updateCost(
     };
   }
 
-  // Re-snapshot the rate
-  const rateToHome = await snapshotRate(existing.tripId, data.currency, trip.homeCurrency);
+  const resolved = await resolveRateForTrip(existing.tripId, data.currency, trip.homeCurrency, { db });
 
-  await db.cost.update({
-    where: { id: costId },
-    data: {
-      estimatedMinor: data.estimatedMinor,
-      actualMinor: data.actualMinor ?? null,
-      currency: data.currency,
-      rateToHome,
-      paidAt: data.paidAt ?? null,
-      ownerType: data.ownerType,
-      ownerId: data.ownerId ?? null,
-      label: data.label ?? null,
-      category: data.category ?? null,
-    },
+  await db.$transaction(async (tx) => {
+    if (resolved.persist) {
+      await persistRate(tx, existing.tripId, resolved.persist);
+    }
+    await tx.cost.update({
+      where: { id: costId },
+      data: {
+        estimatedMinor: data.estimatedMinor,
+        actualMinor: data.actualMinor ?? null,
+        currency: data.currency,
+        rateToHome: resolved.rate,
+        paidAt: data.paidAt ?? null,
+        ownerType: data.ownerType,
+        ownerId: data.ownerId ?? null,
+        label: data.label ?? null,
+        category: data.category ?? null,
+      },
+    });
   });
 
   revalidateTripPaths(existing.tripId);
