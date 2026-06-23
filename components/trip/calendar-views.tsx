@@ -13,7 +13,7 @@ import { rescheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { cn } from "@/lib/cn";
-import { DURATION } from "@/lib/motion";
+import { DURATION, EASE_OUT } from "@/lib/motion";
 import type { DayPlan } from "@/lib/itinerary";
 
 const STORAGE_KEY = "trip-planner-calendar-view";
@@ -178,7 +178,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: DURATION.fast }}
+          transition={{ duration: DURATION.fast, ease: EASE_OUT }}
         >
           {view === "month" ? (
             <div className="flex flex-col gap-4 lg:flex-row">
