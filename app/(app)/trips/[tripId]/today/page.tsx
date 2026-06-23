@@ -3,12 +3,13 @@ import Link from "next/link";
 import { CalendarDays, MapPin, Bed, ArrowRight } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { todayISO, formatLongDate } from "@/lib/dates";
+import { todayISO, formatLongDate, dayNumberInTrip } from "@/lib/dates";
 import {
   buildItinerary,
   effectiveTodayISO,
   pickDayPlan,
 } from "@/lib/itinerary";
+import { chapterForDate } from "@/lib/chapters";
 import { Timeline } from "@/components/trip/timeline";
 import { MapLink } from "@/components/trip/map-link";
 import { TransportCountdown } from "@/components/trip/transport-countdown";
@@ -18,6 +19,7 @@ import {
   RemindersCard,
   type ReminderItem,
 } from "@/components/trip/reminders-card";
+import { ChapterChip } from "@/components/trip/chapter-chip";
 
 export default async function TodayPage({
   params,
@@ -38,9 +40,10 @@ export default async function TodayPage({
 
   const isBeforeTrip = today < trip.startDate;
   const isAfterTrip = today > trip.endDate;
+  const isWithinTrip = today >= trip.startDate && today <= trip.endDate;
 
-  // Fetch all itinerary data (plus reminders)
-  const [stops, items, transports, accommodations, reminders] = await Promise.all([
+  // Fetch all itinerary data (plus reminders + chapters)
+  const [stops, items, transports, accommodations, reminders, chapters] = await Promise.all([
     db.stop.findMany({
       where: { tripId },
       orderBy: { sortOrder: "asc" },
@@ -115,7 +118,21 @@ export default async function TodayPage({
         sent: true,
       },
     }),
+    db.chapter.findMany({
+      where: { tripId },
+      orderBy: { startDate: "asc" },
+      select: {
+        id: true,
+        name: true,
+        colour: true,
+        startDate: true,
+        endDate: true,
+      },
+    }),
   ]);
+
+  const currentChapter = chapterForDate(effectiveDate, chapters);
+  const dayNum = dayNumberInTrip(effectiveDate, trip.startDate);
 
   const itinerary = buildItinerary({
     startDate: trip.startDate,
@@ -208,6 +225,19 @@ export default async function TodayPage({
         <p className="text-sm text-muted-foreground">
           {formatLongDate(effectiveDate)}
         </p>
+
+        {/* Day / chapter context label */}
+        {isWithinTrip && (
+          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <span>Day {dayNum}</span>
+            {currentChapter && (
+              <>
+                <span aria-hidden="true">·</span>
+                <ChapterChip name={currentChapter.name} colour={currentChapter.colour} />
+              </>
+            )}
+          </p>
+        )}
 
         {/* Out-of-trip notice */}
         {isBeforeTrip && (
