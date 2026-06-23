@@ -14,6 +14,10 @@ _Avoid_: Holiday, vacation (use "Trip" in code/UI consistently)
 A place you are based for a stretch of the trip, plus the dates you are there (e.g. Paris, 3–6 July). A Trip is an ordered sequence of Stops.
 _Avoid_: Destination, city, location, leg
 
+**Chapter**:
+A named, coloured **date range** within a Trip that groups a chunk of the journey into one piece (e.g. "the Italy chapter", covering Rome → Florence → Venice). A Stop, Transport or cost belongs to whichever Chapter's dates cover it (a Stop is placed by its arrive date); the Itinerary, Budget and Summary roll up per Chapter. Chapters are optional, cannot overlap, and need not cover the whole Trip — any date under no Chapter is **Ungrouped**. A Transport that crosses from one Chapter into another — or runs to/from home, outside every Chapter — is **between-legs travel**, shown on the seam between Chapters and as its own Budget line rather than inside any Chapter's total.
+_Avoid_: Phase, leg, segment, part
+
 **Transport**:
 A first-class movement between two Stops — a flight, train, drive, ferry, etc. Has a mode, departure/arrival place & time, a reference (flight/train number), and a cost. Connects Stops in sequence.
 _Avoid_: Leg, journey, travel, segment
