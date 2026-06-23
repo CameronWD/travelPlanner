@@ -27,7 +27,7 @@ export default async function TripOverviewPage({
   const { tripId } = await params;
   const { user } = await requireTripAccess(tripId);
 
-  const [trip, stops, transports, allCosts] = await Promise.all([
+  const [trip, stops, transports, allCosts, chapters] = await Promise.all([
     db.trip.findUnique({
       where: { id: tripId },
       select: { homeCurrency: true, startDate: true, endDate: true },
@@ -90,6 +90,11 @@ export default async function TripOverviewPage({
       orderBy: { createdAt: "asc" },
       select: COST_SELECT,
     }),
+    db.chapter.findMany({
+      where: { tripId },
+      orderBy: { startDate: "asc" },
+      select: { id: true, name: true, colour: true, startDate: true, endDate: true },
+    }),
   ]);
 
   // Fetch stop notes
@@ -148,6 +153,7 @@ export default async function TripOverviewPage({
             tripId={tripId}
             initialStops={[]}
             initialTransports={[]}
+            chapters={chapters}
             tripStartDate={trip?.startDate}
             tripEndDate={trip?.endDate}
           />
@@ -165,6 +171,7 @@ export default async function TripOverviewPage({
         tripEndDate={trip?.endDate}
         notesByStopId={notesByStopId}
         currentUserId={user.id}
+        chapters={chapters}
         initialStops={stops.map((stop) => ({
           ...stop,
           accommodations: stop.accommodations.map((acc) => ({

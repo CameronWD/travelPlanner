@@ -9,10 +9,14 @@ import { TransportCard, type TransportCardTransport } from "./transport-card";
 import { TransportFormDialog, type StopOption } from "./transport-form-dialog";
 import { AccommodationCard, type AccommodationCardAccommodation } from "./accommodation-card";
 import { AccommodationFormDialog } from "./accommodation-form-dialog";
+import { ChapterFormDialog } from "./chapter-form-dialog";
+import { ChapterChip } from "./chapter-chip";
 import { deleteStop, moveStop } from "@/server/actions/stops";
-import { suggestNextStopDates } from "@/lib/dates";
+import { suggestNextStopDates, formatDateRange } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
+import { groupStopsByChapter, isTransportBetweenLegs } from "@/lib/chapters";
+import { chapterColourSwatch } from "@/lib/chapter-colours";
 import type { TransportMode } from "@/lib/enums";
 import type { CostRow } from "@/server/actions/costs";
 import type { NoteView } from "./note-thread";
@@ -46,10 +50,20 @@ export interface ItineraryTransport {
   costs?: CostRow[];
 }
 
+export interface ItineraryChapter {
+  id: string;
+  name: string;
+  colour: string;
+  startDate: string;
+  endDate: string;
+}
+
 interface ItineraryManagerProps {
   tripId: string;
   initialStops: ItineraryStop[];
   initialTransports: ItineraryTransport[];
+  /** Chapters for this trip — drives grouping/seam rendering */
+  chapters?: ItineraryChapter[];
   /** Trip's home currency — passed to cost display */
   homeCurrency?: string;
   /** Trip date window — used to default + constrain stop date pickers */
@@ -91,6 +105,7 @@ export function ItineraryManager({
   tripId,
   initialStops,
   initialTransports,
+  chapters = [],
   homeCurrency,
   tripStartDate,
   tripEndDate,
@@ -116,6 +131,28 @@ export function ItineraryManager({
     React.useState<ItineraryStop | null>(null);
   const [addAccommodationStop, setAddAccommodationStop] =
     React.useState<ItineraryStop | null>(null);
+
+  // ── Chapter dialog state ──
+  const [chapterDialogOpen, setChapterDialogOpen] = React.useState(false);
+  const [chapterDialogDefaults, setChapterDialogDefaults] = React.useState<{
+    defaultStart?: string;
+    defaultEnd?: string;
+  }>({});
+
+  // ── Chapter group collapse state (keyed by chapter id or "ungrouped") ──
+  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(new Set());
+
+  function toggleGroup(key: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
 
   // ── Pending mutations ──
   const [pendingId, setPendingId] = React.useState<string | null>(null);
@@ -162,9 +199,28 @@ export function ItineraryManager({
     }
   }
 
+  // ── Chapter handler ──
+  function handleStartChapterHere(stop: StopCardStop) {
+    setChapterDialogDefaults({
+      defaultStart: stop.arriveDate,
+      defaultEnd: stop.departDate,
+    });
+    setChapterDialogOpen(true);
+  }
+
   // ── Derived data ──
   const stops = initialStops;
   const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
+  const hasChapters = chapters.length > 0;
+
+  /** Build a stopsById lookup (used by chapter helpers) */
+  const stopsById = React.useMemo(() => {
+    const map: Record<string, ItineraryStop> = {};
+    for (const s of stops) {
+      map[s.id] = s;
+    }
+    return map;
+  }, [stops]);
 
   /**
    * Transports that link consecutive stops[i] → stops[i+1].
@@ -183,6 +239,22 @@ export function ItineraryManager({
     return map;
   }, [initialTransports]);
 
+  /**
+   * Set of transport IDs that are "between-legs" (cross chapters or have a
+   * null endpoint). These are NOT rendered inline with the stop loop.
+   * When there are no chapters, every transport is intra-chapter → set is empty.
+   */
+  const betweenLegsIds = React.useMemo<Set<string>>(() => {
+    if (!hasChapters) return new Set();
+    const ids = new Set<string>();
+    for (const t of initialTransports) {
+      if (isTransportBetweenLegs(t, chapters, stopsById)) {
+        ids.add(t.id);
+      }
+    }
+    return ids;
+  }, [initialTransports, chapters, stopsById, hasChapters]);
+
   /** Transports that DON'T link a consecutive pair (orphaned or partial) */
   const otherTransports = React.useMemo(() => {
     const consecutivePairKeys = new Set<string>();
@@ -191,9 +263,9 @@ export function ItineraryManager({
     }
 
     return initialTransports.filter((t) => {
-      if (!t.fromStopId || !t.toStopId) return true; // no both stops → other
+      if (!t.fromStopId || !t.toStopId) return true; // null endpoint → other
       const key = `${t.fromStopId}-${t.toStopId}`;
-      return !consecutivePairKeys.has(key);
+      return !consecutivePairKeys.has(key); // non-consecutive → other
     });
   }, [initialTransports, stops]);
 
@@ -207,120 +279,251 @@ export function ItineraryManager({
     tripEndDate,
   );
 
+  // ── Grouped rendering data ──
+  const groups = React.useMemo(
+    () => groupStopsByChapter(stops, chapters),
+    [stops, chapters],
+  );
+
+  // ---------------------------------------------------------------------------
+  // Per-stop render helper (shared between grouped and flat rendering)
+  // ---------------------------------------------------------------------------
+
+  function renderStop(stop: ItineraryStop, globalIdx: number, isFirst: boolean, isLast: boolean) {
+    const nextStop = isLast ? null : stops[globalIdx + 1];
+
+    // When chapters exist, filter out between-legs transports from inline render.
+    const legTransports = nextStop
+      ? (transportByPair.get(`${stop.id}-${nextStop.id}`) ?? []).filter(
+          (t) => !betweenLegsIds.has(t.id),
+        )
+      : [];
+
+    const stopDateRange = {
+      arriveDate: stop.arriveDate,
+      departDate: stop.departDate,
+    };
+
+    return (
+      <React.Fragment key={stop.id}>
+        {/* Stop card */}
+        <StopCard
+          stop={stop}
+          isFirst={isFirst}
+          isLast={isLast}
+          isPending={pendingId === stop.id}
+          onEdit={(s) => setEditingStop(s)}
+          onMoveUp={(id) => handleMoveStop(id, "up")}
+          onMoveDown={(id) => handleMoveStop(id, "down")}
+          onDelete={handleDeleteStop}
+          onStartChapter={handleStartChapterHere}
+          notes={notesByStopId?.get(stop.id) ?? []}
+          tripId={tripId}
+          currentUserId={currentUserId}
+        />
+
+        {/* Accommodations under this stop */}
+        {stop.accommodations.length > 0 && (
+          <div className="ml-4 flex flex-col gap-2 border-l-2 border-border/40 pl-4">
+            {stop.accommodations.map((acc) => (
+              <AccommodationCard
+                key={acc.id}
+                accommodation={acc}
+                stop={stopDateRange}
+                isPending={pendingId === acc.id}
+                onEdit={(a) => {
+                  setEditingAccommodation(a);
+                  setEditingAccStop(stop);
+                }}
+                onDelete={handleDeleteAccommodation}
+                costs={acc.costs}
+                tripId={tripId}
+                homeCurrency={homeCurrency}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Add accommodation for this stop */}
+        <div className="ml-4 pl-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setAddAccommodationStop(stop)}
+          >
+            <Plus className="size-3.5" aria-hidden="true" />
+            Add accommodation
+          </Button>
+        </div>
+
+        {/* Transport legs to next stop (intra-chapter only when chapters exist) */}
+        {!isLast && (
+          <div className="flex flex-col gap-2 px-2">
+            {legTransports.map((t) => (
+              <TransportCard
+                key={t.id}
+                transport={enrichTransport(t, stops)}
+                isPending={pendingId === t.id}
+                onEdit={(tr) => setEditingTransport(tr)}
+                onDelete={handleDeleteTransport}
+                costs={t.costs}
+                tripId={tripId}
+                homeCurrency={homeCurrency}
+              />
+            ))}
+
+            {/* Add transport between this pair */}
+            <div className="flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() =>
+                  setAddTransportDefaults({
+                    fromStopId: stop.id,
+                    toStopId: nextStop!.id,
+                  })
+                }
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                Add transport to {nextStop!.name}
+              </Button>
+            </div>
+          </div>
+        )}
+      </React.Fragment>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Seam render helper — renders cross-chapter transports between two groups
+  // ---------------------------------------------------------------------------
+
+  function renderSeam(
+    lastStopOfPrevGroup: ItineraryStop,
+    firstStopOfNextGroup: ItineraryStop,
+  ) {
+    const seamKey = `${lastStopOfPrevGroup.id}-${firstStopOfNextGroup.id}`;
+    const seamTransports = (transportByPair.get(seamKey) ?? []).filter((t) =>
+      betweenLegsIds.has(t.id),
+    );
+    if (seamTransports.length === 0) return null;
+    return (
+      <div key={`seam-${seamKey}`} className="flex flex-col gap-2 px-2">
+        {seamTransports.map((t) => (
+          <TransportCard
+            key={t.id}
+            transport={enrichTransport(t, stops)}
+            isPending={pendingId === t.id}
+            onEdit={(tr) => setEditingTransport(tr)}
+            onDelete={handleDeleteTransport}
+            costs={t.costs}
+            tripId={tripId}
+            homeCurrency={homeCurrency}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Main render
+  // ---------------------------------------------------------------------------
+
   return (
     <div className="flex flex-col gap-4">
       {hasStops ? (
         <>
           {/* Stops + interspersed transports + accommodations */}
           <div className="flex flex-col gap-3">
-            {stops.map((stop, idx) => {
-              const isFirst = idx === 0;
-              const isLast = idx === stops.length - 1;
+            {!hasChapters ? (
+              // ── Zero-chapters path: identical to original flat list ──
+              stops.map((stop, idx) => {
+                const isFirst = idx === 0;
+                const isLast = idx === stops.length - 1;
+                return renderStop(stop, idx, isFirst, isLast);
+              })
+            ) : (
+              // ── Chapters path: grouped rendering with seams ──
+              groups.map((group, groupIdx) => {
+                const isFirstGroup = groupIdx === 0;
+                const prevGroup = isFirstGroup ? null : groups[groupIdx - 1];
+                const groupKey = group.chapter?.id ?? "ungrouped";
+                const isCollapsed = collapsedGroups.has(groupKey);
 
-              // Transports departing FROM this stop TO the next stop
-              const nextStop = isLast ? null : stops[idx + 1];
-              const legTransports = nextStop
-                ? (transportByPair.get(`${stop.id}-${nextStop.id}`) ?? [])
-                : [];
+                // Find the global stop index for isFirst/isLast tracking
+                const firstStopGlobalIdx = stops.indexOf(group.stops[0]);
 
-              const stopDateRange = {
-                arriveDate: stop.arriveDate,
-                departDate: stop.departDate,
-              };
+                return (
+                  <React.Fragment key={groupKey + "-" + groupIdx}>
+                    {/* Seam: cross-chapter transports between prev group and this group */}
+                    {!isFirstGroup && prevGroup && prevGroup.stops.length > 0 && group.stops.length > 0 &&
+                      renderSeam(
+                        prevGroup.stops[prevGroup.stops.length - 1],
+                        group.stops[0],
+                      )
+                    }
 
-              return (
-                <React.Fragment key={stop.id}>
-                  {/* Stop card */}
-                  <StopCard
-                    stop={stop}
-                    isFirst={isFirst}
-                    isLast={isLast}
-                    isPending={pendingId === stop.id}
-                    onEdit={(s) => setEditingStop(s)}
-                    onMoveUp={(id) => handleMoveStop(id, "up")}
-                    onMoveDown={(id) => handleMoveStop(id, "down")}
-                    onDelete={handleDeleteStop}
-                    notes={notesByStopId?.get(stop.id) ?? []}
-                    tripId={tripId}
-                    currentUserId={currentUserId}
-                  />
-
-                  {/* Accommodations under this stop */}
-                  {stop.accommodations.length > 0 && (
-                    <div className="ml-4 flex flex-col gap-2 border-l-2 border-border/40 pl-4">
-                      {stop.accommodations.map((acc) => (
-                        <AccommodationCard
-                          key={acc.id}
-                          accommodation={acc}
-                          stop={stopDateRange}
-                          isPending={pendingId === acc.id}
-                          onEdit={(a) => {
-                            setEditingAccommodation(a);
-                            setEditingAccStop(stop);
-                          }}
-                          onDelete={handleDeleteAccommodation}
-                          costs={acc.costs}
-                          tripId={tripId}
-                          homeCurrency={homeCurrency}
-                        />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Add accommodation for this stop */}
-                  <div className="ml-4 pl-4">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => setAddAccommodationStop(stop)}
-                    >
-                      <Plus className="size-3.5" aria-hidden="true" />
-                      Add accommodation
-                    </Button>
-                  </div>
-
-                  {/* Transport legs to next stop */}
-                  {!isLast && (
-                    <div className="flex flex-col gap-2 px-2">
-                      {legTransports.map((t) => (
-                        <TransportCard
-                          key={t.id}
-                          transport={enrichTransport(t, stops)}
-                          isPending={pendingId === t.id}
-                          onEdit={(tr) => setEditingTransport(tr)}
-                          onDelete={handleDeleteTransport}
-                          costs={t.costs}
-                          tripId={tripId}
-                          homeCurrency={homeCurrency}
-                        />
-                      ))}
-
-                      {/* Add transport between this pair */}
-                      <div className="flex justify-center">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                          onClick={() =>
-                            setAddTransportDefaults({
-                              fromStopId: stop.id,
-                              toStopId: nextStop!.id,
-                            })
-                          }
+                    {/* Chapter group header (only when group has a chapter) */}
+                    {group.chapter ? (
+                      <div
+                        className="rounded-xl border border-border/60 overflow-hidden"
+                        style={{ borderLeftWidth: 4, borderLeftColor: chapterColourSwatch(group.chapter.colour) }}
+                      >
+                        {/* Collapsible header */}
+                        <button
+                          type="button"
+                          aria-expanded={!isCollapsed}
+                          aria-label={`${group.chapter.name} chapter, ${isCollapsed ? "expand" : "collapse"}`}
+                          onClick={() => toggleGroup(groupKey)}
+                          className="w-full flex items-center gap-3 px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
                         >
-                          <Plus className="size-3.5" aria-hidden="true" />
-                          Add transport to {nextStop!.name}
-                        </Button>
+                          <ChapterChip
+                            name={group.chapter.name}
+                            colour={group.chapter.colour}
+                          />
+                          <span className="text-xs text-muted-foreground flex-1">
+                            {formatDateRange(group.chapter.startDate, group.chapter.endDate)}
+                          </span>
+                          <span className="text-sm text-muted-foreground select-none" aria-hidden="true">
+                            {isCollapsed ? "▸" : "▾"}
+                          </span>
+                        </button>
+
+                        {/* Group body */}
+                        {!isCollapsed && (
+                          <div className="flex flex-col gap-3 p-3">
+                            {group.stops.map((stop, groupStopIdx) => {
+                              const globalIdx = firstStopGlobalIdx + groupStopIdx;
+                              const isFirst = globalIdx === 0;
+                              const isLast = globalIdx === stops.length - 1;
+                              return renderStop(stop, globalIdx, isFirst, isLast);
+                            })}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  )}
-                </React.Fragment>
-              );
-            })}
+                    ) : (
+                      // Ungrouped stops — no chapter header, or subtle label
+                      <div className="flex flex-col gap-3">
+                        {hasChapters && (
+                          <p className="text-xs text-muted-foreground px-1">Ungrouped</p>
+                        )}
+                        {group.stops.map((stop, groupStopIdx) => {
+                          const globalIdx = firstStopGlobalIdx + groupStopIdx;
+                          const isFirst = globalIdx === 0;
+                          const isLast = globalIdx === stops.length - 1;
+                          return renderStop(stop, globalIdx, isFirst, isLast);
+                        })}
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })
+            )}
           </div>
 
-          {/* Other transports (not linked to consecutive stops) */}
+          {/* Other transports (not linked to consecutive stops, or home bookends) */}
           {otherTransports.length > 0 && (
             <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4">
               <h3 className="text-sm font-medium text-muted-foreground">
@@ -463,6 +666,15 @@ export function ItineraryManager({
           }}
         />
       )}
+
+      {/* Start a chapter here */}
+      <ChapterFormDialog
+        tripId={tripId}
+        open={chapterDialogOpen}
+        onOpenChange={setChapterDialogOpen}
+        defaultStart={chapterDialogDefaults.defaultStart}
+        defaultEnd={chapterDialogDefaults.defaultEnd}
+      />
     </div>
   );
 }

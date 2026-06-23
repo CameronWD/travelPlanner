@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronUp, ChevronDown, Pencil, Trash2, MapPin, Calendar, Clock } from "lucide-react";
+import { ChevronUp, ChevronDown, Pencil, Trash2, MapPin, Calendar, Clock, BookOpen } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { formatDateRange, nightsBetween, tzAbbrev } from "@/lib/dates";
@@ -32,6 +32,8 @@ export interface StopCardProps {
   onMoveDown?: (stopId: string) => void;
   /** Called when delete is requested */
   onDelete?: (stopId: string) => void;
+  /** Called when "Start a chapter here" is selected */
+  onStartChapter?: (stop: StopCardStop) => void;
   /** Pending state (e.g. while a server action is in flight) */
   isPending?: boolean;
   /** Notes attached to this stop */
@@ -55,6 +57,7 @@ export function StopCard({
   onMoveUp,
   onMoveDown,
   onDelete,
+  onStartChapter,
   isPending = false,
   notes,
   tripId,
@@ -117,6 +120,19 @@ export function StopCard({
             >
               <ChevronDown className="size-4" aria-hidden="true" />
             </Button>
+            {onStartChapter && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                disabled={isPending}
+                onClick={() => onStartChapter(stop)}
+                aria-label="Start a chapter here"
+                title="Start a chapter here"
+              >
+                <BookOpen className="size-4" aria-hidden="true" />
+              </Button>
+            )}
           </div>
 
           {/* Edit */}
@@ -174,6 +190,13 @@ export function StopCard({
                   icon: <ChevronDown className="size-4" aria-hidden="true" />,
                   onSelect: () => onMoveDown?.(stop.id),
                   disabled: isLast || isPending,
+                },
+                {
+                  key: "start-chapter",
+                  label: "Start a chapter here",
+                  icon: <BookOpen className="size-4" aria-hidden="true" />,
+                  onSelect: () => onStartChapter?.(stop),
+                  disabled: isPending,
                 },
               ]}
             />
