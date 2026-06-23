@@ -362,26 +362,19 @@ The app is platform-agnostic and will run on any Node.js host (Railway, Fly.io, 
 
 A pre-ship hardening review fixed all blocking issues (multi-currency budget
 correctness, a stored-XSS vector, a service-worker cross-user cache leak, error
-boundaries, orphaned file blobs, constant-time cron auth). The following are
-**known, low-severity, accepted-for-now** items — none are data-loss or security
-holes, but they're worth a fast-follow:
+boundaries, orphaned file blobs, constant-time cron auth). The post-deploy
+fast-follow pass then closed the remaining items:
 
-- **Concurrent reorder is last-write-wins.** Stop / checklist reordering does a
-  read-then-swap of `sortOrder`. If both partners reorder the *same* list within
-  the same instant, the orders can transpose. It's visually obvious and fixed by
-  re-dragging; no data is lost. A future fix would do the swap inside an
-  interactive transaction (or model order as `@@unique([tripId, sortOrder])`).
-- **Cost + FX-rate snapshot are written separately.** Creating a cost caches the
-  FX rate, then writes the cost in a second statement. If the cost write fails
-  after the rate is cached, you're left with a harmless cached rate (identical to
-  the state after merely viewing the budget page) — no corruption. Not wrapped in
-  one transaction because the rate resolution makes a network call, which
-  shouldn't hold a DB transaction open.
-- **Duplicate pending invites are possible under a race.** Inviting the same
-  email twice simultaneously can create two pending `Invite` rows. Acceptance
-  de-dupes membership, so it's cosmetic (two rows in the settings list). A
-  `@@unique([tripId, email])` constraint would close it.
-- **FX staleness threshold differs by view.** The `/api/fx` route treats rates
-  older than 5 minutes as stale while the budget page uses 24 hours, so the same
-  rate pair can render a different "stale" badge in two places. Consolidate onto
-  one threshold in `lib/fx.ts`.
+- **Concurrent reorder is now race-safe.** Stop and checklist reordering
+  (`moveStop`, `reorderChecklistItem`) lock the list with `SELECT … FOR UPDATE`
+  inside an interactive transaction and swap from the locked snapshot, so two
+  simultaneous reorders can no longer transpose. See ADR 0007.
+- **Cost + FX-rate snapshot are now written atomically.** The rate is resolved
+  (network) before the transaction opens, then the rate cache and the cost row are
+  written together in one interactive transaction. See ADR 0007.
+- **Duplicate pending invites are prevented.** `Invite` has a
+  `@@unique([tripId, email])` constraint and `inviteToTrip` upserts on it, so an
+  email can have at most one invite row per trip.
+- **FX staleness threshold is unified.** Both the `/api/fx` route and the budget
+  page use the single `FX_STALE_AFTER_MS` (24h) / `isRateStale` helper in
+  `lib/fx.ts` — there is no longer a per-view discrepancy.

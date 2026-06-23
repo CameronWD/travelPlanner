@@ -16,24 +16,29 @@ const {
   geocodePlaceMock,
   stopFindFirstMock,
   stopFindUniqueMock,
-  stopFindManyMock,
   stopCreateMock,
   stopUpdateMock,
   stopDeleteMock,
+  queryRawMock,
   transactionMock,
 } = vi.hoisted(() => {
   const stopFindFirstMock = vi.fn();
   const stopFindUniqueMock = vi.fn();
-  const stopFindManyMock = vi.fn();
   const stopCreateMock = vi.fn();
   const stopUpdateMock = vi.fn();
   const stopDeleteMock = vi.fn();
-  const transactionMock = vi.fn(async (ops: unknown[]) => {
-    // For array-form transactions, execute each op
-    if (Array.isArray(ops)) {
-      return Promise.all(ops);
+  const queryRawMock = vi.fn();
+  const transactionMock = vi.fn(async (arg: unknown) => {
+    // Interactive form: invoke the callback with a tx client.
+    if (typeof arg === "function") {
+      return (arg as (tx: unknown) => unknown)({
+        $queryRaw: queryRawMock,
+        stop: { update: stopUpdateMock },
+      });
     }
-    return ops;
+    // Array form (kept for any batch-transaction callers).
+    if (Array.isArray(arg)) return Promise.all(arg);
+    return arg;
   });
 
   return {
@@ -45,10 +50,10 @@ const {
     geocodePlaceMock: vi.fn().mockResolvedValue(null),
     stopFindFirstMock,
     stopFindUniqueMock,
-    stopFindManyMock,
     stopCreateMock,
     stopUpdateMock,
     stopDeleteMock,
+    queryRawMock,
     transactionMock,
   };
 });
@@ -61,7 +66,6 @@ vi.mock("@/lib/db", () => ({
     stop: {
       findFirst: stopFindFirstMock,
       findUnique: stopFindUniqueMock,
-      findMany: stopFindManyMock,
       create: stopCreateMock,
       update: stopUpdateMock,
       delete: stopDeleteMock,
@@ -245,83 +249,67 @@ describe("deleteStop", () => {
 
 describe("moveStop", () => {
   const stops = [
-    { id: "stop-A", sortOrder: 0 },
-    { id: "stop-B", sortOrder: 1 },
-    { id: "stop-C", sortOrder: 2 },
+    { id: "stop-1", sortOrder: 0 },
+    { id: "stop-2", sortOrder: 1 },
+    { id: "stop-3", sortOrder: 2 },
   ];
 
-  it("swaps sortOrder with previous stop when moving up", async () => {
-    stopFindUniqueMock.mockResolvedValue({
-      id: "stop-B",
-      tripId: "trip-1",
-      sortOrder: 1,
-    });
-    stopFindManyMock.mockResolvedValue(stops);
+  it("locks the trip's stops with FOR UPDATE inside a transaction before swapping", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-2", tripId: "trip-1", sortOrder: 1 });
+    queryRawMock.mockResolvedValue(stops);
     stopUpdateMock.mockResolvedValue({});
 
-    const result = await moveStop("stop-B", "up");
+    const result = await moveStop("stop-2", "up");
 
     expect(result.success).toBe(true);
-    // stop-B should get sortOrder 0, stop-A should get sortOrder 1
     expect(transactionMock).toHaveBeenCalledOnce();
-    // The two db.stop.update calls should reflect the swap
-    expect(stopUpdateMock).toHaveBeenCalledWith({
-      where: { id: "stop-B" },
-      data: { sortOrder: 0 },
-    });
-    expect(stopUpdateMock).toHaveBeenCalledWith({
-      where: { id: "stop-A" },
-      data: { sortOrder: 1 },
-    });
+    expect(queryRawMock).toHaveBeenCalledOnce();
+    const sqlParts = queryRawMock.mock.calls[0][0] as string[];
+    expect(sqlParts.join(" ")).toContain("FOR UPDATE");
+    // First bound value is the tripId.
+    expect(queryRawMock.mock.calls[0][1]).toBe("trip-1");
   });
 
-  it("swaps sortOrder with next stop when moving down", async () => {
-    stopFindUniqueMock.mockResolvedValue({
-      id: "stop-B",
-      tripId: "trip-1",
-      sortOrder: 1,
-    });
-    stopFindManyMock.mockResolvedValue(stops);
+  it("swaps sortOrder with the previous stop when moving up", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-2", tripId: "trip-1", sortOrder: 1 });
+    queryRawMock.mockResolvedValue(stops);
     stopUpdateMock.mockResolvedValue({});
 
-    await moveStop("stop-B", "down");
+    await moveStop("stop-2", "up");
 
-    expect(stopUpdateMock).toHaveBeenCalledWith({
-      where: { id: "stop-B" },
-      data: { sortOrder: 2 },
-    });
-    expect(stopUpdateMock).toHaveBeenCalledWith({
-      where: { id: "stop-C" },
-      data: { sortOrder: 1 },
-    });
+    expect(stopUpdateMock).toHaveBeenCalledTimes(2);
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "stop-2" }, data: { sortOrder: 0 } });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "stop-1" }, data: { sortOrder: 1 } });
   });
 
-  it("is a no-op when moving the first stop up", async () => {
-    stopFindUniqueMock.mockResolvedValue({
-      id: "stop-A",
-      tripId: "trip-1",
-      sortOrder: 0,
-    });
-    stopFindManyMock.mockResolvedValue(stops);
+  it("swaps sortOrder with the next stop when moving down", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-2", tripId: "trip-1", sortOrder: 1 });
+    queryRawMock.mockResolvedValue(stops);
+    stopUpdateMock.mockResolvedValue({});
 
-    const result = await moveStop("stop-A", "up");
+    await moveStop("stop-2", "down");
+
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "stop-2" }, data: { sortOrder: 2 } });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "stop-3" }, data: { sortOrder: 1 } });
+  });
+
+  it("is a no-op when already at the top", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", sortOrder: 0 });
+    queryRawMock.mockResolvedValue(stops);
+
+    const result = await moveStop("stop-1", "up");
 
     expect(result.success).toBe(true);
-    expect(transactionMock).not.toHaveBeenCalled();
     expect(stopUpdateMock).not.toHaveBeenCalled();
   });
 
-  it("is a no-op when moving the last stop down", async () => {
-    stopFindUniqueMock.mockResolvedValue({
-      id: "stop-C",
-      tripId: "trip-1",
-      sortOrder: 2,
-    });
-    stopFindManyMock.mockResolvedValue(stops);
+  it("is a no-op when already at the bottom", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-3", tripId: "trip-1", sortOrder: 2 });
+    queryRawMock.mockResolvedValue(stops);
 
-    const result = await moveStop("stop-C", "down");
+    const result = await moveStop("stop-3", "down");
 
     expect(result.success).toBe(true);
-    expect(transactionMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).not.toHaveBeenCalled();
   });
 });

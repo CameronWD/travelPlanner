@@ -17,8 +17,23 @@ const {
   transportFindUniqueMock,
   accommodationFindUniqueMock,
   itemFindUniqueMock,
-  getRateForTripMock,
+  resolveRateForTripMock,
+  persistRateMock,
+  transactionMock,
 } = vi.hoisted(() => {
+  const costCreateMock = vi.fn();
+  const costUpdateMock = vi.fn();
+  const transactionMock = vi.fn(async (arg: unknown) => {
+    if (typeof arg === "function") {
+      return (arg as (tx: unknown) => unknown)({
+        cost: { create: costCreateMock, update: costUpdateMock },
+        exchangeRate: { upsert: vi.fn().mockResolvedValue({}) },
+      });
+    }
+    if (Array.isArray(arg)) return Promise.all(arg);
+    return arg;
+  });
+
   return {
     requireTripAccessMock: vi.fn().mockResolvedValue({
       user: { id: "user-1" },
@@ -26,21 +41,26 @@ const {
     }),
     revalidatePathMock: vi.fn(),
     costFindUniqueMock: vi.fn(),
-    costCreateMock: vi.fn(),
-    costUpdateMock: vi.fn(),
+    costCreateMock,
+    costUpdateMock,
     costDeleteMock: vi.fn(),
     tripFindUniqueMock: vi.fn(),
     transportFindUniqueMock: vi.fn(),
     accommodationFindUniqueMock: vi.fn(),
     itemFindUniqueMock: vi.fn(),
-    getRateForTripMock: vi.fn(),
+    resolveRateForTripMock: vi.fn(),
+    persistRateMock: vi.fn().mockResolvedValue(undefined),
+    transactionMock,
   };
 });
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn(() => { throw new Error("NOT_FOUND"); }) }));
-vi.mock("@/lib/fx", () => ({ getRateForTrip: getRateForTripMock }));
+vi.mock("@/lib/fx", () => ({
+  resolveRateForTrip: resolveRateForTripMock,
+  persistRate: persistRateMock,
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     cost: {
@@ -61,6 +81,7 @@ vi.mock("@/lib/db", () => ({
     item: {
       findUnique: itemFindUniqueMock,
     },
+    $transaction: transactionMock,
   },
 }));
 
@@ -100,6 +121,7 @@ describe("createCost", () => {
   it("creates a cost and snapshots rateToHome = 1 when currency === homeCurrency", async () => {
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
     costCreateMock.mockResolvedValue({ id: "cost-1" });
 
     const result = await createCost("trip-1", {
@@ -108,8 +130,8 @@ describe("createCost", () => {
     });
 
     expect(result.success).toBe(true);
-    // getRateForTrip should NOT be called when currency === homeCurrency
-    expect(getRateForTripMock).not.toHaveBeenCalled();
+    // resolveRateForTrip should be called; persistRate should NOT be called when persist: null
+    expect(persistRateMock).not.toHaveBeenCalled();
     expect(costCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -121,10 +143,10 @@ describe("createCost", () => {
     );
   });
 
-  it("creates a cost and snapshots rateToHome by calling getRateForTrip when currency !== homeCurrency", async () => {
+  it("creates a cost and snapshots rateToHome by calling resolveRateForTrip when currency !== homeCurrency", async () => {
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
-    getRateForTripMock.mockResolvedValue(0.62);
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.62, persist: null });
     costCreateMock.mockResolvedValue({ id: "cost-2" });
 
     const result = await createCost("trip-1", {
@@ -133,7 +155,7 @@ describe("createCost", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(getRateForTripMock).toHaveBeenCalledWith("trip-1", "USD", "AUD", expect.objectContaining({ db: expect.anything() }));
+    expect(resolveRateForTripMock).toHaveBeenCalledWith("trip-1", "USD", "AUD", expect.objectContaining({ db: expect.anything() }));
     expect(costCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -143,10 +165,10 @@ describe("createCost", () => {
     );
   });
 
-  it("stores rateToHome as null when getRateForTrip returns null", async () => {
+  it("stores rateToHome as null when resolveRateForTrip returns null rate", async () => {
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
-    getRateForTripMock.mockResolvedValue(null);
+    resolveRateForTripMock.mockResolvedValue({ rate: null, persist: null });
     costCreateMock.mockResolvedValue({ id: "cost-3" });
 
     const result = await createCost("trip-1", {
@@ -191,7 +213,7 @@ describe("createCost", () => {
 
   it("creates OTHER cost without checking owner entity", async () => {
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
-    getRateForTripMock.mockResolvedValue(0.62);
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.62, persist: null });
     costCreateMock.mockResolvedValue({ id: "cost-4" });
 
     const result = await createCost("trip-1", VALID_OTHER_INPUT);
@@ -215,6 +237,7 @@ describe("createCost", () => {
   it("access-checks via requireTripAccess", async () => {
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-99" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
     costCreateMock.mockResolvedValue({ id: "cost-5" });
 
     await createCost("trip-99", VALID_TRANSPORT_INPUT);
@@ -256,12 +279,58 @@ describe("createCost", () => {
   it("revalidates trip overview and budget paths", async () => {
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
     costCreateMock.mockResolvedValue({ id: "cost-6" });
 
     await createCost("trip-1", VALID_TRANSPORT_INPUT);
 
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/budget");
+  });
+
+  it("resolves the rate before opening the transaction (network never holds a tx)", async () => {
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1.65, persist: { base: "USD", quote: "AUD", rate: 1.65 } });
+    costCreateMock.mockResolvedValue({ id: "cost-1" });
+
+    await createCost("trip-1", { ...VALID_TRANSPORT_INPUT, currency: "USD" });
+
+    // invocationCallOrder is a global monotonic counter across all mocks.
+    expect(resolveRateForTripMock.mock.invocationCallOrder[0])
+      .toBeLessThan(transactionMock.mock.invocationCallOrder[0]);
+  });
+
+  it("persists the fetched rate and creates the cost inside one transaction", async () => {
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1.65, persist: { base: "USD", quote: "AUD", rate: 1.65 } });
+    costCreateMock.mockResolvedValue({ id: "cost-1" });
+
+    const result = await createCost("trip-1", { ...VALID_TRANSPORT_INPUT, currency: "USD" });
+
+    expect(result.success).toBe(true);
+    expect(transactionMock).toHaveBeenCalledOnce();
+    expect(persistRateMock).toHaveBeenCalledWith(
+      expect.anything(), // the tx client
+      "trip-1",
+      { base: "USD", quote: "AUD", rate: 1.65 },
+    );
+    expect(costCreateMock).toHaveBeenCalledOnce();
+    expect(costCreateMock.mock.calls[0][0].data.rateToHome).toBe(1.65);
+  });
+
+  it("does not persist a rate when there is nothing fresh to cache", async () => {
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costCreateMock.mockResolvedValue({ id: "cost-1" });
+
+    await createCost("trip-1", { ...VALID_TRANSPORT_INPUT, currency: "AUD" });
+
+    expect(persistRateMock).not.toHaveBeenCalled();
+    expect(costCreateMock).toHaveBeenCalledOnce();
+    expect(costCreateMock.mock.calls[0][0].data.rateToHome).toBe(1);
   });
 });
 
@@ -274,7 +343,7 @@ describe("updateCost", () => {
     costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1" });
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
-    getRateForTripMock.mockResolvedValue(0.65);
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.65, persist: null });
     costUpdateMock.mockResolvedValue({});
 
     const result = await updateCost("cost-1", {
@@ -283,7 +352,7 @@ describe("updateCost", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(getRateForTripMock).toHaveBeenCalledWith("trip-1", "EUR", "AUD", expect.anything());
+    expect(resolveRateForTripMock).toHaveBeenCalledWith("trip-1", "EUR", "AUD", expect.anything());
     expect(costUpdateMock).toHaveBeenCalledWith({
       where: { id: "cost-1" },
       data: expect.objectContaining({ rateToHome: 0.65 }),
@@ -294,6 +363,7 @@ describe("updateCost", () => {
     costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-5" });
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-5" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
     costUpdateMock.mockResolvedValue({});
 
     await updateCost("cost-1", VALID_TRANSPORT_INPUT);
@@ -333,6 +403,7 @@ describe("updateCost", () => {
     costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1" });
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
     costUpdateMock.mockResolvedValue({});
 
     const result = await updateCost("cost-1", {
@@ -341,7 +412,7 @@ describe("updateCost", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(getRateForTripMock).not.toHaveBeenCalled();
+    expect(persistRateMock).not.toHaveBeenCalled();
     expect(costUpdateMock).toHaveBeenCalledWith({
       where: { id: "cost-1" },
       data: expect.objectContaining({ rateToHome: 1 }),

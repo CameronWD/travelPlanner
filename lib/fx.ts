@@ -119,6 +119,90 @@ interface GetRateOptions {
   fetcher?: (from: string, to: string) => Promise<number | null>;
 }
 
+/** A freshly fetched rate that should be written to the ExchangeRate cache. */
+export interface RatePersist {
+  /** Upper-cased base currency. */
+  base: string;
+  /** Upper-cased quote currency. */
+  quote: string;
+  rate: number;
+}
+
+export interface ResolvedRate {
+  /** Rate to use: manual, fresh, stale fallback, or null if unavailable. */
+  rate: number | null;
+  /** Non-null only when a freshly fetched rate should be cached. */
+  persist: RatePersist | null;
+}
+
+/**
+ * Resolve a trip's base→quote rate WITHOUT writing anything.
+ *
+ * Reads the stored rate and (for non-manual pairs) performs the network fetch,
+ * then returns the rate to use plus — when a fresh rate was fetched — a `persist`
+ * descriptor for the caller to write. Keeping the write out of here lets callers
+ * persist inside their own transaction (e.g. atomically with a Cost) and keeps the
+ * network call out of any DB transaction. See ADR 0007.
+ */
+export async function resolveRateForTrip(
+  tripId: string,
+  base: string,
+  quote: string,
+  { db, fetcher = fetchRate }: GetRateOptions,
+): Promise<ResolvedRate> {
+  const B = base.toUpperCase();
+  const Q = quote.toUpperCase();
+
+  if (B === Q) return { rate: 1, persist: null };
+
+  const stored = await (db.exchangeRate.findUnique as (args: object) => Promise<StoredRate | null>)({
+    where: { tripId_base_quote: { tripId, base: B, quote: Q } },
+  });
+
+  // Manual rate — trust it, skip the network and any write.
+  if (stored?.manual) {
+    return { rate: stored.rate, persist: null };
+  }
+
+  const fetched = await fetcher(B, Q);
+
+  if (fetched !== null) {
+    return { rate: fetched, persist: { base: B, quote: Q, rate: fetched } };
+  }
+
+  // Fetch failed — fall back to the stale stored rate if any.
+  return { rate: stored?.rate ?? null, persist: null };
+}
+
+/**
+ * Write a freshly fetched rate to the ExchangeRate cache. Accepts any client with
+ * an `exchangeRate` delegate (the global `db` or an interactive transaction `tx`)
+ * so the write can join a caller's transaction. Never flips `manual` — a manual
+ * lock would have been caught in resolveRateForTrip, so this only touches auto rates.
+ * `fetchedAt` is stamped at write time; callers and `RatePersist` do not supply it.
+ */
+export async function persistRate(
+  client: DbLike,
+  tripId: string,
+  persist: RatePersist,
+): Promise<void> {
+  await (client.exchangeRate.upsert as (args: object) => Promise<unknown>)({
+    where: { tripId_base_quote: { tripId, base: persist.base, quote: persist.quote } },
+    create: {
+      tripId,
+      base: persist.base,
+      quote: persist.quote,
+      rate: persist.rate,
+      fetchedAt: new Date(),
+      manual: false,
+    },
+    update: {
+      rate: persist.rate,
+      fetchedAt: new Date(),
+    },
+  });
+}
+
 /**
  * Get the current exchange rate for a trip (base → quote).
  *
@@ -137,45 +221,9 @@ export async function getRateForTrip(
   quote: string,
   { db, fetcher = fetchRate }: GetRateOptions,
 ): Promise<number | null> {
-  const B = base.toUpperCase();
-  const Q = quote.toUpperCase();
-
-  if (B === Q) return 1;
-
-  const stored = await (db.exchangeRate.findUnique as (args: object) => Promise<StoredRate | null>)({
-    where: { tripId_base_quote: { tripId, base: B, quote: Q } },
-  });
-
-  // Manual rate — trust it, skip network.
-  if (stored?.manual) {
-    return stored.rate;
+  const { rate, persist } = await resolveRateForTrip(tripId, base, quote, { db, fetcher });
+  if (persist) {
+    await persistRate(db, tripId, persist);
   }
-
-  // Attempt a fresh fetch.
-  const fetched = await fetcher(B, Q);
-
-  if (fetched !== null) {
-    // Upsert the new rate.
-    await (db.exchangeRate.upsert as (args: object) => Promise<unknown>)({
-      where: { tripId_base_quote: { tripId, base: B, quote: Q } },
-      create: {
-        tripId,
-        base: B,
-        quote: Q,
-        rate: fetched,
-        fetchedAt: new Date(),
-        manual: false,
-      },
-      update: {
-        rate: fetched,
-        fetchedAt: new Date(),
-        // Never flip manual back to false via auto-fetch — a manual lock would
-        // have been caught earlier, so this is safe.
-      },
-    });
-    return fetched;
-  }
-
-  // Fetch failed — fall back to stale stored rate if available.
-  return stored?.rate ?? null;
+  return rate;
 }
