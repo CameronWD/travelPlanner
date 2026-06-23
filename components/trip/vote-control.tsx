@@ -117,15 +117,20 @@ export function VoteControl({
               }
             }}
           >
-            <motion.span
-              aria-hidden="true"
-              key={myVote?.level === level ? "on" : "off"}
-              initial={{ scale: 0.6 }}
-              animate={{ scale: 1 }}
-              transition={SPRING_POP}
-            >
-              {LEVEL_EMOJI[level]}
-            </motion.span>
+            {/* Pop only the chosen level: the active emoji mounts fresh and
+                springs in; inactive levels are plain spans (no mount pop). */}
+            {myVote?.level === level ? (
+              <motion.span
+                aria-hidden="true"
+                initial={{ scale: 0.6 }}
+                animate={{ scale: 1 }}
+                transition={SPRING_POP}
+              >
+                {LEVEL_EMOJI[level]}
+              </motion.span>
+            ) : (
+              <span aria-hidden="true">{LEVEL_EMOJI[level]}</span>
+            )}
             {LEVEL_LABEL[level]}
           </SegmentedItem>
         ))}
