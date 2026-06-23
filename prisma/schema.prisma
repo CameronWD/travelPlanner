@@ -118,6 +118,7 @@ model Trip {
   shareLink      ShareLink?
   calendarFeed   CalendarFeed?
   journalEntries JournalEntry[]
+  chapters       Chapter[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -175,6 +176,23 @@ model Stop {
   items          Item[]
   fromTransports Transport[]     @relation("TransportFromStop")
   toTransports   Transport[]     @relation("TransportToStop")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tripId])
+}
+
+model Chapter {
+  id        String @id @default(cuid())
+  tripId    String
+  name      String
+  colour    String // lib/chapter-colours.ts CHAPTER_COLOUR_VALUES
+  startDate String // "YYYY-MM-DD"
+  endDate   String // "YYYY-MM-DD"
+  sortOrder Int    @default(0)
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

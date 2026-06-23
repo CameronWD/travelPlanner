@@ -6,6 +6,8 @@ A collaborative trip planner built for two partners — plan a multi-stop journe
 
 **Plan** — multi-stop itinerary with stops, transport legs, and accommodation; drag-and-drop ordering; timezone-aware Calendar, Day, and Today views with a visual timeline.
 
+**Chapters** — group a long trip into named, coloured legs, with per-chapter budget and itinerary roll-ups; Today view shows the active chapter; the Summary map renders each leg in its own colour.
+
 **Budget** — multi-currency cost tracking (estimated vs actual), live FX rates via Frankfurter (no key required), manual rate override, per-category breakdown, and a home-currency roll-up.
 
 **On the go** — Today view that auto-focuses on the current trip day; interactive Leaflet/OpenStreetMap route map with Nominatim geocoding; offline read-cache via PWA service worker.

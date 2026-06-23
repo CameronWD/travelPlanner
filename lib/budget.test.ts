@@ -10,6 +10,7 @@ import {
   buildBudget,
   type BudgetCost,
   type BudgetStop,
+  type BudgetStopWithDates,
   type BudgetItem,
   type BudgetAccommodation,
   type BudgetTransport,
@@ -636,5 +637,183 @@ describe("buildBudget", () => {
     // byStop: trip-wide gets other = 10000
     const tripWide = result.byStop.find((s) => s.stopId === null);
     expect(tripWide?.estimatedMinor).toBe(10000);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildBudget — byChapter
+// ---------------------------------------------------------------------------
+
+describe("buildBudget — byChapter", () => {
+  // Chapters: Finland (2026-06-26..2026-07-02), Italy (2026-07-10..2026-07-18)
+  // Gap between them: 2026-07-03..2026-07-09
+  const FINLAND_CHAPTER = { id: "ch-fi", name: "Finland", colour: "sky",  startDate: "2026-06-26", endDate: "2026-07-02" };
+  const ITALY_CHAPTER   = { id: "ch-it", name: "Italy",   colour: "rose", startDate: "2026-07-10", endDate: "2026-07-18" };
+  const chapters = [ITALY_CHAPTER, FINLAND_CHAPTER]; // intentionally unordered — output must be sorted by startDate
+
+  // Stops with arriveDate/departDate so chapterForStop can classify them
+  const stopFinland: BudgetStopWithDates = {
+    id: "stop-fi", name: "Helsinki", timezone: "Europe/Helsinki",
+    arriveDate: "2026-06-27", departDate: "2026-06-30", sortOrder: 0,
+  };
+  const stopItaly1: BudgetStopWithDates = {
+    id: "stop-it1", name: "Rome", timezone: "Europe/Rome",
+    arriveDate: "2026-07-11", departDate: "2026-07-14", sortOrder: 2,
+  };
+  const stopItaly2: BudgetStopWithDates = {
+    id: "stop-it2", name: "Milan", timezone: "Europe/Rome",
+    arriveDate: "2026-07-14", departDate: "2026-07-17", sortOrder: 3,
+  };
+  // Ungrouped stop — arriveDate falls in the gap between chapters
+  const stopUngrouped: BudgetStopWithDates = {
+    id: "stop-ung", name: "Somewhere", timezone: "UTC",
+    arriveDate: "2026-07-05", departDate: "2026-07-08", sortOrder: 1,
+  };
+
+  const allStops: BudgetStopWithDates[] = [stopFinland, stopItaly1, stopItaly2, stopUngrouped];
+
+  // Accommodations
+  const accFinland: BudgetAccommodation = { id: "acc-fi", stopId: "stop-fi", checkIn: "2026-06-27", checkOut: "2026-06-30" };
+  const accItaly: BudgetAccommodation   = { id: "acc-it", stopId: "stop-it1", checkIn: "2026-07-11", checkOut: "2026-07-13" };
+
+  // Items
+  const itemItaly: BudgetItem  = { id: "item-it", stopId: "stop-it1", category: "SIGHTSEEING", date: "2026-07-12" };
+
+  // Transports
+  // Intra-Italy: Rome → Milan (both Italy stops)
+  const transportIntraItaly: BudgetTransport = {
+    id: "t-intra-it", fromStopId: "stop-it1", toStopId: "stop-it2",
+    depAt: new Date("2026-07-14T10:00:00Z"),
+  };
+  // Crossing: Finland → Italy (between-legs)
+  const transportCrossing: BudgetTransport = {
+    id: "t-cross", fromStopId: "stop-fi", toStopId: "stop-it1",
+    depAt: new Date("2026-07-03T08:00:00Z"),
+  };
+
+  // Costs — all AUD so conversion is identity
+  // Finland: accommodation cost
+  const costFinlandAcc = makeCost({ id: "cost-fi-acc", estimatedMinor: 10000, actualMinor: 9000,  currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-fi",      label: null });
+  // Italy: item cost
+  const costItalyItem  = makeCost({ id: "cost-it-item", estimatedMinor: 3000,  actualMinor: 2500,  currency: "AUD", ownerType: "ITEM",          ownerId: "item-it",    label: null });
+  // Italy: accommodation cost
+  const costItalyAcc   = makeCost({ id: "cost-it-acc",  estimatedMinor: 8000,  actualMinor: 8000,  currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-it",     label: null });
+  // Italy: intra-Italy transport cost
+  const costIntraItaly = makeCost({ id: "cost-intra-it", estimatedMinor: 2000, actualMinor: 2000,  currency: "AUD", ownerType: "TRANSPORT",     ownerId: "t-intra-it", label: null });
+  // Between-legs: crossing transport cost
+  const costCrossing   = makeCost({ id: "cost-cross",   estimatedMinor: 5000,  actualMinor: 4500,  currency: "AUD", ownerType: "TRANSPORT",     ownerId: "t-cross",    label: null });
+  // OTHER cost (no chapter)
+  const costOther      = makeCost({ id: "cost-other",   estimatedMinor: 1500,  actualMinor: 1000,  currency: "AUD", ownerType: "OTHER",          ownerId: null,         label: "Visa" });
+  // Ungrouped-stop cost (accommodation on the ungrouped stop)
+  const accUngrouped: BudgetAccommodation = { id: "acc-ung", stopId: "stop-ung", checkIn: "2026-07-05", checkOut: "2026-07-08" };
+  const costUngrouped  = makeCost({ id: "cost-ung",    estimatedMinor: 4000,  actualMinor: 3500,  currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-ung",    label: null });
+
+  const allCosts = [costFinlandAcc, costItalyItem, costItalyAcc, costIntraItaly, costCrossing, costOther, costUngrouped];
+  const allAccommodations = [accFinland, accItaly, accUngrouped];
+  const allItems = [itemItaly];
+  const allTransports = [transportIntraItaly, transportCrossing];
+
+  const chapterInput: BuildBudgetInput = {
+    homeCurrency: "AUD",
+    costs: allCosts,
+    stops: allStops,
+    items: allItems,
+    accommodations: allAccommodations,
+    transports: allTransports,
+    tripStart: "2026-06-26",
+    tripEnd: "2026-07-18",
+    chapters,
+  };
+
+  it("byChapter has exactly two rows, sorted by startDate (Finland then Italy)", () => {
+    const result = buildBudget(chapterInput);
+    expect(result.byChapter).toHaveLength(2);
+    expect(result.byChapter[0].chapterId).toBe("ch-fi");
+    expect(result.byChapter[0].chapterName).toBe("Finland");
+    expect(result.byChapter[0].colour).toBe("sky");
+    expect(result.byChapter[1].chapterId).toBe("ch-it");
+    expect(result.byChapter[1].chapterName).toBe("Italy");
+    expect(result.byChapter[1].colour).toBe("rose");
+  });
+
+  it("Finland chapter gets the Finland accommodation cost only", () => {
+    const result = buildBudget(chapterInput);
+    const fi = result.byChapter.find((c) => c.chapterId === "ch-fi")!;
+    expect(fi.estimatedMinor).toBe(10000);
+    expect(fi.actualMinor).toBe(9000);
+  });
+
+  it("Italy chapter gets item + accommodation + intra-Italy transport", () => {
+    const result = buildBudget(chapterInput);
+    const it = result.byChapter.find((c) => c.chapterId === "ch-it")!;
+    // 3000 (item) + 8000 (acc) + 2000 (intra-transport) = 13000
+    expect(it.estimatedMinor).toBe(13000);
+    expect(it.actualMinor).toBe(12500); // 2500 + 8000 + 2000
+  });
+
+  it("chapterReconciliation.betweenLegs equals the crossing transport cost", () => {
+    const result = buildBudget(chapterInput);
+    expect(result.chapterReconciliation.betweenLegs.estimatedMinor).toBe(5000);
+    expect(result.chapterReconciliation.betweenLegs.actualMinor).toBe(4500);
+  });
+
+  it("chapterReconciliation.otherCosts equals the OTHER cost", () => {
+    const result = buildBudget(chapterInput);
+    expect(result.chapterReconciliation.otherCosts.estimatedMinor).toBe(1500);
+    expect(result.chapterReconciliation.otherCosts.actualMinor).toBe(1000);
+  });
+
+  it("chapterReconciliation.ungrouped equals the ungrouped-stop cost", () => {
+    const result = buildBudget(chapterInput);
+    expect(result.chapterReconciliation.ungrouped.estimatedMinor).toBe(4000);
+    expect(result.chapterReconciliation.ungrouped.actualMinor).toBe(3500);
+  });
+
+  it("reconciliation: sum of byChapter + ungrouped + betweenLegs + otherCosts === grandTotal (both estimated and actual)", () => {
+    const result = buildBudget(chapterInput);
+    const chapterSumEst = result.byChapter.reduce((s, c) => s + c.estimatedMinor, 0);
+    const chapterSumAct = result.byChapter.reduce((s, c) => s + c.actualMinor, 0);
+
+    const totalFromParts_est =
+      chapterSumEst +
+      result.chapterReconciliation.ungrouped.estimatedMinor +
+      result.chapterReconciliation.betweenLegs.estimatedMinor +
+      result.chapterReconciliation.otherCosts.estimatedMinor;
+
+    const totalFromParts_act =
+      chapterSumAct +
+      result.chapterReconciliation.ungrouped.actualMinor +
+      result.chapterReconciliation.betweenLegs.actualMinor +
+      result.chapterReconciliation.otherCosts.actualMinor;
+
+    expect(totalFromParts_est).toBe(result.grandTotal.estimatedMinor);
+    expect(totalFromParts_act).toBe(result.grandTotal.actualMinor);
+  });
+
+  it("when chapters is omitted, byChapter is empty and all non-OTHER costs fall into ungrouped, OTHER into otherCosts", () => {
+    const inputNoChapters: BuildBudgetInput = {
+      ...chapterInput,
+      chapters: undefined,
+    };
+    const result = buildBudget(inputNoChapters);
+    expect(result.byChapter).toEqual([]);
+    // All non-OTHER costs → ungrouped
+    const nonOtherEst = allCosts
+      .filter((c) => c.ownerType !== "OTHER")
+      .reduce((s, c) => s + c.estimatedMinor, 0);
+    expect(result.chapterReconciliation.ungrouped.estimatedMinor).toBe(nonOtherEst);
+    // OTHER costs → otherCosts
+    const otherEst = allCosts
+      .filter((c) => c.ownerType === "OTHER")
+      .reduce((s, c) => s + c.estimatedMinor, 0);
+    expect(result.chapterReconciliation.otherCosts.estimatedMinor).toBe(otherEst);
+    // betweenLegs is zero when no chapters
+    expect(result.chapterReconciliation.betweenLegs.estimatedMinor).toBe(0);
+    // Reconciliation still holds
+    const totalFromParts =
+      result.chapterReconciliation.ungrouped.estimatedMinor +
+      result.chapterReconciliation.betweenLegs.estimatedMinor +
+      result.chapterReconciliation.otherCosts.estimatedMinor;
+    expect(totalFromParts).toBe(result.grandTotal.estimatedMinor);
   });
 });

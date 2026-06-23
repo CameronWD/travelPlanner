@@ -12,6 +12,7 @@ import { categoryLabel } from "@/lib/categories";
 import { addDays, daysBetween, nightsBetween } from "@/lib/dates";
 import { enumerateTripDays } from "@/lib/itinerary";
 import { instantToZonedDateISO } from "@/lib/tz";
+import { chapterIdForTransport, chapterForStop, chapterForDate, type ChapterLike, type StopLike } from "@/lib/chapters";
 
 // ---------------------------------------------------------------------------
 // Input shapes (minimal — mirror Prisma but no Prisma import)
@@ -37,6 +38,17 @@ export interface BudgetStop {
   name: string;
   /** IANA timezone identifier (e.g. "Australia/Sydney"). */
   timezone?: string | null;
+}
+
+/**
+ * Extended stop shape that includes the date fields needed for chapter
+ * membership lookups. Pass these as `stops` to get a by-chapter breakdown.
+ * Fields mirror `StopLike` from lib/chapters.ts.
+ */
+export interface BudgetStopWithDates extends BudgetStop {
+  arriveDate: string;  // YYYY-MM-DD
+  departDate: string;  // YYYY-MM-DD
+  sortOrder: number;
 }
 
 export interface BudgetItem {
@@ -91,6 +103,14 @@ export interface BudgetByDay {
   actualMinor: number;
 }
 
+export interface BudgetByChapter {
+  chapterId: string;
+  chapterName: string;
+  colour: string;
+  estimatedMinor: number;
+  actualMinor: number;
+}
+
 export interface BudgetResult {
   homeCurrency: string;
   /** Grand total in home minor units (missing-rate costs excluded). */
@@ -109,6 +129,23 @@ export interface BudgetResult {
   /** Distinct currencies with no rate (excluded from all totals). */
   missingRates: string[];
   hasMissingRates: boolean;
+  /**
+   * Per-chapter cost breakdown, sorted by chapter startDate ascending.
+   * Empty when no chapters are provided.
+   */
+  byChapter: BudgetByChapter[];
+  /**
+   * Reconciliation buckets: costs not attributable to a specific chapter.
+   * ungrouped + betweenLegs + otherCosts + ΣbyChapter === grandTotal.
+   */
+  chapterReconciliation: {
+    /** Costs on stops (or items/dates) that fall outside all chapter date ranges. */
+    ungrouped: BudgetTotals;
+    /** Transport costs that cross chapter boundaries. */
+    betweenLegs: BudgetTotals;
+    /** ownerType === "OTHER" costs (always trip-wide). */
+    otherCosts: BudgetTotals;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -243,12 +280,86 @@ export function stopIdForCost(
 export interface BuildBudgetInput {
   homeCurrency: string;
   costs: BudgetCost[];
+  /** Basic stop info for byStop breakdown; use BudgetStopWithDates to enable byChapter. */
   stops: BudgetStop[];
   items: BudgetItem[];
   accommodations: BudgetAccommodation[];
   transports: BudgetTransport[];
   tripStart: string; // YYYY-MM-DD
   tripEnd: string;   // YYYY-MM-DD
+  /**
+   * Optional chapter definitions. When provided, the result will include
+   * `byChapter` and `chapterReconciliation`. Defaults to [] when omitted.
+   */
+  chapters?: ChapterLike[];
+}
+
+// ---------------------------------------------------------------------------
+// Chapter sentinel keys (internal)
+// ---------------------------------------------------------------------------
+
+const SENTINEL_UNGROUPED    = "__UNGROUPED__";
+const SENTINEL_BETWEEN_LEGS = "__BETWEEN_LEGS__";
+const SENTINEL_OTHER        = "__OTHER__";
+
+/**
+ * Classify a cost into a chapter id or a sentinel bucket.
+ *
+ * - ownerType "OTHER"           → SENTINEL_OTHER
+ * - ownerType "TRANSPORT"       → chapterIdForTransport result, else SENTINEL_BETWEEN_LEGS
+ * - ownerType "ACCOMMODATION"   → chapter of the accommodation's stop, else SENTINEL_UNGROUPED
+ * - ownerType "ITEM"            → chapter of the item's stop or item's date, else SENTINEL_UNGROUPED
+ *
+ * When no chapters are configured, non-OTHER costs always fall to SENTINEL_UNGROUPED
+ * (because chapterForStop/chapterForDate return null when chapters is empty).
+ */
+function chapterKeyForCost(
+  cost: BudgetCost,
+  lookups: StopIdLookups,
+  chapters: readonly ChapterLike[],
+  stopsById: Record<string, StopLike>,
+): string {
+  if (cost.ownerType === "OTHER") return SENTINEL_OTHER;
+
+  if (cost.ownerType === "TRANSPORT") {
+    // With no chapters configured, all transport falls into ungrouped
+    // (there are no legs to be "between").
+    if (chapters.length === 0) return SENTINEL_UNGROUPED;
+    if (!cost.ownerId) return SENTINEL_BETWEEN_LEGS;
+    const transport = lookups.transportById[cost.ownerId];
+    if (!transport) return SENTINEL_BETWEEN_LEGS;
+    const chId = chapterIdForTransport(transport, chapters, stopsById);
+    return chId ?? SENTINEL_BETWEEN_LEGS;
+  }
+
+  if (cost.ownerType === "ACCOMMODATION") {
+    if (!cost.ownerId) return SENTINEL_UNGROUPED;
+    const acc = lookups.accommodationById[cost.ownerId];
+    if (!acc) return SENTINEL_UNGROUPED;
+    const stop = stopsById[acc.stopId];
+    if (!stop) return SENTINEL_UNGROUPED;
+    return chapterForStop(stop, chapters)?.id ?? SENTINEL_UNGROUPED;
+  }
+
+  if (cost.ownerType === "ITEM") {
+    if (!cost.ownerId) return SENTINEL_UNGROUPED;
+    const item = lookups.itemById[cost.ownerId];
+    if (!item) return SENTINEL_UNGROUPED;
+    // Try via stop first
+    if (item.stopId) {
+      const stop = stopsById[item.stopId];
+      if (stop) {
+        return chapterForStop(stop, chapters)?.id ?? SENTINEL_UNGROUPED;
+      }
+    }
+    // Fall back to item date
+    if (item.date) {
+      return chapterForDate(item.date, chapters)?.id ?? SENTINEL_UNGROUPED;
+    }
+    return SENTINEL_UNGROUPED;
+  }
+
+  return SENTINEL_UNGROUPED;
 }
 
 /**
@@ -268,10 +379,27 @@ export function buildBudget({
   transports,
   tripStart,
   tripEnd,
+  chapters = [],
 }: BuildBudgetInput): BudgetResult {
   // Build lookup maps for O(1) access
   const stopById: Record<string, BudgetStop> = {};
   for (const s of stops) stopById[s.id] = s;
+
+  // Build a StopLike map for chapter membership lookups.
+  // Only stops that carry arriveDate/departDate/sortOrder (BudgetStopWithDates)
+  // are included; basic BudgetStop entries are silently omitted.
+  const stopsLikeById: Record<string, StopLike> = {};
+  for (const s of stops) {
+    const ext = s as Partial<BudgetStopWithDates>;
+    if (ext.arriveDate !== undefined && ext.departDate !== undefined && ext.sortOrder !== undefined) {
+      stopsLikeById[s.id] = {
+        id: s.id,
+        arriveDate: ext.arriveDate,
+        departDate: ext.departDate,
+        sortOrder: ext.sortOrder,
+      };
+    }
+  }
 
   const itemById: Record<string, BudgetItem> = {};
   for (const i of items) itemById[i.id] = i;
@@ -310,6 +438,10 @@ export function buildBudget({
   let grandEstimated = 0;
   let grandActual = 0;
 
+  // Chapter accumulators (keyed by chapter id or sentinel)
+  const chapterAccEstimated: Record<string, number> = {};
+  const chapterAccActual: Record<string, number> = {};
+
   // Missing rates (currencies with no rate → excluded from totals)
   const missingRateSet = new Set<string>();
 
@@ -341,6 +473,11 @@ export function buildBudget({
     const stopKey = sid ?? "___TRIPWIDE___";
     stopEstimated[stopKey] = (stopEstimated[stopKey] ?? 0) + estimatedHome;
     stopActual[stopKey] = (stopActual[stopKey] ?? 0) + actualVal;
+
+    // Chapter breakdown
+    const chKey = chapterKeyForCost(cost, lookups, chapters, stopsLikeById);
+    chapterAccEstimated[chKey] = (chapterAccEstimated[chKey] ?? 0) + estimatedHome;
+    chapterAccActual[chKey] = (chapterAccActual[chKey] ?? 0) + actualVal;
 
     // Day breakdown
     placeCostOnDays(cost, estimatedHome, actualVal, {
@@ -403,6 +540,37 @@ export function buildBudget({
     actualMinor: dayActual[dateISO] ?? 0,
   }));
 
+  // ---------------------------------------------------------------------------
+  // Assemble byChapter (sorted by startDate ascending)
+  // ---------------------------------------------------------------------------
+  const byChapter: BudgetByChapter[] = [...chapters]
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+    .map((ch) => ({
+      chapterId: ch.id,
+      chapterName: ch.name,
+      colour: ch.colour,
+      estimatedMinor: chapterAccEstimated[ch.id] ?? 0,
+      actualMinor: chapterAccActual[ch.id] ?? 0,
+    }));
+
+  // ---------------------------------------------------------------------------
+  // Assemble chapterReconciliation (sentinel buckets)
+  // ---------------------------------------------------------------------------
+  const chapterReconciliation = {
+    ungrouped: {
+      estimatedMinor: chapterAccEstimated[SENTINEL_UNGROUPED] ?? 0,
+      actualMinor: chapterAccActual[SENTINEL_UNGROUPED] ?? 0,
+    },
+    betweenLegs: {
+      estimatedMinor: chapterAccEstimated[SENTINEL_BETWEEN_LEGS] ?? 0,
+      actualMinor: chapterAccActual[SENTINEL_BETWEEN_LEGS] ?? 0,
+    },
+    otherCosts: {
+      estimatedMinor: chapterAccEstimated[SENTINEL_OTHER] ?? 0,
+      actualMinor: chapterAccActual[SENTINEL_OTHER] ?? 0,
+    },
+  };
+
   return {
     homeCurrency,
     grandTotal: {
@@ -414,6 +582,8 @@ export function buildBudget({
     byDay,
     missingRates: Array.from(missingRateSet).sort(),
     hasMissingRates: missingRateSet.size > 0,
+    byChapter,
+    chapterReconciliation,
   };
 }
 

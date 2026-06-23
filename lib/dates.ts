@@ -139,6 +139,11 @@ export function daysBetween(a: string, b: string): number {
   return Math.round((db.getTime() - da.getTime()) / MS_PER_DAY);
 }
 
+/** 1-based day number of `dateISO` within a trip starting on `tripStartDate`. */
+export function dayNumberInTrip(dateISO: string, tripStartDate: string): number {
+  return daysBetween(tripStartDate, dateISO) + 1;
+}
+
 /**
  * Add `n` days to a YYYY-MM-DD string, returning a new YYYY-MM-DD string.
  */
