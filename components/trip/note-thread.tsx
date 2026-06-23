@@ -14,6 +14,7 @@ import {
 import { relativeTime } from "@/lib/relative-time";
 import { addNote, deleteNote } from "@/server/actions/notes";
 import type { TargetType } from "@/lib/enums";
+import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -105,9 +106,9 @@ function ThreadBody({
     <div className="flex flex-col gap-3">
       {/* Notes list */}
       {notes.length > 0 ? (
-        <ul className="flex flex-col gap-2.5" role="list">
+        <AnimatedList as="ul" className="flex flex-col gap-2.5">
           {notes.map((note) => (
-            <li key={note.id} className="group flex gap-2">
+            <AnimatedItem key={note.id} as="li" className="group flex gap-2">
               <Avatar className="mt-0.5 size-6 shrink-0">
                 {note.author.image && (
                   <AvatarImage
@@ -150,9 +151,9 @@ function ThreadBody({
               >
                 <Trash2 className="size-3" aria-hidden="true" />
               </Button>
-            </li>
+            </AnimatedItem>
           ))}
-        </ul>
+        </AnimatedList>
       ) : (
         <p className="text-xs text-muted-foreground/60 italic">No notes yet.</p>
       )}

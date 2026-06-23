@@ -41,6 +41,7 @@ import {
   reorderChecklistItem,
 } from "@/server/actions/checklists";
 import type { ChecklistKind } from "@/lib/enums";
+import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -428,7 +429,8 @@ function ChecklistRow({
         onOpenChange={setEditOpen}
       />
 
-      <li
+      <AnimatedItem
+        as="li"
         className={cn(
           "group flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors",
           "hover:bg-muted/40",
@@ -545,7 +547,7 @@ function ChecklistRow({
             <Trash2 className="size-4" aria-hidden="true" />
           </button>
         </div>
-      </li>
+      </AnimatedItem>
     </>
   );
 }
@@ -633,7 +635,7 @@ export function Checklist({
       <ProgressBar done={doneCount} total={items.length} />
 
       {/* Items */}
-      <ul className="flex flex-col divide-y divide-border/50 rounded-xl border border-border bg-card">
+      <AnimatedList as="ul" className="flex flex-col divide-y divide-border/50 rounded-xl border border-border bg-card">
         {items.map((item, idx) => (
           <ChecklistRow
             key={item.id}
@@ -645,7 +647,7 @@ export function Checklist({
             showAssignee={showAssignee}
           />
         ))}
-      </ul>
+      </AnimatedList>
 
       {/* Add form */}
       <AddItemForm

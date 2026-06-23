@@ -13,6 +13,7 @@ import type { NoteView } from "./note-thread";
 import type { VoteView } from "./vote-control";
 import { sortItemsByVotes } from "@/lib/votes";
 import { AiActivitySuggestions } from "./ai-activity-suggestions";
+import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -177,26 +178,27 @@ export function WishlistBoard({
                   aiConfigured={aiConfigured}
                 />
                 {stopItems.length > 0 && (
-                  <div className="flex flex-col gap-2">
+                  <AnimatedList className="flex flex-col gap-2">
                     {stopItems.map((item) => (
-                      <ItemCard
-                        key={item.id}
-                        item={item}
-                        mode="wishlist"
-                        isPending={pendingId === item.id}
-                        onEdit={setEditingItem}
-                        onDelete={handleDelete}
-                        onSchedule={setSchedulingItem}
-                        onUnschedule={handleUnschedule}
-                        costs={costsByItemId?.get(item.id)}
-                        tripId={tripId}
-                        homeCurrency={homeCurrency}
-                        notes={notesByItemId?.get(item.id) ?? []}
-                        votes={votesByItemId?.get(item.id) ?? []}
-                        currentUserId={currentUserId}
-                      />
+                      <AnimatedItem key={item.id}>
+                        <ItemCard
+                          item={item}
+                          mode="wishlist"
+                          isPending={pendingId === item.id}
+                          onEdit={setEditingItem}
+                          onDelete={handleDelete}
+                          onSchedule={setSchedulingItem}
+                          onUnschedule={handleUnschedule}
+                          costs={costsByItemId?.get(item.id)}
+                          tripId={tripId}
+                          homeCurrency={homeCurrency}
+                          notes={notesByItemId?.get(item.id) ?? []}
+                          votes={votesByItemId?.get(item.id) ?? []}
+                          currentUserId={currentUserId}
+                        />
+                      </AnimatedItem>
                     ))}
-                  </div>
+                  </AnimatedList>
                 )}
               </section>
             );
@@ -214,26 +216,27 @@ export function WishlistBoard({
                   ({anywhereItems.length})
                 </span>
               </div>
-              <div className="flex flex-col gap-2">
+              <AnimatedList className="flex flex-col gap-2">
                 {anywhereItems.map((item) => (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    mode="wishlist"
-                    isPending={pendingId === item.id}
-                    onEdit={setEditingItem}
-                    onDelete={handleDelete}
-                    onSchedule={setSchedulingItem}
-                    onUnschedule={handleUnschedule}
-                    costs={costsByItemId?.get(item.id)}
-                    tripId={tripId}
-                    homeCurrency={homeCurrency}
-                    notes={notesByItemId?.get(item.id) ?? []}
-                    votes={votesByItemId?.get(item.id) ?? []}
-                    currentUserId={currentUserId}
-                  />
+                  <AnimatedItem key={item.id}>
+                    <ItemCard
+                      item={item}
+                      mode="wishlist"
+                      isPending={pendingId === item.id}
+                      onEdit={setEditingItem}
+                      onDelete={handleDelete}
+                      onSchedule={setSchedulingItem}
+                      onUnschedule={handleUnschedule}
+                      costs={costsByItemId?.get(item.id)}
+                      tripId={tripId}
+                      homeCurrency={homeCurrency}
+                      notes={notesByItemId?.get(item.id) ?? []}
+                      votes={votesByItemId?.get(item.id) ?? []}
+                      currentUserId={currentUserId}
+                    />
+                  </AnimatedItem>
                 ))}
-              </div>
+              </AnimatedList>
             </section>
           )}
         </div>
