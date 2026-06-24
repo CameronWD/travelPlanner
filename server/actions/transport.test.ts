@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const {
   requireTripAccessMock,
   revalidatePathMock,
+  geocodePlaceMock,
   transportFindUniqueMock,
   transportFindFirstMock,
   transportCreateMock,
@@ -22,6 +23,7 @@ const {
       membership: { role: "owner" },
     }),
     revalidatePathMock: vi.fn(),
+    geocodePlaceMock: vi.fn().mockResolvedValue(null),
     transportFindUniqueMock: vi.fn(),
     transportFindFirstMock: vi.fn(),
     transportCreateMock: vi.fn(),
@@ -33,6 +35,7 @@ const {
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     transport: {
@@ -65,6 +68,7 @@ afterEach(() => {
     membership: { role: "owner" },
   });
   stopFindManyMock.mockResolvedValue([]);
+  geocodePlaceMock.mockResolvedValue(null);
 });
 
 // ---------------------------------------------------------------------------
@@ -153,6 +157,98 @@ describe("createTransport", () => {
     expect(result.success).toBe(true);
     expect(transportCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ fromStopId: "stop-1" }),
+    });
+  });
+
+  it("geocodes both depPlace and arrPlace and stores all four coords", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-1" });
+    // dep first, then arr
+    geocodePlaceMock
+      .mockResolvedValueOnce({ lat: 51.5074, lng: -0.1278 })
+      .mockResolvedValueOnce({ lat: 48.8566, lng: 2.3522 });
+
+    const result = await createTransport("trip-1", {
+      mode: "FLIGHT",
+      depPlace: "London Heathrow",
+      arrPlace: "Paris CDG",
+    });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).toHaveBeenCalledTimes(2);
+    expect(geocodePlaceMock).toHaveBeenNthCalledWith(1, "London Heathrow");
+    expect(geocodePlaceMock).toHaveBeenNthCalledWith(2, "Paris CDG");
+    expect(transportCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        depLat: 51.5074,
+        depLng: -0.1278,
+        arrLat: 48.8566,
+        arrLng: 2.3522,
+      }),
+    });
+  });
+
+  it("only geocodes depPlace when arrPlace is absent; arrLat/arrLng are null", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-1" });
+    geocodePlaceMock.mockResolvedValueOnce({ lat: 51.5074, lng: -0.1278 });
+
+    const result = await createTransport("trip-1", {
+      mode: "TRAIN",
+      depPlace: "London Euston",
+    });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).toHaveBeenCalledOnce();
+    expect(geocodePlaceMock).toHaveBeenCalledWith("London Euston");
+    expect(transportCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        depLat: 51.5074,
+        depLng: -0.1278,
+        arrLat: null,
+        arrLng: null,
+      }),
+    });
+  });
+
+  it("does not call geocode and stores null coords when neither place is set", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-1" });
+
+    const result = await createTransport("trip-1", VALID_INPUT);
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(transportCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        depLat: null,
+        depLng: null,
+        arrLat: null,
+        arrLng: null,
+      }),
+    });
+  });
+
+  it("still creates when geocode returns null for both places (null coords)", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-1" });
+    geocodePlaceMock.mockResolvedValue(null);
+
+    const result = await createTransport("trip-1", {
+      mode: "FLIGHT",
+      depPlace: "Unknown Dep",
+      arrPlace: "Unknown Arr",
+    });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).toHaveBeenCalledTimes(2);
+    expect(transportCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        depLat: null,
+        depLng: null,
+        arrLat: null,
+        arrLng: null,
+      }),
     });
   });
 });
