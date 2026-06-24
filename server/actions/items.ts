@@ -8,6 +8,8 @@ import { requireTripAccess } from "@/lib/guards";
 import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { stopForDate } from "@/lib/itinerary";
 import { geocodePlace } from "@/lib/geocode";
+import { recordActivity } from "@/server/actions/activity";
+import { entityLabel, describeChanges } from "@/lib/activity";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -114,7 +116,7 @@ export async function createItem(
     lng = coords?.lng ?? null;
   }
 
-  await db.item.create({
+  const created = await db.item.create({
     data: {
       tripId,
       stopId: data.stopId ?? null,
@@ -133,6 +135,7 @@ export async function createItem(
     },
   });
 
+  await recordActivity({ tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>) });
   revalidateItemPaths(tripId);
   return { success: true };
 }
@@ -170,6 +173,8 @@ export async function updateItem(
     }
   }
 
+  const before = await db.item.findUnique({ where: { id: itemId } });
+
   // Best-effort geocode from address
   let lat: number | null = null;
   let lng: number | null = null;
@@ -179,7 +184,7 @@ export async function updateItem(
     lng = coords?.lng ?? null;
   }
 
-  await db.item.update({
+  const updated = await db.item.update({
     where: { id: itemId },
     data: {
       stopId: data.stopId ?? null,
@@ -197,6 +202,14 @@ export async function updateItem(
     },
   });
 
+  await recordActivity({
+    tripId: item.tripId,
+    verb: "UPDATED",
+    entityType: "ITEM",
+    entityId: itemId,
+    entityLabel: entityLabel("ITEM", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
   revalidateItemPaths(item.tripId);
   return { success: true };
 }
@@ -207,7 +220,9 @@ export async function updateItem(
 export async function deleteItem(itemId: string): Promise<ItemActionResult> {
   const item = await requireItemAccess(itemId);
 
+  const doomed = await db.item.findUnique({ where: { id: itemId }, select: { title: true } });
   await db.item.delete({ where: { id: itemId } });
+  await recordActivity({ tripId: item.tripId, verb: "DELETED", entityType: "ITEM", entityId: itemId, entityLabel: doomed?.title ?? "" });
 
   revalidateItemPaths(item.tripId);
   return { success: true };

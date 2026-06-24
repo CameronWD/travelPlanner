@@ -116,6 +116,10 @@ _Avoid_: Document, upload, file
 A free-text comment left by either traveller on a Stop, Item or booking — lightweight collaboration between the two of you.
 _Avoid_: Comment, remark
 
+**Activity**:
+A recorded thing a Traveller did on the Trip — created, changed or removed a Stop, Item, Transport, Accommodation, Chapter or Cost, or left a Note — captured with who did it, when, and (for a change) which fields moved from what to what. The chronological list is the **Activity feed**; the Activity your *partner* has done since you last looked is your unread **notifications**, surfaced on a bell. Recorded for both Travellers (the feed is shared history) but you are never notified of your own Activity.
+_Avoid_: Log, audit, event, history, update (as a noun)
+
 **Calendar feed**:
 A private, read-only subscription of a Trip's Timeline that an external calendar app (Google/Apple/Outlook) can follow by URL. It reflects the Trip's scheduled Items, Transport and Accommodation and refreshes on the *external* app's own schedule (not instantly). One per Trip, shared by both Travellers, and revocable (resetting it invalidates the old URL). One-way: the app publishes the feed; it never reads changes back from the external calendar.
 _Avoid_: Sync (implies two-way), integration

@@ -28,6 +28,7 @@ export function moreNav(tripId: string): NavItem[] {
     { label: "Journal", href: `${base}/journal` },
     { label: "Checklists", href: `${base}/checklists` },
     { label: "Files", href: `${base}/files` },
+    { label: "Activity", href: `${base}/activity` },
     { label: "Settings", href: `${base}/settings` },
   ];
 }

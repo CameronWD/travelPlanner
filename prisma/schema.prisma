@@ -44,6 +44,7 @@ model User {
   packingTemplates   PackingTemplate[]
   pushSubscriptions  PushSubscription[]
   journalEntries     JournalEntry[]
+  activities         Activity[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -119,6 +120,7 @@ model Trip {
   calendarFeed   CalendarFeed?
   journalEntries JournalEntry[]
   chapters       Chapter[]
+  activities     Activity[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -134,6 +136,8 @@ model TripMember {
 
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  lastReadActivityAt DateTime?
 
   createdAt DateTime @default(now())
 
@@ -479,4 +483,21 @@ model JournalEntry {
 
   @@unique([tripId, date])
   @@index([tripId])
+}
+
+model Activity {
+  id          String   @id @default(cuid())
+  tripId      String
+  actorId     String
+  verb        String // CREATED | UPDATED | DELETED | NOTED
+  entityType  String // STOP | ITEM | TRANSPORT | ACCOMMODATION | CHAPTER | COST | NOTE
+  entityId    String?
+  entityLabel String // snapshot so deleted entities still render
+  changes     Json? // [{ field, label, from, to }] for UPDATED; { excerpt } for NOTED
+  createdAt   DateTime @default(now())
+
+  trip  Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([tripId, createdAt])
 }

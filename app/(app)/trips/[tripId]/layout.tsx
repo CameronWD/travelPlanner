@@ -6,6 +6,11 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TripNav } from "@/components/trip/trip-nav";
 import { MobileTabBar } from "@/components/trip/mobile-tab-bar";
+import { NotificationBell } from "@/components/trip/notification-bell";
+import {
+  getUnreadActivityCount,
+  getRecentActivity,
+} from "@/server/actions/activity";
 
 function initials(name?: string | null): string {
   if (!name) return "?";
@@ -51,6 +56,11 @@ export default async function TripLayout({
     notFound();
   }
 
+  const [unreadCount, recent] = await Promise.all([
+    getUnreadActivityCount(tripId),
+    getRecentActivity(tripId, 10),
+  ]);
+
   // A date-less trip shows a placeholder instead of a range.
   const dateRange =
     trip.startDate && trip.endDate
@@ -74,30 +84,37 @@ export default async function TripLayout({
             </div>
           </div>
 
-          {/* Member avatars */}
-          {trip.members.length > 0 && (
-            <div className="flex -space-x-2" aria-label="Trip members">
-              {trip.members.slice(0, 6).map(({ user }) => (
-                <Avatar
-                  key={user.id}
-                  className="size-8 ring-2 ring-background"
-                  title={user.name ?? undefined}
-                >
-                  {user.image ? (
-                    <AvatarImage src={user.image} alt={user.name ?? "Member"} />
-                  ) : null}
-                  <AvatarFallback className="text-xs">
-                    {initials(user.name)}
-                  </AvatarFallback>
-                </Avatar>
-              ))}
-              {trip.members.length > 6 && (
-                <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">
-                  +{trip.members.length - 6}
-                </div>
-              )}
-            </div>
-          )}
+          {/* Member avatars + notification bell */}
+          <div className="flex items-center gap-2">
+            {trip.members.length > 0 && (
+              <div className="flex -space-x-2" aria-label="Trip members">
+                {trip.members.slice(0, 6).map(({ user }) => (
+                  <Avatar
+                    key={user.id}
+                    className="size-8 ring-2 ring-background"
+                    title={user.name ?? undefined}
+                  >
+                    {user.image ? (
+                      <AvatarImage src={user.image} alt={user.name ?? "Member"} />
+                    ) : null}
+                    <AvatarFallback className="text-xs">
+                      {initials(user.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                ))}
+                {trip.members.length > 6 && (
+                  <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">
+                    +{trip.members.length - 6}
+                  </div>
+                )}
+              </div>
+            )}
+            <NotificationBell
+              tripId={tripId}
+              unreadCount={unreadCount}
+              recent={recent}
+            />
+          </div>
         </div>
       </div>
 

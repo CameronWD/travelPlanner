@@ -62,6 +62,7 @@ export interface TripCardProps {
   endDate: string | null;   // null for a date-less trip
   stopCount: number;
   phase?: PhaseDescription;
+  unreadCount?: number;
 }
 
 /**
@@ -75,6 +76,7 @@ export function TripCard({
   endDate,
   stopCount,
   phase,
+  unreadCount,
 }: TripCardProps) {
   const gradient = tripGradient(id, name);
   const dateRange =
@@ -93,6 +95,14 @@ export function TripCard({
         {phase && (
           <span className="absolute left-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-soft">
             {phase.phase === "travelling" || phase.phase === "past" ? phase.countdown : `${phase.label} · ${phase.countdown}`}
+          </span>
+        )}
+        {unreadCount != null && unreadCount > 0 && (
+          <span
+            aria-label={`${unreadCount} new`}
+            className="absolute right-3 top-3 rounded-full bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground shadow-soft"
+          >
+            {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </div>

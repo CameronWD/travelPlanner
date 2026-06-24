@@ -8,6 +8,8 @@ import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlace } from "@/lib/geocode";
 import { flowDates, type FlowStop, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween } from "@/lib/dates";
+import { recordActivity } from "@/server/actions/activity";
+import { entityLabel, describeChanges } from "@/lib/activity";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -93,7 +95,7 @@ export async function createStop(
 
   if (parsed.data.mode === "rough") {
     const { name, country, nights, chapterId, notes } = parsed.data;
-    await db.stop.create({
+    const created = await db.stop.create({
       data: {
         tripId,
         name,
@@ -110,6 +112,7 @@ export async function createStop(
         sortOrder,
       },
     });
+    await recordActivity({ tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
     revalidatePath(`/trips/${tripId}`);
     return { success: true };
   }
@@ -127,7 +130,7 @@ export async function createStop(
     }
   }
 
-  await db.stop.create({
+  const created = await db.stop.create({
     data: {
       tripId,
       name,
@@ -143,6 +146,7 @@ export async function createStop(
     },
   });
 
+  await recordActivity({ tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${tripId}`);
   return { success: true };
 }
@@ -165,9 +169,11 @@ export async function updateStop(
     return validationErrors(parsed.error);
   }
 
+  const before = await db.stop.findUnique({ where: { id: stopId } });
+
   if (parsed.data.mode === "rough") {
     const { name, country, nights, chapterId, notes } = parsed.data;
-    await db.stop.update({
+    const updated = await db.stop.update({
       where: { id: stopId },
       data: {
         name,
@@ -179,6 +185,14 @@ export async function updateStop(
         departDate: null,
         timezone: null,
       },
+    });
+    await recordActivity({
+      tripId: stop.tripId,
+      verb: "UPDATED",
+      entityType: "STOP",
+      entityId: stopId,
+      entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
+      changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
     });
     revalidatePath(`/trips/${stop.tripId}`);
     return { success: true };
@@ -198,7 +212,7 @@ export async function updateStop(
     }
   }
 
-  await db.stop.update({
+  const updated = await db.stop.update({
     where: { id: stopId },
     data: {
       name,
@@ -212,6 +226,14 @@ export async function updateStop(
     },
   });
 
+  await recordActivity({
+    tripId: stop.tripId,
+    verb: "UPDATED",
+    entityType: "STOP",
+    entityId: stopId,
+    entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
 }
@@ -224,7 +246,9 @@ export async function updateStop(
 export async function deleteStop(stopId: string): Promise<StopActionResult> {
   const stop = await requireStopAccess(stopId);
 
+  const doomed = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
   await db.stop.delete({ where: { id: stopId } });
+  await recordActivity({ tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
 
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };

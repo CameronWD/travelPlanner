@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Tests for the stops server actions.
@@ -74,6 +74,7 @@ const {
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
+vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/db", () => ({
   db: {
     stop: {
@@ -106,6 +107,7 @@ import {
   makeStopRough,
   assignStopToChapter,
 } from "./stops";
+import { recordActivity } from "@/server/actions/activity";
 
 const VALID_INPUT = {
   mode: "scheduled" as const,
@@ -124,13 +126,17 @@ const ROUGH_INPUT = {
   chapterId: "ch-1",
 };
 
-afterEach(() => {
+beforeEach(() => {
   vi.clearAllMocks();
   // Reset requireTripAccess to always succeed
   requireTripAccessMock.mockResolvedValue({
     user: { id: "user-1" },
     membership: { role: "owner" },
   });
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
 });
 
 // ---------------------------------------------------------------------------
@@ -242,6 +248,28 @@ describe("createStop", () => {
     });
     expect(geocodePlaceMock).not.toHaveBeenCalled();
   });
+
+  it("records CREATED activity for a scheduled stop", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1", name: "London" });
+
+    await createStop("trip-1", VALID_INPUT);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityType: "STOP", entityLabel: "London" }),
+    );
+  });
+
+  it("records CREATED activity for a rough stop", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-9", name: "Rome" });
+
+    await createStop("trip-1", ROUGH_INPUT);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityType: "STOP", entityLabel: "Rome" }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -331,6 +359,40 @@ describe("updateStop", () => {
       data: expect.objectContaining({ name: "Rome", nights: 4, chapterId: "it", notes: "near station", arriveDate: null, departDate: null, timezone: null }),
     });
   });
+
+  it("records UPDATED activity with changes for a scheduled stop", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false }) // requireStopAccess
+      .mockResolvedValueOnce({ id: "stop-1", name: "London", country: "United Kingdom", arriveDate: "2026-07-01", departDate: "2026-07-05" }); // before row
+    stopUpdateMock.mockResolvedValue({ id: "stop-1", name: "Updated London", country: "United Kingdom", arriveDate: "2026-07-01", departDate: "2026-07-05" });
+
+    await updateStop("stop-1", { ...VALID_INPUT, name: "Updated London" });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "STOP",
+        changes: expect.arrayContaining([expect.objectContaining({ field: "name" })]),
+      }),
+    );
+  });
+
+  it("records UPDATED activity with changes for a rough stop", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "stop-r", tripId: "trip-1", sortOrder: 2, arriveDate: null, departDate: null, nights: 3, pinned: false }) // requireStopAccess
+      .mockResolvedValueOnce({ id: "stop-r", name: "Rome", country: "Italy", nights: 3 }); // before row
+    stopUpdateMock.mockResolvedValue({ id: "stop-r", name: "Naples", country: "Italy", nights: 3 });
+
+    await updateStop("stop-r", { ...ROUGH_INPUT, name: "Naples" });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "STOP",
+        changes: expect.arrayContaining([expect.objectContaining({ field: "name" })]),
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -339,15 +401,9 @@ describe("updateStop", () => {
 
 describe("deleteStop", () => {
   it("deletes a stop and revalidates", async () => {
-    stopFindUniqueMock.mockResolvedValue({
-      id: "stop-1",
-      tripId: "trip-1",
-      sortOrder: 0,
-      arriveDate: null,
-      departDate: null,
-      nights: null,
-      pinned: false,
-    });
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false }) // requireStopAccess
+      .mockResolvedValueOnce({ name: "London" }); // doomed label
     stopDeleteMock.mockResolvedValue({});
 
     const result = await deleteStop("stop-1");
@@ -355,6 +411,19 @@ describe("deleteStop", () => {
     expect(result.success).toBe(true);
     expect(stopDeleteMock).toHaveBeenCalledWith({ where: { id: "stop-1" } });
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+  });
+
+  it("records DELETED activity with the snapshotted label", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false }) // requireStopAccess
+      .mockResolvedValueOnce({ name: "Paris" }); // doomed label
+    stopDeleteMock.mockResolvedValue({});
+
+    await deleteStop("stop-1");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "STOP", entityLabel: "Paris" }),
+    );
   });
 });
 

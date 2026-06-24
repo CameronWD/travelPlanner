@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Tests for transport server actions.
@@ -36,6 +36,7 @@ const {
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
+vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/db", () => ({
   db: {
     transport: {
@@ -56,10 +57,21 @@ import {
   updateTransport,
   deleteTransport,
 } from "./transport";
+import { recordActivity } from "@/server/actions/activity";
 
 const VALID_INPUT = {
   mode: "FLIGHT" as const,
 };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  requireTripAccessMock.mockResolvedValue({
+    user: { id: "user-1" },
+    membership: { role: "owner" },
+  });
+  stopFindManyMock.mockResolvedValue([]);
+  geocodePlaceMock.mockResolvedValue(null);
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -251,6 +263,17 @@ describe("createTransport", () => {
       }),
     });
   });
+
+  it("records CREATED activity with entityLabel from depPlace", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-1", mode: "FLIGHT", depPlace: "London Heathrow" });
+
+    await createTransport("trip-1", { mode: "FLIGHT", depPlace: "London Heathrow" });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityType: "TRANSPORT", entityLabel: "London Heathrow" }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -289,6 +312,23 @@ describe("updateTransport", () => {
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-2");
   });
+
+  it("records UPDATED activity with changes array", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "t-1", tripId: "trip-1" }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "t-1", mode: "FLIGHT", depPlace: "Heathrow" }); // before row
+    transportUpdateMock.mockResolvedValue({ id: "t-1", mode: "TRAIN", depPlace: "Heathrow" });
+
+    await updateTransport("t-1", { mode: "TRAIN" });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "TRANSPORT",
+        changes: expect.arrayContaining([expect.objectContaining({ field: "mode" })]),
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -314,5 +354,18 @@ describe("deleteTransport", () => {
     await deleteTransport("t-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
+  });
+
+  it("records DELETED activity with the snapshotted label", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "t-1", tripId: "trip-1" }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "t-1", mode: "FLIGHT", reference: "BA490", depPlace: "Heathrow" }); // doomed label
+    transportDeleteMock.mockResolvedValue({});
+
+    await deleteTransport("t-1");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "TRANSPORT", entityLabel: "BA490" }),
+    );
   });
 });

@@ -7,6 +7,8 @@ import { requireTripAccess } from "@/lib/guards";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { costSchema, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
+import { recordActivity } from "@/server/actions/activity";
+import { entityLabel, describeChanges } from "@/lib/activity";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -178,6 +180,7 @@ export async function createCost(
     });
   });
 
+  await recordActivity({ tripId, verb: "CREATED", entityType: "COST", entityId: cost.id, entityLabel: entityLabel("COST", data as unknown as Record<string, unknown>) });
   revalidateTripPaths(tripId);
   return { success: true, cost };
 }
@@ -221,11 +224,13 @@ export async function updateCost(
 
   const resolved = await resolveRateForTrip(existing.tripId, data.currency, trip.homeCurrency, { db });
 
-  await db.$transaction(async (tx) => {
+  const before = await db.cost.findUnique({ where: { id: costId } });
+
+  const updated = await db.$transaction(async (tx) => {
     if (resolved.persist) {
       await persistRate(tx, existing.tripId, resolved.persist);
     }
-    await tx.cost.update({
+    return tx.cost.update({
       where: { id: costId },
       data: {
         estimatedMinor: data.estimatedMinor,
@@ -241,6 +246,14 @@ export async function updateCost(
     });
   });
 
+  await recordActivity({
+    tripId: existing.tripId,
+    verb: "UPDATED",
+    entityType: "COST",
+    entityId: costId,
+    entityLabel: entityLabel("COST", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("COST", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
   revalidateTripPaths(existing.tripId);
   return { success: true };
 }
@@ -251,7 +264,9 @@ export async function updateCost(
 export async function deleteCost(costId: string): Promise<CostActionResult> {
   const existing = await requireCostAccess(costId);
 
+  const doomed = await db.cost.findUnique({ where: { id: costId }, select: { label: true } });
   await db.cost.delete({ where: { id: costId } });
+  await recordActivity({ tripId: existing.tripId, verb: "DELETED", entityType: "COST", entityId: costId, entityLabel: doomed?.label ?? "cost" });
 
   revalidateTripPaths(existing.tripId);
   return { success: true };

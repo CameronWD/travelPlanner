@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Tests for accommodation server actions.
@@ -34,6 +34,7 @@ const {
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
+vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/db", () => ({
   db: {
     accommodation: {
@@ -53,6 +54,7 @@ import {
   updateAccommodation,
   deleteAccommodation,
 } from "./accommodation";
+import { recordActivity } from "@/server/actions/activity";
 
 const VALID_INPUT = {
   stopId: "stop-1",
@@ -60,6 +62,14 @@ const VALID_INPUT = {
   checkIn: "2026-07-01",
   checkOut: "2026-07-04",
 };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  requireTripAccessMock.mockResolvedValue({
+    user: { id: "user-1" },
+    membership: { role: "owner" },
+  });
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -187,6 +197,17 @@ describe("createAccommodation", () => {
       data: expect.objectContaining({ lat: null, lng: null }),
     });
   });
+
+  it("records CREATED activity with accommodation name as entityLabel", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1" });
+    accCreateMock.mockResolvedValue({ id: "acc-1", name: "Grand Hotel" });
+
+    await createAccommodation(VALID_INPUT);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityType: "ACCOMMODATION", entityLabel: "Grand Hotel" }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -278,6 +299,25 @@ describe("updateAccommodation", () => {
       data: expect.objectContaining({ lat: null, lng: null }),
     });
   });
+
+  it("records UPDATED activity with changes array", async () => {
+    accFindUniqueMock
+      .mockResolvedValueOnce({ id: "acc-1", tripId: "trip-1" }) // requireAccommodationAccess
+      .mockResolvedValueOnce({ id: "acc-1", name: "Old Hotel", checkIn: "2026-07-01", checkOut: "2026-07-04" }); // before row
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1" });
+    accUpdateMock.mockResolvedValue({ id: "acc-1", name: "New Hotel", checkIn: "2026-07-01", checkOut: "2026-07-04" });
+
+    await updateAccommodation("acc-1", { ...VALID_INPUT, name: "New Hotel" });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "ACCOMMODATION",
+        entityLabel: "New Hotel",
+        changes: expect.arrayContaining([expect.objectContaining({ field: "name" })]),
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -303,5 +343,18 @@ describe("deleteAccommodation", () => {
     await deleteAccommodation("acc-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-4");
+  });
+
+  it("records DELETED activity with the snapshotted name as entityLabel", async () => {
+    accFindUniqueMock
+      .mockResolvedValueOnce({ id: "acc-1", tripId: "trip-1" }) // requireAccommodationAccess
+      .mockResolvedValueOnce({ name: "Grand Hotel" }); // doomed label
+    accDeleteMock.mockResolvedValue({});
+
+    await deleteAccommodation("acc-1");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "ACCOMMODATION", entityLabel: "Grand Hotel" }),
+    );
   });
 });
