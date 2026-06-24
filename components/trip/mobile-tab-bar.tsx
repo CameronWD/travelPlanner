@@ -7,6 +7,7 @@ import { Home, Map, CalendarDays, Wallet, Menu } from "lucide-react";
 import {
   Sheet,
   SheetContent,
+  SheetDescription,
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
@@ -70,9 +71,10 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
             More
           </button>
         </SheetTrigger>
-        <SheetContent side="bottom" className="pb-safe">
-          {/* Visually-hidden title for a11y */}
+        <SheetContent side="bottom">
+          {/* Visually-hidden title and description for a11y */}
           <SheetTitle className="sr-only">More navigation</SheetTitle>
+          <SheetDescription className="sr-only">Jump to a trip section</SheetDescription>
           <div className="flex flex-col gap-1 p-2">
             {more.map((item) => (
               <Link

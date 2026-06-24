@@ -89,7 +89,7 @@ export function TripCard({
       )}
     >
       {/* Gradient cover */}
-      <div className={cn("relative h-28 w-full", gradient)} aria-hidden="true">
+      <div className={cn("relative h-28 w-full", gradient)}>
         {phase && (
           <span className="absolute left-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-soft">
             {phase.phase === "travelling" || phase.phase === "past" ? phase.countdown : `${phase.label} · ${phase.countdown}`}

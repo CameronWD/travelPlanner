@@ -106,5 +106,11 @@ export function buildNextSteps({
 
   candidates.sort((a, b) => (a.priority !== b.priority ? a.priority - b.priority : a.id.localeCompare(b.id)));
 
-  return candidates.slice(0, limit).map(({ priority: _priority, ...step }) => step);
+  return candidates.slice(0, limit).map((c) => ({
+    id: c.id,
+    title: c.title,
+    href: c.href,
+    severity: c.severity,
+    source: c.source,
+  }));
 }
