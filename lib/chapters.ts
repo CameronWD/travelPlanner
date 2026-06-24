@@ -10,8 +10,10 @@ export interface ChapterLike {
 
 export interface StopLike {
   id: string;
-  arriveDate: string | null;
+  arriveDate: string | null; // null while the stop is rough
   departDate: string | null;
+  nights?: number | null;
+  chapterId?: string | null; // explicit membership while rough
   country?: string | null;
   sortOrder: number;
 }
@@ -35,7 +37,11 @@ export function chapterForDate<T extends ChapterLike>(dateISO: string, chapters:
 }
 
 export function chapterForStop<T extends ChapterLike>(stop: StopLike, chapters: readonly T[]): T | null {
-  if (!stop.arriveDate) return null;
+  // Rough stop: explicit membership by chapterId.
+  if (!stop.arriveDate) {
+    return stop.chapterId ? (chapters.find((c) => c.id === stop.chapterId) ?? null) : null;
+  }
+  // Scheduled stop: ADR 0008 date-band membership (ignores chapterId).
   return chapterForDate(stop.arriveDate, chapters);
 }
 
