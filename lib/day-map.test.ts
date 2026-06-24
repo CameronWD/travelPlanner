@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDayMapModel, DayMapItemInput, DayMapAccommodationInput, DayMapTransportInput } from "./day-map";
+import { buildDayMapModel, buildItemDirections, DayMapItemInput, DayMapAccommodationInput, DayMapTransportInput } from "./day-map";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -283,5 +283,71 @@ describe("buildDayMapModel", () => {
     // items first
     expect(kinds.indexOf("item")).toBeLessThan(kinds.indexOf("accommodation"));
     expect(kinds.indexOf("accommodation")).toBeLessThan(kinds.indexOf("transport-dep"));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildItemDirections
+// ---------------------------------------------------------------------------
+
+describe("buildItemDirections", () => {
+  it("returns direction urls for an item that has a predecessor", () => {
+    const model = buildDayMapModel({
+      date: "2026-06-24",
+      items: [
+        makeItem({ id: "i1", title: "Museum", sortOrder: 1, lat: 48.86, lng: 2.35 }),
+      ],
+      accommodation: makeAccommodation({ id: "a1", name: "Hotel", lat: 48.85, lng: 2.34 }),
+      transports: [],
+    });
+    const dirs = buildItemDirections(model);
+    expect(dirs["i1"]).toBeDefined();
+    expect(typeof dirs["i1"].google).toBe("string");
+    expect(dirs["i1"].google).toContain("google.com/maps/dir");
+    expect(typeof dirs["i1"].apple).toBe("string");
+    expect(dirs["i1"].apple).toContain("maps.apple.com");
+  });
+
+  it("omits the first item when there is no accommodation (no predecessor)", () => {
+    const model = buildDayMapModel({
+      date: "2026-06-24",
+      items: [
+        makeItem({ id: "i1", title: "Museum", sortOrder: 1, lat: 48.86, lng: 2.35 }),
+      ],
+      transports: [],
+    });
+    const dirs = buildItemDirections(model);
+    expect("i1" in dirs).toBe(false);
+  });
+
+  it("omits un-located items entirely", () => {
+    const model = buildDayMapModel({
+      date: "2026-06-24",
+      items: [
+        makeItem({ id: "i1", title: "No coords", sortOrder: 1 }),
+      ],
+      accommodation: makeAccommodation({ id: "a1", name: "Hotel", lat: 48.85, lng: 2.34 }),
+      transports: [],
+    });
+    const dirs = buildItemDirections(model);
+    expect("i1" in dirs).toBe(false);
+  });
+
+  it("returns entries for the second item (predecessor is first item)", () => {
+    const model = buildDayMapModel({
+      date: "2026-06-24",
+      items: [
+        makeItem({ id: "i1", title: "Stop A", sortOrder: 1, startTime: "09:00", lat: 48.85, lng: 2.34 }),
+        makeItem({ id: "i2", title: "Stop B", sortOrder: 2, startTime: "11:00", lat: 48.87, lng: 2.36 }),
+      ],
+      accommodation: makeAccommodation({ id: "a1", name: "Hotel", lat: 48.84, lng: 2.33 }),
+      transports: [],
+    });
+    const dirs = buildItemDirections(model);
+    // Both items have predecessors
+    expect("i1" in dirs).toBe(true);
+    expect("i2" in dirs).toBe(true);
+    // i2's google url should contain i1's coords as origin
+    expect(dirs["i2"].google).toContain("48.85");
   });
 });
