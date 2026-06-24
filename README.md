@@ -4,6 +4,8 @@ A collaborative trip planner built for two partners — plan a multi-stop journe
 
 ## Features
 
+**Brainstorm → fleshed out** — start a trip as a loose sketch: name-only trips (dates optional), rough Chapters and date-less Stops with a rough number of nights, all on one Overview canvas. Firm up a leg with one click — dates auto-flow forward from an anchor using each stop's nights, pinned stops stay fixed, and rough stops harden into the dated itinerary piece by piece.
+
 **Plan** — multi-stop itinerary with stops, transport legs, and accommodation; drag-and-drop ordering; timezone-aware Calendar, Day, and Today views with a visual timeline.
 
 **Chapters** — group a long trip into named, coloured legs, with per-chapter budget and itinerary roll-ups; Today view shows the active chapter; the Summary map renders each leg in its own colour.
