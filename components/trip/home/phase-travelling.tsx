@@ -8,9 +8,11 @@ import {
   effectiveTodayISO,
   pickDayPlan,
 } from "@/lib/itinerary";
+import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
 import { chapterForDate } from "@/lib/chapters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
+import { DayMapPanel } from "@/components/trip/day-map-panel";
 import { MapLink } from "@/components/trip/map-link";
 import { TransportCountdown } from "@/components/trip/transport-countdown";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
@@ -77,7 +79,10 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         date: true,
         startTime: true,
         endTime: true,
+        sortOrder: true,
         stopId: true,
+        lat: true,
+        lng: true,
         address: true,
         link: true,
         booking: true,
@@ -96,6 +101,10 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         arrPlace: true,
         depAt: true,
         arrAt: true,
+        depLat: true,
+        depLng: true,
+        arrLat: true,
+        arrLng: true,
         reference: true,
         notes: true,
       },
@@ -224,6 +233,52 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
 
   const effectiveStop = dayPlan?.stop ?? null;
 
+  // ── Day-map model (for effectiveDate) ──────────────────────────────────────
+  const dayItems = items
+    .filter((item) => item.date === effectiveDate)
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      lat: item.lat,
+      lng: item.lng,
+      address: item.address,
+      startTime: item.startTime,
+      sortOrder: item.sortOrder,
+    }));
+
+  const dayAccommodation = tonightAccom
+    ? {
+        id: tonightAccom.id,
+        name: tonightAccom.name,
+        lat: tonightAccom.lat,
+        lng: tonightAccom.lng,
+        address: tonightAccom.address,
+      }
+    : null;
+
+  const dayTransportIds = new Set(
+    (dayPlan?.transportEntries ?? []).map((e) => e.transport.id),
+  );
+  const dayTransports = transports
+    .filter((t) => dayTransportIds.has(t.id))
+    .map((t) => ({
+      id: t.id,
+      depPlace: t.depPlace,
+      arrPlace: t.arrPlace,
+      depLat: t.depLat,
+      depLng: t.depLng,
+      arrLat: t.arrLat,
+      arrLng: t.arrLng,
+    }));
+
+  const dayMapModel = buildDayMapModel({
+    date: effectiveDate,
+    items: dayItems,
+    accommodation: dayAccommodation,
+    transports: dayTransports,
+  });
+  const itemDirections = buildItemDirections(dayMapModel);
+
   return (
     <div className="flex flex-col gap-6">
       {/* ── Header ── */}
@@ -312,9 +367,13 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
           Today&apos;s plan
         </h3>
+
+        {/* Day map (collapsed toggle) */}
+        <DayMapPanel tripId={tripId} model={dayMapModel} />
+
         <div className="rounded-xl border border-border bg-card px-4 py-4">
           {dayPlan ? (
-            <Timeline day={dayPlan} variant="day" />
+            <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} />
           ) : (
             <p className="py-2 text-sm text-muted-foreground italic">
               Nothing planned for this day.

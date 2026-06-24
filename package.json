@@ -12,6 +12,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "backfill:geocode": "tsx scripts/backfill-geocode.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:demo": "tsx prisma/seed-ai-trip.ts",
     "postinstall": "prisma generate"

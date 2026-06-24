@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
+import { geocodePlace } from "@/lib/geocode";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -116,6 +117,23 @@ export async function createTransport(
   });
   const sortOrder = (maxTransport?.sortOrder ?? -1) + 1;
 
+  // Best-effort geocode for departure and arrival places
+  let depLat: number | null = null;
+  let depLng: number | null = null;
+  if (data.depPlace) {
+    const coords = await geocodePlace(data.depPlace);
+    depLat = coords?.lat ?? null;
+    depLng = coords?.lng ?? null;
+  }
+
+  let arrLat: number | null = null;
+  let arrLng: number | null = null;
+  if (data.arrPlace) {
+    const coords = await geocodePlace(data.arrPlace);
+    arrLat = coords?.lat ?? null;
+    arrLng = coords?.lng ?? null;
+  }
+
   await db.transport.create({
     data: {
       tripId,
@@ -129,6 +147,10 @@ export async function createTransport(
       reference: data.reference ?? null,
       notes: data.notes ?? null,
       sortOrder,
+      depLat,
+      depLng,
+      arrLat,
+      arrLng,
     },
   });
 
@@ -163,6 +185,23 @@ export async function updateTransport(
   ]);
   if (stopError) return stopError;
 
+  // Best-effort geocode for departure and arrival places
+  let depLat: number | null = null;
+  let depLng: number | null = null;
+  if (data.depPlace) {
+    const coords = await geocodePlace(data.depPlace);
+    depLat = coords?.lat ?? null;
+    depLng = coords?.lng ?? null;
+  }
+
+  let arrLat: number | null = null;
+  let arrLng: number | null = null;
+  if (data.arrPlace) {
+    const coords = await geocodePlace(data.arrPlace);
+    arrLat = coords?.lat ?? null;
+    arrLng = coords?.lng ?? null;
+  }
+
   await db.transport.update({
     where: { id: transportId },
     data: {
@@ -175,6 +214,10 @@ export async function updateTransport(
       arrAt: data.arrAt ?? null,
       reference: data.reference ?? null,
       notes: data.notes ?? null,
+      depLat,
+      depLng,
+      arrLat,
+      arrLng,
     },
   });
 

@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const {
   requireTripAccessMock,
   revalidatePathMock,
+  geocodePlaceMock,
   accFindUniqueMock,
   accCreateMock,
   accUpdateMock,
@@ -21,6 +22,7 @@ const {
       membership: { role: "owner" },
     }),
     revalidatePathMock: vi.fn(),
+    geocodePlaceMock: vi.fn().mockResolvedValue(null),
     accFindUniqueMock: vi.fn(),
     accCreateMock: vi.fn(),
     accUpdateMock: vi.fn(),
@@ -31,6 +33,7 @@ const {
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     accommodation: {
@@ -136,6 +139,54 @@ describe("createAccommodation", () => {
     }
     expect(accCreateMock).not.toHaveBeenCalled();
   });
+
+  it("geocodes address on create and stores coords", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1" });
+    accCreateMock.mockResolvedValue({ id: "acc-1" });
+    geocodePlaceMock.mockResolvedValue({ lat: 48.8566, lng: 2.3522 });
+
+    const result = await createAccommodation({
+      ...VALID_INPUT,
+      address: "Rue de Rivoli, Paris",
+    });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).toHaveBeenCalledOnce();
+    expect(geocodePlaceMock).toHaveBeenCalledWith("Rue de Rivoli, Paris");
+    expect(accCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ lat: 48.8566, lng: 2.3522 }),
+    });
+  });
+
+  it("does not call geocode and stores null coords when no address", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1" });
+    accCreateMock.mockResolvedValue({ id: "acc-1" });
+
+    const result = await createAccommodation(VALID_INPUT);
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(accCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ lat: null, lng: null }),
+    });
+  });
+
+  it("still creates when geocode returns null (null coords)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1" });
+    accCreateMock.mockResolvedValue({ id: "acc-1" });
+    geocodePlaceMock.mockResolvedValue(null);
+
+    const result = await createAccommodation({
+      ...VALID_INPUT,
+      address: "Unknown Place",
+    });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).toHaveBeenCalledOnce();
+    expect(accCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ lat: null, lng: null }),
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -191,6 +242,41 @@ describe("updateAccommodation", () => {
     await updateAccommodation("acc-1", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-3");
+  });
+
+  it("geocodes address on update and stores coords", async () => {
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1" });
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1" });
+    accUpdateMock.mockResolvedValue({});
+    geocodePlaceMock.mockResolvedValue({ lat: 51.5074, lng: -0.1278 });
+
+    const result = await updateAccommodation("acc-1", {
+      ...VALID_INPUT,
+      address: "Baker Street, London",
+    });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).toHaveBeenCalledOnce();
+    expect(geocodePlaceMock).toHaveBeenCalledWith("Baker Street, London");
+    expect(accUpdateMock).toHaveBeenCalledWith({
+      where: { id: "acc-1" },
+      data: expect.objectContaining({ lat: 51.5074, lng: -0.1278 }),
+    });
+  });
+
+  it("stores null coords on update when no address", async () => {
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1" });
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1" });
+    accUpdateMock.mockResolvedValue({});
+
+    const result = await updateAccommodation("acc-1", VALID_INPUT);
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(accUpdateMock).toHaveBeenCalledWith({
+      where: { id: "acc-1" },
+      data: expect.objectContaining({ lat: null, lng: null }),
+    });
   });
 });
 

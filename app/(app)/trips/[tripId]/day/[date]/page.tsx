@@ -4,9 +4,11 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
+import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
 import { DayNav } from "@/components/trip/day-nav";
+import { DayMapPanel } from "@/components/trip/day-map-panel";
 import { AddItemButton } from "@/components/trip/item-form-dialog";
 import { JournalEditor } from "@/components/trip/journal-editor";
 import type { TransportMode } from "@/lib/enums";
@@ -74,7 +76,10 @@ export default async function DayPage({
           date: true,
           startTime: true,
           endTime: true,
+          sortOrder: true,
           stopId: true,
+          lat: true,
+          lng: true,
           address: true,
           link: true,
           booking: true,
@@ -93,6 +98,10 @@ export default async function DayPage({
           arrPlace: true,
           depAt: true,
           arrAt: true,
+          depLat: true,
+          depLng: true,
+          arrLat: true,
+          arrLng: true,
           reference: true,
           notes: true,
         },
@@ -109,6 +118,8 @@ export default async function DayPage({
           checkOut: true,
           confirmation: true,
           notes: true,
+          lat: true,
+          lng: true,
         },
       }),
       db.journalEntry.findUnique({
@@ -198,6 +209,58 @@ export default async function DayPage({
 
   const stopOptions = stops.map((s) => ({ id: s.id, name: s.name }));
 
+  // ── Day-map model ──────────────────────────────────────────────────────────
+  // Items for this specific date (with coords)
+  const dayItems = items
+    .filter((item) => item.date === effectiveDate)
+    .map((item) => ({
+      id: item.id,
+      title: item.title,
+      lat: item.lat,
+      lng: item.lng,
+      address: item.address,
+      startTime: item.startTime,
+      sortOrder: item.sortOrder,
+    }));
+
+  // Tonight's accommodation: checkIn <= effectiveDate < checkOut
+  const tonightAccomRaw = accommodations.find(
+    (a) => a.checkIn <= effectiveDate && a.checkOut > effectiveDate,
+  ) ?? null;
+  const dayAccommodation = tonightAccomRaw
+    ? {
+        id: tonightAccomRaw.id,
+        name: tonightAccomRaw.name,
+        lat: tonightAccomRaw.lat,
+        lng: tonightAccomRaw.lng,
+        address: tonightAccomRaw.address,
+      }
+    : null;
+
+  // Transports active on this day (departing or arriving): collect ids from dayPlan
+  const dayTransportIds = new Set(
+    dayPlan.transportEntries.map((e) => e.transport.id),
+  );
+  const dayTransports = transports
+    .filter((t) => dayTransportIds.has(t.id))
+    .map((t) => ({
+      id: t.id,
+      depPlace: t.depPlace,
+      arrPlace: t.arrPlace,
+      depLat: t.depLat,
+      depLng: t.depLng,
+      arrLat: t.arrLat,
+      arrLng: t.arrLng,
+    }));
+
+  const dayMapModel = buildDayMapModel({
+    date: effectiveDate,
+    items: dayItems,
+    accommodation: dayAccommodation,
+    transports: dayTransports,
+  });
+  const itemDirections = buildItemDirections(dayMapModel);
+
   return (
     <div className="flex flex-col gap-6">
       {/* Day header */}
@@ -221,9 +284,12 @@ export default async function DayPage({
         endDate={trip.endDate}
       />
 
+      {/* Day map (collapsed toggle) */}
+      <DayMapPanel tripId={tripId} model={dayMapModel} />
+
       {/* Detailed timeline */}
       <div className="rounded-xl border border-border bg-card px-4 py-4">
-        <Timeline day={dayPlan} variant="day" />
+        <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} />
       </div>
 
       {/* Quick add */}

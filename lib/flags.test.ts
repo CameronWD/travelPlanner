@@ -9,6 +9,8 @@ import {
   flagItemTimeOverlaps,
   flagPackedDays,
   flagRoughStops,
+  flagSpreadDays,
+  SPREAD_DAY_THRESHOLD_KM,
   type FlagStop,
   type FlagTransport,
   type FlagAccommodation,
@@ -57,6 +59,8 @@ const makeItem = (
   date: null,
   startTime: null,
   endTime: null,
+  lat: null,
+  lng: null,
   ...overrides,
 });
 
@@ -549,5 +553,67 @@ describe("flagRoughStops", () => {
     const flags = flagRoughStops(3);
     expect(flags).toHaveLength(1);
     expect(flags[0].message).toMatch(/still rough/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule 9: Geographic spread day
+// ---------------------------------------------------------------------------
+
+describe("flagSpreadDays", () => {
+  // Far pair: Paris city centre (48.86, 2.35) vs CDG area (49.00, 2.80)
+  // haversine ≈ 43 km — well above the 25 km threshold
+  const FAR_A: FlagItem = makeItem({ id: "far-a", date: "2026-07-02", lat: 48.86, lng: 2.35 });
+  const FAR_B: FlagItem = makeItem({ id: "far-b", date: "2026-07-02", lat: 49.00, lng: 2.80 });
+
+  // Compact pair: two points ~3 km apart near Paris
+  // (48.860, 2.337) vs (48.858, 2.294) — haversine ≈ 3.2 km
+  const CLOSE_A: FlagItem = makeItem({ id: "close-a", date: "2026-07-03", lat: 48.860, lng: 2.337 });
+  const CLOSE_B: FlagItem = makeItem({ id: "close-b", date: "2026-07-03", lat: 48.858, lng: 2.294 });
+
+  it("exports SPREAD_DAY_THRESHOLD_KM = 25", () => {
+    expect(SPREAD_DAY_THRESHOLD_KM).toBe(25);
+  });
+
+  it("fires an info flag when 2 located items on the same day are > 25 km apart", () => {
+    const flags = flagSpreadDays([FAR_A, FAR_B]);
+    expect(flags).toHaveLength(1);
+    expect(flags[0].severity).toBe("info");
+    expect(flags[0].targetType).toBe("DAY");
+    expect(flags[0].date).toBe("2026-07-02");
+    expect(flags[0].id).toBe("spread-day-2026-07-02");
+  });
+
+  it("does NOT fire for a compact day (items < 25 km apart)", () => {
+    const flags = flagSpreadDays([CLOSE_A, CLOSE_B]);
+    expect(flags).toHaveLength(0);
+  });
+
+  it("does NOT fire when a date has fewer than 2 located items", () => {
+    const singleItem: FlagItem = makeItem({ id: "solo", date: "2026-07-02", lat: 48.86, lng: 2.35 });
+    expect(flagSpreadDays([singleItem])).toHaveLength(0);
+  });
+
+  it("ignores items that lack lat/lng", () => {
+    const noCoords: FlagItem = makeItem({ id: "nc", date: "2026-07-02" });
+    const oneCoord: FlagItem = makeItem({ id: "oc", date: "2026-07-02", lat: 48.86, lng: 2.35 });
+    expect(flagSpreadDays([noCoords, oneCoord])).toHaveLength(0);
+  });
+
+  it("ignores items that lack a date", () => {
+    const noDate: FlagItem = makeItem({ id: "nd", lat: 48.86, lng: 2.35 });
+    const withDate: FlagItem = makeItem({ id: "wd", date: "2026-07-02", lat: 48.86, lng: 2.35 });
+    expect(flagSpreadDays([noDate, withDate])).toHaveLength(0);
+  });
+
+  it("produces two flags for two different spread dates", () => {
+    const dayOneA: FlagItem = makeItem({ id: "d1a", date: "2026-07-02", lat: 48.86, lng: 2.35 });
+    const dayOneB: FlagItem = makeItem({ id: "d1b", date: "2026-07-02", lat: 49.00, lng: 2.80 });
+    const dayTwoA: FlagItem = makeItem({ id: "d2a", date: "2026-07-04", lat: 48.86, lng: 2.35 });
+    const dayTwoB: FlagItem = makeItem({ id: "d2b", date: "2026-07-04", lat: 49.00, lng: 2.80 });
+    const flags = flagSpreadDays([dayOneA, dayOneB, dayTwoA, dayTwoB]);
+    expect(flags).toHaveLength(2);
+    const dates = flags.map((f) => f.date).sort();
+    expect(dates).toEqual(["2026-07-02", "2026-07-04"]);
   });
 });

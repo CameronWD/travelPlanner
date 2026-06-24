@@ -159,7 +159,7 @@ export default async function SummaryPage({
       }),
       db.item.findMany({
         where: { tripId },
-        select: { id: true, stopId: true, category: true, date: true, startTime: true, endTime: true },
+        select: { id: true, stopId: true, category: true, date: true, startTime: true, endTime: true, lat: true, lng: true },
       }),
       db.cost.findMany({
         where: { tripId },
