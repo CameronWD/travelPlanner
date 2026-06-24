@@ -56,6 +56,9 @@ export async function PhasePlanning({
   today,
   phase,
 }: PhasePlanningProps) {
+  // This phase only renders for dated trips; bail safely if called otherwise.
+  if (!trip.startDate) return null;
+
   const base = `/trips/${tripId}`;
   const startDate = trip.startDate!;
   const endDate = trip.endDate ?? startDate;
@@ -213,8 +216,9 @@ export async function PhasePlanning({
   // ---------------------------------------------------------------------------
   // Detect flags (mirrors summary/page.tsx)
   // ---------------------------------------------------------------------------
+  const flagStops: FlagStop[] = datedStops.map((s) => ({ ...s, timezone: s.timezone ?? "UTC" }));
   const flags = detectFlags({
-    stops: datedStops as FlagStop[],
+    stops: flagStops,
     transports: transports as FlagTransport[],
     accommodations: accommodations as FlagAccommodation[],
     items: items as FlagItem[],
@@ -282,11 +286,7 @@ export async function PhasePlanning({
     <NextStepsCard key="steps" steps={steps} seeAllHref={`${base}/summary`} />
   );
 
-  const actions = (
-    <div key="actions">
-      <QuickActions tripId={tripId} phase={phase} />
-    </div>
-  );
+  const actions = <QuickActions key="actions" tripId={tripId} phase={phase} />;
 
   const money = (
     <BudgetGlance
