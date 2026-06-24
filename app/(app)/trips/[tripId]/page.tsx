@@ -1,7 +1,5 @@
-import { MapPin } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { EmptyState } from "@/components/ui/empty-state";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enums";
 import type { NoteView } from "@/components/trip/note-thread";
@@ -33,9 +31,7 @@ export default async function TripOverviewPage({
       select: { homeCurrency: true, startDate: true, endDate: true },
     }),
     db.stop.findMany({
-      // Rough (date-less) stops are invisible to this dated view; a later task
-      // surfaces them on the brainstorm canvas.
-      where: { tripId, arriveDate: { not: null } },
+      where: { tripId },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -48,6 +44,10 @@ export default async function TripOverviewPage({
         notes: true,
         lat: true,
         lng: true,
+        nights: true,
+        pinned: true,
+        chapterId: true,
+        chapterSortOrder: true,
         accommodations: {
           orderBy: { checkIn: "asc" },
           select: {
@@ -93,9 +93,7 @@ export default async function TripOverviewPage({
       select: COST_SELECT,
     }),
     db.chapter.findMany({
-      // Only dated chapters group the dated itinerary; rough chapters are
-      // surfaced by a later task.
-      where: { tripId, startDate: { not: null } },
+      where: { tripId },
       orderBy: { startDate: "asc" },
       select: { id: true, name: true, colour: true, startDate: true, endDate: true },
     }),
@@ -146,36 +144,8 @@ export default async function TripOverviewPage({
     costsByOwnerId.set(cost.ownerId, existing);
   }
 
-  // The stop/chapter queries filter rough rows out (arriveDate/startDate not
-  // null), so these are non-null at runtime; narrow the Prisma types for the
-  // dated ItineraryManager props.
-  const datedChapters = chapters.map((c) => ({
-    ...c,
-    startDate: c.startDate!,
-    endDate: c.endDate!,
-  }));
   const tripStartDate = trip?.startDate ?? undefined;
   const tripEndDate = trip?.endDate ?? undefined;
-
-  if (stops.length === 0) {
-    return (
-      <EmptyState
-        icon={MapPin}
-        title="No stops yet"
-        description="Add your first stop to start building your itinerary — where are you headed?"
-        action={
-          <ItineraryManager
-            tripId={tripId}
-            initialStops={[]}
-            initialTransports={[]}
-            chapters={datedChapters}
-            tripStartDate={tripStartDate}
-            tripEndDate={tripEndDate}
-          />
-        }
-      />
-    );
-  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -186,13 +156,9 @@ export default async function TripOverviewPage({
         tripEndDate={tripEndDate}
         notesByStopId={notesByStopId}
         currentUserId={user.id}
-        chapters={datedChapters}
+        chapters={chapters}
         initialStops={stops.map((stop) => ({
           ...stop,
-          // Non-null at runtime: the query filters rough (date-less) stops out.
-          timezone: stop.timezone ?? "UTC",
-          arriveDate: stop.arriveDate!,
-          departDate: stop.departDate!,
           accommodations: stop.accommodations.map((acc) => ({
             ...acc,
             costs: costsByOwnerId.get(acc.id) ?? [],
