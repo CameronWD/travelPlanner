@@ -31,6 +31,30 @@ export default async function TripsPage() {
 
   const trips = memberships.map((m) => m.trip);
 
+  // Build a map of tripId → lastReadActivityAt for the current user.
+  const membershipByTripId = new Map(
+    memberships.map((m) => [m.tripId, m.lastReadActivityAt]),
+  );
+
+  // Count unread activity per trip (activities created by others, after the marker).
+  const unreadCounts = await Promise.all(
+    trips.map((trip) => {
+      const marker = membershipByTripId.get(trip.id) ?? null;
+      return db.activity.count({
+        where: {
+          tripId: trip.id,
+          actorId: { not: user.id },
+          ...(marker ? { createdAt: { gt: marker } } : {}),
+        },
+      });
+    }),
+  );
+
+  const unreadByTrip: Record<string, number> = {};
+  trips.forEach((trip, i) => {
+    unreadByTrip[trip.id] = unreadCounts[i];
+  });
+
   const today = todayISO();
   const sorted = [...trips].sort((a, b) => compareForTripList(a, b, today));
 
@@ -69,6 +93,7 @@ export default async function TripsPage() {
                 endDate={trip.endDate}
                 stopCount={trip._count.stops}
                 phase={describePhase({ startDate: trip.startDate, endDate: trip.endDate, today })}
+                unreadCount={unreadByTrip[trip.id] ?? 0}
               />
             </AnimatedItem>
           ))}
