@@ -36,25 +36,24 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
     : null;
 
   // Home-currency equivalent
-  const showHomeEquiv =
-    homeCurrency &&
-    cost.rateToHome !== null &&
-    cost.rateToHome !== undefined &&
-    cost.currency.toUpperCase() !== homeCurrency.toUpperCase();
-
-  const homeEstimatedStr = showHomeEquiv
-    ? formatMoney(
-        convertMinor(cost.estimatedMinor, cost.currency, homeCurrency!, cost.rateToHome!),
-        homeCurrency!,
-      )
-    : null;
-
-  const homeActualStr =
-    showHomeEquiv && cost.actualMinor !== null && cost.actualMinor !== undefined
-      ? formatMoney(
-          convertMinor(cost.actualMinor, cost.currency, homeCurrency!, cost.rateToHome!),
-          homeCurrency!,
-        )
+  const rate = cost.rateToHome;
+  const homeEquiv =
+    homeCurrency != null &&
+    rate != null &&
+    cost.currency.toUpperCase() !== homeCurrency.toUpperCase()
+      ? {
+          estimated: formatMoney(
+            convertMinor(cost.estimatedMinor, cost.currency, homeCurrency, rate),
+            homeCurrency,
+          ),
+          actual:
+            cost.actualMinor !== null && cost.actualMinor !== undefined
+              ? formatMoney(
+                  convertMinor(cost.actualMinor, cost.currency, homeCurrency, rate),
+                  homeCurrency,
+                )
+              : null,
+        }
       : null;
 
   const isPaid = Boolean(cost.paidAt);
@@ -73,9 +72,9 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
         <span className="font-medium text-foreground">
           {estimatedStr}
         </span>
-        {homeEstimatedStr && (
+        {homeEquiv?.estimated && (
           <span className="text-muted-foreground/70">
-            ≈&nbsp;{homeEstimatedStr}
+            ≈&nbsp;{homeEquiv.estimated}
           </span>
         )}
 
@@ -93,9 +92,9 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
                 <CheckCircle2 className="size-3 shrink-0" aria-hidden="true" />
               )}
               {actualStr}
-              {homeActualStr && (
+              {homeEquiv?.actual && (
                 <span className="text-muted-foreground/70 ml-0.5">
-                  ≈&nbsp;{homeActualStr}
+                  ≈&nbsp;{homeEquiv.actual}
                 </span>
               )}
             </span>

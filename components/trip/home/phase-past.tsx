@@ -5,7 +5,7 @@ import { nightsBetween } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import {
   buildBudget,
-  type BudgetCost,
+  applyFxRatesToCosts,
   type BudgetStopWithDates,
   type BudgetItem,
   type BudgetAccommodation,
@@ -142,27 +142,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   // ---------------------------------------------------------------------------
   // Apply FX rates to costs
   // ---------------------------------------------------------------------------
-  const rateMap = new Map<string, number>();
-  for (const r of exchangeRates) {
-    rateMap.set(`${r.base}:${r.quote}`, r.rate);
-    if (r.rate !== 0) {
-      rateMap.set(`${r.quote}:${r.base}`, 1 / r.rate);
-    }
-  }
-
-  const costsWithRates: BudgetCost[] = costs.map((c) => {
-    let rateToHome = c.rateToHome ?? null;
-    if (
-      rateToHome === null &&
-      c.currency.toUpperCase() !== homeCurrency.toUpperCase()
-    ) {
-      rateToHome =
-        rateMap.get(
-          `${c.currency.toUpperCase()}:${homeCurrency.toUpperCase()}`,
-        ) ?? null;
-    }
-    return { ...c, rateToHome } as BudgetCost;
-  });
+  const costsWithRates = applyFxRatesToCosts({ costs, exchangeRates, homeCurrency });
 
   // ---------------------------------------------------------------------------
   // Narrow nullable date fields

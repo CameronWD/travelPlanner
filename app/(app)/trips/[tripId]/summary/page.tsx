@@ -12,14 +12,13 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
-import { buildBudget } from "@/lib/budget";
+import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
 import { detectFlags } from "@/lib/flags";
 import { groupStopsByChapter, chapterForStop } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import { ChapterChip } from "@/components/trip/chapter-chip";
 import { CostAmounts } from "@/components/trip/cost-amounts";
 import type {
-  BudgetCost,
   BudgetStopWithDates,
   BudgetItem,
   BudgetAccommodation,
@@ -187,28 +186,7 @@ export default async function SummaryPage({
   // ---------------------------------------------------------------------------
   // Apply FX rates to costs (same approach as budget page)
   // ---------------------------------------------------------------------------
-  const rateMap = new Map<string, number>();
-  for (const r of exchangeRates) {
-    rateMap.set(`${r.base}:${r.quote}`, r.rate);
-    // also store inverse so lookups work both ways
-    if (r.rate !== 0) {
-      rateMap.set(`${r.quote}:${r.base}`, 1 / r.rate);
-    }
-  }
-
-  const costsWithRates: BudgetCost[] = costs.map((c) => {
-    let rateToHome = c.rateToHome ?? null;
-    if (
-      rateToHome === null &&
-      c.currency.toUpperCase() !== homeCurrency.toUpperCase()
-    ) {
-      // Try FX lookup
-      rateToHome =
-        rateMap.get(`${c.currency.toUpperCase()}:${homeCurrency.toUpperCase()}`) ??
-        null;
-    }
-    return { ...c, rateToHome } as BudgetCost;
-  });
+  const costsWithRates = applyFxRatesToCosts({ costs, exchangeRates, homeCurrency });
 
   // ---------------------------------------------------------------------------
   // Build budget roll-up

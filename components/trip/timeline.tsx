@@ -138,7 +138,10 @@ function TransportRow({
     : (arrEntry?.arrTimeLabel ?? null);
 
   // For same-day trips, show "dep → arr" inline
-  const sameDay = depEntry?.arrivesSameDay && depEntry?.arrTimeLabel;
+  const sameDayLabels =
+    depEntry && depEntry.arrivesSameDay && depEntry.arrTimeLabel
+      ? { dep: depEntry.depTimeLabel, arr: depEntry.arrTimeLabel }
+      : null;
 
   return (
     <div
@@ -180,9 +183,9 @@ function TransportRow({
             </span>
           )}
           {/* Same-day time summary: "08:24 → 11:47" */}
-          {sameDay && (
+          {sameDayLabels && (
             <span className="text-[11px] font-mono text-muted-foreground">
-              {depEntry!.depTimeLabel} → {depEntry!.arrTimeLabel}
+              {sameDayLabels.dep} → {sameDayLabels.arr}
             </span>
           )}
         </div>

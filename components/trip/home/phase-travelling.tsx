@@ -215,8 +215,8 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         return new Date(depAt) > now;
       })
       .sort((a, b) => {
-        const aAt = new Date(a.transport.depAt!).getTime();
-        const bAt = new Date(b.transport.depAt!).getTime();
+        const aAt = a.transport.depAt ? new Date(a.transport.depAt).getTime() : 0;
+        const bAt = b.transport.depAt ? new Date(b.transport.depAt).getTime() : 0;
         return aAt - bAt;
       });
     return allDeps[0] ?? null;

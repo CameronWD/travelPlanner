@@ -8,6 +8,7 @@ import {
   effectiveCategory,
   stopIdForCost,
   buildBudget,
+  applyFxRatesToCosts,
   type BudgetCost,
   type BudgetStop,
   type BudgetStopWithDates,
@@ -815,5 +816,40 @@ describe("buildBudget — byChapter", () => {
       result.chapterReconciliation.betweenLegs.estimatedMinor +
       result.chapterReconciliation.otherCosts.estimatedMinor;
     expect(totalFromParts).toBe(result.grandTotal.estimatedMinor);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// applyFxRatesToCosts
+// ---------------------------------------------------------------------------
+
+describe("applyFxRatesToCosts", () => {
+  const raw = (over: Partial<Parameters<typeof applyFxRatesToCosts>[0]["costs"][number]> = {}) => ({
+    id: "c1", estimatedMinor: 1000, actualMinor: null, currency: "EUR",
+    rateToHome: null, ownerType: "OTHER", ownerId: null, label: "x", category: null, ...over,
+  });
+  it("keeps an existing snapshot rateToHome untouched", () => {
+    const [c] = applyFxRatesToCosts({ costs: [raw({ rateToHome: 1.7 })], exchangeRates: [{ base: "EUR", quote: "AUD", rate: 1.6 }], homeCurrency: "AUD" });
+    expect(c.rateToHome).toBe(1.7);
+  });
+  it("leaves a home-currency cost's rate null (no lookup needed)", () => {
+    const [c] = applyFxRatesToCosts({ costs: [raw({ currency: "AUD" })], exchangeRates: [], homeCurrency: "AUD" });
+    expect(c.rateToHome).toBeNull();
+  });
+  it("fills a missing rate from a direct exchange-rate row", () => {
+    const [c] = applyFxRatesToCosts({ costs: [raw()], exchangeRates: [{ base: "EUR", quote: "AUD", rate: 1.6 }], homeCurrency: "AUD" });
+    expect(c.rateToHome).toBe(1.6);
+  });
+  it("fills a missing rate via the inverse of a reverse row", () => {
+    const [c] = applyFxRatesToCosts({ costs: [raw()], exchangeRates: [{ base: "AUD", quote: "EUR", rate: 0.625 }], homeCurrency: "AUD" });
+    expect(c.rateToHome).toBeCloseTo(1 / 0.625);
+  });
+  it("leaves rate null when no rate is available", () => {
+    const [c] = applyFxRatesToCosts({ costs: [raw()], exchangeRates: [], homeCurrency: "AUD" });
+    expect(c.rateToHome).toBeNull();
+  });
+  it("does not create an inverse entry for a zero rate", () => {
+    const [c] = applyFxRatesToCosts({ costs: [raw({ currency: "AUD", rateToHome: null })], exchangeRates: [{ base: "EUR", quote: "AUD", rate: 0 }], homeCurrency: "EUR" });
+    expect(c.rateToHome).toBeNull();
   });
 });

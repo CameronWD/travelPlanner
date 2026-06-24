@@ -22,7 +22,7 @@ export function NavMoreMenu({ tripId }: { tripId: string }) {
     <DropdownMenu>
       <DropdownMenuTrigger
         className={cn(
-          "flex shrink-0 items-center gap-1 px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+          "relative flex shrink-0 items-center gap-1 px-4 py-3 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
           anyActive
             ? "text-foreground"
             : "text-muted-foreground hover:text-foreground/80",
@@ -30,6 +30,12 @@ export function NavMoreMenu({ tripId }: { tripId: string }) {
       >
         More
         <ChevronDown className="size-4" aria-hidden="true" />
+        {anyActive && (
+          <span
+            aria-hidden="true"
+            className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-primary"
+          />
+        )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {items.map((item) => (

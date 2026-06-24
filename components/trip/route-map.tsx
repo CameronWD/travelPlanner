@@ -139,12 +139,16 @@ export function RouteMap({ stops, height = 360 }: RouteMapProps) {
       map = L.map(mapRef.current, { zoomControl: true });
       leafletMapRef.current = map;
 
+      // Capture as non-nullable consts so TypeScript narrows inside callbacks.
+      const lf = L;
+      const mapInstance = map;
+
       // OSM tile layer
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      lf.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution:
           '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 18,
-      }).addTo(map);
+      }).addTo(mapInstance);
 
       // Markers and per-segment polylines
       const DEFAULT_COLOUR = "hsl(221, 83%, 53%)";
@@ -156,7 +160,7 @@ export function RouteMap({ stops, height = 360 }: RouteMapProps) {
         const markerBg = stop.chapterColour ?? DEFAULT_COLOUR;
 
         // Use a div icon with a number badge
-        const icon = L!.divIcon({
+        const icon = lf.divIcon({
           html: `<div style="
             width:28px;height:28px;
             border-radius:50%;
@@ -185,8 +189,8 @@ export function RouteMap({ stops, height = 360 }: RouteMapProps) {
             </span>
           </div>`;
 
-        L!.marker([stop.lat, stop.lng], { icon })
-          .addTo(map!)
+        lf.marker([stop.lat, stop.lng], { icon })
+          .addTo(mapInstance)
           .bindPopup(popupContent);
       });
 
@@ -195,18 +199,18 @@ export function RouteMap({ stops, height = 360 }: RouteMapProps) {
         for (let i = 0; i < latlngs.length - 1; i++) {
           const destStop = coordStops[i + 1];
           const segmentColour = destStop.chapterColour ?? DEFAULT_COLOUR;
-          L.polyline([latlngs[i], latlngs[i + 1]], {
+          lf.polyline([latlngs[i], latlngs[i + 1]], {
             color: segmentColour,
             weight: 3,
             opacity: 0.7,
             dashArray: "6 4",
-          }).addTo(map);
+          }).addTo(mapInstance);
         }
       }
 
       // Fit bounds to all markers
-      const bounds = L.latLngBounds(latlngs);
-      map.fitBounds(bounds, { padding: [40, 40] });
+      const bounds = lf.latLngBounds(latlngs);
+      mapInstance.fitBounds(bounds, { padding: [40, 40] });
     });
 
     return () => {

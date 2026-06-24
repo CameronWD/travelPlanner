@@ -13,9 +13,9 @@ import { requireTripAccess } from "@/lib/guards";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
-import { buildBudget } from "@/lib/budget";
+import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
 import { PrintButton } from "./print-button";
-import type { BudgetCost, BudgetStop, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
+import type { BudgetStop, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
 import type { TransportMode } from "@/lib/enums";
 
 // ---------------------------------------------------------------------------
@@ -152,21 +152,7 @@ export default async function PrintPage({
     ]);
 
   // Apply FX rates to costs
-  const rateMap = new Map<string, number>();
-  for (const r of exchangeRates) {
-    rateMap.set(`${r.base}:${r.quote}`, r.rate);
-    if (r.rate !== 0) {
-      rateMap.set(`${r.quote}:${r.base}`, 1 / r.rate);
-    }
-  }
-
-  const costsWithRates: BudgetCost[] = costs.map((c) => {
-    let rateToHome = c.rateToHome ?? null;
-    if (rateToHome === null && c.currency.toUpperCase() !== homeCurrency.toUpperCase()) {
-      rateToHome = rateMap.get(`${c.currency.toUpperCase()}:${homeCurrency.toUpperCase()}`) ?? null;
-    }
-    return { ...c, rateToHome } as BudgetCost;
-  });
+  const costsWithRates = applyFxRatesToCosts({ costs, exchangeRates, homeCurrency });
 
   // Non-null at runtime: the query filters rough (date-less) stops out.
   const stops = rawStops.map((s) => ({
@@ -313,10 +299,10 @@ export default async function PrintPage({
           </div>
         </div>
 
-        {/* ── Route Overview (stops list) ── */}
+        {/* ── Route (stops list) ── */}
         {stops.length > 0 && (
           <section>
-            <h2 className="font-display text-2xl font-semibold mb-4">Route Overview</h2>
+            <h2 className="font-display text-2xl font-semibold mb-4">Route</h2>
             <div className="flex flex-col gap-3">
               {stops.map((stop, idx) => {
                 const nights = nightsBetween(stop.arriveDate, stop.departDate);
