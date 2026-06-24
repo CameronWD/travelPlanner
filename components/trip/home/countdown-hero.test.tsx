@@ -13,5 +13,6 @@ describe("CountdownHero", () => {
     );
     expect(screen.getByText("Planning")).toBeInTheDocument();
     expect(screen.getByText("In 26 days")).toBeInTheDocument();
+    expect(screen.getByText("20–30 Jul 2026")).toBeInTheDocument();
   });
 });

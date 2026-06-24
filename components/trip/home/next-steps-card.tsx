@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Info, CheckCircle2, ChevronRight } from "lucide-react";
+import { AlertTriangle, ArrowRight, Info, CheckCircle2, ChevronRight } from "lucide-react";
 import type { NextStep } from "@/lib/next-steps";
 
 interface NextStepsCardProps {
@@ -41,8 +41,8 @@ export function NextStepsCard({ steps, seeAllHref }: NextStepsCardProps) {
         </ul>
       )}
       {seeAllHref && steps.length > 0 && (
-        <Link href={seeAllHref} className="mt-3 inline-block text-xs font-medium text-primary hover:underline">
-          See all in Summary →
+        <Link href={seeAllHref} className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline">
+          See all in Summary <ArrowRight className="size-3.5" aria-hidden="true" />
         </Link>
       )}
     </section>

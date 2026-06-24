@@ -1,3 +1,4 @@
+import { cn } from "@/lib/cn";
 import { formatDateRange } from "@/lib/dates";
 import type { PhaseDescription } from "@/lib/trip-phase";
 
@@ -14,10 +15,11 @@ export function CountdownHero({ description, startDate, endDate, urgent }: Count
   const range = startDate && endDate ? formatDateRange(startDate, endDate) : null;
   return (
     <section
-      className={
-        "flex flex-col gap-1 rounded-2xl border p-6 shadow-soft " +
-        (urgent ? "border-primary/40 bg-primary/5" : "border-border bg-card")
-      }
+      aria-label="Trip countdown"
+      className={cn(
+        "flex flex-col gap-1 rounded-2xl border p-6 shadow-soft",
+        urgent ? "border-primary/40 bg-primary/5" : "border-border bg-card",
+      )}
     >
       <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {description.label}
