@@ -114,7 +114,7 @@ export default async function SummaryPage({
   const { homeCurrency, startDate, endDate } = trip;
 
   // Fetch all trip data in parallel
-  const [stops, transports, accommodations, items, costs, exchangeRates, chapters] =
+  const [stops, transports, accommodations, items, costs, exchangeRates, chapters, roughStops] =
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops are excluded from the dated summary; a later
@@ -176,6 +176,11 @@ export default async function SummaryPage({
         where: { tripId, startDate: { not: null } },
         orderBy: { startDate: "asc" },
         select: { id: true, name: true, colour: true, startDate: true, endDate: true },
+      }),
+      db.stop.findMany({
+        where: { tripId, arriveDate: null },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, name: true, nights: true, country: true, chapterId: true },
       }),
     ]);
 
@@ -255,6 +260,7 @@ export default async function SummaryPage({
     items: items as FlagItem[],
     tripStart: startDate,
     tripEnd: endDate,
+    roughStopCount: roughStops.length,
   });
 
   // ---------------------------------------------------------------------------
@@ -347,6 +353,42 @@ export default async function SummaryPage({
           }
         />
       </div>
+
+      {/* ── Not yet scheduled ── */}
+      {roughStops.length > 0 && (
+        <section aria-labelledby="rough-heading">
+          <SectionHeading id="rough-heading" icon={MapPin} title="Not yet scheduled" />
+          <div className="flex flex-col gap-3">
+            {roughStops.map((stop) => {
+              const nights = stop.nights ?? 1;
+              const chapter = stop.chapterId
+                ? chapters.find((c) => c.id === stop.chapterId)
+                : undefined;
+              return (
+                <div
+                  key={stop.id}
+                  className="rounded-2xl border border-border bg-card p-5 shadow-soft"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="font-display text-base font-semibold text-foreground">
+                      {stop.name}
+                    </h3>
+                    {stop.country && (
+                      <span className="text-sm text-muted-foreground">{stop.country}</span>
+                    )}
+                    <span className="text-sm text-muted-foreground">
+                      ~{nights} night{nights === 1 ? "" : "s"}
+                    </span>
+                    {chapter && (
+                      <ChapterChip name={chapter.name} colour={chapter.colour} />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* ── Route Map ── */}
       <section aria-labelledby="map-heading">

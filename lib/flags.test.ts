@@ -8,6 +8,7 @@ import {
   flagRouteBacktracking,
   flagItemTimeOverlaps,
   flagPackedDays,
+  flagRoughStops,
   type FlagStop,
   type FlagTransport,
   type FlagAccommodation,
@@ -533,5 +534,20 @@ describe("flagPackedDays", () => {
       ...Array.from({ length: 5 }, (_, i) => makeItem({ id: `u${i}`, date: "2026-07-02" })),
     ];
     expect(flagPackedDays(items)).toHaveLength(0); // only 6 timed → not packed
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule 8: Rough stops
+// ---------------------------------------------------------------------------
+
+describe("flagRoughStops", () => {
+  it("returns nothing when there are no rough stops", () => {
+    expect(flagRoughStops(0)).toEqual([]);
+  });
+  it("flags when the trip still has rough stops", () => {
+    const flags = flagRoughStops(3);
+    expect(flags).toHaveLength(1);
+    expect(flags[0].message).toMatch(/still rough/i);
   });
 });

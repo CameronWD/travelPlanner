@@ -81,6 +81,7 @@ export interface DetectFlagsInput {
   items: FlagItem[];
   tripStart: string; // YYYY-MM-DD
   tripEnd: string; // YYYY-MM-DD
+  roughStopCount?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -412,6 +413,24 @@ export function flagPackedDays(items: FlagItem[]): Flag[] {
 }
 
 // ---------------------------------------------------------------------------
+// Rule 8: Rough stops (info)
+//
+// Stops without dates that haven't been placed on the itinerary yet.
+// ---------------------------------------------------------------------------
+
+export function flagRoughStops(count: number): Flag[] {
+  if (count <= 0) return [];
+  return [
+    {
+      id: "rough-stops",
+      severity: "info" as const,
+      message: `${count} stop${count === 1 ? "" : "s"} still rough — set their dates to add them to the itinerary.`,
+      targetType: "TRIP" as const,
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -434,6 +453,7 @@ export function detectFlags({
   items,
   tripStart,
   tripEnd,
+  roughStopCount,
 }: DetectFlagsInput): Flag[] {
   return [
     ...flagStopsWithoutAccommodation(stops, accommodations),
@@ -443,5 +463,6 @@ export function detectFlags({
     ...flagRouteBacktracking(stops),
     ...flagItemTimeOverlaps(items),
     ...flagPackedDays(items),
+    ...flagRoughStops(roughStopCount ?? 0),
   ];
 }
