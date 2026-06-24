@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { stopSchema } from "./stop";
 
 const VALID = {
+  mode: "scheduled" as const,
   name: "London",
   country: "United Kingdom",
   timezone: "Europe/London",
@@ -114,5 +115,29 @@ describe("stopSchema", () => {
   it("rejects non-numeric lat", () => {
     const result = stopSchema.safeParse({ ...VALID, lat: "not-a-number" });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("stopSchema rough mode", () => {
+  it("accepts a rough stop: name + nights, no dates", () => {
+    const r = stopSchema.safeParse({ mode: "rough", name: "Rome", nights: 3, country: "Italy" });
+    expect(r.success).toBe(true);
+  });
+  it("rejects a rough stop with negative nights", () => {
+    const r = stopSchema.safeParse({ mode: "rough", name: "Rome", nights: -1 });
+    expect(r.success).toBe(false);
+  });
+  it("still accepts a scheduled stop with dates + timezone", () => {
+    const r = stopSchema.safeParse({
+      mode: "scheduled", name: "London", timezone: "Europe/London",
+      arriveDate: "2026-07-01", departDate: "2026-07-05",
+    });
+    expect(r.success).toBe(true);
+  });
+  it("rejects a scheduled stop missing a timezone", () => {
+    const r = stopSchema.safeParse({
+      mode: "scheduled", name: "London", arriveDate: "2026-07-01", departDate: "2026-07-05",
+    });
+    expect(r.success).toBe(false);
   });
 });
