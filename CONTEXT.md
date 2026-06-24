@@ -10,6 +10,10 @@ A collaborative web app for a couple to plan and run a holiday together: scoping
 A single named travel project. It may have an overall date range (e.g. "Europe Summer 2026"), but while it's still just an idea it can be **date-less** — a name and nothing more — and gain a range only as its Stops are firmed up. A start date, if set, is the default **anchor** for firming up; the end date is soft and auto-extends to cover the planned Stops. The app holds many trips; you work in one at a time.
 _Avoid_: Holiday, vacation (use "Trip" in code/UI consistently)
 
+**Phase**:
+Which stage of its life a Trip is in, used to decide what the **Home** leads with. A Trip moves through **Sketching** (still date-less, just rough ideas), **Planning** (dated, departure comfortably ahead), **Final prep** (departure imminent), **Travelling** (underway), and **Past** (over). Derived from the Trip's start date and today — never stored.
+_Avoid_: State, status, stage, step
+
 **Stop**:
 A place you are based for a stretch of the trip (e.g. Paris). A Trip is an ordered sequence of Stops. A Stop is either **rough** — a place plus a rough number of nights, with no dates yet, jotted down while sketching the shape of the trip — or **scheduled**, pinned to an arrive and depart date. One Trip freely mixes rough and scheduled Stops; you firm them up piece by piece. Dated views (Timeline, Calendar, Today, Summary) work off scheduled Stops.
 _Avoid_: Destination, city, location, leg; for the rough/scheduled split avoid "draft", "tentative", "planned"
@@ -74,6 +78,14 @@ _Avoid_: Report, dashboard
 An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, an empty day, Transport times that don't line up with Stop dates, a very short stay, backtracking in the route, a **packed day** (more scheduled than is realistic), Items whose times **overlap**, or a **Pinned** Stop the surrounding plan can't fit around.
 _Avoid_: Warning, alert, issue, error
 
+**Home**:
+The adaptive front door of a Trip — the screen you land on. It reads the Trip's **Phase** and leads with whatever matters now: the shape of the sketch, a countdown and **Next steps**, final-prep checklists, the live day while Travelling, or a wrap-up once Past. The live Travelling view (the **Today view**) is part of the Home, not a separate screen.
+_Avoid_: Dashboard, landing (and don't conflate with Summary, which is the full report)
+
+**Next steps**:
+The ranked list of what to do next on a Trip, shown on the **Home**. Combines **Flags** (problems already detected) with forward nudges that aren't problems — rough Stops to firm up, Stops with no Accommodation, undated Chapters, a missing packing list, unbooked Transport — each linking to where you act on it.
+_Avoid_: To-do, tasks, suggestions, actions
+
 ### Supporting concepts
 
 **Firm up**:
@@ -85,7 +97,7 @@ A scheduled Stop whose dates the Traveller has fixed — a real booking or a fix
 _Avoid_: Locked, fixed, frozen
 
 **Today view**:
-A focused, read-optimised screen showing what's happening *now/today* for whoever's travelling — next Transport, today's Items, addresses — designed to be glanced at on a phone, offline.
+The focused, read-optimised view of what's happening *now/today* for whoever's travelling — next Transport, today's Items, addresses, tonight's stay — designed to be glanced at on a phone, offline. It is the **Travelling** phase of the **Home**, not a separate tab.
 _Avoid_: Now view, agenda
 
 **Checklist**:

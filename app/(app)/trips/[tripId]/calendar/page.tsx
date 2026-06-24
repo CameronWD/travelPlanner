@@ -99,14 +99,14 @@ export default async function CalendarPage({
       <EmptyState
         icon={CalendarDays}
         title="No itinerary yet"
-        description="Add stops on the Overview page to start building your day-by-day calendar."
+        description="Add stops on the Plan page to start building your day-by-day calendar."
         action={
           <Link
-            href={`/trips/${tripId}`}
+            href={`/trips/${tripId}/plan`}
             className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
           >
             <MapPin className="size-4" aria-hidden="true" />
-            Go to Overview
+            Go to Plan
           </Link>
         }
       />

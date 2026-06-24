@@ -5,6 +5,7 @@ import { formatDateRange } from "@/lib/dates";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TripNav } from "@/components/trip/trip-nav";
+import { MobileTabBar } from "@/components/trip/mobile-tab-bar";
 
 function initials(name?: string | null): string {
   if (!name) return "?";
@@ -104,7 +105,10 @@ export default async function TripLayout({
       <TripNav tripId={tripId} />
 
       {/* ── Page content ── */}
-      <div className="py-6">{children}</div>
+      <div className="py-6 pb-20 md:pb-6">{children}</div>
+
+      {/* ── Mobile bottom tab bar ── */}
+      <MobileTabBar tripId={tripId} />
     </div>
   );
 }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
+import type { PhaseDescription } from "@/lib/trip-phase";
 
 /**
  * A deterministic gradient cover derived from the trip id/name.
@@ -60,6 +61,7 @@ export interface TripCardProps {
   startDate: string | null; // null for a date-less trip
   endDate: string | null;   // null for a date-less trip
   stopCount: number;
+  phase?: PhaseDescription;
 }
 
 /**
@@ -72,6 +74,7 @@ export function TripCard({
   startDate,
   endDate,
   stopCount,
+  phase,
 }: TripCardProps) {
   const gradient = tripGradient(id, name);
   const dateRange =
@@ -86,7 +89,13 @@ export function TripCard({
       )}
     >
       {/* Gradient cover */}
-      <div className={cn("h-28 w-full", gradient)} aria-hidden="true" />
+      <div className={cn("relative h-28 w-full", gradient)}>
+        {phase && (
+          <span className="absolute left-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-soft">
+            {phase.phase === "travelling" || phase.phase === "past" ? phase.countdown : `${phase.label} · ${phase.countdown}`}
+          </span>
+        )}
+      </div>
 
       {/* Card body */}
       <div className="flex flex-col gap-2 p-5 pt-4">
