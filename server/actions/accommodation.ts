@@ -8,6 +8,7 @@ import {
   accommodationSchema,
   type AccommodationInput,
 } from "@/lib/validations/accommodation";
+import { geocodePlace } from "@/lib/geocode";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -84,6 +85,15 @@ export async function createAccommodation(
   // Access check via the trip
   await requireTripAccess(stop.tripId);
 
+  // Best-effort geocode from address
+  let lat: number | null = null;
+  let lng: number | null = null;
+  if (data.address) {
+    const coords = await geocodePlace(data.address);
+    lat = coords?.lat ?? null;
+    lng = coords?.lng ?? null;
+  }
+
   await db.accommodation.create({
     data: {
       tripId: stop.tripId,
@@ -94,8 +104,8 @@ export async function createAccommodation(
       checkOut: data.checkOut,
       confirmation: data.confirmation ?? null,
       notes: data.notes ?? null,
-      lat: data.lat ?? null,
-      lng: data.lng ?? null,
+      lat,
+      lng,
     },
   });
 
@@ -133,6 +143,15 @@ export async function updateAccommodation(
     };
   }
 
+  // Best-effort geocode from address
+  let lat: number | null = null;
+  let lng: number | null = null;
+  if (data.address) {
+    const coords = await geocodePlace(data.address);
+    lat = coords?.lat ?? null;
+    lng = coords?.lng ?? null;
+  }
+
   await db.accommodation.update({
     where: { id: accommodationId },
     data: {
@@ -143,8 +162,8 @@ export async function updateAccommodation(
       checkOut: data.checkOut,
       confirmation: data.confirmation ?? null,
       notes: data.notes ?? null,
-      lat: data.lat ?? null,
-      lng: data.lng ?? null,
+      lat,
+      lng,
     },
   });
 
