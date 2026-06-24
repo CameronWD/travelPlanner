@@ -1,17 +1,34 @@
 "use client";
 
 import * as React from "react";
-import { Plus } from "lucide-react";
+import { Plus, BookOpen, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StopCard, type StopCardStop } from "./stop-card";
 import { StopFormDialog } from "./stop-form-dialog";
+import { QuickAddStops } from "./quick-add-stops";
 import { TransportCard, type TransportCardTransport } from "./transport-card";
 import { TransportFormDialog, type StopOption } from "./transport-form-dialog";
 import { AccommodationCard, type AccommodationCardAccommodation } from "./accommodation-card";
 import { AccommodationFormDialog } from "./accommodation-form-dialog";
 import { ChapterFormDialog } from "./chapter-form-dialog";
 import { ChapterChip } from "./chapter-chip";
-import { deleteStop, moveStop } from "@/server/actions/stops";
+import { DateField } from "@/components/ui/date-field";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
+import {
+  deleteStop,
+  moveStop,
+  toggleStopPin,
+  makeStopRough,
+  firmUpSegment,
+  setStopDates,
+} from "@/server/actions/stops";
 import { suggestNextStopDates, formatDateRange } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
@@ -31,6 +48,10 @@ export interface AccommodationCardAccommodationWithCosts
 }
 
 export interface ItineraryStop extends StopCardStop {
+  /** Explicit chapter membership (used while rough). */
+  chapterId: string | null;
+  /** Order within an explicit chapter. */
+  chapterSortOrder: number;
   accommodations: AccommodationCardAccommodationWithCosts[];
 }
 
@@ -54,8 +75,10 @@ export interface ItineraryChapter {
   id: string;
   name: string;
   colour: string;
-  startDate: string;
-  endDate: string;
+  /** Null for rough (date-less) chapters. */
+  startDate: string | null;
+  /** Null for rough (date-less) chapters. */
+  endDate: string | null;
 }
 
 interface ItineraryManagerProps {
@@ -139,6 +162,11 @@ export function ItineraryManager({
     defaultEnd?: string;
   }>({});
 
+  // ── Adjust-dates dialog state (ripple path for already-dated stops) ──
+  const [adjustingStop, setAdjustingStop] = React.useState<StopCardStop | null>(
+    null,
+  );
+
   // ── Chapter group collapse state (keyed by chapter id or "ungrouped") ──
   const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(new Set());
 
@@ -177,6 +205,40 @@ export function ItineraryManager({
     }
   }
 
+  async function handleTogglePin(stopId: string) {
+    setPendingId(stopId);
+    try {
+      await toggleStopPin(stopId);
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  async function handleMakeRough(stopId: string) {
+    if (!confirm("Make this stop rough again? Its dates will be cleared.")) return;
+    setPendingId(stopId);
+    try {
+      await makeStopRough(stopId);
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  function handleAdjustDates(stop: StopCardStop) {
+    setAdjustingStop(stop);
+  }
+
+  // Firm up a whole leg — dates every rough stop in a chapter (id) or the
+  // ungrouped run (null). The core rough → scheduled transition.
+  async function handleFirmUp(chapterId: string | null) {
+    setPendingId(`firm-up-${chapterId ?? "ungrouped"}`);
+    try {
+      await firmUpSegment({ tripId, chapterId });
+    } finally {
+      setPendingId(null);
+    }
+  }
+
   // ── Transport handlers ──
   async function handleDeleteTransport(transportId: string) {
     if (!confirm("Delete this transport leg? This cannot be undone.")) return;
@@ -202,10 +264,30 @@ export function ItineraryManager({
   // ── Chapter handler ──
   function handleStartChapterHere(stop: StopCardStop) {
     setChapterDialogDefaults({
-      defaultStart: stop.arriveDate,
-      defaultEnd: stop.departDate,
+      defaultStart: stop.arriveDate ?? undefined,
+      defaultEnd: stop.departDate ?? undefined,
     });
     setChapterDialogOpen(true);
+  }
+
+  // Open the "+ New chapter" dialog with NO default dates (creates a rough chapter).
+  function handleNewChapter() {
+    setChapterDialogDefaults({});
+    setChapterDialogOpen(true);
+  }
+
+  // Save handler for the adjust-dates dialog (ripple path for dated stops).
+  async function handleSaveAdjustDates(
+    stopId: string,
+    dates: { arriveDate: string; departDate: string },
+  ) {
+    setPendingId(stopId);
+    try {
+      await setStopDates(stopId, dates);
+    } finally {
+      setPendingId(null);
+      setAdjustingStop(null);
+    }
   }
 
   // ── Derived data ──
@@ -273,8 +355,11 @@ export function ItineraryManager({
 
   // Default a new stop to pick up where the last one departs (or trip start),
   // so the date picker opens in the trip's window rather than today.
+  const datedStops = stops.filter(
+    (s): s is ItineraryStop & { departDate: string } => s.departDate !== null,
+  );
   const suggestedStopDates = suggestNextStopDates(
-    stops,
+    datedStops,
     tripStartDate,
     tripEndDate,
   );
@@ -299,11 +384,6 @@ export function ItineraryManager({
         )
       : [];
 
-    const stopDateRange = {
-      arriveDate: stop.arriveDate,
-      departDate: stop.departDate,
-    };
-
     return (
       <React.Fragment key={stop.id}>
         {/* Stop card */}
@@ -317,19 +397,22 @@ export function ItineraryManager({
           onMoveDown={(id) => handleMoveStop(id, "down")}
           onDelete={handleDeleteStop}
           onStartChapter={handleStartChapterHere}
+          onTogglePin={handleTogglePin}
+          onMakeRough={handleMakeRough}
+          onAdjustDates={handleAdjustDates}
           notes={notesByStopId?.get(stop.id) ?? []}
           tripId={tripId}
           currentUserId={currentUserId}
         />
 
-        {/* Accommodations under this stop */}
-        {stop.accommodations.length > 0 && (
+        {/* Accommodations under this stop (dated stops only) */}
+        {stop.arriveDate && stop.departDate && stop.accommodations.length > 0 && (
           <div className="ml-4 flex flex-col gap-2 border-l-2 border-border/40 pl-4">
             {stop.accommodations.map((acc) => (
               <AccommodationCard
                 key={acc.id}
                 accommodation={acc}
-                stop={stopDateRange}
+                stop={{ arriveDate: stop.arriveDate!, departDate: stop.departDate! }}
                 isPending={pendingId === acc.id}
                 onEdit={(a) => {
                   setEditingAccommodation(a);
@@ -438,12 +521,29 @@ export function ItineraryManager({
           {/* Stops + interspersed transports + accommodations */}
           <div className="flex flex-col gap-3">
             {!hasChapters ? (
-              // ── Zero-chapters path: identical to original flat list ──
-              stops.map((stop, idx) => {
-                const isFirst = idx === 0;
-                const isLast = idx === stops.length - 1;
-                return renderStop(stop, idx, isFirst, isLast);
-              })
+              // ── Zero-chapters path: flat list = one ungrouped run ──
+              <>
+                {stops.some((s) => s.arriveDate === null) && (
+                  <div className="flex justify-end px-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      disabled={pendingId === "firm-up-ungrouped"}
+                      onClick={() => handleFirmUp(null)}
+                    >
+                      <CalendarClock className="size-3.5" aria-hidden="true" />
+                      Set dates
+                    </Button>
+                  </div>
+                )}
+                {stops.map((stop, idx) => {
+                  const isFirst = idx === 0;
+                  const isLast = idx === stops.length - 1;
+                  return renderStop(stop, idx, isFirst, isLast);
+                })}
+                <QuickAddStops tripId={tripId} chapterId={null} />
+              </>
             ) : (
               // ── Chapters path: grouped rendering with seams ──
               groups.map((group, groupIdx) => {
@@ -484,8 +584,25 @@ export function ItineraryManager({
                             colour={group.chapter.colour}
                           />
                           <span className="text-xs text-muted-foreground flex-1">
-                            {formatDateRange(group.chapter.startDate, group.chapter.endDate)}
+                            {group.chapter.startDate && group.chapter.endDate
+                              ? formatDateRange(group.chapter.startDate, group.chapter.endDate)
+                              : "rough"}
                           </span>
+                          {!group.chapter.startDate && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs"
+                              disabled={pendingId === `firm-up-${group.chapter.id}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleFirmUp(group.chapter!.id);
+                              }}
+                            >
+                              <CalendarClock className="size-3.5" aria-hidden="true" />
+                              Set dates
+                            </Button>
+                          )}
                           <span className="text-sm text-muted-foreground select-none" aria-hidden="true">
                             {isCollapsed ? "▸" : "▾"}
                           </span>
@@ -500,21 +617,39 @@ export function ItineraryManager({
                               const isLast = globalIdx === stops.length - 1;
                               return renderStop(stop, globalIdx, isFirst, isLast);
                             })}
+                            <QuickAddStops tripId={tripId} chapterId={group.chapter.id} />
                           </div>
                         )}
                       </div>
                     ) : (
                       // Ungrouped stops — no chapter header, or subtle label
                       <div className="flex flex-col gap-3">
-                        {hasChapters && (
-                          <p className="text-xs text-muted-foreground px-1">Ungrouped</p>
-                        )}
+                        <div className="flex items-center justify-between px-1">
+                          {hasChapters ? (
+                            <p className="text-xs text-muted-foreground">Ungrouped</p>
+                          ) : (
+                            <span />
+                          )}
+                          {group.stops.some((s) => s.arriveDate === null) && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-xs"
+                              disabled={pendingId === "firm-up-ungrouped"}
+                              onClick={() => handleFirmUp(null)}
+                            >
+                              <CalendarClock className="size-3.5" aria-hidden="true" />
+                              Set dates
+                            </Button>
+                          )}
+                        </div>
                         {group.stops.map((stop, groupStopIdx) => {
                           const globalIdx = firstStopGlobalIdx + groupStopIdx;
                           const isFirst = globalIdx === 0;
                           const isLast = globalIdx === stops.length - 1;
                           return renderStop(stop, globalIdx, isFirst, isLast);
                         })}
+                        <QuickAddStops tripId={tripId} chapterId={null} />
                       </div>
                     )}
                   </React.Fragment>
@@ -556,25 +691,43 @@ export function ItineraryManager({
               Add transport (other)
             </Button>
 
-            <Button
-              variant="outline"
-              size="md"
-              onClick={() => setAddStopOpen(true)}
-            >
-              <Plus className="size-4" aria-hidden="true" />
-              Add stop
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="md"
+                onClick={handleNewChapter}
+              >
+                <BookOpen className="size-4" aria-hidden="true" />
+                New chapter
+              </Button>
+              <Button
+                variant="outline"
+                size="md"
+                onClick={() => setAddStopOpen(true)}
+              >
+                <Plus className="size-4" aria-hidden="true" />
+                Add stop
+              </Button>
+            </div>
           </div>
         </>
       ) : (
-        <div className="flex justify-center">
-          <Button
-            variant="primary"
-            size="md"
-            onClick={() => setAddStopOpen(true)}
-          >
-            <Plus className="size-4" aria-hidden="true" />
-            Add stop
+        // ── Empty state: warm prompt with inline add + new chapter ──
+        <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border/70 bg-card/40 px-6 py-12 text-center">
+          <div className="flex flex-col gap-1">
+            <h2 className="font-display text-2xl font-semibold text-foreground">
+              Sketch your trip
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Add a chapter or a place to get started
+            </p>
+          </div>
+          <div className="w-full max-w-md">
+            <QuickAddStops tripId={tripId} chapterId={null} />
+          </div>
+          <Button variant="outline" size="md" onClick={handleNewChapter}>
+            <BookOpen className="size-4" aria-hidden="true" />
+            New chapter
           </Button>
         </div>
       )}
@@ -590,6 +743,7 @@ export function ItineraryManager({
         tripEndDate={tripEndDate}
         defaultArriveDate={suggestedStopDates.arriveDate}
         defaultDepartDate={suggestedStopDates.departDate}
+        chapters={chapters.map((c) => ({ id: c.id, name: c.name }))}
       />
 
       {/* Edit stop */}
@@ -603,6 +757,7 @@ export function ItineraryManager({
           }}
           tripStartDate={tripStartDate}
           tripEndDate={tripEndDate}
+          chapters={chapters.map((c) => ({ id: c.id, name: c.name }))}
         />
       )}
 
@@ -638,8 +793,8 @@ export function ItineraryManager({
         <AccommodationFormDialog
           stopId={addAccommodationStop.id}
           stopDateRange={{
-            arriveDate: addAccommodationStop.arriveDate,
-            departDate: addAccommodationStop.departDate,
+            arriveDate: addAccommodationStop.arriveDate ?? "",
+            departDate: addAccommodationStop.departDate ?? "",
           }}
           open={true}
           onOpenChange={(open) => {
@@ -653,8 +808,8 @@ export function ItineraryManager({
         <AccommodationFormDialog
           stopId={editingAccStop.id}
           stopDateRange={{
-            arriveDate: editingAccStop.arriveDate,
-            departDate: editingAccStop.departDate,
+            arriveDate: editingAccStop.arriveDate ?? "",
+            departDate: editingAccStop.departDate ?? "",
           }}
           accommodation={editingAccommodation}
           open={Boolean(editingAccommodation)}
@@ -667,7 +822,7 @@ export function ItineraryManager({
         />
       )}
 
-      {/* Start a chapter here */}
+      {/* Chapter dialog — "Start a chapter here" (dated) or "+ New chapter" (rough) */}
       <ChapterFormDialog
         tripId={tripId}
         open={chapterDialogOpen}
@@ -675,6 +830,93 @@ export function ItineraryManager({
         defaultStart={chapterDialogDefaults.defaultStart}
         defaultEnd={chapterDialogDefaults.defaultEnd}
       />
+
+      {/* Adjust dates (ripple path for already-dated stops) */}
+      {adjustingStop && (
+        <AdjustDatesDialog
+          stop={adjustingStop}
+          tripStartDate={tripStartDate}
+          tripEndDate={tripEndDate}
+          isPending={pendingId === adjustingStop.id}
+          onCancel={() => setAdjustingStop(null)}
+          onSave={(dates) => handleSaveAdjustDates(adjustingStop.id, dates)}
+        />
+      )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Adjust-dates dialog — two DateFields, prefilled, saving via setStopDates.
+// ---------------------------------------------------------------------------
+
+function AdjustDatesDialog({
+  stop,
+  tripStartDate,
+  tripEndDate,
+  isPending,
+  onCancel,
+  onSave,
+}: {
+  stop: StopCardStop;
+  tripStartDate?: string;
+  tripEndDate?: string;
+  isPending: boolean;
+  onCancel: () => void;
+  onSave: (dates: { arriveDate: string; departDate: string }) => void;
+}) {
+  const [arriveDate, setArriveDate] = React.useState(stop.arriveDate ?? "");
+  const [departDate, setDepartDate] = React.useState(stop.departDate ?? "");
+
+  const canSave =
+    arriveDate !== "" && departDate !== "" && departDate >= arriveDate;
+
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) onCancel();
+      }}
+    >
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Adjust dates — {stop.name}</DialogTitle>
+        </DialogHeader>
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (canSave) onSave({ arriveDate, departDate });
+          }}
+        >
+          <DateField
+            label="Arrive"
+            value={arriveDate}
+            min={tripStartDate}
+            max={tripEndDate}
+            onChange={(e) => setArriveDate(e.target.value)}
+            required
+          />
+          <DateField
+            label="Depart"
+            value={departDate}
+            min={arriveDate || tripStartDate}
+            max={tripEndDate}
+            onChange={(e) => setDepartDate(e.target.value)}
+            required
+          />
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button type="button" variant="ghost">
+                Cancel
+              </Button>
+            </DialogClose>
+            <Button type="submit" variant="primary" disabled={!canSave || isPending}>
+              Save dates
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
