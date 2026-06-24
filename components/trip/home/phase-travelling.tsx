@@ -29,22 +29,25 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
   if (!trip) notFound();
 
   // A date-less trip has no calendar to anchor "today" against.
-  if (!trip.startDate || !trip.endDate) {
+  if (!trip.startDate) {
     return (
       <EmptyState
         icon={CalendarDays}
         title="No dates yet"
-        description="Set your trip's start and end dates to see a day-by-day view of today."
+        description="Set your trip's start date to see a day-by-day view of today."
       />
     );
   }
 
-  const today = todayISO();
-  const effectiveDate = effectiveTodayISO(today, trip.startDate, trip.endDate);
+  const startDate = trip.startDate;
+  const endDate = trip.endDate ?? trip.startDate;
 
-  const isBeforeTrip = today < trip.startDate;
-  const isAfterTrip = today > trip.endDate;
-  const isWithinTrip = today >= trip.startDate && today <= trip.endDate;
+  const today = todayISO();
+  const effectiveDate = effectiveTodayISO(today, startDate, endDate);
+
+  const isBeforeTrip = today < startDate;
+  const isAfterTrip = today > endDate;
+  const isWithinTrip = today >= startDate && today <= endDate;
 
   // Fetch all itinerary data (plus reminders + chapters)
   const [stops, items, transports, accommodations, reminders, chapters] = await Promise.all([
@@ -137,11 +140,11 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
   ]);
 
   const currentChapter = chapterForDate(effectiveDate, chapters);
-  const dayNum = dayNumberInTrip(effectiveDate, trip.startDate);
+  const dayNum = dayNumberInTrip(effectiveDate, startDate);
 
   const itinerary = buildItinerary({
-    startDate: trip.startDate,
-    endDate: trip.endDate,
+    startDate,
+    endDate,
     // Non-null at runtime: the query filters rough (date-less) stops out.
     stops: stops.map((s) => ({
       id: s.id,
@@ -248,7 +251,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         {/* Out-of-trip notice */}
         {isBeforeTrip && (
           <p className="mt-1 text-sm text-amber-600 dark:text-amber-400">
-            Your trip starts on {formatLongDate(trip.startDate)} — here&apos;s day one.
+            Your trip starts on {formatLongDate(startDate)} — here&apos;s day one.
           </p>
         )}
         {isAfterTrip && (
