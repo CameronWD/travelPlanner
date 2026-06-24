@@ -28,7 +28,7 @@ export async function requireTripAccess(tripId: string) {
   const user = await requireUser();
   const members = await db.tripMember.findMany({
     where: { tripId },
-    select: { userId: true, role: true },
+    select: { userId: true, role: true, lastReadActivityAt: true },
   });
   const membership = findMembership(members, user.id);
   if (!membership) {
