@@ -23,7 +23,7 @@ export async function GET(
 
   const tripId = feed.trip.id;
   const [stops, items, transports, accommodations] = await Promise.all([
-    db.stop.findMany({ where: { tripId }, select: { id: true, name: true, timezone: true } }),
+    db.stop.findMany({ where: { tripId, arriveDate: { not: null } }, select: { id: true, name: true, timezone: true } }),
     db.item.findMany({
       where: { tripId, date: { not: null } },
       select: {
