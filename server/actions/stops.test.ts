@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  *   - lib/guards      → requireTripAccess returns a predictable membership
  *   - next/cache      → revalidatePath is a spy
  *   - lib/geocode     → never hits the network
+ *   - lib/firm-up     → flowDates is tested in isolation; here we just verify wiring
  */
 
 const {
@@ -16,14 +17,18 @@ const {
   geocodePlaceMock,
   stopFindFirstMock,
   stopFindUniqueMock,
+  stopFindManyMock,
   stopCreateMock,
   stopUpdateMock,
   stopDeleteMock,
   queryRawMock,
   transactionMock,
+  tripFindUniqueMock,
+  chapterUpdateMock,
 } = vi.hoisted(() => {
   const stopFindFirstMock = vi.fn();
   const stopFindUniqueMock = vi.fn();
+  const stopFindManyMock = vi.fn();
   const stopCreateMock = vi.fn();
   const stopUpdateMock = vi.fn();
   const stopDeleteMock = vi.fn();
@@ -40,6 +45,8 @@ const {
     if (Array.isArray(arg)) return Promise.all(arg);
     return arg;
   });
+  const tripFindUniqueMock = vi.fn();
+  const chapterUpdateMock = vi.fn();
 
   return {
     requireTripAccessMock: vi.fn().mockResolvedValue({
@@ -50,11 +57,14 @@ const {
     geocodePlaceMock: vi.fn().mockResolvedValue(null),
     stopFindFirstMock,
     stopFindUniqueMock,
+    stopFindManyMock,
     stopCreateMock,
     stopUpdateMock,
     stopDeleteMock,
     queryRawMock,
     transactionMock,
+    tripFindUniqueMock,
+    chapterUpdateMock,
   };
 });
 
@@ -66,22 +76,48 @@ vi.mock("@/lib/db", () => ({
     stop: {
       findFirst: stopFindFirstMock,
       findUnique: stopFindUniqueMock,
+      findMany: stopFindManyMock,
       create: stopCreateMock,
       update: stopUpdateMock,
       delete: stopDeleteMock,
+    },
+    trip: {
+      findUnique: tripFindUniqueMock,
+    },
+    chapter: {
+      update: chapterUpdateMock,
     },
     $transaction: transactionMock,
   },
 }));
 
-import { createStop, updateStop, deleteStop, moveStop } from "./stops";
+import {
+  createStop,
+  updateStop,
+  deleteStop,
+  moveStop,
+  setStopDates,
+  firmUpSegment,
+  toggleStopPin,
+  makeStopRough,
+  assignStopToChapter,
+} from "./stops";
 
 const VALID_INPUT = {
+  mode: "scheduled" as const,
   name: "London",
   country: "United Kingdom",
   timezone: "Europe/London",
   arriveDate: "2026-07-01",
   departDate: "2026-07-05",
+};
+
+const ROUGH_INPUT = {
+  mode: "rough" as const,
+  name: "Rome",
+  country: "Italy",
+  nights: 3,
+  chapterId: "ch-1",
 };
 
 afterEach(() => {
@@ -180,6 +216,28 @@ describe("createStop", () => {
     }
     expect(stopCreateMock).not.toHaveBeenCalled();
   });
+
+  it("creates a rough stop with nights, chapterId, null dates/timezone", async () => {
+    stopFindFirstMock.mockResolvedValue({ sortOrder: 1 });
+    stopCreateMock.mockResolvedValue({ id: "stop-9" });
+    const result = await createStop("trip-1", ROUGH_INPUT);
+    expect(result.success).toBe(true);
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        tripId: "trip-1",
+        name: "Rome",
+        country: "Italy",
+        nights: 3,
+        chapterId: "ch-1",
+        arriveDate: null,
+        departDate: null,
+        timezone: null,
+        pinned: false,
+        sortOrder: 2,
+      }),
+    });
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -192,6 +250,10 @@ describe("updateStop", () => {
       id: "stop-1",
       tripId: "trip-1",
       sortOrder: 0,
+      arriveDate: "2026-07-01",
+      departDate: "2026-07-05",
+      nights: null,
+      pinned: false,
     });
     stopUpdateMock.mockResolvedValue({});
 
@@ -213,12 +275,46 @@ describe("updateStop", () => {
       id: "stop-1",
       tripId: "trip-1",
       sortOrder: 0,
+      arriveDate: null,
+      departDate: null,
+      nights: null,
+      pinned: false,
     });
 
     const result = await updateStop("stop-1", { ...VALID_INPUT, name: "" });
 
     expect(result.success).toBe(false);
     expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("updates a rough stop with null dates and timezone", async () => {
+    stopFindUniqueMock.mockResolvedValue({
+      id: "stop-r",
+      tripId: "trip-1",
+      sortOrder: 2,
+      arriveDate: null,
+      departDate: null,
+      nights: 3,
+      pinned: false,
+    });
+    stopUpdateMock.mockResolvedValue({});
+
+    const result = await updateStop("stop-r", ROUGH_INPUT);
+
+    expect(result.success).toBe(true);
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "stop-r" },
+      data: expect.objectContaining({
+        name: "Rome",
+        country: "Italy",
+        nights: 3,
+        chapterId: "ch-1",
+        arriveDate: null,
+        departDate: null,
+        timezone: null,
+      }),
+    });
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
   });
 });
 
@@ -232,6 +328,10 @@ describe("deleteStop", () => {
       id: "stop-1",
       tripId: "trip-1",
       sortOrder: 0,
+      arriveDate: null,
+      departDate: null,
+      nights: null,
+      pinned: false,
     });
     stopDeleteMock.mockResolvedValue({});
 
@@ -255,7 +355,15 @@ describe("moveStop", () => {
   ];
 
   it("locks the trip's stops with FOR UPDATE inside a transaction before swapping", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "stop-2", tripId: "trip-1", sortOrder: 1 });
+    stopFindUniqueMock.mockResolvedValue({
+      id: "stop-2",
+      tripId: "trip-1",
+      sortOrder: 1,
+      arriveDate: null,
+      departDate: null,
+      nights: null,
+      pinned: false,
+    });
     queryRawMock.mockResolvedValue(stops);
     stopUpdateMock.mockResolvedValue({});
 
@@ -271,7 +379,15 @@ describe("moveStop", () => {
   });
 
   it("swaps sortOrder with the previous stop when moving up", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "stop-2", tripId: "trip-1", sortOrder: 1 });
+    stopFindUniqueMock.mockResolvedValue({
+      id: "stop-2",
+      tripId: "trip-1",
+      sortOrder: 1,
+      arriveDate: null,
+      departDate: null,
+      nights: null,
+      pinned: false,
+    });
     queryRawMock.mockResolvedValue(stops);
     stopUpdateMock.mockResolvedValue({});
 
@@ -283,7 +399,15 @@ describe("moveStop", () => {
   });
 
   it("swaps sortOrder with the next stop when moving down", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "stop-2", tripId: "trip-1", sortOrder: 1 });
+    stopFindUniqueMock.mockResolvedValue({
+      id: "stop-2",
+      tripId: "trip-1",
+      sortOrder: 1,
+      arriveDate: null,
+      departDate: null,
+      nights: null,
+      pinned: false,
+    });
     queryRawMock.mockResolvedValue(stops);
     stopUpdateMock.mockResolvedValue({});
 
@@ -294,7 +418,15 @@ describe("moveStop", () => {
   });
 
   it("is a no-op when already at the top", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", sortOrder: 0 });
+    stopFindUniqueMock.mockResolvedValue({
+      id: "stop-1",
+      tripId: "trip-1",
+      sortOrder: 0,
+      arriveDate: null,
+      departDate: null,
+      nights: null,
+      pinned: false,
+    });
     queryRawMock.mockResolvedValue(stops);
 
     const result = await moveStop("stop-1", "up");
@@ -304,12 +436,115 @@ describe("moveStop", () => {
   });
 
   it("is a no-op when already at the bottom", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "stop-3", tripId: "trip-1", sortOrder: 2 });
+    stopFindUniqueMock.mockResolvedValue({
+      id: "stop-3",
+      tripId: "trip-1",
+      sortOrder: 2,
+      arriveDate: null,
+      departDate: null,
+      nights: null,
+      pinned: false,
+    });
     queryRawMock.mockResolvedValue(stops);
 
     const result = await moveStop("stop-3", "down");
 
     expect(result.success).toBe(true);
     expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setStopDates
+// ---------------------------------------------------------------------------
+
+describe("setStopDates", () => {
+  it("sets the stop's dates and ripples following dated non-pinned stops", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "b", tripId: "trip-1", sortOrder: 1, arriveDate: null, departDate: null, nights: null, pinned: false });
+    stopFindManyMock.mockResolvedValue([
+      { id: "c", sortOrder: 2, nights: 2, pinned: false, arriveDate: "2026-07-20", departDate: "2026-07-22" },
+      { id: "d", sortOrder: 3, nights: null, pinned: true, arriveDate: "2026-07-25", departDate: "2026-07-28" },
+      { id: "e", sortOrder: 4, nights: 3, pinned: false, arriveDate: null, departDate: null },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    const result = await setStopDates("b", { arriveDate: "2026-07-12", departDate: "2026-07-15" });
+    expect(result.success).toBe(true);
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "b" }, data: { arriveDate: "2026-07-12", departDate: "2026-07-15" } });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "c" }, data: { arriveDate: "2026-07-15", departDate: "2026-07-17" } });
+    const updatedIds = stopUpdateMock.mock.calls.map((c) => c[0].where.id);
+    expect(updatedIds).not.toContain("d");
+    expect(updatedIds).not.toContain("e");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// firmUpSegment
+// ---------------------------------------------------------------------------
+
+describe("firmUpSegment", () => {
+  it("flows rough chapter stops from the preceding scheduled stop and sets chapter dates", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-03" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", sortOrder: 0, chapterId: null, nights: null, pinned: false, arriveDate: "2026-07-06", departDate: "2026-07-10", timezone: "Europe/Paris", name: "Paris", country: "France" },
+      { id: "rome", sortOrder: 1, chapterId: "it", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+      { id: "venice", sortOrder: 2, chapterId: "it", nights: 2, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Venice", country: "Italy" },
+    ]);
+    geocodePlaceMock.mockResolvedValue(null);
+    stopUpdateMock.mockResolvedValue({});
+    chapterUpdateMock.mockResolvedValue({});
+    const result = await firmUpSegment({ tripId: "trip-1", chapterId: "it" });
+    expect(result.success).toBe(true);
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "rome" }, data: expect.objectContaining({ arriveDate: "2026-07-10", departDate: "2026-07-13", timezone: "Europe/Paris" }) });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "venice" }, data: expect.objectContaining({ arriveDate: "2026-07-13", departDate: "2026-07-15" }) });
+    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "it" }, data: { startDate: "2026-07-10", endDate: "2026-07-15" } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// toggleStopPin
+// ---------------------------------------------------------------------------
+
+describe("toggleStopPin", () => {
+  it("pins a scheduled stop", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false });
+    stopUpdateMock.mockResolvedValue({});
+    const r = await toggleStopPin("a");
+    expect(r.success).toBe(true);
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "a" }, data: { pinned: true } });
+  });
+  it("refuses to pin a rough stop (no dates to fix)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 3, pinned: false });
+    const r = await toggleStopPin("a");
+    expect(r.success).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// makeStopRough
+// ---------------------------------------------------------------------------
+
+describe("makeStopRough", () => {
+  it("clears dates/timezone/pin and keeps nights from the prior duration", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false });
+    stopUpdateMock.mockResolvedValue({});
+    await makeStopRough("a");
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "a" },
+      data: { arriveDate: null, departDate: null, timezone: null, pinned: false, nights: 3 },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// assignStopToChapter
+// ---------------------------------------------------------------------------
+
+describe("assignStopToChapter", () => {
+  it("sets chapterId and appends to the end of that chapter's order", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false });
+    stopFindFirstMock.mockResolvedValue({ chapterSortOrder: 4 });
+    stopUpdateMock.mockResolvedValue({});
+    await assignStopToChapter("a", "it");
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "a" }, data: { chapterId: "it", chapterSortOrder: 5 } });
   });
 });
