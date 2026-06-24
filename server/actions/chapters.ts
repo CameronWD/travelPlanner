@@ -7,6 +7,8 @@ import { requireTripAccess } from "@/lib/guards";
 import { chapterSchema, type ChapterInput } from "@/lib/validations/chapter";
 import { chaptersOverlap, suggestChapterRuns } from "@/lib/chapters";
 import { nextChapterColour } from "@/lib/chapter-colours";
+import { recordActivity } from "@/server/actions/activity";
+import { entityLabel, describeChanges } from "@/lib/activity";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -42,6 +44,10 @@ async function requireChapterAccess(chapterId: string): Promise<{ id: string; tr
   if (!chapter) notFound();
   await requireTripAccess(chapter.tripId);
   return chapter;
+}
+
+async function loadFullChapter(chapterId: string) {
+  return db.chapter.findUnique({ where: { id: chapterId } });
 }
 
 // Check-then-write: a concurrent pair of overlapping chapters is a theoretical TOCTOU race,
@@ -85,10 +91,11 @@ export async function createChapter(
     return { success: false, errors: { startDate: ["Chapters cannot overlap another chapter's dates"] } };
   }
 
-  await db.chapter.create({
+  const created = await db.chapter.create({
     data: { tripId, ...parsed.data, sortOrder: await nextSortOrder(tripId) },
   });
 
+  await recordActivity({ tripId, verb: "CREATED", entityType: "CHAPTER", entityId: created.id, entityLabel: entityLabel("CHAPTER", created as unknown as Record<string, unknown>) });
   revalidateChapterPaths(tripId);
   return { success: true };
 }
@@ -106,14 +113,25 @@ export async function updateChapter(
     return { success: false, errors: { startDate: ["Chapters cannot overlap another chapter's dates"] } };
   }
 
-  await db.chapter.update({ where: { id: chapterId }, data: parsed.data });
+  const before = await loadFullChapter(chapterId);
+  const updated = await db.chapter.update({ where: { id: chapterId }, data: parsed.data });
+  await recordActivity({
+    tripId: chapter.tripId,
+    verb: "UPDATED",
+    entityType: "CHAPTER",
+    entityId: chapterId,
+    entityLabel: entityLabel("CHAPTER", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("CHAPTER", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
   revalidateChapterPaths(chapter.tripId);
   return { success: true };
 }
 
 export async function deleteChapter(chapterId: string): Promise<ChapterActionResult> {
   const chapter = await requireChapterAccess(chapterId);
+  const doomed = await db.chapter.findUnique({ where: { id: chapterId }, select: { name: true } });
   await db.chapter.delete({ where: { id: chapterId } });
+  await recordActivity({ tripId: chapter.tripId, verb: "DELETED", entityType: "CHAPTER", entityId: chapterId, entityLabel: doomed?.name ?? "" });
   revalidateChapterPaths(chapter.tripId);
   return { success: true };
 }
