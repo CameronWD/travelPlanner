@@ -109,6 +109,31 @@ function transportModeFormat(value: unknown): string {
   return TRANSPORT_MODE_LABELS[String(value)] ?? String(value);
 }
 
+/**
+ * Format a Date (or ISO string) as a readable UTC date-time like "3 Jul 2025, 14:00".
+ * Null / undefined / "" → "—".
+ */
+function dateTimeFormat(value: unknown): string {
+  if (isEmpty(value)) return "—";
+  const d = value instanceof Date ? value : new Date(String(value));
+  if (isNaN(d.getTime())) return String(value);
+  const day = d.getUTCDate();
+  const month = d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
+  const year = d.getUTCFullYear();
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${day} ${month} ${year}, ${hh}:${mm}`;
+}
+
+/**
+ * Normalise a value before equality comparison: Date → ISO string; otherwise as-is.
+ * This prevents phantom changes when two distinct Date objects represent the same instant.
+ */
+function normaliseForComparison(v: unknown): unknown {
+  if (v instanceof Date) return v.toISOString();
+  return v;
+}
+
 function moneyFormat(value: unknown, row: Record<string, unknown>): string {
   if (isEmpty(value)) return "";
   const amount = Number(value);
@@ -141,8 +166,8 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     },
     { key: "depPlace", label: "Departure place" },
     { key: "arrPlace", label: "Arrival place" },
-    { key: "depAt", label: "Departure time" },
-    { key: "arrAt", label: "Arrival time" },
+    { key: "depAt", label: "Departure time", format: (v) => dateTimeFormat(v) },
+    { key: "arrAt", label: "Arrival time", format: (v) => dateTimeFormat(v) },
     { key: "reference", label: "Reference" },
   ],
   ACCOMMODATION: [
@@ -195,8 +220,8 @@ export function describeChanges(
     // Both empty → no change
     if (bEmpty && aEmpty) continue;
 
-    // Both non-empty and equal → no change
-    if (!bEmpty && !aEmpty && bVal === aVal) continue;
+    // Both non-empty and equal → no change (normalise Dates to ISO strings first)
+    if (!bEmpty && !aEmpty && normaliseForComparison(bVal) === normaliseForComparison(aVal)) continue;
 
     // Determine which row to use as "context" for format (e.g. currency lookup).
     // For COST money fields we want to prefer the after row's currency if available.

@@ -52,7 +52,7 @@ export async function getRecentActivity(tripId: string, limit = 10) {
 
 export async function getUnreadActivityCount(tripId: string): Promise<number> {
   const { user, membership } = await requireTripAccess(tripId);
-  const since = (membership as { lastReadActivityAt?: Date | null }).lastReadActivityAt ?? null;
+  const since = membership.lastReadActivityAt ?? null;
   return db.activity.count({
     where: { tripId, actorId: { not: user.id }, ...(since ? { createdAt: { gt: since } } : {}) },
   });

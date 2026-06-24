@@ -27,6 +27,16 @@ const UPDATED_ACTIVITY: ActivityRow = {
   actor: BASE_ACTOR,
 };
 
+const NOTED_ACTIVITY: ActivityRow = {
+  id: "act-3",
+  verb: "NOTED",
+  entityType: "NOTE",
+  entityLabel: "note",
+  changes: { excerpt: "Don't forget the passports!" },
+  createdAt: new Date("2026-06-03T09:00:00Z"),
+  actor: BASE_ACTOR,
+};
+
 describe("ActivityFeed", () => {
   it("renders an empty state when activities is empty", () => {
     render(<ActivityFeed activities={[]} />);
@@ -62,5 +72,13 @@ describe("ActivityFeed", () => {
     render(<ActivityFeed activities={[CREATED_ACTIVITY, UPDATED_ACTIVITY]} />);
     expect(screen.getByText(/added the Rome stop/i)).toBeInTheDocument();
     expect(screen.getByText(/updated the Colosseum Tour item/i)).toBeInTheDocument();
+  });
+
+  it("renders the NOTED headline and the note excerpt in quotes", () => {
+    render(<ActivityFeed activities={[NOTED_ACTIVITY]} />);
+    // Headline: "Alice left a note"
+    expect(screen.getByText(/left a note/i)).toBeInTheDocument();
+    // Excerpt rendered in quotes
+    expect(screen.getByText(/Don't forget the passports!/i)).toBeInTheDocument();
   });
 });

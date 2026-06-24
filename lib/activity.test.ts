@@ -163,6 +163,44 @@ describe("describeChanges TRANSPORT", () => {
 });
 
 // ---------------------------------------------------------------------------
+// describeChanges — TRANSPORT Date equality (phantom-change guard)
+// ---------------------------------------------------------------------------
+
+describe("describeChanges TRANSPORT Date equality", () => {
+  it("does NOT emit a depAt change when the same instant is represented by two distinct Date objects", () => {
+    const instant = new Date("2025-07-03T14:00:00Z");
+    const sameDateNewRef = new Date(instant.getTime()); // distinct object, same value
+    const changes = describeChanges(
+      "TRANSPORT",
+      { depAt: instant, reference: "BA123" },
+      { depAt: sameDateNewRef, reference: "BA456" },
+    );
+    // Only 'reference' should be reported; depAt is unchanged
+    expect(changes.find((c) => c.field === "depAt")).toBeUndefined();
+    expect(changes.find((c) => c.field === "reference")).toBeDefined();
+    expect(changes).toHaveLength(1);
+  });
+
+  it("emits a depAt change with formatted strings (not raw Date.toString) when the time actually changed", () => {
+    const before = new Date("2025-07-03T14:00:00Z");
+    const after = new Date("2025-07-03T18:30:00Z");
+    const changes = describeChanges(
+      "TRANSPORT",
+      { depAt: before },
+      { depAt: after },
+    );
+    expect(changes).toHaveLength(1);
+    expect(changes[0].field).toBe("depAt");
+    // Should NOT be the raw Date.toString() output (which contains "GMT")
+    expect(changes[0].from).not.toMatch(/GMT/);
+    expect(changes[0].to).not.toMatch(/GMT/);
+    // Should contain the formatted date-time
+    expect(changes[0].from).toBe("3 Jul 2025, 14:00");
+    expect(changes[0].to).toBe("3 Jul 2025, 18:30");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // describeChanges — NOTE has no diffable fields
 // ---------------------------------------------------------------------------
 

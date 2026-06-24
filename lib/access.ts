@@ -7,6 +7,7 @@
 export interface MembershipLike {
   userId: string;
   role: string;
+  lastReadActivityAt?: Date | null;
 }
 
 /**

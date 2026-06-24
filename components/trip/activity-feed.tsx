@@ -59,6 +59,16 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
           );
         }
 
+        // Extract excerpt for NOTED rows
+        const noteExcerpt =
+          activity.verb === "NOTED" &&
+          typeof activity.changes === "object" &&
+          activity.changes !== null &&
+          !Array.isArray(activity.changes) &&
+          "excerpt" in (activity.changes as object)
+            ? (activity.changes as { excerpt: string }).excerpt
+            : null;
+
         return (
           <li
             key={activity.id}
@@ -95,6 +105,12 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
                     </li>
                   ))}
                 </ul>
+              ) : null}
+
+              {noteExcerpt ? (
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  &ldquo;{noteExcerpt}&rdquo;
+                </p>
               ) : null}
 
               <time
