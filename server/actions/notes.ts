@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { addNoteSchema, type AddNoteInput } from "@/lib/validations/note";
+import { recordActivity } from "@/server/actions/activity";
+import { entityLabel } from "@/lib/activity";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -73,7 +75,7 @@ export async function addNote(
 
   const { targetType, targetId, body } = parsed.data;
 
-  await db.note.create({
+  const created = await db.note.create({
     data: {
       tripId,
       authorId: user.id,
@@ -83,6 +85,7 @@ export async function addNote(
     },
   });
 
+  await recordActivity({ tripId, verb: "NOTED", entityType: "NOTE", entityId: created.id, entityLabel: entityLabel("NOTE", created as unknown as Record<string, unknown>), changes: { excerpt: body.slice(0, 80) } });
   revalidateNotePaths(tripId);
   return { success: true };
 }
@@ -97,6 +100,7 @@ export async function deleteNote(noteId: string): Promise<NoteActionResult> {
   const note = await requireNoteAccess(noteId);
 
   await db.note.delete({ where: { id: noteId } });
+  await recordActivity({ tripId: note.tripId, verb: "DELETED", entityType: "NOTE", entityId: noteId, entityLabel: "note" });
 
   revalidateNotePaths(note.tripId);
   return { success: true };

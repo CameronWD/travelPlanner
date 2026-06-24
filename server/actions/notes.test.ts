@@ -38,14 +38,17 @@ vi.mock("@/lib/db", () => ({
     },
   },
 }));
+vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 
 import { addNote, deleteNote } from "./notes";
+import { recordActivity } from "@/server/actions/activity";
 
 beforeEach(() => {
   requireTripAccessMock.mockResolvedValue({
     user: { id: "user-1" },
     membership: { role: "owner" },
   });
+  noteCreateMock.mockResolvedValue({ id: "note-1" });
 });
 
 afterEach(() => {
@@ -67,13 +70,13 @@ describe("addNote", () => {
   };
 
   it("calls requireTripAccess with the tripId", async () => {
-    noteCreateMock.mockResolvedValue({});
+    noteCreateMock.mockResolvedValue({ id: "note-1" });
     await addNote(TRIP_ID, VALID_INPUT);
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
   });
 
   it("creates a note with the current user as authorId", async () => {
-    noteCreateMock.mockResolvedValue({});
+    noteCreateMock.mockResolvedValue({ id: "note-1" });
     await addNote(TRIP_ID, VALID_INPUT);
     expect(noteCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -87,13 +90,13 @@ describe("addNote", () => {
   });
 
   it("returns { success: true } on success", async () => {
-    noteCreateMock.mockResolvedValue({});
+    noteCreateMock.mockResolvedValue({ id: "note-1" });
     const result = await addNote(TRIP_ID, VALID_INPUT);
     expect(result).toEqual({ success: true });
   });
 
   it("revalidates relevant paths after creating a note", async () => {
-    noteCreateMock.mockResolvedValue({});
+    noteCreateMock.mockResolvedValue({ id: "note-1" });
     await addNote(TRIP_ID, VALID_INPUT);
     expect(revalidatePathMock).toHaveBeenCalled();
   });
@@ -127,7 +130,7 @@ describe("addNote", () => {
   });
 
   it("accepts a body of exactly 2000 characters", async () => {
-    noteCreateMock.mockResolvedValue({});
+    noteCreateMock.mockResolvedValue({ id: "note-1" });
     const result = await addNote(TRIP_ID, {
       ...VALID_INPUT,
       body: "x".repeat(2000),
@@ -244,5 +247,59 @@ describe("deleteNote", () => {
 
     expect(result).toEqual({ success: true });
     expect(noteDeleteMock).toHaveBeenCalledWith({ where: { id: NOTE_ID } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// activity recording
+// ---------------------------------------------------------------------------
+
+describe("addNote — activity", () => {
+  const VALID_INPUT = {
+    targetType: "ITEM" as const,
+    targetId: "item-1",
+    body: "Great idea for the trip!",
+  };
+
+  it("records NOTED activity with a changes.excerpt after addNote", async () => {
+    await addNote(TRIP_ID, VALID_INPUT);
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({
+      tripId: TRIP_ID,
+      verb: "NOTED",
+      entityType: "NOTE",
+      entityId: "note-1",
+      changes: expect.objectContaining({ excerpt: VALID_INPUT.body.slice(0, 80) }),
+    }));
+  });
+
+  it("truncates the excerpt to 80 characters", async () => {
+    const longBody = "x".repeat(200);
+    noteCreateMock.mockResolvedValue({ id: "note-2" });
+    await addNote(TRIP_ID, { ...VALID_INPUT, body: longBody });
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({
+      changes: expect.objectContaining({ excerpt: longBody.slice(0, 80) }),
+    }));
+  });
+
+  it("does not record activity when validation fails", async () => {
+    await addNote(TRIP_ID, { ...VALID_INPUT, body: "" });
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteNote — activity", () => {
+  it("records DELETED activity with verb DELETED and entityType NOTE", async () => {
+    noteFindUniqueMock.mockResolvedValue({ id: NOTE_ID, tripId: TRIP_ID, authorId: "user-1" });
+    noteDeleteMock.mockResolvedValue({});
+
+    await deleteNote(NOTE_ID);
+
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({
+      tripId: TRIP_ID,
+      verb: "DELETED",
+      entityType: "NOTE",
+      entityId: NOTE_ID,
+      entityLabel: "note",
+    }));
   });
 });
