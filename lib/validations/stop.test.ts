@@ -28,7 +28,7 @@ describe("stopSchema", () => {
     const result = stopSchema.safeParse({ ...VALID, name: "" });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const fields = result.error.flatten().fieldErrors;
+      const fields: Record<string, string[] | undefined> = result.error.flatten().fieldErrors;
       expect(fields.name).toBeDefined();
     }
   });
@@ -37,7 +37,7 @@ describe("stopSchema", () => {
     const result = stopSchema.safeParse({ ...VALID, name: "A".repeat(121) });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const fields = result.error.flatten().fieldErrors;
+      const fields: Record<string, string[] | undefined> = result.error.flatten().fieldErrors;
       expect(fields.name).toBeDefined();
     }
   });
@@ -46,7 +46,7 @@ describe("stopSchema", () => {
     const result = stopSchema.safeParse({ ...VALID, timezone: "" });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const fields = result.error.flatten().fieldErrors;
+      const fields: Record<string, string[] | undefined> = result.error.flatten().fieldErrors;
       expect(fields.timezone).toBeDefined();
     }
   });
@@ -55,7 +55,7 @@ describe("stopSchema", () => {
     const result = stopSchema.safeParse({ ...VALID, arriveDate: "01-07-2026" });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const fields = result.error.flatten().fieldErrors;
+      const fields: Record<string, string[] | undefined> = result.error.flatten().fieldErrors;
       expect(fields.arriveDate).toBeDefined();
     }
   });
@@ -64,7 +64,7 @@ describe("stopSchema", () => {
     const result = stopSchema.safeParse({ ...VALID, departDate: "not-a-date" });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const fields = result.error.flatten().fieldErrors;
+      const fields: Record<string, string[] | undefined> = result.error.flatten().fieldErrors;
       expect(fields.departDate).toBeDefined();
     }
   });
@@ -77,7 +77,7 @@ describe("stopSchema", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const fields = result.error.flatten().fieldErrors;
+      const fields: Record<string, string[] | undefined> = result.error.flatten().fieldErrors;
       expect(fields.departDate).toBeDefined();
     }
   });
