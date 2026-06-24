@@ -24,6 +24,7 @@ const {
   queryRawMock,
   transactionMock,
   tripFindUniqueMock,
+  tripUpdateMock,
   chapterUpdateMock,
 } = vi.hoisted(() => {
   const stopFindFirstMock = vi.fn();
@@ -46,6 +47,7 @@ const {
     return arg;
   });
   const tripFindUniqueMock = vi.fn();
+  const tripUpdateMock = vi.fn();
   const chapterUpdateMock = vi.fn();
 
   return {
@@ -64,6 +66,7 @@ const {
     queryRawMock,
     transactionMock,
     tripFindUniqueMock,
+    tripUpdateMock,
     chapterUpdateMock,
   };
 });
@@ -83,6 +86,7 @@ vi.mock("@/lib/db", () => ({
     },
     trip: {
       findUnique: tripFindUniqueMock,
+      update: tripUpdateMock,
     },
     chapter: {
       update: chapterUpdateMock,
@@ -478,6 +482,8 @@ describe("setStopDates", () => {
       { id: "e", sortOrder: 4, nights: 3, pinned: false, arriveDate: null, departDate: null },
     ]);
     stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ endDate: "2026-07-10" });
+    tripUpdateMock.mockResolvedValue({});
     const result = await setStopDates("b", { arriveDate: "2026-07-12", departDate: "2026-07-15" });
     expect(result.success).toBe(true);
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "b" }, data: { arriveDate: "2026-07-12", departDate: "2026-07-15" } });
@@ -485,6 +491,11 @@ describe("setStopDates", () => {
     const updatedIds = stopUpdateMock.mock.calls.map((c) => c[0].where.id);
     expect(updatedIds).not.toContain("d");
     expect(updatedIds).not.toContain("e");
+    // The trip's endDate (currently 2026-07-10) is grown to cover the furthest
+    // depart in the rippled run — the pinned stop d departs 2026-07-28, which is
+    // the latest — so no stop drops out of dated views. (d's own dates aren't
+    // rewritten, but the window must still span it.)
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: "trip-1" }, data: { endDate: "2026-07-28" } });
   });
 
   it("rejects when departDate is before arriveDate and writes nothing", async () => {
@@ -502,7 +513,8 @@ describe("setStopDates", () => {
 
 describe("firmUpSegment", () => {
   it("flows rough chapter stops from the preceding scheduled stop and sets chapter dates", async () => {
-    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-03" });
+    // Trip already starts 2026-07-03 but has no endDate yet.
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-03", endDate: null });
     stopFindManyMock.mockResolvedValue([
       { id: "a", sortOrder: 0, chapterId: null, nights: null, pinned: false, arriveDate: "2026-07-06", departDate: "2026-07-10", timezone: "Europe/Paris", name: "Paris", country: "France" },
       { id: "rome", sortOrder: 1, chapterId: "it", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
@@ -510,12 +522,18 @@ describe("firmUpSegment", () => {
     ]);
     geocodePlaceMock.mockResolvedValue(null);
     stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
     chapterUpdateMock.mockResolvedValue({});
     const result = await firmUpSegment({ tripId: "trip-1", chapterId: "it" });
     expect(result.success).toBe(true);
+    // Conflicts are surfaced on success (none here).
+    if (result.success) expect(result.conflicts).toEqual([]);
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "rome" }, data: expect.objectContaining({ arriveDate: "2026-07-10", departDate: "2026-07-13", timezone: "Europe/Paris" }) });
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "venice" }, data: expect.objectContaining({ arriveDate: "2026-07-13", departDate: "2026-07-15" }) });
     expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "it" }, data: { startDate: "2026-07-10", endDate: "2026-07-15" } });
+    // The trip's window grows to cover the last flowed depart (venice → 2026-07-15);
+    // the existing startDate (2026-07-03) is preserved.
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: "trip-1" }, data: { startDate: "2026-07-03", endDate: "2026-07-15" } });
   });
 
   it("returns an error when the trip is date-less and nothing precedes the segment", async () => {
@@ -528,6 +546,7 @@ describe("firmUpSegment", () => {
     if (!result.success) expect(result.errors.anchorDate).toBeDefined();
     expect(stopUpdateMock).not.toHaveBeenCalled();
     expect(chapterUpdateMock).not.toHaveBeenCalled();
+    expect(tripUpdateMock).not.toHaveBeenCalled();
   });
 });
 

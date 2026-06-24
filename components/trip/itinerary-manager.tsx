@@ -29,6 +29,7 @@ import {
   firmUpSegment,
   setStopDates,
 } from "@/server/actions/stops";
+import { toast } from "@/components/ui/use-toast";
 import { suggestNextStopDates, formatDateRange } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
@@ -233,7 +234,17 @@ export function ItineraryManager({
   async function handleFirmUp(chapterId: string | null) {
     setPendingId(`firm-up-${chapterId ?? "ungrouped"}`);
     try {
-      await firmUpSegment({ tripId, chapterId });
+      const r = await firmUpSegment({ tripId, chapterId });
+      if (!r.success) {
+        toast({
+          variant: "destructive",
+          title: r.errors.anchorDate?.[0] ?? "Pick a start date for this leg first.",
+        });
+      } else if (r.conflicts?.length) {
+        toast({
+          title: "Heads up — earlier stops run past a pinned date; the pin was kept.",
+        });
+      }
     } finally {
       setPendingId(null);
     }
@@ -283,7 +294,12 @@ export function ItineraryManager({
   ) {
     setPendingId(stopId);
     try {
-      await setStopDates(stopId, dates);
+      const r = await setStopDates(stopId, dates);
+      if (r.success && r.conflicts?.length) {
+        toast({
+          title: "Heads up — earlier stops run past a pinned date; the pin was kept.",
+        });
+      }
     } finally {
       setPendingId(null);
       setAdjustingStop(null);

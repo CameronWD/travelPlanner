@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlace } from "@/lib/geocode";
-import { flowDates, type FlowStop } from "@/lib/firm-up";
+import { flowDates, type FlowStop, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween } from "@/lib/dates";
 
 // ---------------------------------------------------------------------------
@@ -14,7 +14,7 @@ import { nightsBetween } from "@/lib/dates";
 // ---------------------------------------------------------------------------
 
 export type StopActionResult =
-  | { success: true }
+  | { success: true; conflicts?: FlowConflict[] }
   | { success: false; errors: Record<string, string[]> };
 
 // ---------------------------------------------------------------------------
@@ -308,6 +308,8 @@ export async function setStopDates(
     run.push(s);
   }
 
+  let conflicts: FlowConflict[] = [];
+  let maxDepart = dates.departDate;
   if (run.length > 0) {
     const flowStops: FlowStop[] = run.map((s) => ({
       id: s.id,
@@ -316,16 +318,26 @@ export async function setStopDates(
       arriveDate: s.arriveDate,
       departDate: s.departDate,
     }));
-    const { results } = flowDates(flowStops, dates.departDate);
-    for (const r of results) {
+    const flowed = flowDates(flowStops, dates.departDate);
+    conflicts = flowed.conflicts;
+    for (const r of flowed.results) {
+      if (r.departDate > maxDepart) maxDepart = r.departDate;
       if (r.changed && !r.pinned) {
         await db.stop.update({ where: { id: r.id }, data: { arriveDate: r.arriveDate, departDate: r.departDate } });
       }
     }
   }
 
+  // Auto-grow the trip's window so the furthest date we just wrote stays
+  // visible in calendar/day/budget views (which only enumerate [start, end]).
+  // Never shrink endDate.
+  const trip = await db.trip.findUnique({ where: { id: stop.tripId }, select: { endDate: true } });
+  if (!trip?.endDate || trip.endDate < maxDepart) {
+    await db.trip.update({ where: { id: stop.tripId }, data: { endDate: maxDepart } });
+  }
+
   revalidatePath(`/trips/${stop.tripId}`);
-  return { success: true };
+  return { success: true, conflicts };
 }
 
 // ---------------------------------------------------------------------------
@@ -349,7 +361,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   await requireTripAccess(tripId);
 
   const [trip, stops] = await Promise.all([
-    db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } }),
+    db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
     db.stop.findMany({
       where: { tripId },
       orderBy: { sortOrder: "asc" },
@@ -384,7 +396,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
     return { success: false, errors: { anchorDate: ["Pick a start date for this leg — the trip has no dates yet."] } };
   }
 
-  const { results } = flowDates(
+  const { results, conflicts } = flowDates(
     segment.map((s) => ({ id: s.id, nights: s.nights, pinned: false, arriveDate: null, departDate: null })),
     anchor,
   );
@@ -406,6 +418,19 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
     });
   }
 
+  // Grow the trip's window to cover the freshly-dated segment. Without this any
+  // stop dated past the current endDate silently drops out of every dated view
+  // (calendar/day/today/print/share) and the budget. Only set startDate when it
+  // was null (a date-less trip firmed up for the first time) — never move an
+  // existing start; never shrink endDate.
+  const firstArrive = results[0].arriveDate;
+  const lastDepart = results[results.length - 1].departDate;
+  const newStart = trip?.startDate ?? firstArrive;
+  const newEnd = !trip?.endDate || trip.endDate < lastDepart ? lastDepart : trip.endDate;
+  if (newStart !== trip?.startDate || newEnd !== trip?.endDate) {
+    await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd } });
+  }
+
   if (chapterId) {
     const start = results[0].arriveDate;
     const end = results[results.length - 1].departDate;
@@ -413,7 +438,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   }
 
   revalidatePath(`/trips/${tripId}`);
-  return { success: true };
+  return { success: true, conflicts };
 }
 
 // ---------------------------------------------------------------------------

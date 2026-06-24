@@ -110,7 +110,9 @@ export default async function BudgetPage({
       select: { base: true, quote: true, rate: true, manual: true, fetchedAt: true },
     }),
     db.chapter.findMany({
-      where: { tripId },
+      // Rough (date-less) chapters have no dated window, so buildBudget would
+      // emit a blank $0 row for each — match the summary page and exclude them.
+      where: { tripId, startDate: { not: null } },
       orderBy: { startDate: "asc" },
       select: { id: true, name: true, colour: true, startDate: true, endDate: true },
     }),
