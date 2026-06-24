@@ -3,26 +3,43 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
+import { NavMoreMenu } from "@/components/trip/nav-more-menu";
 
-interface NavItem {
+export interface NavItem {
   label: string;
   href: string;
 }
 
-function navItems(tripId: string): NavItem[] {
+export function primaryNav(tripId: string): NavItem[] {
   const base = `/trips/${tripId}`;
   return [
-    { label: "Overview", href: base },
+    { label: "Home", href: base },
+    { label: "Plan", href: `${base}/plan` },
     { label: "Calendar", href: `${base}/calendar` },
-    { label: "Today", href: `${base}/today` },
-    { label: "Journal", href: `${base}/journal` },
-    { label: "Wishlist", href: `${base}/wishlist` },
     { label: "Budget", href: `${base}/budget` },
     { label: "Summary", href: `${base}/summary` },
+  ];
+}
+
+export function moreNav(tripId: string): NavItem[] {
+  const base = `/trips/${tripId}`;
+  return [
+    { label: "Wishlist", href: `${base}/wishlist` },
+    { label: "Journal", href: `${base}/journal` },
     { label: "Checklists", href: `${base}/checklists` },
     { label: "Files", href: `${base}/files` },
     { label: "Settings", href: `${base}/settings` },
   ];
+}
+
+/** Exact-match for Home (base), prefix-match for everything else. */
+export function isNavActive(
+  href: string,
+  pathname: string,
+  base: string,
+): boolean {
+  if (href === base) return pathname === base;
+  return pathname === href || pathname.startsWith(href + "/");
 }
 
 interface TripNavProps {
@@ -30,35 +47,23 @@ interface TripNavProps {
 }
 
 /**
- * Horizontal scrollable navigation bar for a trip's sections.
+ * Horizontal navigation bar for a trip's sections (desktop only).
+ * Primary tabs are always visible; overflow items live in the "More" dropdown.
  * Active tab is highlighted with a coral underline using design tokens.
  */
 export function TripNav({ tripId }: TripNavProps) {
   const pathname = usePathname();
-  const items = navItems(tripId);
-
-  function isActive(href: string): boolean {
-    // The overview is exact-match; all others are prefix-match so sub-routes
-    // keep the correct tab highlighted.
-    if (href === `/trips/${tripId}`) {
-      return pathname === href;
-    }
-    return pathname === href || pathname.startsWith(href + "/");
-  }
+  const base = `/trips/${tripId}`;
+  const items = primaryNav(tripId);
 
   return (
     <nav
       aria-label="Trip sections"
-      className="border-b border-border"
+      className="hidden border-b border-border md:flex"
     >
-      <div
-        className={cn(
-          "flex overflow-x-auto scrollbar-none gap-0",
-          // Negative margin trick to make the border sit flush
-        )}
-      >
+      <div className="flex overflow-x-auto scrollbar-none gap-0">
         {items.map((item) => {
-          const active = isActive(item.href);
+          const active = isNavActive(item.href, pathname, base);
           return (
             <Link
               key={item.href}
@@ -83,6 +88,7 @@ export function TripNav({ tripId }: TripNavProps) {
             </Link>
           );
         })}
+        <NavMoreMenu tripId={tripId} />
       </div>
     </nav>
   );
