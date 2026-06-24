@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { stopForDate } from "@/lib/itinerary";
+import { geocodePlace } from "@/lib/geocode";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -104,6 +105,15 @@ export async function createItem(
   });
   const sortOrder = (maxItem?.sortOrder ?? -1) + 1;
 
+  // Best-effort geocode from address
+  let lat: number | null = null;
+  let lng: number | null = null;
+  if (data.address) {
+    const coords = await geocodePlace(data.address);
+    lat = coords?.lat ?? null;
+    lng = coords?.lng ?? null;
+  }
+
   await db.item.create({
     data: {
       tripId,
@@ -117,8 +127,8 @@ export async function createItem(
       link: data.link ?? null,
       booking: data.booking ?? null,
       notes: data.notes ?? null,
-      lat: data.lat ?? null,
-      lng: data.lng ?? null,
+      lat,
+      lng,
       sortOrder,
     },
   });
@@ -160,6 +170,15 @@ export async function updateItem(
     }
   }
 
+  // Best-effort geocode from address
+  let lat: number | null = null;
+  let lng: number | null = null;
+  if (data.address) {
+    const coords = await geocodePlace(data.address);
+    lat = coords?.lat ?? null;
+    lng = coords?.lng ?? null;
+  }
+
   await db.item.update({
     where: { id: itemId },
     data: {
@@ -173,8 +192,8 @@ export async function updateItem(
       link: data.link ?? null,
       booking: data.booking ?? null,
       notes: data.notes ?? null,
-      lat: data.lat ?? null,
-      lng: data.lng ?? null,
+      lat,
+      lng,
     },
   });
 

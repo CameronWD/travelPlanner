@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const {
   requireTripAccessMock,
   revalidatePathMock,
+  geocodePlaceMock,
   itemFindUniqueMock,
   itemFindFirstMock,
   itemCreateMock,
@@ -22,6 +23,7 @@ const {
       membership: { role: "owner" },
     }),
     revalidatePathMock: vi.fn(),
+    geocodePlaceMock: vi.fn().mockResolvedValue(null),
     itemFindUniqueMock: vi.fn(),
     itemFindFirstMock: vi.fn(),
     itemCreateMock: vi.fn(),
@@ -33,6 +35,7 @@ const {
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     item: {
@@ -180,6 +183,54 @@ describe("createItem", () => {
     }
     expect(itemCreateMock).not.toHaveBeenCalled();
   });
+
+  it("geocodes the address when present and stores coords", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+    geocodePlaceMock.mockResolvedValue({ lat: 48.8566, lng: 2.3522 });
+
+    const result = await createItem("trip-1", {
+      ...VALID_INPUT,
+      address: "Eiffel Tower, Paris",
+    });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).toHaveBeenCalledOnce();
+    expect(geocodePlaceMock).toHaveBeenCalledWith("Eiffel Tower, Paris");
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ lat: 48.8566, lng: 2.3522 }),
+    });
+  });
+
+  it("does not call geocode and stores null coords when no address", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+
+    const result = await createItem("trip-1", VALID_INPUT);
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ lat: null, lng: null }),
+    });
+  });
+
+  it("still creates the item when geocode returns null (null coords)", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+    geocodePlaceMock.mockResolvedValue(null);
+
+    const result = await createItem("trip-1", {
+      ...VALID_INPUT,
+      address: "Some Unknown Place",
+    });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).toHaveBeenCalledOnce();
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ lat: null, lng: null }),
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -220,6 +271,39 @@ describe("updateItem", () => {
 
     expect(result.success).toBe(false);
     expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("geocodes address on update when address is present", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    itemUpdateMock.mockResolvedValue({});
+    geocodePlaceMock.mockResolvedValue({ lat: 51.5074, lng: -0.1278 });
+
+    const result = await updateItem("item-1", {
+      ...VALID_INPUT,
+      address: "London Eye, London",
+    });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).toHaveBeenCalledOnce();
+    expect(geocodePlaceMock).toHaveBeenCalledWith("London Eye, London");
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "item-1" },
+      data: expect.objectContaining({ lat: 51.5074, lng: -0.1278 }),
+    });
+  });
+
+  it("stores null coords on update when no address", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
+    itemUpdateMock.mockResolvedValue({});
+
+    const result = await updateItem("item-1", VALID_INPUT);
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "item-1" },
+      data: expect.objectContaining({ lat: null, lng: null }),
+    });
   });
 });
 
