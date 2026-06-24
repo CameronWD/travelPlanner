@@ -138,6 +138,18 @@ describe("createTrip", () => {
     expect(redirectMock).toHaveBeenCalledWith(`/trips/${newTrip.id}`);
   });
 
+  it("creates a date-less trip", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripCreateMock.mockResolvedValue({ id: "trip-dateless", name: "Europe someday" });
+    memberCreateMock.mockResolvedValue({});
+
+    await expect(createTrip({ name: "Europe someday", homeCurrency: "AUD" })).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(tripCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ name: "Europe someday", startDate: null, endDate: null }),
+    });
+  });
+
   it("returns a validation error when name is empty", async () => {
     requireUserMock.mockResolvedValue({ id: "user-1" });
 

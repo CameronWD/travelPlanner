@@ -47,8 +47,8 @@ export async function createTrip(
     const newTrip = await tx.trip.create({
       data: {
         name,
-        startDate,
-        endDate,
+        startDate: startDate ?? null,
+        endDate: endDate ?? null,
         homeCurrency,
         createdById: user.id,
       },
@@ -108,7 +108,7 @@ export async function updateTrip(
 
   await db.trip.update({
     where: { id: tripId },
-    data: { name, startDate, endDate, homeCurrency },
+    data: { name, startDate: startDate ?? null, endDate: endDate ?? null, homeCurrency },
   });
 
   revalidatePath(`/trips/${tripId}`);
