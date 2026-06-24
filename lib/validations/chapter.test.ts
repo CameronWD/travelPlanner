@@ -21,3 +21,17 @@ describe("chapterSchema", () => {
     expect(chapterSchema.safeParse({ ...VALID, startDate: "2026-07-10", endDate: "2026-07-10" }).success).toBe(true);
   });
 });
+
+describe("chapterSchema rough mode", () => {
+  it("accepts a rough chapter: name + colour, no dates", () => {
+    const r = chapterSchema.safeParse({ name: "Italy", colour: "rose" });
+    expect(r.success).toBe(true);
+  });
+  it("accepts a dated chapter and rejects end-before-start", () => {
+    expect(chapterSchema.safeParse({ name: "Italy", colour: "rose", startDate: "2026-07-10", endDate: "2026-07-17" }).success).toBe(true);
+    expect(chapterSchema.safeParse({ name: "Italy", colour: "rose", startDate: "2026-07-17", endDate: "2026-07-10" }).success).toBe(false);
+  });
+  it("rejects a chapter with only one date set", () => {
+    expect(chapterSchema.safeParse({ name: "Italy", colour: "rose", startDate: "2026-07-10" }).success).toBe(false);
+  });
+});
