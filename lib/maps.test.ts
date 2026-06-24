@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapsUrl, appleMapsUrl } from "./maps";
+import { mapsUrl, appleMapsUrl, googleDirectionsUrl, appleDirectionsUrl } from "./maps";
 
 // ---------------------------------------------------------------------------
 // mapsUrl
@@ -95,5 +95,148 @@ describe("appleMapsUrl", () => {
     const url = appleMapsUrl({ lat: 41.9028, lng: 12.4964, address: "Rome" });
     expect(url).toContain("ll=");
     expect(url).not.toContain("q=Rome");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// googleDirectionsUrl
+// ---------------------------------------------------------------------------
+
+describe("googleDirectionsUrl", () => {
+  it("returns null when fewer than 2 points resolve", () => {
+    expect(googleDirectionsUrl([])).toBeNull();
+    expect(googleDirectionsUrl([{ lat: 48.8566, lng: 2.3522 }])).toBeNull();
+    // Unresolvable points (no lat/lng/address/label) don't count
+    expect(googleDirectionsUrl([{}, {}])).toBeNull();
+  });
+
+  it("2-point: sets origin and destination from coords", () => {
+    const url = googleDirectionsUrl([
+      { lat: 48.8566, lng: 2.3522 },
+      { lat: 51.5074, lng: -0.1278 },
+    ]);
+    expect(url).not.toBeNull();
+    const parsed = new URL(url!);
+    expect(parsed.searchParams.get("origin")).toBe("48.8566,2.3522");
+    expect(parsed.searchParams.get("destination")).toBe("51.5074,-0.1278");
+    expect(parsed.searchParams.get("waypoints")).toBeNull();
+    expect(parsed.searchParams.get("api")).toBe("1");
+    expect(parsed.origin + parsed.pathname).toBe("https://www.google.com/maps/dir/");
+  });
+
+  it("3-point: middle goes into waypoints, last is destination", () => {
+    const url = googleDirectionsUrl([
+      { lat: 48.8566, lng: 2.3522 },
+      { lat: 45.4642, lng: 9.19 },
+      { lat: 41.9028, lng: 12.4964 },
+    ]);
+    expect(url).not.toBeNull();
+    const parsed = new URL(url!);
+    expect(parsed.searchParams.get("origin")).toBe("48.8566,2.3522");
+    expect(parsed.searchParams.get("destination")).toBe("41.9028,12.4964");
+    expect(parsed.searchParams.get("waypoints")).toBe("45.4642,9.19");
+  });
+
+  it("multiple waypoints are joined with |", () => {
+    const url = googleDirectionsUrl([
+      { lat: 0, lng: 0 },
+      { lat: 1, lng: 1 },
+      { lat: 2, lng: 2 },
+      { lat: 3, lng: 3 },
+    ]);
+    expect(url).not.toBeNull();
+    const parsed = new URL(url!);
+    expect(parsed.searchParams.get("waypoints")).toBe("1,1|2,2");
+  });
+
+  it("text-only points use address as token", () => {
+    const url = googleDirectionsUrl([
+      { address: "Paris, France" },
+      { address: "London, UK" },
+    ]);
+    expect(url).not.toBeNull();
+    const parsed = new URL(url!);
+    expect(parsed.searchParams.get("origin")).toBe("Paris, France");
+    expect(parsed.searchParams.get("destination")).toBe("London, UK");
+  });
+
+  it("falls back to label when no address and no coords", () => {
+    const url = googleDirectionsUrl([
+      { label: "Eiffel Tower" },
+      { label: "Big Ben" },
+    ]);
+    expect(url).not.toBeNull();
+    const parsed = new URL(url!);
+    expect(parsed.searchParams.get("origin")).toBe("Eiffel Tower");
+    expect(parsed.searchParams.get("destination")).toBe("Big Ben");
+  });
+
+  it("skips unresolvable points in token list", () => {
+    // Only 1 resolvable point → null
+    const url = googleDirectionsUrl([
+      { lat: 48.8566, lng: 2.3522 },
+      {},
+    ]);
+    expect(url).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// appleDirectionsUrl
+// ---------------------------------------------------------------------------
+
+describe("appleDirectionsUrl", () => {
+  it("returns null when fewer than 2 points resolve", () => {
+    expect(appleDirectionsUrl([])).toBeNull();
+    expect(appleDirectionsUrl([{ lat: 48.8566, lng: 2.3522 }])).toBeNull();
+    expect(appleDirectionsUrl([{}, {}])).toBeNull();
+  });
+
+  it("2-point: sets saddr and daddr from coords", () => {
+    const url = appleDirectionsUrl([
+      { lat: 48.8566, lng: 2.3522 },
+      { lat: 51.5074, lng: -0.1278 },
+    ]);
+    expect(url).not.toBeNull();
+    const parsed = new URL(url!);
+    expect(parsed.searchParams.get("saddr")).toBe("48.8566,2.3522");
+    expect(parsed.searchParams.get("daddr")).toBe("51.5074,-0.1278");
+    expect(parsed.origin + parsed.pathname).toBe("https://maps.apple.com/");
+  });
+
+  it("multi-point degrades to first→last (saddr/daddr)", () => {
+    const url = appleDirectionsUrl([
+      { lat: 48.8566, lng: 2.3522 },
+      { lat: 45.4642, lng: 9.19 },
+      { lat: 41.9028, lng: 12.4964 },
+    ]);
+    expect(url).not.toBeNull();
+    const parsed = new URL(url!);
+    expect(parsed.searchParams.get("saddr")).toBe("48.8566,2.3522");
+    expect(parsed.searchParams.get("daddr")).toBe("41.9028,12.4964");
+    // No waypoints param
+    expect(parsed.searchParams.get("waypoints")).toBeNull();
+  });
+
+  it("text-only points use address as token", () => {
+    const url = appleDirectionsUrl([
+      { address: "Paris, France" },
+      { address: "London, UK" },
+    ]);
+    expect(url).not.toBeNull();
+    const parsed = new URL(url!);
+    expect(parsed.searchParams.get("saddr")).toBe("Paris, France");
+    expect(parsed.searchParams.get("daddr")).toBe("London, UK");
+  });
+
+  it("falls back to label when no address and no coords", () => {
+    const url = appleDirectionsUrl([
+      { label: "Eiffel Tower" },
+      { label: "Big Ben" },
+    ]);
+    expect(url).not.toBeNull();
+    const parsed = new URL(url!);
+    expect(parsed.searchParams.get("saddr")).toBe("Eiffel Tower");
+    expect(parsed.searchParams.get("daddr")).toBe("Big Ben");
   });
 });
