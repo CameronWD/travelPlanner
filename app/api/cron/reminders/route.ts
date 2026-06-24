@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
       const payload = buildNotificationPayload({
         title: reminder.title,
         body: "Trip reminder",
-        url: `/trips/${reminder.tripId}/today`,
+        url: `/trips/${reminder.tripId}`,
       });
 
       // Collect all member userIds
