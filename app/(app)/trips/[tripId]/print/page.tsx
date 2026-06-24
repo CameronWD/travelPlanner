@@ -13,9 +13,9 @@ import { requireTripAccess } from "@/lib/guards";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
-import { buildBudget } from "@/lib/budget";
+import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
 import { PrintButton } from "./print-button";
-import type { BudgetCost, BudgetStop, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
+import type { BudgetStop, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
 import type { TransportMode } from "@/lib/enums";
 
 // ---------------------------------------------------------------------------
@@ -152,21 +152,7 @@ export default async function PrintPage({
     ]);
 
   // Apply FX rates to costs
-  const rateMap = new Map<string, number>();
-  for (const r of exchangeRates) {
-    rateMap.set(`${r.base}:${r.quote}`, r.rate);
-    if (r.rate !== 0) {
-      rateMap.set(`${r.quote}:${r.base}`, 1 / r.rate);
-    }
-  }
-
-  const costsWithRates: BudgetCost[] = costs.map((c) => {
-    let rateToHome = c.rateToHome ?? null;
-    if (rateToHome === null && c.currency.toUpperCase() !== homeCurrency.toUpperCase()) {
-      rateToHome = rateMap.get(`${c.currency.toUpperCase()}:${homeCurrency.toUpperCase()}`) ?? null;
-    }
-    return { ...c, rateToHome } as BudgetCost;
-  });
+  const costsWithRates = applyFxRatesToCosts({ costs, exchangeRates, homeCurrency });
 
   // Non-null at runtime: the query filters rough (date-less) stops out.
   const stops = rawStops.map((s) => ({

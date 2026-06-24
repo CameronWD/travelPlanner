@@ -188,6 +188,49 @@ export function convertCostToHome(
 }
 
 // ---------------------------------------------------------------------------
+// Helper: applyFxRatesToCosts
+// ---------------------------------------------------------------------------
+
+export interface ExchangeRateInput { base: string; quote: string; rate: number; }
+
+/** Raw cost row as selected from the DB (COST_SELECT shape); ownerType is a free
+ * string here and is narrowed to BudgetCost's union on the way out. */
+export interface RawCostInput {
+  id: string; estimatedMinor: number; actualMinor: number | null; currency: string;
+  rateToHome: number | null; ownerType: string; ownerId: string | null;
+  label: string | null; category: string | null;
+}
+
+/**
+ * Resolve each cost's home-currency rate, producing BudgetCost[] ready for
+ * buildBudget. A cost keeps its snapshot rateToHome when present; otherwise a
+ * foreign-currency cost's rate is looked up from the trip's exchange-rate table
+ * (built bidirectionally — a base:quote row also yields its quote:base inverse,
+ * skipping zero rates to avoid division by zero). Home-currency costs and
+ * unresolved foreign costs keep a null rate.
+ *
+ * PURE — no Prisma, no network. Single source of truth for the FX assembly that
+ * previously lived (duplicated) in summary/print/phase-planning/phase-past.
+ */
+export function applyFxRatesToCosts({
+  costs, exchangeRates, homeCurrency,
+}: { costs: RawCostInput[]; exchangeRates: ExchangeRateInput[]; homeCurrency: string }): BudgetCost[] {
+  const rateMap = new Map<string, number>();
+  for (const r of exchangeRates) {
+    rateMap.set(`${r.base}:${r.quote}`, r.rate);
+    if (r.rate !== 0) rateMap.set(`${r.quote}:${r.base}`, 1 / r.rate);
+  }
+  const home = homeCurrency.toUpperCase();
+  return costs.map((c) => {
+    let rateToHome = c.rateToHome ?? null;
+    if (rateToHome === null && c.currency.toUpperCase() !== home) {
+      rateToHome = rateMap.get(`${c.currency.toUpperCase()}:${home}`) ?? null;
+    }
+    return { ...c, rateToHome } as BudgetCost;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Helper: effectiveCategory
 // ---------------------------------------------------------------------------
 
