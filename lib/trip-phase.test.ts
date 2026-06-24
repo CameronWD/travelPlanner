@@ -52,6 +52,10 @@ describe("describePhase", () => {
     expect(describePhase({ startDate: "2026-07-01", endDate: "2026-07-10", today: "2026-06-24" }).label).toBe("Final prep");
   });
 
+  it("counts down in days during final prep", () => {
+    expect(describePhase({ startDate: "2026-07-01", endDate: "2026-07-10", today: "2026-06-24" }).countdown).toBe("In 7 days");
+  });
+
   it("shows day X of N while travelling", () => {
     const d = describePhase({ startDate: "2026-06-20", endDate: "2026-06-30", today: "2026-06-24" });
     expect(d.label).toBe("Travelling");

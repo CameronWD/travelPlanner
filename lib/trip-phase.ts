@@ -76,8 +76,8 @@ export function describePhase(input: TripPhaseInput): PhaseDescription {
     }
     case "past": {
       const end = endDate ?? startDate!;
-      const ago = daysBetween(end, today); // >= 1
-      countdown = ago === 0 ? "Ended today" : `Ended ${pluralDays(ago)} ago`;
+      const ago = daysBetween(end, today); // >= 1 — "past" means today > end
+      countdown = `Ended ${pluralDays(ago)} ago`;
       break;
     }
   }
@@ -97,6 +97,7 @@ export const PHASE_RANK: Record<TripPhase, number> = {
 export interface TripListItem {
   startDate: string | null;
   endDate: string | null;
+  /** Date object as returned by Prisma — unlike the string dates above. */
   createdAt: Date;
 }
 
@@ -114,6 +115,7 @@ export function compareForTripList(a: TripListItem, b: TripListItem, today: stri
   if (pa === "sketching" || pa === "past") {
     return b.createdAt.getTime() - a.createdAt.getTime(); // newest first
   }
-  // Dated upcoming/active: soonest start first.
+  // Dated upcoming/active groups: soonest start first. (Two concurrent
+  // travelling trips therefore order by who departed first.)
   return (a.startDate ?? "").localeCompare(b.startDate ?? "");
 }
