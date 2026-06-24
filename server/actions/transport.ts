@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
 import { geocodePlace } from "@/lib/geocode";
+import { recordActivity } from "@/server/actions/activity";
+import { entityLabel, describeChanges } from "@/lib/activity";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -134,7 +136,7 @@ export async function createTransport(
     arrLng = coords?.lng ?? null;
   }
 
-  await db.transport.create({
+  const created = await db.transport.create({
     data: {
       tripId,
       mode: data.mode,
@@ -154,6 +156,7 @@ export async function createTransport(
     },
   });
 
+  await recordActivity({ tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${tripId}`);
   return { success: true };
 }
@@ -185,6 +188,8 @@ export async function updateTransport(
   ]);
   if (stopError) return stopError;
 
+  const before = await db.transport.findUnique({ where: { id: transportId } });
+
   // Best-effort geocode for departure and arrival places
   let depLat: number | null = null;
   let depLng: number | null = null;
@@ -202,7 +207,7 @@ export async function updateTransport(
     arrLng = coords?.lng ?? null;
   }
 
-  await db.transport.update({
+  const updated = await db.transport.update({
     where: { id: transportId },
     data: {
       mode: data.mode,
@@ -221,6 +226,14 @@ export async function updateTransport(
     },
   });
 
+  await recordActivity({
+    tripId: transport.tripId,
+    verb: "UPDATED",
+    entityType: "TRANSPORT",
+    entityId: transportId,
+    entityLabel: entityLabel("TRANSPORT", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("TRANSPORT", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
   revalidatePath(`/trips/${transport.tripId}`);
   return { success: true };
 }
@@ -233,7 +246,9 @@ export async function deleteTransport(
 ): Promise<TransportActionResult> {
   const transport = await requireTransportAccess(transportId);
 
+  const doomed = await db.transport.findUnique({ where: { id: transportId } });
   await db.transport.delete({ where: { id: transportId } });
+  await recordActivity({ tripId: transport.tripId, verb: "DELETED", entityType: "TRANSPORT", entityId: transportId, entityLabel: entityLabel("TRANSPORT", (doomed ?? {}) as unknown as Record<string, unknown>) });
 
   revalidatePath(`/trips/${transport.tripId}`);
   return { success: true };
