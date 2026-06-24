@@ -124,6 +124,8 @@ export async function PhasePlanning({
         date: true,
         startTime: true,
         endTime: true,
+        lat: true,
+        lng: true,
       },
     }),
     db.cost.findMany({

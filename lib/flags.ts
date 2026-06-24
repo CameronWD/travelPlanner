@@ -72,6 +72,8 @@ export interface FlagItem {
   date?: string | null; // YYYY-MM-DD
   startTime?: string | null; // HH:MM
   endTime?: string | null; // HH:MM
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface DetectFlagsInput {
@@ -431,6 +433,63 @@ export function flagRoughStops(count: number): Flag[] {
 }
 
 // ---------------------------------------------------------------------------
+// Rule 9: Geographic spread day (info)
+//
+// A day on which the located items are farther apart than SPREAD_DAY_THRESHOLD_KM.
+// Only items with both a date and finite lat/lng are considered.
+// One flag per qualifying date, keyed on the MAX pairwise haversine distance.
+// ---------------------------------------------------------------------------
+
+export const SPREAD_DAY_THRESHOLD_KM = 25;
+
+export function flagSpreadDays(items: FlagItem[]): Flag[] {
+  // Collect located items (date + finite lat/lng required)
+  const locatedByDate = new Map<string, LatLng[]>();
+
+  for (const item of items) {
+    if (
+      !item.date ||
+      item.lat == null ||
+      item.lng == null ||
+      !isFinite(item.lat) ||
+      !isFinite(item.lng)
+    ) {
+      continue;
+    }
+    const pts = locatedByDate.get(item.date) ?? [];
+    pts.push({ lat: item.lat, lng: item.lng });
+    locatedByDate.set(item.date, pts);
+  }
+
+  const flags: Flag[] = [];
+
+  for (const [date, pts] of locatedByDate) {
+    if (pts.length < 2) continue;
+
+    // Compute max pairwise distance
+    let maxKm = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      for (let j = i + 1; j < pts.length; j++) {
+        const d = haversineKm(pts[i], pts[j]);
+        if (d > maxKm) maxKm = d;
+      }
+    }
+
+    if (maxKm > SPREAD_DAY_THRESHOLD_KM) {
+      flags.push({
+        id: `spread-day-${date}`,
+        severity: "info",
+        message: `Your plans on ${date} are spread out (~${Math.round(maxKm)} km apart) — check it's doable.`,
+        targetType: "DAY",
+        date,
+      });
+    }
+  }
+
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -445,6 +504,8 @@ export function flagRoughStops(count: number): Flag[] {
  *   5. Route backtracking (info)
  *   6. Item time overlap (warning)
  *   7. Packed day (info)
+ *   8. Rough stops (info)
+ *   9. Geographic spread day (info)
  */
 export function detectFlags({
   stops,
@@ -464,5 +525,6 @@ export function detectFlags({
     ...flagItemTimeOverlaps(items),
     ...flagPackedDays(items),
     ...flagRoughStops(roughStopCount ?? 0),
+    ...flagSpreadDays(items),
   ];
 }
