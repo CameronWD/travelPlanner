@@ -29,6 +29,8 @@ export default async function DayPage({
     select: { startDate: true, endDate: true },
   });
   if (!trip) notFound();
+  // A date-less trip has no dated day pages.
+  if (!trip.startDate || !trip.endDate) notFound();
 
   // Allow a small buffer (2 days) so links from nearby days still work gracefully
   const BUFFER = 2;
@@ -49,7 +51,8 @@ export default async function DayPage({
   const [stops, items, transports, accommodations, journalEntry, journalPhotos] =
     await Promise.all([
       db.stop.findMany({
-        where: { tripId },
+        // Rough (date-less) stops don't appear on a dated day view.
+        where: { tripId, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -135,13 +138,14 @@ export default async function DayPage({
   const itinerary = buildItinerary({
     startDate: trip.startDate,
     endDate: trip.endDate,
+    // Non-null at runtime: the query filters rough (date-less) stops out.
     stops: stops.map((s) => ({
       id: s.id,
       name: s.name,
       country: s.country,
-      timezone: s.timezone,
-      arriveDate: s.arriveDate,
-      departDate: s.departDate,
+      timezone: s.timezone ?? "UTC",
+      arriveDate: s.arriveDate!,
+      departDate: s.departDate!,
       sortOrder: s.sortOrder,
     })),
     items: items.map((item) => ({

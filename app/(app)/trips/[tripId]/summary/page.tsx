@@ -38,6 +38,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { FlagList } from "@/components/trip/flag-list";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
@@ -98,6 +99,17 @@ export default async function SummaryPage({
     },
   });
   if (!trip) notFound();
+  // The summary's budget, nights, and flags are all anchored to the trip
+  // window; a date-less trip has nothing dated to summarise yet.
+  if (!trip.startDate || !trip.endDate) {
+    return (
+      <EmptyState
+        icon={Calendar}
+        title="No dates yet"
+        description="Set your trip's start and end dates to see a summary of your itinerary, budget, and flags."
+      />
+    );
+  }
 
   const { homeCurrency, startDate, endDate } = trip;
 
@@ -105,7 +117,9 @@ export default async function SummaryPage({
   const [stops, transports, accommodations, items, costs, exchangeRates, chapters] =
     await Promise.all([
       db.stop.findMany({
-        where: { tripId },
+        // Rough (date-less) stops are excluded from the dated summary; a later
+        // task surfaces them as "not yet scheduled".
+        where: { tripId, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -158,7 +172,8 @@ export default async function SummaryPage({
         select: { base: true, quote: true, rate: true },
       }),
       db.chapter.findMany({
-        where: { tripId },
+        // Only dated chapters group the dated summary.
+        where: { tripId, startDate: { not: null } },
         orderBy: { startDate: "asc" },
         select: { id: true, name: true, colour: true, startDate: true, endDate: true },
       }),
@@ -196,7 +211,20 @@ export default async function SummaryPage({
   // Cast stops to BudgetStopWithDates — the select above includes arriveDate,
   // departDate, and sortOrder, so chapter membership lookups will work and
   // budget.byChapter will be populated.
-  const budgetStops: BudgetStopWithDates[] = stops.map((s) => ({
+  // The stop/chapter queries filter rough (date-less) rows out, so the date
+  // fields are non-null at runtime; narrow the Prisma types once here.
+  const datedStops = stops.map((s) => ({
+    ...s,
+    arriveDate: s.arriveDate!,
+    departDate: s.departDate!,
+  }));
+  const datedChapters = chapters.map((c) => ({
+    ...c,
+    startDate: c.startDate!,
+    endDate: c.endDate!,
+  }));
+
+  const budgetStops: BudgetStopWithDates[] = datedStops.map((s) => ({
     id: s.id,
     name: s.name,
     timezone: s.timezone,
@@ -214,7 +242,7 @@ export default async function SummaryPage({
     transports: transports as BudgetTransport[],
     tripStart: startDate,
     tripEnd: endDate,
-    chapters,
+    chapters: datedChapters,
   });
 
   // ---------------------------------------------------------------------------
@@ -262,12 +290,12 @@ export default async function SummaryPage({
   }
 
   // Group stops by chapter for the itinerary section
-  const stopGroups = groupStopsByChapter(stops, chapters);
+  const stopGroups = groupStopsByChapter(datedStops, datedChapters);
 
   // Route map stops — resolve chapter colour hex here (server side) so the
   // client map component stays dumb and receives only a plain hex string.
-  const mapStops: RouteMapStop[] = stops.map((s) => {
-    const ch = chapterForStop(s, chapters);
+  const mapStops: RouteMapStop[] = datedStops.map((s) => {
+    const ch = chapterForStop(s, datedChapters);
     return {
       id: s.id,
       name: s.name,

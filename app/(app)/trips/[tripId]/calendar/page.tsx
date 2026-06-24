@@ -25,7 +25,8 @@ export default async function CalendarPage({
 
   const [stops, items, transports, accommodations, wishlistItems] = await Promise.all([
     db.stop.findMany({
-      where: { tripId },
+      // Rough (date-less) stops have no place on a dated calendar.
+      where: { tripId, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -91,8 +92,9 @@ export default async function CalendarPage({
     }),
   ]);
 
-  // Graceful empty state — no stops means no real itinerary to show
-  if (stops.length === 0) {
+  // Graceful empty state — no stops, or a date-less trip, means there is no
+  // dated calendar to project.
+  if (stops.length === 0 || !trip.startDate || !trip.endDate) {
     return (
       <EmptyState
         icon={CalendarDays}
@@ -114,13 +116,14 @@ export default async function CalendarPage({
   const itinerary = buildItinerary({
     startDate: trip.startDate,
     endDate: trip.endDate,
+    // Non-null at runtime: the query filters rough (date-less) stops out.
     stops: stops.map((s) => ({
       id: s.id,
       name: s.name,
       country: s.country,
-      timezone: s.timezone,
-      arriveDate: s.arriveDate,
-      departDate: s.departDate,
+      timezone: s.timezone ?? "UTC",
+      arriveDate: s.arriveDate!,
+      departDate: s.departDate!,
       sortOrder: s.sortOrder,
     })),
     items: items.map((item) => ({

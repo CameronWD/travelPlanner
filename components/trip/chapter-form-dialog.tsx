@@ -33,8 +33,8 @@ export interface ChapterFormDialogChapter {
   id: string;
   name: string;
   colour: string;
-  startDate: string;
-  endDate: string;
+  startDate: string | null; // null for rough (date-less) chapters
+  endDate: string | null;   // null for rough (date-less) chapters
 }
 
 export interface ChapterFormDialogProps {

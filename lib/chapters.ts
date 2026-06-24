@@ -4,14 +4,14 @@ export interface ChapterLike {
   id: string;
   name: string;
   colour: string;
-  startDate: string; // YYYY-MM-DD
-  endDate: string;   // YYYY-MM-DD
+  startDate: string | null; // YYYY-MM-DD; null for rough (date-less) chapters
+  endDate: string | null;   // YYYY-MM-DD; null for rough (date-less) chapters
 }
 
 export interface StopLike {
   id: string;
-  arriveDate: string;
-  departDate: string;
+  arriveDate: string | null;
+  departDate: string | null;
   country?: string | null;
   sortOrder: number;
 }
@@ -23,22 +23,28 @@ export interface TransportLike {
   depAt?: Date | string | null;
 }
 
-function sortedByStart<T extends { startDate: string }>(chapters: readonly T[]): T[] {
-  return [...chapters].sort((a, b) => a.startDate.localeCompare(b.startDate));
+function sortedByStart<T extends { startDate: string | null }>(chapters: readonly T[]): T[] {
+  return [...chapters].sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""));
 }
 
 export function chapterForDate<T extends ChapterLike>(dateISO: string, chapters: readonly T[]): T | null {
   for (const c of sortedByStart(chapters)) {
-    if (isDateWithin(dateISO, c.startDate, c.endDate)) return c;
+    if (c.startDate && c.endDate && isDateWithin(dateISO, c.startDate, c.endDate)) return c;
   }
   return null;
 }
 
 export function chapterForStop<T extends ChapterLike>(stop: StopLike, chapters: readonly T[]): T | null {
+  if (!stop.arriveDate) return null;
   return chapterForDate(stop.arriveDate, chapters);
 }
 
-export function chaptersOverlap(a: { startDate: string; endDate: string }, b: { startDate: string; endDate: string }): boolean {
+export function chaptersOverlap(
+  a: { startDate: string | null; endDate: string | null },
+  b: { startDate: string | null; endDate: string | null },
+): boolean {
+  // A rough (date-less) chapter occupies no calendar range, so it can't overlap.
+  if (!a.startDate || !a.endDate || !b.startDate || !b.endDate) return false;
   return a.startDate <= b.endDate && b.startDate <= a.endDate;
 }
 
@@ -91,7 +97,12 @@ export interface ChapterRun {
 }
 
 export function suggestChapterRuns(stops: readonly StopLike[]): ChapterRun[] {
-  const ordered = [...stops].sort((a, b) => a.arriveDate.localeCompare(b.arriveDate));
+  // Rough (date-less) stops can't anchor a date band — exclude them.
+  const dated = stops.filter(
+    (s): s is StopLike & { arriveDate: string; departDate: string } =>
+      s.arriveDate !== null && s.departDate !== null,
+  );
+  const ordered = [...dated].sort((a, b) => a.arriveDate.localeCompare(b.arriveDate));
   const runs: ChapterRun[] = [];
   let current: ChapterRun | null = null;
   let currentCountry: string | null = null;

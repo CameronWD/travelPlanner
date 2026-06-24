@@ -33,7 +33,9 @@ export default async function TripOverviewPage({
       select: { homeCurrency: true, startDate: true, endDate: true },
     }),
     db.stop.findMany({
-      where: { tripId },
+      // Rough (date-less) stops are invisible to this dated view; a later task
+      // surfaces them on the brainstorm canvas.
+      where: { tripId, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -91,7 +93,9 @@ export default async function TripOverviewPage({
       select: COST_SELECT,
     }),
     db.chapter.findMany({
-      where: { tripId },
+      // Only dated chapters group the dated itinerary; rough chapters are
+      // surfaced by a later task.
+      where: { tripId, startDate: { not: null } },
       orderBy: { startDate: "asc" },
       select: { id: true, name: true, colour: true, startDate: true, endDate: true },
     }),
@@ -142,6 +146,17 @@ export default async function TripOverviewPage({
     costsByOwnerId.set(cost.ownerId, existing);
   }
 
+  // The stop/chapter queries filter rough rows out (arriveDate/startDate not
+  // null), so these are non-null at runtime; narrow the Prisma types for the
+  // dated ItineraryManager props.
+  const datedChapters = chapters.map((c) => ({
+    ...c,
+    startDate: c.startDate!,
+    endDate: c.endDate!,
+  }));
+  const tripStartDate = trip?.startDate ?? undefined;
+  const tripEndDate = trip?.endDate ?? undefined;
+
   if (stops.length === 0) {
     return (
       <EmptyState
@@ -153,9 +168,9 @@ export default async function TripOverviewPage({
             tripId={tripId}
             initialStops={[]}
             initialTransports={[]}
-            chapters={chapters}
-            tripStartDate={trip?.startDate}
-            tripEndDate={trip?.endDate}
+            chapters={datedChapters}
+            tripStartDate={tripStartDate}
+            tripEndDate={tripEndDate}
           />
         }
       />
@@ -167,13 +182,17 @@ export default async function TripOverviewPage({
       <ItineraryManager
         tripId={tripId}
         homeCurrency={trip?.homeCurrency}
-        tripStartDate={trip?.startDate}
-        tripEndDate={trip?.endDate}
+        tripStartDate={tripStartDate}
+        tripEndDate={tripEndDate}
         notesByStopId={notesByStopId}
         currentUserId={user.id}
-        chapters={chapters}
+        chapters={datedChapters}
         initialStops={stops.map((stop) => ({
           ...stop,
+          // Non-null at runtime: the query filters rough (date-less) stops out.
+          timezone: stop.timezone ?? "UTC",
+          arriveDate: stop.arriveDate!,
+          departDate: stop.departDate!,
           accommodations: stop.accommodations.map((acc) => ({
             ...acc,
             costs: costsByOwnerId.get(acc.id) ?? [],

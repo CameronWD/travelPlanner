@@ -43,7 +43,8 @@ export async function GET(
 
   const ics = buildICS({
     tripName: feed.trip.name,
-    stops,
+    // A rough stop may have no timezone; fall back to UTC for the feed.
+    stops: stops.map((s) => ({ ...s, timezone: s.timezone ?? "UTC" })),
     items: feed.includeActivities ? items : [],
     transports: feed.includeTransport ? transports : [],
     accommodations: feed.includeAccommodation ? accommodations : [],

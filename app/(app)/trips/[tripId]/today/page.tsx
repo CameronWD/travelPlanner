@@ -10,6 +10,7 @@ import {
   pickDayPlan,
 } from "@/lib/itinerary";
 import { chapterForDate } from "@/lib/chapters";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
 import { MapLink } from "@/components/trip/map-link";
 import { TransportCountdown } from "@/components/trip/transport-countdown";
@@ -35,6 +36,17 @@ export default async function TodayPage({
   });
   if (!trip) notFound();
 
+  // A date-less trip has no calendar to anchor "today" against.
+  if (!trip.startDate || !trip.endDate) {
+    return (
+      <EmptyState
+        icon={CalendarDays}
+        title="No dates yet"
+        description="Set your trip's start and end dates to see a day-by-day view of today."
+      />
+    );
+  }
+
   const today = todayISO();
   const effectiveDate = effectiveTodayISO(today, trip.startDate, trip.endDate);
 
@@ -45,7 +57,8 @@ export default async function TodayPage({
   // Fetch all itinerary data (plus reminders + chapters)
   const [stops, items, transports, accommodations, reminders, chapters] = await Promise.all([
     db.stop.findMany({
-      where: { tripId },
+      // Rough (date-less) stops don't appear on a dated "today" view.
+      where: { tripId, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -137,13 +150,14 @@ export default async function TodayPage({
   const itinerary = buildItinerary({
     startDate: trip.startDate,
     endDate: trip.endDate,
+    // Non-null at runtime: the query filters rough (date-less) stops out.
     stops: stops.map((s) => ({
       id: s.id,
       name: s.name,
       country: s.country,
-      timezone: s.timezone,
-      arriveDate: s.arriveDate,
-      departDate: s.departDate,
+      timezone: s.timezone ?? "UTC",
+      arriveDate: s.arriveDate!,
+      departDate: s.departDate!,
       sortOrder: s.sortOrder,
     })),
     items: items.map((item) => ({

@@ -130,8 +130,8 @@ export type DraftPackingListOutput = z.infer<typeof DraftPackingListOutputSchema
 export async function draftPackingList(input: {
   tripName: string;
   stops: { name: string; country?: string }[];
-  startDate: string;
-  endDate: string;
+  startDate: string | null;
+  endDate: string | null;
 }): Promise<AiResult<DraftPackingListOutput>> {
   if (!isAiConfigured()) {
     return { ok: false, reason: "disabled" };
@@ -145,6 +145,11 @@ export async function draftPackingList(input: {
       .map((s) => (s.country ? `${s.name}, ${s.country}` : s.name))
       .join("; ");
 
+    const datesLine =
+      input.startDate && input.endDate
+        ? `Dates: ${input.startDate} to ${input.endDate}.`
+        : `Dates: not set yet.`;
+
     const response = await client.messages.parse({
       model: getModel(),
       max_tokens: 2000,
@@ -152,7 +157,7 @@ export async function draftPackingList(input: {
         {
           role: "user",
           content: `Draft a practical packing list for a trip named "${input.tripName}".
-Dates: ${input.startDate} to ${input.endDate}.
+${datesLine}
 Stops: ${stopsList || "unspecified"}.
 List each item as a short phrase (e.g. "Sunscreen SPF 50"). Include essentials, clothing, electronics, and anything specific to the destinations and season. Be concise and skip redundant items. Only output via the schema.`,
         },

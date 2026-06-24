@@ -318,12 +318,18 @@ export async function rescheduleItem(
   });
   if (!trip) notFound();
 
+  // A date-less trip has no calendar window to reschedule onto.
+  if (!trip.startDate || !trip.endDate) {
+    return { success: false, errors: { date: ["This trip has no dates yet."] } };
+  }
+
   if (targetDateISO < trip.startDate || targetDateISO > trip.endDate) {
     return { success: false, errors: { date: ["That day is outside the trip."] } };
   }
 
   const stops = await db.stop.findMany({
-    where: { tripId: item.tripId },
+    // Only scheduled stops can cover a calendar day.
+    where: { tripId: item.tripId, arriveDate: { not: null } },
     select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
   });
 
@@ -332,8 +338,8 @@ export async function rescheduleItem(
       id: s.id,
       name: s.name ?? "",
       timezone: s.timezone ?? "UTC",
-      arriveDate: s.arriveDate,
-      departDate: s.departDate,
+      arriveDate: s.arriveDate!,
+      departDate: s.departDate!,
       sortOrder: s.sortOrder,
     })),
     targetDateISO,
