@@ -5,6 +5,7 @@ import {
   LogIn,
   LogOut,
   Hash,
+  Navigation,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { CategoryPill } from "./category-pill";
@@ -24,6 +25,11 @@ import type { TransportMode } from "@/lib/enums";
 // Props
 // ---------------------------------------------------------------------------
 
+export interface ItemDirections {
+  google: string | null;
+  apple: string | null;
+}
+
 export interface TimelineProps {
   day: DayPlan;
   /**
@@ -31,13 +37,20 @@ export interface TimelineProps {
    * "day"    — detailed rows with more whitespace and metadata.
    */
   variant?: "agenda" | "day";
+  /**
+   * Optional per-item directions URLs keyed by item id.
+   * When present and at least one url is non-null, a small "Directions" link
+   * is rendered next to that item. When absent or both urls null, nothing is
+   * rendered for that item.
+   */
+  itemDirections?: Record<string, ItemDirections>;
 }
 
 // ---------------------------------------------------------------------------
 // Timeline component
 // ---------------------------------------------------------------------------
 
-export function Timeline({ day, variant = "agenda" }: TimelineProps) {
+export function Timeline({ day, variant = "agenda", itemDirections }: TimelineProps) {
   const isDay = variant === "day";
 
   const hasAnything =
@@ -70,7 +83,12 @@ export function Timeline({ day, variant = "agenda" }: TimelineProps) {
       ))}
 
       {day.timedItems.map((e) => (
-        <TimedItemRow key={`ti-${e.item.id}`} entry={e} isDay={isDay} />
+        <TimedItemRow
+          key={`ti-${e.item.id}`}
+          entry={e}
+          isDay={isDay}
+          directions={itemDirections?.[e.item.id]}
+        />
       ))}
 
       {/* Accommodation check-outs */}
@@ -87,11 +105,44 @@ export function Timeline({ day, variant = "agenda" }: TimelineProps) {
             Anytime
           </p>
           {day.untimedItems.map((e) => (
-            <UntimedItemRow key={`ui-${e.item.id}`} entry={e} isDay={isDay} />
+            <UntimedItemRow
+              key={`ui-${e.item.id}`}
+              entry={e}
+              isDay={isDay}
+              directions={itemDirections?.[e.item.id]}
+            />
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Directions link helper
+// ---------------------------------------------------------------------------
+
+function DirectionsLink({
+  directions,
+  label,
+}: {
+  directions: ItemDirections | undefined;
+  label: string;
+}) {
+  if (!directions) return null;
+  const href = directions.google ?? directions.apple;
+  if (!href) return null;
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`Directions to ${label}`}
+      className="inline-flex items-center gap-1 text-primary/70 hover:text-primary transition-colors"
+    >
+      <Navigation className="size-3.5 shrink-0" aria-hidden="true" />
+    </a>
   );
 }
 
@@ -215,9 +266,11 @@ function TransportRow({
 function TimedItemRow({
   entry,
   isDay,
+  directions,
 }: {
   entry: ItemEntry;
   isDay: boolean;
+  directions?: ItemDirections;
 }) {
   const { item } = entry;
   const timeLabel = item.endTime
@@ -241,6 +294,7 @@ function TimedItemRow({
           {!isDay && timeLabel && (
             <span className="text-[11px] text-muted-foreground">{timeLabel}</span>
           )}
+          <DirectionsLink directions={directions} label={item.title} />
         </div>
         {isDay && (
           <div className="mt-0.5 flex flex-wrap items-center gap-2">
@@ -261,9 +315,11 @@ function TimedItemRow({
 function UntimedItemRow({
   entry,
   isDay,
+  directions,
 }: {
   entry: ItemEntry;
   isDay: boolean;
+  directions?: ItemDirections;
 }) {
   const { item } = entry;
   return (
@@ -274,6 +330,7 @@ function UntimedItemRow({
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-foreground/80">{item.title}</span>
           <CategoryPill category={item.category as Category} size="sm" />
+          <DirectionsLink directions={directions} label={item.title} />
         </div>
         {isDay && item.address && (
           <p className="mt-0.5 text-xs text-muted-foreground">{item.address}</p>
