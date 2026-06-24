@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import {
   Dialog,
   DialogContent,
@@ -23,12 +24,17 @@ import {
 } from "@/components/ui/dialog";
 import { TIMEZONES, guessTimezoneForCountry } from "@/lib/tz";
 import { createStop, updateStop } from "@/server/actions/stops";
+import type { StopInput } from "@/lib/validations/stop";
 import type { StopCardStop } from "./stop-card";
+
+const NO_CHAPTER = "__none__";
 
 interface FormErrors {
   name?: string[];
   country?: string[];
   timezone?: string[];
+  nights?: string[];
+  chapterId?: string[];
   arriveDate?: string[];
   departDate?: string[];
   notes?: string[];
@@ -39,6 +45,8 @@ export interface StopFormDialogProps {
   tripId: string;
   /** When provided, the form is in "edit" mode for this stop. */
   stop?: StopCardStop | null;
+  /** Chapters available to assign a rough stop to. */
+  chapters?: { id: string; name: string }[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Called after a successful save. */
@@ -54,12 +62,17 @@ export interface StopFormDialogProps {
 /**
  * Dialog with a form for creating or editing a Stop.
  *
+ * Supports two modes: "rough" (place + nights estimate + optional chapter, no
+ * dates) and "scheduled" (the full date/timezone form). New stops default to
+ * rough; editing defaults to the stop's current mode.
+ *
  * Uses a `key` on the inner form to reset all controlled state whenever the
  * dialog opens or the target stop changes — avoids setState-in-effect lint errors.
  */
 export function StopFormDialog({
   tripId,
   stop,
+  chapters = [],
   open,
   onOpenChange,
   onSaved,
@@ -84,6 +97,7 @@ export function StopFormDialog({
           key={formKey}
           tripId={tripId}
           stop={stop}
+          chapters={chapters}
           onClose={() => onOpenChange(false)}
           onSaved={onSaved}
           tripStartDate={tripStartDate}
@@ -100,9 +114,12 @@ export function StopFormDialog({
 // Inner form (remounts on key change — state initialised from props once)
 // ---------------------------------------------------------------------------
 
+type Mode = "rough" | "scheduled";
+
 interface StopFormProps {
   tripId: string;
   stop?: StopCardStop | null;
+  chapters: { id: string; name: string }[];
   onClose: () => void;
   onSaved?: () => void;
   tripStartDate?: string;
@@ -114,6 +131,7 @@ interface StopFormProps {
 function StopForm({
   tripId,
   stop,
+  chapters,
   onClose,
   onSaved,
   tripStartDate,
@@ -123,6 +141,10 @@ function StopForm({
 }: StopFormProps) {
   const isEdit = Boolean(stop);
 
+  // Default mode: editing keeps the stop's current mode; adding starts rough.
+  const initialMode: Mode = stop ? (stop.arriveDate ? "scheduled" : "rough") : "rough";
+  const [mode, setMode] = React.useState<Mode>(initialMode);
+
   // State is initialised once from props when the component mounts.
   // The parent uses `key` to force a remount when the dialog re-opens.
   const [name, setName] = React.useState(stop?.name ?? "");
@@ -130,6 +152,10 @@ function StopForm({
   const [timezone, setTimezone] = React.useState(
     stop?.timezone ?? guessTimezoneForCountry(stop?.country) ?? "UTC",
   );
+  const [nights, setNights] = React.useState<string>(
+    stop?.nights != null ? String(stop.nights) : "2",
+  );
+  const [chapterId, setChapterId] = React.useState<string>(NO_CHAPTER);
   // New stops default into the trip window (so the picker opens in the right
   // month); editing keeps the stop's own dates.
   const [arriveDate, setArriveDate] = React.useState(
@@ -155,14 +181,28 @@ function StopForm({
     e.preventDefault();
     setErrors({});
 
-    const input = {
-      name,
-      country: country.trim() || undefined,
-      timezone,
-      arriveDate,
-      departDate,
-      notes: notes.trim() || undefined,
-    };
+    let input: StopInput;
+    if (mode === "rough") {
+      const parsedNights = Number.parseInt(nights, 10);
+      input = {
+        mode: "rough",
+        name,
+        country: country.trim() || undefined,
+        nights: Number.isFinite(parsedNights) ? parsedNights : 0,
+        notes: notes.trim() || undefined,
+        ...(chapterId !== NO_CHAPTER ? { chapterId } : {}),
+      };
+    } else {
+      input = {
+        mode: "scheduled",
+        name,
+        country: country.trim() || undefined,
+        timezone,
+        arriveDate,
+        departDate,
+        notes: notes.trim() || undefined,
+      };
+    }
 
     startTransition(async () => {
       const result =
@@ -182,6 +222,20 @@ function StopForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      {/* Mode toggle */}
+      <Segmented
+        type="single"
+        value={mode}
+        onValueChange={(v) => {
+          if (v) setMode(v as Mode);
+        }}
+        aria-label="Stop type"
+        disabled={isPending}
+      >
+        <SegmentedItem value="rough">Rough</SegmentedItem>
+        <SegmentedItem value="scheduled">Scheduled</SegmentedItem>
+      </Segmented>
+
       {/* Name */}
       <Field label="Place name" required error={errors.name?.[0]}>
         <Input
@@ -203,49 +257,87 @@ function StopForm({
         />
       </Field>
 
-      {/* Timezone */}
-      <Field label="Timezone" required error={errors.timezone?.[0]}>
-        <Select
-          value={timezone}
-          onValueChange={setTimezone}
-          disabled={isPending}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select timezone" />
-          </SelectTrigger>
-          <SelectContent className="max-h-72">
-            {TIMEZONES.map((tz) => (
-              <SelectItem key={tz.value} value={tz.value}>
-                {tz.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
+      {mode === "rough" ? (
+        <>
+          {/* Nights */}
+          <Field label="Nights (rough)" error={errors.nights?.[0]}>
+            <Input
+              type="number"
+              min={0}
+              value={nights}
+              onChange={(e) => setNights(e.target.value)}
+              disabled={isPending}
+            />
+          </Field>
 
-      {/* Date row */}
-      <div className="grid grid-cols-2 gap-3">
-        <DateField
-          label="Arrive"
-          required
-          value={arriveDate}
-          onChange={(e) => setArriveDate(e.target.value)}
-          min={tripStartDate}
-          max={tripEndDate}
-          error={errors.arriveDate?.[0]}
-          disabled={isPending}
-        />
-        <DateField
-          label="Depart"
-          required
-          value={departDate}
-          onChange={(e) => setDepartDate(e.target.value)}
-          min={arriveDate || tripStartDate}
-          max={tripEndDate}
-          error={errors.departDate?.[0]}
-          disabled={isPending}
-        />
-      </div>
+          {/* Chapter */}
+          <Field label="Chapter" error={errors.chapterId?.[0]}>
+            <Select
+              value={chapterId}
+              onValueChange={setChapterId}
+              disabled={isPending}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="No chapter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NO_CHAPTER}>No chapter</SelectItem>
+                {chapters.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </>
+      ) : (
+        <>
+          {/* Timezone */}
+          <Field label="Timezone" required error={errors.timezone?.[0]}>
+            <Select
+              value={timezone}
+              onValueChange={setTimezone}
+              disabled={isPending}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select timezone" />
+              </SelectTrigger>
+              <SelectContent className="max-h-72">
+                {TIMEZONES.map((tz) => (
+                  <SelectItem key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          {/* Date row */}
+          <div className="grid grid-cols-2 gap-3">
+            <DateField
+              label="Arrive"
+              required
+              value={arriveDate}
+              onChange={(e) => setArriveDate(e.target.value)}
+              min={tripStartDate}
+              max={tripEndDate}
+              error={errors.arriveDate?.[0]}
+              disabled={isPending}
+            />
+            <DateField
+              label="Depart"
+              required
+              value={departDate}
+              onChange={(e) => setDepartDate(e.target.value)}
+              min={arriveDate || tripStartDate}
+              max={tripEndDate}
+              error={errors.departDate?.[0]}
+              disabled={isPending}
+            />
+          </div>
+        </>
+      )}
 
       {/* Notes */}
       <Field label="Notes" error={errors.notes?.[0]}>
