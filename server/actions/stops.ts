@@ -392,22 +392,17 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   const segById = Object.fromEntries(segment.map((s) => [s.id, s]));
   for (const r of results) {
     const s = segById[r.id];
-    let timezone = s.timezone ?? null;
-    if (!timezone) {
-      const coords = await geocodePlace([s.name, s.country].filter(Boolean).join(", "));
-      timezone = tripTz;
-      await db.stop.update({
-        where: { id: r.id },
-        data: {
-          arriveDate: r.arriveDate,
-          departDate: r.departDate,
-          timezone,
-          ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
-        },
-      });
-    } else {
-      await db.stop.update({ where: { id: r.id }, data: { arriveDate: r.arriveDate, departDate: r.departDate, timezone } });
-    }
+    const coords = await geocodePlace([s.name, s.country].filter(Boolean).join(", "));
+    const timezone = s.timezone ?? tripTz;
+    await db.stop.update({
+      where: { id: r.id },
+      data: {
+        arriveDate: r.arriveDate,
+        departDate: r.departDate,
+        timezone,
+        ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
+      },
+    });
   }
 
   if (chapterId) {
@@ -421,7 +416,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
 }
 
 // ---------------------------------------------------------------------------
-// Task 12: toggleStopPin, makeStopRough, assignStopToChapter
+// toggleStopPin, makeStopRough, assignStopToChapter
 // ---------------------------------------------------------------------------
 
 /**

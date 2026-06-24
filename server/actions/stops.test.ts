@@ -475,6 +475,14 @@ describe("setStopDates", () => {
     expect(updatedIds).not.toContain("d");
     expect(updatedIds).not.toContain("e");
   });
+
+  it("rejects when departDate is before arriveDate and writes nothing", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "b", tripId: "trip-1", sortOrder: 1, arriveDate: "2026-07-01", departDate: "2026-07-03", nights: null, pinned: false });
+    const result = await setStopDates("b", { arriveDate: "2026-07-15", departDate: "2026-07-12" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors.departDate).toBeDefined();
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -497,6 +505,18 @@ describe("firmUpSegment", () => {
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "rome" }, data: expect.objectContaining({ arriveDate: "2026-07-10", departDate: "2026-07-13", timezone: "Europe/Paris" }) });
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "venice" }, data: expect.objectContaining({ arriveDate: "2026-07-13", departDate: "2026-07-15" }) });
     expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "it" }, data: { startDate: "2026-07-10", endDate: "2026-07-15" } });
+  });
+
+  it("returns an error when the trip is date-less and nothing precedes the segment", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", sortOrder: 0, chapterId: "it", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    const result = await firmUpSegment({ tripId: "trip-1", chapterId: "it" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors.anchorDate).toBeDefined();
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+    expect(chapterUpdateMock).not.toHaveBeenCalled();
   });
 });
 
@@ -531,6 +551,16 @@ describe("makeStopRough", () => {
     expect(stopUpdateMock).toHaveBeenCalledWith({
       where: { id: "a" },
       data: { arriveDate: null, departDate: null, timezone: null, pinned: false, nights: 3 },
+    });
+  });
+
+  it("keeps the stored nights when the stop was already rough", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 4, pinned: false });
+    stopUpdateMock.mockResolvedValue({});
+    await makeStopRough("a");
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "a" },
+      data: { arriveDate: null, departDate: null, timezone: null, pinned: false, nights: 4 },
     });
   });
 });
