@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Tests for items server actions.
@@ -36,6 +36,7 @@ const {
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
+vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/db", () => ({
   db: {
     item: {
@@ -58,11 +59,20 @@ import {
   scheduleItem,
   unscheduleItem,
 } from "./items";
+import { recordActivity } from "@/server/actions/activity";
 
 const VALID_INPUT = {
   title: "Visit the Museum",
   category: "SIGHTSEEING" as const,
 };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  requireTripAccessMock.mockResolvedValue({
+    user: { id: "user-1" },
+    membership: { role: "owner" },
+  });
+});
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -231,6 +241,17 @@ describe("createItem", () => {
       data: expect.objectContaining({ lat: null, lng: null }),
     });
   });
+
+  it("records CREATED activity with the item title as entityLabel", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1", title: "Visit the Museum" });
+
+    await createItem("trip-1", VALID_INPUT);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityType: "ITEM", entityLabel: "Visit the Museum" }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -305,6 +326,24 @@ describe("updateItem", () => {
       data: expect.objectContaining({ lat: null, lng: null }),
     });
   });
+
+  it("records UPDATED activity with changes array", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "item-1", title: "Old Title", category: "SIGHTSEEING" }); // before row
+    itemUpdateMock.mockResolvedValue({ id: "item-1", title: "New Title", category: "SIGHTSEEING" });
+
+    await updateItem("item-1", { ...VALID_INPUT, title: "New Title" });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "ITEM",
+        entityLabel: "New Title",
+        changes: expect.arrayContaining([expect.objectContaining({ field: "title" })]),
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -330,6 +369,19 @@ describe("deleteItem", () => {
     await deleteItem("item-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-7");
+  });
+
+  it("records DELETED activity with the snapshotted title as entityLabel", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }) // requireItemAccess
+      .mockResolvedValueOnce({ title: "Visit the Museum" }); // doomed label
+    itemDeleteMock.mockResolvedValue({});
+
+    await deleteItem("item-1");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "ITEM", entityLabel: "Visit the Museum" }),
+    );
   });
 });
 
