@@ -29,11 +29,13 @@ export function NewTripForm() {
     const form = e.currentTarget;
     const data = new FormData(form);
 
+    const startDate = (data.get("startDate") as string) || undefined;
+    const endDate = (data.get("endDate") as string) || undefined;
     const input = {
       name: data.get("name") as string,
-      startDate: data.get("startDate") as string,
-      endDate: data.get("endDate") as string,
       homeCurrency: data.get("homeCurrency") as string,
+      ...(startDate ? { startDate } : {}),
+      ...(endDate ? { endDate } : {}),
     };
 
     startTransition(async () => {
@@ -66,22 +68,25 @@ export function NewTripForm() {
         />
       </Field>
 
-      {/* Date range */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <DateField
-          name="startDate"
-          label="Start date"
-          required
-          error={fieldError("startDate")}
-          disabled={isPending}
-        />
-        <DateField
-          name="endDate"
-          label="End date"
-          required
-          error={fieldError("endDate")}
-          disabled={isPending}
-        />
+      {/* Date range (optional — sketch first, set dates as you firm up stops) */}
+      <div className="space-y-2">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <DateField
+            name="startDate"
+            label="Start date (optional)"
+            error={fieldError("startDate")}
+            disabled={isPending}
+          />
+          <DateField
+            name="endDate"
+            label="End date (optional)"
+            error={fieldError("endDate")}
+            disabled={isPending}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Leave blank to sketch first — you can set dates as you firm up stops.
+        </p>
       </div>
 
       {/* Home currency */}
