@@ -155,7 +155,9 @@ function StopForm({
   const [nights, setNights] = React.useState<string>(
     stop?.nights != null ? String(stop.nights) : "2",
   );
-  const [chapterId, setChapterId] = React.useState<string>(NO_CHAPTER);
+  const [chapterId, setChapterId] = React.useState<string>(
+    stop?.chapterId ?? NO_CHAPTER,
+  );
   // New stops default into the trip window (so the picker opens in the right
   // month); editing keeps the stop's own dates.
   const [arriveDate, setArriveDate] = React.useState(

@@ -166,7 +166,7 @@ export async function updateStop(
   }
 
   if (parsed.data.mode === "rough") {
-    const { name, country, nights, chapterId } = parsed.data;
+    const { name, country, nights, chapterId, notes } = parsed.data;
     await db.stop.update({
       where: { id: stopId },
       data: {
@@ -174,6 +174,7 @@ export async function updateStop(
         country: country ?? null,
         nights,
         chapterId: chapterId ?? null,
+        notes: notes ?? null,
         arriveDate: null,
         departDate: null,
         timezone: null,

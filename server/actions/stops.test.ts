@@ -316,6 +316,17 @@ describe("updateStop", () => {
     });
     expect(geocodePlaceMock).not.toHaveBeenCalled();
   });
+
+  it("preserves notes and chapter when updating a rough stop", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false });
+    stopUpdateMock.mockResolvedValue({});
+    const result = await updateStop("s1", { mode: "rough", name: "Rome", nights: 4, chapterId: "it", notes: "near station" });
+    expect(result.success).toBe(true);
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "s1" },
+      data: expect.objectContaining({ name: "Rome", nights: 4, chapterId: "it", notes: "near station", arriveDate: null, departDate: null, timezone: null }),
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

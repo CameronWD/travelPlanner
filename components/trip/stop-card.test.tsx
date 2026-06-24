@@ -10,7 +10,7 @@ vi.mock("@/server/actions/notes", () => ({
 
 import { StopCard } from "./stop-card";
 
-const base = { id: "a", name: "Rome", country: "Italy", sortOrder: 0, notes: null, lat: null, lng: null };
+const base = { id: "a", name: "Rome", country: "Italy", sortOrder: 0, chapterId: null, notes: null, lat: null, lng: null };
 
 it("shows a nights badge for a rough stop and no date range", () => {
   render(<StopCard stop={{ ...base, timezone: null, arriveDate: null, departDate: null, nights: 3, pinned: false }} isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} onDelete={() => {}} />);

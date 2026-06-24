@@ -427,18 +427,21 @@ export function ItineraryManager({
           </div>
         )}
 
-        {/* Add accommodation for this stop */}
-        <div className="ml-4 pl-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => setAddAccommodationStop(stop)}
-          >
-            <Plus className="size-3.5" aria-hidden="true" />
-            Add accommodation
-          </Button>
-        </div>
+        {/* Add accommodation for this stop (scheduled stops only — accommodations
+            need real dates, so a rough stop's accommodation would be hidden). */}
+        {stop.arriveDate && stop.departDate && (
+          <div className="ml-4 pl-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() => setAddAccommodationStop(stop)}
+            >
+              <Plus className="size-3.5" aria-hidden="true" />
+              Add accommodation
+            </Button>
+          </div>
+        )}
 
         {/* Transport legs to next stop (intra-chapter only when chapters exist) */}
         {!isLast && (
@@ -656,6 +659,80 @@ export function ItineraryManager({
                 );
               })
             )}
+
+            {/* Empty chapters: a freshly created chapter holds no stops yet, so
+                groupStopsByChapter never emits it. Render those here (after the
+                populated groups) so they're visible and droppable into. */}
+            {hasChapters &&
+              (() => {
+                const presentChapterIds = new Set(
+                  groups.map((g) => g.chapter?.id).filter(Boolean) as string[],
+                );
+                const emptyChapters = chapters.filter(
+                  (c) => !presentChapterIds.has(c.id),
+                );
+                return emptyChapters.map((chapter) => {
+                  const groupKey = chapter.id;
+                  const isCollapsed = collapsedGroups.has(groupKey);
+                  return (
+                    <div
+                      key={`empty-${chapter.id}`}
+                      className="rounded-xl border border-border/60 overflow-hidden"
+                      style={{
+                        borderLeftWidth: 4,
+                        borderLeftColor: chapterColourSwatch(chapter.colour),
+                      }}
+                    >
+                      {/* Collapsible header — same markup as populated chapters */}
+                      <button
+                        type="button"
+                        aria-expanded={!isCollapsed}
+                        aria-label={`${chapter.name} chapter, ${isCollapsed ? "expand" : "collapse"}`}
+                        onClick={() => toggleGroup(groupKey)}
+                        className="w-full flex items-center gap-3 px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
+                      >
+                        <ChapterChip name={chapter.name} colour={chapter.colour} />
+                        <span className="text-xs text-muted-foreground flex-1">
+                          {chapter.startDate && chapter.endDate
+                            ? formatDateRange(chapter.startDate, chapter.endDate)
+                            : "rough"}
+                        </span>
+                        {!chapter.startDate && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={pendingId === `firm-up-${chapter.id}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleFirmUp(chapter.id);
+                            }}
+                          >
+                            <CalendarClock className="size-3.5" aria-hidden="true" />
+                            Set dates
+                          </Button>
+                        )}
+                        <span
+                          className="text-sm text-muted-foreground select-none"
+                          aria-hidden="true"
+                        >
+                          {isCollapsed ? "▸" : "▾"}
+                        </span>
+                      </button>
+
+                      {/* Group body — no stops yet, just the quick-add row */}
+                      {!isCollapsed && (
+                        <div className="flex flex-col gap-3 p-3">
+                          <p className="px-1 text-xs text-muted-foreground">
+                            No stops yet — add one
+                          </p>
+                          <QuickAddStops tripId={tripId} chapterId={chapter.id} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
           </div>
 
           {/* Other transports (not linked to consecutive stops, or home bookends) */}

@@ -33,6 +33,8 @@ export interface StopCardStop {
   nights: number | null;
   /** Whether the (scheduled) stop's dates are pinned. */
   pinned: boolean;
+  /** Explicit chapter membership (used while rough); null when unassigned. */
+  chapterId: string | null;
   notes?: string | null;
   lat?: number | null;
   lng?: number | null;
