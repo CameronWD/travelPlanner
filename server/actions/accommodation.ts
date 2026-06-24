@@ -9,6 +9,8 @@ import {
   type AccommodationInput,
 } from "@/lib/validations/accommodation";
 import { geocodePlace } from "@/lib/geocode";
+import { recordActivity } from "@/server/actions/activity";
+import { entityLabel, describeChanges } from "@/lib/activity";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -94,7 +96,7 @@ export async function createAccommodation(
     lng = coords?.lng ?? null;
   }
 
-  await db.accommodation.create({
+  const created = await db.accommodation.create({
     data: {
       tripId: stop.tripId,
       stopId: data.stopId,
@@ -109,6 +111,7 @@ export async function createAccommodation(
     },
   });
 
+  await recordActivity({ tripId: stop.tripId, verb: "CREATED", entityType: "ACCOMMODATION", entityId: created.id, entityLabel: entityLabel("ACCOMMODATION", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
 }
@@ -143,6 +146,8 @@ export async function updateAccommodation(
     };
   }
 
+  const before = await db.accommodation.findUnique({ where: { id: accommodationId } });
+
   // Best-effort geocode from address
   let lat: number | null = null;
   let lng: number | null = null;
@@ -152,7 +157,7 @@ export async function updateAccommodation(
     lng = coords?.lng ?? null;
   }
 
-  await db.accommodation.update({
+  const updated = await db.accommodation.update({
     where: { id: accommodationId },
     data: {
       stopId: data.stopId,
@@ -167,6 +172,14 @@ export async function updateAccommodation(
     },
   });
 
+  await recordActivity({
+    tripId: acc.tripId,
+    verb: "UPDATED",
+    entityType: "ACCOMMODATION",
+    entityId: accommodationId,
+    entityLabel: entityLabel("ACCOMMODATION", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("ACCOMMODATION", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
   revalidatePath(`/trips/${acc.tripId}`);
   return { success: true };
 }
@@ -179,7 +192,9 @@ export async function deleteAccommodation(
 ): Promise<AccommodationActionResult> {
   const acc = await requireAccommodationAccess(accommodationId);
 
+  const doomed = await db.accommodation.findUnique({ where: { id: accommodationId }, select: { name: true } });
   await db.accommodation.delete({ where: { id: accommodationId } });
+  await recordActivity({ tripId: acc.tripId, verb: "DELETED", entityType: "ACCOMMODATION", entityId: accommodationId, entityLabel: doomed?.name ?? "" });
 
   revalidatePath(`/trips/${acc.tripId}`);
   return { success: true };
