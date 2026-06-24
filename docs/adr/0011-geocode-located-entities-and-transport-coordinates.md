@@ -36,13 +36,19 @@ Alternatives considered:
 ## Decision
 
 1. **Geocode every located entity on save**, mirroring the existing Stop flow:
-   - **Item** → geocode its `address` (with stop name/country as context) when an
-     address is present and `lat`/`lng` are missing. No address → no geocode.
-   - **Accommodation** → geocode its `address` (+ stop context) when coords are
-     missing.
-   - **Transport** → geocode `depPlace` and `arrPlace` when missing.
-   - **Manual coordinates always win** (never overwrite user-set lat/lng), and we
-     **re-geocode when the address/place changes** and coords were not set by hand.
+   - **Item** → geocode its `address` when an address is present. No address → no
+     geocode.
+   - **Accommodation** → geocode its `address` when present.
+   - **Transport** → geocode `depPlace` and `arrPlace` when present.
+   - We geocode the **bare location string** (not appended with the Stop's
+     city/country). Full street addresses self-disambiguate, and keeping the query
+     identical between the save actions and the backfill script avoids drift.
+     Layering Stop context on top — to help sparse entries like a bare landmark
+     name — is a deferred refinement.
+   - The edit forms for these entities **do not currently capture manual
+     coordinates**, so geocoding populates `lat`/`lng` on save. If manual entry is
+     ever added, it should take precedence over the geocode result (as it already
+     does for Stops).
 
 2. **Add coordinate columns to Transport** — `depLat` / `depLng` / `arrLat` /
    `arrLng` (all nullable `Float`). Departure and arrival are genuinely different
