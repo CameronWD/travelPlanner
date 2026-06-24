@@ -299,10 +299,10 @@ export default async function PrintPage({
           </div>
         </div>
 
-        {/* ── Route Overview (stops list) ── */}
+        {/* ── Route (stops list) ── */}
         {stops.length > 0 && (
           <section>
-            <h2 className="font-display text-2xl font-semibold mb-4">Route Overview</h2>
+            <h2 className="font-display text-2xl font-semibold mb-4">Route</h2>
             <div className="flex flex-col gap-3">
               {stops.map((stop, idx) => {
                 const nights = nightsBetween(stop.arriveDate, stop.departDate);
