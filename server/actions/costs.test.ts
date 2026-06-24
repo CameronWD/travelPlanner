@@ -84,8 +84,10 @@ vi.mock("@/lib/db", () => ({
     $transaction: transactionMock,
   },
 }));
+vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 
 import { createCost, updateCost, deleteCost } from "./costs";
+import { recordActivity } from "@/server/actions/activity";
 
 // ---------------------------------------------------------------------------
 // Test fixtures
@@ -444,5 +446,65 @@ describe("deleteCost", () => {
     await deleteCost("cost-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-7");
+  });
+
+  it("records DELETED activity with the cost label", async () => {
+    costFindUniqueMock
+      .mockResolvedValueOnce({ id: "cost-1", tripId: "trip-1" }) // requireCostAccess
+      .mockResolvedValueOnce({ label: "Travel insurance" }); // findUnique for label
+    costDeleteMock.mockResolvedValue({});
+
+    await deleteCost("cost-1");
+
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ tripId: "trip-1", verb: "DELETED", entityType: "COST", entityId: "cost-1", entityLabel: "Travel insurance" }));
+  });
+
+  it("falls back to 'cost' as label when cost has no label", async () => {
+    costFindUniqueMock
+      .mockResolvedValueOnce({ id: "cost-1", tripId: "trip-1" }) // requireCostAccess
+      .mockResolvedValueOnce({ label: null }); // findUnique for label
+    costDeleteMock.mockResolvedValue({});
+
+    await deleteCost("cost-1");
+
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ entityLabel: "cost" }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// activity recording
+// ---------------------------------------------------------------------------
+
+describe("createCost — activity", () => {
+  it("records CREATED activity after a successful create", async () => {
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costCreateMock.mockResolvedValue({ id: "cost-1" });
+
+    await createCost("trip-1", VALID_TRANSPORT_INPUT);
+
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ tripId: "trip-1", verb: "CREATED", entityType: "COST", entityId: "cost-1" }));
+  });
+
+  it("does not record activity when validation fails", async () => {
+    await createCost("trip-1", { estimatedMinor: -100, currency: "AUD", ownerType: "TRANSPORT", ownerId: "t-1" });
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateCost — activity", () => {
+  it("records UPDATED activity with describeChanges after a successful update", async () => {
+    costFindUniqueMock
+      .mockResolvedValueOnce({ id: "cost-1", tripId: "trip-1" }) // requireCostAccess
+      .mockResolvedValueOnce({ id: "cost-1", tripId: "trip-1", estimatedMinor: 4000, actualMinor: null, currency: "AUD", rateToHome: 1, label: null, category: null }); // before-row
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.65, persist: null });
+    costUpdateMock.mockResolvedValue({ id: "cost-1", estimatedMinor: 5000, actualMinor: null, currency: "EUR", rateToHome: 0.65, label: null, category: null });
+
+    await updateCost("cost-1", { ...VALID_TRANSPORT_INPUT, currency: "EUR" });
+
+    expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ tripId: "trip-1", verb: "UPDATED", entityType: "COST", entityId: "cost-1" }));
   });
 });
