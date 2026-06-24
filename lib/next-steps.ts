@@ -41,6 +41,7 @@ function flagHref(flag: Flag, base: string): string {
   switch (flag.targetType) {
     case "DAY":
       return flag.date ? `${base}/day/${flag.date}` : `${base}/calendar`;
+    // Everything you fix on the planning canvas:
     case "STOP":
     case "TRANSPORT":
     case "ACCOMMODATION":
@@ -74,6 +75,16 @@ export function buildNextSteps({
       priority: flag.severity === "warning" ? WARNING_PRIORITY : INFO_PRIORITY,
     });
   }
+
+  // Nudge priority table (lower = earlier). Warnings anchor at 10, info flags
+  // at 30, so a nudge < 10 outranks all flags and one in (10,30) sits between
+  // warnings and info flags:
+  //                       normal   final-prep
+  //   set-dates             1         1
+  //   unbooked-transport   20         9
+  //   undated-chapters     22        22
+  //   packing              26         6   (boosted to the top in final-prep)
+  //   pretrip              28         8
 
   // 2. Forward nudges. In final-prep, prep nudges are boosted above info flags.
   const isFinalPrep = phase === "final-prep";

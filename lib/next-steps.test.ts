@@ -51,6 +51,8 @@ describe("buildNextSteps", () => {
       tripBasePath: "/trips/t",
     });
     expect(steps[0].title).toMatch(/packing/i);
+    expect(steps[1].title).toMatch(/pre-?trip/i);
+    expect(steps[steps.length - 1].title).toMatch(/info empty-day/);
   });
 
   it("nudges to set dates when the trip has none", () => {
