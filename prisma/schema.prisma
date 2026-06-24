@@ -217,6 +217,10 @@ model Transport {
   depAt      DateTime?
   arrPlace   String?
   arrAt      DateTime?
+  depLat     Float?
+  depLng     Float?
+  arrLat     Float?
+  arrLng     Float?
   reference  String?
   notes      String?
   sortOrder  Int       @default(0)
