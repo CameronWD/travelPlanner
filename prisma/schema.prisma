@@ -95,8 +95,8 @@ model VerificationToken {
 model Trip {
   id           String @id @default(cuid())
   name         String
-  startDate    String // "YYYY-MM-DD"
-  endDate      String // "YYYY-MM-DD"
+  startDate    String? // "YYYY-MM-DD" — null while the trip is a date-less idea
+  endDate      String? // "YYYY-MM-DD" — soft; auto-extends to cover scheduled stops
   homeCurrency String // ISO 4217, e.g. "AUD"
   createdById  String
 
@@ -159,19 +159,24 @@ model Invite {
 }
 
 model Stop {
-  id         String  @id @default(cuid())
-  tripId     String
-  name       String
-  country    String?
-  lat        Float?
-  lng        Float?
-  timezone   String // IANA, e.g. "Europe/London"
-  arriveDate String // "YYYY-MM-DD"
-  departDate String // "YYYY-MM-DD"
-  sortOrder  Int
-  notes      String?
+  id               String  @id @default(cuid())
+  tripId           String
+  name             String
+  country          String?
+  lat              Float?
+  lng              Float?
+  timezone         String? // IANA — null while rough
+  arriveDate       String? // "YYYY-MM-DD" — null while rough
+  departDate       String? // "YYYY-MM-DD" — null while rough
+  nights           Int?    // rough duration, used while rough
+  sortOrder        Int
+  pinned           Boolean @default(false) // dates fixed; ripple never moves it
+  chapterId        String? // explicit chapter membership while rough
+  chapterSortOrder Int     @default(0) // order within the chapter while rough
+  notes            String?
 
   trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  chapter        Chapter?        @relation(fields: [chapterId], references: [id], onDelete: SetNull)
   accommodations Accommodation[]
   items          Item[]
   fromTransports Transport[]     @relation("TransportFromStop")
@@ -181,18 +186,20 @@ model Stop {
   updatedAt DateTime @updatedAt
 
   @@index([tripId])
+  @@index([chapterId])
 }
 
 model Chapter {
-  id        String @id @default(cuid())
+  id        String  @id @default(cuid())
   tripId    String
   name      String
-  colour    String // lib/chapter-colours.ts CHAPTER_COLOUR_VALUES
-  startDate String // "YYYY-MM-DD"
-  endDate   String // "YYYY-MM-DD"
-  sortOrder Int    @default(0)
+  colour    String  // lib/chapter-colours.ts CHAPTER_COLOUR_VALUES
+  startDate String? // "YYYY-MM-DD" — null while rough
+  endDate   String? // "YYYY-MM-DD" — null while rough
+  sortOrder Int     @default(0)
 
-  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip  Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  stops Stop[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
