@@ -544,7 +544,7 @@ export function buildBudget({
   // Assemble byChapter (sorted by startDate ascending)
   // ---------------------------------------------------------------------------
   const byChapter: BudgetByChapter[] = [...chapters]
-    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+    .sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""))
     .map((ch) => ({
       chapterId: ch.id,
       chapterName: ch.name,

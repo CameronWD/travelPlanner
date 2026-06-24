@@ -58,14 +58,18 @@ export default async function PrintPage({
     },
   });
   if (!trip) notFound();
+  // The printable itinerary and budget are both anchored to the trip window;
+  // a date-less trip has no dated plan to print yet.
+  if (!trip.startDate || !trip.endDate) notFound();
 
   const { homeCurrency, startDate, endDate } = trip;
 
   // Fetch all the trip data we need for the print view
-  const [stops, transports, accommodations, items, costs, exchangeRates] =
+  const [rawStops, transports, accommodations, items, costs, exchangeRates] =
     await Promise.all([
       db.stop.findMany({
-        where: { tripId },
+        // Rough (date-less) stops are excluded from the dated print view.
+        where: { tripId, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -163,6 +167,14 @@ export default async function PrintPage({
     }
     return { ...c, rateToHome } as BudgetCost;
   });
+
+  // Non-null at runtime: the query filters rough (date-less) stops out.
+  const stops = rawStops.map((s) => ({
+    ...s,
+    timezone: s.timezone ?? "UTC",
+    arriveDate: s.arriveDate!,
+    departDate: s.departDate!,
+  }));
 
   const budget = buildBudget({
     homeCurrency,

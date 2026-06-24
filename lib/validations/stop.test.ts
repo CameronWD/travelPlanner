@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { stopSchema } from "./stop";
 
 const VALID = {
+  mode: "scheduled" as const,
   name: "London",
   country: "United Kingdom",
   timezone: "Europe/London",
@@ -27,7 +28,7 @@ describe("stopSchema", () => {
     const result = stopSchema.safeParse({ ...VALID, name: "" });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const fields = result.error.flatten().fieldErrors;
+      const fields: Record<string, string[] | undefined> = result.error.flatten().fieldErrors;
       expect(fields.name).toBeDefined();
     }
   });
@@ -36,7 +37,7 @@ describe("stopSchema", () => {
     const result = stopSchema.safeParse({ ...VALID, name: "A".repeat(121) });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const fields = result.error.flatten().fieldErrors;
+      const fields: Record<string, string[] | undefined> = result.error.flatten().fieldErrors;
       expect(fields.name).toBeDefined();
     }
   });
@@ -45,7 +46,7 @@ describe("stopSchema", () => {
     const result = stopSchema.safeParse({ ...VALID, timezone: "" });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const fields = result.error.flatten().fieldErrors;
+      const fields: Record<string, string[] | undefined> = result.error.flatten().fieldErrors;
       expect(fields.timezone).toBeDefined();
     }
   });
@@ -54,7 +55,7 @@ describe("stopSchema", () => {
     const result = stopSchema.safeParse({ ...VALID, arriveDate: "01-07-2026" });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const fields = result.error.flatten().fieldErrors;
+      const fields: Record<string, string[] | undefined> = result.error.flatten().fieldErrors;
       expect(fields.arriveDate).toBeDefined();
     }
   });
@@ -63,7 +64,7 @@ describe("stopSchema", () => {
     const result = stopSchema.safeParse({ ...VALID, departDate: "not-a-date" });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const fields = result.error.flatten().fieldErrors;
+      const fields: Record<string, string[] | undefined> = result.error.flatten().fieldErrors;
       expect(fields.departDate).toBeDefined();
     }
   });
@@ -76,7 +77,7 @@ describe("stopSchema", () => {
     });
     expect(result.success).toBe(false);
     if (!result.success) {
-      const fields = result.error.flatten().fieldErrors;
+      const fields: Record<string, string[] | undefined> = result.error.flatten().fieldErrors;
       expect(fields.departDate).toBeDefined();
     }
   });
@@ -114,5 +115,29 @@ describe("stopSchema", () => {
   it("rejects non-numeric lat", () => {
     const result = stopSchema.safeParse({ ...VALID, lat: "not-a-number" });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("stopSchema rough mode", () => {
+  it("accepts a rough stop: name + nights, no dates", () => {
+    const r = stopSchema.safeParse({ mode: "rough", name: "Rome", nights: 3, country: "Italy" });
+    expect(r.success).toBe(true);
+  });
+  it("rejects a rough stop with negative nights", () => {
+    const r = stopSchema.safeParse({ mode: "rough", name: "Rome", nights: -1 });
+    expect(r.success).toBe(false);
+  });
+  it("still accepts a scheduled stop with dates + timezone", () => {
+    const r = stopSchema.safeParse({
+      mode: "scheduled", name: "London", timezone: "Europe/London",
+      arriveDate: "2026-07-01", departDate: "2026-07-05",
+    });
+    expect(r.success).toBe(true);
+  });
+  it("rejects a scheduled stop missing a timezone", () => {
+    const r = stopSchema.safeParse({
+      mode: "scheduled", name: "London", arriveDate: "2026-07-01", departDate: "2026-07-05",
+    });
+    expect(r.success).toBe(false);
   });
 });

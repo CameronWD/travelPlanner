@@ -86,8 +86,9 @@ export default async function SettingsPage({
             tripId={tripId}
             defaultValues={{
               name: trip.name,
-              startDate: trip.startDate,
-              endDate: trip.endDate,
+              // A date-less trip renders empty date inputs.
+              startDate: trip.startDate ?? "",
+              endDate: trip.endDate ?? "",
               homeCurrency: trip.homeCurrency,
             }}
           />

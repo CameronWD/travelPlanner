@@ -96,3 +96,15 @@ describe("createTripSchema", () => {
     }
   });
 });
+
+describe("createTripSchema optional dates", () => {
+  it("accepts name + currency with no dates", () => {
+    expect(createTripSchema.safeParse({ name: "Europe someday", homeCurrency: "AUD" }).success).toBe(true);
+  });
+  it("accepts a start date with no end date", () => {
+    expect(createTripSchema.safeParse({ name: "Italy", homeCurrency: "AUD", startDate: "2026-07-03" }).success).toBe(true);
+  });
+  it("rejects end before start when both present", () => {
+    expect(createTripSchema.safeParse({ name: "Italy", homeCurrency: "AUD", startDate: "2026-07-10", endDate: "2026-07-03" }).success).toBe(false);
+  });
+});

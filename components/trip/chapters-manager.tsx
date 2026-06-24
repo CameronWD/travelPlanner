@@ -89,7 +89,9 @@ export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
                 <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
                   <ChapterChip name={chapter.name} colour={chapter.colour} />
                   <span className="text-sm text-muted-foreground">
-                    {formatDateRange(chapter.startDate, chapter.endDate)}
+                    {chapter.startDate && chapter.endDate
+                      ? formatDateRange(chapter.startDate, chapter.endDate)
+                      : "No dates"}
                   </span>
                 </div>
 

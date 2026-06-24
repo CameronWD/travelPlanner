@@ -22,13 +22,14 @@ import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 export interface WishlistStop {
   id: string;
   name: string;
-  arriveDate: string;
-  departDate: string;
+  arriveDate: string | null; // null for rough (date-less) stops
+  departDate: string | null; // null for rough (date-less) stops
 }
 
 export interface WishlistBoardProps {
   tripId: string;
-  tripStartDate: string;
+  /** Trip start (YYYY-MM-DD); null/undefined for a date-less trip. */
+  tripStartDate?: string | null;
   stops: WishlistStop[];
   items: ItemCardItem[];
   /** Map of itemId → costs for that item */
@@ -123,7 +124,11 @@ export function WishlistBoard({
   const isEmpty = items.length === 0;
 
   // First stop date (for defaulting schedule dialog)
-  const defaultScheduleDate = stops[0]?.arriveDate ?? tripStartDate;
+  // Prefer the first stop's arrival; fall back to the trip start. Either may be
+  // null/undefined for rough stops / a date-less trip, in which case the
+  // scheduling dialog opens with an empty date.
+  const defaultScheduleDate = stops[0]?.arriveDate ?? tripStartDate ?? undefined;
+  const tripStartDateValue = tripStartDate ?? undefined;
 
   return (
     <div className="flex flex-col gap-6">
@@ -138,7 +143,7 @@ export function WishlistBoard({
         <AddItemButton
           tripId={tripId}
           stops={stopOptions}
-          tripStartDate={tripStartDate}
+          tripStartDate={tripStartDateValue}
           defaultUnscheduled={true}
         />
       </div>
@@ -249,7 +254,7 @@ export function WishlistBoard({
         <ItemFormDialog
           tripId={tripId}
           stops={stopOptions}
-          tripStartDate={tripStartDate}
+          tripStartDate={tripStartDateValue}
           item={editingItem}
           open={Boolean(editingItem)}
           onOpenChange={(open) => {

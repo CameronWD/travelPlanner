@@ -49,14 +49,18 @@ async function requireChapterAccess(chapterId: string): Promise<{ id: string; tr
 // isn't warranted here.
 async function firstOverlap(
   tripId: string,
-  range: { startDate: string; endDate: string },
+  range: { startDate?: string; endDate?: string },
   excludeId?: string,
 ) {
+  if (!range.startDate || !range.endDate) return null; // rough chapter never overlaps
   const siblings = await db.chapter.findMany({
     where: { tripId },
     select: { id: true, startDate: true, endDate: true },
   });
-  return siblings.find((s) => s.id !== excludeId && chaptersOverlap(s, range)) ?? null;
+  return siblings.find(
+    (s) => s.id !== excludeId && s.startDate && s.endDate &&
+      chaptersOverlap({ startDate: s.startDate, endDate: s.endDate }, { startDate: range.startDate!, endDate: range.endDate! }),
+  ) ?? null;
 }
 
 async function nextSortOrder(tripId: string): Promise<number> {

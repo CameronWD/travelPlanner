@@ -33,8 +33,8 @@ export interface ChapterFormDialogChapter {
   id: string;
   name: string;
   colour: string;
-  startDate: string;
-  endDate: string;
+  startDate: string | null; // null for rough (date-less) chapters
+  endDate: string | null;   // null for rough (date-less) chapters
 }
 
 export interface ChapterFormDialogProps {
@@ -127,6 +127,10 @@ function ChapterForm({
   const [endDate, setEndDate] = React.useState(
     chapter?.endDate ?? defaultEnd ?? "",
   );
+  // "Set dates now": OFF for a new chapter; ON when editing one that has dates.
+  const [setDatesNow, setSetDatesNow] = React.useState(
+    isEdit ? chapter?.startDate != null : false,
+  );
   const [errors, setErrors] = React.useState<FormErrors>({});
   const [isPending, startTransition] = React.useTransition();
 
@@ -134,7 +138,9 @@ function ChapterForm({
     e.preventDefault();
     setErrors({});
 
-    const input = { name, colour, startDate, endDate };
+    const input = setDatesNow
+      ? { name, colour, startDate, endDate }
+      : { name, colour };
 
     startTransition(async () => {
       const result =
@@ -189,27 +195,41 @@ function ChapterForm({
         </div>
       </Field>
 
-      {/* Date row */}
-      <div className="grid grid-cols-2 gap-3">
-        <DateField
-          label="Start date"
-          required
-          value={startDate}
-          onChange={(e) => setStartDate(e.target.value)}
-          max={endDate || undefined}
-          error={errors.startDate?.[0]}
+      {/* Set dates now toggle */}
+      <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+        <input
+          type="checkbox"
+          className="size-4 accent-primary"
+          checked={setDatesNow}
           disabled={isPending}
+          onChange={(e) => setSetDatesNow(e.target.checked)}
         />
-        <DateField
-          label="End date"
-          required
-          value={endDate}
-          onChange={(e) => setEndDate(e.target.value)}
-          min={startDate || undefined}
-          error={errors.endDate?.[0]}
-          disabled={isPending}
-        />
-      </div>
+        Set dates now
+      </label>
+
+      {/* Date row — only when dates are being set */}
+      {setDatesNow && (
+        <div className="grid grid-cols-2 gap-3">
+          <DateField
+            label="Start date"
+            required
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            max={endDate || undefined}
+            error={errors.startDate?.[0]}
+            disabled={isPending}
+          />
+          <DateField
+            label="End date"
+            required
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            min={startDate || undefined}
+            error={errors.endDate?.[0]}
+            disabled={isPending}
+          />
+        </div>
+      )}
 
       {/* Form-level error */}
       {errors._form && (

@@ -66,6 +66,17 @@ export default async function BudgetPage({
     select: { homeCurrency: true, startDate: true, endDate: true },
   });
   if (!trip) notFound();
+  // The budget roll-up enumerates every trip day; a date-less trip has no
+  // dated window to spread costs across yet.
+  if (!trip.startDate || !trip.endDate) {
+    return (
+      <EmptyState
+        icon={Wallet}
+        title="No dates yet"
+        description="Set your trip's start and end dates to see a day-by-day budget breakdown."
+      />
+    );
+  }
 
   const { homeCurrency, startDate, endDate } = trip;
 
@@ -77,7 +88,8 @@ export default async function BudgetPage({
       select: COST_SELECT,
     }),
     db.stop.findMany({
-      where: { tripId },
+      // Rough (date-less) stops carry no costs onto the dated budget.
+      where: { tripId, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
     }),
@@ -98,7 +110,9 @@ export default async function BudgetPage({
       select: { base: true, quote: true, rate: true, manual: true, fetchedAt: true },
     }),
     db.chapter.findMany({
-      where: { tripId },
+      // Rough (date-less) chapters have no dated window, so buildBudget would
+      // emit a blank $0 row for each — match the summary page and exclude them.
+      where: { tripId, startDate: { not: null } },
       orderBy: { startDate: "asc" },
       select: { id: true, name: true, colour: true, startDate: true, endDate: true },
     }),
@@ -120,12 +134,13 @@ export default async function BudgetPage({
     category: c.category,
   }));
 
+  // Non-null at runtime: the query filters rough (date-less) stops out.
   const budgetStops: BudgetStopWithDates[] = stops.map((s) => ({
     id: s.id,
     name: s.name,
     timezone: s.timezone,
-    arriveDate: s.arriveDate,
-    departDate: s.departDate,
+    arriveDate: s.arriveDate!,
+    departDate: s.departDate!,
     sortOrder: s.sortOrder,
   }));
 

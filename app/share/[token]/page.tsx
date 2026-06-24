@@ -73,11 +73,15 @@ export default async function SharePage({
 
   const trip = shareLink.trip;
   const tripId = trip.id;
+  // The public itinerary is a dated day-by-day projection; a date-less trip
+  // has nothing dated to share yet.
+  if (!trip.startDate || !trip.endDate) notFound();
 
   // Fetch itinerary data — NO costs, no notes, no confirmations
-  const [stops, transports, accommodations, items] = await Promise.all([
+  const [rawStops, transports, accommodations, items] = await Promise.all([
     db.stop.findMany({
-      where: { tripId },
+      // Rough (date-less) stops aren't part of the dated public itinerary.
+      where: { tripId, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -138,6 +142,14 @@ export default async function SharePage({
       },
     }),
   ]);
+
+  // Non-null at runtime: the query filters rough (date-less) stops out.
+  const stops = rawStops.map((s) => ({
+    ...s,
+    timezone: s.timezone ?? "UTC",
+    arriveDate: s.arriveDate!,
+    departDate: s.departDate!,
+  }));
 
   // Build itinerary projection (dates + entries only)
   const itinerary = buildItinerary({

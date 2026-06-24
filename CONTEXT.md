@@ -7,15 +7,15 @@ A collaborative web app for a couple to plan and run a holiday together: scoping
 ### The trip and its shape
 
 **Trip**:
-A single named travel project with an overall date range (e.g. "Europe Summer 2026"). The app holds many trips; you work in one at a time.
+A single named travel project. It may have an overall date range (e.g. "Europe Summer 2026"), but while it's still just an idea it can be **date-less** — a name and nothing more — and gain a range only as its Stops are firmed up. A start date, if set, is the default **anchor** for firming up; the end date is soft and auto-extends to cover the planned Stops. The app holds many trips; you work in one at a time.
 _Avoid_: Holiday, vacation (use "Trip" in code/UI consistently)
 
 **Stop**:
-A place you are based for a stretch of the trip, plus the dates you are there (e.g. Paris, 3–6 July). A Trip is an ordered sequence of Stops.
-_Avoid_: Destination, city, location, leg
+A place you are based for a stretch of the trip (e.g. Paris). A Trip is an ordered sequence of Stops. A Stop is either **rough** — a place plus a rough number of nights, with no dates yet, jotted down while sketching the shape of the trip — or **scheduled**, pinned to an arrive and depart date. One Trip freely mixes rough and scheduled Stops; you firm them up piece by piece. Dated views (Timeline, Calendar, Today, Summary) work off scheduled Stops.
+_Avoid_: Destination, city, location, leg; for the rough/scheduled split avoid "draft", "tentative", "planned"
 
 **Chapter**:
-A named, coloured **date range** within a Trip that groups a chunk of the journey into one piece (e.g. "the Italy chapter", covering Rome → Florence → Venice). A Stop, Transport or cost belongs to whichever Chapter's dates cover it (a Stop is placed by its arrive date); the Itinerary, Budget and Summary roll up per Chapter. Chapters are optional, cannot overlap, and need not cover the whole Trip — any date under no Chapter is **Ungrouped**. A Transport that crosses from one Chapter into another — or runs to/from home, outside every Chapter — is **between-legs travel**, shown on the seam between Chapters and as its own Budget line rather than inside any Chapter's total.
+A named, coloured **date range** within a Trip that groups a chunk of the journey into one piece (e.g. "the Italy chapter", covering Rome → Florence → Venice). A Stop, Transport or cost belongs to whichever Chapter's dates cover it (a Stop is placed by its arrive date); the Itinerary, Budget and Summary roll up per Chapter. Chapters are optional, cannot overlap, and need not cover the whole Trip — any date under no Chapter is **Ungrouped**. A Transport that crosses from one Chapter into another — or runs to/from home, outside every Chapter — is **between-legs travel**, shown on the seam between Chapters and as its own Budget line rather than inside any Chapter's total. While a Trip is still being sketched a Chapter can be **rough**: it has no dates yet and instead holds an explicit, ordered set of rough Stops dragged into it. Once those Stops are dated (see **Firm up**) the Chapter becomes an ordinary date range and membership is computed from dates as above. So explicit membership is a brainstorming scaffold only; for any dated Stop, dates are the source of truth.
 _Avoid_: Phase, leg, segment, part
 
 **Transport**:
@@ -71,10 +71,18 @@ The read-only overview of a whole Trip: each Stop with its nights, the Transport
 _Avoid_: Report, dashboard
 
 **Flag**:
-An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, an empty day, Transport times that don't line up with Stop dates, a very short stay, backtracking in the route, a **packed day** (more scheduled than is realistic), or Items whose times **overlap**.
+An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, an empty day, Transport times that don't line up with Stop dates, a very short stay, backtracking in the route, a **packed day** (more scheduled than is realistic), Items whose times **overlap**, or a **Pinned** Stop the surrounding plan can't fit around.
 _Avoid_: Warning, alert, issue, error
 
 ### Supporting concepts
+
+**Firm up**:
+Turning rough Stops into scheduled ones by flowing dates forward from an **anchor** — the Trip start, or the depart date of the preceding scheduled Stop — using each Stop's rough night count (arrive = previous depart; depart = arrive + nights). One action can date a whole leg; every Stop stays editable afterward, and changing one Stop's nights or dates ripples forward to the Stops after it, stopping at any **Pinned** Stop. The reverse — clearing a Stop's dates to sketch again — is making it **rough**.
+_Avoid_: Lock in, commit; reserve "schedule" for Items
+
+**Pinned**:
+A scheduled Stop whose dates the Traveller has fixed — a real booking or a fixed-date event — so firming up and ripple never move it. Ripple flows the flexible Stops in each span between the anchor and the next Pinned Stop; if they can't fit before a Pinned Stop's arrive date the app raises a **Flag** rather than overwriting the pin, and any slack before a pin is simply left as free days.
+_Avoid_: Locked, fixed, frozen
 
 **Today view**:
 A focused, read-optimised screen showing what's happening *now/today* for whoever's travelling — next Transport, today's Items, addresses — designed to be glanced at on a phone, offline.

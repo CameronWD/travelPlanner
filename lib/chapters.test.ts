@@ -108,3 +108,23 @@ describe("suggestChapterRuns", () => {
     expect(suggestChapterRuns(there).map((r) => r.name)).toEqual(["France", "Italy", "France"]);
   });
 });
+
+describe("mixed rough + dated membership", () => {
+  const FR: ChapterLike = { id: "fr", name: "France", colour: "sky", startDate: "2026-07-03", endDate: "2026-07-09" };
+  const ROUGH_IT: ChapterLike = { id: "it", name: "Italy", colour: "rose", startDate: null, endDate: null };
+
+  it("groups a dated stop by its date band and a rough stop by its chapterId", () => {
+    const mixed: StopLike[] = [
+      { id: "paris", arriveDate: "2026-07-03", departDate: "2026-07-06", country: "France", sortOrder: 0 },
+      { id: "rome", arriveDate: null, departDate: null, nights: 3, chapterId: "it", country: "Italy", sortOrder: 1 },
+    ];
+    const groups = groupStopsByChapter(mixed, [FR, ROUGH_IT]);
+    expect(groups.map((g) => g.chapter?.id ?? null)).toEqual(["fr", "it"]);
+    expect(groups[1].stops.map((s) => s.id)).toEqual(["rome"]);
+  });
+
+  it("a rough stop with no chapterId is ungrouped", () => {
+    const s: StopLike = { id: "x", arriveDate: null, departDate: null, nights: 2, chapterId: null, country: null, sortOrder: 0 };
+    expect(chapterForStop(s, [FR, ROUGH_IT])).toBeNull();
+  });
+});

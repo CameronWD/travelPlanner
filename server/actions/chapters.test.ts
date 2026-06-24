@@ -57,6 +57,19 @@ describe("createChapter", () => {
     const r = await createChapter("trip-1", { ...VALID, name: "" });
     expect(r.success).toBe(false);
   });
+  it("creates a rough chapter (no dates) and skips the overlap check", async () => {
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCreateMock.mockResolvedValue({ id: "c2" });
+    const r = await createChapter("trip-1", { name: "Italy", colour: "rose" });
+    expect(r.success).toBe(true);
+    expect(chapterCreateMock).toHaveBeenCalledOnce();
+    const callData = chapterCreateMock.mock.calls[0][0].data;
+    expect(callData.name).toBe("Italy");
+    expect(callData.colour).toBe("rose");
+    // rough chapter — no concrete dates written to DB
+    expect(callData.startDate == null || callData.startDate === undefined).toBe(true);
+    expect(callData.endDate == null || callData.endDate === undefined).toBe(true);
+  });
 });
 
 describe("updateChapter", () => {

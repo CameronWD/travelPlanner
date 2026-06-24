@@ -1,7 +1,5 @@
-import { MapPin } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { EmptyState } from "@/components/ui/empty-state";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enums";
 import type { NoteView } from "@/components/trip/note-thread";
@@ -46,6 +44,10 @@ export default async function TripOverviewPage({
         notes: true,
         lat: true,
         lng: true,
+        nights: true,
+        pinned: true,
+        chapterId: true,
+        chapterSortOrder: true,
         accommodations: {
           orderBy: { checkIn: "asc" },
           select: {
@@ -142,33 +144,16 @@ export default async function TripOverviewPage({
     costsByOwnerId.set(cost.ownerId, existing);
   }
 
-  if (stops.length === 0) {
-    return (
-      <EmptyState
-        icon={MapPin}
-        title="No stops yet"
-        description="Add your first stop to start building your itinerary — where are you headed?"
-        action={
-          <ItineraryManager
-            tripId={tripId}
-            initialStops={[]}
-            initialTransports={[]}
-            chapters={chapters}
-            tripStartDate={trip?.startDate}
-            tripEndDate={trip?.endDate}
-          />
-        }
-      />
-    );
-  }
+  const tripStartDate = trip?.startDate ?? undefined;
+  const tripEndDate = trip?.endDate ?? undefined;
 
   return (
     <div className="flex flex-col gap-6">
       <ItineraryManager
         tripId={tripId}
         homeCurrency={trip?.homeCurrency}
-        tripStartDate={trip?.startDate}
-        tripEndDate={trip?.endDate}
+        tripStartDate={tripStartDate}
+        tripEndDate={tripEndDate}
         notesByStopId={notesByStopId}
         currentUserId={user.id}
         chapters={chapters}

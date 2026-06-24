@@ -57,8 +57,8 @@ function formatDateRange(startDate: string, endDate: string): string {
 export interface TripCardProps {
   id: string;
   name: string;
-  startDate: string;
-  endDate: string;
+  startDate: string | null; // null for a date-less trip
+  endDate: string | null;   // null for a date-less trip
   stopCount: number;
 }
 
@@ -74,7 +74,8 @@ export function TripCard({
   stopCount,
 }: TripCardProps) {
   const gradient = tripGradient(id, name);
-  const dateRange = formatDateRange(startDate, endDate);
+  const dateRange =
+    startDate && endDate ? formatDateRange(startDate, endDate) : "No dates yet";
 
   return (
     <Link

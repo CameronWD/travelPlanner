@@ -50,7 +50,11 @@ export default async function TripLayout({
     notFound();
   }
 
-  const dateRange = formatDateRange(trip.startDate, trip.endDate);
+  // A date-less trip shows a placeholder instead of a range.
+  const dateRange =
+    trip.startDate && trip.endDate
+      ? formatDateRange(trip.startDate, trip.endDate)
+      : "No dates yet";
 
   return (
     <div className="flex flex-col gap-0">
