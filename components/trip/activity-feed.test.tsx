@@ -81,4 +81,24 @@ describe("ActivityFeed", () => {
     // Excerpt rendered in quotes
     expect(screen.getByText(/Don't forget the passports!/i)).toBeInTheDocument();
   });
+
+  it("renders a summary payload as '{actor} {summary}', not the generic headline", () => {
+    render(
+      <ActivityFeed
+        activities={[
+          {
+            id: "a1",
+            verb: "UPDATED",
+            entityType: "STOP",
+            entityLabel: "Rome",
+            changes: { summary: "firmed up 4 stops · 3 Jul 2026 – 18 Jul 2026" },
+            createdAt: new Date("2026-06-25T10:00:00Z"),
+            actor: { id: "u1", name: "Cam", image: null },
+          },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/firmed up 4 stops/)).toBeInTheDocument();
+    expect(screen.queryByText(/updated the/)).not.toBeInTheDocument();
+  });
 });

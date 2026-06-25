@@ -69,6 +69,15 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
             ? (activity.changes as { excerpt: string }).excerpt
             : null;
 
+        // Extract a one-line summary payload (reorder / batch actions)
+        const summary =
+          typeof activity.changes === "object" &&
+          activity.changes !== null &&
+          !Array.isArray(activity.changes) &&
+          "summary" in (activity.changes as object)
+            ? (activity.changes as { summary: string }).summary
+            : null;
+
         return (
           <li
             key={activity.id}
@@ -86,7 +95,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <p className="text-sm text-foreground">
                 <span className="font-medium">{actorName}</span>{" "}
-                {headlineText}
+                {summary ?? headlineText}
               </p>
 
               {changes.length > 0 ? (
