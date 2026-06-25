@@ -46,6 +46,11 @@ export interface ActivityChange {
   to: string;
 }
 
+/** A single human-readable predicate, rendered as "{actor} {summary}". */
+export interface ActivitySummary {
+  summary: string;
+}
+
 // ---------------------------------------------------------------------------
 // Transport mode labels (defined inline to avoid importing lucide-react)
 // ---------------------------------------------------------------------------
@@ -109,6 +114,11 @@ function transportModeFormat(value: unknown): string {
   return TRANSPORT_MODE_LABELS[String(value)] ?? String(value);
 }
 
+function pinnedFormat(value: unknown): string {
+  if (isEmpty(value)) return "";
+  return value ? "Pinned" : "Not pinned";
+}
+
 /**
  * Format a Date (or ISO string) as a readable UTC date-time like "3 Jul 2025, 14:00".
  * Null / undefined / "" → "—".
@@ -149,6 +159,7 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "arriveDate", label: "Arrive date", format: (v) => dateFormat(v) },
     { key: "departDate", label: "Depart date", format: (v) => dateFormat(v) },
     { key: "nights", label: "Nights" },
+    { key: "pinned", label: "Pinned", format: (v) => pinnedFormat(v) },
   ],
   ITEM: [
     { key: "title", label: "Title" },
