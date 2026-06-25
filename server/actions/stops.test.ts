@@ -26,6 +26,7 @@ const {
   tripFindUniqueMock,
   tripUpdateMock,
   chapterUpdateMock,
+  chapterFindUniqueMock,
 } = vi.hoisted(() => {
   const stopFindFirstMock = vi.fn();
   const stopFindUniqueMock = vi.fn();
@@ -49,6 +50,7 @@ const {
   const tripFindUniqueMock = vi.fn();
   const tripUpdateMock = vi.fn();
   const chapterUpdateMock = vi.fn();
+  const chapterFindUniqueMock = vi.fn();
 
   return {
     requireTripAccessMock: vi.fn().mockResolvedValue({
@@ -68,6 +70,7 @@ const {
     tripFindUniqueMock,
     tripUpdateMock,
     chapterUpdateMock,
+    chapterFindUniqueMock,
   };
 });
 
@@ -91,6 +94,7 @@ vi.mock("@/lib/db", () => ({
     },
     chapter: {
       update: chapterUpdateMock,
+      findUnique: chapterFindUniqueMock,
     },
     $transaction: transactionMock,
   },
@@ -536,6 +540,37 @@ describe("moveStop", () => {
     expect(result.success).toBe(true);
     expect(stopUpdateMock).not.toHaveBeenCalled();
   });
+
+  it("moveStop records a reorder summary only when a swap happens", async () => {
+    // requireStopAccess → { id:"s1", tripId:"trip-1", sortOrder:0, ... }
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false })
+      // name findUnique → { name:"Rome" }
+      .mockResolvedValueOnce({ name: "Rome" });
+    // $queryRaw siblings → [{ id:"s1", sortOrder:0 }, { id:"s2", sortOrder:1 }]
+    queryRawMock.mockResolvedValue([{ id: "s1", sortOrder: 0 }, { id: "s2", sortOrder: 1 }]);
+    stopUpdateMock.mockResolvedValue({});
+
+    await moveStop("s1", "down");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "STOP",
+        entityId: "s1",
+        changes: { summary: expect.stringContaining("Moved Rome") },
+      }),
+    );
+  });
+
+  it("moveStop records nothing on a no-op (no neighbour)", async () => {
+    // siblings → [{ id:"s1", sortOrder:0 }] only
+    stopFindUniqueMock.mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false });
+    queryRawMock.mockResolvedValue([{ id: "s1", sortOrder: 0 }]);
+
+    await moveStop("s1", "up");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -573,6 +608,35 @@ describe("setStopDates", () => {
     expect(result.success).toBe(false);
     if (!result.success) expect(result.errors.departDate).toBeDefined();
     expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("setStopDates records ONE update for the edited stop only", async () => {
+    // requireStopAccess findUnique
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false })
+      // before-row findUnique
+      .mockResolvedValueOnce({ name: "Rome", country: "Italy", arriveDate: null, departDate: null, nights: 2 });
+    stopUpdateMock.mockResolvedValue({});
+    // stop.findMany (following) → [] (no ripple)
+    stopFindManyMock.mockResolvedValue([]);
+    // trip.findUnique → { endDate: null }
+    tripFindUniqueMock.mockResolvedValue({ endDate: null });
+    tripUpdateMock.mockResolvedValue({});
+
+    await setStopDates("s1", { arriveDate: "2026-07-03", departDate: "2026-07-06" });
+
+    expect(recordActivity).toHaveBeenCalledTimes(1);
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "STOP",
+        entityId: "s1",
+        changes: expect.arrayContaining([
+          expect.objectContaining({ field: "arriveDate" }),
+          expect.objectContaining({ field: "departDate" }),
+        ]),
+      }),
+    );
   });
 });
 
@@ -617,6 +681,50 @@ describe("firmUpSegment", () => {
     expect(chapterUpdateMock).not.toHaveBeenCalled();
     expect(tripUpdateMock).not.toHaveBeenCalled();
   });
+
+  it("firmUpSegment on a chapter records ONE chapter update", async () => {
+    // trip.findUnique → { startDate:"2026-07-01", endDate:null }
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    // stop.findMany → two rough stops in chap-it (arriveDate null)
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", sortOrder: 0, chapterId: "chap-it", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+      { id: "venice", sortOrder: 1, chapterId: "chap-it", nights: 2, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Venice", country: "Italy" },
+    ]);
+    geocodePlaceMock.mockResolvedValue(null);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+    // chapter before findUnique → { name:"Italy", startDate:null, endDate:null }
+    chapterFindUniqueMock.mockResolvedValue({ name: "Italy", startDate: null, endDate: null });
+    chapterUpdateMock.mockResolvedValue({});
+
+    await firmUpSegment({ tripId: "trip-1", chapterId: "chap-it" });
+
+    expect(recordActivity).toHaveBeenCalledTimes(1);
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "UPDATED", entityType: "CHAPTER" }),
+    );
+  });
+
+  it("ungrouped firmUpSegment records one stop summary", async () => {
+    // chapterId omitted → ungrouped; two rough ungrouped stops
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", sortOrder: 0, chapterId: null, nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+      { id: "s2", sortOrder: 1, chapterId: null, nights: 2, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Venice", country: "Italy" },
+    ]);
+    geocodePlaceMock.mockResolvedValue(null);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+
+    await firmUpSegment({ tripId: "trip-1" });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "STOP",
+        changes: { summary: expect.stringContaining("Firmed up") },
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -625,16 +733,32 @@ describe("firmUpSegment", () => {
 
 describe("toggleStopPin", () => {
   it("pins a scheduled stop", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false });
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false })
+      .mockResolvedValueOnce({ name: "Paris" });
     stopUpdateMock.mockResolvedValue({});
     const r = await toggleStopPin("a");
     expect(r.success).toBe(true);
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "a" }, data: { pinned: true } });
   });
   it("refuses to pin a rough stop (no dates to fix)", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 3, pinned: false });
+    stopFindUniqueMock.mockResolvedValueOnce({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 3, pinned: false });
     const r = await toggleStopPin("a");
     expect(r.success).toBe(false);
+  });
+  it("toggleStopPin records a Pinned change", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false })
+      .mockResolvedValueOnce({ name: "Rome" });
+    stopUpdateMock.mockResolvedValue({});
+    await toggleStopPin("s1");
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "STOP",
+        changes: [{ field: "pinned", label: "Pinned", from: "Not pinned", to: "Pinned" }],
+      }),
+    );
   });
 });
 
@@ -644,7 +768,9 @@ describe("toggleStopPin", () => {
 
 describe("makeStopRough", () => {
   it("clears dates/timezone/pin and keeps nights from the prior duration", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false });
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false })
+      .mockResolvedValueOnce({ name: "Rome", arriveDate: "2026-07-03", departDate: "2026-07-06", pinned: false, nights: null });
     stopUpdateMock.mockResolvedValue({});
     await makeStopRough("a");
     expect(stopUpdateMock).toHaveBeenCalledWith({
@@ -654,13 +780,31 @@ describe("makeStopRough", () => {
   });
 
   it("keeps the stored nights when the stop was already rough", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 4, pinned: false });
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 4, pinned: false })
+      .mockResolvedValueOnce({ name: "Rome", arriveDate: null, departDate: null, pinned: false, nights: 4 });
     stopUpdateMock.mockResolvedValue({});
     await makeStopRough("a");
     expect(stopUpdateMock).toHaveBeenCalledWith({
       where: { id: "a" },
       data: { arriveDate: null, departDate: null, timezone: null, pinned: false, nights: 4 },
     });
+  });
+
+  it("makeStopRough records dates cleared", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false })
+      .mockResolvedValueOnce({ name: "Rome", arriveDate: "2026-07-03", departDate: "2026-07-06", pinned: false, nights: null });
+    stopUpdateMock.mockResolvedValue({});
+    await makeStopRough("s1");
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "STOP",
+        entityId: "s1",
+        changes: expect.arrayContaining([expect.objectContaining({ field: "arriveDate" })]),
+      }),
+    );
   });
 });
 
@@ -670,10 +814,31 @@ describe("makeStopRough", () => {
 
 describe("assignStopToChapter", () => {
   it("sets chapterId and appends to the end of that chapter's order", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false });
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false })
+      .mockResolvedValueOnce({ name: "Rome", chapterId: null });
     stopFindFirstMock.mockResolvedValue({ chapterSortOrder: 4 });
     stopUpdateMock.mockResolvedValue({});
+    chapterFindUniqueMock.mockResolvedValue({ name: "Italy" });
     await assignStopToChapter("a", "it");
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "a" }, data: { chapterId: "it", chapterSortOrder: 5 } });
+  });
+
+  it("assignStopToChapter records a Chapter change with resolved names", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false })
+      .mockResolvedValueOnce({ name: "Rome", chapterId: null });
+    stopFindFirstMock.mockResolvedValue(null);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindUniqueMock.mockResolvedValue({ name: "Italy" });
+    await assignStopToChapter("s1", "chap-it");
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "STOP",
+        entityId: "s1",
+        changes: [{ field: "chapter", label: "Chapter", from: "", to: "Italy" }],
+      }),
+    );
   });
 });

@@ -16,6 +16,8 @@ const {
   itemUpdateMock,
   itemDeleteMock,
   stopFindUniqueMock,
+  stopFindManyMock,
+  tripFindUniqueMock,
 } = vi.hoisted(() => {
   return {
     requireTripAccessMock: vi.fn().mockResolvedValue({
@@ -30,6 +32,8 @@ const {
     itemUpdateMock: vi.fn(),
     itemDeleteMock: vi.fn(),
     stopFindUniqueMock: vi.fn(),
+    stopFindManyMock: vi.fn().mockResolvedValue([]),
+    tripFindUniqueMock: vi.fn(),
   };
 });
 
@@ -48,6 +52,10 @@ vi.mock("@/lib/db", () => ({
     },
     stop: {
       findUnique: stopFindUniqueMock,
+      findMany: stopFindManyMock,
+    },
+    trip: {
+      findUnique: tripFindUniqueMock,
     },
   },
 }));
@@ -58,6 +66,7 @@ import {
   deleteItem,
   scheduleItem,
   unscheduleItem,
+  rescheduleItem,
 } from "./items";
 import { recordActivity } from "@/server/actions/activity";
 
@@ -501,5 +510,80 @@ describe("unscheduleItem", () => {
     await unscheduleItem("item-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-8");
+  });
+
+  it("unscheduleItem records date cleared", async () => {
+    // requireItemAccess findUnique → { id, tripId }; before-row findUnique → { date: "2026-07-03", ... }
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "item-1", title: "Louvre", date: "2026-07-03", startTime: null, endTime: null }); // before row
+    itemUpdateMock.mockResolvedValue({ id: "item-1", title: "Louvre", date: null, startTime: null, endTime: null });
+
+    await unscheduleItem("item-1");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "ITEM",
+        entityId: "item-1",
+        changes: expect.arrayContaining([expect.objectContaining({ field: "date" })]),
+      }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scheduleItem records activity
+// ---------------------------------------------------------------------------
+
+describe("scheduleItem records activity", () => {
+  it("scheduleItem records an ITEM update with the date change", async () => {
+    // requireItemAccess findUnique → { id, tripId }; before-row findUnique → { date: null, ... }
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "item-1", title: "Louvre", date: null, startTime: null, endTime: null }); // before row
+    itemUpdateMock.mockResolvedValue({ id: "item-1", title: "Louvre", date: "2026-07-03", startTime: null, endTime: null });
+
+    await scheduleItem("item-1", { date: "2026-07-03" });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "ITEM",
+        entityId: "item-1",
+        changes: expect.arrayContaining([
+          expect.objectContaining({ field: "date", to: expect.stringContaining("Jul") }),
+        ]),
+      }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// rescheduleItem
+// ---------------------------------------------------------------------------
+
+describe("rescheduleItem", () => {
+  it("rescheduleItem records the new date", async () => {
+    // before-row { date: "2026-07-03" }; update → { date: "2026-07-04", title: "Louvre" }
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "item-1", title: "Louvre", date: "2026-07-03", startTime: null, endTime: null }); // before row
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: "2026-07-10" });
+    stopFindManyMock.mockResolvedValue([]);
+    itemUpdateMock.mockResolvedValue({ id: "item-1", title: "Louvre", date: "2026-07-04", startTime: null, endTime: null });
+
+    await rescheduleItem("item-1", "2026-07-04");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "ITEM",
+        entityId: "item-1",
+        changes: expect.arrayContaining([
+          expect.objectContaining({ field: "date", to: expect.stringContaining("Jul") }),
+        ]),
+      }),
+    );
   });
 });

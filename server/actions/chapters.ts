@@ -177,7 +177,17 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
     });
   }
 
-  if (data.length > 0) await db.chapter.createMany({ data });
+  if (data.length > 0) {
+    await db.chapter.createMany({ data });
+    await recordActivity({
+      tripId,
+      verb: "CREATED",
+      entityType: "CHAPTER",
+      entityId: null,
+      entityLabel: "",
+      changes: { summary: `Created ${data.length} ${data.length === 1 ? "chapter" : "chapters"} from countries` },
+    });
+  }
   revalidateChapterPaths(tripId);
   return { success: true };
 }

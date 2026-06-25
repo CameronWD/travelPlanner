@@ -5,6 +5,7 @@ import {
   describeChanges,
   entityLabel,
   headline,
+  type ActivitySummary,
 } from "@/lib/activity";
 
 // ---------------------------------------------------------------------------
@@ -320,5 +321,37 @@ describe("headline", () => {
   it("CREATED CHAPTER includes 'chapter'", () => {
     const h = headline({ verb: "CREATED", entityType: "CHAPTER", entityLabel: "Southern Loop" });
     expect(h).toContain("chapter");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// describeChanges — STOP pinned boolean
+// ---------------------------------------------------------------------------
+
+describe("STOP pinned diff", () => {
+  it("renders pinned booleans as Pinned / Not pinned", () => {
+    const changes = describeChanges("STOP", { pinned: false }, { pinned: true });
+    expect(changes).toEqual([
+      { field: "pinned", label: "Pinned", from: "Not pinned", to: "Pinned" },
+    ]);
+  });
+
+  it("emits no change when pinned is unchanged", () => {
+    expect(describeChanges("STOP", { pinned: true }, { pinned: true })).toEqual([]);
+  });
+
+  it("emits no change when both pinned values are empty/null", () => {
+    expect(describeChanges("STOP", { pinned: null }, { pinned: null })).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ActivitySummary type
+// ---------------------------------------------------------------------------
+
+describe("ActivitySummary", () => {
+  it("is a { summary } shape", () => {
+    const s: ActivitySummary = { summary: "firmed up 4 stops" };
+    expect(s.summary).toBe("firmed up 4 stops");
   });
 });

@@ -2,7 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireUser, requireTripAccess } from "@/lib/guards";
-import type { ActivityVerb, ActivityEntityType, ActivityChange } from "@/lib/activity";
+import type { ActivityVerb, ActivityEntityType, ActivityChange, ActivitySummary } from "@/lib/activity";
 
 export async function recordActivity(input: {
   tripId: string;
@@ -10,7 +10,7 @@ export async function recordActivity(input: {
   entityType: ActivityEntityType;
   entityId?: string | null;
   entityLabel: string;
-  changes?: ActivityChange[] | { excerpt: string } | null;
+  changes?: ActivityChange[] | { excerpt: string } | ActivitySummary | null;
 }): Promise<void> {
   try {
     const user = await requireUser();

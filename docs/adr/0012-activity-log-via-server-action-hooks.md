@@ -42,6 +42,13 @@ Decisions we had to make, each with real alternatives:
    `{id, tripId}`, each update action loads the **full before-row** before
    writing so the diff can be computed. (Pure + unit-tested; no Prisma/React.)
 
+3b. **The `changes` payload is a tagged union:** `ActivityChange[]` (field
+   diffs, the common case), `{ excerpt }` (Notes), or `{ summary }` — a single
+   human-readable predicate for structureless or batch actions (reorder,
+   ungrouped firm-up, bulk chapter-create) that have no meaningful per-field
+   diff. The feed renders a `summary` row as "{actor} {summary}", bypassing the
+   generic headline. No new verbs or entity types are introduced.
+
 4. **Unread is a per-`TripMember` `lastReadActivityAt` marker.** Unread *for you*
    = activities in the Trip with `createdAt > lastReadActivityAt` **and**
    `actorId != you` (your own actions never notify you, though they do appear in
@@ -51,11 +58,13 @@ Decisions we had to make, each with real alternatives:
    recent-items panel, and a full **Activity page** under the More menu. The
    trips list shows a per-Trip unread dot. No push for activity in v1.
 
-6. **Scope is the plain create/update/delete of the six entities + Note
-   add/delete.** The specialized actions (item scheduling, `setStopDates`,
-   `firmUpSegment`, pin/move/rough, `assignStopToChapter`,
-   `suggestChaptersFromCountries`) are **not** recorded in v1 — a documented
-   follow-up, kept out to bound the initial hook surface.
+6. **Scope covers the plain create/update/delete of the six entities + Note
+   add/delete, plus the specialized mutations** (item scheduling —
+   `scheduleItem`/`unscheduleItem`/`rescheduleItem`; stop dating —
+   `setStopDates`/`makeStopRough`; `toggleStopPin`; `assignStopToChapter`;
+   `firmUpSegment`; `moveStop`; `suggestChaptersFromCountries`). Each records
+   one event per user action — never one-per-affected-row. `setStopDates`
+   records only the stop the user edited, not the stops its ripple moved.
 
 ## Consequences
 
@@ -71,6 +80,8 @@ Decisions we had to make, each with real alternatives:
   read-join table, not changing the event log.
 - **In-app only** means a Traveller only learns of changes when they next open
   the app. Adding push later is additive (the events already exist).
-- **Deferred specialized actions** mean some real changes (e.g. firming up dates)
-  won't appear in the feed yet — a known gap, recorded here so it isn't mistaken
-  for a bug.
+- **Specialized actions are now recorded** (see Decision §6). The structureless
+  ones use the `{ summary }` payload; the rest reuse field diffs. `firmUpSegment`
+  on a chapter records a single CHAPTER update (its start/end dates); an
+  ungrouped firm-up records one STOP `{ summary }`. This supersedes the original
+  v1 deferral.

@@ -290,13 +290,24 @@ export async function scheduleItem(
 
   const { date, startTime, endTime } = parsed.data;
 
-  await db.item.update({
+  const before = await db.item.findUnique({ where: { id: itemId } });
+
+  const updated = await db.item.update({
     where: { id: itemId },
     data: {
       date,
       startTime: startTime ?? null,
       endTime: endTime ?? null,
     },
+  });
+
+  await recordActivity({
+    tripId: item.tripId,
+    verb: "UPDATED",
+    entityType: "ITEM",
+    entityId: itemId,
+    entityLabel: entityLabel("ITEM", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
 
   revalidateItemPaths(item.tripId);
@@ -311,13 +322,24 @@ export async function unscheduleItem(
 ): Promise<ItemActionResult> {
   const item = await requireItemAccess(itemId);
 
-  await db.item.update({
+  const before = await db.item.findUnique({ where: { id: itemId } });
+
+  const updated = await db.item.update({
     where: { id: itemId },
     data: {
       date: null,
       startTime: null,
       endTime: null,
     },
+  });
+
+  await recordActivity({
+    tripId: item.tripId,
+    verb: "UPDATED",
+    entityType: "ITEM",
+    entityId: itemId,
+    entityLabel: entityLabel("ITEM", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
 
   revalidateItemPaths(item.tripId);
@@ -379,9 +401,20 @@ export async function rescheduleItem(
     targetDateISO,
   );
 
-  await db.item.update({
+  const before = await db.item.findUnique({ where: { id: itemId } });
+
+  const updated = await db.item.update({
     where: { id: itemId },
     data: { date: targetDateISO, stopId: covering?.id ?? null },
+  });
+
+  await recordActivity({
+    tripId: item.tripId,
+    verb: "UPDATED",
+    entityType: "ITEM",
+    entityId: itemId,
+    entityLabel: entityLabel("ITEM", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
 
   revalidateItemPaths(item.tripId);
