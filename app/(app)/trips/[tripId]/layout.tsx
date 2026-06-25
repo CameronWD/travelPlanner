@@ -122,7 +122,7 @@ export default async function TripLayout({
       <TripNav tripId={tripId} />
 
       {/* ── Page content ── */}
-      <div className="py-6 pb-20 md:pb-6">{children}</div>
+      <div className="py-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6">{children}</div>
 
       {/* ── Mobile bottom tab bar ── */}
       <MobileTabBar tripId={tripId} />
