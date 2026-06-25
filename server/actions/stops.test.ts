@@ -574,6 +574,35 @@ describe("setStopDates", () => {
     if (!result.success) expect(result.errors.departDate).toBeDefined();
     expect(stopUpdateMock).not.toHaveBeenCalled();
   });
+
+  it("setStopDates records ONE update for the edited stop only", async () => {
+    // requireStopAccess findUnique
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false })
+      // before-row findUnique
+      .mockResolvedValueOnce({ name: "Rome", country: "Italy", arriveDate: null, departDate: null, nights: 2 });
+    stopUpdateMock.mockResolvedValue({});
+    // stop.findMany (following) → [] (no ripple)
+    stopFindManyMock.mockResolvedValue([]);
+    // trip.findUnique → { endDate: null }
+    tripFindUniqueMock.mockResolvedValue({ endDate: null });
+    tripUpdateMock.mockResolvedValue({});
+
+    await setStopDates("s1", { arriveDate: "2026-07-03", departDate: "2026-07-06" });
+
+    expect(recordActivity).toHaveBeenCalledTimes(1);
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "STOP",
+        entityId: "s1",
+        changes: expect.arrayContaining([
+          expect.objectContaining({ field: "arriveDate" }),
+          expect.objectContaining({ field: "departDate" }),
+        ]),
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -644,7 +673,9 @@ describe("toggleStopPin", () => {
 
 describe("makeStopRough", () => {
   it("clears dates/timezone/pin and keeps nights from the prior duration", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false });
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false })
+      .mockResolvedValueOnce({ name: "Rome", arriveDate: "2026-07-03", departDate: "2026-07-06", pinned: false, nights: null });
     stopUpdateMock.mockResolvedValue({});
     await makeStopRough("a");
     expect(stopUpdateMock).toHaveBeenCalledWith({
@@ -654,13 +685,31 @@ describe("makeStopRough", () => {
   });
 
   it("keeps the stored nights when the stop was already rough", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 4, pinned: false });
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 4, pinned: false })
+      .mockResolvedValueOnce({ name: "Rome", arriveDate: null, departDate: null, pinned: false, nights: 4 });
     stopUpdateMock.mockResolvedValue({});
     await makeStopRough("a");
     expect(stopUpdateMock).toHaveBeenCalledWith({
       where: { id: "a" },
       data: { arriveDate: null, departDate: null, timezone: null, pinned: false, nights: 4 },
     });
+  });
+
+  it("makeStopRough records dates cleared", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-03", departDate: "2026-07-06", nights: null, pinned: false })
+      .mockResolvedValueOnce({ name: "Rome", arriveDate: "2026-07-03", departDate: "2026-07-06", pinned: false, nights: null });
+    stopUpdateMock.mockResolvedValue({});
+    await makeStopRough("s1");
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "STOP",
+        entityId: "s1",
+        changes: expect.arrayContaining([expect.objectContaining({ field: "arriveDate" })]),
+      }),
+    );
   });
 });
 

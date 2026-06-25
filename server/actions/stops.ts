@@ -317,7 +317,25 @@ export async function setStopDates(
     return { success: false, errors: { departDate: ["Depart date must be on or after arrive date"] } };
   }
 
+  const before = await db.stop.findUnique({
+    where: { id: stopId },
+    select: { name: true, country: true, arriveDate: true, departDate: true, nights: true },
+  });
+
   await db.stop.update({ where: { id: stopId }, data: { arriveDate: dates.arriveDate, departDate: dates.departDate } });
+
+  await recordActivity({
+    tripId: stop.tripId,
+    verb: "UPDATED",
+    entityType: "STOP",
+    entityId: stopId,
+    entityLabel: entityLabel("STOP", (before ?? {}) as Record<string, unknown>),
+    changes: describeChanges(
+      "STOP",
+      (before ?? {}) as Record<string, unknown>,
+      { ...(before ?? {}), arriveDate: dates.arriveDate, departDate: dates.departDate } as Record<string, unknown>,
+    ),
+  });
 
   const following = await db.stop.findMany({
     where: { tripId: stop.tripId, sortOrder: { gt: stop.sortOrder } },
@@ -492,10 +510,30 @@ export async function makeStopRough(stopId: string): Promise<StopActionResult> {
     stop.arriveDate && stop.departDate
       ? nightsBetween(stop.arriveDate, stop.departDate)
       : (stop.nights ?? 1);
+
+  const before = await db.stop.findUnique({
+    where: { id: stopId },
+    select: { name: true, arriveDate: true, departDate: true, pinned: true, nights: true },
+  });
+
   await db.stop.update({
     where: { id: stopId },
     data: { arriveDate: null, departDate: null, timezone: null, pinned: false, nights },
   });
+
+  await recordActivity({
+    tripId: stop.tripId,
+    verb: "UPDATED",
+    entityType: "STOP",
+    entityId: stopId,
+    entityLabel: entityLabel("STOP", (before ?? {}) as Record<string, unknown>),
+    changes: describeChanges(
+      "STOP",
+      (before ?? {}) as Record<string, unknown>,
+      { ...(before ?? {}), arriveDate: null, departDate: null, pinned: false, nights } as Record<string, unknown>,
+    ),
+  });
+
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
 }
