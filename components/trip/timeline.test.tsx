@@ -54,6 +54,86 @@ const dayPlan: DayPlan = {
 const GOOGLE_URL = "https://maps.google.com/?q=Tokyo+Tower";
 
 // ---------------------------------------------------------------------------
+// Fixtures for truncation tests
+// ---------------------------------------------------------------------------
+
+const LONG_ACCOMMODATION_NAME =
+  "The Grand Luxurious Metropolitan Hotel And Spa At The Crossroads of Everything";
+
+const dayPlanWithCheckin: DayPlan = {
+  dateISO: "2025-07-01",
+  stop: {
+    id: "stop-1",
+    name: "Tokyo",
+    timezone: "Asia/Tokyo",
+    arriveDate: "2025-07-01",
+    departDate: "2025-07-03",
+    sortOrder: 0,
+  },
+  timedItems: [],
+  untimedItems: [],
+  transportEntries: [],
+  accommodationEntries: [
+    {
+      kind: "accommodation-checkin",
+      accommodation: {
+        id: "acc-1",
+        stopId: "stop-1",
+        name: LONG_ACCOMMODATION_NAME,
+        checkIn: "2025-07-01",
+        checkOut: "2025-07-03",
+      },
+    },
+  ],
+};
+
+const dayPlanWithCheckout: DayPlan = {
+  ...dayPlanWithCheckin,
+  accommodationEntries: [
+    {
+      kind: "accommodation-checkout",
+      accommodation: {
+        id: "acc-1",
+        stopId: "stop-1",
+        name: LONG_ACCOMMODATION_NAME,
+        checkIn: "2025-07-01",
+        checkOut: "2025-07-03",
+      },
+    },
+  ],
+};
+
+const LONG_DEP_PLACE = "Sydney Kingsford Smith International Airport Terminal 1";
+const LONG_ARR_PLACE = "Singapore Changi International Airport Terminal 3";
+
+const dayPlanWithTransport: DayPlan = {
+  dateISO: "2025-07-01",
+  stop: {
+    id: "stop-1",
+    name: "Tokyo",
+    timezone: "Asia/Tokyo",
+    arriveDate: "2025-07-01",
+    departDate: "2025-07-03",
+    sortOrder: 0,
+  },
+  timedItems: [],
+  untimedItems: [],
+  transportEntries: [
+    {
+      kind: "transport-departure",
+      transport: {
+        id: "tr-1",
+        mode: "FLIGHT",
+        depPlace: LONG_DEP_PLACE,
+        arrPlace: LONG_ARR_PLACE,
+      },
+      arrivesSameDay: false,
+    },
+  ],
+  accommodationEntries: [],
+};
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -154,5 +234,33 @@ describe("Timeline — per-hop directions link", () => {
     expect(
       screen.queryByRole("link", { name: `Directions to ${ITEM_TITLE}` }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("Timeline — long-name truncation", () => {
+  it("check-in row text element has truncate class for a long accommodation name", () => {
+    const { container } = render(<Timeline day={dayPlanWithCheckin} variant="day" />);
+    // The span containing "Check-in — <name>" should carry truncate
+    const span = container.querySelector("span.truncate");
+    expect(span).not.toBeNull();
+    expect(span!.className).toMatch(/\btruncate\b/);
+    expect(span!.getAttribute("title")).toBe(`Check-in — ${LONG_ACCOMMODATION_NAME}`);
+  });
+
+  it("check-out row text element has truncate class for a long accommodation name", () => {
+    const { container } = render(<Timeline day={dayPlanWithCheckout} variant="day" />);
+    const span = container.querySelector("span.truncate");
+    expect(span).not.toBeNull();
+    expect(span!.className).toMatch(/\btruncate\b/);
+    expect(span!.getAttribute("title")).toBe(`Check-out — ${LONG_ACCOMMODATION_NAME}`);
+  });
+
+  it("transport departure from/to labels have truncate class for long place names", () => {
+    const { container } = render(<Timeline day={dayPlanWithTransport} variant="day" />);
+    const truncatedSpans = Array.from(container.querySelectorAll("span.truncate"));
+    const depSpan = truncatedSpans.find((s) => s.getAttribute("title") === LONG_DEP_PLACE);
+    const arrSpan = truncatedSpans.find((s) => s.getAttribute("title") === LONG_ARR_PLACE);
+    expect(depSpan).not.toBeUndefined();
+    expect(arrSpan).not.toBeUndefined();
   });
 });
