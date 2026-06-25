@@ -177,4 +177,30 @@ describe("suggestChaptersFromCountries", () => {
     expect(names).toContain("Finland");
     expect(names).toContain("United Kingdom");
   });
+
+  it("records one summary when chapters are created", async () => {
+    // Two non-overlapping country runs: Finland then Italy — both will be created.
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", arriveDate: "2026-06-26", departDate: "2026-06-30", country: "Finland", sortOrder: 0 },
+      { id: "b", arriveDate: "2026-06-30", departDate: "2026-07-03", country: "Finland", sortOrder: 1 },
+      { id: "c", arriveDate: "2026-07-10", departDate: "2026-07-18", country: "Italy", sortOrder: 2 },
+    ]);
+    chapterFindManyMock.mockResolvedValue([]);
+    await suggestChaptersFromCountries("trip-1");
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "CREATED",
+        entityType: "CHAPTER",
+        changes: { summary: expect.stringContaining("Created") },
+      }),
+    );
+  });
+
+  it("records nothing when no chapters are created", async () => {
+    // Empty stops → suggestChapterRuns yields no runs → data stays empty.
+    stopFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    await suggestChaptersFromCountries("trip-1");
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
 });
