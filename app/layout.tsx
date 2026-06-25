@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Fraunces, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ui/theme-provider";
@@ -21,9 +21,22 @@ const plusJakarta = Plus_Jakarta_Sans({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#FBF6EF" },
+    { media: "(prefers-color-scheme: dark)", color: "#1A1411" },
+  ],
+};
+
 export const metadata: Metadata = {
   title: "Trip Planner",
   description: "Plan and run a holiday together.",
+  appleWebApp: {
+    capable: true,
+    title: "Trip Planner",
+    statusBarStyle: "default",
+  },
 };
 
 export default function RootLayout({
