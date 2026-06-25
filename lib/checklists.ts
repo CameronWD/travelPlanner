@@ -40,17 +40,17 @@ export function sortChecklist<T extends ChecklistItemLike>(items: T[]): T[] {
  */
 export function sortByDueDate<T extends ChecklistItemLike>(items: T[]): T[] {
   return [...items].sort((a, b) => {
-    const aHasDate = a.dueDate != null && a.dueDate !== "";
-    const bHasDate = b.dueDate != null && b.dueDate !== "";
+    const ad = a.dueDate != null && a.dueDate !== "" ? a.dueDate : null;
+    const bd = b.dueDate != null && b.dueDate !== "" ? b.dueDate : null;
 
-    if (aHasDate && bHasDate) {
+    if (ad !== null && bd !== null) {
       // Both have dates: compare lexicographically (YYYY-MM-DD is sortable)
-      const dateCmp = a.dueDate!.localeCompare(b.dueDate!);
+      const dateCmp = ad.localeCompare(bd);
       if (dateCmp !== 0) return dateCmp;
-    } else if (aHasDate && !bHasDate) {
+    } else if (ad !== null && bd === null) {
       // a has a date, b does not → a comes first
       return -1;
-    } else if (!aHasDate && bHasDate) {
+    } else if (ad === null && bd !== null) {
       // b has a date, a does not → b comes first
       return 1;
     }

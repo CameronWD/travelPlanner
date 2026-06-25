@@ -219,6 +219,9 @@ export function RouteMap({ stops, height = 360 }: RouteMapProps) {
         leafletMapRef.current = null;
       }
     };
+  // The effect re-runs only when the set of plotted coords/colours actually
+  // changes; we depend on a derived signature string rather than the `stops`
+  // array identity, which exhaustive-deps can't verify — hence the disable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasEnoughCoords, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.chapterColour ?? ""}:${s.chapterName ?? ""}`).join("|")]);
 
