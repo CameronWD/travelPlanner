@@ -35,7 +35,7 @@ export function MoreActionsMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-9" aria-label={label}>
+        <Button variant="ghost" size="icon" className="size-11" aria-label={label}>
           <MoreHorizontal className="size-4" aria-hidden="true" />
         </Button>
       </DropdownMenuTrigger>
