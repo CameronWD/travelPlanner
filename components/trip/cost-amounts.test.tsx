@@ -18,4 +18,8 @@ describe("CostAmounts", () => {
     expect(spent).toHaveTextContent("$99.00");
     expect(spent.className).toContain("text-emerald-600");
   });
+  it("does not shrink, so the adjacent label truncates instead of overflowing", () => {
+    const { container } = render(<CostAmounts estimatedMinor={1000} actualMinor={0} currency="AUD" />);
+    expect(container.firstElementChild?.className).toContain("shrink-0");
+  });
 });

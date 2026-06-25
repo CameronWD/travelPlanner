@@ -43,7 +43,7 @@ export function DayNav({
         <Link
           href={`${base}/day/${prevDate}`}
           className={cn(
-            "flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground",
+            "flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded",
           )}
           aria-label={`Go to ${prevDate}`}
@@ -52,14 +52,14 @@ export function DayNav({
           <span className="hidden sm:inline">Previous</span>
         </Link>
       ) : (
-        <span className="flex items-center gap-1 text-sm text-muted-foreground/40 cursor-not-allowed select-none">
+        <span className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 text-sm text-muted-foreground/40 cursor-not-allowed select-none">
           <ChevronLeft className="size-4 shrink-0" aria-hidden="true" />
           <span className="hidden sm:inline">Previous</span>
         </span>
       )}
 
       {/* Centre: day count + back to calendar */}
-      <div className="flex flex-col items-center gap-0.5">
+      <div className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
         <span className="text-xs font-medium text-muted-foreground">
           Day {dayNumber} of {totalDays}
         </span>
@@ -80,7 +80,7 @@ export function DayNav({
         <Link
           href={`${base}/day/${nextDate}`}
           className={cn(
-            "flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground",
+            "flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded",
           )}
           aria-label={`Go to ${nextDate}`}
@@ -89,7 +89,7 @@ export function DayNav({
           <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
         </Link>
       ) : (
-        <span className="flex items-center gap-1 text-sm text-muted-foreground/40 cursor-not-allowed select-none">
+        <span className="flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 text-sm text-muted-foreground/40 cursor-not-allowed select-none">
           <span className="hidden sm:inline">Next</span>
           <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
         </span>

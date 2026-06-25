@@ -81,6 +81,16 @@ describe("Dialog", () => {
     expect(content.className).toContain("sm:rounded-2xl");
   });
 
+  it("caps the sheet height so a tall form scrolls within it", () => {
+    render(
+      <Dialog open>
+        <DialogContent><DialogTitle>X</DialogTitle></DialogContent>
+      </Dialog>,
+    );
+    const content = screen.getByRole("dialog");
+    expect(content.className).toContain("max-h-[90dvh]");
+  });
+
   it("renders a sticky header pinned to the top", async () => {
     const user = userEvent.setup();
     render(<Example />);

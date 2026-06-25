@@ -563,7 +563,7 @@ export default async function PrintPage({
 
         {/* ── Print footer ── */}
         <div className="hidden print:block mt-8 pt-4 border-t border-gray-200 text-xs text-gray-400 text-center">
-          Printed from Trip Planner — {new Date().toLocaleDateString("en-AU", { dateStyle: "long" })}
+          Printed from TEEPEE — {new Date().toLocaleDateString("en-AU", { dateStyle: "long" })}
         </div>
       </div>
     </>

@@ -37,7 +37,7 @@ function subscribeView(callback: () => void) {
   };
 }
 
-function resolveView(): View {
+export function resolveView(): View {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored === "month" || stored === "agenda") return stored;

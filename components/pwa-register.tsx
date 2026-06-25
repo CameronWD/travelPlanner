@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 /**
- * Registers the Trip Planner service worker in production.
+ * Registers the TEEPEE service worker in production.
  *
  * - Only runs in production (NODE_ENV === 'production') to avoid breaking
  *   Next.js HMR in development.

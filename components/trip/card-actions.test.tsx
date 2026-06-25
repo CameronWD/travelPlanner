@@ -23,6 +23,12 @@ describe("MoreActionsMenu", () => {
     expect(onMoveUp).toHaveBeenCalledOnce();
   });
 
+  it("renders a 44px-minimum touch target for the overflow trigger", () => {
+    render(<MoreActionsMenu label="More" items={[{ key: "a", label: "A", onSelect: () => {} }]} />);
+    const trigger = screen.getByRole("button", { name: "More" });
+    expect(trigger.className).toContain("size-11");
+  });
+
   it("disables items flagged disabled", async () => {
     const onSelect = vi.fn();
     const user = userEvent.setup();

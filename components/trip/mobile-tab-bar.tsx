@@ -41,7 +41,7 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-background/95 backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-background/95 backdrop-blur pb-[env(safe-area-inset-bottom)] md:hidden"
       aria-label="Trip sections"
     >
       {primary.map((item) => {

@@ -8,7 +8,7 @@ import {
 import { GoogleSignInButton, DevSignInButton } from "./signin-buttons";
 
 export const metadata = {
-  title: "Sign in · Trip Planner",
+  title: "Sign in · TEEPEE",
 };
 
 export default function SignInPage() {
@@ -22,13 +22,13 @@ export default function SignInPage() {
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <span className="text-3xl" aria-hidden="true">
-            ✈️
+            🛖
           </span>
           <CardTitle className="font-display text-2xl">
-            Welcome to Trip Planner
+            Welcome to TEEPEE
           </CardTitle>
           <CardDescription>
-            Plan and run a holiday together. Sign in to see your trips.
+            A place to house your travel. Sign in to see your trips.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">

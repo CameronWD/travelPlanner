@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/guards";
 import { NewTripForm } from "./new-trip-form";
 
 export const metadata = {
-  title: "New trip · Trip Planner",
+  title: "New trip · TEEPEE",
 };
 
 export default async function NewTripPage() {

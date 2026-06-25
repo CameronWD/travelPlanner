@@ -243,12 +243,12 @@ function TransportRow({
 
         {/* From → To */}
         {(fromLabel || toLabel) && (
-          <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-            {fromLabel && <span>{fromLabel}</span>}
+          <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
+            {fromLabel && <span className="min-w-0 truncate" title={fromLabel}>{fromLabel}</span>}
             {fromLabel && toLabel && (
               <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
             )}
-            {toLabel && <span>{toLabel}</span>}
+            {toLabel && <span className="min-w-0 truncate" title={toLabel}>{toLabel}</span>}
           </div>
         )}
 
@@ -361,7 +361,7 @@ function AccomCheckinRow({
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
-        <span className="text-sm font-medium text-foreground">
+        <span className="block truncate text-sm font-medium text-foreground" title={`Check-in — ${a.name}`}>
           Check-in — {a.name}
         </span>
         {isDay && a.confirmation && (
@@ -396,7 +396,7 @@ function AccomCheckoutRow({
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
-        <span className="text-sm font-medium text-foreground">
+        <span className="block truncate text-sm font-medium text-foreground" title={`Check-out — ${a.name}`}>
           Check-out — {a.name}
         </span>
       </div>

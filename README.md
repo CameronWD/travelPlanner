@@ -1,4 +1,4 @@
-# Trip Planner
+# TEEPEE
 
 A collaborative trip planner built for two partners — plan a multi-stop journey together, track your spending, stay organised on the go, and journal every memory along the way.
 
@@ -149,7 +149,7 @@ npx web-push generate-vapid-keys     # VAPID public + private pair
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | same as `VAPID_PUBLIC_KEY` |
 | `VAPID_SUBJECT` | `mailto:you@yourdomain.com` |
 | `CRON_SECRET` | step 0 |
-| `NEXT_PUBLIC_APP_NAME` | e.g. `Trip Planner` |
+| `NEXT_PUBLIC_APP_NAME` | e.g. `TEEPEE` |
 
 Deploy. The build runs `prisma migrate deploy` (creating the Neon schema), then `next build`.
 
