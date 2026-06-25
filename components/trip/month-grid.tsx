@@ -151,7 +151,7 @@ export function MonthGrid({
           );
 
           const cellClasses = cn(
-            "min-h-24 border-b border-r border-border border-l-2 p-1.5 transition-colors",
+            "min-h-24 border-b border-r border-border border-l-2 p-1.5 transition-colors md:min-h-20",
             bandClass,
             !active && "bg-muted/20",
             active && onDropItem && dragOver === cell.dateISO && "bg-primary/10 ring-1 ring-inset ring-primary",
