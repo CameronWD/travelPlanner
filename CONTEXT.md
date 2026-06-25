@@ -1,4 +1,4 @@
-# Trip Planner
+# TEEPEE
 
 A collaborative web app for a couple to plan and run a holiday together: scoping where to go, building a day-by-day itinerary, and tracking what it all costs. Designed to work for any trip, not just one.
 

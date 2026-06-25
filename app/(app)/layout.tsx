@@ -53,10 +53,10 @@ export default async function AppLayout({
           <Link
             href="/trips"
             className="flex items-center gap-1.5 font-display text-lg font-semibold tracking-tight text-foreground hover:text-foreground/80 transition-colors"
-            aria-label="Trip Planner — go to your trips"
+            aria-label="TEEPEE — go to your trips"
           >
-            <span aria-hidden="true">✈️</span>
-            Trip Planner
+            <span aria-hidden="true">🛖</span>
+            TEEPEE
           </Link>
 
           {/* Right-hand controls */}

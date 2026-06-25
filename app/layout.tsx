@@ -30,11 +30,11 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Trip Planner",
-  description: "Plan and run a holiday together.",
+  title: "TEEPEE",
+  description: "A place to house your travel.",
   appleWebApp: {
     capable: true,
-    title: "Trip Planner",
+    title: "TEEPEE",
     statusBarStyle: "default",
   },
 };

@@ -18,6 +18,6 @@ describe("root layout PWA metadata", () => {
     expect(viewport.viewportFit).toBe("cover");
   });
   it("declares the app as an Apple web app", () => {
-    expect(metadata.appleWebApp).toMatchObject({ capable: true, title: "Trip Planner" });
+    expect(metadata.appleWebApp).toMatchObject({ capable: true, title: "TEEPEE" });
   });
 });

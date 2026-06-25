@@ -21,7 +21,7 @@ export default function ShareNotFound() {
         href="/"
         className="mt-8 rounded-lg border border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
       >
-        Go to Trip Planner
+        Go to TEEPEE
       </Link>
     </div>
   );

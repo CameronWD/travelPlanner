@@ -10,7 +10,7 @@ import { describePhase, compareForTripList } from "@/lib/trip-phase";
 import { todayISO } from "@/lib/dates";
 
 export const metadata = {
-  title: "Your trips · Trip Planner",
+  title: "Your trips · TEEPEE",
 };
 
 export default async function TripsPage() {

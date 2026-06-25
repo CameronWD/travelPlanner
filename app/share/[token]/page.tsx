@@ -20,7 +20,7 @@ import type { TransportMode } from "@/lib/enums";
 // ---------------------------------------------------------------------------
 
 export const metadata: Metadata = {
-  title: "Shared Itinerary — Trip Planner",
+  title: "Shared Itinerary — TEEPEE",
   robots: { index: false, follow: false },
 };
 
@@ -227,8 +227,8 @@ export default async function SharePage({
       <header className="border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-6">
           <span className="flex items-center gap-1.5 font-display text-lg font-semibold text-foreground">
-            <span aria-hidden="true">✈️</span>
-            Trip Planner
+            <span aria-hidden="true">🛖</span>
+            TEEPEE
           </span>
           <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
             Shared itinerary — read only
@@ -526,7 +526,7 @@ export default async function SharePage({
 
           {/* ── Footer ── */}
           <footer className="border-t border-border pt-4 text-center text-xs text-muted-foreground">
-            Shared via Trip Planner · Budget and notes are not included in shared views.
+            Shared via TEEPEE · Budget and notes are not included in shared views.
           </footer>
 
         </div>
