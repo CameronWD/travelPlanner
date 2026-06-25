@@ -497,6 +497,15 @@ export async function toggleStopPin(stopId: string): Promise<StopActionResult> {
     return { success: false, errors: { pinned: ["Only a stop with dates can be pinned."] } };
   }
   await db.stop.update({ where: { id: stopId }, data: { pinned: !stop.pinned } });
+  const named = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
+  await recordActivity({
+    tripId: stop.tripId,
+    verb: "UPDATED",
+    entityType: "STOP",
+    entityId: stopId,
+    entityLabel: named?.name ?? "",
+    changes: describeChanges("STOP", { pinned: stop.pinned }, { pinned: !stop.pinned }),
+  });
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
 }
@@ -543,6 +552,7 @@ export async function makeStopRough(stopId: string): Promise<StopActionResult> {
  */
 export async function assignStopToChapter(stopId: string, chapterId: string | null): Promise<StopActionResult> {
   const stop = await requireStopAccess(stopId);
+  const before = await db.stop.findUnique({ where: { id: stopId }, select: { name: true, chapterId: true } });
   let chapterSortOrder = 0;
   if (chapterId) {
     const last = await db.stop.findFirst({
@@ -553,6 +563,20 @@ export async function assignStopToChapter(stopId: string, chapterId: string | nu
     chapterSortOrder = (last?.chapterSortOrder ?? -1) + 1;
   }
   await db.stop.update({ where: { id: stopId }, data: { chapterId, chapterSortOrder } });
+  if ((before?.chapterId ?? null) !== (chapterId ?? null)) {
+    const [fromCh, toCh] = await Promise.all([
+      before?.chapterId ? db.chapter.findUnique({ where: { id: before.chapterId }, select: { name: true } }) : Promise.resolve(null),
+      chapterId ? db.chapter.findUnique({ where: { id: chapterId }, select: { name: true } }) : Promise.resolve(null),
+    ]);
+    await recordActivity({
+      tripId: stop.tripId,
+      verb: "UPDATED",
+      entityType: "STOP",
+      entityId: stopId,
+      entityLabel: before?.name ?? "",
+      changes: [{ field: "chapter", label: "Chapter", from: fromCh?.name ?? "", to: toCh?.name ?? "" }],
+    });
+  }
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
 }
