@@ -19,7 +19,7 @@ export function CostAmounts({
   return (
     <div
       className={
-        "flex items-center gap-4 tabular-nums text-sm text-right" +
+        "flex shrink-0 items-center gap-4 tabular-nums text-sm text-right" +
         (className ? ` ${className}` : "")
       }
     >

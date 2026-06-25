@@ -324,8 +324,8 @@ export default async function BudgetPage({
                     : 0;
                 return (
                   <div key={cat.category} className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">{cat.category}</span>
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="min-w-0 truncate font-medium">{cat.category}</span>
                       <div className="flex items-center gap-3 tabular-nums text-right">
                         <span className="text-muted-foreground text-xs">{pct}%</span>
                         <CostAmounts
@@ -363,7 +363,7 @@ export default async function BudgetPage({
                   key={stop.stopId ?? "tripwide"}
                   className="flex items-center justify-between py-2.5 gap-2"
                 >
-                  <span className="text-sm font-medium">{stop.stopName}</span>
+                  <span className="min-w-0 truncate text-sm font-medium">{stop.stopName}</span>
                   <CostAmounts
                     estimatedMinor={stop.estimatedMinor}
                     actualMinor={stop.actualMinor}
@@ -401,7 +401,7 @@ export default async function BudgetPage({
               {(budget.chapterReconciliation.ungrouped.estimatedMinor > 0 ||
                 budget.chapterReconciliation.ungrouped.actualMinor > 0) && (
                 <div className="flex items-center justify-between py-2.5 gap-2">
-                  <span className="text-sm text-muted-foreground">Ungrouped</span>
+                  <span className="min-w-0 truncate text-sm text-muted-foreground">Ungrouped</span>
                   <CostAmounts
                     estimatedMinor={budget.chapterReconciliation.ungrouped.estimatedMinor}
                     actualMinor={budget.chapterReconciliation.ungrouped.actualMinor}
@@ -413,7 +413,7 @@ export default async function BudgetPage({
               {(budget.chapterReconciliation.betweenLegs.estimatedMinor > 0 ||
                 budget.chapterReconciliation.betweenLegs.actualMinor > 0) && (
                 <div className="flex items-center justify-between py-2.5 gap-2">
-                  <span className="text-sm text-muted-foreground">Between legs</span>
+                  <span className="min-w-0 truncate text-sm text-muted-foreground">Between legs</span>
                   <CostAmounts
                     estimatedMinor={budget.chapterReconciliation.betweenLegs.estimatedMinor}
                     actualMinor={budget.chapterReconciliation.betweenLegs.actualMinor}
@@ -425,7 +425,7 @@ export default async function BudgetPage({
               {(budget.chapterReconciliation.otherCosts.estimatedMinor > 0 ||
                 budget.chapterReconciliation.otherCosts.actualMinor > 0) && (
                 <div className="flex items-center justify-between py-2.5 gap-2">
-                  <span className="text-sm text-muted-foreground">Other costs</span>
+                  <span className="min-w-0 truncate text-sm text-muted-foreground">Other costs</span>
                   <CostAmounts
                     estimatedMinor={budget.chapterReconciliation.otherCosts.estimatedMinor}
                     actualMinor={budget.chapterReconciliation.otherCosts.actualMinor}
