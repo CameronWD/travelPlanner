@@ -540,6 +540,37 @@ describe("moveStop", () => {
     expect(result.success).toBe(true);
     expect(stopUpdateMock).not.toHaveBeenCalled();
   });
+
+  it("moveStop records a reorder summary only when a swap happens", async () => {
+    // requireStopAccess → { id:"s1", tripId:"trip-1", sortOrder:0, ... }
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false })
+      // name findUnique → { name:"Rome" }
+      .mockResolvedValueOnce({ name: "Rome" });
+    // $queryRaw siblings → [{ id:"s1", sortOrder:0 }, { id:"s2", sortOrder:1 }]
+    queryRawMock.mockResolvedValue([{ id: "s1", sortOrder: 0 }, { id: "s2", sortOrder: 1 }]);
+    stopUpdateMock.mockResolvedValue({});
+
+    await moveStop("s1", "down");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "STOP",
+        entityId: "s1",
+        changes: { summary: expect.stringContaining("Moved Rome") },
+      }),
+    );
+  });
+
+  it("moveStop records nothing on a no-op (no neighbour)", async () => {
+    // siblings → [{ id:"s1", sortOrder:0 }] only
+    stopFindUniqueMock.mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false });
+    queryRawMock.mockResolvedValue([{ id: "s1", sortOrder: 0 }]);
+
+    await moveStop("s1", "up");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -649,6 +680,50 @@ describe("firmUpSegment", () => {
     expect(stopUpdateMock).not.toHaveBeenCalled();
     expect(chapterUpdateMock).not.toHaveBeenCalled();
     expect(tripUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("firmUpSegment on a chapter records ONE chapter update", async () => {
+    // trip.findUnique → { startDate:"2026-07-01", endDate:null }
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    // stop.findMany → two rough stops in chap-it (arriveDate null)
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", sortOrder: 0, chapterId: "chap-it", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+      { id: "venice", sortOrder: 1, chapterId: "chap-it", nights: 2, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Venice", country: "Italy" },
+    ]);
+    geocodePlaceMock.mockResolvedValue(null);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+    // chapter before findUnique → { name:"Italy", startDate:null, endDate:null }
+    chapterFindUniqueMock.mockResolvedValue({ name: "Italy", startDate: null, endDate: null });
+    chapterUpdateMock.mockResolvedValue({});
+
+    await firmUpSegment({ tripId: "trip-1", chapterId: "chap-it" });
+
+    expect(recordActivity).toHaveBeenCalledTimes(1);
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "UPDATED", entityType: "CHAPTER" }),
+    );
+  });
+
+  it("ungrouped firmUpSegment records one stop summary", async () => {
+    // chapterId omitted → ungrouped; two rough ungrouped stops
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", sortOrder: 0, chapterId: null, nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+      { id: "s2", sortOrder: 1, chapterId: null, nights: 2, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Venice", country: "Italy" },
+    ]);
+    geocodePlaceMock.mockResolvedValue(null);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+
+    await firmUpSegment({ tripId: "trip-1" });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: "STOP",
+        changes: { summary: expect.stringContaining("Firmed up") },
+      }),
+    );
   });
 });
 

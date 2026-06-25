@@ -7,7 +7,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlace } from "@/lib/geocode";
 import { flowDates, type FlowStop, type FlowConflict } from "@/lib/firm-up";
-import { nightsBetween } from "@/lib/dates";
+import { nightsBetween, formatLongDate } from "@/lib/dates";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
 
@@ -269,7 +269,7 @@ export async function moveStop(
   const stop = await requireStopAccess(stopId);
 
   // READ COMMITTED is sufficient here — the FOR UPDATE row lock is what serializes concurrent reorders.
-  await db.$transaction(async (tx) => {
+  const moved = await db.$transaction(async (tx) => {
     // Lock the trip's stops in sortOrder. A concurrent reorder blocks here until
     // we commit, then re-reads the corrected order — closing the read-then-swap
     // race. Prisma can't express SELECT ... FOR UPDATE on findMany, so use raw SQL.
@@ -282,10 +282,10 @@ export async function moveStop(
     `;
 
     const idx = siblings.findIndex((s) => s.id === stopId);
-    if (idx === -1) return; // stop vanished mid-flight — nothing to do
+    if (idx === -1) return false; // stop vanished mid-flight — nothing to do
 
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    if (swapIdx < 0 || swapIdx >= siblings.length) return; // no neighbour — no-op
+    if (swapIdx < 0 || swapIdx >= siblings.length) return false; // no neighbour — no-op
 
     const current = siblings[idx];
     const neighbour = siblings[swapIdx];
@@ -298,7 +298,20 @@ export async function moveStop(
       where: { id: neighbour.id },
       data: { sortOrder: current.sortOrder },
     });
+    return true;
   });
+
+  if (moved) {
+    const named = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
+    await recordActivity({
+      tripId: stop.tripId,
+      verb: "UPDATED",
+      entityType: "STOP",
+      entityId: stopId,
+      entityLabel: named?.name ?? "",
+      changes: { summary: `Moved ${named?.name ?? "a stop"} ${direction === "up" ? "earlier" : "later"} in the route` },
+    });
+  }
 
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
@@ -476,7 +489,35 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   if (chapterId) {
     const start = results[0].arriveDate;
     const end = results[results.length - 1].departDate;
+    const beforeCh = await db.chapter.findUnique({
+      where: { id: chapterId },
+      select: { name: true, startDate: true, endDate: true },
+    });
     await db.chapter.update({ where: { id: chapterId }, data: { startDate: start, endDate: end } });
+    await recordActivity({
+      tripId,
+      verb: "UPDATED",
+      entityType: "CHAPTER",
+      entityId: chapterId,
+      entityLabel: beforeCh?.name ?? "",
+      changes: describeChanges(
+        "CHAPTER",
+        (beforeCh ?? {}) as Record<string, unknown>,
+        { ...(beforeCh ?? {}), startDate: start, endDate: end } as Record<string, unknown>,
+      ),
+    });
+  } else {
+    const firstArrive = results[0].arriveDate;
+    const lastDepart = results[results.length - 1].departDate;
+    const n = results.length;
+    await recordActivity({
+      tripId,
+      verb: "UPDATED",
+      entityType: "STOP",
+      entityId: segment[0].id,
+      entityLabel: segment[0].name ?? "",
+      changes: { summary: `Firmed up ${n} ${n === 1 ? "stop" : "stops"} · ${formatLongDate(firstArrive)} – ${formatLongDate(lastDepart)}` },
+    });
   }
 
   revalidatePath(`/trips/${tripId}`);
