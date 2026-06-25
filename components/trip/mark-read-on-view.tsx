@@ -16,9 +16,15 @@ export function MarkReadOnView({ tripId }: MarkReadOnViewProps) {
     if (called.current) return;
     called.current = true;
 
-    markAllRead(tripId).then(() => {
-      router.refresh();
-    });
+    markAllRead(tripId)
+      .then(() => {
+        router.refresh();
+      })
+      .catch(() => {
+        // Mark-read failed (network/auth). Allow a later render to retry
+        // instead of leaving the unread dots stuck for the session.
+        called.current = false;
+      });
   }, [tripId, router]);
 
   return null;
