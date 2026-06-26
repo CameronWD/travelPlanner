@@ -155,6 +155,15 @@ export default async function TripPlanPage({
     costsByOwnerId.set(cost.ownerId, existing);
   }
 
+  // Build a coord lookup by stop id so transport leg estimates can fall back
+  // to linked stop coordinates when the transport has no typed dep/arr place.
+  const stopCoordsById = new Map<string, { lat: number; lng: number }>();
+  for (const s of stops) {
+    if (s.lat != null && s.lng != null) {
+      stopCoordsById.set(s.id, { lat: s.lat, lng: s.lng });
+    }
+  }
+
   const tripStartDate = trip?.startDate ?? undefined;
   const tripEndDate = trip?.endDate ?? undefined;
 
@@ -177,9 +186,25 @@ export default async function TripPlanPage({
         }))}
         initialTransports={transports.map((t) => {
           const hasTimes = t.depAt != null && t.arrAt != null;
+          // Resolve coordinates: transport's own dep/arr coords take priority;
+          // fall back to the linked stop's coords when the transport has no
+          // typed place (so stop-linked legs get estimates the same way the
+          // long-driving-day flag does).
+          const fromCoord =
+            t.depLat != null && t.depLng != null
+              ? { lat: t.depLat, lng: t.depLng }
+              : t.fromStopId != null
+                ? (stopCoordsById.get(t.fromStopId) ?? null)
+                : null;
+          const toCoord =
+            t.arrLat != null && t.arrLng != null
+              ? { lat: t.arrLat, lng: t.arrLng }
+              : t.toStopId != null
+                ? (stopCoordsById.get(t.toStopId) ?? null)
+                : null;
           const coords =
-            t.depLat != null && t.depLng != null && t.arrLat != null && t.arrLng != null
-              ? { from: { lat: t.depLat, lng: t.depLng }, to: { lat: t.arrLat, lng: t.arrLng } }
+            fromCoord != null && toCoord != null
+              ? { from: fromCoord, to: toCoord }
               : null;
           const driveEstimate =
             t.mode === "CAR" && !hasTimes && coords

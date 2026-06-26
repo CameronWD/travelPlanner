@@ -29,6 +29,8 @@ describe("updateDrivingSettings", () => {
     });
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/settings");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/plan");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/summary");
   });
 
   it("passes through in-range values", async () => {

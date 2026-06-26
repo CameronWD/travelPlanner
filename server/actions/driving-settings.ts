@@ -23,4 +23,6 @@ export async function updateDrivingSettings(
     },
   });
   revalidatePath(`/trips/${tripId}/settings`);
+  revalidatePath(`/trips/${tripId}/plan`);
+  revalidatePath(`/trips/${tripId}/summary`);
 }
