@@ -70,6 +70,8 @@ export interface ItineraryTransport {
   sortOrder: number;
   /** Costs attached to this transport */
   costs?: CostRow[];
+  /** Precomputed offline drive estimate; present only for Car legs without real times. */
+  driveEstimate?: { minutes: number; roadKm: number } | null;
 }
 
 export interface ItineraryChapter {
@@ -118,6 +120,7 @@ function enrichTransport(
     toStopName: toStop?.name ?? null,
     fromStopTimezone: fromStop?.timezone ?? null,
     toStopTimezone: toStop?.timezone ?? null,
+    driveEstimate: t.driveEstimate ?? null,
   };
 }
 

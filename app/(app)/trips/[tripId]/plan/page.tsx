@@ -3,6 +3,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enums";
 import type { NoteView } from "@/components/trip/note-thread";
+import { haversineKm, estimateDriveMinutes, estimateRoadKm } from "@/lib/geo";
 
 const COST_SELECT = {
   id: true,
@@ -28,7 +29,13 @@ export default async function TripPlanPage({
   const [trip, stops, transports, allCosts, chapters] = await Promise.all([
     db.trip.findUnique({
       where: { id: tripId },
-      select: { homeCurrency: true, startDate: true, endDate: true },
+      select: {
+        homeCurrency: true,
+        startDate: true,
+        endDate: true,
+        drivingWindingFactor: true,
+        drivingAvgSpeedKph: true,
+      },
     }),
     db.stop.findMany({
       where: { tripId },
@@ -75,8 +82,12 @@ export default async function TripPlanPage({
         toStopId: true,
         depPlace: true,
         depAt: true,
+        depLat: true,
+        depLng: true,
         arrPlace: true,
         arrAt: true,
+        arrLat: true,
+        arrLng: true,
         reference: true,
         notes: true,
         sortOrder: true,
@@ -164,11 +175,34 @@ export default async function TripPlanPage({
             costs: costsByOwnerId.get(acc.id) ?? [],
           })),
         }))}
-        initialTransports={transports.map((t) => ({
-          ...t,
-          mode: t.mode as TransportMode,
-          costs: costsByOwnerId.get(t.id) ?? [],
-        }))}
+        initialTransports={transports.map((t) => {
+          const hasTimes = t.depAt != null && t.arrAt != null;
+          const coords =
+            t.depLat != null && t.depLng != null && t.arrLat != null && t.arrLng != null
+              ? { from: { lat: t.depLat, lng: t.depLng }, to: { lat: t.arrLat, lng: t.arrLng } }
+              : null;
+          const driveEstimate =
+            t.mode === "CAR" && !hasTimes && coords
+              ? (() => {
+                  const km = haversineKm(coords.from, coords.to);
+                  return {
+                    minutes: Math.round(
+                      estimateDriveMinutes(km, {
+                        windingFactor: trip?.drivingWindingFactor ?? 1.5,
+                        avgSpeedKph: trip?.drivingAvgSpeedKph ?? 80,
+                      }),
+                    ),
+                    roadKm: Math.round(estimateRoadKm(km, trip?.drivingWindingFactor ?? 1.5)),
+                  };
+                })()
+              : null;
+          return {
+            ...t,
+            mode: t.mode as TransportMode,
+            costs: costsByOwnerId.get(t.id) ?? [],
+            driveEstimate,
+          };
+        })}
       />
     </div>
   );
