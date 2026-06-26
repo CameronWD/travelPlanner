@@ -18,7 +18,7 @@ export default async function TripHomePage({
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { id: true, name: true, startDate: true, endDate: true, homeCurrency: true },
+    select: { id: true, name: true, startDate: true, endDate: true, homeCurrency: true, drivingWindingFactor: true, drivingAvgSpeedKph: true },
   });
   if (!trip) notFound();
 

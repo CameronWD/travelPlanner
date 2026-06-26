@@ -45,6 +45,8 @@ interface PhasePlanningProps {
     startDate: string | null;
     endDate: string | null;
     homeCurrency: string;
+    drivingWindingFactor: number;
+    drivingAvgSpeedKph: number;
   };
   today: string;
   phase: TripPhase; // "planning" | "final-prep"
@@ -209,6 +211,8 @@ export async function PhasePlanning({
     tripStart: startDate,
     tripEnd: endDate,
     roughStopCount: roughStops,
+    drivingWindingFactor: trip.drivingWindingFactor,
+    drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
   });
 
   // ---------------------------------------------------------------------------

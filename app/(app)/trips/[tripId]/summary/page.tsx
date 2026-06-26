@@ -95,6 +95,8 @@ export default async function SummaryPage({
       startDate: true,
       endDate: true,
       homeCurrency: true,
+      drivingWindingFactor: true,
+      drivingAvgSpeedKph: true,
     },
   });
   if (!trip) notFound();
@@ -239,6 +241,8 @@ export default async function SummaryPage({
     tripStart: startDate,
     tripEnd: endDate,
     roughStopCount: roughStops.length,
+    drivingWindingFactor: trip.drivingWindingFactor,
+    drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
   });
 
   // ---------------------------------------------------------------------------
