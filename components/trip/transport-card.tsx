@@ -31,6 +31,8 @@ export interface TransportCardTransport {
   fromStopTimezone?: string | null;
   /** IANA timezone of toStop (used for arr time display) */
   toStopTimezone?: string | null;
+  /** Precomputed offline drive estimate; present only for Car legs without real times. */
+  driveEstimate?: { minutes: number; roadKm: number } | null;
 }
 
 interface TransportCardProps {
@@ -158,7 +160,7 @@ export function TransportCard({
       </div>
 
       {/* Times row */}
-      {(depTimeStr || arrTimeStr || duration) && (
+      {(depTimeStr || arrTimeStr || duration || (!duration && t.driveEstimate)) && (
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           {depTimeStr && (
             <span>
@@ -176,6 +178,12 @@ export function TransportCard({
             <div className="flex items-center gap-1">
               <Clock className="size-3.5 shrink-0" aria-hidden="true" />
               <span>{duration}</span>
+            </div>
+          )}
+          {!duration && t.driveEstimate && (
+            <div className="flex items-center gap-1" title="Rough offline estimate">
+              <Clock className="size-3.5 shrink-0" aria-hidden="true" />
+              <span>≈ {formatDuration(t.driveEstimate.minutes)} · ~{t.driveEstimate.roadKm} km</span>
             </div>
           )}
         </div>

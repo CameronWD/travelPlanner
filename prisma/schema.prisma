@@ -99,6 +99,12 @@ model Trip {
   startDate    String? // "YYYY-MM-DD" — null while the trip is a date-less idea
   endDate      String? // "YYYY-MM-DD" — soft; auto-extends to cover scheduled stops
   homeCurrency String // ISO 4217, e.g. "AUD"
+
+  // Per-trip driving-estimate settings (used by drive-time hints + the
+  // "long driving day" flag). Defaults suit mixed/winding roads.
+  drivingWindingFactor Float @default(1.5)
+  drivingAvgSpeedKph   Int   @default(80)
+
   createdById  String
 
   createdBy User @relation("TripCreatedBy", fields: [createdById], references: [id])

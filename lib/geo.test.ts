@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { haversineKm } from "./geo";
+import { haversineKm, estimateDriveMinutes, estimateRoadKm } from "./geo";
 
 // Known reference distances for sanity checks.
 // All tolerances are generous (2%) — the formula is exact; rounding in the
@@ -51,5 +51,24 @@ describe("haversineKm", () => {
     // Cape Town → Joburg is ≈ 1265 km
     expect(km).toBeGreaterThan(1200);
     expect(km).toBeLessThan(1320);
+  });
+});
+
+describe("drive estimates", () => {
+  it("estimateRoadKm scales straight-line by the winding factor", () => {
+    expect(estimateRoadKm(100, 1.5)).toBeCloseTo(150);
+  });
+
+  it("estimateDriveMinutes = roadKm / speed * 60", () => {
+    // 100 km straight-line × 1.5 = 150 road km; at 80 km/h => 112.5 min
+    expect(estimateDriveMinutes(100, { windingFactor: 1.5, avgSpeedKph: 80 })).toBeCloseTo(112.5);
+  });
+
+  it("returns 0 for a zero-distance hop", () => {
+    expect(estimateDriveMinutes(0, { windingFactor: 1.5, avgSpeedKph: 80 })).toBe(0);
+  });
+
+  it("guards against a non-positive speed (returns 0 rather than Infinity/NaN)", () => {
+    expect(estimateDriveMinutes(100, { windingFactor: 1.5, avgSpeedKph: 0 })).toBe(0);
   });
 });

@@ -14,6 +14,7 @@ import { TripDetailsForm } from "@/components/trip/settings/trip-details-form";
 import { InvitePanel } from "@/components/trip/settings/invite-panel";
 import { SharePanel } from "@/components/trip/settings/share-panel";
 import { CalendarFeedPanel } from "@/components/trip/settings/calendar-feed-panel";
+import { DrivingEstimatesPanel } from "@/components/trip/settings/driving-estimates-panel";
 import { DangerZone } from "@/components/trip/settings/danger-zone";
 import { ChaptersManager } from "@/components/trip/chapters-manager";
 
@@ -35,6 +36,8 @@ export default async function SettingsPage({
       startDate: true,
       endDate: true,
       homeCurrency: true,
+      drivingWindingFactor: true,
+      drivingAvgSpeedKph: true,
       members: {
         select: {
           userId: true,
@@ -162,6 +165,24 @@ export default async function SettingsPage({
                   }
                 : undefined
             }
+          />
+        </CardContent>
+      </Card>
+
+      {/* ── Driving estimates ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Driving estimates</CardTitle>
+          <CardDescription>
+            Tune the offline estimates used to flag long driving days. These are rough guides, not
+            navigation ETAs.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DrivingEstimatesPanel
+            tripId={tripId}
+            initialWindingFactor={trip.drivingWindingFactor}
+            initialAvgSpeedKph={trip.drivingAvgSpeedKph}
           />
         </CardContent>
       </Card>

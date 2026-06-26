@@ -9,7 +9,7 @@
 
 import { nightsBetween, isDateWithin, addDays } from "@/lib/dates";
 import { instantToZonedDateISO } from "@/lib/tz";
-import { haversineKm, type LatLng } from "@/lib/geo";
+import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
 
 // ---------------------------------------------------------------------------
 // Flag shape
@@ -84,6 +84,9 @@ export interface DetectFlagsInput {
   tripStart: string; // YYYY-MM-DD
   tripEnd: string; // YYYY-MM-DD
   roughStopCount?: number;
+  /** Per-trip drive-estimate config; defaults suit mixed/winding roads. */
+  drivingWindingFactor?: number;
+  drivingAvgSpeedKph?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -392,6 +395,8 @@ export function flagItemTimeOverlaps(items: FlagItem[]): Flag[] {
 
 export const PACKED_DAY_THRESHOLD = 6;
 
+export const LONG_DRIVE_DAY_THRESHOLD_MIN = 300; // 5 hours
+
 export function flagPackedDays(items: FlagItem[]): Flag[] {
   const countByDate = new Map<string, number>();
   for (const item of items) {
@@ -490,6 +495,57 @@ export function flagSpreadDays(items: FlagItem[]): Flag[] {
 }
 
 // ---------------------------------------------------------------------------
+// Rule 10: Long driving day (warning)
+//
+// Accumulates total driving time per calendar day (in the destination stop's
+// timezone). Uses real dep→arr times when both are present; otherwise falls
+// back to estimateDriveMinutes. Only CAR legs are considered.
+// ---------------------------------------------------------------------------
+
+export function flagLongDrivingDays(
+  stops: FlagStop[],
+  transports: FlagTransport[],
+  opts: { windingFactor: number; avgSpeedKph: number },
+): Flag[] {
+  const byId = new Map(stops.map((s) => [s.id, s]));
+  const minsByDate = new Map<string, number>();
+
+  for (const t of transports) {
+    if (t.mode !== "CAR") continue;
+    const from = t.fromStopId ? byId.get(t.fromStopId) : undefined;
+    const to = t.toStopId ? byId.get(t.toStopId) : undefined;
+    if (!from || !to || !hasCoords(from) || !hasCoords(to)) continue;
+
+    const dep = toDate(t.depAt ?? null);
+    const arr = toDate(t.arrAt ?? null);
+    const minutes =
+      dep && arr && arr.getTime() > dep.getTime()
+        ? (arr.getTime() - dep.getTime()) / 60000
+        : estimateDriveMinutes(haversineKm(from, to), opts);
+
+    const driveDate = dep ? instantToZonedDateISO(dep, to.timezone) : to.arriveDate;
+    if (!driveDate) continue;
+
+    minsByDate.set(driveDate, (minsByDate.get(driveDate) ?? 0) + minutes);
+  }
+
+  const flags: Flag[] = [];
+  for (const [date, mins] of minsByDate) {
+    if (mins > LONG_DRIVE_DAY_THRESHOLD_MIN) {
+      const hrs = Math.round((mins / 60) * 10) / 10;
+      flags.push({
+        id: `long-drive-${date}`,
+        severity: "warning",
+        message: `Long driving day on ${date}: ~${hrs}h behind the wheel — check it's doable.`,
+        targetType: "DAY",
+        date,
+      });
+    }
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -506,6 +562,7 @@ export function flagSpreadDays(items: FlagItem[]): Flag[] {
  *   7. Packed day (info)
  *   8. Rough stops (info)
  *   9. Geographic spread day (info)
+ *   10. Long driving day (warning)
  */
 export function detectFlags({
   stops,
@@ -515,6 +572,8 @@ export function detectFlags({
   tripStart,
   tripEnd,
   roughStopCount,
+  drivingWindingFactor,
+  drivingAvgSpeedKph,
 }: DetectFlagsInput): Flag[] {
   return [
     ...flagStopsWithoutAccommodation(stops, accommodations),
@@ -526,5 +585,9 @@ export function detectFlags({
     ...flagPackedDays(items),
     ...flagRoughStops(roughStopCount ?? 0),
     ...flagSpreadDays(items),
+    ...flagLongDrivingDays(stops, transports, {
+      windingFactor: drivingWindingFactor ?? 1.5,
+      avgSpeedKph: drivingAvgSpeedKph ?? 80,
+    }),
   ];
 }

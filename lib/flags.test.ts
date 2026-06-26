@@ -10,7 +10,9 @@ import {
   flagPackedDays,
   flagRoughStops,
   flagSpreadDays,
+  flagLongDrivingDays,
   SPREAD_DAY_THRESHOLD_KM,
+  LONG_DRIVE_DAY_THRESHOLD_MIN,
   type FlagStop,
   type FlagTransport,
   type FlagAccommodation,
@@ -615,5 +617,50 @@ describe("flagSpreadDays", () => {
     expect(flags).toHaveLength(2);
     const dates = flags.map((f) => f.date).sort();
     expect(dates).toEqual(["2026-07-02", "2026-07-04"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule 10: Long driving days
+// ---------------------------------------------------------------------------
+
+describe("flagLongDrivingDays", () => {
+  const stop = (id: string, lat: number, lng: number, arriveDate: string) => ({
+    id, name: id, arriveDate, departDate: arriveDate, timezone: "Pacific/Auckland",
+    lat, lng, sortOrder: 0,
+  });
+  const stops = [stop("a", -43.53, 172.63, "2026-07-02"), stop("b", -45.03, 168.66, "2026-07-03")];
+
+  it("flags a day whose Car driving exceeds the threshold (estimate, no times)", () => {
+    const flags = flagLongDrivingDays(stops, [
+      { id: "t1", fromStopId: "a", toStopId: "b", mode: "CAR", depAt: null, arrAt: null },
+    ], { windingFactor: 1.5, avgSpeedKph: 80 });
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toMatchObject({ targetType: "DAY", date: "2026-07-03", severity: "warning" });
+  });
+
+  it("does not flag a short Car hop", () => {
+    const near = [stop("a", -45.03, 168.66, "2026-07-02"), stop("b", -45.04, 168.67, "2026-07-03")];
+    expect(flagLongDrivingDays(near, [
+      { id: "t1", fromStopId: "a", toStopId: "b", mode: "CAR", depAt: null, arrAt: null },
+    ], { windingFactor: 1.5, avgSpeedKph: 80 })).toEqual([]);
+  });
+
+  it("ignores non-Car legs", () => {
+    expect(flagLongDrivingDays(stops, [
+      { id: "t1", fromStopId: "a", toStopId: "b", mode: "FLIGHT", depAt: null, arrAt: null },
+    ], { windingFactor: 1.5, avgSpeedKph: 80 })).toEqual([]);
+  });
+
+  it("uses real dep/arr times when both are present", () => {
+    const flags = flagLongDrivingDays(stops, [
+      { id: "t1", fromStopId: "a", toStopId: "b", mode: "CAR",
+        depAt: "2026-07-03T09:00:00Z", arrAt: "2026-07-03T09:30:00Z" },
+    ], { windingFactor: 1.5, avgSpeedKph: 80 });
+    expect(flags).toEqual([]);
+  });
+
+  it("threshold is 5 hours", () => {
+    expect(LONG_DRIVE_DAY_THRESHOLD_MIN).toBe(300);
   });
 });
