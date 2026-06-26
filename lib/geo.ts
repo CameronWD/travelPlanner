@@ -32,3 +32,22 @@ export function haversineKm(a: LatLng, b: LatLng): number {
 
   return 2 * EARTH_RADIUS_KM * Math.asin(Math.min(1, Math.sqrt(h)));
 }
+
+/** Estimated road distance (km) for a straight-line distance, scaled by a winding factor. */
+export function estimateRoadKm(straightLineKm: number, windingFactor: number): number {
+  return straightLineKm * windingFactor;
+}
+
+/**
+ * Rough driving time in MINUTES for a straight-line distance, using a winding
+ * factor (straight-line → road) and an average speed. Pure + offline — a hint,
+ * not an ETA. Returns 0 for a non-positive speed (avoids Infinity/NaN).
+ */
+export function estimateDriveMinutes(
+  straightLineKm: number,
+  opts: { windingFactor: number; avgSpeedKph: number },
+): number {
+  if (opts.avgSpeedKph <= 0) return 0;
+  const roadKm = estimateRoadKm(straightLineKm, opts.windingFactor);
+  return (roadKm / opts.avgSpeedKph) * 60;
+}
