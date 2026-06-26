@@ -78,3 +78,19 @@ Alternatives considered:
   pre-date this and stay regardless.
 - **Why Transport has coordinates** is exactly the kind of "wait, why?" a future
   reader will hit — this ADR is the answer.
+
+## Update (2026-06-26): offline drive-time estimates
+
+We added rough **offline** drive-time/distance estimates (Car legs + a "long
+driving day" Flag) and per-trip winding-factor/avg-speed settings. This revisits
+the "no computed travel time" line above — but only the *offline* form: distance
+is `haversineKm × windingFactor`, time is `÷ avgSpeedKph`, all in the pure
+`lib/geo.ts` layer (`estimateDriveMinutes`). No routing/distance-matrix API, no
+network at render — so the original rationale (don't couple render to the
+network; avoid API keys/rate-limits/cost) still holds.
+
+**Option B — a real routing/distance-matrix API (Google/Mapbox/OSRM)** for
+accurate ETAs (handling winding NZ mountain roads properly) remains deferred. It
+would slot behind the same `estimateDriveMinutes` seam, but reintroduces the
+network coupling + key/cache/cost this ADR avoided, so it would warrant its own
+ADR superseding this section when/if pursued.
