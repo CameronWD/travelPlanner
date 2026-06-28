@@ -4,6 +4,13 @@ import {
   resolveDiscreetLabel, columnLetter, buildStopSheetRows,
 } from "@/lib/discreet";
 
+describe("cookie name constants", () => {
+  it("are the stable contract shared by the client toggle and server reader", () => {
+    expect(DISCREET_COOKIE).toBe("teepee-discreet");
+    expect(DISCREET_LABEL_COOKIE).toBe("teepee-discreet-label");
+  });
+});
+
 describe("resolveDiscreetLabel", () => {
   it("defaults when empty/nullish", () => {
     expect(resolveDiscreetLabel(undefined)).toBe(DEFAULT_DISCREET_LABEL);
