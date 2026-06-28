@@ -1,9 +1,12 @@
+import type { Metadata } from "next";
 import { requireUser } from "@/lib/guards";
+import { getDiscreetState } from "@/lib/discreet-server";
 import { NewTripForm } from "./new-trip-form";
 
-export const metadata = {
-  title: "New trip · TEEPEE",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { discreet, label } = await getDiscreetState();
+  return { title: discreet ? label : "New trip · TEEPEE" };
+}
 
 export default async function NewTripPage() {
   await requireUser();

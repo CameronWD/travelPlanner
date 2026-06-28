@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { PlaneTakeoff, Table } from "lucide-react";
 import { requireUser } from "@/lib/guards";
@@ -11,9 +12,10 @@ import { todayISO, formatDateRange } from "@/lib/dates";
 import { getDiscreetState } from "@/lib/discreet-server";
 import { ProjectTable, type ProjectRow } from "@/components/discreet/project-table";
 
-export const metadata = {
-  title: "Your trips · TEEPEE",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { discreet, label } = await getDiscreetState();
+  return { title: discreet ? label : "Your trips · TEEPEE" };
+}
 
 export default async function TripsPage() {
   const user = await requireUser();

@@ -24,7 +24,7 @@ export function DiscreetToggle({ discreet, label }: { discreet: boolean; label: 
     router.refresh();
   }
   function saveLabel() {
-    const trimmed = value.trim();
+    const trimmed = value.trim().slice(0, 40);
     if (trimmed === "") clearCookie(DISCREET_LABEL_COOKIE);
     else setCookie(DISCREET_LABEL_COOKIE, trimmed);
     router.refresh();

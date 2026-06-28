@@ -162,6 +162,7 @@ export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetP
     if (r.conflicts?.length) {
       toast({ title: "Heads up — earlier stops run past a pinned date; the pin was kept." });
     }
+    applyPatch(id, null); // drop patch: let revalidated rows prop be source of truth
     return true;
   }
 
@@ -176,6 +177,7 @@ export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetP
     if (r.conflicts?.length) {
       toast({ title: "Heads up — earlier stops run past a pinned date; the pin was kept." });
     }
+    applyPatch(row.id, null); // drop patch: let revalidated rows prop be source of truth
     return true;
   }
 
@@ -188,6 +190,7 @@ export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetP
       toast({ variant: "destructive", title: "Couldn't save that change." });
       return false;
     }
+    applyPatch(id, null); // drop patch: let revalidated rows prop be source of truth
     return true;
   }
 
