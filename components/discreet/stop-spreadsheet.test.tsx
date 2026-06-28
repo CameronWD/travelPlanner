@@ -1,7 +1,9 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { StopSpreadsheet } from "@/components/discreet/stop-spreadsheet";
 import type { SheetRow } from "@/lib/discreet";
+import { setStopNotes } from "@/server/actions/stops";
+import { toast } from "@/components/ui/use-toast";
 
 vi.mock("@/server/actions/stops", () => ({ setStopNotes: vi.fn(), setStopNights: vi.fn(), setStopDates: vi.fn() }));
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
@@ -21,5 +23,36 @@ describe("StopSpreadsheet (read-only)", () => {
   it("blanks dates for rough stops", () => {
     render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
     expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("StopSpreadsheet (inline notes editing)", () => {
+  it("edits notes inline and calls setStopNotes", async () => {
+    vi.mocked(setStopNotes).mockResolvedValue({ success: true });
+    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+    fireEvent.click(screen.getByText("arrive pm"));
+    const input = screen.getByDisplayValue("arrive pm");
+    fireEvent.change(input, { target: { value: "arrive 6pm" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(setStopNotes).toHaveBeenCalledWith("s1", "arrive 6pm"));
+  });
+
+  it("reverts + toasts when the notes save fails", async () => {
+    vi.mocked(setStopNotes).mockResolvedValue({ success: false, errors: {} });
+    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+    fireEvent.click(screen.getByText("arrive pm"));
+    const input = screen.getByDisplayValue("arrive pm");
+    fireEvent.change(input, { target: { value: "x" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" })));
+    expect(screen.getByText("arrive pm")).toBeInTheDocument(); // reverted
+  });
+});
+
+describe("StopSpreadsheet (a11y + cost formatting)", () => {
+  it("formats the estimated cost and marks pinned rows", () => {
+    render(<StopSpreadsheet tripId="t1" rows={[{ ...rows[0], pinned: true }]} homeCurrency="AUD" />);
+    expect(screen.getByText(/\$\s?420\.00/)).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Pinned" })).toBeInTheDocument();
   });
 });

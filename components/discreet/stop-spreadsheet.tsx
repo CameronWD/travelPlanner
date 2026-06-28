@@ -4,6 +4,8 @@ import * as React from "react";
 import { columnLetter, type SheetRow } from "@/lib/discreet";
 import { formatMoney } from "@/lib/money";
 import { formatLongDate } from "@/lib/dates";
+import { setStopNotes } from "@/server/actions/stops";
+import { toast } from "@/components/ui/use-toast";
 
 const COLUMNS = ["Location", "Country", "Arrive", "Depart", "Nights", "Transport", "Stay", "Est. cost", "Notes"];
 const cellBase = "border border-border px-2 py-1 align-top text-sm";
@@ -14,7 +16,70 @@ export interface StopSpreadsheetProps {
   homeCurrency: string;
 }
 
+function EditableTextCell({ value, onSave, className }: { value: string | null; onSave: (next: string) => Promise<boolean>; className?: string }) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(value ?? "");
+  const [pending, startTransition] = React.useTransition();
+
+  function startEditing() {
+    setDraft(value ?? "");
+    setEditing(true);
+  }
+
+  function commit() {
+    setEditing(false);
+    if ((value ?? "") === draft) return;
+    const next = draft;
+    startTransition(async () => {
+      await onSave(next);
+    });
+  }
+
+  if (editing) {
+    return (
+      <td className={className}>
+        <input autoFocus value={draft} disabled={pending}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setEditing(false); } }}
+          className="w-full bg-background px-1 outline-none ring-1 ring-primary" />
+      </td>
+    );
+  }
+  return (<td className={`${className} cursor-text`} onClick={startEditing}>{value ?? "—"}</td>);
+}
+
 export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetProps) {
+  const [patches, setPatches] = React.useState<Map<string, Partial<SheetRow>>>(new Map());
+
+  function applyPatch(id: string, patch: Partial<SheetRow> | null) {
+    setPatches((prev) => {
+      const next = new Map(prev);
+      if (patch === null) {
+        next.delete(id);
+      } else {
+        next.set(id, { ...(next.get(id) ?? {}), ...patch });
+      }
+      return next;
+    });
+  }
+
+  const data = rows.map((r) => {
+    const patch = patches.get(r.id);
+    return patch ? { ...r, ...patch } : r;
+  });
+
+  async function saveNotes(id: string, next: string, prev: string | null): Promise<boolean> {
+    applyPatch(id, { notes: next === "" ? null : next });
+    const r = await setStopNotes(id, next);
+    if (!r.success) {
+      applyPatch(id, { notes: prev });
+      toast({ variant: "destructive", title: "Couldn't save that change." });
+      return false;
+    }
+    return true;
+  }
+
   return (
     <div className="flex flex-col" data-trip-id={tripId}>
       <div className="flex gap-4 rounded-t border border-b-0 border-border bg-muted px-3 py-1 text-xs text-muted-foreground">
@@ -24,21 +89,21 @@ export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetP
         <table className="min-w-full border-collapse">
           <thead>
             <tr className="bg-muted text-left text-xs text-muted-foreground">
-              <th className="border border-border px-2 py-1 font-mono font-normal" />
+              <th scope="col" aria-label="Row" className="border border-border px-2 py-1 font-mono font-normal" />
               {COLUMNS.map((c, i) => (
-                <th key={c} className="border border-border px-2 py-1 font-mono font-normal">
+                <th key={c} scope="col" className="border border-border px-2 py-1 font-mono font-normal">
                   <span className="mr-2 text-muted-foreground/60">{columnLetter(i)}</span>{c}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, i) => (
+            {data.map((row, i) => (
               <tr key={row.id} className="hover:bg-accent/60">
                 <td className="border border-border bg-muted px-2 py-1 text-center font-mono text-xs text-muted-foreground">{i + 1}</td>
                 <td className={`${cellBase} font-medium text-foreground`}>
                   {row.location}
-                  {row.pinned && <span title="Locked" className="ml-1 text-muted-foreground">📌</span>}
+                  {row.pinned && <span role="img" aria-label="Pinned" className="ml-1 text-muted-foreground">📌</span>}
                 </td>
                 <td className={`${cellBase} text-muted-foreground`}>{row.country ?? "—"}</td>
                 <td className={`${cellBase} font-mono`}>{row.arriveDate ? formatLongDate(row.arriveDate) : "—"}</td>
@@ -47,7 +112,7 @@ export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetP
                 <td className={`${cellBase} text-muted-foreground`}>{row.transportInLabel ?? "—"}</td>
                 <td className={`${cellBase} text-muted-foreground`}>{row.stayLabel ?? "—"}</td>
                 <td className={`${cellBase} font-mono text-right`}>{row.estCostMinor > 0 ? formatMoney(row.estCostMinor, homeCurrency) : "—"}</td>
-                <td className={`${cellBase} text-muted-foreground`}>{row.notes ?? "—"}</td>
+                <EditableTextCell value={row.notes} onSave={(next) => saveNotes(row.id, next, row.notes)} className={`${cellBase} text-muted-foreground`} />
               </tr>
             ))}
           </tbody>
