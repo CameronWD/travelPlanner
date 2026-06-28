@@ -26,6 +26,17 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// Stub Radix DropdownMenu so DropdownMenuContent always renders its children
+// (the real component only renders content when the menu is open).
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuTrigger: ({ children, ...props }: React.HTMLAttributes<HTMLButtonElement> & { children?: React.ReactNode }) => <button {...props}>{children}</button>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuLabel: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  DropdownMenuSeparator: () => <hr />,
+  DropdownMenuItem: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode }) => <div {...props}>{children}</div>,
+}));
+
 // ThemeToggle and DiscreetToggle are client components; stub them to avoid
 // client-only hooks in the jsdom test environment.
 vi.mock("@/components/ui/theme-toggle", () => ({
@@ -65,15 +76,16 @@ describe("AppLayout", () => {
     const { redirect } = await import("next/navigation");
     vi.mocked(auth).mockResolvedValue(null as never);
     // redirect() is mocked and doesn't throw; the component may error after the
-    // redirect call because session is null. Catch that error but still assert
-    // that redirect was called.
+    // redirect call because session is null. Only suppress the expected
+    // TypeError from destructuring a null session; rethrow anything unexpected.
     try {
       const ui = await AppLayout({ children: <div /> });
       render(ui as React.ReactElement);
-    } catch {
-      // expected — layout tries to destructure null session after redirect mock
+    } catch (e) {
+      if (!(e instanceof TypeError)) throw e;
     }
     expect(redirect).toHaveBeenCalledWith("/signin");
+    expect(redirect).toHaveBeenCalledTimes(1);
   });
 
   it("renders the TEEPEE wordmark link when authenticated", async () => {
@@ -102,5 +114,7 @@ describe("AppLayout", () => {
     render(ui as React.ReactElement);
     expect(screen.getByText("Q3 Tracker")).toBeInTheDocument();
     expect(screen.queryByText("TEEPEE")).not.toBeInTheDocument();
+    expect(document.querySelector(".discreet")).toBeInTheDocument();
+    expect(screen.getByTestId("discreet-toggle")).toHaveAttribute("data-discreet", "true");
   });
 });

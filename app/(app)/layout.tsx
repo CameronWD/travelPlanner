@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SignOutMenuItem } from "@/components/ui/sign-out-button";
 import { DiscreetToggle } from "@/components/discreet/discreet-toggle";
+import { cn } from "@/lib/cn";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { discreet, label } = await getDiscreetState();
@@ -59,7 +60,7 @@ export default async function AppLayout({
   const { discreet, label } = await getDiscreetState();
 
   return (
-    <div className={`flex min-h-full flex-col${discreet ? " discreet" : ""}`}>
+    <div className={cn("flex min-h-full flex-col", discreet && "discreet")}>
       {/* ── Top bar ── */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
