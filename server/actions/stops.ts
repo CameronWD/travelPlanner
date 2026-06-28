@@ -7,7 +7,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlace } from "@/lib/geocode";
 import { flowDates, type FlowStop, type FlowConflict } from "@/lib/firm-up";
-import { nightsBetween, formatLongDate } from "@/lib/dates";
+import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
 
@@ -318,30 +318,28 @@ export async function moveStop(
 }
 
 /**
- * Set the arrive/depart dates on a stop and ripple forward through
- * contiguous following dated non-pinned stops.
+ * Internal helper: apply new dates to an already-resolved stop and ripple
+ * forward through contiguous following dated non-pinned stops.
+ *
+ * Callers are responsible for auth (requireStopAccess) and depart>=arrive
+ * validation before calling this function.
  */
-export async function setStopDates(
-  stopId: string,
+async function applyStopDates(
+  stop: { id: string; tripId: string; sortOrder: number },
   dates: { arriveDate: string; departDate: string },
 ): Promise<StopActionResult> {
-  const stop = await requireStopAccess(stopId);
-  if (dates.departDate < dates.arriveDate) {
-    return { success: false, errors: { departDate: ["Depart date must be on or after arrive date"] } };
-  }
-
   const before = await db.stop.findUnique({
-    where: { id: stopId },
+    where: { id: stop.id },
     select: { name: true, country: true, arriveDate: true, departDate: true, nights: true },
   });
 
-  await db.stop.update({ where: { id: stopId }, data: { arriveDate: dates.arriveDate, departDate: dates.departDate } });
+  await db.stop.update({ where: { id: stop.id }, data: { arriveDate: dates.arriveDate, departDate: dates.departDate } });
 
   await recordActivity({
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
-    entityId: stopId,
+    entityId: stop.id,
     entityLabel: entityLabel("STOP", (before ?? {}) as Record<string, unknown>),
     changes: describeChanges(
       "STOP",
@@ -393,6 +391,21 @@ export async function setStopDates(
 
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true, conflicts };
+}
+
+/**
+ * Set the arrive/depart dates on a stop and ripple forward through
+ * contiguous following dated non-pinned stops.
+ */
+export async function setStopDates(
+  stopId: string,
+  dates: { arriveDate: string; departDate: string },
+): Promise<StopActionResult> {
+  if (dates.departDate < dates.arriveDate) {
+    return { success: false, errors: { departDate: ["Depart date must be on or after arrive date"] } };
+  }
+  const stop = await requireStopAccess(stopId);
+  return applyStopDates(stop, dates);
 }
 
 // ---------------------------------------------------------------------------
@@ -584,6 +597,57 @@ export async function makeStopRough(stopId: string): Promise<StopActionResult> {
     ),
   });
 
+  revalidatePath(`/trips/${stop.tripId}`);
+  return { success: true };
+}
+
+/**
+ * Update the free-text notes on a stop.
+ * Trims whitespace; stores null when the trimmed string is empty.
+ */
+export async function setStopNotes(stopId: string, notes: string): Promise<StopActionResult> {
+  const stop = await requireStopAccess(stopId);
+  const trimmed = notes.trim();
+  const before = await db.stop.findUnique({ where: { id: stopId } });
+  const updated = await db.stop.update({ where: { id: stopId }, data: { notes: trimmed === "" ? null : trimmed } });
+  await recordActivity({
+    tripId: stop.tripId,
+    verb: "UPDATED",
+    entityType: "STOP",
+    entityId: stopId,
+    entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
+  revalidatePath(`/trips/${stop.tripId}`);
+  return { success: true };
+}
+
+/**
+ * Set the number of nights for a stop.
+ *
+ * - Rough stops: writes the `nights` field directly.
+ * - Scheduled stops: recomputes `departDate` from `arriveDate + nights` and
+ *   delegates to `setStopDates` (inheriting its ripple + conflict logic).
+ */
+export async function setStopNights(stopId: string, nights: number): Promise<StopActionResult> {
+  if (!Number.isInteger(nights) || nights < 0 || nights > 366) {
+    return { success: false, errors: { nights: ["Nights must be between 0 and 366"] } };
+  }
+  const stop = await requireStopAccess(stopId);
+  if (stop.arriveDate) {
+    const departDate = addDays(stop.arriveDate, nights);
+    return applyStopDates(stop, { arriveDate: stop.arriveDate, departDate });
+  }
+  const before = await db.stop.findUnique({ where: { id: stopId } });
+  const updated = await db.stop.update({ where: { id: stopId }, data: { nights } });
+  await recordActivity({
+    tripId: stop.tripId,
+    verb: "UPDATED",
+    entityType: "STOP",
+    entityId: stopId,
+    entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
 }

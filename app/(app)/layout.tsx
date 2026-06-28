@@ -1,6 +1,8 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { getDiscreetState } from "@/lib/discreet-server";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -11,6 +13,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SignOutMenuItem } from "@/components/ui/sign-out-button";
+import { DiscreetToggle } from "@/components/discreet/discreet-toggle";
+import { cn } from "@/lib/cn";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { discreet, label } = await getDiscreetState();
+  if (!discreet) return {};
+  return { title: label, icons: { icon: "/discreet-icon.svg" } };
+}
 
 /**
  * Derive initials from a display name (up to 2 chars).
@@ -31,6 +41,10 @@ function initials(name?: string | null): string {
  * Keeps the server-side auth gate from the stub layout and adds:
  *   - A sticky top bar with the wordmark + theme toggle + traveller avatar dropdown
  *   - A centered, padded content area
+ *
+ * When discreet mode is on the outer wrapper receives a `.discreet` class,
+ * the wordmark is replaced with the user-chosen neutral label, and
+ * generateMetadata swaps the page title + favicon.
  */
 export default async function AppLayout({
   children,
@@ -43,9 +57,10 @@ export default async function AppLayout({
   }
 
   const { name, email, image } = session.user;
+  const { discreet, label } = await getDiscreetState();
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className={cn("flex min-h-full flex-col", discreet && "discreet")}>
       {/* ── Top bar ── */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
@@ -53,10 +68,16 @@ export default async function AppLayout({
           <Link
             href="/trips"
             className="flex items-center gap-1.5 font-display text-lg font-semibold tracking-tight text-foreground hover:text-foreground/80 transition-colors"
-            aria-label="TEEPEE — go to your trips"
+            aria-label={discreet ? label : "TEEPEE — go to your trips"}
           >
-            <span aria-hidden="true">🛖</span>
-            TEEPEE
+            {discreet ? (
+              label
+            ) : (
+              <>
+                <span aria-hidden="true">🛖</span>
+                TEEPEE
+              </>
+            )}
           </Link>
 
           {/* Right-hand controls */}
@@ -88,6 +109,10 @@ export default async function AppLayout({
                     </span>
                   ) : null}
                 </DropdownMenuLabel>
+
+                <DropdownMenuSeparator />
+
+                <DiscreetToggle discreet={discreet} label={label} />
 
                 <DropdownMenuSeparator />
 
