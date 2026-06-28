@@ -7,7 +7,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { TripCard } from "@/components/trip/trip-card";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { describePhase, compareForTripList } from "@/lib/trip-phase";
-import { todayISO } from "@/lib/dates";
+import { todayISO, formatDateRange } from "@/lib/dates";
+import { getDiscreetState } from "@/lib/discreet-server";
+import { ProjectTable, type ProjectRow } from "@/components/discreet/project-table";
 
 export const metadata = {
   title: "Your trips · TEEPEE",
@@ -57,6 +59,23 @@ export default async function TripsPage() {
 
   const today = todayISO();
   const sorted = [...trips].sort((a, b) => compareForTripList(a, b, today));
+
+  const { discreet } = await getDiscreetState();
+  if (discreet && trips.length > 0) {
+    const projects: ProjectRow[] = sorted.map((trip) => ({
+      id: trip.id,
+      name: trip.name,
+      status: describePhase({ startDate: trip.startDate, endDate: trip.endDate, today }).label,
+      dateRange: trip.startDate && trip.endDate ? formatDateRange(trip.startDate, trip.endDate) : "Dates TBC",
+      locations: trip._count.stops,
+    }));
+    return (
+      <div className="space-y-6">
+        <h1 className="font-display text-2xl font-semibold tracking-tight">Projects</h1>
+        <ProjectTable projects={projects} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
