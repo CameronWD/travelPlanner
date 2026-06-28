@@ -200,9 +200,17 @@ export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetP
         <table className="min-w-full border-collapse">
           <thead>
             <tr className="bg-muted text-left text-xs text-muted-foreground">
-              <th scope="col" aria-label="Row" className="border border-border px-2 py-1 font-mono font-normal" />
+              <th scope="col" aria-label="Row" className="sticky left-0 z-10 w-10 border border-border bg-muted px-2 py-1 font-mono font-normal" />
               {COLUMNS.map((c, i) => (
-                <th key={c} scope="col" className="border border-border px-2 py-1 font-mono font-normal">
+                <th
+                  key={c}
+                  scope="col"
+                  className={
+                    c === "Location"
+                      ? "sticky left-10 z-10 border border-border bg-muted px-2 py-1 font-mono font-normal"
+                      : "border border-border px-2 py-1 font-mono font-normal"
+                  }
+                >
                   <span className="mr-2 text-muted-foreground/60">{columnLetter(i)}</span>{c}
                 </th>
               ))}
@@ -211,8 +219,8 @@ export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetP
           <tbody>
             {data.map((row, i) => (
               <tr key={row.id} className="hover:bg-accent/60">
-                <td className="border border-border bg-muted px-2 py-1 text-center font-mono text-xs text-muted-foreground">{i + 1}</td>
-                <td className={`${cellBase} font-medium text-foreground`}>
+                <td className="sticky left-0 z-10 w-10 border border-border bg-muted px-2 py-1 text-center font-mono text-xs text-muted-foreground">{i + 1}</td>
+                <td className={`${cellBase} sticky left-10 z-10 bg-background font-medium text-foreground`}>
                   {row.location}
                   {row.pinned && <span role="img" aria-label="Pinned" className="ml-1 text-muted-foreground">📌</span>}
                 </td>

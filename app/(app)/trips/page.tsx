@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PlaneTakeoff } from "lucide-react";
+import { PlaneTakeoff, Table } from "lucide-react";
 import { requireUser } from "@/lib/guards";
 import { db } from "@/lib/db";
 import { Button } from "@/components/ui/button";
@@ -61,7 +61,24 @@ export default async function TripsPage() {
   const sorted = [...trips].sort((a, b) => compareForTripList(a, b, today));
 
   const { discreet } = await getDiscreetState();
-  if (discreet && trips.length > 0) {
+  if (discreet) {
+    if (trips.length === 0) {
+      return (
+        <div className="space-y-6">
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Projects</h1>
+          <EmptyState
+            icon={Table}
+            title="No projects yet"
+            description="Create a project to get started."
+            action={
+              <Button asChild>
+                <Link href="/trips/new">New project</Link>
+              </Button>
+            }
+          />
+        </div>
+      );
+    }
     const projects: ProjectRow[] = sorted.map((trip) => ({
       id: trip.id,
       name: trip.name,
