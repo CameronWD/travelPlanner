@@ -2,8 +2,9 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StopSpreadsheet } from "@/components/discreet/stop-spreadsheet";
 import type { SheetRow } from "@/lib/discreet";
-import { setStopNotes, setStopNights } from "@/server/actions/stops";
+import { setStopNotes, setStopNights, setStopDates } from "@/server/actions/stops";
 import { toast } from "@/components/ui/use-toast";
+import { formatLongDate } from "@/lib/dates";
 
 vi.mock("@/server/actions/stops", () => ({ setStopNotes: vi.fn(), setStopNights: vi.fn(), setStopDates: vi.fn() }));
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
@@ -94,5 +95,30 @@ describe("StopSpreadsheet (inline nights editing)", () => {
     fireEvent.change(input, { target: { value: "5" } });
     fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringMatching(/pinned/i) })));
+  });
+});
+
+describe("StopSpreadsheet (inline dates editing)", () => {
+  it("edits a scheduled stop's depart date via setStopDates", async () => {
+    vi.mocked(setStopDates).mockResolvedValue({ success: true });
+    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+    // Queenstown depart = 2026-07-15 → "Wed 15 Jul 2026". Scope to the Depart column cell.
+    // The arrive date "Sun 12 Jul 2026" is distinct, so we can use getAllByText and pick index 0
+    // for depart since it's the only occurrence of that formatted date.
+    fireEvent.click(screen.getByText(formatLongDate("2026-07-15")));
+    const input = screen.getByDisplayValue("2026-07-15");
+    fireEvent.change(input, { target: { value: "2026-07-16" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(setStopDates).toHaveBeenCalledWith("s1", { arriveDate: "2026-07-12", departDate: "2026-07-16" }));
+  });
+
+  it("does not make rough-stop date cells editable", () => {
+    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+    // Milford (s2) is rough: arrive/depart render as "—". Clicking must not open a date input.
+    const dashes = screen.getAllByText("—");
+    fireEvent.click(dashes[0]);
+    expect(screen.queryByDisplayValue("")).not.toBeInTheDocument();
+    // no date input appeared
+    expect(document.querySelector('input[type="date"]')).not.toBeInTheDocument();
   });
 });

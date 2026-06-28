@@ -4,11 +4,52 @@ import * as React from "react";
 import { columnLetter, type SheetRow } from "@/lib/discreet";
 import { formatMoney } from "@/lib/money";
 import { formatLongDate } from "@/lib/dates";
-import { setStopNotes, setStopNights } from "@/server/actions/stops";
+import { setStopNotes, setStopNights, setStopDates } from "@/server/actions/stops";
 import { toast } from "@/components/ui/use-toast";
 
 const COLUMNS = ["Location", "Country", "Arrive", "Depart", "Nights", "Transport", "Stay", "Est. cost", "Notes"];
 const cellBase = "border border-border px-2 py-1 align-top text-sm";
+
+function EditableDateCell({ value, scheduled, onSave, className }: { value: string | null; scheduled: boolean; onSave: (iso: string) => Promise<boolean>; className?: string }) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(value ?? "");
+  const [pending, startTransition] = React.useTransition();
+  const committed = React.useRef(false);
+
+  if (!scheduled || value == null) {
+    return <td className={className}>—</td>;
+  }
+
+  function startEditing() {
+    committed.current = false;
+    setDraft(value ?? "");
+    setEditing(true);
+  }
+
+  function commit() {
+    if (committed.current) return;
+    committed.current = true;
+    setEditing(false);
+    if (!draft || draft === value) return;
+    const next = draft;
+    startTransition(async () => {
+      await onSave(next);
+    });
+  }
+
+  if (editing) {
+    return (
+      <td className={className}>
+        <input type="date" autoFocus value={draft} disabled={pending}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setDraft(value ?? ""); setEditing(false); } }}
+          className="w-full bg-background px-1 outline-none ring-1 ring-primary" />
+      </td>
+    );
+  }
+  return (<td className={`${className} cursor-text`} onClick={startEditing}>{formatLongDate(value)}</td>);
+}
 
 export interface StopSpreadsheetProps {
   tripId: string;
@@ -69,7 +110,7 @@ function EditableNumberCell({ value, onSave, className }: { value: number; onSav
     if (committed.current) return;
     committed.current = true;
     setEditing(false);
-    const n = parseInt(draft, 10);
+    const n = Number(draft);
     if (!Number.isInteger(n) || n < 0 || n === value) return;
     startTransition(async () => {
       await onSave(n);
@@ -124,6 +165,20 @@ export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetP
     return true;
   }
 
+  async function saveDates(row: SheetRow, dates: { arriveDate: string; departDate: string }): Promise<boolean> {
+    applyPatch(row.id, dates); // optimistic
+    const r = await setStopDates(row.id, dates);
+    if (!r.success) {
+      applyPatch(row.id, null);
+      toast({ variant: "destructive", title: "Couldn't update dates." });
+      return false;
+    }
+    if (r.conflicts?.length) {
+      toast({ title: "Heads up — earlier stops run past a pinned date; the pin was kept." });
+    }
+    return true;
+  }
+
   async function saveNotes(id: string, next: string): Promise<boolean> {
     const trimmed = next.trim();
     applyPatch(id, { notes: trimmed === "" ? null : trimmed }); // optimistic, mirrors server
@@ -162,8 +217,8 @@ export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetP
                   {row.pinned && <span role="img" aria-label="Pinned" className="ml-1 text-muted-foreground">📌</span>}
                 </td>
                 <td className={`${cellBase} text-muted-foreground`}>{row.country ?? "—"}</td>
-                <td className={`${cellBase} font-mono`}>{row.arriveDate ? formatLongDate(row.arriveDate) : "—"}</td>
-                <td className={`${cellBase} font-mono`}>{row.departDate ? formatLongDate(row.departDate) : "—"}</td>
+                <EditableDateCell value={row.arriveDate} scheduled={row.scheduled} onSave={(iso) => saveDates(row, { arriveDate: iso, departDate: row.departDate as string })} className={`${cellBase} font-mono`} />
+                <EditableDateCell value={row.departDate} scheduled={row.scheduled} onSave={(iso) => saveDates(row, { arriveDate: row.arriveDate as string, departDate: iso })} className={`${cellBase} font-mono`} />
                 <EditableNumberCell value={row.nights} onSave={(n) => saveNights(row.id, n)} className={`${cellBase} font-mono`} />
                 <td className={`${cellBase} text-muted-foreground`}>{row.transportInLabel ?? "—"}</td>
                 <td className={`${cellBase} text-muted-foreground`}>{row.stayLabel ?? "—"}</td>
