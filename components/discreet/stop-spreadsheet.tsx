@@ -4,7 +4,7 @@ import * as React from "react";
 import { columnLetter, type SheetRow } from "@/lib/discreet";
 import { formatMoney } from "@/lib/money";
 import { formatLongDate } from "@/lib/dates";
-import { setStopNotes } from "@/server/actions/stops";
+import { setStopNotes, setStopNights } from "@/server/actions/stops";
 import { toast } from "@/components/ui/use-toast";
 
 const COLUMNS = ["Location", "Country", "Arrive", "Depart", "Nights", "Transport", "Stay", "Est. cost", "Notes"];
@@ -53,6 +53,43 @@ function EditableTextCell({ value, onSave, className }: { value: string | null; 
   return (<td className={`${className} cursor-text`} onClick={startEditing}>{value ?? "—"}</td>);
 }
 
+function EditableNumberCell({ value, onSave, className }: { value: number; onSave: (next: number) => Promise<boolean>; className?: string }) {
+  const [editing, setEditing] = React.useState(false);
+  const [draft, setDraft] = React.useState(String(value));
+  const [pending, startTransition] = React.useTransition();
+  const committed = React.useRef(false);
+
+  function startEditing() {
+    committed.current = false;
+    setDraft(String(value));
+    setEditing(true);
+  }
+
+  function commit() {
+    if (committed.current) return;
+    committed.current = true;
+    setEditing(false);
+    const n = parseInt(draft, 10);
+    if (!Number.isInteger(n) || n < 0 || n === value) return;
+    startTransition(async () => {
+      await onSave(n);
+    });
+  }
+
+  if (editing) {
+    return (
+      <td className={className}>
+        <input type="number" min={0} autoFocus value={draft} disabled={pending}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setDraft(String(value)); setEditing(false); } }}
+          className="w-full bg-background px-1 outline-none ring-1 ring-primary" />
+      </td>
+    );
+  }
+  return (<td className={`${className} cursor-text`} onClick={startEditing}>{value}</td>);
+}
+
 export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetProps) {
   const [patches, setPatches] = React.useState<Map<string, Partial<SheetRow>>>(new Map());
 
@@ -72,6 +109,20 @@ export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetP
     const patch = patches.get(r.id);
     return patch ? { ...r, ...patch } : r;
   });
+
+  async function saveNights(id: string, next: number): Promise<boolean> {
+    applyPatch(id, { nights: next }); // optimistic
+    const r = await setStopNights(id, next);
+    if (!r.success) {
+      applyPatch(id, null); // revert: evict patch
+      toast({ variant: "destructive", title: "Couldn't update nights." });
+      return false;
+    }
+    if (r.conflicts?.length) {
+      toast({ title: "Heads up — earlier stops run past a pinned date; the pin was kept." });
+    }
+    return true;
+  }
 
   async function saveNotes(id: string, next: string): Promise<boolean> {
     const trimmed = next.trim();
@@ -113,7 +164,7 @@ export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetP
                 <td className={`${cellBase} text-muted-foreground`}>{row.country ?? "—"}</td>
                 <td className={`${cellBase} font-mono`}>{row.arriveDate ? formatLongDate(row.arriveDate) : "—"}</td>
                 <td className={`${cellBase} font-mono`}>{row.departDate ? formatLongDate(row.departDate) : "—"}</td>
-                <td className={`${cellBase} font-mono`}>{row.nights}</td>
+                <EditableNumberCell value={row.nights} onSave={(n) => saveNights(row.id, n)} className={`${cellBase} font-mono`} />
                 <td className={`${cellBase} text-muted-foreground`}>{row.transportInLabel ?? "—"}</td>
                 <td className={`${cellBase} text-muted-foreground`}>{row.stayLabel ?? "—"}</td>
                 <td className={`${cellBase} font-mono text-right`}>{row.estCostMinor > 0 ? formatMoney(row.estCostMinor, homeCurrency) : "—"}</td>

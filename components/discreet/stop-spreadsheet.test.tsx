@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StopSpreadsheet } from "@/components/discreet/stop-spreadsheet";
 import type { SheetRow } from "@/lib/discreet";
-import { setStopNotes } from "@/server/actions/stops";
+import { setStopNotes, setStopNights } from "@/server/actions/stops";
 import { toast } from "@/components/ui/use-toast";
 
 vi.mock("@/server/actions/stops", () => ({ setStopNotes: vi.fn(), setStopNights: vi.fn(), setStopDates: vi.fn() }));
@@ -12,9 +12,11 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
+// Fixture note: Milford nights is 7 (not 1) to avoid collision with row-number "1"
+// rendered in the first column. Queenstown nights=3 is unambiguous.
 const rows: SheetRow[] = [
   { id: "s1", location: "Queenstown", country: "NZ", arriveDate: "2026-07-12", departDate: "2026-07-15", nights: 3, scheduled: true, pinned: false, transportInLabel: "Flight", stayLabel: "Hotel A", estCostMinor: 42000, notes: "arrive pm" },
-  { id: "s2", location: "Milford", country: "NZ", arriveDate: null, departDate: null, nights: 1, scheduled: false, pinned: false, transportInLabel: "Car", stayLabel: null, estCostMinor: 0, notes: null },
+  { id: "s2", location: "Milford", country: "NZ", arriveDate: null, departDate: null, nights: 7, scheduled: false, pinned: false, transportInLabel: "Car", stayLabel: null, estCostMinor: 0, notes: null },
 ];
 
 describe("StopSpreadsheet (read-only)", () => {
@@ -68,5 +70,29 @@ describe("StopSpreadsheet (a11y + cost formatting)", () => {
     render(<StopSpreadsheet tripId="t1" rows={[{ ...rows[0], pinned: true }]} homeCurrency="AUD" />);
     expect(screen.getByText(/\$\s?420\.00/)).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Pinned" })).toBeInTheDocument();
+  });
+});
+
+describe("StopSpreadsheet (inline nights editing)", () => {
+  it("edits nights inline and calls setStopNights", async () => {
+    vi.mocked(setStopNights).mockResolvedValue({ success: true });
+    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+    // Milford (rough) nights = 7 — distinct from any row number
+    fireEvent.click(screen.getByText("7"));
+    const input = screen.getByDisplayValue("7");
+    fireEvent.change(input, { target: { value: "4" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(setStopNights).toHaveBeenCalledWith("s2", 4));
+  });
+
+  it("shows the ripple heads-up toast on conflicts", async () => {
+    vi.mocked(setStopNights).mockResolvedValue({ success: true, conflicts: [{ stopId: "x", message: "conflict" }] });
+    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+    // Queenstown (scheduled) nights = 3
+    fireEvent.click(screen.getByText("3"));
+    const input = screen.getByDisplayValue("3");
+    fireEvent.change(input, { target: { value: "5" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringMatching(/pinned/i) })));
   });
 });
