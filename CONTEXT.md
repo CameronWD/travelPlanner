@@ -126,6 +126,7 @@ _Avoid_: Sync (implies two-way), integration
 
 **Discreet mode**:
 A device-local display mode (stored in a cookie, per browser) that disguises the app as a generic spreadsheet/"workspace" tool so a trip can be planned unobtrusively on a work screen. The plan view becomes an editable stop-by-stop spreadsheet. It changes presentation only — never the underlying trip data, and it is never shared with other trip members.
+_Avoid_: Incognito, stealth mode, private mode, boss mode
 
 **Vote**:
 A traveller's interest mark on a Wishlist Item (e.g. must-do / keen / meh) used to decide together what makes the cut.
