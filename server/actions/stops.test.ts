@@ -872,10 +872,11 @@ describe("setStopNotes", () => {
 // ---------------------------------------------------------------------------
 
 describe("setStopNights", () => {
-  it("rejects a negative or non-integer value", async () => {
+  it("rejects negative and non-integer values", async () => {
     const r = await setStopNights("s1", -1);
     expect(r).toEqual({ success: false, errors: { nights: ["Nights must be between 0 and 366"] } });
     expect(stopUpdateMock).not.toHaveBeenCalled();
+    expect(await setStopNights("s1", 1.5)).toEqual({ success: false, errors: { nights: ["Nights must be between 0 and 366"] } });
   });
 
   it("updates the nights field for a rough stop", async () => {

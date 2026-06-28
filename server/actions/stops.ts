@@ -318,30 +318,28 @@ export async function moveStop(
 }
 
 /**
- * Set the arrive/depart dates on a stop and ripple forward through
- * contiguous following dated non-pinned stops.
+ * Internal helper: apply new dates to an already-resolved stop and ripple
+ * forward through contiguous following dated non-pinned stops.
+ *
+ * Callers are responsible for auth (requireStopAccess) and depart>=arrive
+ * validation before calling this function.
  */
-export async function setStopDates(
-  stopId: string,
+async function applyStopDates(
+  stop: { id: string; tripId: string; sortOrder: number },
   dates: { arriveDate: string; departDate: string },
 ): Promise<StopActionResult> {
-  const stop = await requireStopAccess(stopId);
-  if (dates.departDate < dates.arriveDate) {
-    return { success: false, errors: { departDate: ["Depart date must be on or after arrive date"] } };
-  }
-
   const before = await db.stop.findUnique({
-    where: { id: stopId },
+    where: { id: stop.id },
     select: { name: true, country: true, arriveDate: true, departDate: true, nights: true },
   });
 
-  await db.stop.update({ where: { id: stopId }, data: { arriveDate: dates.arriveDate, departDate: dates.departDate } });
+  await db.stop.update({ where: { id: stop.id }, data: { arriveDate: dates.arriveDate, departDate: dates.departDate } });
 
   await recordActivity({
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
-    entityId: stopId,
+    entityId: stop.id,
     entityLabel: entityLabel("STOP", (before ?? {}) as Record<string, unknown>),
     changes: describeChanges(
       "STOP",
@@ -393,6 +391,21 @@ export async function setStopDates(
 
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true, conflicts };
+}
+
+/**
+ * Set the arrive/depart dates on a stop and ripple forward through
+ * contiguous following dated non-pinned stops.
+ */
+export async function setStopDates(
+  stopId: string,
+  dates: { arriveDate: string; departDate: string },
+): Promise<StopActionResult> {
+  if (dates.departDate < dates.arriveDate) {
+    return { success: false, errors: { departDate: ["Depart date must be on or after arrive date"] } };
+  }
+  const stop = await requireStopAccess(stopId);
+  return applyStopDates(stop, dates);
 }
 
 // ---------------------------------------------------------------------------
@@ -623,7 +636,7 @@ export async function setStopNights(stopId: string, nights: number): Promise<Sto
   const stop = await requireStopAccess(stopId);
   if (stop.arriveDate) {
     const departDate = addDays(stop.arriveDate, nights);
-    return setStopDates(stopId, { arriveDate: stop.arriveDate, departDate });
+    return applyStopDates(stop, { arriveDate: stop.arriveDate, departDate });
   }
   const before = await db.stop.findUnique({ where: { id: stopId } });
   const updated = await db.stop.update({ where: { id: stopId }, data: { nights } });
