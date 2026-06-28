@@ -1,6 +1,9 @@
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
+import { StopSpreadsheet } from "@/components/discreet/stop-spreadsheet";
+import { getDiscreetState } from "@/lib/discreet-server";
+import { buildStopSheetRows } from "@/lib/discreet";
 import type { TransportMode } from "@/lib/enums";
 import type { NoteView } from "@/components/trip/note-thread";
 import { haversineKm, estimateDriveMinutes, estimateRoadKm } from "@/lib/geo";
@@ -166,6 +169,36 @@ export default async function TripPlanPage({
 
   const tripStartDate = trip?.startDate ?? undefined;
   const tripEndDate = trip?.endDate ?? undefined;
+
+  const { discreet } = await getDiscreetState();
+  if (discreet) {
+    const costHomeMinorByStopId: Record<string, number> = {};
+    for (const s of stops) {
+      let sum = 0;
+      for (const acc of s.accommodations) {
+        for (const c of costsByOwnerId.get(acc.id) ?? []) {
+          sum += c.rateToHome ? Math.round(c.estimatedMinor * c.rateToHome) : c.estimatedMinor;
+        }
+      }
+      costHomeMinorByStopId[s.id] = sum;
+    }
+    const rows = buildStopSheetRows({
+      stops: stops.map((s) => ({
+        id: s.id, name: s.name, country: s.country,
+        arriveDate: s.arriveDate, departDate: s.departDate,
+        nights: s.nights, pinned: s.pinned, notes: s.notes,
+        accommodations: s.accommodations.map((a) => ({ name: a.name })),
+      })),
+      transports: transports.map((t) => ({ mode: t.mode, fromStopId: t.fromStopId, toStopId: t.toStopId })),
+      costHomeMinorByStopId,
+      homeCurrency: trip?.homeCurrency ?? "AUD",
+    });
+    return (
+      <div className="flex flex-col gap-6">
+        <StopSpreadsheet tripId={tripId} rows={rows} homeCurrency={trip?.homeCurrency ?? "AUD"} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
