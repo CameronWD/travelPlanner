@@ -7,7 +7,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlace } from "@/lib/geocode";
 import { flowDates, type FlowStop, type FlowConflict } from "@/lib/firm-up";
-import { nightsBetween, formatLongDate } from "@/lib/dates";
+import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
 
@@ -584,6 +584,57 @@ export async function makeStopRough(stopId: string): Promise<StopActionResult> {
     ),
   });
 
+  revalidatePath(`/trips/${stop.tripId}`);
+  return { success: true };
+}
+
+/**
+ * Update the free-text notes on a stop.
+ * Trims whitespace; stores null when the trimmed string is empty.
+ */
+export async function setStopNotes(stopId: string, notes: string): Promise<StopActionResult> {
+  const stop = await requireStopAccess(stopId);
+  const trimmed = notes.trim();
+  const before = await db.stop.findUnique({ where: { id: stopId } });
+  const updated = await db.stop.update({ where: { id: stopId }, data: { notes: trimmed === "" ? null : trimmed } });
+  await recordActivity({
+    tripId: stop.tripId,
+    verb: "UPDATED",
+    entityType: "STOP",
+    entityId: stopId,
+    entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
+  revalidatePath(`/trips/${stop.tripId}`);
+  return { success: true };
+}
+
+/**
+ * Set the number of nights for a stop.
+ *
+ * - Rough stops: writes the `nights` field directly.
+ * - Scheduled stops: recomputes `departDate` from `arriveDate + nights` and
+ *   delegates to `setStopDates` (inheriting its ripple + conflict logic).
+ */
+export async function setStopNights(stopId: string, nights: number): Promise<StopActionResult> {
+  if (!Number.isInteger(nights) || nights < 0 || nights > 366) {
+    return { success: false, errors: { nights: ["Nights must be between 0 and 366"] } };
+  }
+  const stop = await requireStopAccess(stopId);
+  if (stop.arriveDate) {
+    const departDate = addDays(stop.arriveDate, nights);
+    return setStopDates(stopId, { arriveDate: stop.arriveDate, departDate });
+  }
+  const before = await db.stop.findUnique({ where: { id: stopId } });
+  const updated = await db.stop.update({ where: { id: stopId }, data: { nights } });
+  await recordActivity({
+    tripId: stop.tripId,
+    verb: "UPDATED",
+    entityType: "STOP",
+    entityId: stopId,
+    entityLabel: entityLabel("STOP", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("STOP", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
 }

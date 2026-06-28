@@ -110,6 +110,8 @@ import {
   toggleStopPin,
   makeStopRough,
   assignStopToChapter,
+  setStopNotes,
+  setStopNights,
 } from "./stops";
 import { recordActivity } from "@/server/actions/activity";
 
@@ -840,5 +842,57 @@ describe("assignStopToChapter", () => {
         changes: [{ field: "chapter", label: "Chapter", from: "", to: "Italy" }],
       }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setStopNotes
+// ---------------------------------------------------------------------------
+
+describe("setStopNotes", () => {
+  it("trims and writes notes, records activity, revalidates", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "t1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false });
+    stopUpdateMock.mockResolvedValue({ id: "s1", tripId: "t1", notes: "Book ferry" });
+    const r = await setStopNotes("s1", "  Book ferry  ");
+    expect(r).toEqual({ success: true });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: { notes: "Book ferry" } });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/t1");
+  });
+
+  it("stores null for an empty note", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "t1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false });
+    stopUpdateMock.mockResolvedValue({ id: "s1", tripId: "t1", notes: null });
+    await setStopNotes("s1", "   ");
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: { notes: null } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setStopNights
+// ---------------------------------------------------------------------------
+
+describe("setStopNights", () => {
+  it("rejects a negative or non-integer value", async () => {
+    const r = await setStopNights("s1", -1);
+    expect(r).toEqual({ success: false, errors: { nights: ["Nights must be between 0 and 366"] } });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("updates the nights field for a rough stop", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "t1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false });
+    stopUpdateMock.mockResolvedValue({ id: "s1", tripId: "t1", nights: 5 });
+    const r = await setStopNights("s1", 5);
+    expect(r).toEqual({ success: true });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: { nights: 5 } });
+  });
+
+  it("recomputes depart date for a scheduled stop (ripple path)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "s1", tripId: "t1", sortOrder: 0, arriveDate: "2026-07-12", departDate: "2026-07-14", nights: 2, pinned: false });
+    stopFindManyMock.mockResolvedValue([]);
+    tripFindUniqueMock.mockResolvedValue({ endDate: "2026-07-20" });
+    stopUpdateMock.mockResolvedValue({});
+    const r = await setStopNights("s1", 3);
+    expect(r.success).toBe(true);
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: { arriveDate: "2026-07-12", departDate: "2026-07-15" } });
   });
 });
