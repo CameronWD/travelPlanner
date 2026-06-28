@@ -20,13 +20,17 @@ function EditableTextCell({ value, onSave, className }: { value: string | null; 
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(value ?? "");
   const [pending, startTransition] = React.useTransition();
+  const committed = React.useRef(false);
 
   function startEditing() {
+    committed.current = false;
     setDraft(value ?? "");
     setEditing(true);
   }
 
   function commit() {
+    if (committed.current) return;
+    committed.current = true;
     setEditing(false);
     if ((value ?? "") === draft) return;
     const next = draft;
@@ -41,7 +45,7 @@ function EditableTextCell({ value, onSave, className }: { value: string | null; 
         <input autoFocus value={draft} disabled={pending}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
-          onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setEditing(false); } }}
+          onKeyDown={(e) => { if (e.key === "Enter") commit(); if (e.key === "Escape") { setDraft(value ?? ""); setEditing(false); } }}
           className="w-full bg-background px-1 outline-none ring-1 ring-primary" />
       </td>
     );
@@ -69,11 +73,12 @@ export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetP
     return patch ? { ...r, ...patch } : r;
   });
 
-  async function saveNotes(id: string, next: string, prev: string | null): Promise<boolean> {
-    applyPatch(id, { notes: next === "" ? null : next });
+  async function saveNotes(id: string, next: string): Promise<boolean> {
+    const trimmed = next.trim();
+    applyPatch(id, { notes: trimmed === "" ? null : trimmed }); // optimistic, mirrors server
     const r = await setStopNotes(id, next);
     if (!r.success) {
-      applyPatch(id, { notes: prev });
+      applyPatch(id, null); // revert: evict patch, fall back to authoritative rows prop
       toast({ variant: "destructive", title: "Couldn't save that change." });
       return false;
     }
@@ -112,7 +117,7 @@ export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetP
                 <td className={`${cellBase} text-muted-foreground`}>{row.transportInLabel ?? "—"}</td>
                 <td className={`${cellBase} text-muted-foreground`}>{row.stayLabel ?? "—"}</td>
                 <td className={`${cellBase} font-mono text-right`}>{row.estCostMinor > 0 ? formatMoney(row.estCostMinor, homeCurrency) : "—"}</td>
-                <EditableTextCell value={row.notes} onSave={(next) => saveNotes(row.id, next, row.notes)} className={`${cellBase} text-muted-foreground`} />
+                <EditableTextCell value={row.notes} onSave={(next) => saveNotes(row.id, next)} className={`${cellBase} text-muted-foreground`} />
               </tr>
             ))}
           </tbody>
