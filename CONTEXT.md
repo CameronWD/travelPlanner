@@ -7,8 +7,16 @@ A collaborative web app for a couple to plan and run a holiday together: scoping
 ### The trip and its shape
 
 **Trip**:
-A single named travel project. It may have an overall date range (e.g. "Europe Summer 2026"), but while it's still just an idea it can be **date-less** — a name and nothing more — and gain a range only as its Stops are firmed up. A start date, if set, is the default **anchor** for firming up; the end date is soft and auto-extends to cover the planned Stops. The app holds many trips; you work in one at a time.
+A single named travel project. It may have an overall date range (e.g. "Europe Summer 2026"), but while it's still just an idea it can be **date-less** — a name and nothing more — and gain a range only as its Stops are firmed up. A start date, if set, is the default **anchor** for firming up; the **soft end date** auto-extends to cover the planned Stops. Distinct from this is an optional **Hard end date** the Traveller may set as a ceiling. The app holds many trips; you work in one at a time.
 _Avoid_: Holiday, vacation (use "Trip" in code/UI consistently)
+
+**Hard end date**:
+An optional, Traveller-set date the Trip must be over by — a return flight, the day back at work. It is a *constraint*, not a computed value: it never moves on its own and never auto-extends. Distinct from the **soft end date** — the computed end (the last Stop's depart) that only ever grows to cover scheduled Stops. A Trip with no Hard end date is simply unconstrained. The app compares the Trip's **projected** end (every Stop's nights flowed forward from the anchor, rough Stops included — see **Firm up**) against the Hard end date and raises a **Flag** as the plan nears (info) or runs past it (warning); the Plan overview shows the same state inline.
+_Avoid_: Deadline, cap, limit; soft end date (that's the computed end); Pinned (reserved for Stops); hard/soft are the only end-date qualifiers
+
+**Projected end**:
+Where the Trip is *currently heading* — the depart date of the last Stop once every Stop's nights are flowed forward from the anchor (rough Stops included), using the same engine as **Firm up** but without saving anything. Differs from the **soft end date**, which covers only *scheduled* Stops; when rough Stops trail the last scheduled one, the projected end runs later. It is what the **Hard end date** is checked against. Needs an anchor (a start date or a scheduled Stop); a fully date-less Trip has a nights total but no projected calendar end.
+_Avoid_: Soft end date, computed end (those cover scheduled Stops only)
 
 **Phase**:
 Which stage of its life a Trip is in, used to decide what the **Home** leads with. A Trip moves through **Sketching** (still date-less, just rough ideas), **Planning** (dated, departure comfortably ahead), **Final prep** (departure imminent), **Travelling** (underway), and **Past** (over). Derived from the Trip's start date and today — never stored.
@@ -75,7 +83,7 @@ The read-only overview of a whole Trip: each Stop with its nights, the Transport
 _Avoid_: Report, dashboard
 
 **Flag**:
-An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, an empty day, Transport times that don't line up with Stop dates, a very short stay, backtracking in the route, a **packed day** (more scheduled than is realistic), a day whose plans are **geographically spread out** (located Items far apart), Items whose times **overlap**, a **long driving day** (more estimated driving in one day than is comfortable), or a **Pinned** Stop the surrounding plan can't fit around.
+An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, an empty day, Transport times that don't line up with Stop dates, a very short stay, backtracking in the route, a **packed day** (more scheduled than is realistic), a day whose plans are **geographically spread out** (located Items far apart), Items whose times **overlap**, a **long driving day** (more estimated driving in one day than is comfortable), a **Pinned** Stop the surrounding plan can't fit around, or the plan's **projected** end running up against (within a couple of nights) or past the **Hard end date**.
 _Avoid_: Warning, alert, issue, error
 
 **Home**:
