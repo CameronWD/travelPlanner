@@ -27,6 +27,7 @@ import {
   toggleStopPin,
   makeStopRough,
   firmUpSegment,
+  firmUpTrip,
   setStopDates,
   reorderStops,
 } from "@/server/actions/stops";
@@ -310,6 +311,7 @@ export function ItineraryManager({
   const [chapterDialogDefaults, setChapterDialogDefaults] = React.useState<{
     defaultStart?: string;
     defaultEnd?: string;
+    originStopId?: string;
   }>({});
 
   // ── Adjust-dates dialog state (ripple path for already-dated stops) ──
@@ -399,6 +401,24 @@ export function ItineraryManager({
     }
   }
 
+  // Date every rough stop across the whole trip from the start date, in one action.
+  async function handleFirmUpTrip() {
+    setPendingId("firm-up-trip");
+    try {
+      const r = await firmUpTrip(tripId);
+      if (!r.success) {
+        toast({
+          variant: "destructive",
+          title: r.errors.anchorDate?.[0] ?? "Set a start date for the trip first.",
+        });
+      } else if (r.conflicts?.length) {
+        toast({ title: "Heads up — some stops run past a pinned date; the pins were kept." });
+      }
+    } finally {
+      setPendingId(null);
+    }
+  }
+
   // ── Transport handlers ──
   async function handleDeleteTransport(transportId: string) {
     if (!confirm("Delete this transport leg? This cannot be undone.")) return;
@@ -426,6 +446,7 @@ export function ItineraryManager({
     setChapterDialogDefaults({
       defaultStart: stop.arriveDate ?? undefined,
       defaultEnd: stop.departDate ?? undefined,
+      originStopId: stop.id,
     });
     setChapterDialogOpen(true);
   }
@@ -1192,6 +1213,17 @@ export function ItineraryManager({
             </Button>
 
             <div className="flex items-center gap-2">
+              {stops.some((s) => s.arriveDate === null) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFirmUpTrip}
+                  loading={pendingId === "firm-up-trip"}
+                >
+                  <CalendarClock className="size-4" aria-hidden="true" />
+                  Date all stops from start
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="md"
@@ -1329,6 +1361,7 @@ export function ItineraryManager({
         onOpenChange={setChapterDialogOpen}
         defaultStart={chapterDialogDefaults.defaultStart}
         defaultEnd={chapterDialogDefaults.defaultEnd}
+        originStopId={chapterDialogDefaults.originStopId}
       />
 
       {/* Adjust dates (ripple path for already-dated stops) */}

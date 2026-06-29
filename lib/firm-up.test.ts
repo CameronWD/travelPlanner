@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { flowDates, type FlowStop, computeProjectedEnd } from "./firm-up";
+import { planTripFirmUp, type TripFirmUpStop } from "./firm-up";
 
 const rough = (id: string, nights: number | null): FlowStop => ({
   id, nights, pinned: false, arriveDate: null, departDate: null,
@@ -118,5 +119,47 @@ describe("computeProjectedEnd", () => {
     // Anchor 07-03 is after stop a's arrive; projection must still flow b from
     // a's real depart (07-05) -> 07-08, not from a rewound cursor.
     expect(computeProjectedEnd(stops, "2026-07-03")).toBe("2026-07-08");
+  });
+});
+
+function tripRough(id: string, sortOrder: number, nights: number): TripFirmUpStop {
+  return { id, sortOrder, nights, pinned: false, arriveDate: null, departDate: null };
+}
+function tripScheduled(id: string, sortOrder: number, arriveDate: string, departDate: string, pinned = false): TripFirmUpStop {
+  return { id, sortOrder, nights: null, pinned, arriveDate, departDate };
+}
+
+describe("planTripFirmUp", () => {
+  it("dates all rough stops in order from the anchor", () => {
+    const { results, conflicts } = planTripFirmUp([tripRough("a", 0, 3), tripRough("b", 1, 2)], "2026-07-01");
+    expect(conflicts).toEqual([]);
+    expect(results).toEqual([
+      { id: "a", arriveDate: "2026-07-01", departDate: "2026-07-04" },
+      { id: "b", arriveDate: "2026-07-04", departDate: "2026-07-06" },
+    ]);
+  });
+
+  it("treats a scheduled stop as a fixed boundary and only returns rough stops", () => {
+    const { results } = planTripFirmUp(
+      [tripRough("a", 0, 2), tripScheduled("b", 1, "2026-07-10", "2026-07-12"), tripRough("c", 2, 1)],
+      "2026-07-01",
+    );
+    expect(results.map((r) => r.id)).toEqual(["a", "c"]);
+    expect(results.find((r) => r.id === "a")).toEqual({ id: "a", arriveDate: "2026-07-01", departDate: "2026-07-03" });
+    expect(results.find((r) => r.id === "c")).toEqual({ id: "c", arriveDate: "2026-07-12", departDate: "2026-07-13" });
+  });
+
+  it("reports a conflict when rough stops overrun a pinned stop (keeps the pin)", () => {
+    const { conflicts } = planTripFirmUp(
+      [tripRough("a", 0, 30), tripScheduled("b", 1, "2026-07-05", "2026-07-07", true)],
+      "2026-07-01",
+    );
+    expect(conflicts.length).toBeGreaterThan(0);
+    expect(conflicts[0].stopId).toBe("b");
+  });
+
+  it("returns an empty result when there are no rough stops", () => {
+    const { results } = planTripFirmUp([tripScheduled("b", 0, "2026-07-05", "2026-07-07")], "2026-07-01");
+    expect(results).toEqual([]);
   });
 });

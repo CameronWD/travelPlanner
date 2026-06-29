@@ -139,3 +139,60 @@ export function computeProjectedEnd(
   }
   return end;
 }
+
+export interface TripFirmUpStop {
+  id: string;
+  sortOrder: number;
+  nights: number | null;
+  pinned: boolean;
+  arriveDate: string | null;
+  departDate: string | null;
+}
+
+export interface TripFirmUpResult {
+  id: string;
+  arriveDate: string;
+  departDate: string;
+}
+
+/**
+ * Plan dates for EVERY rough stop across a whole trip in one pass. Scheduled
+ * stops (both dates present) are treated as fixed boundaries the flow respects;
+ * rough stops flow forward from `anchorDate` using their nights. Returns new
+ * dates for the ROUGH stops only (the ones to persist) plus any pin conflicts.
+ */
+export function planTripFirmUp(
+  stops: readonly TripFirmUpStop[],
+  anchorDate: string,
+): { results: TripFirmUpResult[]; conflicts: FlowConflict[] } {
+  const ordered = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  // Never let a scheduled stop earlier than the anchor rewind the flow cursor.
+  let anchor = anchorDate;
+  for (const s of ordered) {
+    if (s.arriveDate && s.arriveDate < anchor) anchor = s.arriveDate;
+  }
+
+  const roughIds = new Set(ordered.filter((s) => !s.arriveDate).map((s) => s.id));
+
+  const flowStops: FlowStop[] = ordered.map((s) => {
+    const scheduled = Boolean(s.arriveDate && s.departDate);
+    return {
+      id: s.id,
+      nights: scheduled
+        ? nightsBetween(s.arriveDate as string, s.departDate as string)
+        : Math.max(0, s.nights ?? 1),
+      pinned: scheduled || s.pinned,
+      arriveDate: s.arriveDate,
+      departDate: s.departDate,
+    };
+  });
+
+  const { results, conflicts } = flowDates(flowStops, anchor);
+  return {
+    results: results
+      .filter((r) => roughIds.has(r.id))
+      .map((r) => ({ id: r.id, arriveDate: r.arriveDate, departDate: r.departDate })),
+    conflicts,
+  };
+}

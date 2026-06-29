@@ -49,6 +49,8 @@ export interface ChapterFormDialogProps {
   defaultStart?: string;
   /** Default end date for a new chapter (e.g. from "Start a chapter here"). */
   defaultEnd?: string;
+  /** When creating from a stop, the originating stop's id — linked to the new chapter if rough. */
+  originStopId?: string;
 }
 
 /**
@@ -65,6 +67,7 @@ export function ChapterFormDialog({
   onSaved,
   defaultStart,
   defaultEnd,
+  originStopId,
 }: ChapterFormDialogProps) {
   // The key causes React to remount the form component whenever the dialog
   // opens or the chapter changes, giving us fresh initial state for free.
@@ -86,6 +89,7 @@ export function ChapterFormDialog({
           onSaved={onSaved}
           defaultStart={defaultStart}
           defaultEnd={defaultEnd}
+          originStopId={originStopId}
         />
       </DialogContent>
     </Dialog>
@@ -103,6 +107,7 @@ interface ChapterFormProps {
   onSaved?: () => void;
   defaultStart?: string;
   defaultEnd?: string;
+  originStopId?: string;
 }
 
 function ChapterForm({
@@ -112,6 +117,7 @@ function ChapterForm({
   onSaved,
   defaultStart,
   defaultEnd,
+  originStopId,
 }: ChapterFormProps) {
   const isEdit = Boolean(chapter);
 
@@ -146,7 +152,7 @@ function ChapterForm({
       const result =
         isEdit && chapter
           ? await updateChapter(chapter.id, input)
-          : await createChapter(tripId, input);
+          : await createChapter(tripId, input, originStopId);
 
       if (!result.success) {
         setErrors(result.errors as FormErrors);
