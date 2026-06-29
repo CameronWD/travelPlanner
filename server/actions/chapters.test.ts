@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const {
   requireTripAccessMock, revalidatePathMock,
   chapterFindUniqueMock, chapterFindManyMock, chapterCountMock, chapterCreateMock, chapterCreateManyMock, chapterUpdateMock, chapterDeleteMock,
-  stopFindManyMock, dbTransactionMock,
+  stopFindManyMock, stopFindUniqueMock, stopUpdateMock, dbTransactionMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: { role: "owner" } }),
   revalidatePathMock: vi.fn(),
@@ -15,6 +15,8 @@ const {
   chapterUpdateMock: vi.fn().mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" }),
   chapterDeleteMock: vi.fn().mockResolvedValue({ id: "c1" }),
   stopFindManyMock: vi.fn().mockResolvedValue([]),
+  stopFindUniqueMock: vi.fn(),
+  stopUpdateMock: vi.fn(),
   dbTransactionMock: vi.fn(),
 }));
 
@@ -23,7 +25,7 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     chapter: { findUnique: chapterFindUniqueMock, findMany: chapterFindManyMock, count: chapterCountMock, create: chapterCreateMock, createMany: chapterCreateManyMock, update: chapterUpdateMock, delete: chapterDeleteMock },
-    stop: { findMany: stopFindManyMock },
+    stop: { findMany: stopFindManyMock, findUnique: stopFindUniqueMock, update: stopUpdateMock },
     $transaction: dbTransactionMock,
   },
 }));
@@ -256,5 +258,41 @@ describe("reorderChapters", () => {
     if (!r.success) expect(r.errors.chapter?.[0]).toMatch(/rough|date/i);
     expect(chapterUpdateMock).not.toHaveBeenCalled();
     expect(dbTransactionMock).not.toHaveBeenCalled();
+  });
+});
+
+import { CHAPTER_COLOURS } from "@/lib/chapter-colours";
+
+const COLOUR = CHAPTER_COLOURS[0].value;
+
+describe("createChapter — origin stop linking", () => {
+  it("links a ROUGH origin stop to the new chapter", async () => {
+    chapterCreateMock.mockResolvedValue({ id: "ch-new", name: "France" });
+    stopFindUniqueMock.mockResolvedValue({ tripId: "trip-1", arriveDate: null });
+
+    const r = await createChapter("trip-1", { name: "France", colour: COLOUR }, "stop-1");
+
+    expect(r.success).toBe(true);
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "stop-1" },
+      data: { chapterId: "ch-new", chapterSortOrder: 0 },
+    });
+  });
+
+  it("does NOT link a SCHEDULED origin stop (covered by the date band)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ tripId: "trip-1", arriveDate: "2026-07-01" });
+
+    const r = await createChapter("trip-1", { name: "France", colour: COLOUR }, "stop-1");
+
+    expect(r.success).toBe(true);
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("creates a chapter with no linking when no origin stop is given", async () => {
+    const r = await createChapter("trip-1", { name: "France", colour: COLOUR });
+
+    expect(r.success).toBe(true);
+    expect(stopFindUniqueMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).not.toHaveBeenCalled();
   });
 });

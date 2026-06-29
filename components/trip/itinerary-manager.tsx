@@ -310,6 +310,7 @@ export function ItineraryManager({
   const [chapterDialogDefaults, setChapterDialogDefaults] = React.useState<{
     defaultStart?: string;
     defaultEnd?: string;
+    originStopId?: string;
   }>({});
 
   // ── Adjust-dates dialog state (ripple path for already-dated stops) ──
@@ -426,6 +427,7 @@ export function ItineraryManager({
     setChapterDialogDefaults({
       defaultStart: stop.arriveDate ?? undefined,
       defaultEnd: stop.departDate ?? undefined,
+      originStopId: stop.id,
     });
     setChapterDialogOpen(true);
   }
@@ -1329,6 +1331,7 @@ export function ItineraryManager({
         onOpenChange={setChapterDialogOpen}
         defaultStart={chapterDialogDefaults.defaultStart}
         defaultEnd={chapterDialogDefaults.defaultEnd}
+        originStopId={chapterDialogDefaults.originStopId}
       />
 
       {/* Adjust dates (ripple path for already-dated stops) */}

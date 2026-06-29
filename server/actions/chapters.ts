@@ -81,6 +81,7 @@ async function nextSortOrder(tripId: string): Promise<number> {
 export async function createChapter(
   tripId: string,
   input: ChapterInput,
+  originStopId?: string,
 ): Promise<ChapterActionResult> {
   await requireTripAccess(tripId);
 
@@ -94,6 +95,23 @@ export async function createChapter(
   const created = await db.chapter.create({
     data: { tripId, ...parsed.data, sortOrder: await nextSortOrder(tripId) },
   });
+
+  // When created from a stop ("Start a chapter here"), link a ROUGH origin
+  // stop to the new chapter (explicit membership while sketching, ADR 0009).
+  // A scheduled stop is already covered by the chapter's date band, so we
+  // leave its chapterId alone. The new chapter has no stops yet → sortOrder 0.
+  if (originStopId) {
+    const origin = await db.stop.findUnique({
+      where: { id: originStopId },
+      select: { tripId: true, arriveDate: true },
+    });
+    if (origin && origin.tripId === tripId && origin.arriveDate === null) {
+      await db.stop.update({
+        where: { id: originStopId },
+        data: { chapterId: created.id, chapterSortOrder: 0 },
+      });
+    }
+  }
 
   await recordActivity({ tripId, verb: "CREATED", entityType: "CHAPTER", entityId: created.id, entityLabel: entityLabel("CHAPTER", created as unknown as Record<string, unknown>) });
   revalidateChapterPaths(tripId);
