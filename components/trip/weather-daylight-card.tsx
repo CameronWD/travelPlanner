@@ -30,6 +30,20 @@ export function WeatherDaylightCard({ weather, daylight }: Props) {
         </div>
       )}
 
+      {/* Attribution — shown only when weather data is present */}
+      {weather && (
+        <p className="text-xs text-muted-foreground">
+          <a
+            href="https://open-meteo.com/"
+            target="_blank"
+            rel="noreferrer"
+            className="underline-offset-2 hover:underline"
+          >
+            Weather by Open-Meteo
+          </a>
+        </p>
+      )}
+
       {/* Daylight section */}
       <div className="text-sm text-muted-foreground">
         {daylight.polarDay ? (
