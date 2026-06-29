@@ -45,4 +45,39 @@ describe("summarizePlan", () => {
     expect(s.hardEndState).toBe("dormant");
     expect(s.projectedNights).toBe(3);
   });
+
+  it("falls back spanStart to the earliest scheduled arrive when there is no start date", () => {
+    const s = summarizePlan({
+      stops: [stop({ id: "a", arriveDate: "2026-08-10", departDate: "2026-08-14", sortOrder: 0 })],
+      startDate: null,
+      hardEndDate: null,
+    });
+    expect(s.spanStart).toBe("2026-08-10");
+  });
+
+  it("has a null scheduledEnd and zero scheduledNights when every stop is rough", () => {
+    const s = summarizePlan({
+      stops: [stop({ id: "a", nights: 3, sortOrder: 0 }), stop({ id: "b", nights: 2, sortOrder: 1 })],
+      startDate: "2026-07-01",
+      hardEndDate: null,
+    });
+    expect(s.scheduledEnd).toBeNull();
+    expect(s.scheduledNights).toBe(0);
+    expect(s.roughCount).toBe(2);
+  });
+
+  it("a fully scheduled plan has roughCount 0 and scheduledEnd equal to projectedEnd", () => {
+    const s = summarizePlan({
+      stops: [
+        stop({ id: "a", arriveDate: "2026-07-01", departDate: "2026-07-05", sortOrder: 0 }),
+        stop({ id: "b", arriveDate: "2026-07-05", departDate: "2026-07-09", sortOrder: 1 }),
+      ],
+      startDate: "2026-07-01",
+      hardEndDate: null,
+    });
+    expect(s.roughCount).toBe(0);
+    expect(s.scheduledEnd).toBe("2026-07-09");
+    expect(s.projectedEnd).toBe("2026-07-09");
+    expect(s.scheduledNights).toBe(s.projectedNights);
+  });
 });
