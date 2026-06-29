@@ -17,8 +17,8 @@ describe("HardEndDateControl", () => {
 
   it("shows the date and saves an edit", async () => {
     render(<HardEndDateControl tripId="t1" hardEndDate="2026-07-15" startDate="2026-07-01" />);
-    fireEvent.click(screen.getByRole("button", { name: /2026-07-15|hard end/i }));
-    const input = screen.getByLabelText(/hard end date/i) as HTMLInputElement;
+    fireEvent.click(screen.getByRole("button", { name: /edit hard end date/i }));
+    const input = screen.getByLabelText(/hard end date/i, { selector: "input" }) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "2026-07-20" } });
     fireEvent.click(screen.getByRole("button", { name: /^save$/i }));
     await waitFor(() => expect(setMock).toHaveBeenCalledWith("t1", "2026-07-20"));
@@ -26,7 +26,7 @@ describe("HardEndDateControl", () => {
 
   it("clears the date", async () => {
     render(<HardEndDateControl tripId="t1" hardEndDate="2026-07-15" startDate="2026-07-01" />);
-    fireEvent.click(screen.getByRole("button", { name: /2026-07-15|hard end/i }));
+    fireEvent.click(screen.getByRole("button", { name: /edit hard end date/i }));
     fireEvent.click(screen.getByRole("button", { name: /clear/i }));
     await waitFor(() => expect(setMock).toHaveBeenCalledWith("t1", null));
   });

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useTransition } from "react";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DateField } from "@/components/ui/date-field";
 import { setTripHardEndDate } from "@/server/actions/trips";
@@ -24,7 +24,9 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate }: HardEndDa
   const [value, setValue] = React.useState(hardEndDate ?? "");
   const [isPending, startTransition] = useTransition();
 
-  React.useEffect(() => setValue(hardEndDate ?? ""), [hardEndDate]);
+  React.useEffect(() => {
+    if (!editing) setValue(hardEndDate ?? "");
+  }, [hardEndDate, editing]);
 
   function commit(next: string | null) {
     startTransition(async () => {
@@ -42,9 +44,11 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate }: HardEndDa
       <button
         type="button"
         onClick={() => setEditing(true)}
-        className="font-medium text-foreground underline-offset-2 hover:underline"
+        aria-label={`Edit hard end date (${hardEndDate})`}
+        className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-2 hover:underline"
       >
         {hardEndDate}
+        <Pencil className="size-3 text-muted-foreground" aria-hidden="true" />
       </button>
     ) : (
       <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditing(true)}>
@@ -55,7 +59,7 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate }: HardEndDa
   }
 
   return (
-    <div className="flex items-end gap-2">
+    <div role="group" aria-label="Hard end date" className="flex items-end gap-2">
       <DateField
         label="Hard end date"
         value={value}
@@ -63,7 +67,13 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate }: HardEndDa
         onChange={(e) => setValue(e.target.value)}
         disabled={isPending}
       />
-      <Button size="sm" variant="primary" disabled={isPending || value === ""} onClick={() => commit(value)}>
+      <Button
+        size="sm"
+        variant="primary"
+        loading={isPending}
+        disabled={isPending || value === "" || value === (hardEndDate ?? "")}
+        onClick={() => commit(value)}
+      >
         Save
       </Button>
       {hardEndDate && (
