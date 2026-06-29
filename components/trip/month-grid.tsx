@@ -28,7 +28,7 @@ export interface MonthGridProps {
   days: DayPlan[];
   tripStart: string;
   tripEnd: string;
-  /** When provided, item chips are draggable and day cells accept drops. */
+  /** When provided, day cells accept dropped items (the drag source is the wishlist rail, not the cell). */
   onDropItem?: (itemId: string, dateISO: string) => void;
 }
 
