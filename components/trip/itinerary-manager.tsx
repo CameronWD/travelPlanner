@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, BookOpen, CalendarClock } from "lucide-react";
+import { Plus, BookOpen, CalendarClock, GripVertical } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StopCard, type StopCardStop } from "./stop-card";
 import { StopFormDialog } from "./stop-form-dialog";
@@ -28,7 +28,9 @@ import {
   makeStopRough,
   firmUpSegment,
   setStopDates,
+  reorderStops,
 } from "@/server/actions/stops";
+import { reorderChapters } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { suggestNextStopDates, formatDateRange } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
@@ -38,6 +40,26 @@ import { chapterColourSwatch } from "@/lib/chapter-colours";
 import type { TransportMode } from "@/lib/enums";
 import type { CostRow } from "@/server/actions/costs";
 import type { NoteView } from "./note-thread";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  type DragEndEvent,
+  type DragOverEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  sortableKeyboardCoordinates,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -103,6 +125,104 @@ interface ItineraryManagerProps {
 }
 
 // ---------------------------------------------------------------------------
+// dnd-kit sub-components
+// ---------------------------------------------------------------------------
+
+/**
+ * Wraps a rough stop in a dnd-kit sortable context.
+ * Provides a grip handle that is passed through to StopCard.
+ */
+function SortableStop({
+  stop,
+  chapterId,
+  children,
+}: {
+  stop: ItineraryStop;
+  chapterId: string | null;
+  children: (dragHandle: React.ReactNode) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: stop.id,
+    data: { type: "stop", chapterId },
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const dragHandle = (
+    <button
+      type="button"
+      {...listeners}
+      {...attributes}
+      aria-label={`Reorder ${stop.name}`}
+      className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
+    >
+      <GripVertical className="size-4" aria-hidden="true" />
+    </button>
+  );
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children(dragHandle)}
+    </div>
+  );
+}
+
+/**
+ * Wraps a rough chapter header in a dnd-kit sortable context.
+ * Provides a grip handle to be rendered inside the chapter header.
+ */
+function SortableChapterHeader({
+  chapterId,
+  children,
+}: {
+  chapterId: string;
+  children: (dragHandle: React.ReactNode, setNodeRef: (node: HTMLElement | null) => void, style: React.CSSProperties) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: chapterId,
+    data: { type: "chapter" },
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const dragHandle = (
+    <button
+      type="button"
+      {...listeners}
+      {...attributes}
+      aria-label="Reorder chapter"
+      className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
+    >
+      <GripVertical className="size-4" aria-hidden="true" />
+    </button>
+  );
+
+  return <>{children(dragHandle, setNodeRef, style)}</>;
+}
+
+/**
+ * An empty droppable container for rough chapters that have no stops.
+ * Allows rough stops to be dragged into an empty rough chapter.
+ */
+function EmptyRoughDroppable({ chapterId }: { chapterId: string }) {
+  const { setNodeRef, isOver } = useDroppable({ id: chapterId });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`min-h-8 rounded-md transition-colors ${isOver ? "bg-muted/60" : ""}`}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -140,6 +260,30 @@ export function ItineraryManager({
   notesByStopId,
   currentUserId,
 }: ItineraryManagerProps) {
+  // ── Local mutable copies (for optimistic drag reordering) ──
+  // Seeded from props; the drag handlers mutate them optimistically.
+  // Re-sync during render (getDerivedStateFromProps pattern) when props identity
+  // changes — this is idiomatic React and avoids setState-in-effect.
+  const [localStops, setLocalStops] = React.useState<ItineraryStop[]>(initialStops);
+  const [localChapters, setLocalChapters] = React.useState<ItineraryChapter[]>(chapters);
+  const [trackedInitialStops, setTrackedInitialStops] = React.useState(initialStops);
+  const [trackedChapters, setTrackedChapters] = React.useState(chapters);
+  if (trackedInitialStops !== initialStops) {
+    setTrackedInitialStops(initialStops);
+    setLocalStops(initialStops);
+  }
+  if (trackedChapters !== chapters) {
+    setTrackedChapters(chapters);
+    setLocalChapters(chapters);
+  }
+
+  // ── dnd-kit sensors ──
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
   // ── Stop dialog state ──
   const [editingStop, setEditingStop] = React.useState<StopCardStop | null>(null);
   const [addStopOpen, setAddStopOpen] = React.useState(false);
@@ -310,10 +454,10 @@ export function ItineraryManager({
     }
   }
 
-  // ── Derived data ──
-  const stops = initialStops;
+  // ── Derived data ── (reads from local copies so drags update instantly)
+  const stops = localStops;
   const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
-  const hasChapters = chapters.length > 0;
+  const hasChapters = localChapters.length > 0;
 
   /** Build a stopsById lookup (used by chapter helpers) */
   const stopsById = React.useMemo(() => {
@@ -350,12 +494,12 @@ export function ItineraryManager({
     if (!hasChapters) return new Set();
     const ids = new Set<string>();
     for (const t of initialTransports) {
-      if (isTransportBetweenLegs(t, chapters, stopsById)) {
+      if (isTransportBetweenLegs(t, localChapters, stopsById)) {
         ids.add(t.id);
       }
     }
     return ids;
-  }, [initialTransports, chapters, stopsById, hasChapters]);
+  }, [initialTransports, localChapters, stopsById, hasChapters]);
 
   /** Transports that DON'T link a consecutive pair (orphaned or partial) */
   const otherTransports = React.useMemo(() => {
@@ -390,9 +534,173 @@ export function ItineraryManager({
 
   // ── Grouped rendering data ──
   const groups = React.useMemo(
-    () => groupStopsByChapter(stops, chapters),
-    [stops, chapters],
+    () => groupStopsByChapter(stops, localChapters),
+    [stops, localChapters],
   );
+
+  // ---------------------------------------------------------------------------
+  // Drag handlers
+  // ---------------------------------------------------------------------------
+
+  /**
+   * onDragOver: move an item between containers in local state optimistically.
+   * Only fires for stop-type drags across different containers.
+   */
+  function handleDragOver(event: DragOverEvent) {
+    const { active, over } = event;
+    if (!over) return;
+    if (active.data.current?.type !== "stop") return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    const activeStop = localStops.find((s) => s.id === activeId);
+    if (!activeStop || activeStop.arriveDate !== null) return; // only rough stops move
+
+    // Determine the target container (chapterId or null for ungrouped).
+    // The over element is either a stop (use its chapterId) or a droppable container id.
+    const overStop = localStops.find((s) => s.id === overId);
+    let targetChapterId: string | null;
+
+    if (overStop) {
+      // Dropped over another stop — use that stop's chapterId.
+      targetChapterId = overStop.chapterId;
+    } else {
+      // Dropped over a container droppable — the droppable id is the chapterId or "ungrouped".
+      targetChapterId = overId === "ungrouped" ? null : overId;
+    }
+
+    // Don't move into a dated chapter.
+    const targetChapter = targetChapterId ? localChapters.find((c) => c.id === targetChapterId) : null;
+    if (targetChapter && targetChapter.startDate !== null) return;
+
+    // If the container hasn't changed, nothing to do here (onDragEnd handles reorder within container).
+    if (activeStop.chapterId === targetChapterId) return;
+
+    setLocalStops((prev) => {
+      return prev.map((s) =>
+        s.id === activeId ? { ...s, chapterId: targetChapterId } : s,
+      );
+    });
+  }
+
+  /**
+   * onDragEnd: persist the final order after a drag.
+   */
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over) return;
+
+    const activeType = active.data.current?.type as "stop" | "chapter" | undefined;
+
+    if (activeType === "stop") {
+      const activeId = active.id as string;
+      const overId = over.id as string;
+
+      const activeStop = localStops.find((s) => s.id === activeId);
+      if (!activeStop || activeStop.arriveDate !== null) return;
+
+      // Determine target container.
+      const overStop = localStops.find((s) => s.id === overId);
+      const targetChapterId: string | null = overStop
+        ? overStop.chapterId
+        : overId === "ungrouped" ? null : overId;
+
+      // Check not dropping into a dated chapter.
+      const targetChapter = targetChapterId ? localChapters.find((c) => c.id === targetChapterId) : null;
+      if (targetChapter && targetChapter.startDate !== null) return;
+
+      // Reorder within the target container.
+      const containerStops = localStops.filter(
+        (s) => s.arriveDate === null && s.chapterId === targetChapterId,
+      );
+
+      let newLocalStops = localStops;
+      if (overStop && overStop.arriveDate === null && overStop.chapterId === targetChapterId) {
+        // Reorder within the same container.
+        const oldIndex = containerStops.findIndex((s) => s.id === activeId);
+        const newIndex = containerStops.findIndex((s) => s.id === overId);
+        if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+          const reordered = arrayMove(containerStops, oldIndex, newIndex);
+          // Rebuild full stops list: replace the container's stops in order.
+          const containerPositions = localStops.reduce<number[]>((acc, s, i) => {
+            if (s.arriveDate === null && s.chapterId === targetChapterId) acc.push(i);
+            return acc;
+          }, []);
+          newLocalStops = [...localStops];
+          reordered.forEach((s, i) => {
+            newLocalStops[containerPositions[i]] = s;
+          });
+          setLocalStops(newLocalStops);
+        }
+      }
+      // (cross-container move was already applied in onDragOver)
+
+      // Persist: build full items list.
+      const items = newLocalStops.map((s) => ({ id: s.id, chapterId: s.chapterId }));
+      const result = await reorderStops(tripId, items);
+      if (!result.success) {
+        const firstError = result.errors
+          ? Object.values(result.errors).flat()[0]
+          : "Failed to reorder stops.";
+        toast({ variant: "destructive", title: firstError ?? "Failed to reorder stops." });
+        setLocalStops(initialStops); // revert
+      }
+    } else if (activeType === "chapter") {
+      const activeId = active.id as string;
+      const overId = over.id as string;
+      if (activeId === overId) return;
+
+      const roughChapters = localChapters.filter((c) => c.startDate === null);
+      const oldIndex = roughChapters.findIndex((c) => c.id === activeId);
+      const newIndex = roughChapters.findIndex((c) => c.id === overId);
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      const reorderedRough = arrayMove(roughChapters, oldIndex, newIndex);
+      const datedChapters = localChapters.filter((c) => c.startDate !== null);
+      const newLocalChapters = [...datedChapters, ...reorderedRough];
+      setLocalChapters(newLocalChapters);
+
+      // Reorder the stop blocks to follow new chapter order.
+      const roughChapterIds = reorderedRough.map((c) => c.id);
+      const datedAndUngroupedStops = localStops.filter(
+        (s) => s.arriveDate !== null || s.chapterId === null || !roughChapterIds.includes(s.chapterId),
+      );
+      const roughStopsByChapter = new Map<string, ItineraryStop[]>();
+      for (const chId of roughChapterIds) {
+        roughStopsByChapter.set(chId, localStops.filter((s) => s.arriveDate === null && s.chapterId === chId));
+      }
+      const reorderedStops = [
+        ...datedAndUngroupedStops,
+        ...roughChapterIds.flatMap((chId) => roughStopsByChapter.get(chId) ?? []),
+      ];
+      setLocalStops(reorderedStops);
+
+      // Persist chapters.
+      const chapterResult = await reorderChapters(tripId, roughChapterIds);
+      if (!chapterResult.success) {
+        const firstError = chapterResult.errors
+          ? Object.values(chapterResult.errors).flat()[0]
+          : "Failed to reorder chapters.";
+        toast({ variant: "destructive", title: firstError ?? "Failed to reorder chapters." });
+        setLocalChapters(chapters);
+        setLocalStops(initialStops);
+        return;
+      }
+
+      // Persist stop order.
+      const stopItems = reorderedStops.map((s) => ({ id: s.id, chapterId: s.chapterId }));
+      const stopResult = await reorderStops(tripId, stopItems);
+      if (!stopResult.success) {
+        const firstError = stopResult.errors
+          ? Object.values(stopResult.errors).flat()[0]
+          : "Failed to reorder stops.";
+        toast({ variant: "destructive", title: firstError ?? "Failed to reorder stops." });
+        setLocalChapters(chapters);
+        setLocalStops(initialStops);
+      }
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Per-stop render helper (shared between grouped and flat rendering)
@@ -400,6 +708,7 @@ export function ItineraryManager({
 
   function renderStop(stop: ItineraryStop, globalIdx: number, isFirst: boolean, isLast: boolean) {
     const nextStop = isLast ? null : stops[globalIdx + 1];
+    const isRough = stop.arriveDate === null;
 
     // When chapters exist, filter out between-legs transports from inline render.
     const legTransports = nextStop
@@ -408,26 +717,37 @@ export function ItineraryManager({
         )
       : [];
 
+    const stopCard = (dragHandle?: React.ReactNode) => (
+      <StopCard
+        stop={stop}
+        isFirst={isFirst}
+        isLast={isLast}
+        isPending={pendingId === stop.id}
+        onEdit={(s) => setEditingStop(s)}
+        onMoveUp={(id) => handleMoveStop(id, "up")}
+        onMoveDown={(id) => handleMoveStop(id, "down")}
+        onDelete={handleDeleteStop}
+        onStartChapter={handleStartChapterHere}
+        onTogglePin={handleTogglePin}
+        onMakeRough={handleMakeRough}
+        onAdjustDates={handleAdjustDates}
+        notes={notesByStopId?.get(stop.id) ?? []}
+        tripId={tripId}
+        currentUserId={currentUserId}
+        dragHandle={dragHandle}
+      />
+    );
+
     return (
       <React.Fragment key={stop.id}>
-        {/* Stop card */}
-        <StopCard
-          stop={stop}
-          isFirst={isFirst}
-          isLast={isLast}
-          isPending={pendingId === stop.id}
-          onEdit={(s) => setEditingStop(s)}
-          onMoveUp={(id) => handleMoveStop(id, "up")}
-          onMoveDown={(id) => handleMoveStop(id, "down")}
-          onDelete={handleDeleteStop}
-          onStartChapter={handleStartChapterHere}
-          onTogglePin={handleTogglePin}
-          onMakeRough={handleMakeRough}
-          onAdjustDates={handleAdjustDates}
-          notes={notesByStopId?.get(stop.id) ?? []}
-          tripId={tripId}
-          currentUserId={currentUserId}
-        />
+        {/* Stop card — rough stops get a sortable wrapper with a drag handle */}
+        {isRough ? (
+          <SortableStop stop={stop} chapterId={stop.chapterId}>
+            {(dragHandle) => stopCard(dragHandle)}
+          </SortableStop>
+        ) : (
+          stopCard()
+        )}
 
         {/* Accommodations under this stop (dated stops only) */}
         {stop.arriveDate && stop.departDate && stop.accommodations.length > 0 && (
@@ -541,10 +861,18 @@ export function ItineraryManager({
   // Main render
   // ---------------------------------------------------------------------------
 
+  // IDs of rough chapters (for the chapter-level SortableContext)
+  const roughChapterIds = localChapters.filter((c) => c.startDate === null).map((c) => c.id);
+
   return (
     <div className="flex flex-col gap-4">
       {hasContent ? (
-        <>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+        >
           {/* Stops + interspersed transports + accommodations */}
           <div className="flex flex-col gap-3">
             {!hasChapters ? (
@@ -564,121 +892,181 @@ export function ItineraryManager({
                     </Button>
                   </div>
                 )}
-                {stops.map((stop, idx) => {
-                  const isFirst = idx === 0;
-                  const isLast = idx === stops.length - 1;
-                  return renderStop(stop, idx, isFirst, isLast);
-                })}
+                <SortableContext
+                  items={stops.filter((s) => s.arriveDate === null).map((s) => s.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  {stops.map((stop, idx) => {
+                    const isFirst = idx === 0;
+                    const isLast = idx === stops.length - 1;
+                    return renderStop(stop, idx, isFirst, isLast);
+                  })}
+                </SortableContext>
                 <QuickAddStops tripId={tripId} chapterId={null} />
               </>
             ) : (
               // ── Chapters path: grouped rendering with seams ──
-              groups.map((group, groupIdx) => {
-                const isFirstGroup = groupIdx === 0;
-                const prevGroup = isFirstGroup ? null : groups[groupIdx - 1];
-                const groupKey = group.chapter?.id ?? "ungrouped";
-                const isCollapsed = collapsedGroups.has(groupKey);
+              // Wrap rough chapter groups in a SortableContext for chapter-level drag.
+              <SortableContext items={roughChapterIds} strategy={verticalListSortingStrategy}>
+                {groups.map((group, groupIdx) => {
+                  const isFirstGroup = groupIdx === 0;
+                  const prevGroup = isFirstGroup ? null : groups[groupIdx - 1];
+                  const groupKey = group.chapter?.id ?? "ungrouped";
+                  const isCollapsed = collapsedGroups.has(groupKey);
+                  const isRoughChapter = group.chapter ? group.chapter.startDate === null : false;
+                  const roughStopIds = sortGroupStops(group.stops)
+                    .filter((s) => s.arriveDate === null)
+                    .map((s) => s.id);
 
-                return (
-                  <React.Fragment key={groupKey + "-" + groupIdx}>
-                    {/* Seam: cross-chapter transports between prev group and this group */}
-                    {!isFirstGroup && prevGroup && prevGroup.stops.length > 0 && group.stops.length > 0 &&
-                      renderSeam(
-                        prevGroup.stops[prevGroup.stops.length - 1],
-                        group.stops[0],
-                      )
-                    }
+                  return (
+                    <React.Fragment key={groupKey + "-" + groupIdx}>
+                      {/* Seam: cross-chapter transports between prev group and this group */}
+                      {!isFirstGroup && prevGroup && prevGroup.stops.length > 0 && group.stops.length > 0 &&
+                        renderSeam(
+                          prevGroup.stops[prevGroup.stops.length - 1],
+                          group.stops[0],
+                        )
+                      }
 
-                    {/* Chapter group header (only when group has a chapter) */}
-                    {group.chapter ? (
-                      <div
-                        className="rounded-xl border border-border/60 overflow-hidden"
-                        style={{ borderLeftWidth: 4, borderLeftColor: chapterColourSwatch(group.chapter.colour) }}
-                      >
-                        {/* Collapsible header */}
-                        <button
-                          type="button"
-                          aria-expanded={!isCollapsed}
-                          aria-label={`${group.chapter.name} chapter, ${isCollapsed ? "expand" : "collapse"}`}
-                          onClick={() => toggleGroup(groupKey)}
-                          className="w-full flex items-center gap-3 px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
-                        >
-                          <ChapterChip
-                            name={group.chapter.name}
-                            colour={group.chapter.colour}
-                          />
-                          <span className="text-xs text-muted-foreground flex-1">
-                            {group.chapter.startDate && group.chapter.endDate
-                              ? formatDateRange(group.chapter.startDate, group.chapter.endDate)
-                              : "rough"}
-                          </span>
-                          {!group.chapter.startDate && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-xs"
-                              disabled={pendingId === `firm-up-${group.chapter.id}`}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleFirmUp(group.chapter!.id);
-                              }}
+                      {/* Chapter group header (only when group has a chapter) */}
+                      {group.chapter ? (
+                        isRoughChapter ? (
+                          // Rough chapter: sortable header + stops SortableContext
+                          <SortableChapterHeader chapterId={group.chapter.id}>
+                            {(dragHandle, setNodeRef, style) => (
+                              <div
+                                ref={setNodeRef}
+                                style={{ ...style, borderLeftWidth: 4, borderLeftColor: chapterColourSwatch(group.chapter!.colour) }}
+                                className="rounded-xl border border-border/60 overflow-hidden"
+                              >
+                                {/* Collapsible header */}
+                                <button
+                                  type="button"
+                                  aria-expanded={!isCollapsed}
+                                  aria-label={`${group.chapter!.name} chapter, ${isCollapsed ? "expand" : "collapse"}`}
+                                  onClick={() => toggleGroup(groupKey)}
+                                  className="w-full flex items-center gap-3 px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
+                                >
+                                  {dragHandle}
+                                  <ChapterChip
+                                    name={group.chapter!.name}
+                                    colour={group.chapter!.colour}
+                                  />
+                                  <span className="text-xs text-muted-foreground flex-1">
+                                    rough
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-xs"
+                                    disabled={pendingId === `firm-up-${group.chapter!.id}`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleFirmUp(group.chapter!.id);
+                                    }}
+                                  >
+                                    <CalendarClock className="size-3.5" aria-hidden="true" />
+                                    Set dates
+                                  </Button>
+                                  <span className="text-sm text-muted-foreground select-none" aria-hidden="true">
+                                    {isCollapsed ? "▸" : "▾"}
+                                  </span>
+                                </button>
+
+                                {/* Group body — stops SortableContext */}
+                                {!isCollapsed && (
+                                  <div className="flex flex-col gap-3 p-3">
+                                    <SortableContext items={roughStopIds} strategy={verticalListSortingStrategy}>
+                                      {sortGroupStops(group.stops).map((stop) => {
+                                        const globalIdx = stops.indexOf(stop);
+                                        const isFirst = globalIdx === 0;
+                                        const isLast = globalIdx === stops.length - 1;
+                                        return renderStop(stop, globalIdx, isFirst, isLast);
+                                      })}
+                                    </SortableContext>
+                                    <QuickAddStops tripId={tripId} chapterId={group.chapter!.id} />
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </SortableChapterHeader>
+                        ) : (
+                          // Dated chapter: static, no drag
+                          <div
+                            className="rounded-xl border border-border/60 overflow-hidden"
+                            style={{ borderLeftWidth: 4, borderLeftColor: chapterColourSwatch(group.chapter.colour) }}
+                          >
+                            {/* Collapsible header */}
+                            <button
+                              type="button"
+                              aria-expanded={!isCollapsed}
+                              aria-label={`${group.chapter.name} chapter, ${isCollapsed ? "expand" : "collapse"}`}
+                              onClick={() => toggleGroup(groupKey)}
+                              className="w-full flex items-center gap-3 px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
                             >
-                              <CalendarClock className="size-3.5" aria-hidden="true" />
-                              Set dates
-                            </Button>
-                          )}
-                          <span className="text-sm text-muted-foreground select-none" aria-hidden="true">
-                            {isCollapsed ? "▸" : "▾"}
-                          </span>
-                        </button>
+                              <ChapterChip
+                                name={group.chapter.name}
+                                colour={group.chapter.colour}
+                              />
+                              <span className="text-xs text-muted-foreground flex-1">
+                                {formatDateRange(group.chapter.startDate!, group.chapter.endDate!)}
+                              </span>
+                              <span className="text-sm text-muted-foreground select-none" aria-hidden="true">
+                                {isCollapsed ? "▸" : "▾"}
+                              </span>
+                            </button>
 
-                        {/* Group body */}
-                        {!isCollapsed && (
-                          <div className="flex flex-col gap-3 p-3">
+                            {/* Group body — no SortableContext (dated stops are static) */}
+                            {!isCollapsed && (
+                              <div className="flex flex-col gap-3 p-3">
+                                {sortGroupStops(group.stops).map((stop) => {
+                                  const globalIdx = stops.indexOf(stop);
+                                  const isFirst = globalIdx === 0;
+                                  const isLast = globalIdx === stops.length - 1;
+                                  return renderStop(stop, globalIdx, isFirst, isLast);
+                                })}
+                                <QuickAddStops tripId={tripId} chapterId={group.chapter.id} />
+                              </div>
+                            )}
+                          </div>
+                        )
+                      ) : (
+                        // Ungrouped stops — no chapter header, or subtle label
+                        <div className="flex flex-col gap-3">
+                          <div className="flex items-center justify-between px-1">
+                            {hasChapters ? (
+                              <p className="text-xs text-muted-foreground">Ungrouped</p>
+                            ) : (
+                              <span />
+                            )}
+                            {group.stops.some((s) => s.arriveDate === null) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                disabled={pendingId === "firm-up-ungrouped"}
+                                onClick={() => handleFirmUp(null)}
+                              >
+                                <CalendarClock className="size-3.5" aria-hidden="true" />
+                                Set dates
+                              </Button>
+                            )}
+                          </div>
+                          <SortableContext items={roughStopIds} strategy={verticalListSortingStrategy}>
                             {sortGroupStops(group.stops).map((stop) => {
                               const globalIdx = stops.indexOf(stop);
                               const isFirst = globalIdx === 0;
                               const isLast = globalIdx === stops.length - 1;
                               return renderStop(stop, globalIdx, isFirst, isLast);
                             })}
-                            <QuickAddStops tripId={tripId} chapterId={group.chapter.id} />
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      // Ungrouped stops — no chapter header, or subtle label
-                      <div className="flex flex-col gap-3">
-                        <div className="flex items-center justify-between px-1">
-                          {hasChapters ? (
-                            <p className="text-xs text-muted-foreground">Ungrouped</p>
-                          ) : (
-                            <span />
-                          )}
-                          {group.stops.some((s) => s.arriveDate === null) && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-xs"
-                              disabled={pendingId === "firm-up-ungrouped"}
-                              onClick={() => handleFirmUp(null)}
-                            >
-                              <CalendarClock className="size-3.5" aria-hidden="true" />
-                              Set dates
-                            </Button>
-                          )}
+                          </SortableContext>
+                          <QuickAddStops tripId={tripId} chapterId={null} />
                         </div>
-                        {sortGroupStops(group.stops).map((stop) => {
-                          const globalIdx = stops.indexOf(stop);
-                          const isFirst = globalIdx === 0;
-                          const isLast = globalIdx === stops.length - 1;
-                          return renderStop(stop, globalIdx, isFirst, isLast);
-                        })}
-                        <QuickAddStops tripId={tripId} chapterId={null} />
-                      </div>
-                    )}
-                  </React.Fragment>
-                );
-              })
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </SortableContext>
             )}
 
             {/* Empty chapters: a freshly created chapter holds no stops yet, so
@@ -689,12 +1077,13 @@ export function ItineraryManager({
                 const presentChapterIds = new Set(
                   groups.map((g) => g.chapter?.id).filter(Boolean) as string[],
                 );
-                const emptyChapters = chapters.filter(
+                const emptyChapters = localChapters.filter(
                   (c) => !presentChapterIds.has(c.id),
                 );
                 return emptyChapters.map((chapter) => {
                   const groupKey = chapter.id;
                   const isCollapsed = collapsedGroups.has(groupKey);
+                  const isRoughChapter = chapter.startDate === null;
                   return (
                     <div
                       key={`empty-${chapter.id}`}
@@ -741,12 +1130,19 @@ export function ItineraryManager({
                         </span>
                       </button>
 
-                      {/* Group body — no stops yet, just the quick-add row */}
+                      {/* Group body — no stops yet, just the quick-add row.
+                          Rough empty chapters get a droppable zone. */}
                       {!isCollapsed && (
                         <div className="flex flex-col gap-3 p-3">
-                          <p className="px-1 text-xs text-muted-foreground">
-                            No stops yet — add one
-                          </p>
+                          {isRoughChapter ? (
+                            <SortableContext items={[]} strategy={verticalListSortingStrategy}>
+                              <EmptyRoughDroppable chapterId={chapter.id} />
+                            </SortableContext>
+                          ) : (
+                            <p className="px-1 text-xs text-muted-foreground">
+                              No stops yet — add one
+                            </p>
+                          )}
                           <QuickAddStops tripId={tripId} chapterId={chapter.id} />
                         </div>
                       )}
@@ -808,7 +1204,7 @@ export function ItineraryManager({
               </Button>
             </div>
           </div>
-        </>
+        </DndContext>
       ) : (
         // ── Empty state: warm prompt with inline add + new chapter ──
         <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border/70 bg-card/40 px-6 py-12 text-center">

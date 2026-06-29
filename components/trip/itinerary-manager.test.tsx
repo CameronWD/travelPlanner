@@ -22,6 +22,7 @@ vi.mock("@/server/actions/stops", () => ({
   createStop: vi.fn().mockResolvedValue({ success: true }),
   updateStop: vi.fn().mockResolvedValue({ success: true }),
   assignStopToChapter: vi.fn().mockResolvedValue({ success: true }),
+  reorderStops: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 vi.mock("@/server/actions/transport", () => ({
@@ -50,6 +51,7 @@ vi.mock("@/server/actions/costs", () => ({
 vi.mock("@/server/actions/chapters", () => ({
   createChapter: vi.fn().mockResolvedValue({ success: true }),
   updateChapter: vi.fn().mockResolvedValue({ success: true }),
+  reorderChapters: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 vi.mock("@/components/ui/use-toast", async (importOriginal) => {
@@ -367,5 +369,51 @@ describe("rough chapters with no stops yet", () => {
     expect(screen.getByText("France")).toBeInTheDocument();
     // ...and we must NOT be stuck on the bare "Sketch your trip" empty state.
     expect(screen.queryByText(/sketch your trip/i)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 6. Drag handle smoke tests
+// ---------------------------------------------------------------------------
+
+describe("drag handle rendering", () => {
+  it("renders a reorder handle for a rough stop (no dates)", () => {
+    const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[roughStop]} />,
+    );
+
+    // The SortableStop wrapper renders a grip button with aria-label "Reorder <name>"
+    expect(screen.getByLabelText(/reorder paris/i)).toBeInTheDocument();
+  });
+
+  it("does NOT render a reorder handle for a scheduled (dated) stop", () => {
+    const datedStop = makeStop({
+      id: "s-1",
+      name: "Berlin",
+      arriveDate: "2026-07-01",
+      departDate: "2026-07-05",
+    });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[datedStop]} />,
+    );
+
+    // No reorder handle for a dated stop
+    expect(screen.queryByLabelText(/reorder berlin/i)).toBeNull();
+  });
+
+  it("renders no reorder handles when all stops are dated", () => {
+    const stops = [
+      makeStop({ id: "s-1", name: "Rome", arriveDate: "2026-07-01", departDate: "2026-07-03" }),
+      makeStop({ id: "s-2", name: "Milan", arriveDate: "2026-07-03", departDate: "2026-07-06" }),
+    ];
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={stops} />,
+    );
+
+    expect(screen.queryAllByLabelText(/reorder/i)).toHaveLength(0);
   });
 });
