@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Tests for the side-effectful acceptPendingInvitesForUser.
@@ -32,7 +32,16 @@ import { acceptPendingInvitesForUser } from "./invites";
 const USER_ID = "user-1";
 const EMAIL = "partner@example.com";
 
-afterEach(() => vi.clearAllMocks());
+let errorSpy: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+  errorSpy.mockRestore();
+});
 
 describe("acceptPendingInvitesForUser", () => {
   it("creates membership and marks the invite accepted on the happy path", async () => {
@@ -46,9 +55,10 @@ describe("acceptPendingInvitesForUser", () => {
     expect(tripMemberCreateMock).toHaveBeenCalledWith({
       data: { tripId: "trip-1", userId: USER_ID, role: "member" },
     });
-    expect(inviteUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "inv-1" } }),
-    );
+    expect(inviteUpdateMock).toHaveBeenCalledWith({
+      where: { id: "inv-1" },
+      data: { acceptedAt: expect.any(Date) },
+    });
   });
 
   it("treats a P2002 unique-constraint race as success and still marks accepted", async () => {
@@ -61,9 +71,10 @@ describe("acceptPendingInvitesForUser", () => {
 
     await acceptPendingInvitesForUser(USER_ID, EMAIL);
 
-    expect(inviteUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "inv-1" } }),
-    );
+    expect(inviteUpdateMock).toHaveBeenCalledWith({
+      where: { id: "inv-1" },
+      data: { acceptedAt: expect.any(Date) },
+    });
   });
 
   it("does NOT mark accepted when membership creation fails for a non-unique error, and logs it", async () => {
@@ -71,13 +82,11 @@ describe("acceptPendingInvitesForUser", () => {
     tripMemberFindManyMock.mockResolvedValue([]);
     tripMemberCreateMock.mockRejectedValue(new Error("connection refused"));
     inviteUpdateMock.mockResolvedValue({});
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await acceptPendingInvitesForUser(USER_ID, EMAIL);
 
     expect(inviteUpdateMock).not.toHaveBeenCalled();
     expect(errorSpy).toHaveBeenCalled();
-    errorSpy.mockRestore();
   });
 
   it("returns early without touching memberships when there are no pending invites", async () => {
@@ -88,5 +97,42 @@ describe("acceptPendingInvitesForUser", () => {
     expect(tripMemberFindManyMock).not.toHaveBeenCalled();
     expect(tripMemberCreateMock).not.toHaveBeenCalled();
     expect(inviteUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("marks an already-joined trip's invite accepted without creating a membership", async () => {
+    inviteFindManyMock.mockResolvedValue([{ id: "inv-1", tripId: "trip-1", email: EMAIL }]);
+    // User is already a member of trip-1 — decideMembershipsToCreate skips it,
+    // so it flows through the toAcceptOnly loop instead.
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1", userId: USER_ID }]);
+    inviteUpdateMock.mockResolvedValue({});
+
+    await acceptPendingInvitesForUser(USER_ID, EMAIL);
+
+    expect(tripMemberCreateMock).not.toHaveBeenCalled();
+    expect(inviteUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "inv-1" } }),
+    );
+  });
+
+  it("isolates failures across invites — a failed create does not block a successful one", async () => {
+    inviteFindManyMock.mockResolvedValue([
+      { id: "inv-1", tripId: "trip-1", email: EMAIL },
+      { id: "inv-2", tripId: "trip-2", email: EMAIL },
+    ]);
+    tripMemberFindManyMock.mockResolvedValue([]);
+    // First create (trip-1) fails with a non-unique error; second (trip-2) succeeds.
+    tripMemberCreateMock
+      .mockRejectedValueOnce(new Error("connection refused"))
+      .mockResolvedValueOnce({});
+    inviteUpdateMock.mockResolvedValue({});
+
+    await acceptPendingInvitesForUser(USER_ID, EMAIL);
+
+    // inv-1 (failed) is NOT marked accepted; inv-2 (succeeded) IS.
+    expect(inviteUpdateMock).toHaveBeenCalledTimes(1);
+    expect(inviteUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "inv-2" } }),
+    );
+    expect(errorSpy).toHaveBeenCalled();
   });
 });
