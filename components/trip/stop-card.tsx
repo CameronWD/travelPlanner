@@ -69,6 +69,12 @@ export interface StopCardProps {
   tripId?: string;
   /** Current user's ID (required for notes) */
   currentUserId?: string;
+  /**
+   * Optional drag handle element supplied by the parent (e.g. dnd-kit's
+   * draggable button). Rendered at the left of the top row ONLY for rough
+   * stops — scheduled stops are date-ordered and not draggable.
+   */
+  dragHandle?: React.ReactNode;
 }
 
 /**
@@ -96,26 +102,30 @@ export function StopCard({
   notes,
   tripId,
   currentUserId,
+  dragHandle,
 }: StopCardProps) {
   const isRough = !stop.arriveDate || !stop.departDate;
 
-  // Overflow menu items (mobile reorder + scheduled-only actions).
-  const overflowItems: CardActionItem[] = [
-    {
-      key: "up",
-      label: "Move up",
-      icon: <ChevronUp className="size-4" aria-hidden="true" />,
-      onSelect: () => onMoveUp?.(stop.id),
-      disabled: isFirst || isPending,
-    },
-    {
-      key: "down",
-      label: "Move down",
-      icon: <ChevronDown className="size-4" aria-hidden="true" />,
-      onSelect: () => onMoveDown?.(stop.id),
-      disabled: isLast || isPending,
-    },
-  ];
+  // Overflow menu items (rough-only reorder + scheduled-only actions).
+  const overflowItems: CardActionItem[] = [];
+  if (isRough) {
+    overflowItems.push(
+      {
+        key: "up",
+        label: "Move up",
+        icon: <ChevronUp className="size-4" aria-hidden="true" />,
+        onSelect: () => onMoveUp?.(stop.id),
+        disabled: isFirst || isPending,
+      },
+      {
+        key: "down",
+        label: "Move down",
+        icon: <ChevronDown className="size-4" aria-hidden="true" />,
+        onSelect: () => onMoveDown?.(stop.id),
+        disabled: isLast || isPending,
+      },
+    );
+  }
   if (onStartChapter) {
     overflowItems.push({
       key: "start-chapter",
@@ -154,8 +164,9 @@ export function StopCard({
         isPending && "opacity-60 pointer-events-none",
       )}
     >
-      {/* Top row: name + country + controls */}
+      {/* Top row: drag handle (rough only) + name + country + controls */}
       <div className="flex items-start justify-between gap-3">
+        {isRough && dragHandle}
         <div className="flex flex-col gap-0.5 min-w-0">
           <h3 className="font-display text-xl font-semibold leading-tight text-foreground truncate">
             {stop.name}
@@ -176,44 +187,20 @@ export function StopCard({
 
         {/* Action buttons */}
         <div className="flex shrink-0 items-center gap-1">
-          {/* Reorder — inline on sm+, collapsed into the overflow menu on mobile */}
-          <div className="hidden items-center gap-1 sm:flex">
+          {/* Inline "Start a chapter here" button */}
+          {onStartChapter && (
             <Button
               variant="ghost"
               size="icon"
               className="size-8"
-              disabled={isFirst || isPending}
-              onClick={() => onMoveUp?.(stop.id)}
-              aria-label={`Move ${stop.name} up`}
-              title="Move up"
+              disabled={isPending}
+              onClick={() => onStartChapter(stop)}
+              aria-label="Start a chapter here"
+              title="Start a chapter here"
             >
-              <ChevronUp className="size-4" aria-hidden="true" />
+              <BookOpen className="size-4" aria-hidden="true" />
             </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              disabled={isLast || isPending}
-              onClick={() => onMoveDown?.(stop.id)}
-              aria-label={`Move ${stop.name} down`}
-              title="Move down"
-            >
-              <ChevronDown className="size-4" aria-hidden="true" />
-            </Button>
-            {onStartChapter && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8"
-                disabled={isPending}
-                onClick={() => onStartChapter(stop)}
-                aria-label="Start a chapter here"
-                title="Start a chapter here"
-              >
-                <BookOpen className="size-4" aria-hidden="true" />
-              </Button>
-            )}
-          </div>
+          )}
 
           {/* Pin toggle — scheduled stops only */}
           {!isRough && onTogglePin && (

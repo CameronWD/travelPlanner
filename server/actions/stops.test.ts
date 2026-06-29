@@ -27,6 +27,7 @@ const {
   tripUpdateMock,
   chapterUpdateMock,
   chapterFindUniqueMock,
+  chapterFindManyMock,
 } = vi.hoisted(() => {
   const stopFindFirstMock = vi.fn();
   const stopFindUniqueMock = vi.fn();
@@ -51,6 +52,7 @@ const {
   const tripUpdateMock = vi.fn();
   const chapterUpdateMock = vi.fn();
   const chapterFindUniqueMock = vi.fn();
+  const chapterFindManyMock = vi.fn();
 
   return {
     requireTripAccessMock: vi.fn().mockResolvedValue({
@@ -71,6 +73,7 @@ const {
     tripUpdateMock,
     chapterUpdateMock,
     chapterFindUniqueMock,
+    chapterFindManyMock,
   };
 });
 
@@ -95,6 +98,7 @@ vi.mock("@/lib/db", () => ({
     chapter: {
       update: chapterUpdateMock,
       findUnique: chapterFindUniqueMock,
+      findMany: chapterFindManyMock,
     },
     $transaction: transactionMock,
   },
@@ -105,6 +109,7 @@ import {
   updateStop,
   deleteStop,
   moveStop,
+  reorderStops,
   setStopDates,
   firmUpSegment,
   toggleStopPin,
@@ -970,5 +975,93 @@ describe("getTripProjection", () => {
     stopFindManyMock.mockResolvedValue([]);
     const r = await getTripProjection("trip-1");
     expect(r).toEqual({ projectedEnd: null, hardEndDate: null });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reorderStops
+// ---------------------------------------------------------------------------
+
+describe("reorderStops", () => {
+  it("happy path: rewrites sortOrder + chapterId for rough stops in new order", async () => {
+    // Pre-validation: chapter findMany → c1 is a rough chapter (no startDate)
+    chapterFindManyMock.mockResolvedValue([{ id: "c1", startDate: null }]);
+    // FOR UPDATE lock: returns all three stops belonging to trip t1
+    queryRawMock.mockResolvedValue([
+      { id: "a", tripId: "t1", arriveDate: null },
+      { id: "b", tripId: "t1", arriveDate: null },
+      { id: "c", tripId: "t1", arriveDate: null },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+
+    const result = await reorderStops("t1", [
+      { id: "a", chapterId: null },
+      { id: "b", chapterId: "c1" },
+      { id: "c", chapterId: null },
+    ]);
+
+    expect(result.success).toBe(true);
+    // Each stop gets sortOrder = its index; rough stops also get chapterId written
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "a" }, data: { sortOrder: 0, chapterId: null } });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "b" }, data: { sortOrder: 1, chapterId: "c1" } });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "c" }, data: { sortOrder: 2, chapterId: null } });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/t1");
+  });
+
+  it("rejects a stop not in the trip: no updates and returns failure", async () => {
+    // No chapters to validate (no chapterIds in the list)
+    chapterFindManyMock.mockResolvedValue([]);
+    // FOR UPDATE returns one stop with a DIFFERENT tripId
+    queryRawMock.mockResolvedValue([
+      { id: "a", tripId: "t1", arriveDate: null },
+      { id: "x", tripId: "other-trip", arriveDate: null },
+    ]);
+
+    const result = await reorderStops("t1", [
+      { id: "a", chapterId: null },
+      { id: "x", chapterId: null },
+    ]);
+
+    expect(result.success).toBe(false);
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses to move a rough stop into a DATED chapter: returns failure, no updates", async () => {
+    // chapter c2 has a non-null startDate → dated chapter
+    chapterFindManyMock.mockResolvedValue([{ id: "c2", startDate: "2026-07-01" }]);
+
+    const result = await reorderStops("t1", [
+      { id: "a", chapterId: "c2" },
+    ]);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      // The error message must mention "dated chapter"
+      const allErrors = Object.values(result.errors).flat().join(" ");
+      expect(allErrors).toMatch(/dated chapter/i);
+    }
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("ignores chapterId for a DATED (scheduled) stop: only writes sortOrder", async () => {
+    // No target chapters to validate (scheduled stop's chapterId is ignored, not validated)
+    chapterFindManyMock.mockResolvedValue([]);
+    // FOR UPDATE: stop "d" has arriveDate set → scheduled
+    queryRawMock.mockResolvedValue([
+      { id: "d", tripId: "t1", arriveDate: "2026-07-01" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+
+    const result = await reorderStops("t1", [
+      { id: "d", chapterId: "some-chapter" },
+    ]);
+
+    expect(result.success).toBe(true);
+    // Must NOT write chapterId for a dated stop — only sortOrder
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "d" }, data: { sortOrder: 0 } });
+    expect(stopUpdateMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ chapterId: expect.anything() }) }),
+    );
   });
 });

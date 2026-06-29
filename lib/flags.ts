@@ -551,6 +551,100 @@ export function flagLongDrivingDays(
 }
 
 // ---------------------------------------------------------------------------
+// Rule 12: Tight / impossible connections (warning / info)
+//
+// For consecutive same-day items that BOTH have startTime+endTime and lat+lng:
+// estimate travel time (walk if ≤ MAX_WALK_MIN at WALK_KMH, else drive via
+// estimateDriveMinutes); gap = nextStart − prevEnd minutes.
+//   gap < travel                         → warning
+//   travel ≤ gap < travel + BUFFER       → info "tight"
+// One flag per offending pair, DAY-targeted.
+// ---------------------------------------------------------------------------
+
+export const TIGHT_CONNECTION_BUFFER_MIN = 15;
+const WALK_KMH = 4.5;
+const MAX_WALK_MIN = 30;
+
+function hhmmToMin(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+export function flagTightConnections(
+  items: FlagItem[],
+  transports: FlagTransport[],
+  opts: { windingFactor: number; avgSpeedKph: number },
+): Flag[] {
+  // Build a direction-agnostic set of stop pairs connected by a transport leg.
+  const connectedStopPairs = new Set<string>();
+  for (const t of transports) {
+    if (t.fromStopId && t.toStopId && t.fromStopId !== t.toStopId) {
+      connectedStopPairs.add(`${t.fromStopId}-${t.toStopId}`);
+      connectedStopPairs.add(`${t.toStopId}-${t.fromStopId}`);
+    }
+  }
+
+  // Collect fully-timed, located items grouped by date
+  const byDate = new Map<
+    string,
+    (FlagItem & { lat: number; lng: number; startTime: string; endTime: string })[]
+  >();
+  for (const it of items) {
+    if (!it.date || !it.startTime || !it.endTime || it.lat == null || it.lng == null) continue;
+    const arr = byDate.get(it.date) ?? [];
+    arr.push(
+      it as FlagItem & { lat: number; lng: number; startTime: string; endTime: string },
+    );
+    byDate.set(it.date, arr);
+  }
+
+  const flags: Flag[] = [];
+  for (const [date, dayItems] of byDate) {
+    const sorted = [...dayItems].sort(
+      (a, b) => hhmmToMin(a.startTime) - hhmmToMin(b.startTime),
+    );
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const next = sorted[i];
+
+      // Skip pairs that are at different stops connected by a transport leg —
+      // changing location mid-day is the transport's job, not a walk-feasibility problem.
+      if (
+        prev.stopId &&
+        next.stopId &&
+        prev.stopId !== next.stopId &&
+        connectedStopPairs.has(`${prev.stopId}-${next.stopId}`)
+      ) {
+        continue;
+      }
+
+      const km = haversineKm({ lat: prev.lat, lng: prev.lng }, { lat: next.lat, lng: next.lng });
+      const walkMin = (km / WALK_KMH) * 60;
+      const travel = walkMin <= MAX_WALK_MIN ? walkMin : estimateDriveMinutes(km, opts);
+      const gap = hhmmToMin(next.startTime) - hhmmToMin(prev.endTime);
+      if (gap < travel) {
+        flags.push({
+          id: `tight-${prev.id}-${next.id}`,
+          severity: "warning",
+          message: `Tight on ${date}: only ${Math.max(0, Math.round(gap))} min between activities, but ~${Math.round(travel)} min to get there.`,
+          targetType: "DAY",
+          date,
+        });
+      } else if (gap < travel + TIGHT_CONNECTION_BUFFER_MIN) {
+        flags.push({
+          id: `tight-${prev.id}-${next.id}`,
+          severity: "info",
+          message: `Cutting it close on ${date}: ${Math.round(gap)} min between activities (~${Math.round(travel)} min to get there).`,
+          targetType: "DAY",
+          date,
+        });
+      }
+    }
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
 // Rule 11: Hard end date (warning when over, info when approaching)
 //
 // Compares the trip's projected end against an optional traveller-set hard end
@@ -603,6 +697,7 @@ export function flagHardEndDate(
  *   9. Geographic spread day (info)
  *   10. Long driving day (warning)
  *   11. Hard end date (warning/info)
+ *   12. Tight / impossible connections (warning/info)
  */
 export function detectFlags({
   stops,
@@ -627,6 +722,10 @@ export function detectFlags({
     ...flagPackedDays(items),
     ...flagRoughStops(roughStopCount ?? 0),
     ...flagSpreadDays(items),
+    ...flagTightConnections(items, transports, {
+      windingFactor: drivingWindingFactor ?? 1.5,
+      avgSpeedKph: drivingAvgSpeedKph ?? 80,
+    }),
     ...flagLongDrivingDays(stops, transports, {
       windingFactor: drivingWindingFactor ?? 1.5,
       avgSpeedKph: drivingAvgSpeedKph ?? 80,

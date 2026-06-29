@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const {
   requireTripAccessMock, revalidatePathMock,
   chapterFindUniqueMock, chapterFindManyMock, chapterCountMock, chapterCreateMock, chapterCreateManyMock, chapterUpdateMock, chapterDeleteMock,
-  stopFindManyMock,
+  stopFindManyMock, dbTransactionMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: { role: "owner" } }),
   revalidatePathMock: vi.fn(),
@@ -15,6 +15,7 @@ const {
   chapterUpdateMock: vi.fn().mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" }),
   chapterDeleteMock: vi.fn().mockResolvedValue({ id: "c1" }),
   stopFindManyMock: vi.fn().mockResolvedValue([]),
+  dbTransactionMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
@@ -23,11 +24,12 @@ vi.mock("@/lib/db", () => ({
   db: {
     chapter: { findUnique: chapterFindUniqueMock, findMany: chapterFindManyMock, count: chapterCountMock, create: chapterCreateMock, createMany: chapterCreateManyMock, update: chapterUpdateMock, delete: chapterDeleteMock },
     stop: { findMany: stopFindManyMock },
+    $transaction: dbTransactionMock,
   },
 }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 
-import { createChapter, updateChapter, deleteChapter, suggestChaptersFromCountries } from "./chapters";
+import { createChapter, updateChapter, deleteChapter, suggestChaptersFromCountries, reorderChapters } from "./chapters";
 import { recordActivity } from "@/server/actions/activity";
 import type { ChapterInput } from "@/lib/validations/chapter";
 
@@ -40,6 +42,7 @@ afterEach(() => {
   chapterCountMock.mockResolvedValue(0);
   chapterCreateMock.mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
   chapterUpdateMock.mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
+  dbTransactionMock.mockResolvedValue(undefined);
 });
 
 describe("createChapter", () => {
@@ -202,5 +205,56 @@ describe("suggestChaptersFromCountries", () => {
     chapterFindManyMock.mockResolvedValue([]);
     await suggestChaptersFromCountries("trip-1");
     expect(recordActivity).not.toHaveBeenCalled();
+  });
+});
+
+describe("reorderChapters", () => {
+  it("happy path: sets sortOrder=index for each rough chapter and returns success", async () => {
+    chapterFindManyMock.mockResolvedValue([
+      { id: "c1", startDate: null },
+      { id: "c2", startDate: null },
+    ]);
+    // $transaction receives an array of promises; simulate resolving them.
+    dbTransactionMock.mockResolvedValue(undefined);
+
+    const r = await reorderChapters("t1", ["c2", "c1"]);
+    expect(r.success).toBe(true);
+    // findMany used to validate ownership + rough constraint.
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ id: { in: ["c2", "c1"] }, tripId: "t1" }) }),
+    );
+    // $transaction called with an array of two updates.
+    expect(dbTransactionMock).toHaveBeenCalledOnce();
+    const txArg = dbTransactionMock.mock.calls[0][0] as unknown[];
+    expect(txArg).toHaveLength(2);
+    // Each element is the promise returned by chapter.update (chapterUpdateMock).
+    expect(chapterUpdateMock).toHaveBeenCalledTimes(2);
+    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "c2" }, data: { sortOrder: 0 } });
+    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "c1" }, data: { sortOrder: 1 } });
+    expect(revalidatePathMock).toHaveBeenCalled();
+  });
+
+  it("rejects a chapter from another trip (count mismatch) — returns error, no updates", async () => {
+    // Only 1 chapter found but 2 ids supplied → mismatch → reject.
+    chapterFindManyMock.mockResolvedValue([{ id: "c1", startDate: null }]);
+
+    const r = await reorderChapters("t1", ["c1", "c-other"]);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.errors.chapter?.[0]).toMatch(/trip/i);
+    expect(chapterUpdateMock).not.toHaveBeenCalled();
+    expect(dbTransactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects reordering a dated chapter — returns error, no updates", async () => {
+    chapterFindManyMock.mockResolvedValue([
+      { id: "c1", startDate: "2026-07-01" }, // dated!
+      { id: "c2", startDate: null },
+    ]);
+
+    const r = await reorderChapters("t1", ["c1", "c2"]);
+    expect(r.success).toBe(false);
+    if (!r.success) expect(r.errors.chapter?.[0]).toMatch(/rough|date/i);
+    expect(chapterUpdateMock).not.toHaveBeenCalled();
+    expect(dbTransactionMock).not.toHaveBeenCalled();
   });
 });

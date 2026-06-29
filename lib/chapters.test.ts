@@ -7,6 +7,8 @@ import {
   isTransportBetweenLegs,
   chapterIdForTransport,
   suggestChapterRuns,
+  sortedByStart,
+  sortGroupStops,
   type ChapterLike,
   type StopLike,
   type TransportLike,
@@ -109,6 +111,20 @@ describe("suggestChapterRuns", () => {
   });
 });
 
+describe("sortedByStart rough-chapter ordering", () => {
+  // sortedByStart is exported for testing; see lib/chapters.ts.
+  // Three-chapter case: one dated + two rough (sortOrder 2 and 0) — expect [dated, rough(sortOrder0), rough(sortOrder2)].
+  const DATED: ChapterLike   = { id: "dated",   name: "Dated",   colour: "sky",  startDate: "2026-07-01", endDate: "2026-07-05", sortOrder: 1 };
+  const ROUGH_A: ChapterLike = { id: "rough-a", name: "RoughA", colour: "rose", startDate: null, endDate: null, sortOrder: 0 };
+  const ROUGH_B: ChapterLike = { id: "rough-b", name: "RoughB", colour: "blue", startDate: null, endDate: null, sortOrder: 2 };
+
+  it("places dated chapters before rough, and rough chapters ordered by sortOrder ascending", () => {
+    // Input order is deliberately scrambled (rough-b first, then rough-a, then dated).
+    const sorted = sortedByStart([ROUGH_B, ROUGH_A, DATED]);
+    expect(sorted.map((c) => c.id)).toEqual(["dated", "rough-a", "rough-b"]);
+  });
+});
+
 describe("mixed rough + dated membership", () => {
   const FR: ChapterLike = { id: "fr", name: "France", colour: "sky", startDate: "2026-07-03", endDate: "2026-07-09" };
   const ROUGH_IT: ChapterLike = { id: "it", name: "Italy", colour: "rose", startDate: null, endDate: null };
@@ -126,5 +142,17 @@ describe("mixed rough + dated membership", () => {
   it("a rough stop with no chapterId is ungrouped", () => {
     const s: StopLike = { id: "x", arriveDate: null, departDate: null, nights: 2, chapterId: null, country: null, sortOrder: 0 };
     expect(chapterForStop(s, [FR, ROUGH_IT])).toBeNull();
+  });
+});
+
+describe("sortGroupStops", () => {
+  it("orders a group: dated by date, then rough by sortOrder", () => {
+    const stops = [
+      { id: "r2", arriveDate: null, departDate: null, sortOrder: 5 },
+      { id: "d2", arriveDate: "2026-07-10", departDate: "2026-07-12", sortOrder: 1 },
+      { id: "r1", arriveDate: null, departDate: null, sortOrder: 2 },
+      { id: "d1", arriveDate: "2026-07-01", departDate: "2026-07-05", sortOrder: 9 },
+    ];
+    expect(sortGroupStops(stops).map((s) => s.id)).toEqual(["d1", "d2", "r1", "r2"]);
   });
 });

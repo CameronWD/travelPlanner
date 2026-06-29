@@ -31,7 +31,7 @@ function validationErrors(error: { flatten(): { fieldErrors: Record<string, stri
 }
 
 function revalidateChapterPaths(tripId: string) {
-  for (const p of ["", "/budget", "/summary", "/today", "/settings", "/calendar"]) {
+  for (const p of ["", "/budget", "/summary", "/today", "/settings", "/calendar", "/plan"]) {
     revalidatePath(`/trips/${tripId}${p}`);
   }
 }
@@ -133,6 +133,34 @@ export async function deleteChapter(chapterId: string): Promise<ChapterActionRes
   await db.chapter.delete({ where: { id: chapterId } });
   await recordActivity({ tripId: chapter.tripId, verb: "DELETED", entityType: "CHAPTER", entityId: chapterId, entityLabel: doomed?.name ?? "" });
   revalidateChapterPaths(chapter.tripId);
+  return { success: true };
+}
+
+export async function reorderChapters(
+  tripId: string,
+  orderedChapterIds: string[],
+): Promise<ChapterActionResult> {
+  await requireTripAccess(tripId);
+  if (orderedChapterIds.length === 0) return { success: true };
+
+  const chapters = await db.chapter.findMany({
+    where: { id: { in: orderedChapterIds }, tripId },
+    select: { id: true, startDate: true },
+  });
+  if (chapters.length !== orderedChapterIds.length) {
+    return { success: false, errors: { chapter: ["One or more chapters aren't part of this trip."] } };
+  }
+  if (chapters.some((c) => c.startDate != null)) {
+    return { success: false, errors: { chapter: ["Only rough (date-less) chapters can be reordered."] } };
+  }
+
+  await db.$transaction(
+    orderedChapterIds.map((id, idx) =>
+      db.chapter.update({ where: { id }, data: { sortOrder: idx } }),
+    ),
+  );
+
+  revalidateChapterPaths(tripId);
   return { success: true };
 }
 

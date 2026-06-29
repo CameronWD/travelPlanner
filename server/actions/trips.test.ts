@@ -23,6 +23,7 @@ const {
   transactionMock,
   attachmentFindManyMock,
   storageDeleteMock,
+  storageSaveMock,
 } = vi.hoisted(() => {
   const tripCreateMock = vi.fn();
   const tripUpdateMock = vi.fn();
@@ -31,6 +32,7 @@ const {
   const memberCreateMock = vi.fn();
   const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const storageDeleteMock = vi.fn().mockResolvedValue(undefined);
+  const storageSaveMock = vi.fn().mockResolvedValue(undefined);
 
   // $transaction executes the callback synchronously-ish in tests;
   // we simulate it by calling the callback with a fake tx object.
@@ -60,6 +62,7 @@ const {
     transactionMock,
     attachmentFindManyMock,
     storageDeleteMock,
+    storageSaveMock,
   };
 });
 
@@ -81,7 +84,16 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("@/lib/storage", () => ({
-  getStorage: () => ({ delete: storageDeleteMock }),
+  getStorage: () => ({ delete: storageDeleteMock, save: storageSaveMock }),
+  // Keep the real implementations of the pure helpers so cover logic can use them.
+  generateKey: (tripId: string, uniqueId: string, filename: string) =>
+    `trips/${tripId}/${uniqueId}-${filename}`,
+  validateUpload: ({ mime, size }: { mime: string; size: number }) => {
+    const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf", "text/plain"]);
+    if (!ALLOWED.has(mime)) return { ok: false, error: `File type "${mime}" is not allowed.` };
+    if (size > 10 * 1024 * 1024) return { ok: false, error: "File is too large." };
+    return { ok: true };
+  },
 }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
@@ -200,6 +212,63 @@ describe("createTrip", () => {
     }
     expect(tripCreateMock).not.toHaveBeenCalled();
   });
+
+  it("creates the trip without cover when no coverFile is passed", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    const newTrip = { id: "trip-no-cover", name: "Japan 2026" };
+    tripCreateMock.mockResolvedValue(newTrip);
+    memberCreateMock.mockResolvedValue({});
+
+    await expect(createTrip(VALID_INPUT)).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(tripCreateMock).toHaveBeenCalledOnce();
+    // storage.save must NOT be called — no cover was provided
+    expect(storageSaveMock).not.toHaveBeenCalled();
+    // trip.update must NOT be called for coverImageKey
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+    expect(redirectMock).toHaveBeenCalledWith(`/trips/${newTrip.id}`);
+  });
+
+  it("saves the cover and sets coverImageKey when a valid PNG is passed", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    const newTrip = { id: "trip-with-cover", name: "Japan 2026" };
+    tripCreateMock.mockResolvedValue(newTrip);
+    memberCreateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+
+    const imageFile = new File([new Uint8Array([1, 2, 3])], "hero.png", { type: "image/png" });
+
+    await expect(createTrip(VALID_INPUT, imageFile)).rejects.toThrow("NEXT_REDIRECT");
+
+    // storage.save should have been called once
+    expect(storageSaveMock).toHaveBeenCalledOnce();
+    // db.trip.update should have been called to set coverImageKey
+    expect(tripUpdateMock).toHaveBeenCalledOnce();
+    expect(tripUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: newTrip.id },
+        data: expect.objectContaining({ coverImageKey: expect.stringMatching(/^trips\/trip-with-cover\//) }),
+      }),
+    );
+  });
+
+  it("still creates the trip but does NOT call storage.save when a non-image file is passed", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    const newTrip = { id: "trip-bad-cover", name: "Japan 2026" };
+    tripCreateMock.mockResolvedValue(newTrip);
+    memberCreateMock.mockResolvedValue({});
+
+    const pdfFile = new File(["data"], "document.pdf", { type: "application/pdf" });
+
+    await expect(createTrip(VALID_INPUT, pdfFile)).rejects.toThrow("NEXT_REDIRECT");
+
+    // Trip was created
+    expect(tripCreateMock).toHaveBeenCalledOnce();
+    // But cover was rejected silently — save NOT called
+    expect(storageSaveMock).not.toHaveBeenCalled();
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+    expect(redirectMock).toHaveBeenCalledWith(`/trips/${newTrip.id}`);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -288,6 +357,7 @@ describe("updateTrip", () => {
 describe("deleteTrip", () => {
   it("is access-checked — calls requireTripAccess with the tripId", async () => {
     // owner role — will succeed
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
     tripDeleteMock.mockResolvedValue({});
 
     await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
@@ -300,6 +370,7 @@ describe("deleteTrip", () => {
       user: { id: "user-1" },
       membership: { role: "owner" },
     });
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
     tripDeleteMock.mockResolvedValue({});
 
     await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
@@ -314,6 +385,7 @@ describe("deleteTrip", () => {
       user: { id: "user-1" },
       membership: { role: "owner" },
     });
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
     attachmentFindManyMock.mockResolvedValueOnce([
       { storageKey: "trips/trip-abc/k1" },
       { storageKey: "trips/trip-abc/k2" },
@@ -324,6 +396,21 @@ describe("deleteTrip", () => {
 
     expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/k1");
     expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/k2");
+    expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
+  });
+
+  it("deletes the cover blob when the trip has a coverImageKey", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+    });
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/trip-abc/uuid-cover.jpg" });
+    attachmentFindManyMock.mockResolvedValueOnce([]);
+    tripDeleteMock.mockResolvedValue({});
+
+    await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/uuid-cover.jpg");
     expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
   });
 

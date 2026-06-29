@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cacheStrategyFor, isNextStaticAsset, isApiRoute } from './offline';
+import { cacheStrategyFor, isNextStaticAsset, isApiRoute, tripOfflinePaths, MAX_WARM_DAYS } from './offline';
 
 // ---------------------------------------------------------------------------
 // URL classification helpers
@@ -160,5 +160,41 @@ describe('cacheStrategyFor', () => {
     expect(
       cacheStrategyFor({ method: 'GET', url: `${origin}/signin`, sameOrigin: true })
     ).toBe('network-first');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tripOfflinePaths
+// ---------------------------------------------------------------------------
+
+describe('tripOfflinePaths', () => {
+  it('returns base paths + one /day/ path per date in an inclusive range', () => {
+    const paths = tripOfflinePaths('t1', '2026-07-01', '2026-07-03');
+    expect(paths).toEqual([
+      '/trips/t1',
+      '/trips/t1/plan',
+      '/trips/t1/summary',
+      '/trips/t1/today',
+      '/trips/t1/checklists',
+      '/trips/t1/day/2026-07-01',
+      '/trips/t1/day/2026-07-02',
+      '/trips/t1/day/2026-07-03',
+    ]);
+  });
+
+  it('returns only the five non-day paths when dates are null', () => {
+    const paths = tripOfflinePaths('t1', null, null);
+    expect(paths).toEqual([
+      '/trips/t1',
+      '/trips/t1/plan',
+      '/trips/t1/summary',
+      '/trips/t1/today',
+      '/trips/t1/checklists',
+    ]);
+  });
+
+  it('caps day paths at MAX_WARM_DAYS for a 400-day range', () => {
+    const paths = tripOfflinePaths('t1', '2026-01-01', '2027-02-05'); // > 400 days
+    expect(paths).toHaveLength(5 + MAX_WARM_DAYS);
   });
 });
