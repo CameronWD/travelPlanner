@@ -2,15 +2,18 @@ import { notFound } from "next/navigation";
 import { BookOpen, CalendarDays } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { formatLongDate } from "@/lib/dates";
+import { formatLongDate, todayISO } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
 import { flagTightConnections } from "@/lib/flags";
+import { daylight } from "@/lib/daylight";
+import { getDayWeather } from "@/lib/weather";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
 import { DayNav } from "@/components/trip/day-nav";
 import { DayMapPanel } from "@/components/trip/day-map-panel";
 import { DayFeasibility } from "@/components/trip/day-feasibility";
+import { WeatherDaylightCard } from "@/components/trip/weather-daylight-card";
 import { AddItemButton } from "@/components/trip/item-form-dialog";
 import { JournalEditor } from "@/components/trip/journal-editor";
 import type { TransportMode } from "@/lib/enums";
@@ -66,6 +69,8 @@ export default async function DayPage({
           arriveDate: true,
           departDate: true,
           sortOrder: true,
+          lat: true,
+          lng: true,
         },
       }),
       db.item.findMany({
@@ -263,6 +268,22 @@ export default async function DayPage({
   });
   const itemDirections = buildItemDirections(dayMapModel);
 
+  // ── Weather & daylight ────────────────────────────────────────────────────
+  const dayStop = stops.find((s) => s.id === dayPlan.stop?.id);
+  const dl =
+    dayStop?.lat != null && dayStop?.lng != null
+      ? daylight(dayStop.lat, dayStop.lng, effectiveDate)
+      : null;
+  const wx =
+    dayStop?.lat != null && dayStop?.lng != null
+      ? await getDayWeather({
+          lat: dayStop.lat,
+          lng: dayStop.lng,
+          dateISO: effectiveDate,
+          today: todayISO(),
+        })
+      : null;
+
   const feasibility = flagTightConnections(
     items
       .filter((it) => it.date === effectiveDate)
@@ -299,6 +320,9 @@ export default async function DayPage({
         startDate={trip.startDate}
         endDate={trip.endDate}
       />
+
+      {/* Weather + daylight */}
+      {dl && <WeatherDaylightCard weather={wx} daylight={dl} />}
 
       {/* Day map (collapsed toggle) */}
       <DayMapPanel tripId={tripId} model={dayMapModel} />
