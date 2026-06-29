@@ -31,7 +31,7 @@ function validationErrors(error: { flatten(): { fieldErrors: Record<string, stri
 }
 
 function revalidateChapterPaths(tripId: string) {
-  for (const p of ["", "/budget", "/summary", "/today", "/settings", "/calendar"]) {
+  for (const p of ["", "/budget", "/summary", "/today", "/settings", "/calendar", "/plan"]) {
     revalidatePath(`/trips/${tripId}${p}`);
   }
 }

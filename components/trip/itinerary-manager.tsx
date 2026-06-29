@@ -36,6 +36,7 @@ import { suggestNextStopDates, formatDateRange } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import { groupStopsByChapter, isTransportBetweenLegs, sortGroupStops } from "@/lib/chapters";
+import { moveStopInOrder, moveChapterBlocks } from "@/lib/reorder";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import type { TransportMode } from "@/lib/enums";
 import type { CostRow } from "@/server/actions/costs";
@@ -600,7 +601,7 @@ export function ItineraryManager({
       const activeStop = localStops.find((s) => s.id === activeId);
       if (!activeStop || activeStop.arriveDate !== null) return;
 
-      // Determine target container.
+      // Determine target container (chapterId or null for ungrouped).
       const overStop = localStops.find((s) => s.id === overId);
       const targetChapterId: string | null = overStop
         ? overStop.chapterId
@@ -610,34 +611,34 @@ export function ItineraryManager({
       const targetChapter = targetChapterId ? localChapters.find((c) => c.id === targetChapterId) : null;
       if (targetChapter && targetChapter.startDate !== null) return;
 
-      // Reorder within the target container.
+      // Compute the target index within the destination chapter block.
+      // When dropping onto a stop, use that stop's position within the block;
+      // when dropping onto the container itself, append at the end.
       const containerStops = localStops.filter(
         (s) => s.arriveDate === null && s.chapterId === targetChapterId,
       );
-
-      let newLocalStops = localStops;
+      let targetIndex = containerStops.length; // default: append at end
       if (overStop && overStop.arriveDate === null && overStop.chapterId === targetChapterId) {
-        // Reorder within the same container.
-        const oldIndex = containerStops.findIndex((s) => s.id === activeId);
-        const newIndex = containerStops.findIndex((s) => s.id === overId);
-        if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
-          const reordered = arrayMove(containerStops, oldIndex, newIndex);
-          // Rebuild full stops list: replace the container's stops in order.
-          const containerPositions = localStops.reduce<number[]>((acc, s, i) => {
-            if (s.arriveDate === null && s.chapterId === targetChapterId) acc.push(i);
-            return acc;
-          }, []);
-          newLocalStops = [...localStops];
-          reordered.forEach((s, i) => {
-            newLocalStops[containerPositions[i]] = s;
-          });
-          setLocalStops(newLocalStops);
-        }
+        const overIdx = containerStops.findIndex((s) => s.id === overId);
+        if (overIdx !== -1) targetIndex = overIdx;
       }
-      // (cross-container move was already applied in onDragOver)
 
-      // Persist: build full items list.
-      const items = newLocalStops.map((s) => ({ id: s.id, chapterId: s.chapterId }));
+      // Use the pure helper to compute the authoritative new order.
+      // This handles both within-container reorders and cross-container moves,
+      // always keeping each chapter's block contiguous.
+      const ordered = moveStopInOrder(localStops, activeId, targetChapterId, targetIndex);
+
+      // Apply the new chapterId assignments back to localStops (preserve all
+      // ItineraryStop fields, only update id/chapterId from the ordered result).
+      const chapterIdById = new Map(ordered.map((s) => [s.id, s.chapterId]));
+      const newLocalStops = ordered.map((slim) => {
+        const full = localStops.find((s) => s.id === slim.id)!;
+        return { ...full, chapterId: chapterIdById.get(full.id) ?? full.chapterId };
+      });
+      setLocalStops(newLocalStops);
+
+      // Persist: use the authoritative ordered list.
+      const items = ordered;
       const result = await reorderStops(tripId, items);
       if (!result.success) {
         const firstError = result.errors
@@ -661,19 +662,17 @@ export function ItineraryManager({
       const newLocalChapters = [...datedChapters, ...reorderedRough];
       setLocalChapters(newLocalChapters);
 
-      // Reorder the stop blocks to follow new chapter order.
+      // Use the pure helper to permute rough-chapter blocks while keeping
+      // dated stops and ungrouped stops at their original positions.
       const roughChapterIds = reorderedRough.map((c) => c.id);
-      const datedAndUngroupedStops = localStops.filter(
-        (s) => s.arriveDate !== null || s.chapterId === null || !roughChapterIds.includes(s.chapterId),
-      );
-      const roughStopsByChapter = new Map<string, ItineraryStop[]>();
-      for (const chId of roughChapterIds) {
-        roughStopsByChapter.set(chId, localStops.filter((s) => s.arriveDate === null && s.chapterId === chId));
-      }
-      const reorderedStops = [
-        ...datedAndUngroupedStops,
-        ...roughChapterIds.flatMap((chId) => roughStopsByChapter.get(chId) ?? []),
-      ];
+      const ordered = moveChapterBlocks(localStops, localChapters, roughChapterIds);
+
+      // Rebuild full ItineraryStop list from the ordered slim result.
+      const chapterIdById = new Map(ordered.map((s) => [s.id, s.chapterId]));
+      const reorderedStops = ordered.map((slim) => {
+        const full = localStops.find((s) => s.id === slim.id)!;
+        return { ...full, chapterId: chapterIdById.get(full.id) ?? full.chapterId };
+      });
       setLocalStops(reorderedStops);
 
       // Persist chapters.
@@ -861,8 +860,13 @@ export function ItineraryManager({
   // Main render
   // ---------------------------------------------------------------------------
 
-  // IDs of rough chapters (for the chapter-level SortableContext)
-  const roughChapterIds = localChapters.filter((c) => c.startDate === null).map((c) => c.id);
+  // IDs of rough chapters that are actually RENDERED with a drag handle inside
+  // the chapter-level SortableContext. Only populated (non-empty) rough chapters
+  // get a drag handle; empty rough chapters remain non-reorderable for now —
+  // they render in sortOrder and are still droppable via EmptyRoughDroppable.
+  const populatedRoughChapterIds = groups
+    .filter((g) => g.chapter !== null && g.chapter.startDate === null && g.stops.length > 0)
+    .map((g) => g.chapter!.id);
 
   return (
     <div className="flex flex-col gap-4">
@@ -907,7 +911,9 @@ export function ItineraryManager({
             ) : (
               // ── Chapters path: grouped rendering with seams ──
               // Wrap rough chapter groups in a SortableContext for chapter-level drag.
-              <SortableContext items={roughChapterIds} strategy={verticalListSortingStrategy}>
+              // Only populated rough chapters (those rendered with a drag handle) are
+              // included; empty chapters remain non-reorderable via EmptyRoughDroppable.
+              <SortableContext items={populatedRoughChapterIds} strategy={verticalListSortingStrategy}>
                 {groups.map((group, groupIdx) => {
                   const isFirstGroup = groupIdx === 0;
                   const prevGroup = isFirstGroup ? null : groups[groupIdx - 1];

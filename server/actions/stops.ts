@@ -759,6 +759,7 @@ export async function reorderStops(
   }
 
   revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/trips/${tripId}/plan`);
   return { success: true };
 }
 
