@@ -7,6 +7,36 @@
  * This module is the source of truth — keep them in sync.
  */
 
+import { addDays, daysBetween } from '@/lib/dates';
+
+// ---------------------------------------------------------------------------
+// Offline warm-set
+// ---------------------------------------------------------------------------
+
+/** Max day-pages to pre-warm, guarding against a mis-entered huge range. */
+export const MAX_WARM_DAYS = 60;
+
+/**
+ * The set of same-origin paths worth pre-caching for offline viewing of a trip:
+ * the read-while-travelling essentials + one page per dated day (capped).
+ * Pure — no browser APIs.
+ */
+export function tripOfflinePaths(
+  tripId: string,
+  startDate: string | null,
+  endDate: string | null,
+): string[] {
+  const base = `/trips/${tripId}`;
+  const paths = [base, `${base}/plan`, `${base}/summary`, `${base}/today`, `${base}/checklists`];
+  if (startDate && endDate && endDate >= startDate) {
+    const span = Math.min(daysBetween(startDate, endDate), MAX_WARM_DAYS - 1);
+    for (let i = 0; i <= span; i++) {
+      paths.push(`${base}/day/${addDays(startDate, i)}`);
+    }
+  }
+  return paths;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
