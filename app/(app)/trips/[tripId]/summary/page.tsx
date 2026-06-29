@@ -40,8 +40,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FlagList } from "@/components/trip/flag-list";
+import { MakeItFit } from "@/components/trip/make-it-fit";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
+import type { FitStop } from "@/lib/make-it-fit";
 
 // ---------------------------------------------------------------------------
 // Selects
@@ -133,6 +135,8 @@ export default async function SummaryPage({
           arriveDate: true,
           departDate: true,
           sortOrder: true,
+          pinned: true,
+          nights: true,
         },
       }),
       db.transport.findMany({
@@ -182,7 +186,7 @@ export default async function SummaryPage({
       db.stop.findMany({
         where: { tripId, arriveDate: null },
         orderBy: { sortOrder: "asc" },
-        select: { id: true, name: true, nights: true, country: true, chapterId: true },
+        select: { id: true, name: true, nights: true, country: true, chapterId: true, pinned: true, sortOrder: true },
       }),
     ]);
 
@@ -248,6 +252,32 @@ export default async function SummaryPage({
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
   });
+
+  // ---------------------------------------------------------------------------
+  // Make it fit — unified stop list for the engine
+  // ---------------------------------------------------------------------------
+  const fitStops: FitStop[] = [
+    ...stops.map((s) => ({
+      id: s.id,
+      name: s.name,
+      arriveDate: s.arriveDate ?? null,
+      departDate: s.departDate ?? null,
+      nights: s.nights ?? null,
+      pinned: s.pinned ?? false,
+      sortOrder: s.sortOrder ?? 0,
+    })),
+    ...roughStops.map((s) => ({
+      id: s.id,
+      name: s.name,
+      arriveDate: null,
+      departDate: null,
+      nights: s.nights ?? null,
+      pinned: s.pinned ?? false,
+      sortOrder: s.sortOrder ?? 0,
+    })),
+  ].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const isOverHardEnd = flags.some((f) => f.id === "hard-end-over");
 
   // ---------------------------------------------------------------------------
   // Derived data
@@ -585,6 +615,14 @@ export default async function SummaryPage({
       {/* ── Flags ── */}
       <section aria-labelledby="flags-heading">
         <SectionHeading id="flags-heading" icon={FlagIcon} title="Trip health" />
+        {isOverHardEnd && (
+          <MakeItFit
+            tripId={tripId}
+            stops={fitStops}
+            anchor={trip.startDate ?? null}
+            hardEndDate={projection.hardEndDate}
+          />
+        )}
         <FlagList flags={flags} tripBasePath={tripBasePath} />
       </section>
     </div>
