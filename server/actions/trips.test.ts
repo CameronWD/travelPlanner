@@ -357,6 +357,7 @@ describe("updateTrip", () => {
 describe("deleteTrip", () => {
   it("is access-checked — calls requireTripAccess with the tripId", async () => {
     // owner role — will succeed
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
     tripDeleteMock.mockResolvedValue({});
 
     await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
@@ -369,6 +370,7 @@ describe("deleteTrip", () => {
       user: { id: "user-1" },
       membership: { role: "owner" },
     });
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
     tripDeleteMock.mockResolvedValue({});
 
     await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
@@ -383,6 +385,7 @@ describe("deleteTrip", () => {
       user: { id: "user-1" },
       membership: { role: "owner" },
     });
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
     attachmentFindManyMock.mockResolvedValueOnce([
       { storageKey: "trips/trip-abc/k1" },
       { storageKey: "trips/trip-abc/k2" },
@@ -393,6 +396,21 @@ describe("deleteTrip", () => {
 
     expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/k1");
     expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/k2");
+    expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
+  });
+
+  it("deletes the cover blob when the trip has a coverImageKey", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+    });
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/trip-abc/uuid-cover.jpg" });
+    attachmentFindManyMock.mockResolvedValueOnce([]);
+    tripDeleteMock.mockResolvedValue({});
+
+    await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/uuid-cover.jpg");
     expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
   });
 

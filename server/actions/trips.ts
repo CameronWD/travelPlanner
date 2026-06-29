@@ -73,7 +73,8 @@ export async function createTrip(
     if (v.ok && coverFile.type.startsWith("image/")) {
       try {
         const bytes = Buffer.from(await coverFile.arrayBuffer());
-        const key = generateKey(trip.id, crypto.randomUUID(), `cover-${coverFile.name}`);
+        const ext = coverFile.type === "image/png" ? "png" : coverFile.type === "image/webp" ? "webp" : coverFile.type === "image/gif" ? "gif" : "jpg";
+        const key = generateKey(trip.id, crypto.randomUUID(), `cover.${ext}`);
         await getStorage().save(key, bytes, coverFile.type);
         await db.trip.update({ where: { id: trip.id }, data: { coverImageKey: key } });
       } catch {
@@ -202,17 +203,27 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
 
   // Best-effort: remove attachment blobs before the rows cascade away, so we
   // don't orphan files in storage. Failures here must not block the delete.
-  const attachments = await db.attachment.findMany({
-    where: { tripId, storageKey: { not: null } },
-    select: { storageKey: true },
-  });
+  const [tripRow, attachments] = await Promise.all([
+    db.trip.findUnique({ where: { id: tripId }, select: { coverImageKey: true } }),
+    db.attachment.findMany({
+      where: { tripId, storageKey: { not: null } },
+      select: { storageKey: true },
+    }),
+  ]);
+
+  const storage = getStorage();
+
+  const blobDeletes: Promise<void>[] = [];
+  if (tripRow?.coverImageKey) {
+    blobDeletes.push(storage.delete(tripRow.coverImageKey).catch(() => {}));
+  }
   if (attachments.length > 0) {
-    const storage = getStorage();
-    await Promise.all(
-      attachments.map((a) =>
-        a.storageKey ? storage.delete(a.storageKey).catch(() => {}) : null,
-      ),
-    );
+    for (const a of attachments) {
+      if (a.storageKey) blobDeletes.push(storage.delete(a.storageKey).catch(() => {}));
+    }
+  }
+  if (blobDeletes.length > 0) {
+    await Promise.all(blobDeletes);
   }
 
   await db.trip.delete({ where: { id: tripId } });

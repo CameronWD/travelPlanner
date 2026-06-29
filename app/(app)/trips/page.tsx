@@ -50,12 +50,8 @@ export default async function TripsPage() {
     coverStopsByTrip.set(s.tripId, arr);
   }
 
-  // Fetch cover key presence per trip.
-  const coverKeyRows = await db.trip.findMany({
-    where: { id: { in: tripIds } },
-    select: { id: true, coverImageKey: true },
-  });
-  const hasCoverByTrip = new Map(coverKeyRows.map((r) => [r.id, r.coverImageKey != null]));
+  // Build cover key presence per trip from the memberships query already in hand.
+  const hasCoverByTrip = new Map(trips.map((t) => [t.id, t.coverImageKey != null]));
 
   // Build a map of tripId → lastReadActivityAt for the current user.
   const membershipByTripId = new Map(
