@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { flowDates, type FlowStop } from "./firm-up";
+import { flowDates, type FlowStop, computeProjectedEnd } from "./firm-up";
 
 const rough = (id: string, nights: number | null): FlowStop => ({
   id, nights, pinned: false, arriveDate: null, departDate: null,
@@ -56,5 +56,67 @@ describe("flowDates", () => {
 
   it("returns empty for empty input", () => {
     expect(flowDates([], "2026-07-03")).toEqual({ results: [], conflicts: [] });
+  });
+});
+
+describe("computeProjectedEnd", () => {
+  const stop = (over: Partial<{ id: string; arriveDate: string | null; departDate: string | null; nights: number | null; pinned: boolean; sortOrder: number }>) => ({
+    id: "s", arriveDate: null, departDate: null, nights: null, pinned: false, sortOrder: 0, ...over,
+  });
+
+  it("returns null for no stops", () => {
+    expect(computeProjectedEnd([], "2026-07-01")).toBeNull();
+  });
+
+  it("returns null when there is no anchor and no scheduled stop", () => {
+    expect(computeProjectedEnd([stop({ id: "a", nights: 3 })], null)).toBeNull();
+  });
+
+  it("flows rough nights forward from the start anchor", () => {
+    const stops = [
+      stop({ id: "a", nights: 3, sortOrder: 0 }),
+      stop({ id: "b", nights: 4, sortOrder: 1 }),
+    ];
+    expect(computeProjectedEnd(stops, "2026-07-01")).toBe("2026-07-08");
+  });
+
+  it("uses scheduled stops' real dates and flows a rough tail after them", () => {
+    const stops = [
+      stop({ id: "a", arriveDate: "2026-07-01", departDate: "2026-07-05", sortOrder: 0 }),
+      stop({ id: "b", nights: 2, sortOrder: 1 }),
+    ];
+    expect(computeProjectedEnd(stops, "2026-07-01")).toBe("2026-07-07");
+  });
+
+  it("equals the last scheduled depart when nothing is rough", () => {
+    const stops = [
+      stop({ id: "a", arriveDate: "2026-07-01", departDate: "2026-07-05", sortOrder: 0 }),
+      stop({ id: "b", arriveDate: "2026-07-05", departDate: "2026-07-09", sortOrder: 1 }),
+    ];
+    expect(computeProjectedEnd(stops, "2026-07-01")).toBe("2026-07-09");
+  });
+
+  it("falls back to the earliest scheduled arrive when no start anchor is given", () => {
+    const stops = [stop({ id: "a", arriveDate: "2026-08-10", departDate: "2026-08-14", sortOrder: 0 })];
+    expect(computeProjectedEnd(stops, null)).toBe("2026-08-14");
+  });
+
+  it("flows a rough stop sandwiched between two scheduled stops, ending at the last scheduled depart", () => {
+    const stops = [
+      stop({ id: "a", arriveDate: "2026-07-01", departDate: "2026-07-05", sortOrder: 0 }),
+      stop({ id: "b", nights: 2, sortOrder: 1 }), // rough, fits in the gap
+      stop({ id: "c", arriveDate: "2026-07-10", departDate: "2026-07-14", sortOrder: 2 }),
+    ];
+    expect(computeProjectedEnd(stops, "2026-07-01")).toBe("2026-07-14");
+  });
+
+  it("does not rewind when the provided anchor is later than a scheduled stop", () => {
+    const stops = [
+      stop({ id: "a", arriveDate: "2026-07-01", departDate: "2026-07-05", sortOrder: 0 }),
+      stop({ id: "b", nights: 3, sortOrder: 1 }),
+    ];
+    // Anchor 07-03 is after stop a's arrive; projection must still flow b from
+    // a's real depart (07-05) -> 07-08, not from a rewound cursor.
+    expect(computeProjectedEnd(stops, "2026-07-03")).toBe("2026-07-08");
   });
 });

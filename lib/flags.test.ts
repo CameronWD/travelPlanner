@@ -11,6 +11,7 @@ import {
   flagRoughStops,
   flagSpreadDays,
   flagLongDrivingDays,
+  flagHardEndDate,
   SPREAD_DAY_THRESHOLD_KM,
   LONG_DRIVE_DAY_THRESHOLD_MIN,
   type FlagStop,
@@ -662,5 +663,34 @@ describe("flagLongDrivingDays", () => {
 
   it("threshold is 5 hours", () => {
     expect(LONG_DRIVE_DAY_THRESHOLD_MIN).toBe(300);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule 11: Hard end date
+// ---------------------------------------------------------------------------
+
+describe("flagHardEndDate", () => {
+  it("returns nothing when either date is missing", () => {
+    expect(flagHardEndDate(null, "2026-07-10")).toEqual([]);
+    expect(flagHardEndDate("2026-07-10", null)).toEqual([]);
+  });
+
+  it("warns when the projected end is past the hard end date", () => {
+    const flags = flagHardEndDate("2026-07-17", "2026-07-15");
+    expect(flags).toHaveLength(1);
+    expect(flags[0].severity).toBe("warning");
+    expect(flags[0].targetType).toBe("TRIP");
+    expect(flags[0].id).toBe("hard-end-over");
+    expect(flags[0].message).toContain("2 nights past");
+  });
+
+  it("info when within the approaching window (slack 0..2)", () => {
+    expect(flagHardEndDate("2026-07-15", "2026-07-17")[0].severity).toBe("info");
+    expect(flagHardEndDate("2026-07-15", "2026-07-15")[0].message).toContain("right on");
+  });
+
+  it("returns nothing with comfortable slack (> 2 nights)", () => {
+    expect(flagHardEndDate("2026-07-15", "2026-07-25")).toEqual([]);
   });
 });

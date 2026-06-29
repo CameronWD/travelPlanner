@@ -7,7 +7,8 @@
  * and returns a list of Flag objects describing potential issues.
  */
 
-import { nightsBetween, isDateWithin, addDays } from "@/lib/dates";
+import { nightsBetween, isDateWithin, addDays, daysBetween } from "@/lib/dates";
+import { HARD_END_APPROACHING_NIGHTS } from "@/lib/firm-up"; // threshold lives alongside computeProjectedEnd
 import { instantToZonedDateISO } from "@/lib/tz";
 import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
 
@@ -84,6 +85,10 @@ export interface DetectFlagsInput {
   tripStart: string; // YYYY-MM-DD
   tripEnd: string; // YYYY-MM-DD
   roughStopCount?: number;
+  /** Projected end date (rough nights flowed forward); see computeProjectedEnd. */
+  projectedEnd?: string | null;
+  /** Optional traveller-set hard end date. */
+  hardEndDate?: string | null;
   /** Per-trip drive-estimate config; defaults suit mixed/winding roads. */
   drivingWindingFactor?: number;
   drivingAvgSpeedKph?: number;
@@ -546,6 +551,40 @@ export function flagLongDrivingDays(
 }
 
 // ---------------------------------------------------------------------------
+// Rule 11: Hard end date (warning when over, info when approaching)
+//
+// Compares the trip's projected end against an optional traveller-set hard end
+// date. Advisory only — see ADR 0013.
+// ---------------------------------------------------------------------------
+
+export function flagHardEndDate(
+  projectedEnd: string | null | undefined,
+  hardEndDate: string | null | undefined,
+): Flag[] {
+  if (!projectedEnd || !hardEndDate) return [];
+  const slack = daysBetween(projectedEnd, hardEndDate); // hardEnd - projectedEnd, in nights
+  if (slack < 0) {
+    const over = -slack;
+    return [
+      {
+        id: "hard-end-over",
+        severity: "warning" as const,
+        message: `Your plan runs ${over} night${over === 1 ? "" : "s"} past your hard end date (${hardEndDate}).`,
+        targetType: "TRIP" as const,
+      },
+    ];
+  }
+  if (slack <= HARD_END_APPROACHING_NIGHTS) {
+    const message =
+      slack === 0
+        ? `Your plan ends right on your hard end date (${hardEndDate}).`
+        : `Your plan ends within ${slack} night${slack === 1 ? "" : "s"} of your hard end date (${hardEndDate}).`;
+    return [{ id: "hard-end-approaching", severity: "info" as const, message, targetType: "TRIP" as const }];
+  }
+  return [];
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -563,6 +602,7 @@ export function flagLongDrivingDays(
  *   8. Rough stops (info)
  *   9. Geographic spread day (info)
  *   10. Long driving day (warning)
+ *   11. Hard end date (warning/info)
  */
 export function detectFlags({
   stops,
@@ -572,6 +612,8 @@ export function detectFlags({
   tripStart,
   tripEnd,
   roughStopCount,
+  projectedEnd,
+  hardEndDate,
   drivingWindingFactor,
   drivingAvgSpeedKph,
 }: DetectFlagsInput): Flag[] {
@@ -589,5 +631,6 @@ export function detectFlags({
       windingFactor: drivingWindingFactor ?? 1.5,
       avgSpeedKph: drivingAvgSpeedKph ?? 80,
     }),
+    ...flagHardEndDate(projectedEnd, hardEndDate),
   ];
 }

@@ -9,6 +9,8 @@ import type { NoteView } from "@/components/trip/note-thread";
 import { haversineKm, estimateDriveMinutes, estimateRoadKm } from "@/lib/geo";
 import { convertMinor } from "@/lib/money";
 import { DEFAULT_HOME_CURRENCY } from "@/lib/currencies";
+import { PlanOverview } from "@/components/trip/plan-overview";
+import { summarizePlan } from "@/lib/plan-overview";
 
 const COST_SELECT = {
   id: true,
@@ -38,6 +40,7 @@ export default async function TripPlanPage({
         homeCurrency: true,
         startDate: true,
         endDate: true,
+        hardEndDate: true,
         drivingWindingFactor: true,
         drivingAvgSpeedKph: true,
       },
@@ -206,8 +209,24 @@ export default async function TripPlanPage({
     );
   }
 
+  const planSummary = summarizePlan({
+    stops: stops.map((s) => ({
+      id: s.id,
+      arriveDate: s.arriveDate,
+      departDate: s.departDate,
+      nights: s.nights,
+      pinned: s.pinned,
+      sortOrder: s.sortOrder,
+    })),
+    startDate: trip?.startDate ?? null,
+    hardEndDate: trip?.hardEndDate ?? null,
+  });
+
   return (
     <div className="flex flex-col gap-6">
+      {stops.length > 0 && (
+        <PlanOverview tripId={tripId} summary={planSummary} startDate={trip?.startDate ?? null} />
+      )}
       <ItineraryManager
         tripId={tripId}
         homeCurrency={trip?.homeCurrency}

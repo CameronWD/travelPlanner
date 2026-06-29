@@ -108,3 +108,37 @@ describe("createTripSchema optional dates", () => {
     expect(createTripSchema.safeParse({ name: "Italy", homeCurrency: "AUD", startDate: "2026-07-10", endDate: "2026-07-03" }).success).toBe(false);
   });
 });
+
+describe("createTripSchema hardEndDate", () => {
+  it("accepts an optional hardEndDate on or after the start date", () => {
+    const result = createTripSchema.safeParse({ ...VALID_INPUT, hardEndDate: "2026-07-20" });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts input with no hardEndDate", () => {
+    const result = createTripSchema.safeParse(VALID_INPUT);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects a hardEndDate before the start date", () => {
+    const result = createTripSchema.safeParse({
+      ...VALID_INPUT,
+      startDate: "2026-07-01",
+      hardEndDate: "2026-06-30",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.flatten().fieldErrors.hardEndDate).toBeDefined();
+    }
+  });
+
+  it("accepts a hardEndDate equal to the start date", () => {
+    const result = createTripSchema.safeParse({ ...VALID_INPUT, startDate: "2026-07-01", hardEndDate: "2026-07-01" });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a hardEndDate when there is no start date", () => {
+    const result = createTripSchema.safeParse({ ...VALID_INPUT, startDate: undefined, hardEndDate: "2026-07-20" });
+    expect(result.success).toBe(true);
+  });
+});

@@ -112,6 +112,7 @@ import {
   assignStopToChapter,
   setStopNotes,
   setStopNights,
+  getTripProjection,
 } from "./stops";
 import { recordActivity } from "@/server/actions/activity";
 
@@ -895,5 +896,45 @@ describe("setStopNights", () => {
     const r = await setStopNights("s1", 3);
     expect(r.success).toBe(true);
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: { arriveDate: "2026-07-12", departDate: "2026-07-15" } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getTripProjection
+// ---------------------------------------------------------------------------
+
+describe("getTripProjection", () => {
+  it("returns the projected end and hard end date", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", hardEndDate: "2026-07-10" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", arriveDate: null, departDate: null, nights: 3, pinned: false, sortOrder: 0 },
+      { id: "b", arriveDate: null, departDate: null, nights: 4, pinned: false, sortOrder: 1 },
+    ]);
+    const r = await getTripProjection("trip-1");
+    expect(r.projectedEnd).toBe("2026-07-08");
+    expect(r.hardEndDate).toBe("2026-07-10");
+  });
+
+  it("passes through a null hardEndDate", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", hardEndDate: null });
+    stopFindManyMock.mockResolvedValue([{ id: "a", arriveDate: null, departDate: null, nights: 2, pinned: false, sortOrder: 0 }]);
+    const r = await getTripProjection("trip-1");
+    expect(r.hardEndDate).toBeNull();
+    expect(r.projectedEnd).toBe("2026-07-03");
+  });
+
+  it("returns a null projectedEnd when there is no anchor", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: null, hardEndDate: "2026-07-10" });
+    stopFindManyMock.mockResolvedValue([{ id: "a", arriveDate: null, departDate: null, nights: 3, pinned: false, sortOrder: 0 }]);
+    const r = await getTripProjection("trip-1");
+    expect(r.projectedEnd).toBeNull();
+    expect(r.hardEndDate).toBe("2026-07-10");
+  });
+
+  it("returns nulls without throwing when the trip is not found", async () => {
+    tripFindUniqueMock.mockResolvedValue(null);
+    stopFindManyMock.mockResolvedValue([]);
+    const r = await getTripProjection("trip-1");
+    expect(r).toEqual({ projectedEnd: null, hardEndDate: null });
   });
 });
