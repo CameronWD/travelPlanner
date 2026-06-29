@@ -225,6 +225,11 @@ function MakeItFitDialog({
                 </>
               ) : null}
             </p>
+            {!initialPlan.fits && (
+              <p className="text-xs text-muted-foreground">
+                Trimming alone won&apos;t reach your hard end date — drop a stop, unpin one, or move the date.
+              </p>
+            )}
             <Button
               variant="primary"
               size="sm"
