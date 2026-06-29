@@ -2,11 +2,13 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatDateRange } from "@/lib/dates";
+import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TripNav } from "@/components/trip/trip-nav";
 import { MobileTabBar } from "@/components/trip/mobile-tab-bar";
 import { NotificationBell } from "@/components/trip/notification-bell";
+import { OfflineWarmer } from "@/components/offline-warmer";
 import {
   getUnreadActivityCount,
   getRecentActivity,
@@ -67,6 +69,8 @@ export default async function TripLayout({
       ? formatDateRange(trip.startDate, trip.endDate)
       : "No dates yet";
 
+  const offlinePaths = tripOfflinePaths(tripId, trip.startDate, trip.endDate);
+
   return (
     <div className="flex flex-col gap-0">
       {/* ── Trip header ── */}
@@ -122,7 +126,10 @@ export default async function TripLayout({
       <TripNav tripId={tripId} />
 
       {/* ── Page content ── */}
-      <div className="py-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6">{children}</div>
+      <div className="py-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6">
+        <OfflineWarmer paths={offlinePaths} />
+        {children}
+      </div>
 
       {/* ── Mobile bottom tab bar ── */}
       <MobileTabBar tripId={tripId} />
