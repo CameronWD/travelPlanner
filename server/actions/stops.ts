@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlace } from "@/lib/geocode";
-import { flowDates, type FlowStop, type FlowConflict } from "@/lib/firm-up";
+import { flowDates, computeProjectedEnd, type FlowStop, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
@@ -684,4 +684,27 @@ export async function assignStopToChapter(stopId: string, chapterId: string | nu
   }
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
+}
+
+/**
+ * Compute a trip's projected end + its hard end date in one round trip, for
+ * feeding the Flag detector on the Summary and Home (which don't otherwise
+ * load the full stop set). See computeProjectedEnd / ADR 0013.
+ */
+export async function getTripProjection(
+  tripId: string,
+): Promise<{ projectedEnd: string | null; hardEndDate: string | null }> {
+  await requireTripAccess(tripId);
+  const [trip, stops] = await Promise.all([
+    db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, hardEndDate: true } }),
+    db.stop.findMany({
+      where: { tripId },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, arriveDate: true, departDate: true, nights: true, pinned: true, sortOrder: true },
+    }),
+  ]);
+  return {
+    projectedEnd: computeProjectedEnd(stops, trip?.startDate ?? null),
+    hardEndDate: trip?.hardEndDate ?? null,
+  };
 }
