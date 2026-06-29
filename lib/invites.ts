@@ -105,16 +105,26 @@ export async function acceptPendingInvitesForUser(
     const now = new Date();
 
     for (const invite of toCreate) {
-      // Create member — skip silently if already exists (race condition).
-      await db.tripMember
-        .create({
+      try {
+        await db.tripMember.create({
           data: { tripId: invite.tripId, userId, role: "member" },
-        })
-        .catch(() => {
-          // Already a member — safe to ignore.
         });
+      } catch (err) {
+        // A unique-constraint violation (P2002) is the only "safe" failure: it
+        // means a concurrent sign-in already created the membership, which is
+        // exactly the end-state we want — so fall through and mark accepted.
+        // Any other error means membership was NOT created; skip marking the
+        // invite accepted so the next app-load retries, and surface the error.
+        if (!isUniqueConstraintError(err)) {
+          console.error(
+            `acceptPendingInvitesForUser: failed to create membership for trip ${invite.tripId}`,
+            err,
+          );
+          continue;
+        }
+      }
 
-      // Mark invite accepted.
+      // Mark invite accepted (membership now exists).
       await db.invite.update({
         where: { id: invite.id },
         data: { acceptedAt: now },
@@ -126,14 +136,31 @@ export async function acceptPendingInvitesForUser(
       (inv) => !toCreate.some((c) => c.id === inv.id),
     );
     for (const invite of toAcceptOnly) {
-      await db.invite.update({
-        where: { id: invite.id },
-        data: { acceptedAt: now },
-      }).catch(() => {
-        // Ignore — don't fail sign-in.
-      });
+      await db.invite
+        .update({ where: { id: invite.id }, data: { acceptedAt: now } })
+        .catch((err) => {
+          console.error(
+            `acceptPendingInvitesForUser: failed to mark invite ${invite.id} accepted`,
+            err,
+          );
+        });
     }
-  } catch {
-    // Never block sign-in on invite-acceptance errors.
+  } catch (err) {
+    // Best-effort: never block sign-in or page render on invite acceptance.
+    console.error("acceptPendingInvitesForUser failed", err);
   }
+}
+
+/**
+ * True for a Prisma unique-constraint violation (P2002). Checked structurally
+ * (by `code`) rather than via `instanceof` so it stays driver-adapter-agnostic
+ * and trivially mockable in tests.
+ */
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "P2002"
+  );
 }
