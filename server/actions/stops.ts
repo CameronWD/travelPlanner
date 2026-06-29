@@ -366,7 +366,7 @@ async function applyStopDates(
   if (run.length > 0) {
     const flowStops: FlowStop[] = run.map((s) => ({
       id: s.id,
-      nights: s.nights,
+      nights: s.arriveDate && s.departDate ? nightsBetween(s.arriveDate, s.departDate) : s.nights,
       pinned: s.pinned,
       arriveDate: s.arriveDate,
       departDate: s.departDate,

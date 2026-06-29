@@ -225,7 +225,15 @@ export default async function TripPlanPage({
   return (
     <div className="flex flex-col gap-6">
       {stops.length > 0 && (
-        <PlanOverview tripId={tripId} summary={planSummary} startDate={trip?.startDate ?? null} />
+        <PlanOverview
+          tripId={tripId}
+          summary={planSummary}
+          startDate={trip?.startDate ?? null}
+          fitStops={stops.map((s) => ({
+            id: s.id, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate,
+            nights: s.nights, pinned: s.pinned, sortOrder: s.sortOrder,
+          }))}
+        />
       )}
       <ItineraryManager
         tripId={tripId}

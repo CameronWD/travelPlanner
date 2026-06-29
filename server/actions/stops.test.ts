@@ -897,6 +897,40 @@ describe("setStopNights", () => {
     expect(r.success).toBe(true);
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: { arriveDate: "2026-07-12", departDate: "2026-07-15" } });
   });
+
+  it("ripple preserves downstream scheduled stop span when nights column is null", async () => {
+    // Stop A: scheduled 2026-07-01..2026-07-05 (4 nights), sortOrder 0
+    // Stop B: scheduled 2026-07-05..2026-07-10 (5-night SPAN), nights: null (never set), not pinned, sortOrder 1
+    // Action: setStopNights("a", 2) → A departs 2026-07-03
+    // Expected ripple: B arrive = 2026-07-03, B depart = 2026-07-08 (5-night span preserved)
+    // Bug: old code used nights: null → flowDates treats it as nights ?? 1 → depart 2026-07-04
+    stopFindUniqueMock
+      // requireStopAccess for "a"
+      .mockResolvedValueOnce({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false })
+      // applyStopDates before-row for "a"
+      .mockResolvedValueOnce({ name: "Alpha", country: "France", arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null });
+    stopFindManyMock.mockResolvedValue([
+      // Stop B: 5-night span (Jul 5 → Jul 10), nights column null
+      { id: "b", sortOrder: 1, nights: null, pinned: false, arriveDate: "2026-07-05", departDate: "2026-07-10" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ endDate: "2026-07-10" });
+    tripUpdateMock.mockResolvedValue({});
+
+    const r = await setStopNights("a", 2);
+
+    expect(r.success).toBe(true);
+    // A's new dates: arrive 2026-07-01, depart 2026-07-03
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "a" },
+      data: { arriveDate: "2026-07-01", departDate: "2026-07-03" },
+    });
+    // B must ripple to arrive 2026-07-03, depart 2026-07-08 (5-night span preserved)
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "b" },
+      data: { arriveDate: "2026-07-03", departDate: "2026-07-08" },
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
