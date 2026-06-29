@@ -104,6 +104,10 @@ _Avoid_: Lock in, commit; reserve "schedule" for Items
 A scheduled Stop whose dates the Traveller has fixed — a real booking or a fixed-date event — so firming up and ripple never move it. Ripple flows the flexible Stops in each span between the anchor and the next Pinned Stop; if they can't fit before a Pinned Stop's arrive date the app raises a **Flag** rather than overwriting the pin, and any slack before a pin is simply left as free days.
 _Avoid_: Locked, fixed, frozen
 
+**Make it fit**:
+An advisory assistant offered when the Trip's **projected end** runs past the **Hard end date**. It proposes a preview-then-apply plan to bring the projected end onto or under the Hard end date, via two routes shown side by side: **trim** — reduce nights across the **flexible** (non-**Pinned**) Stops, defaulting to a split proportional to each Stop's length, down to a floor of 1 night, and editable before applying; or **drop** — remove a Traveller-chosen flexible Stop, each candidate previewing the resulting end and which best closes the gap. **Pinned** Stops are never trimmed or dropped. Nothing changes until the Traveller applies it; trimming a scheduled Stop ripples its dates forward exactly as **Firm up** does. If trimming every flexible Stop to the floor still can't reach the date, it says so and points to dropping a Stop, unpinning one, or moving the Hard end date.
+_Avoid_: Optimise, auto-plan, rebalance (it never acts on its own); "flexible" just means not **Pinned**
+
 **Today view**:
 The focused, read-optimised view of what's happening *now/today* for whoever's travelling — next Transport, today's Items, addresses, tonight's stay — designed to be glanced at on a phone, offline. It is the **Travelling** phase of the **Home**, not a separate tab.
 _Avoid_: Now view, agenda
