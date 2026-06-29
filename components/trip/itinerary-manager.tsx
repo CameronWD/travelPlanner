@@ -371,6 +371,10 @@ export function ItineraryManager({
   }, [initialTransports, stops]);
 
   const hasStops = stops.length > 0;
+  // Show the planning UI when there are stops OR chapters. A freshly created
+  // rough chapter must be visible (and able to accept rough stops) before any
+  // stop exists — otherwise it's saved but hidden behind the empty state.
+  const hasContent = hasStops || hasChapters;
 
   // Default a new stop to pick up where the last one departs (or trip start),
   // so the date picker opens in the trip's window rather than today.
@@ -538,7 +542,7 @@ export function ItineraryManager({
 
   return (
     <div className="flex flex-col gap-4">
-      {hasStops ? (
+      {hasContent ? (
         <>
           {/* Stops + interspersed transports + accommodations */}
           <div className="flex flex-col gap-3">

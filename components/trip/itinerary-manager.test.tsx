@@ -346,3 +346,28 @@ describe("optimistic pending state", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// 5. Rough chapters on an empty trip
+//    Regression: a date-less chapter must be visible (and accept rough stops)
+//    even before any stop exists, instead of being hidden behind the empty state.
+// ---------------------------------------------------------------------------
+
+describe("rough chapters with no stops yet", () => {
+  it("renders a date-less chapter even when the trip has zero stops", () => {
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[]}
+        chapters={[
+          { id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null },
+        ]}
+      />,
+    );
+
+    // The chapter must be visible so rough stops can be added into it...
+    expect(screen.getByText("France")).toBeInTheDocument();
+    // ...and we must NOT be stuck on the bare "Sketch your trip" empty state.
+    expect(screen.queryByText(/sketch your trip/i)).toBeNull();
+  });
+});
