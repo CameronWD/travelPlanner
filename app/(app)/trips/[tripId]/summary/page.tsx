@@ -14,6 +14,7 @@ import { formatMoney } from "@/lib/money";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
 import { detectFlags } from "@/lib/flags";
+import { getTripProjection } from "@/server/actions/stops";
 import { groupStopsByChapter, chapterForStop } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import { ChapterChip } from "@/components/trip/chapter-chip";
@@ -233,6 +234,7 @@ export default async function SummaryPage({
   // ---------------------------------------------------------------------------
   // Detect flags
   // ---------------------------------------------------------------------------
+  const projection = await getTripProjection(tripId);
   const flags = detectFlags({
     stops: stops as FlagStop[],
     transports: transports as FlagTransport[],
@@ -241,6 +243,8 @@ export default async function SummaryPage({
     tripStart: startDate,
     tripEnd: endDate,
     roughStopCount: roughStops.length,
+    projectedEnd: projection.projectedEnd,
+    hardEndDate: projection.hardEndDate,
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
   });
