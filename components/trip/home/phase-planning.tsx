@@ -16,6 +16,7 @@ import {
   type BudgetTransport,
 } from "@/lib/budget";
 import { buildNextSteps } from "@/lib/next-steps";
+import { getTripProjection } from "@/server/actions/stops";
 import { chapterForStop } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import { CountdownHero } from "@/components/trip/home/countdown-hero";
@@ -203,6 +204,7 @@ export async function PhasePlanning({
   // Detect flags (mirrors summary/page.tsx)
   // ---------------------------------------------------------------------------
   const flagStops: FlagStop[] = datedStops.map((s) => ({ ...s, timezone: s.timezone ?? "UTC" }));
+  const projection = await getTripProjection(tripId);
   const flags = detectFlags({
     stops: flagStops,
     transports: transports as FlagTransport[],
@@ -211,6 +213,8 @@ export async function PhasePlanning({
     tripStart: startDate,
     tripEnd: endDate,
     roughStopCount: roughStops,
+    projectedEnd: projection.projectedEnd,
+    hardEndDate: projection.hardEndDate,
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
   });
