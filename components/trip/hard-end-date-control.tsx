@@ -24,10 +24,6 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate }: HardEndDa
   const [value, setValue] = React.useState(hardEndDate ?? "");
   const [isPending, startTransition] = useTransition();
 
-  React.useEffect(() => {
-    if (!editing) setValue(hardEndDate ?? "");
-  }, [hardEndDate, editing]);
-
   function commit(next: string | null) {
     startTransition(async () => {
       const r = await setTripHardEndDate(tripId, next);
@@ -43,7 +39,7 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate }: HardEndDa
     return hardEndDate ? (
       <button
         type="button"
-        onClick={() => setEditing(true)}
+        onClick={() => { setValue(hardEndDate ?? ""); setEditing(true); }}
         aria-label={`Edit hard end date (${hardEndDate})`}
         className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-2 hover:underline"
       >
@@ -51,7 +47,7 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate }: HardEndDa
         <Pencil className="size-3 text-muted-foreground" aria-hidden="true" />
       </button>
     ) : (
-      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditing(true)}>
+      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setValue(hardEndDate ?? ""); setEditing(true); }}>
         <CalendarClock className="size-3.5" aria-hidden="true" />
         Set hard end date
       </Button>
