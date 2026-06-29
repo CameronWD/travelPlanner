@@ -7,6 +7,7 @@ import {
   isTransportBetweenLegs,
   chapterIdForTransport,
   suggestChapterRuns,
+  sortedByStart,
   type ChapterLike,
   type StopLike,
   type TransportLike,
@@ -106,6 +107,20 @@ describe("suggestChapterRuns", () => {
       { id: "c", arriveDate: "2026-07-06", departDate: "2026-07-09", country: "France", sortOrder: 2 },
     ];
     expect(suggestChapterRuns(there).map((r) => r.name)).toEqual(["France", "Italy", "France"]);
+  });
+});
+
+describe("sortedByStart rough-chapter ordering", () => {
+  // sortedByStart is exported for testing; see lib/chapters.ts.
+  // Three-chapter case: one dated + two rough (sortOrder 2 and 0) — expect [dated, rough(sortOrder0), rough(sortOrder2)].
+  const DATED: ChapterLike   = { id: "dated",   name: "Dated",   colour: "sky",  startDate: "2026-07-01", endDate: "2026-07-05", sortOrder: 1 };
+  const ROUGH_A: ChapterLike = { id: "rough-a", name: "RoughA", colour: "rose", startDate: null, endDate: null, sortOrder: 0 };
+  const ROUGH_B: ChapterLike = { id: "rough-b", name: "RoughB", colour: "blue", startDate: null, endDate: null, sortOrder: 2 };
+
+  it("places dated chapters before rough, and rough chapters ordered by sortOrder ascending", () => {
+    // Input order is deliberately scrambled (rough-b first, then rough-a, then dated).
+    const sorted = sortedByStart([ROUGH_B, ROUGH_A, DATED]);
+    expect(sorted.map((c) => c.id)).toEqual(["dated", "rough-a", "rough-b"]);
   });
 });
 

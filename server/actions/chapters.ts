@@ -136,6 +136,34 @@ export async function deleteChapter(chapterId: string): Promise<ChapterActionRes
   return { success: true };
 }
 
+export async function reorderChapters(
+  tripId: string,
+  orderedChapterIds: string[],
+): Promise<ChapterActionResult> {
+  await requireTripAccess(tripId);
+  if (orderedChapterIds.length === 0) return { success: true };
+
+  const chapters = await db.chapter.findMany({
+    where: { id: { in: orderedChapterIds }, tripId },
+    select: { id: true, startDate: true },
+  });
+  if (chapters.length !== orderedChapterIds.length) {
+    return { success: false, errors: { chapter: ["One or more chapters aren't part of this trip."] } };
+  }
+  if (chapters.some((c) => c.startDate != null)) {
+    return { success: false, errors: { chapter: ["Only rough (date-less) chapters can be reordered."] } };
+  }
+
+  await db.$transaction(
+    orderedChapterIds.map((id, idx) =>
+      db.chapter.update({ where: { id }, data: { sortOrder: idx } }),
+    ),
+  );
+
+  revalidateChapterPaths(tripId);
+  return { success: true };
+}
+
 export async function suggestChaptersFromCountries(tripId: string): Promise<ChapterActionResult> {
   await requireTripAccess(tripId);
 

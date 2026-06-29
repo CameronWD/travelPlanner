@@ -6,6 +6,7 @@ export interface ChapterLike {
   colour: string;
   startDate: string | null; // YYYY-MM-DD; null for rough (date-less) chapters
   endDate: string | null;   // YYYY-MM-DD; null for rough (date-less) chapters
+  sortOrder?: number;
 }
 
 export interface StopLike {
@@ -25,8 +26,15 @@ export interface TransportLike {
   depAt?: Date | string | null;
 }
 
-function sortedByStart<T extends { startDate: string | null }>(chapters: readonly T[]): T[] {
-  return [...chapters].sort((a, b) => (a.startDate ?? "").localeCompare(b.startDate ?? ""));
+export function sortedByStart<T extends { startDate: string | null; sortOrder?: number }>(chapters: readonly T[]): T[] {
+  return [...chapters].sort((a, b) => {
+    const aDated = a.startDate != null;
+    const bDated = b.startDate != null;
+    if (aDated && bDated) return a.startDate!.localeCompare(b.startDate!);
+    if (aDated !== bDated) return aDated ? -1 : 1; // dated first, rough after
+    // both rough: explicit sortOrder
+    return (a.sortOrder ?? 0) - (b.sortOrder ?? 0);
+  });
 }
 
 export function chapterForDate<T extends ChapterLike>(dateISO: string, chapters: readonly T[]): T | null {
