@@ -73,15 +73,18 @@ export function simulateAfterTrims(
         run.push(work[j]);
       }
       if (run.length > 0) {
-        const flowStops: FlowStop[] = run.map((r) => ({
-          id: r.id,
-          nights: r.arriveDate && r.departDate ? nightsBetween(r.arriveDate, r.departDate) : r.nights,
-          pinned: r.pinned,
-          arriveDate: r.arriveDate,
-          departDate: r.departDate,
+        const flowStops: FlowStop[] = run.map((rs) => ({
+          id: rs.id,
+          nights: rs.arriveDate && rs.departDate ? nightsBetween(rs.arriveDate, rs.departDate) : rs.nights,
+          pinned: rs.pinned,
+          arriveDate: rs.arriveDate,
+          departDate: rs.departDate,
         }));
         const { results } = flowDates(flowStops, stop.departDate);
         for (const res of results) {
+          // Pins are immovable: flowDates already advanced its cursor past the
+          // pin's depart, so downstream stops still flow correctly — we just
+          // don't rewrite the pin's own dates.
           if (res.pinned) continue;
           const target = work[idxById.get(res.id)!];
           target.arriveDate = res.arriveDate;
