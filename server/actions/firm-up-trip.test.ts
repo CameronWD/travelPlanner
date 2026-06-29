@@ -38,6 +38,7 @@ beforeEach(() => {
   geocodeMock.mockResolvedValue(null);
   stopUpdateMock.mockResolvedValue({});
   tripUpdateMock.mockResolvedValue({});
+  chapterUpdateMock.mockResolvedValue({});
 });
 
 const roughRow = (id: string, sortOrder: number, nights: number) => ({
@@ -87,5 +88,21 @@ describe("firmUpTrip", () => {
 
     expect(r.success).toBe(false);
     if (!r.success) expect(r.errors.anchorDate?.[0]).toMatch(/start date/i);
+  });
+
+  it("trims chapter-band seams so adjacent chapters don't overlap", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", sortOrder: 0, chapterId: "chA", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "A", country: null },
+      { id: "b", sortOrder: 1, chapterId: "chB", nights: 2, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "B", country: null },
+    ]);
+
+    const r = await firmUpTrip("trip-1");
+
+    expect(r.success).toBe(true);
+    // chA stop a = [07-01, 07-04]; chB stop b = [07-04, 07-06]. The seam at 07-04
+    // would make the bands touch (and inclusive-overlap), so chA's end is trimmed to 07-03.
+    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "chA" }, data: { startDate: "2026-07-01", endDate: "2026-07-03" } });
+    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "chB" }, data: { startDate: "2026-07-04", endDate: "2026-07-06" } });
   });
 });

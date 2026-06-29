@@ -613,8 +613,12 @@ export async function firmUpTrip(tripId: string, anchorDate?: string): Promise<S
     await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd } });
   }
 
-  // Bring each chapter's band onto its now-dated stops, so a rough chapter
-  // becomes an ordinary date range (ADR 0009) rather than dated-stops-in-a-rough-band.
+  // Recompute each chapter's band from its now-dated stops, then trim seams so
+  // adjacent chapters don't share a boundary day. flowDates hands off
+  // arrive == previous depart, and chaptersOverlap (lib/chapters.ts) is inclusive,
+  // so untrimmed bands would falsely "overlap" and block a later add/edit-chapter.
+  // Mirrors the seam trim in suggestChapterRuns.
+  const chapterSpans: { id: string; start: string; end: string }[] = [];
   const chapterIds = [...new Set(stops.map((s) => s.chapterId).filter((c): c is string => Boolean(c)))];
   for (const chId of chapterIds) {
     const spanStops = stops.filter((s) => s.chapterId === chId && datedById.has(s.id));
@@ -626,7 +630,18 @@ export async function firmUpTrip(tripId: string, anchorDate?: string): Promise<S
       if (d.arriveDate < start) start = d.arriveDate;
       if (d.departDate > end) end = d.departDate;
     }
-    await db.chapter.update({ where: { id: chId }, data: { startDate: start, endDate: end } });
+    chapterSpans.push({ id: chId, start, end });
+  }
+  chapterSpans.sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0));
+  for (let i = 0; i < chapterSpans.length - 1; i++) {
+    const next = chapterSpans[i + 1];
+    if (chapterSpans[i].end >= next.start) {
+      const trimmed = addDays(next.start, -1);
+      chapterSpans[i].end = trimmed < chapterSpans[i].start ? chapterSpans[i].start : trimmed;
+    }
+  }
+  for (const span of chapterSpans) {
+    await db.chapter.update({ where: { id: span.id }, data: { startDate: span.start, endDate: span.end } });
   }
 
   await recordActivity({
