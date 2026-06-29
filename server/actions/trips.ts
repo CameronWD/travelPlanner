@@ -124,6 +124,42 @@ export async function updateTrip(
 }
 
 // ---------------------------------------------------------------------------
+// setTripHardEndDate — focused write for the Plan overview's inline control
+// ---------------------------------------------------------------------------
+
+export type SetHardEndDateResult = { success: true } | { success: false; error: string };
+
+/**
+ * Set or clear a trip's hard end date. Pass null/"" to clear. Validates the
+ * date is on or after the start date. Advisory only — never changes scheduling.
+ */
+export async function setTripHardEndDate(
+  tripId: string,
+  hardEndDate: string | null,
+): Promise<SetHardEndDateResult> {
+  await requireTripAccess(tripId);
+
+  const value = hardEndDate && hardEndDate.trim() !== "" ? hardEndDate.trim() : null;
+  if (value !== null) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      return { success: false, error: "Date must be in YYYY-MM-DD format." };
+    }
+    const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
+    if (trip?.startDate && value < trip.startDate) {
+      return { success: false, error: "Hard end date must be on or after the start date." };
+    }
+  }
+
+  await db.trip.update({ where: { id: tripId }, data: { hardEndDate: value } });
+
+  revalidatePath(`/trips/${tripId}/plan`);
+  revalidatePath(`/trips/${tripId}/settings`);
+  revalidatePath(`/trips/${tripId}`);
+
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
 // deleteTrip
 // ---------------------------------------------------------------------------
 

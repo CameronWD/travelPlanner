@@ -18,6 +18,7 @@ const {
   tripCreateMock,
   tripUpdateMock,
   tripDeleteMock,
+  tripFindUniqueMock,
   memberCreateMock,
   transactionMock,
   attachmentFindManyMock,
@@ -26,6 +27,7 @@ const {
   const tripCreateMock = vi.fn();
   const tripUpdateMock = vi.fn();
   const tripDeleteMock = vi.fn();
+  const tripFindUniqueMock = vi.fn();
   const memberCreateMock = vi.fn();
   const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const storageDeleteMock = vi.fn().mockResolvedValue(undefined);
@@ -53,6 +55,7 @@ const {
     tripCreateMock,
     tripUpdateMock,
     tripDeleteMock,
+    tripFindUniqueMock,
     memberCreateMock,
     transactionMock,
     attachmentFindManyMock,
@@ -70,6 +73,7 @@ vi.mock("@/lib/db", () => ({
     trip: {
       update: tripUpdateMock,
       delete: tripDeleteMock,
+      findUnique: tripFindUniqueMock,
     },
     attachment: {
       findMany: attachmentFindManyMock,
@@ -82,7 +86,7 @@ vi.mock("@/lib/storage", () => ({
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 
-import { createTrip, updateTrip, deleteTrip } from "./trips";
+import { createTrip, updateTrip, deleteTrip, setTripHardEndDate } from "./trips";
 
 const VALID_INPUT = {
   name: "Japan 2026",
@@ -337,5 +341,35 @@ describe("deleteTrip", () => {
     }
     expect(tripDeleteMock).not.toHaveBeenCalled();
     expect(redirectMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setTripHardEndDate
+// ---------------------------------------------------------------------------
+
+describe("setTripHardEndDate", () => {
+  it("sets the hard end date and revalidates the plan + settings", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
+    tripUpdateMock.mockResolvedValue({});
+    const r = await setTripHardEndDate(TRIP_ID, "2026-07-20");
+    expect(r.success).toBe(true);
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: TRIP_ID }, data: { hardEndDate: "2026-07-20" } });
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/plan`);
+  });
+
+  it("clears the hard end date when given an empty value", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
+    tripUpdateMock.mockResolvedValue({});
+    const r = await setTripHardEndDate(TRIP_ID, "");
+    expect(r.success).toBe(true);
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: TRIP_ID }, data: { hardEndDate: null } });
+  });
+
+  it("rejects a hard end date before the start date", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
+    const r = await setTripHardEndDate(TRIP_ID, "2026-06-30");
+    expect(r.success).toBe(false);
+    expect(tripUpdateMock).not.toHaveBeenCalled();
   });
 });
