@@ -3,11 +3,14 @@ import { formatLongDate } from "@/lib/dates";
 import { cn } from "@/lib/cn";
 import type { PlanSummary, HardEndState } from "@/lib/plan-overview";
 import { HardEndDateControl } from "./hard-end-date-control";
+import { MakeItFit } from "./make-it-fit";
+import type { FitStop } from "@/lib/make-it-fit";
 
 interface PlanOverviewProps {
   tripId: string;
   summary: PlanSummary;
   startDate: string | null;
+  fitStops: FitStop[];
 }
 
 const HARD_END_TONE: Record<HardEndState, string> = {
@@ -38,7 +41,7 @@ function hardEndStatusText(summary: PlanSummary): string | null {
   return null;
 }
 
-export function PlanOverview({ tripId, summary, startDate }: PlanOverviewProps) {
+export function PlanOverview({ tripId, summary, startDate, fitStops }: PlanOverviewProps) {
   const {
     stopCount, roughCount, scheduledNights, projectedNights,
     spanStart, scheduledEnd, projectedEnd, hardEndDate, hardEndState,
@@ -99,6 +102,9 @@ export function PlanOverview({ tripId, summary, startDate }: PlanOverviewProps) 
               <span role="status" aria-live="polite" className={cn("ml-1", HARD_END_TONE[hardEndState])}>
                 {statusText}
               </span>
+            )}
+            {summary.hardEndState === "over" && (
+              <MakeItFit tripId={tripId} stops={fitStops} anchor={startDate} hardEndDate={summary.hardEndDate} />
             )}
           </span>
         </div>
