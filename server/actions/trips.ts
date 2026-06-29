@@ -145,7 +145,10 @@ export async function setTripHardEndDate(
       return { success: false, error: "Date must be in YYYY-MM-DD format." };
     }
     const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
-    if (trip?.startDate && value < trip.startDate) {
+    if (!trip) {
+      return { success: false, error: "Trip not found." };
+    }
+    if (trip.startDate && value < trip.startDate) {
       return { success: false, error: "Hard end date must be on or after the start date." };
     }
   }

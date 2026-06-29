@@ -370,6 +370,20 @@ describe("setTripHardEndDate", () => {
     tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
     const r = await setTripHardEndDate(TRIP_ID, "2026-06-30");
     expect(r.success).toBe(false);
+    if (!r.success) expect(r.error).toMatch(/on or after the start date/i);
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed date", async () => {
+    const r = await setTripHardEndDate(TRIP_ID, "not-a-date");
+    expect(r.success).toBe(false);
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("returns a clean error when the trip no longer exists", async () => {
+    tripFindUniqueMock.mockResolvedValue(null);
+    const r = await setTripHardEndDate(TRIP_ID, "2026-07-20");
+    expect(r.success).toBe(false);
     expect(tripUpdateMock).not.toHaveBeenCalled();
   });
 });
