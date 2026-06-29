@@ -113,8 +113,8 @@ export default async function TripPlanPage({
     }),
     db.chapter.findMany({
       where: { tripId },
-      orderBy: { startDate: "asc" },
-      select: { id: true, name: true, colour: true, startDate: true, endDate: true },
+      orderBy: [{ startDate: "asc" }, { sortOrder: "asc" }],
+      select: { id: true, name: true, colour: true, startDate: true, endDate: true, sortOrder: true },
     }),
   ]);
 

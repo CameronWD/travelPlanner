@@ -8,6 +8,7 @@ import {
   chapterIdForTransport,
   suggestChapterRuns,
   sortedByStart,
+  sortGroupStops,
   type ChapterLike,
   type StopLike,
   type TransportLike,
@@ -141,5 +142,17 @@ describe("mixed rough + dated membership", () => {
   it("a rough stop with no chapterId is ungrouped", () => {
     const s: StopLike = { id: "x", arriveDate: null, departDate: null, nights: 2, chapterId: null, country: null, sortOrder: 0 };
     expect(chapterForStop(s, [FR, ROUGH_IT])).toBeNull();
+  });
+});
+
+describe("sortGroupStops", () => {
+  it("orders a group: dated by date, then rough by sortOrder", () => {
+    const stops = [
+      { id: "r2", arriveDate: null, departDate: null, sortOrder: 5 },
+      { id: "d2", arriveDate: "2026-07-10", departDate: "2026-07-12", sortOrder: 1 },
+      { id: "r1", arriveDate: null, departDate: null, sortOrder: 2 },
+      { id: "d1", arriveDate: "2026-07-01", departDate: "2026-07-05", sortOrder: 9 },
+    ];
+    expect(sortGroupStops(stops).map((s) => s.id)).toEqual(["d1", "d2", "r1", "r2"]);
   });
 });

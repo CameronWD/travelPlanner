@@ -360,7 +360,7 @@ describe("rough chapters with no stops yet", () => {
         {...baseProps}
         initialStops={[]}
         chapters={[
-          { id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null },
+          { id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null, sortOrder: 0 },
         ]}
       />,
     );

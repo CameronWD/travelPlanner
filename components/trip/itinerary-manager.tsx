@@ -33,7 +33,7 @@ import { toast } from "@/components/ui/use-toast";
 import { suggestNextStopDates, formatDateRange } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
-import { groupStopsByChapter, isTransportBetweenLegs } from "@/lib/chapters";
+import { groupStopsByChapter, isTransportBetweenLegs, sortGroupStops } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import type { TransportMode } from "@/lib/enums";
 import type { CostRow } from "@/server/actions/costs";
@@ -82,6 +82,7 @@ export interface ItineraryChapter {
   startDate: string | null;
   /** Null for rough (date-less) chapters. */
   endDate: string | null;
+  sortOrder: number;
 }
 
 interface ItineraryManagerProps {
@@ -578,9 +579,6 @@ export function ItineraryManager({
                 const groupKey = group.chapter?.id ?? "ungrouped";
                 const isCollapsed = collapsedGroups.has(groupKey);
 
-                // Find the global stop index for isFirst/isLast tracking
-                const firstStopGlobalIdx = stops.indexOf(group.stops[0]);
-
                 return (
                   <React.Fragment key={groupKey + "-" + groupIdx}>
                     {/* Seam: cross-chapter transports between prev group and this group */}
@@ -637,8 +635,8 @@ export function ItineraryManager({
                         {/* Group body */}
                         {!isCollapsed && (
                           <div className="flex flex-col gap-3 p-3">
-                            {group.stops.map((stop, groupStopIdx) => {
-                              const globalIdx = firstStopGlobalIdx + groupStopIdx;
+                            {sortGroupStops(group.stops).map((stop) => {
+                              const globalIdx = stops.indexOf(stop);
                               const isFirst = globalIdx === 0;
                               const isLast = globalIdx === stops.length - 1;
                               return renderStop(stop, globalIdx, isFirst, isLast);
@@ -669,8 +667,8 @@ export function ItineraryManager({
                             </Button>
                           )}
                         </div>
-                        {group.stops.map((stop, groupStopIdx) => {
-                          const globalIdx = firstStopGlobalIdx + groupStopIdx;
+                        {sortGroupStops(group.stops).map((stop) => {
+                          const globalIdx = stops.indexOf(stop);
                           const isFirst = globalIdx === 0;
                           const isLast = globalIdx === stops.length - 1;
                           return renderStop(stop, globalIdx, isFirst, isLast);
