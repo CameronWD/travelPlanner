@@ -121,6 +121,23 @@ describe("buildTrimPlan", () => {
     const plan = buildTrimPlan(stops, anchor, "2026-07-06");
     expect(plan.items.every((i) => i.id !== "p")).toBe(true);
   });
+
+  it("trims a single flexible stop to land exactly on the date", () => {
+    const stops = [s({ id: "a", name: "Rome", nights: 4, sortOrder: 0 })]; // ends 07-05; hard end 07-03 => 2 over
+    const plan = buildTrimPlan(stops, anchor, "2026-07-03");
+    expect(plan.fits).toBe(true);
+    expect(plan.resultingEnd).toBe("2026-07-03");
+    expect(plan.items).toEqual([{ id: "a", name: "Rome", fromNights: 4, toNights: 2 }]);
+  });
+
+  it("lands the projected end on the hard end date when trimming is sufficient", () => {
+    const stops = [
+      s({ id: "a", name: "Rome", nights: 6, sortOrder: 0 }),
+      s({ id: "b", name: "Florence", nights: 4, sortOrder: 1 }),
+    ];
+    const plan = buildTrimPlan(stops, anchor, "2026-07-07");
+    expect(plan.resultingEnd).toBe("2026-07-07");
+  });
 });
 
 describe("buildDropCandidates", () => {
@@ -144,5 +161,16 @@ describe("buildDropCandidates", () => {
     ];
     const cands = buildDropCandidates(stops, anchor, "2026-07-06");
     expect(cands.every((c) => c.id !== "p")).toBe(true);
+  });
+
+  it("marks no candidate as fitting when even a single drop can't reach the date, but still recommends one", () => {
+    const stops = [
+      s({ id: "a", name: "Rome", nights: 10, sortOrder: 0 }),
+      s({ id: "b", name: "Pisa", nights: 10, sortOrder: 1 }),
+    ];
+    // ends 07-21; hard end 07-05. Dropping either leaves one 10n stop -> ends 07-11, still over.
+    const cands = buildDropCandidates(stops, anchor, "2026-07-05");
+    expect(cands.every((c) => !c.fits)).toBe(true);
+    expect(cands.filter((c) => c.recommended)).toHaveLength(1);
   });
 });

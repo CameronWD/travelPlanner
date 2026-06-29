@@ -144,7 +144,7 @@ export function buildTrimPlan(stops: readonly FitStop[], anchor: string | null, 
       if (remaining <= 0) break;
       const headroom = Math.max(0, currentNights(f) - TRIM_FLOOR);
       if (headroom === 0) continue;
-      const share = Math.min(headroom, Math.min(remaining, Math.round((headroom / totalTrimmable) * over)));
+      const share = Math.min(headroom, remaining, Math.round((headroom / totalTrimmable) * over));
       target.set(f.id, currentNights(f) - share);
       remaining -= share;
     }
@@ -158,6 +158,10 @@ export function buildTrimPlan(stops: readonly FitStop[], anchor: string | null, 
     return { end: r.projectedEnd, over: nightsOver(r.projectedEnd, hardEndDate) };
   };
 
+  // Greedy top-up: trim the flexible stop with the most remaining headroom, one
+  // night at a time, until it fits or every flexible stop is at the floor. When
+  // a downstream pin absorbs the slack, a step may not reduce stillOver; the
+  // loop still converges (bounded by `guard`).
   let guard = 0;
   let { end, over: stillOver } = evaluate();
   while (stillOver > 0 && guard++ < 1000) {
