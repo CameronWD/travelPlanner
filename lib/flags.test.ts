@@ -12,8 +12,10 @@ import {
   flagSpreadDays,
   flagLongDrivingDays,
   flagHardEndDate,
+  flagTightConnections,
   SPREAD_DAY_THRESHOLD_KM,
   LONG_DRIVE_DAY_THRESHOLD_MIN,
+  TIGHT_CONNECTION_BUFFER_MIN,
   type FlagStop,
   type FlagTransport,
   type FlagAccommodation,
@@ -663,6 +665,95 @@ describe("flagLongDrivingDays", () => {
 
   it("threshold is 5 hours", () => {
     expect(LONG_DRIVE_DAY_THRESHOLD_MIN).toBe(300);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule 12: Tight connections
+// ---------------------------------------------------------------------------
+
+describe("flagTightConnections", () => {
+  const OPTS = { windingFactor: 1.5, avgSpeedKph: 80 };
+
+  // Coordinates chosen so haversine gives the intended distances.
+  // All near Paris (48.86°N, 2.337°E) — lat degree ≈ 111.32 km.
+  //
+  // ~0.2 km: A=(48.860,2.337), B=(48.8618,2.337)  → 0.200 km  → walk ≈ 2.67 min
+  // ~0.9 km: A=(48.860,2.337), B=(48.8681,2.337)  → 0.901 km  → walk ≈ 12.01 min
+  // ~2.0 km: A=(48.860,2.337), B=(48.8780,2.337)  → 2.002 km  → walk ≈ 26.69 min
+  // ~50 km:  A=(48.860,2.337), B=(49.309,2.337)   → 49.927 km → walk ≫ 30 min → drive
+
+  it("no flag when gap (20 min) comfortably covers the walk (~2.67 min for 0.2 km) and the buffer", () => {
+    // prev ends 12:00, next starts 12:20 → gap = 20 min; walk ≈ 2.67 min; travel+15 ≈ 17.67
+    // 20 > 17.67 → neither warning nor info → no flag
+    const items: FlagItem[] = [
+      makeItem({ id: "a", date: "2026-07-02", startTime: "10:00", endTime: "12:00", lat: 48.860, lng: 2.337 }),
+      makeItem({ id: "b", date: "2026-07-02", startTime: "12:20", endTime: "13:00", lat: 48.8618, lng: 2.337 }),
+    ];
+    expect(flagTightConnections(items, OPTS)).toHaveLength(0);
+  });
+
+  it("warning when gap (10 min) < walk time (~26.69 min for 2 km apart)", () => {
+    // prev ends 12:00, next starts 12:10 → gap = 10; walk ≈ 26.69 → 10 < 26.69 → warning
+    const items: FlagItem[] = [
+      makeItem({ id: "a", date: "2026-07-02", startTime: "10:00", endTime: "12:00", lat: 48.860, lng: 2.337 }),
+      makeItem({ id: "b", date: "2026-07-02", startTime: "12:10", endTime: "13:00", lat: 48.8780, lng: 2.337 }),
+    ];
+    const flags = flagTightConnections(items, OPTS);
+    expect(flags).toHaveLength(1);
+    expect(flags[0].severity).toBe("warning");
+    expect(flags[0].targetType).toBe("DAY");
+    expect(flags[0].date).toBe("2026-07-02");
+  });
+
+  it("info when gap (20 min) is travel (~12 min) ≤ gap < travel + 15", () => {
+    // prev ends 12:00, next starts 12:20 → gap = 20; walk ≈ 12.01 → 12 ≤ 20 < 27 → info
+    const items: FlagItem[] = [
+      makeItem({ id: "a", date: "2026-07-02", startTime: "10:00", endTime: "12:00", lat: 48.860, lng: 2.337 }),
+      makeItem({ id: "b", date: "2026-07-02", startTime: "12:20", endTime: "13:00", lat: 48.8681, lng: 2.337 }),
+    ];
+    const flags = flagTightConnections(items, OPTS);
+    expect(flags).toHaveLength(1);
+    expect(flags[0].severity).toBe("info");
+    expect(flags[0].targetType).toBe("DAY");
+  });
+
+  it("uses drive estimate (not walk) for items > 30-min walk apart (~50 km)", () => {
+    // 50 km: walk would be ~666 min (>>30) → uses drive ≈ 56 min
+    // gap = 30 min → 30 < 56 → warning, confirming drive branch was used
+    const items: FlagItem[] = [
+      makeItem({ id: "a", date: "2026-07-02", startTime: "08:00", endTime: "09:00", lat: 48.860, lng: 2.337 }),
+      makeItem({ id: "b", date: "2026-07-02", startTime: "09:30", endTime: "11:00", lat: 49.309, lng: 2.337 }),
+    ];
+    const flags = flagTightConnections(items, OPTS);
+    // Drive ≈ 56 min; gap = 30 min → gap < drive → warning
+    expect(flags).toHaveLength(1);
+    expect(flags[0].severity).toBe("warning");
+  });
+
+  it("skips pairs where either item lacks times or coords, and skips items on different days", () => {
+    // Three scenarios combined — all should produce 0 flags
+    const noTimes: FlagItem[] = [
+      makeItem({ id: "a", date: "2026-07-02", lat: 48.860, lng: 2.337 }), // no startTime/endTime
+      makeItem({ id: "b", date: "2026-07-02", startTime: "12:05", endTime: "13:00", lat: 48.8780, lng: 2.337 }),
+    ];
+    expect(flagTightConnections(noTimes, OPTS)).toHaveLength(0);
+
+    const noCoords: FlagItem[] = [
+      makeItem({ id: "a", date: "2026-07-02", startTime: "10:00", endTime: "12:00" }), // no lat/lng
+      makeItem({ id: "b", date: "2026-07-02", startTime: "12:10", endTime: "13:00", lat: 48.8780, lng: 2.337 }),
+    ];
+    expect(flagTightConnections(noCoords, OPTS)).toHaveLength(0);
+
+    const diffDays: FlagItem[] = [
+      makeItem({ id: "a", date: "2026-07-02", startTime: "10:00", endTime: "12:00", lat: 48.860, lng: 2.337 }),
+      makeItem({ id: "b", date: "2026-07-03", startTime: "12:10", endTime: "13:00", lat: 48.8780, lng: 2.337 }),
+    ];
+    expect(flagTightConnections(diffDays, OPTS)).toHaveLength(0);
+  });
+
+  it("exports TIGHT_CONNECTION_BUFFER_MIN = 15", () => {
+    expect(TIGHT_CONNECTION_BUFFER_MIN).toBe(15);
   });
 });
 
