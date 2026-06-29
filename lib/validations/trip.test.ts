@@ -131,4 +131,14 @@ describe("createTripSchema hardEndDate", () => {
       expect(result.error.flatten().fieldErrors.hardEndDate).toBeDefined();
     }
   });
+
+  it("accepts a hardEndDate equal to the start date", () => {
+    const result = createTripSchema.safeParse({ ...VALID_INPUT, startDate: "2026-07-01", hardEndDate: "2026-07-01" });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a hardEndDate when there is no start date", () => {
+    const result = createTripSchema.safeParse({ ...VALID_INPUT, startDate: undefined, hardEndDate: "2026-07-20" });
+    expect(result.success).toBe(true);
+  });
 });
