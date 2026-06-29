@@ -100,4 +100,23 @@ describe("computeProjectedEnd", () => {
     const stops = [stop({ id: "a", arriveDate: "2026-08-10", departDate: "2026-08-14", sortOrder: 0 })];
     expect(computeProjectedEnd(stops, null)).toBe("2026-08-14");
   });
+
+  it("flows a rough stop sandwiched between two scheduled stops, ending at the last scheduled depart", () => {
+    const stops = [
+      stop({ id: "a", arriveDate: "2026-07-01", departDate: "2026-07-05", sortOrder: 0 }),
+      stop({ id: "b", nights: 2, sortOrder: 1 }), // rough, fits in the gap
+      stop({ id: "c", arriveDate: "2026-07-10", departDate: "2026-07-14", sortOrder: 2 }),
+    ];
+    expect(computeProjectedEnd(stops, "2026-07-01")).toBe("2026-07-14");
+  });
+
+  it("does not rewind when the provided anchor is later than a scheduled stop", () => {
+    const stops = [
+      stop({ id: "a", arriveDate: "2026-07-01", departDate: "2026-07-05", sortOrder: 0 }),
+      stop({ id: "b", nights: 3, sortOrder: 1 }),
+    ];
+    // Anchor 07-03 is after stop a's arrive; projection must still flow b from
+    // a's real depart (07-05) -> 07-08, not from a rewound cursor.
+    expect(computeProjectedEnd(stops, "2026-07-03")).toBe("2026-07-08");
+  });
 });

@@ -102,14 +102,19 @@ export function computeProjectedEnd(
   if (stops.length === 0) return null;
   const ordered = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
 
-  let anchor = anchorDate;
-  if (!anchor) {
-    let earliest: string | null = null;
-    for (const s of ordered) {
-      if (s.arriveDate && (earliest === null || s.arriveDate < earliest)) earliest = s.arriveDate;
+  // Anchor from the EARLIEST of the provided anchor and any scheduled arrive,
+  // so a scheduled (boundary) stop never sits before the anchor and rewinds
+  // the flow cursor. Normal trips have startDate <= every arrive, so the
+  // provided anchor wins; the min only matters for inconsistent data.
+  let earliestArrive: string | null = null;
+  for (const s of ordered) {
+    if (s.arriveDate && (earliestArrive === null || s.arriveDate < earliestArrive)) {
+      earliestArrive = s.arriveDate;
     }
-    anchor = earliest;
   }
+  let anchor = anchorDate;
+  if (anchor === null) anchor = earliestArrive;
+  else if (earliestArrive !== null && earliestArrive < anchor) anchor = earliestArrive;
   if (!anchor) return null;
 
   const flowStops: FlowStop[] = ordered.map((s) => {
@@ -126,6 +131,8 @@ export function computeProjectedEnd(
   });
 
   const { results } = flowDates(flowStops, anchor);
+  // The latest depart across all stops — not just the last in order — so an
+  // interior long stay that out-reaches the tail still sets the projected end.
   let end: string | null = null;
   for (const r of results) {
     if (end === null || r.departDate > end) end = r.departDate;
