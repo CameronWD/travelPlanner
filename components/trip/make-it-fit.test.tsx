@@ -9,6 +9,7 @@ vi.mock("@/server/actions/stops", () => ({
   setStopNights: (...a: unknown[]) => setStopNights(...a),
   deleteStop: (...a: unknown[]) => deleteStop(...a),
 }));
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 
 const stop = (over: Partial<FitStop>): FitStop => ({
   id: "s", name: "Stop", arriveDate: null, departDate: null, nights: null, pinned: false, sortOrder: 0, ...over,
@@ -49,5 +50,38 @@ describe("MakeItFit", () => {
     const dropRome = await screen.findByRole("button", { name: /drop rome/i });
     fireEvent.click(dropRome);
     await waitFor(() => expect(deleteStop).toHaveBeenCalledWith("a"));
+  });
+
+  it("re-simulates live and disables Apply when the inputs are reset to current nights", () => {
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+    // reset both inputs back to their current nights → no trims, still over
+    fireEvent.change(screen.getByLabelText(/nights for rome/i), { target: { value: "6" } });
+    fireEvent.change(screen.getByLabelText(/nights for florence/i), { target: { value: "4" } });
+    expect(screen.getByText(/still 4 over/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /apply trim/i })).toBeDisabled();
+  });
+
+  it("applies the seeded plan with the right per-stop nights", async () => {
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /apply trim/i }));
+    await waitFor(() => expect(setStopNights).toHaveBeenCalledWith("a", expect.any(Number)));
+    expect(setStopNights).toHaveBeenCalledWith("b", expect.any(Number));
+    // every call trims to fewer nights than the stop currently has (6 and 4)
+    for (const [id, n] of setStopNights.mock.calls) {
+      expect(n).toBeLessThan(id === "a" ? 6 : 4);
+      expect(n).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  it("keeps the dialog open and toasts when a trim fails", async () => {
+    setStopNights.mockResolvedValueOnce({ success: false, errors: {} });
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /apply trim/i }));
+    await waitFor(() => expect(setStopNights).toHaveBeenCalled());
+    // dialog still shows the over headline
+    expect(screen.getByText(/nights past/i)).toBeInTheDocument();
   });
 });

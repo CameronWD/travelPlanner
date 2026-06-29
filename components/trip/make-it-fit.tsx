@@ -127,14 +127,21 @@ function MakeItFitDialog({
   async function applyTrim() {
     setPending(true);
     try {
+      let applied = 0;
       for (const f of flex) {
         const n = nightsById[f.id];
         if (n !== currentNights(f)) {
           const r = await setStopNights(f.id, n);
           if (!r.success) {
-            toast({ variant: "destructive", title: "Couldn't apply the trim." });
+            toast({
+              variant: "destructive",
+              title: applied > 0
+                ? "Trimmed some stops, but one couldn't be saved — refresh to see the current plan."
+                : "Couldn't apply the trim.",
+            });
             return;
           }
+          applied++;
         }
       }
       onClose();
@@ -201,10 +208,7 @@ function MakeItFitDialog({
                       onChange={(e) =>
                         setNightsById((m) => ({
                           ...m,
-                          [f.id]: Math.max(
-                            0,
-                            Number.parseInt(e.target.value, 10) || 0,
-                          ),
+                          [f.id]: Math.min(currentNights(f), Math.max(0, Number.parseInt(e.target.value, 10) || 0)),
                         }))
                       }
                       className="w-16"
