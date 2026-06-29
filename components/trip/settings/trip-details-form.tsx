@@ -101,6 +101,7 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
       <DateField
         name="hardEndDate"
         label="Hard end date (optional)"
+        description="The trip must end by this date — we'll flag plans that run up to or past it."
         defaultValue={defaultValues.hardEndDate}
         min={defaultValues.startDate || undefined}
         error={fieldError("hardEndDate")}

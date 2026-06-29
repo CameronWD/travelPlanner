@@ -21,5 +21,18 @@ describe("TripDetailsForm", () => {
     await waitFor(() =>
       expect(updateMock).toHaveBeenCalledWith("t1", expect.objectContaining({ hardEndDate: "2026-07-15" })),
     );
+    expect(updateMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("submits an empty hard end date when cleared", async () => {
+    render(
+      <TripDetailsForm
+        tripId="t1"
+        defaultValues={{ name: "Trip", startDate: "2026-07-01", endDate: "2026-07-10", hardEndDate: "", homeCurrency: "AUD" }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(updateMock).toHaveBeenCalledTimes(1));
+    expect(updateMock).toHaveBeenCalledWith("t1", expect.objectContaining({ hardEndDate: "" }));
   });
 });
