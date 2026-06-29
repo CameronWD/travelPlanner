@@ -5,10 +5,12 @@ import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
+import { flagTightConnections } from "@/lib/flags";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
 import { DayNav } from "@/components/trip/day-nav";
 import { DayMapPanel } from "@/components/trip/day-map-panel";
+import { DayFeasibility } from "@/components/trip/day-feasibility";
 import { AddItemButton } from "@/components/trip/item-form-dialog";
 import { JournalEditor } from "@/components/trip/journal-editor";
 import type { TransportMode } from "@/lib/enums";
@@ -261,6 +263,20 @@ export default async function DayPage({
   });
   const itemDirections = buildItemDirections(dayMapModel);
 
+  const feasibility = flagTightConnections(
+    items
+      .filter((it) => it.date === effectiveDate)
+      .map((it) => ({
+        id: it.id,
+        date: it.date,
+        startTime: it.startTime,
+        endTime: it.endTime,
+        lat: it.lat,
+        lng: it.lng,
+      })),
+    { windingFactor: 1.5, avgSpeedKph: 80 },
+  ).map((f) => ({ severity: f.severity, message: f.message }));
+
   return (
     <div className="flex flex-col gap-6">
       {/* Day header */}
@@ -286,6 +302,9 @@ export default async function DayPage({
 
       {/* Day map (collapsed toggle) */}
       <DayMapPanel tripId={tripId} model={dayMapModel} />
+
+      {/* Feasibility advisory */}
+      <DayFeasibility entries={feasibility} />
 
       {/* Detailed timeline */}
       <div className="rounded-xl border border-border bg-card px-4 py-4">
