@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlace } from "@/lib/geocode";
-import { flowDates, computeProjectedEnd, type FlowStop, type FlowConflict } from "@/lib/firm-up";
+import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowStop, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
@@ -532,6 +532,111 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
       changes: { summary: `Firmed up ${n} ${n === 1 ? "stop" : "stops"} · ${formatLongDate(firstArrive)} – ${formatLongDate(lastDepart)}` },
     });
   }
+
+  revalidatePath(`/trips/${tripId}`);
+  return { success: true, conflicts };
+}
+
+// ---------------------------------------------------------------------------
+// firmUpTrip — date EVERY rough stop across the whole trip in one action
+// ---------------------------------------------------------------------------
+
+/**
+ * Date every rough stop across the whole trip, flowing from the trip start date
+ * (or a caller anchor, or the earliest scheduled arrival) in stop order.
+ * Scheduled and Pinned stops are fixed boundaries it flows around; conflicts are
+ * surfaced (pins are never overwritten). Grows the trip window and brings each
+ * chapter's band onto its now-dated stops. Best-effort geocode per dated stop.
+ */
+export async function firmUpTrip(tripId: string, anchorDate?: string): Promise<StopActionResult> {
+  await requireTripAccess(tripId);
+
+  const [trip, stops] = await Promise.all([
+    db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
+    db.stop.findMany({
+      where: { tripId },
+      orderBy: { sortOrder: "asc" },
+      select: {
+        id: true, sortOrder: true, chapterId: true, nights: true, pinned: true,
+        arriveDate: true, departDate: true, timezone: true, name: true, country: true,
+      },
+    }),
+  ]);
+
+  const rough = stops.filter((s) => !s.arriveDate);
+  if (rough.length === 0) {
+    revalidatePath(`/trips/${tripId}`);
+    return { success: true };
+  }
+
+  const earliestScheduled = stops.reduce<string | null>(
+    (min, s) => (s.arriveDate && (min === null || s.arriveDate < min) ? s.arriveDate : min),
+    null,
+  );
+  const anchor = trip?.startDate ?? anchorDate ?? earliestScheduled ?? null;
+  if (!anchor) {
+    return { success: false, errors: { anchorDate: ["Set a start date for the trip first."] } };
+  }
+
+  const { results, conflicts } = planTripFirmUp(stops, anchor);
+
+  const tripTz = stops.find((s) => s.timezone)?.timezone ?? "UTC";
+  const stopById = Object.fromEntries(stops.map((s) => [s.id, s]));
+  for (const r of results) {
+    const s = stopById[r.id];
+    const coords = await geocodePlace([s.name, s.country].filter(Boolean).join(", "));
+    await db.stop.update({
+      where: { id: r.id },
+      data: {
+        arriveDate: r.arriveDate,
+        departDate: r.departDate,
+        timezone: s.timezone ?? tripTz,
+        ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
+      },
+    });
+  }
+
+  // Merge freshly-dated rough stops with already-scheduled stops for window +
+  // chapter-span computation.
+  const datedById = new Map<string, { arriveDate: string; departDate: string }>();
+  for (const s of stops) {
+    if (s.arriveDate && s.departDate) datedById.set(s.id, { arriveDate: s.arriveDate, departDate: s.departDate });
+  }
+  for (const r of results) datedById.set(r.id, { arriveDate: r.arriveDate, departDate: r.departDate });
+
+  // Grow the trip window: never shrink endDate; only set startDate when it was null.
+  let maxDepart = anchor;
+  for (const d of datedById.values()) if (d.departDate > maxDepart) maxDepart = d.departDate;
+  const newStart = trip?.startDate ?? anchor;
+  const newEnd = !trip?.endDate || trip.endDate < maxDepart ? maxDepart : trip.endDate;
+  if (newStart !== trip?.startDate || newEnd !== trip?.endDate) {
+    await db.trip.update({ where: { id: tripId }, data: { startDate: newStart, endDate: newEnd } });
+  }
+
+  // Bring each chapter's band onto its now-dated stops, so a rough chapter
+  // becomes an ordinary date range (ADR 0009) rather than dated-stops-in-a-rough-band.
+  const chapterIds = [...new Set(stops.map((s) => s.chapterId).filter((c): c is string => Boolean(c)))];
+  for (const chId of chapterIds) {
+    const spanStops = stops.filter((s) => s.chapterId === chId && datedById.has(s.id));
+    if (spanStops.length === 0) continue;
+    let start = datedById.get(spanStops[0].id)!.arriveDate;
+    let end = datedById.get(spanStops[0].id)!.departDate;
+    for (const s of spanStops) {
+      const d = datedById.get(s.id)!;
+      if (d.arriveDate < start) start = d.arriveDate;
+      if (d.departDate > end) end = d.departDate;
+    }
+    await db.chapter.update({ where: { id: chId }, data: { startDate: start, endDate: end } });
+  }
+
+  await recordActivity({
+    tripId,
+    verb: "UPDATED",
+    entityType: "STOP",
+    entityId: rough[0].id,
+    entityLabel: rough[0].name ?? "",
+    changes: { summary: `Dated ${rough.length} ${rough.length === 1 ? "stop" : "stops"} from ${formatLongDate(anchor)}` },
+  });
 
   revalidatePath(`/trips/${tripId}`);
   return { success: true, conflicts };

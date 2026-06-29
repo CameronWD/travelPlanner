@@ -27,6 +27,7 @@ import {
   toggleStopPin,
   makeStopRough,
   firmUpSegment,
+  firmUpTrip,
   setStopDates,
   reorderStops,
 } from "@/server/actions/stops";
@@ -394,6 +395,24 @@ export function ItineraryManager({
         toast({
           title: "Heads up — earlier stops run past a pinned date; the pin was kept.",
         });
+      }
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  // Date every rough stop across the whole trip from the start date, in one action.
+  async function handleFirmUpTrip() {
+    setPendingId("firm-up-trip");
+    try {
+      const r = await firmUpTrip(tripId);
+      if (!r.success) {
+        toast({
+          variant: "destructive",
+          title: r.errors.anchorDate?.[0] ?? "Set a start date for the trip first.",
+        });
+      } else if (r.conflicts?.length) {
+        toast({ title: "Heads up — some stops run past a pinned date; the pins were kept." });
       }
     } finally {
       setPendingId(null);
@@ -1194,6 +1213,17 @@ export function ItineraryManager({
             </Button>
 
             <div className="flex items-center gap-2">
+              {stops.some((s) => s.arriveDate === null) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleFirmUpTrip}
+                  loading={pendingId === "firm-up-trip"}
+                >
+                  <CalendarClock className="size-4" aria-hidden="true" />
+                  Date all stops from start
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="md"
