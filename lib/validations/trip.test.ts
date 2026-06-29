@@ -142,3 +142,40 @@ describe("createTripSchema hardEndDate", () => {
     expect(result.success).toBe(true);
   });
 });
+
+import { tripSchema } from "./trip";
+
+const base = { name: "Trip", homeCurrency: "AUD" };
+
+describe("tripSchema — blank dates are optional", () => {
+  it("accepts a blank hard end date (treats it as no date)", () => {
+    const r = tripSchema.safeParse({ ...base, startDate: "2026-07-01", endDate: "2026-07-10", hardEndDate: "" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.hardEndDate).toBeUndefined();
+  });
+
+  it("accepts blank start and end dates (a date-less trip)", () => {
+    const r = tripSchema.safeParse({ ...base, startDate: "", endDate: "", hardEndDate: "" });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.startDate).toBeUndefined();
+      expect(r.data.endDate).toBeUndefined();
+    }
+  });
+
+  it("still accepts a real hard end date", () => {
+    const r = tripSchema.safeParse({ ...base, startDate: "2026-07-01", endDate: "2026-07-10", hardEndDate: "2026-07-15" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.hardEndDate).toBe("2026-07-15");
+  });
+
+  it("still rejects a malformed non-empty date", () => {
+    const r = tripSchema.safeParse({ ...base, hardEndDate: "2026-7-1" });
+    expect(r.success).toBe(false);
+  });
+
+  it("still enforces hard end date on or after start date", () => {
+    const r = tripSchema.safeParse({ ...base, startDate: "2026-07-10", hardEndDate: "2026-07-01" });
+    expect(r.success).toBe(false);
+  });
+});
