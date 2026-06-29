@@ -23,6 +23,7 @@ interface TripDetailsFormProps {
     name: string;
     startDate: string;
     endDate: string;
+    hardEndDate: string;
     homeCurrency: string;
   };
 }
@@ -51,6 +52,7 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
       name: data.get("name") as string,
       startDate: data.get("startDate") as string,
       endDate: data.get("endDate") as string,
+      hardEndDate: data.get("hardEndDate") as string,
       homeCurrency: data.get("homeCurrency") as string,
     };
 
@@ -95,6 +97,15 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
           disabled={isPending}
         />
       </div>
+
+      <DateField
+        name="hardEndDate"
+        label="Hard end date (optional)"
+        defaultValue={defaultValues.hardEndDate}
+        min={defaultValues.startDate || undefined}
+        error={fieldError("hardEndDate")}
+        disabled={isPending}
+      />
 
       <Field
         label="Home currency"

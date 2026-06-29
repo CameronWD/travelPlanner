@@ -35,6 +35,7 @@ export default async function SettingsPage({
       name: true,
       startDate: true,
       endDate: true,
+      hardEndDate: true,
       homeCurrency: true,
       drivingWindingFactor: true,
       drivingAvgSpeedKph: true,
@@ -92,6 +93,7 @@ export default async function SettingsPage({
               // A date-less trip renders empty date inputs.
               startDate: trip.startDate ?? "",
               endDate: trip.endDate ?? "",
+              hardEndDate: trip.hardEndDate ?? "",
               homeCurrency: trip.homeCurrency,
             }}
           />
