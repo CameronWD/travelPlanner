@@ -687,6 +687,82 @@ export async function assignStopToChapter(stopId: string, chapterId: string | nu
 }
 
 /**
+ * Reorder stops to an explicit new order (drag-and-drop). Rewrites global
+ * sortOrder = index for the given stops, and reassigns a ROUGH stop's chapterId.
+ * Dated stops keep date-band chapter membership (chapterId ignored for them).
+ * Locked FOR UPDATE to serialise with moveStop/other reorders (cf. ADR 0007).
+ */
+export async function reorderStops(
+  tripId: string,
+  items: { id: string; chapterId: string | null }[],
+): Promise<StopActionResult> {
+  await requireTripAccess(tripId);
+  if (items.length === 0) return { success: true };
+
+  // Pre-validate: reject any target chapter that is DATED (has a startDate).
+  // We fetch all unique chapterIds from the items list; if any resolved chapter
+  // carries a startDate the move is illegal — rough stops can never enter a
+  // dated chapter (R1). We don't error on chapters that aren't found here;
+  // that case is either irrelevant (dated stop whose chapterId will be ignored)
+  // or caught by the DB foreign-key constraint on write.
+  const targetChapterIds = [...new Set(items.map((i) => i.chapterId).filter((c): c is string => c != null))];
+  if (targetChapterIds.length > 0) {
+    const chapters = await db.chapter.findMany({
+      where: { id: { in: targetChapterIds }, tripId },
+      select: { id: true, startDate: true },
+    });
+    for (const ch of chapters) {
+      if (ch.startDate != null) {
+        return {
+          success: false,
+          errors: { chapterId: ["Can't move a rough stop into a dated chapter."] },
+        };
+      }
+    }
+  }
+
+  const ids = items.map((i) => i.id);
+
+  try {
+    await db.$transaction(async (tx) => {
+      // Lock the trip's stops FOR UPDATE to serialise concurrent reorders (ADR 0007).
+      // Prisma can't express SELECT ... FOR UPDATE on findMany, so use raw SQL.
+      const rows = await tx.$queryRaw<Array<{ id: string; tripId: string; arriveDate: string | null }>>`
+        SELECT "id", "tripId", "arriveDate"
+        FROM "Stop"
+        WHERE "id" = ANY(${ids})
+        FOR UPDATE
+      `;
+      const byId = new Map(rows.map((r) => [r.id, r]));
+
+      // Every id must exist and belong to this trip.
+      for (const id of ids) {
+        const r = byId.get(id);
+        if (!r || r.tripId !== tripId) throw new Error("STOP_NOT_IN_TRIP");
+      }
+
+      // Write sortOrder for every stop; write chapterId only for rough stops.
+      for (let idx = 0; idx < items.length; idx++) {
+        const it = items[idx];
+        const isRough = byId.get(it.id)!.arriveDate == null;
+        await tx.stop.update({
+          where: { id: it.id },
+          data: isRough ? { sortOrder: idx, chapterId: it.chapterId } : { sortOrder: idx },
+        });
+      }
+    });
+  } catch (e) {
+    if (e instanceof Error && e.message === "STOP_NOT_IN_TRIP") {
+      return { success: false, errors: { id: ["One or more stops aren't part of this trip."] } };
+    }
+    throw e;
+  }
+
+  revalidatePath(`/trips/${tripId}`);
+  return { success: true };
+}
+
+/**
  * Compute a trip's projected end + its hard end date in one round trip, for
  * feeding the Flag detector on the Summary and Home (which don't otherwise
  * load the full stop set). See computeProjectedEnd / ADR 0013.
