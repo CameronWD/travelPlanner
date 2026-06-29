@@ -1,4 +1,4 @@
-import { addDays } from "./dates";
+import { addDays, nightsBetween } from "./dates";
 
 export interface FlowStop {
   id: string;
@@ -74,4 +74,61 @@ export function flowDates(
   }
 
   return { results, conflicts };
+}
+
+/** Nights of remaining slack at/under which the plan is "approaching" the hard end date. */
+export const HARD_END_APPROACHING_NIGHTS = 2;
+
+export interface ProjectionStop {
+  id: string;
+  arriveDate: string | null;
+  departDate: string | null;
+  nights: number | null;
+  pinned: boolean;
+  sortOrder: number;
+}
+
+/**
+ * Project where the trip currently ends: every stop's nights flowed forward
+ * from the anchor (rough stops included), reusing flowDates. Scheduled stops
+ * keep their real dates (treated as fixed boundaries so gaps are preserved);
+ * only rough stops flow. Returns the latest depart date, or null when there's
+ * nothing to anchor to (no start date and no scheduled stop).
+ */
+export function computeProjectedEnd(
+  stops: readonly ProjectionStop[],
+  anchorDate: string | null,
+): string | null {
+  if (stops.length === 0) return null;
+  const ordered = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  let anchor = anchorDate;
+  if (!anchor) {
+    let earliest: string | null = null;
+    for (const s of ordered) {
+      if (s.arriveDate && (earliest === null || s.arriveDate < earliest)) earliest = s.arriveDate;
+    }
+    anchor = earliest;
+  }
+  if (!anchor) return null;
+
+  const flowStops: FlowStop[] = ordered.map((s) => {
+    const scheduled = Boolean(s.arriveDate && s.departDate);
+    return {
+      id: s.id,
+      nights: scheduled
+        ? nightsBetween(s.arriveDate as string, s.departDate as string)
+        : Math.max(0, s.nights ?? 1),
+      pinned: scheduled || s.pinned,
+      arriveDate: s.arriveDate,
+      departDate: s.departDate,
+    };
+  });
+
+  const { results } = flowDates(flowStops, anchor);
+  let end: string | null = null;
+  for (const r of results) {
+    if (end === null || r.departDate > end) end = r.departDate;
+  }
+  return end;
 }
