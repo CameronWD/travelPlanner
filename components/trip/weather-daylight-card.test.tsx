@@ -3,11 +3,12 @@ import { render, screen } from "@testing-library/react";
 import { WeatherDaylightCard } from "./weather-daylight-card";
 
 const baseDaylight = {
-  sunriseUTC: "05:30",
-  sunsetUTC: "20:10",
+  sunrise: "05:30",
+  sunset: "20:10",
   dayLengthMin: 880,
   polarDay: false,
   polarNight: false,
+  tzLabel: "BST",
 };
 
 const forecastWeather = {
@@ -19,7 +20,7 @@ const forecastWeather = {
 };
 
 describe("WeatherDaylightCard", () => {
-  it("renders forecast temps, label, sunrise and sunset", () => {
+  it("renders forecast temps, label, sunrise and sunset with timezone label", () => {
     render(
       <WeatherDaylightCard weather={forecastWeather} daylight={baseDaylight} />,
     );
@@ -28,6 +29,7 @@ describe("WeatherDaylightCard", () => {
     expect(screen.getByText(/Clear/)).toBeInTheDocument();
     expect(screen.getByText(/05:30/)).toBeInTheDocument();
     expect(screen.getByText(/20:10/)).toBeInTheDocument();
+    expect(screen.getByText(/BST/)).toBeInTheDocument();
   });
 
   it('shows a "typical" qualifier when source is typical', () => {
@@ -46,13 +48,33 @@ describe("WeatherDaylightCard", () => {
 
   it('shows "Daylight all day" for polarDay', () => {
     const polarDaylight = {
-      sunriseUTC: null,
-      sunsetUTC: null,
+      sunrise: null,
+      sunset: null,
       dayLengthMin: 1440,
       polarDay: true,
       polarNight: false,
+      tzLabel: null,
     };
     render(<WeatherDaylightCard weather={null} daylight={polarDaylight} />);
     expect(screen.getByText(/Daylight all day/i)).toBeInTheDocument();
+  });
+
+  it('shows "Polar night" for polarNight', () => {
+    const polarNightDaylight = {
+      sunrise: null,
+      sunset: null,
+      dayLengthMin: 0,
+      polarDay: false,
+      polarNight: true,
+      tzLabel: null,
+    };
+    render(<WeatherDaylightCard weather={null} daylight={polarNightDaylight} />);
+    expect(screen.getByText(/Polar night/i)).toBeInTheDocument();
+  });
+
+  it("renders without tzLabel when tzLabel is null", () => {
+    const noTzDaylight = { ...baseDaylight, tzLabel: null };
+    render(<WeatherDaylightCard weather={null} daylight={noTzDaylight} />);
+    expect(screen.getByText(/05:30/)).toBeInTheDocument();
   });
 });

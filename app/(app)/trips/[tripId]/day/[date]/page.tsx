@@ -6,8 +6,9 @@ import { formatLongDate, todayISO } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
 import { flagTightConnections } from "@/lib/flags";
-import { daylight } from "@/lib/daylight";
+import { daylight, utcHmToZone } from "@/lib/daylight";
 import { getDayWeather } from "@/lib/weather";
+import { tzAbbrev } from "@/lib/dates";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
 import { DayNav } from "@/components/trip/day-nav";
@@ -270,10 +271,30 @@ export default async function DayPage({
 
   // ── Weather & daylight ────────────────────────────────────────────────────
   const dayStop = stops.find((s) => s.id === dayPlan.stop?.id);
-  const dl =
+  const dlRaw =
     dayStop?.lat != null && dayStop?.lng != null
       ? daylight(dayStop.lat, dayStop.lng, effectiveDate)
       : null;
+
+  // Convert UTC sunrise/sunset to the stop's local timezone for display.
+  const stopTimezone = dayStop?.timezone ?? "UTC";
+  const dl = dlRaw
+    ? {
+        sunrise:
+          dlRaw.sunriseUTC != null
+            ? utcHmToZone(effectiveDate, dlRaw.sunriseUTC, stopTimezone)
+            : null,
+        sunset:
+          dlRaw.sunsetUTC != null
+            ? utcHmToZone(effectiveDate, dlRaw.sunsetUTC, stopTimezone)
+            : null,
+        dayLengthMin: dlRaw.dayLengthMin,
+        polarDay: dlRaw.polarDay,
+        polarNight: dlRaw.polarNight,
+        tzLabel: tzAbbrev(stopTimezone, effectiveDate),
+      }
+    : null;
+
   const wx =
     dayStop?.lat != null && dayStop?.lng != null
       ? await getDayWeather({
@@ -289,12 +310,19 @@ export default async function DayPage({
       .filter((it) => it.date === effectiveDate)
       .map((it) => ({
         id: it.id,
+        stopId: it.stopId,
         date: it.date,
         startTime: it.startTime,
         endTime: it.endTime,
         lat: it.lat,
         lng: it.lng,
       })),
+    transports.map((t) => ({
+      id: t.id,
+      fromStopId: t.fromStopId,
+      toStopId: t.toStopId,
+      mode: t.mode,
+    })),
     { windingFactor: 1.5, avgSpeedKph: 80 },
   ).map((f) => ({ severity: f.severity, message: f.message }));
 

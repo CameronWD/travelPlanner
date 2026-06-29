@@ -690,7 +690,7 @@ describe("flagTightConnections", () => {
       makeItem({ id: "a", date: "2026-07-02", startTime: "10:00", endTime: "12:00", lat: 48.860, lng: 2.337 }),
       makeItem({ id: "b", date: "2026-07-02", startTime: "12:20", endTime: "13:00", lat: 48.8618, lng: 2.337 }),
     ];
-    expect(flagTightConnections(items, OPTS)).toHaveLength(0);
+    expect(flagTightConnections(items, [], OPTS)).toHaveLength(0);
   });
 
   it("warning when gap (10 min) < walk time (~26.69 min for 2 km apart)", () => {
@@ -699,7 +699,7 @@ describe("flagTightConnections", () => {
       makeItem({ id: "a", date: "2026-07-02", startTime: "10:00", endTime: "12:00", lat: 48.860, lng: 2.337 }),
       makeItem({ id: "b", date: "2026-07-02", startTime: "12:10", endTime: "13:00", lat: 48.8780, lng: 2.337 }),
     ];
-    const flags = flagTightConnections(items, OPTS);
+    const flags = flagTightConnections(items, [], OPTS);
     expect(flags).toHaveLength(1);
     expect(flags[0].severity).toBe("warning");
     expect(flags[0].targetType).toBe("DAY");
@@ -712,7 +712,7 @@ describe("flagTightConnections", () => {
       makeItem({ id: "a", date: "2026-07-02", startTime: "10:00", endTime: "12:00", lat: 48.860, lng: 2.337 }),
       makeItem({ id: "b", date: "2026-07-02", startTime: "12:20", endTime: "13:00", lat: 48.8681, lng: 2.337 }),
     ];
-    const flags = flagTightConnections(items, OPTS);
+    const flags = flagTightConnections(items, [], OPTS);
     expect(flags).toHaveLength(1);
     expect(flags[0].severity).toBe("info");
     expect(flags[0].targetType).toBe("DAY");
@@ -725,7 +725,7 @@ describe("flagTightConnections", () => {
       makeItem({ id: "a", date: "2026-07-02", startTime: "08:00", endTime: "09:00", lat: 48.860, lng: 2.337 }),
       makeItem({ id: "b", date: "2026-07-02", startTime: "09:30", endTime: "11:00", lat: 49.309, lng: 2.337 }),
     ];
-    const flags = flagTightConnections(items, OPTS);
+    const flags = flagTightConnections(items, [], OPTS);
     // Drive ≈ 56 min; gap = 30 min → gap < drive → warning
     expect(flags).toHaveLength(1);
     expect(flags[0].severity).toBe("warning");
@@ -737,23 +737,60 @@ describe("flagTightConnections", () => {
       makeItem({ id: "a", date: "2026-07-02", lat: 48.860, lng: 2.337 }), // no startTime/endTime
       makeItem({ id: "b", date: "2026-07-02", startTime: "12:05", endTime: "13:00", lat: 48.8780, lng: 2.337 }),
     ];
-    expect(flagTightConnections(noTimes, OPTS)).toHaveLength(0);
+    expect(flagTightConnections(noTimes, [], OPTS)).toHaveLength(0);
 
     const noCoords: FlagItem[] = [
       makeItem({ id: "a", date: "2026-07-02", startTime: "10:00", endTime: "12:00" }), // no lat/lng
       makeItem({ id: "b", date: "2026-07-02", startTime: "12:10", endTime: "13:00", lat: 48.8780, lng: 2.337 }),
     ];
-    expect(flagTightConnections(noCoords, OPTS)).toHaveLength(0);
+    expect(flagTightConnections(noCoords, [], OPTS)).toHaveLength(0);
 
     const diffDays: FlagItem[] = [
       makeItem({ id: "a", date: "2026-07-02", startTime: "10:00", endTime: "12:00", lat: 48.860, lng: 2.337 }),
       makeItem({ id: "b", date: "2026-07-03", startTime: "12:10", endTime: "13:00", lat: 48.8780, lng: 2.337 }),
     ];
-    expect(flagTightConnections(diffDays, OPTS)).toHaveLength(0);
+    expect(flagTightConnections(diffDays, [], OPTS)).toHaveLength(0);
   });
 
   it("exports TIGHT_CONNECTION_BUFFER_MIN = 15", () => {
     expect(TIGHT_CONNECTION_BUFFER_MIN).toBe(15);
+  });
+
+  it("skips a far-apart same-day pair when a transport connects their stops (no flag)", () => {
+    // Two items ~50 km apart on the same day, at different stops — would normally fire a warning.
+    // A transport connects stopA → stopB, so the pair must be skipped.
+    const items: FlagItem[] = [
+      makeItem({
+        id: "a",
+        stopId: "stopA",
+        date: "2026-07-02",
+        startTime: "08:00",
+        endTime: "09:00",
+        lat: 48.860,
+        lng: 2.337,
+      }),
+      makeItem({
+        id: "b",
+        stopId: "stopB",
+        date: "2026-07-02",
+        startTime: "09:30",
+        endTime: "11:00",
+        lat: 49.309,
+        lng: 2.337,
+      }),
+    ];
+    const connectingTransport: FlagTransport = makeTransport({
+      id: "t1",
+      fromStopId: "stopA",
+      toStopId: "stopB",
+      mode: "FLIGHT",
+    });
+
+    // With the connecting transport → no flag (transport handles the location change)
+    expect(flagTightConnections(items, [connectingTransport], OPTS)).toHaveLength(0);
+
+    // Without a connecting transport → warning (50 km apart, 30-min gap)
+    expect(flagTightConnections(items, [], OPTS)).toHaveLength(1);
   });
 });
 

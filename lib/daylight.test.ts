@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { daylight } from "./daylight";
+import { daylight, utcHmToZone } from "./daylight";
 
 /**
  * Helper: parse an "HH:MM" UTC string to total minutes since midnight.
@@ -95,5 +95,21 @@ describe("daylight", () => {
       expect(result.sunsetUTC).toBeNull();
       expect(result.dayLengthMin).toBe(1440);
     });
+  });
+});
+
+describe("utcHmToZone", () => {
+  it("converts 05:30 UTC on 2026-06-21 to Asia/Tokyo local time → 14:30", () => {
+    // Asia/Tokyo is UTC+9, so 05:30 UTC → 14:30 JST
+    expect(utcHmToZone("2026-06-21", "05:30", "Asia/Tokyo")).toBe("14:30");
+  });
+
+  it("handles a timezone with a half-hour offset (Asia/Kolkata UTC+5:30)", () => {
+    // 00:00 UTC → 05:30 IST
+    expect(utcHmToZone("2026-06-21", "00:00", "Asia/Kolkata")).toBe("05:30");
+  });
+
+  it("falls back to the original HH:MM when the timezone is invalid", () => {
+    expect(utcHmToZone("2026-06-21", "10:00", "Not/AZone")).toBe("10:00");
   });
 });

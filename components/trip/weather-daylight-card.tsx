@@ -1,9 +1,23 @@
 import type { DayWeather } from "@/lib/weather";
-import type { DaylightResult } from "@/lib/daylight";
+
+interface DaylightProps {
+  /** Local sunrise time as "HH:MM" in the stop's timezone, or null on polar day/night. */
+  sunrise: string | null;
+  /** Local sunset time as "HH:MM" in the stop's timezone, or null on polar day/night. */
+  sunset: string | null;
+  /** Day length in minutes (0 on polar night, 1440 on polar day). */
+  dayLengthMin: number;
+  /** True when the sun never sets (midnight sun). */
+  polarDay: boolean;
+  /** True when the sun never rises. */
+  polarNight: boolean;
+  /** Short timezone label for display, e.g. "AEST" or "BST". */
+  tzLabel: string | null;
+}
 
 interface Props {
   weather: DayWeather | null;
-  daylight: DaylightResult;
+  daylight: DaylightProps;
 }
 
 function formatDayLength(minutes: number): string {
@@ -52,7 +66,8 @@ export function WeatherDaylightCard({ weather, daylight }: Props) {
           <span>Polar night</span>
         ) : (
           <span>
-            ☀ {daylight.sunriseUTC} – {daylight.sunsetUTC} ·{" "}
+            ☀ {daylight.sunrise} – {daylight.sunset}
+            {daylight.tzLabel ? ` ${daylight.tzLabel}` : ""} ·{" "}
             {formatDayLength(daylight.dayLengthMin)} of light
           </span>
         )}

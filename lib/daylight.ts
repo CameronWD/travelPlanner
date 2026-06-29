@@ -13,6 +13,30 @@
 
 import { parseISODate } from "@/lib/dates";
 
+/**
+ * Convert a UTC HH:MM time on a given date to the wall-clock HH:MM in the
+ * target IANA timezone.
+ *
+ * @param dateISO  - Calendar date the UTC time falls on, e.g. "2026-06-21".
+ * @param hm       - UTC time as "HH:MM", e.g. "05:30".
+ * @param timeZone - IANA timezone identifier, e.g. "Asia/Tokyo".
+ * @returns        - "HH:MM" in the target timezone, e.g. "14:30".
+ */
+export function utcHmToZone(dateISO: string, hm: string, timeZone: string): string {
+  const instant = new Date(`${dateISO}T${hm}:00Z`);
+  try {
+    return new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(instant);
+  } catch {
+    // Invalid timezone — return UTC time unchanged
+    return hm;
+  }
+}
+
 export interface DaylightResult {
   /** Sunrise time in HH:MM (UTC), or null on polar day / polar night. */
   sunriseUTC: string | null;

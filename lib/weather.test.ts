@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { DayWeather } from "./weather";
 
 // We build a fresh mock payload helper
 function makePayload(high: number, low: number, code: number) {
@@ -129,6 +128,25 @@ describe("getDayWeather", () => {
     const result = await getDayWeather({ lat: 35.6, lng: 139.7, dateISO, today });
 
     expect(result).toBeNull();
+  });
+
+  it("case 5: Feb 29 target date → previous year's archive date is Feb 28 (not non-existent Feb 29)", async () => {
+    // 2028 is a leap year; 2027 is not — so 2028-02-29 must fall back to 2027-02-28.
+    // today is far enough in the past that out > 16 → archive branch is used.
+    const today = "2026-01-01";
+    const dateISO = "2028-02-29";
+    const payload = makePayload(5, -2, 71);
+    global.fetch = makeFetchOk(payload);
+
+    const { getDayWeather } = await import("./weather");
+    const result = await getDayWeather({ lat: 60.0, lng: 24.0, dateISO, today });
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    const calledUrl = new URL((global.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0]);
+    // Must use Feb 28 of the prior year, not Feb 29
+    expect(calledUrl.searchParams.get("start_date")).toBe("2027-02-28");
+    expect(result).not.toBeNull();
+    expect(result!.source).toBe("typical");
   });
 });
 

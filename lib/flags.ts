@@ -572,8 +572,18 @@ function hhmmToMin(t: string): number {
 
 export function flagTightConnections(
   items: FlagItem[],
+  transports: FlagTransport[],
   opts: { windingFactor: number; avgSpeedKph: number },
 ): Flag[] {
+  // Build a direction-agnostic set of stop pairs connected by a transport leg.
+  const connectedStopPairs = new Set<string>();
+  for (const t of transports) {
+    if (t.fromStopId && t.toStopId && t.fromStopId !== t.toStopId) {
+      connectedStopPairs.add(`${t.fromStopId}-${t.toStopId}`);
+      connectedStopPairs.add(`${t.toStopId}-${t.fromStopId}`);
+    }
+  }
+
   // Collect fully-timed, located items grouped by date
   const byDate = new Map<
     string,
@@ -596,6 +606,18 @@ export function flagTightConnections(
     for (let i = 1; i < sorted.length; i++) {
       const prev = sorted[i - 1];
       const next = sorted[i];
+
+      // Skip pairs that are at different stops connected by a transport leg —
+      // changing location mid-day is the transport's job, not a walk-feasibility problem.
+      if (
+        prev.stopId &&
+        next.stopId &&
+        prev.stopId !== next.stopId &&
+        connectedStopPairs.has(`${prev.stopId}-${next.stopId}`)
+      ) {
+        continue;
+      }
+
       const km = haversineKm({ lat: prev.lat, lng: prev.lng }, { lat: next.lat, lng: next.lng });
       const walkMin = (km / WALK_KMH) * 60;
       const travel = walkMin <= MAX_WALK_MIN ? walkMin : estimateDriveMinutes(km, opts);
@@ -700,7 +722,7 @@ export function detectFlags({
     ...flagPackedDays(items),
     ...flagRoughStops(roughStopCount ?? 0),
     ...flagSpreadDays(items),
-    ...flagTightConnections(items, {
+    ...flagTightConnections(items, transports, {
       windingFactor: drivingWindingFactor ?? 1.5,
       avgSpeedKph: drivingAvgSpeedKph ?? 80,
     }),

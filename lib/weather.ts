@@ -57,8 +57,11 @@ export async function getDayWeather(args: {
       }
     } else {
       // "Typical": same calendar date, previous year, from the archive API.
+      // If the target date is Feb 29 (leap day), fall back to Feb 28 in the prior year.
       const d = parseISODate(dateISO);
-      const prevYear = `${d.getUTCFullYear() - 1}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+      const month = d.getUTCMonth() + 1;
+      const day = d.getUTCMonth() === 1 && d.getUTCDate() === 29 ? 28 : d.getUTCDate();
+      const prevYear = `${d.getUTCFullYear() - 1}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       const u = new URL("https://archive-api.open-meteo.com/v1/archive");
       u.searchParams.set("latitude", String(lat));
       u.searchParams.set("longitude", String(lng));
