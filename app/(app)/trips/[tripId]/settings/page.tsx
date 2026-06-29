@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { TripDetailsForm } from "@/components/trip/settings/trip-details-form";
+import { CoverImageField } from "@/components/trip/settings/cover-image-field";
 import { InvitePanel } from "@/components/trip/settings/invite-panel";
 import { SharePanel } from "@/components/trip/settings/share-panel";
 import { CalendarFeedPanel } from "@/components/trip/settings/calendar-feed-panel";
@@ -36,6 +37,7 @@ export default async function SettingsPage({
       startDate: true,
       endDate: true,
       hardEndDate: true,
+      coverImageKey: true,
       homeCurrency: true,
       drivingWindingFactor: true,
       drivingAvgSpeedKph: true,
@@ -97,6 +99,9 @@ export default async function SettingsPage({
               homeCurrency: trip.homeCurrency,
             }}
           />
+          <div className="mt-6">
+            <CoverImageField tripId={tripId} hasCover={trip.coverImageKey != null} />
+          </div>
         </CardContent>
       </Card>
 
