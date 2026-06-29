@@ -98,6 +98,7 @@ model Trip {
   name         String
   startDate    String? // "YYYY-MM-DD" — null while the trip is a date-less idea
   endDate      String? // "YYYY-MM-DD" — soft; auto-extends to cover scheduled stops
+  hardEndDate  String? // "YYYY-MM-DD" — optional traveller-set ceiling; never auto-extends (see ADR 0013)
   homeCurrency String // ISO 4217, e.g. "AUD"
 
   // Per-trip driving-estimate settings (used by drive-time hints + the
