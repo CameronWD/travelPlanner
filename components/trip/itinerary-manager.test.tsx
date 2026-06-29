@@ -148,7 +148,7 @@ describe("delete confirmation gating", () => {
 // ---------------------------------------------------------------------------
 
 describe("reorder controls", () => {
-  it("calls moveStop(stopId, 'down') when the move-down button is clicked", async () => {
+  it("calls moveStop(stopId, 'down') when the move-down overflow item is clicked", async () => {
     const user = userEvent.setup();
     // Two stops so neither is first-and-last simultaneously (otherwise both buttons disabled)
     const stopA = makeStop({ id: "s-1", name: "Paris", sortOrder: 0 });
@@ -158,18 +158,17 @@ describe("reorder controls", () => {
       <ItineraryManager {...baseProps} initialStops={[stopA, stopB]} />,
     );
 
-    // Paris is first (not last) → move-down button should be enabled
-    // jsdom renders both the inline (sm:flex) and the overflow menu (sm:hidden),
-    // so there may be multiple buttons. Use getAllByRole and take the first one.
-    const moveDownButtons = screen.getAllByRole("button", { name: "Move Paris down" });
-    await user.click(moveDownButtons[0]);
+    // Inline desktop arrows are retired. Reorder is now in the overflow menu (rough stops only).
+    // Open the Paris overflow menu and click "Move down".
+    await user.click(screen.getByRole("button", { name: "More actions for Paris" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move down" }));
 
     await waitFor(() => {
       expect(moveStop).toHaveBeenCalledWith("s-1", "down");
     });
   });
 
-  it("calls moveStop(stopId, 'up') when the move-up button is clicked", async () => {
+  it("calls moveStop(stopId, 'up') when the move-up overflow item is clicked", async () => {
     const user = userEvent.setup();
     const stopA = makeStop({ id: "s-1", name: "Paris", sortOrder: 0 });
     const stopB = makeStop({ id: "s-2", name: "Berlin", sortOrder: 1 });
@@ -178,34 +177,33 @@ describe("reorder controls", () => {
       <ItineraryManager {...baseProps} initialStops={[stopA, stopB]} />,
     );
 
-    // Berlin is last (not first) → move-up button should be enabled
-    const moveUpButtons = screen.getAllByRole("button", { name: "Move Berlin up" });
-    await user.click(moveUpButtons[0]);
+    // Berlin is last (not first) → move-up item should be enabled.
+    await user.click(screen.getByRole("button", { name: "More actions for Berlin" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Move up" }));
 
     await waitFor(() => {
       expect(moveStop).toHaveBeenCalledWith("s-2", "up");
     });
   });
 
-  it("move-up is disabled for the first stop", () => {
+  it("move-up overflow item is disabled for the first stop", async () => {
+    const user = userEvent.setup();
     const stop = makeStop({ id: "s-1", name: "Paris", sortOrder: 0 });
     render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    // Both inline and overflow menu buttons should be disabled
-    const upButtons = screen.getAllByRole("button", { name: "Move Paris up" });
-    for (const btn of upButtons) {
-      expect(btn).toBeDisabled();
-    }
+    await user.click(screen.getByRole("button", { name: "More actions for Paris" }));
+    const upItem = await screen.findByRole("menuitem", { name: "Move up" });
+    expect(upItem).toHaveAttribute("data-disabled");
   });
 
-  it("move-down is disabled for the last stop", () => {
+  it("move-down overflow item is disabled for the last stop", async () => {
+    const user = userEvent.setup();
     const stop = makeStop({ id: "s-1", name: "Paris", sortOrder: 0 });
     render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    const downButtons = screen.getAllByRole("button", { name: "Move Paris down" });
-    for (const btn of downButtons) {
-      expect(btn).toBeDisabled();
-    }
+    await user.click(screen.getByRole("button", { name: "More actions for Paris" }));
+    const downItem = await screen.findByRole("menuitem", { name: "Move down" });
+    expect(downItem).toHaveAttribute("data-disabled");
   });
 });
 
