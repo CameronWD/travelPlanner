@@ -31,4 +31,19 @@ describe("PlanOverview", () => {
     render(<PlanOverview tripId="t1" summary={base} startDate="2026-07-01" />);
     expect(screen.getByTestId("hard-end-control")).toBeInTheDocument();
   });
+
+  it("shows no live region when the hard end date is unset", () => {
+    render(<PlanOverview tripId="t1" summary={{ ...base, hardEndDate: null, hardEndState: "unset", hardEndSlackNights: null }} startDate="2026-07-01" />);
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("reads 'ends right on it' when the projection lands exactly on the hard end date", () => {
+    render(<PlanOverview tripId="t1" summary={{ ...base, hardEndState: "approaching", hardEndSlackNights: 0 }} startDate="2026-07-01" />);
+    expect(screen.getByRole("status")).toHaveTextContent(/ends right on it/i);
+  });
+
+  it("shows spare nights when comfortably under the hard end date", () => {
+    render(<PlanOverview tripId="t1" summary={{ ...base, hardEndState: "ok", hardEndSlackNights: 5 }} startDate="2026-07-01" />);
+    expect(screen.getByRole("status")).toHaveTextContent(/5 nights spare/i);
+  });
 });

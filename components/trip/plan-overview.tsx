@@ -13,22 +13,26 @@ interface PlanOverviewProps {
 const HARD_END_TONE: Record<HardEndState, string> = {
   unset: "text-muted-foreground",
   dormant: "text-muted-foreground",
+  // 'ok' shows spare nights but stays muted — reassurance, not an alert.
   ok: "text-muted-foreground",
-  approaching: "text-amber-600 dark:text-amber-500",
+  approaching: "text-amber-600 dark:text-amber-400",
   over: "text-destructive",
 };
+
+function pluralNights(n: number): string {
+  return `${n} night${n === 1 ? "" : "s"}`;
+}
 
 function hardEndStatusText(summary: PlanSummary): string | null {
   const { hardEndState, hardEndSlackNights } = summary;
   if (hardEndState === "over" && hardEndSlackNights != null) {
-    const n = -hardEndSlackNights;
-    return `${n} night${n === 1 ? "" : "s"} over`;
+    return `${pluralNights(-hardEndSlackNights)} over`;
   }
   if (hardEndState === "approaching" && hardEndSlackNights != null) {
-    return hardEndSlackNights === 0 ? "ends right on it" : `${hardEndSlackNights} night${hardEndSlackNights === 1 ? "" : "s"} spare`;
+    return hardEndSlackNights === 0 ? "ends right on it" : `${pluralNights(hardEndSlackNights)} spare`;
   }
   if (hardEndState === "ok" && hardEndSlackNights != null) {
-    return `${hardEndSlackNights} nights spare`;
+    return `${pluralNights(hardEndSlackNights)} spare`;
   }
   if (hardEndState === "dormant") return "set a start date to check this";
   return null;
@@ -61,7 +65,7 @@ export function PlanOverview({ tripId, summary, startDate }: PlanOverviewProps) 
       <div className="flex items-center gap-2">
         <Moon className="size-4 text-muted-foreground" aria-hidden="true" />
         <span className="text-sm">
-          <span className="font-semibold text-foreground">{scheduledNights} night{scheduledNights === 1 ? "" : "s"}</span>
+          <span className="font-semibold text-foreground">{pluralNights(scheduledNights)}</span>
           {hasRough && <span className="text-muted-foreground"> scheduled · {projectedNights} projected</span>}
         </span>
       </div>
@@ -82,14 +86,20 @@ export function PlanOverview({ tripId, summary, startDate }: PlanOverviewProps) 
         </span>
       </div>
 
-      {/* Hard end date */}
+      {/* Hard end date. sm:ml-auto pushes this to the right on a single row; it
+          harmlessly collapses when the row wraps on narrow viewports. */}
       <div className="flex items-center gap-2 sm:ml-auto">
         <Flag className={cn("size-4", HARD_END_TONE[hardEndState])} aria-hidden="true" />
         <div className="flex flex-col">
           <span className="text-xs uppercase tracking-wide text-muted-foreground">Hard end date</span>
-          <span role="status" className={cn("text-sm", HARD_END_TONE[hardEndState])}>
+          <span className="flex flex-wrap items-center gap-1 text-sm">
             <HardEndDateControl tripId={tripId} hardEndDate={hardEndDate} startDate={startDate} />
-            {statusText && <span className="ml-2">{statusText}</span>}
+            {/* Live region is the status text ALONE — never the interactive control. */}
+            {statusText && (
+              <span role="status" aria-live="polite" className={cn("ml-1", HARD_END_TONE[hardEndState])}>
+                {statusText}
+              </span>
+            )}
           </span>
         </div>
       </div>
