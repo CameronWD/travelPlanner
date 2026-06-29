@@ -104,11 +104,17 @@ export async function updateTrip(
     return { success: false, errors: fieldErrors };
   }
 
-  const { name, startDate, endDate, homeCurrency } = parsed.data;
+  const { name, startDate, endDate, hardEndDate, homeCurrency } = parsed.data;
 
   await db.trip.update({
     where: { id: tripId },
-    data: { name, startDate: startDate ?? null, endDate: endDate ?? null, homeCurrency },
+    data: {
+      name,
+      startDate: startDate ?? null,
+      endDate: endDate ?? null,
+      hardEndDate: hardEndDate ?? null,
+      homeCurrency,
+    },
   });
 
   revalidatePath(`/trips/${tripId}`);
