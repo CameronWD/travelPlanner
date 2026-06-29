@@ -4,7 +4,6 @@ import * as React from "react";
 import Link from "next/link";
 import { LogIn, LogOut, Navigation } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { categoryDotClass } from "@/components/trip/category-dot";
 import { buildMonthGrid, MONTH_GRID_WEEKDAYS } from "@/lib/month-grid";
 import { parseISODate } from "@/lib/dates";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
@@ -22,7 +21,6 @@ const STOP_BAND_CLASSES = [
   "border-l-teal-400",
 ];
 
-const MAX_VISIBLE_ITEMS = 3;
 
 export interface MonthGridProps {
   tripId: string;
@@ -78,12 +76,12 @@ export function MonthGrid({
           const timed = day?.timedItems ?? [];
           const untimed = day?.untimedItems ?? [];
           const allItems = [...timed, ...untimed];
-          const visible = allItems.slice(0, MAX_VISIBLE_ITEMS);
-          const overflow = allItems.length - visible.length;
           const packed = timed.length > PACKED_DAY_THRESHOLD;
 
+          const itemCount = allItems.length;
+
           const cellInner = (
-            <>
+            <div className="flex h-full flex-col">
               <div className="flex items-center justify-between">
                 <span
                   className={cn(
@@ -121,33 +119,32 @@ export function MonthGrid({
                 </span>
               </div>
 
-              <ul className="mt-1 flex flex-col gap-0.5">
-                {visible.map((entry) => (
-                  <li
-                    key={entry.item.id}
-                    draggable={Boolean(onDropItem)}
-                    onDragStart={
-                      onDropItem
-                        ? (e) => {
-                            e.dataTransfer.setData("text/item-id", entry.item.id);
-                            e.dataTransfer.effectAllowed = "move";
-                          }
-                        : undefined
-                    }
-                    className={cn(
-                      "flex items-center gap-1 truncate text-[11px] leading-tight text-foreground",
-                      onDropItem && "cursor-grab active:cursor-grabbing",
-                    )}
-                  >
-                    <span className={cn("size-1.5 shrink-0 rounded-full", categoryDotClass(entry.item.category))} />
-                    <span className="truncate">{entry.item.title}</span>
-                  </li>
-                ))}
-                {overflow > 0 && (
-                  <li className="text-[11px] leading-tight text-muted-foreground">+{overflow} more</li>
-                )}
-              </ul>
-            </>
+              {day?.stop ? (
+                <div className="flex flex-1 flex-col items-center justify-center px-0.5 text-center">
+                  <span className="line-clamp-2 text-[13px] font-semibold leading-tight text-foreground">
+                    {day.stop.name}
+                  </span>
+                  {day.stop.country && (
+                    <span className="truncate text-[11px] leading-tight text-muted-foreground">
+                      {day.stop.country}
+                    </span>
+                  )}
+                  {itemCount > 0 && (
+                    <span className="mt-0.5 text-[11px] text-muted-foreground">
+                      • {itemCount} {itemCount === 1 ? "thing" : "things"}
+                    </span>
+                  )}
+                </div>
+              ) : itemCount > 0 ? (
+                <div className="flex flex-1 items-center justify-center">
+                  <span className="text-[11px] text-muted-foreground">
+                    • {itemCount} {itemCount === 1 ? "thing" : "things"}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex-1" />
+              )}
+            </div>
           );
 
           const cellClasses = cn(
