@@ -102,3 +102,114 @@ export function simulateAfterTrims(
   for (const s of work) byId[s.id] = s;
   return { byId, projectedEnd };
 }
+
+export interface TrimItem {
+  id: string;
+  name: string;
+  fromNights: number;
+  toNights: number;
+}
+export interface TrimPlan {
+  items: TrimItem[]; // only stops whose nights change
+  resultingEnd: string | null;
+  fits: boolean;
+  /** Nights still over after trimming everything to the floor (0 when it fits). */
+  shortBy: number;
+}
+
+const TRIM_FLOOR = 1;
+
+/**
+ * Build a proportional trim plan: distribute the needed reduction across
+ * flexible stops in proportion to their trimmable headroom, floored at
+ * TRIM_FLOOR, then verify against the ripple-faithful simulation and greedily
+ * trim the stop with the most remaining headroom until it fits or all floored.
+ */
+export function buildTrimPlan(stops: readonly FitStop[], anchor: string | null, hardEndDate: string | null): TrimPlan {
+  const baseEnd = computeProjectedEnd(stops.map(toProjectionStop), anchor);
+  const over = nightsOver(baseEnd, hardEndDate);
+  if (over === 0 || !hardEndDate) {
+    return { items: [], resultingEnd: baseEnd, fits: true, shortBy: 0 };
+  }
+
+  const flex = stops.filter(isFlexible).sort((a, b) => a.sortOrder - b.sortOrder);
+  const target = new Map<string, number>();
+  for (const f of flex) target.set(f.id, currentNights(f));
+
+  const totalTrimmable = flex.reduce((sum, f) => sum + Math.max(0, currentNights(f) - TRIM_FLOOR), 0);
+
+  if (totalTrimmable > 0) {
+    let remaining = over;
+    for (const f of flex) {
+      if (remaining <= 0) break;
+      const headroom = Math.max(0, currentNights(f) - TRIM_FLOOR);
+      if (headroom === 0) continue;
+      const share = Math.min(headroom, Math.min(remaining, Math.round((headroom / totalTrimmable) * over)));
+      target.set(f.id, currentNights(f) - share);
+      remaining -= share;
+    }
+  }
+
+  const trimsFrom = (): { id: string; nights: number }[] =>
+    flex.filter((f) => target.get(f.id)! !== currentNights(f)).map((f) => ({ id: f.id, nights: target.get(f.id)! }));
+
+  const evaluate = () => {
+    const r = simulateAfterTrims(stops, anchor, trimsFrom());
+    return { end: r.projectedEnd, over: nightsOver(r.projectedEnd, hardEndDate) };
+  };
+
+  let guard = 0;
+  let { end, over: stillOver } = evaluate();
+  while (stillOver > 0 && guard++ < 1000) {
+    let pick: FitStop | null = null;
+    let best = 0;
+    for (const f of flex) {
+      const headroom = target.get(f.id)! - TRIM_FLOOR;
+      if (headroom > best) { best = headroom; pick = f; }
+    }
+    if (!pick) break; // all at the floor — can't trim further
+    target.set(pick.id, target.get(pick.id)! - 1);
+    ({ end, over: stillOver } = evaluate());
+  }
+
+  const items: TrimItem[] = flex
+    .filter((f) => target.get(f.id)! !== currentNights(f))
+    .map((f) => ({ id: f.id, name: f.name, fromNights: currentNights(f), toNights: target.get(f.id)! }));
+
+  return { items, resultingEnd: end, fits: stillOver === 0, shortBy: stillOver };
+}
+
+export interface DropCandidate {
+  id: string;
+  name: string;
+  nights: number;
+  resultingEnd: string | null;
+  fits: boolean;
+  recommended: boolean;
+}
+
+/**
+ * For each flexible stop, the projected end if it were dropped (no re-flow,
+ * matching deleteStop). Recommends the single best candidate: the one that fits
+ * with the latest end (closest to the date); else the one that reduces most.
+ */
+export function buildDropCandidates(stops: readonly FitStop[], anchor: string | null, hardEndDate: string | null): DropCandidate[] {
+  const flex = stops.filter(isFlexible).sort((a, b) => a.sortOrder - b.sortOrder);
+  const cands: DropCandidate[] = flex.map((f) => {
+    const remaining = stops.filter((x) => x.id !== f.id).map(toProjectionStop);
+    const end = computeProjectedEnd(remaining, anchor);
+    const fits = Boolean(hardEndDate && end && end <= hardEndDate);
+    return { id: f.id, name: f.name, nights: currentNights(f), resultingEnd: end, fits, recommended: false };
+  });
+
+  const fitting = cands.filter((c) => c.fits && c.resultingEnd);
+  let rec: DropCandidate | undefined;
+  if (fitting.length > 0) {
+    rec = fitting.reduce((bestC, c) => (c.resultingEnd! > bestC.resultingEnd! ? c : bestC));
+  } else {
+    const withEnd = cands.filter((c) => c.resultingEnd);
+    rec = withEnd.length ? withEnd.reduce((bestC, c) => (c.resultingEnd! < bestC.resultingEnd! ? c : bestC)) : undefined;
+  }
+  if (rec) rec.recommended = true;
+  return cands;
+}
