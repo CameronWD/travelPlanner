@@ -31,6 +31,7 @@ export function NewTripForm() {
 
     const startDate = (data.get("startDate") as string) || undefined;
     const endDate = (data.get("endDate") as string) || undefined;
+    const coverFile = (data.get("cover") as File | null) ?? null;
     const input = {
       name: data.get("name") as string,
       homeCurrency: data.get("homeCurrency") as string,
@@ -39,7 +40,7 @@ export function NewTripForm() {
     };
 
     startTransition(async () => {
-      const result = await createTrip(input);
+      const result = await createTrip(input, coverFile && coverFile.size > 0 ? coverFile : null);
       // If createTrip redirects successfully, this line won't be reached.
       // It only resolves here on a validation error.
       if (!result.success) {
@@ -108,6 +109,14 @@ export function NewTripForm() {
             ))}
           </SelectContent>
         </Select>
+      </Field>
+
+      {/* Cover photo (optional) */}
+      <Field
+        label="Cover photo (optional)"
+        description="Upload a photo for this trip. You can change it later in Settings."
+      >
+        <Input type="file" name="cover" accept="image/*" disabled={isPending} />
       </Field>
 
       {/* Actions */}

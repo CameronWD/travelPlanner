@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { getStorage } from "@/lib/storage";
+import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { requireUser, requireTripAccess } from "@/lib/guards";
 import {
   createTripSchema,
@@ -27,6 +27,7 @@ export type CreateTripResult =
  */
 export async function createTrip(
   input: CreateTripInput,
+  coverFile?: File | null,
 ): Promise<CreateTripResult> {
   const user = await requireUser();
 
@@ -64,6 +65,22 @@ export async function createTrip(
 
     return newTrip;
   });
+
+  // Optional cover uploaded at creation time. A bad/oversized cover must never
+  // fail trip creation — validate and skip silently on any problem.
+  if (coverFile instanceof File && coverFile.size > 0) {
+    const v = validateUpload({ mime: coverFile.type, size: coverFile.size });
+    if (v.ok && coverFile.type.startsWith("image/")) {
+      try {
+        const bytes = Buffer.from(await coverFile.arrayBuffer());
+        const key = generateKey(trip.id, crypto.randomUUID(), `cover-${coverFile.name}`);
+        await getStorage().save(key, bytes, coverFile.type);
+        await db.trip.update({ where: { id: trip.id }, data: { coverImageKey: key } });
+      } catch {
+        // Swallow — trip is already created; a missing cover is acceptable.
+      }
+    }
+  }
 
   redirect(`/trips/${trip.id}`);
 
