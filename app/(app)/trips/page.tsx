@@ -35,6 +35,28 @@ export default async function TripsPage() {
 
   const trips = memberships.map((m) => m.trip);
 
+  const tripIds = trips.map((t) => t.id);
+
+  // Fetch located stops for route-render cover fallback.
+  const coverStopsRaw = await db.stop.findMany({
+    where: { tripId: { in: tripIds }, lat: { not: null }, lng: { not: null } },
+    orderBy: { sortOrder: "asc" },
+    select: { tripId: true, lat: true, lng: true },
+  });
+  const coverStopsByTrip = new Map<string, { lat: number; lng: number }[]>();
+  for (const s of coverStopsRaw) {
+    const arr = coverStopsByTrip.get(s.tripId) ?? [];
+    arr.push({ lat: s.lat as number, lng: s.lng as number });
+    coverStopsByTrip.set(s.tripId, arr);
+  }
+
+  // Fetch cover key presence per trip.
+  const coverKeyRows = await db.trip.findMany({
+    where: { id: { in: tripIds } },
+    select: { id: true, coverImageKey: true },
+  });
+  const hasCoverByTrip = new Map(coverKeyRows.map((r) => [r.id, r.coverImageKey != null]));
+
   // Build a map of tripId → lastReadActivityAt for the current user.
   const membershipByTripId = new Map(
     memberships.map((m) => [m.tripId, m.lastReadActivityAt]),
@@ -132,6 +154,8 @@ export default async function TripsPage() {
                 stopCount={trip._count.stops}
                 phase={describePhase({ startDate: trip.startDate, endDate: trip.endDate, today })}
                 unreadCount={unreadByTrip[trip.id] ?? 0}
+                hasCover={hasCoverByTrip.get(trip.id) ?? false}
+                coverStops={coverStopsByTrip.get(trip.id) ?? []}
               />
             </AnimatedItem>
           ))}

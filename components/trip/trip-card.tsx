@@ -4,37 +4,7 @@ import { MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 import type { PhaseDescription } from "@/lib/trip-phase";
-
-/**
- * A deterministic gradient cover derived from the trip id/name.
- *
- * We hash the string to a small integer and map it to one of several warm,
- * travel-inspired gradient presets. These must be complete Tailwind class
- * strings (not dynamic) so the compiler can include them in the bundle.
- */
-const GRADIENT_CLASSES: readonly string[] = [
-  "bg-gradient-to-br from-orange-400 to-amber-300",
-  "bg-gradient-to-br from-rose-400 to-orange-300",
-  "bg-gradient-to-br from-teal-400 to-emerald-300",
-  "bg-gradient-to-br from-amber-400 to-rose-400",
-  "bg-gradient-to-br from-rose-500 via-orange-400 to-amber-300",
-  "bg-gradient-to-br from-teal-500 to-cyan-300",
-  "bg-gradient-to-br from-orange-500 to-amber-400",
-  "bg-gradient-to-br from-red-400 to-rose-300",
-];
-
-function hashString(s: string): number {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) {
-    h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h);
-}
-
-function tripGradient(id: string, name: string): string {
-  const index = hashString(id + name) % GRADIENT_CLASSES.length;
-  return GRADIENT_CLASSES[index];
-}
+import { TripCover } from "./trip-cover";
 
 /**
  * Format a YYYY-MM-DD date range into a friendly string like "1 Jul – 12 Jul".
@@ -63,6 +33,8 @@ export interface TripCardProps {
   stopCount: number;
   phase?: PhaseDescription;
   unreadCount?: number;
+  hasCover: boolean;
+  coverStops: { lat: number; lng: number }[];
 }
 
 /**
@@ -77,8 +49,9 @@ export function TripCard({
   stopCount,
   phase,
   unreadCount,
+  hasCover,
+  coverStops,
 }: TripCardProps) {
-  const gradient = tripGradient(id, name);
   const dateRange =
     startDate && endDate ? formatDateRange(startDate, endDate) : "No dates yet";
 
@@ -90,8 +63,9 @@ export function TripCard({
         "transition-all duration-200 hover:shadow-soft-lg hover:-translate-y-0.5 motion-safe:active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       )}
     >
-      {/* Gradient cover */}
-      <div className={cn("relative h-28 w-full", gradient)}>
+      {/* Cover */}
+      <div className="relative h-28 w-full overflow-hidden">
+        <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} />
         {phase && (
           <span className="absolute left-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-soft">
             {phase.phase === "travelling" || phase.phase === "past" ? phase.countdown : `${phase.label} · ${phase.countdown}`}
