@@ -173,7 +173,7 @@ export function WishlistBoard({
         <div>
           <h2 className="font-display text-2xl font-semibold">Wishlist</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Ideas you&apos;re not sure about yet — collect them here and schedule later.
+            Items you&apos;re not sure about yet — collect them here and schedule later.
           </p>
         </div>
         <AddItemButton
