@@ -33,7 +33,7 @@ import {
 } from "@/server/actions/stops";
 import { reorderChapters } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
-import { suggestNextStopDates, formatDateRange } from "@/lib/dates";
+import { suggestNextStopDates, formatDateRange, formatLongDate } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import { groupStopsByChapter, isTransportBetweenLegs, sortGroupStops } from "@/lib/chapters";
@@ -401,6 +401,41 @@ export function ItineraryManager({
   // Firm up a whole leg — dates every rough stop in a chapter (id) or the
   // ungrouped run (null). The core rough → scheduled transition.
   async function handleFirmUp(chapterId: string | null) {
+    // Compute rough stop count and anchor for the confirm summary.
+    const chapterStops = chapterId
+      ? stops.filter((s) => s.chapterId === chapterId)
+      : stops.filter((s) => s.chapterId === null);
+    const roughCount = chapterStops.filter((s) => s.arriveDate === null).length;
+
+    // Anchor: the depart date of the last scheduled stop before this chapter's
+    // first stop in the global order, or tripStartDate, or a generic fallback.
+    const firstChapterStopIdx = stops.findIndex(
+      (s) => chapterId ? s.chapterId === chapterId : s.chapterId === null,
+    );
+    let anchorLabel = "the trip start";
+    if (firstChapterStopIdx > 0) {
+      const precedingDated = stops
+        .slice(0, firstChapterStopIdx)
+        .reverse()
+        .find((s) => s.departDate !== null);
+      if (precedingDated?.departDate) {
+        anchorLabel = formatLongDate(precedingDated.departDate);
+      } else if (tripStartDate) {
+        anchorLabel = formatLongDate(tripStartDate);
+      }
+    } else if (tripStartDate) {
+      anchorLabel = formatLongDate(tripStartDate);
+    }
+
+    const stopWord = roughCount === 1 ? "stop" : "stops";
+    const confirmed = await confirm({
+      title: "Date this chapter's stops?",
+      description: `This will date ${roughCount} rough ${stopWord} from ${anchorLabel}. You can make any stop rough again afterwards.`,
+      confirmLabel: "Date stops",
+      destructive: false,
+    });
+    if (!confirmed) return;
+
     setPendingId(`firm-up-${chapterId ?? "ungrouped"}`);
     try {
       const r = await firmUpSegment({ tripId, chapterId });
@@ -421,6 +456,18 @@ export function ItineraryManager({
 
   // Date every rough stop across the whole trip from the start date, in one action.
   async function handleFirmUpTrip() {
+    const roughCount = stops.filter((s) => s.arriveDate === null).length;
+    const anchorLabel = tripStartDate ? formatLongDate(tripStartDate) : "the trip start";
+    const stopWord = roughCount === 1 ? "stop" : "stops";
+
+    const confirmed = await confirm({
+      title: "Date all stops from start?",
+      description: `This will date ${roughCount} rough ${stopWord} from ${anchorLabel}. You can make any stop rough again afterwards.`,
+      confirmLabel: "Date stops",
+      destructive: false,
+    });
+    if (!confirmed) return;
+
     setPendingId("firm-up-trip");
     try {
       const r = await firmUpTrip(tripId);
