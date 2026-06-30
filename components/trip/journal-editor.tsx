@@ -171,8 +171,12 @@ export function JournalEditor({
     updatedAt ?? null,
   );
   const [saveStatus, setSaveStatus] = React.useState<"saving" | "saved" | null>(null);
+  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleSave() {
+    // Cancel any pending timer before starting a new save
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
     setSaveError(null);
     setSaveStatus("saving");
     startTransition(async () => {
@@ -184,10 +188,17 @@ export function JournalEditor({
       } else {
         setLastSaved(new Date());
         setSaveStatus("saved");
-        setTimeout(() => setSaveStatus(null), 2000);
+        saveTimerRef.current = setTimeout(() => setSaveStatus(null), 2000);
       }
     });
   }
+
+  // Cleanup: cancel timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
 
   function handleBlur() {
     // Autosave on blur if body changed from initial
