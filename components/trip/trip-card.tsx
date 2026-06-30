@@ -121,8 +121,7 @@ export function TripCard({
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label="Trip actions"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-            onPointerDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+            onClick={(e) => e.stopPropagation()}
             className={cn(
               "flex size-7 items-center justify-center rounded-full bg-background/80 text-foreground shadow-soft backdrop-blur-sm",
               "hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",

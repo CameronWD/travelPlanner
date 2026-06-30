@@ -69,51 +69,49 @@ export function DuplicateTripDialog({
   }
 
   return (
-    <div>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
-        {!isControlled && (
-          <DialogTrigger asChild>
-            <Button variant="outline" size="md">
-              <Copy className="size-4" aria-hidden="true" />
-              Duplicate trip
-            </Button>
-          </DialogTrigger>
-        )}
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Duplicate this trip?</DialogTitle>
-            <DialogDescription>
-              Your co-travellers will be added to the duplicate too.
-            </DialogDescription>
-          </DialogHeader>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      {!isControlled && (
+        <DialogTrigger asChild>
+          <Button variant="outline" size="md">
+            <Copy className="size-4" aria-hidden="true" />
+            Duplicate trip
+          </Button>
+        </DialogTrigger>
+      )}
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Duplicate this trip?</DialogTitle>
+          <DialogDescription>
+            Your co-travellers will be added to the duplicate too.
+          </DialogDescription>
+        </DialogHeader>
 
-          <Field label="Name for the duplicate">
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={isPending}
-              autoComplete="off"
-            />
-          </Field>
+        <Field label="Name for the duplicate">
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={isPending}
+            autoComplete="off"
+          />
+        </Field>
 
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="ghost" disabled={isPending}>
-                Cancel
-              </Button>
-            </DialogClose>
-            <Button
-              variant="primary"
-              onClick={handleDuplicate}
-              disabled={!name.trim() || isPending}
-              loading={isPending}
-            >
-              <Copy className="size-4" aria-hidden="true" />
-              Duplicate
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="ghost" disabled={isPending}>
+              Cancel
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+          </DialogClose>
+          <Button
+            variant="primary"
+            onClick={handleDuplicate}
+            disabled={!name.trim() || isPending}
+            loading={isPending}
+          >
+            <Copy className="size-4" aria-hidden="true" />
+            Duplicate
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

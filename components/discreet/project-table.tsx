@@ -87,14 +87,12 @@ export function ProjectTable({ projects }: { projects: ProjectRow[] }) {
       </div>
 
       {/* Controlled duplicate dialog — rendered outside the table */}
-      {duplicateState && (
-        <DuplicateTripDialog
-          tripId={duplicateState.id}
-          tripName={duplicateState.name}
-          open={!!duplicateState}
-          onOpenChange={(o) => { if (!o) setDuplicateState(null); }}
-        />
-      )}
+      <DuplicateTripDialog
+        tripId={duplicateState?.id ?? ""}
+        tripName={duplicateState?.name ?? ""}
+        open={duplicateState !== null}
+        onOpenChange={(o) => { if (!o) setDuplicateState(null); }}
+      />
     </>
   );
 }
