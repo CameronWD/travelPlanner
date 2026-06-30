@@ -6,6 +6,7 @@ import { Timer } from "lucide-react";
 interface TransportCountdownProps {
   depAt: string; // ISO string of the departure instant
   depTimeLabel?: string; // e.g. "14:30"
+  depZone?: string | null; // e.g. "JST" — shown after the time label
   label: string; // e.g. "Flight BA123"
 }
 
@@ -13,7 +14,7 @@ interface TransportCountdownProps {
  * Live countdown to a transport departure.
  * Recomputes every minute. Renders nothing if the departure has passed.
  */
-export function TransportCountdown({ depAt, depTimeLabel, label }: TransportCountdownProps) {
+export function TransportCountdown({ depAt, depTimeLabel, depZone, label }: TransportCountdownProps) {
   const [msLeft, setMsLeft] = React.useState(() => new Date(depAt).getTime() - Date.now());
 
   React.useEffect(() => {
@@ -47,7 +48,7 @@ export function TransportCountdown({ depAt, depTimeLabel, label }: TransportCoun
         <p className="text-sm font-medium text-foreground">
           {label}
           {depTimeLabel && (
-            <span className="ml-2 font-mono text-muted-foreground">at {depTimeLabel}</span>
+            <span className="ml-2 font-mono text-muted-foreground">at {depTimeLabel}{depZone ? ` ${depZone}` : ""}</span>
           )}
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">

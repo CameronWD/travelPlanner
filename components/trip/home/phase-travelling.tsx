@@ -16,6 +16,7 @@ import { DayMapPanel } from "@/components/trip/day-map-panel";
 import { MapLink } from "@/components/trip/map-link";
 import { TransportCountdown } from "@/components/trip/transport-countdown";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
+import { zoneLabel } from "@/lib/time-display";
 import type { TransportMode } from "@/lib/enums";
 import {
   RemindersCard,
@@ -357,6 +358,10 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
           <TransportCountdown
             depAt={new Date(nextTransportDep.transport.depAt).toISOString()}
             depTimeLabel={nextTransportDep.depTimeLabel}
+            depZone={zoneLabel(
+              stops.find((s) => s.id === nextTransportDep.transport.fromStopId)?.timezone,
+              effectiveDate,
+            )}
             label={buildTransportLabel(nextTransportDep.transport)}
           />
         </section>
