@@ -122,12 +122,22 @@ export interface CommandPaletteProps {
   tripId: string | null;
 }
 
-export function CommandPalette({ open, onOpenChange, tripId }: CommandPaletteProps) {
+// ── Inner component — mounts fresh each time the palette opens ────────────────
+// By mounting only when open=true, all state (query, hits) starts at its
+// initial value on each open without needing setState inside an effect body.
+
+interface CommandPaletteInnerProps {
+  onOpenChange: (o: boolean) => void;
+  tripId: string | null;
+}
+
+function CommandPaletteInner({ onOpenChange, tripId }: CommandPaletteInnerProps) {
   const router = useRouter();
   const { toggleTheme } = useTheme();
 
   const [query, setQuery] = React.useState("");
   const [myTrips, setMyTrips] = React.useState<Array<{ id: string; name: string }>>([]);
+  // hits is initialised to [] on each mount (i.e. each open) — no effect reset needed.
   const [hits, setHits] = React.useState<SearchHit[]>([]);
   const [isOnline, setIsOnline] = React.useState(
     typeof navigator !== "undefined" ? navigator.onLine : true,
@@ -138,18 +148,12 @@ export function CommandPalette({ open, onOpenChange, tripId }: CommandPalettePro
 
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-  // ── Load trips once on open ─────────────────────────────────────────────────
+  // ── Load trips once on mount (= once on open) ───────────────────────────────
   React.useEffect(() => {
-    if (!open) return;
-    // Use a microtask to satisfy the no-synchronous-setState-in-effect rule.
-    void Promise.resolve().then(() => {
-      setQuery("");
-      setHits([]);
-    });
     listMyTrips()
       .then(setMyTrips)
       .catch(() => {/* silent — non-critical */});
-  }, [open]);
+  }, []);
 
   // ── Online/offline listener ─────────────────────────────────────────────────
   React.useEffect(() => {
@@ -164,18 +168,15 @@ export function CommandPalette({ open, onOpenChange, tripId }: CommandPalettePro
   }, []);
 
   // ── Debounced search ────────────────────────────────────────────────────────
+  // setHits is only called from the async callback — never synchronously in the
+  // effect body — so react-hooks/set-state-in-effect is satisfied.
   React.useEffect(() => {
     const trimmed = query.trim();
 
-    // Clear hits asynchronously (satisfies no-synchronous-setState-in-effect).
-    const clearTimer = setTimeout(() => {
-      if (!tripId || !trimmed || !isOnline) {
-        setHits([]);
-      }
-    }, 0);
-
     if (!tripId || !trimmed || !isOnline) {
-      return () => clearTimeout(clearTimer);
+      // Nothing to search; hits stay at their current value ([] on first render,
+      // or cleared by the stale-guard once the query becomes non-empty again).
+      return;
     }
 
     latestQueryRef.current = trimmed;
@@ -194,7 +195,6 @@ export function CommandPalette({ open, onOpenChange, tripId }: CommandPalettePro
     }, 150);
 
     return () => {
-      clearTimeout(clearTimer);
       clearTimeout(searchTimer);
     };
   }, [query, tripId, isOnline]);
@@ -258,10 +258,12 @@ export function CommandPalette({ open, onOpenChange, tripId }: CommandPalettePro
   const showFind = Boolean(tripId);
   const trimmedQuery = query.trim();
 
+  // Hits for the current query: if the query changed but results haven't
+  // arrived yet, show the previous hits until the stale-guard replaces them,
+  // EXCEPT when the query is empty/conditions not met (show nothing).
+  const visibleHits = (!tripId || !trimmedQuery || !isOnline) ? [] : hits;
+
   // ── Keyboard navigation ─────────────────────────────────────────────────────
-  // Collect all rendered buttons in DOM order on each render.
-  // We use a callback ref pattern: each CommandButton registers itself by index.
-  // Simpler: we query the container after render.
   const listboxRef = React.useRef<HTMLDivElement>(null);
 
   function handleInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
@@ -307,120 +309,132 @@ export function CommandPalette({ open, onOpenChange, tripId }: CommandPalettePro
   const hasDo = doCmds.length > 0;
 
   return (
+    <>
+      {/* Search input */}
+      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+        <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        <Input
+          ref={inputRef}
+          autoFocus
+          placeholder="Search commands…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={handleInputKeyDown}
+          className="h-auto border-0 bg-transparent p-0 text-base shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          aria-label="Command search"
+          aria-autocomplete="list"
+          aria-controls="command-listbox"
+        />
+      </div>
+
+      {/* Results */}
+      <div
+        ref={listboxRef}
+        id="command-listbox"
+        role="listbox"
+        aria-label="Commands"
+        className="flex max-h-[60vh] flex-col gap-1 overflow-y-auto p-2"
+      >
+        {/* Go to section */}
+        {hasGoto && (
+          <div role="group" aria-label="Go to">
+            <SectionLabel>Go to</SectionLabel>
+            {gotoPages.map(({ label, href }) => (
+              <CommandButton
+                key={href}
+                onActivate={() => go(href)}
+                onKeyDown={handleButtonKeyDown}
+              >
+                {label}
+              </CommandButton>
+            ))}
+            {switchTrips.map(({ id, name }) => (
+              <CommandButton
+                key={id}
+                onActivate={() => go(`/trips/${id}`)}
+                onKeyDown={handleButtonKeyDown}
+              >
+                <span className="text-muted-foreground">Switch →</span>
+                {name}
+              </CommandButton>
+            ))}
+          </div>
+        )}
+
+        {/* Do section */}
+        {hasDo && (
+          <div role="group" aria-label="Do">
+            <SectionLabel>Do</SectionLabel>
+            {doCmds.map(({ label, onActivate }) => (
+              <CommandButton
+                key={label}
+                onActivate={onActivate}
+                onKeyDown={handleButtonKeyDown}
+              >
+                {label}
+              </CommandButton>
+            ))}
+          </div>
+        )}
+
+        {/* Find section */}
+        {showFind && (
+          <div role="group" aria-label="Find">
+            <SectionLabel>Find</SectionLabel>
+            {!isOnline && (
+              <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
+                <WifiOff className="size-4 shrink-0" aria-hidden />
+                Search needs a connection.
+              </div>
+            )}
+            {isOnline && trimmedQuery === "" && (
+              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                Type to search this trip…
+              </div>
+            )}
+            {isOnline && trimmedQuery !== "" && visibleHits.length === 0 && (
+              <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                No results for &ldquo;{trimmedQuery}&rdquo;
+              </div>
+            )}
+            {isOnline && visibleHits.map((hit) => (
+              <CommandButton
+                key={hit.id}
+                onActivate={() => go(hit.href)}
+                onKeyDown={handleButtonKeyDown}
+              >
+                <HitIcon type={hit.type} />
+                <span className="flex-1 truncate">{hit.label}</span>
+                {hit.sublabel && (
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {hit.sublabel}
+                  </span>
+                )}
+              </CommandButton>
+            ))}
+          </div>
+        )}
+
+        {/* Nothing at all */}
+        {!hasGoto && !hasDo && !showFind && (
+          <div className="px-2 py-1.5 text-sm text-muted-foreground">
+            No commands found.
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ── Shell — owns open/close state, renders inner only when open ───────────────
+
+export function CommandPalette({ open, onOpenChange, tripId }: CommandPaletteProps) {
+  return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent hideClose className="gap-0 p-0">
-        {/* Search input */}
-        <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-          <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <Input
-            ref={inputRef}
-            autoFocus
-            placeholder="Search commands…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleInputKeyDown}
-            className="h-auto border-0 bg-transparent p-0 text-base shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-            aria-label="Command search"
-            aria-autocomplete="list"
-            aria-controls="command-listbox"
-          />
-        </div>
-
-        {/* Results */}
-        <div
-          ref={listboxRef}
-          id="command-listbox"
-          role="listbox"
-          aria-label="Commands"
-          className="flex max-h-[60vh] flex-col gap-1 overflow-y-auto p-2"
-        >
-          {/* Go to section */}
-          {hasGoto && (
-            <div role="group" aria-label="Go to">
-              <SectionLabel>Go to</SectionLabel>
-              {gotoPages.map(({ label, href }) => (
-                <CommandButton
-                  key={href}
-                  onActivate={() => go(href)}
-                  onKeyDown={handleButtonKeyDown}
-                >
-                  {label}
-                </CommandButton>
-              ))}
-              {switchTrips.map(({ id, name }) => (
-                <CommandButton
-                  key={id}
-                  onActivate={() => go(`/trips/${id}`)}
-                  onKeyDown={handleButtonKeyDown}
-                >
-                  <span className="text-muted-foreground">Switch →</span>
-                  {name}
-                </CommandButton>
-              ))}
-            </div>
-          )}
-
-          {/* Do section */}
-          {hasDo && (
-            <div role="group" aria-label="Do">
-              <SectionLabel>Do</SectionLabel>
-              {doCmds.map(({ label, onActivate }) => (
-                <CommandButton
-                  key={label}
-                  onActivate={onActivate}
-                  onKeyDown={handleButtonKeyDown}
-                >
-                  {label}
-                </CommandButton>
-              ))}
-            </div>
-          )}
-
-          {/* Find section */}
-          {showFind && (
-            <div role="group" aria-label="Find">
-              <SectionLabel>Find</SectionLabel>
-              {!isOnline && (
-                <div className="flex items-center gap-2 px-2 py-1.5 text-sm text-muted-foreground">
-                  <WifiOff className="size-4 shrink-0" aria-hidden />
-                  Search needs a connection.
-                </div>
-              )}
-              {isOnline && trimmedQuery === "" && (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                  Type to search this trip…
-                </div>
-              )}
-              {isOnline && trimmedQuery !== "" && hits.length === 0 && (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                  No results for &ldquo;{trimmedQuery}&rdquo;
-                </div>
-              )}
-              {isOnline && hits.map((hit) => (
-                <CommandButton
-                  key={hit.id}
-                  onActivate={() => go(hit.href)}
-                  onKeyDown={handleButtonKeyDown}
-                >
-                  <HitIcon type={hit.type} />
-                  <span className="flex-1 truncate">{hit.label}</span>
-                  {hit.sublabel && (
-                    <span className="shrink-0 text-xs text-muted-foreground">
-                      {hit.sublabel}
-                    </span>
-                  )}
-                </CommandButton>
-              ))}
-            </div>
-          )}
-
-          {/* Nothing at all */}
-          {!hasGoto && !hasDo && !showFind && (
-            <div className="px-2 py-1.5 text-sm text-muted-foreground">
-              No commands found.
-            </div>
-          )}
-        </div>
+      <DialogContent bare hideClose>
+        {open && (
+          <CommandPaletteInner onOpenChange={onOpenChange} tripId={tripId} />
+        )}
       </DialogContent>
     </Dialog>
   );

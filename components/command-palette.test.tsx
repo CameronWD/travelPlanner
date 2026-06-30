@@ -99,13 +99,17 @@ describe("CommandPalette", () => {
     it("clicking 'Toggle theme' calls toggleTheme and closes the palette", async () => {
       const user = userEvent.setup();
       const onOpenChange = vi.fn();
+      // Ensure a known starting state so the toggle direction is predictable.
+      document.documentElement.classList.remove("dark");
       renderPalette({ onOpenChange });
 
       const btn = await screen.findByText("Toggle theme");
       await user.click(btn);
 
-      // The dialog should close
+      // The dialog should close.
       expect(onOpenChange).toHaveBeenCalledWith(false);
+      // toggleTheme must have actually fired — the dark class should have been added.
+      expect(document.documentElement.classList.contains("dark")).toBe(true);
     });
 
     it("renders 'New trip', 'Add item', 'Add stop' commands when tripId is set", async () => {
