@@ -14,6 +14,7 @@ import {
   flagHardEndDate,
   flagTightConnections,
   flagMissingConnections,
+  flagAccommodationCoverageGaps,
   SPREAD_DAY_THRESHOLD_KM,
   LONG_DRIVE_DAY_THRESHOLD_MIN,
   TIGHT_CONNECTION_BUFFER_MIN,
@@ -838,5 +839,27 @@ describe("flagMissingConnections", () => {
   it("does not flag when a transport links them (either direction)", () => {
     const t = makeTransport({ id: "t1", fromStopId: "london", toStopId: "paris" });
     expect(flagMissingConnections([LONDON, PARIS], [t])).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule 14: Accommodation coverage gap
+// ---------------------------------------------------------------------------
+
+describe("flagAccommodationCoverageGaps", () => {
+  const stop = { ...LONDON, arriveDate: "2026-07-01", departDate: "2026-07-05" }; // 4 nights: 1,2,3,4
+  it("flags nights not covered when the stop HAS some accommodation", () => {
+    const accom = makeAccom({ id: "h1", stopId: "london", checkIn: "2026-07-01", checkOut: "2026-07-04" }); // covers nights 1-3
+    const flags = flagAccommodationCoverageGaps([stop], [accom]);
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toMatchObject({ severity: "warning", targetType: "STOP", targetId: "london" });
+    expect(flags[0].message).toMatch(/1 night/);
+  });
+  it("does not flag full coverage", () => {
+    const accom = makeAccom({ id: "h1", stopId: "london", checkIn: "2026-07-01", checkOut: "2026-07-05" });
+    expect(flagAccommodationCoverageGaps([stop], [accom])).toHaveLength(0);
+  });
+  it("ignores stops with zero accommodation (handled by flagStopsWithoutAccommodation)", () => {
+    expect(flagAccommodationCoverageGaps([stop], [])).toHaveLength(0);
   });
 });
