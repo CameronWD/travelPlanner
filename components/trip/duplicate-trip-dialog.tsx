@@ -88,7 +88,7 @@ export function DuplicateTripDialog({
             <Button
               variant="primary"
               onClick={handleDuplicate}
-              disabled={!name.trim()}
+              disabled={!name.trim() || isPending}
               loading={isPending}
             >
               <Copy className="size-4" aria-hidden="true" />
