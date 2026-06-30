@@ -417,8 +417,23 @@ describe("rough chapters with no stops yet", () => {
 
     // The chapter must be visible so rough stops can be added into it...
     expect(screen.getByText("France")).toBeInTheDocument();
-    // ...and we must NOT be stuck on the bare "Sketch your trip" empty state.
-    expect(screen.queryByText(/sketch your trip/i)).toBeNull();
+    // ...and we must NOT be stuck on the bare "Add your first Stop" empty state.
+    expect(screen.queryByRole("heading", { name: /add your first stop/i })).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5b. Empty-state heading when there are zero stops and no chapters
+// ---------------------------------------------------------------------------
+
+describe("zero-stops empty state", () => {
+  it("renders the EmptyState heading 'Add your first Stop' when there are no stops and no chapters", () => {
+    render(
+      <ItineraryManager {...baseProps} initialStops={[]} chapters={[]} />,
+    );
+    expect(
+      screen.getByRole("heading", { name: /add your first stop/i }),
+    ).toBeInTheDocument();
   });
 });
 

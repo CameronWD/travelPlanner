@@ -14,6 +14,7 @@ import {
   Clock3,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { EmptyState } from "@/components/ui/empty-state";
 import { todayISO } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -623,21 +624,15 @@ export function Checklist({
   if (items.length === 0) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-card/50 px-6 py-10 text-center">
-          <div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <CheckSquare className="size-6" aria-hidden="true" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <h3 className="font-display text-base font-semibold">
-              {kind === "PRETRIP" ? "No pre-trip tasks yet" : "Packing list is empty"}
-            </h3>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              {kind === "PRETRIP"
-                ? "Add tasks like booking confirmations, paperwork, and anything to sort before you leave."
-                : "Add what you need to pack — or apply a saved template to get started quickly."}
-            </p>
-          </div>
-        </div>
+        <EmptyState
+          icon={CheckSquare}
+          title={kind === "PRETRIP" ? "No pre-trip tasks yet" : "Packing list is empty"}
+          description={
+            kind === "PRETRIP"
+              ? "Add tasks like booking confirmations, paperwork, and anything to sort before you leave."
+              : "Add what you need to pack — or apply a saved template to get started quickly."
+          }
+        />
         <AddItemForm
           tripId={tripId}
           kind={kind}

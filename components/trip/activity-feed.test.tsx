@@ -40,7 +40,10 @@ const NOTED_ACTIVITY: ActivityRow = {
 describe("ActivityFeed", () => {
   it("renders an empty state when activities is empty", () => {
     render(<ActivityFeed activities={[]} />);
-    expect(screen.getByText(/no activity yet/i)).toBeInTheDocument();
+    // EmptyState renders the title in an h3
+    expect(screen.getByRole("heading", { name: /no activity yet/i })).toBeInTheDocument();
+    // Description is present
+    expect(screen.getByText(/changes to your trip/i)).toBeInTheDocument();
   });
 
   it("renders the CREATED headline text", () => {

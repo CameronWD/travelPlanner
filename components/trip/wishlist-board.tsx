@@ -187,8 +187,8 @@ export function WishlistBoard({
       {isEmpty && (
         <EmptyState
           icon={Heart}
-          title="No ideas yet"
-          description="Collect activities, restaurants, and sights you'd love to do — schedule them when you're ready."
+          title="No Items yet"
+          description="Collect activities, sights, and restaurants you'd love to do — schedule them to a Stop when you're ready."
         />
       )}
 

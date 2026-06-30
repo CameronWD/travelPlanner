@@ -1,5 +1,7 @@
+import { Activity } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { EmptyState } from "@/components/ui/empty-state";
 import { headline } from "@/lib/activity";
 import { relativeTime } from "@/lib/relative-time";
 import type { ActivityVerb, ActivityEntityType, ActivityChange } from "@/lib/activity";
@@ -25,7 +27,11 @@ interface ActivityFeedProps {
 export function ActivityFeed({ activities }: ActivityFeedProps) {
   if (activities.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">No activity yet.</p>
+      <EmptyState
+        icon={Activity}
+        title="No activity yet"
+        description="Changes to your Trip — Stops, transport, costs, and notes — will appear here."
+      />
     );
   }
 

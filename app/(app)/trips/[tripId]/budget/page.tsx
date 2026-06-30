@@ -73,7 +73,7 @@ export default async function BudgetPage({
       <EmptyState
         icon={Wallet}
         title="No dates yet"
-        description="Set your trip's start and end dates to see a day-by-day budget breakdown."
+        description="Set your trip's start and end dates to see a budget breakdown."
       />
     );
   }

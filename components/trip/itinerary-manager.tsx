@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Plus, BookOpen, CalendarClock, GripVertical } from "lucide-react";
+import { Plus, BookOpen, CalendarClock, GripVertical, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { StopCard, type StopCardStop } from "./stop-card";
 import { StopFormDialog } from "./stop-form-dialog";
 import { QuickAddStops } from "./quick-add-stops";
@@ -1324,24 +1325,21 @@ export function ItineraryManager({
           </div>
         </DndContext>
       ) : (
-        // ── Empty state: warm prompt with inline add + new chapter ──
-        <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border/70 bg-card/40 px-6 py-12 text-center">
-          <div className="flex flex-col gap-1">
-            <h2 className="font-display text-2xl font-semibold text-foreground">
-              Sketch your trip
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Add a chapter or a place to get started
-            </p>
-          </div>
-          <div className="w-full max-w-md">
-            <QuickAddStops tripId={tripId} chapterId={null} />
-          </div>
-          <Button variant="outline" size="md" onClick={handleNewChapter}>
-            <BookOpen className="size-4" aria-hidden="true" />
-            New chapter
-          </Button>
-        </div>
+        // ── Empty state: no Stops yet ──
+        <EmptyState
+          icon={MapPin}
+          title="Add your first Stop"
+          description="Add places you want to visit — rough stops for ideas, or dated stops once you know the plan."
+          action={
+            <div className="flex flex-col items-center gap-3 w-full max-w-md">
+              <QuickAddStops tripId={tripId} chapterId={null} />
+              <Button variant="outline" size="md" onClick={handleNewChapter}>
+                <BookOpen className="size-4" aria-hidden="true" />
+                New chapter
+              </Button>
+            </div>
+          }
+        />
       )}
 
       {/* ─── Dialogs ─── */}
