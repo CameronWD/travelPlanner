@@ -10,6 +10,10 @@ A collaborative web app for a couple to plan and run a holiday together: scoping
 A single named travel project. It may have an overall date range (e.g. "Europe Summer 2026"), but while it's still just an idea it can be **date-less** — a name and nothing more — and gain a range only as its Stops are firmed up. A start date, if set, is the default **anchor** for firming up; the **soft end date** auto-extends to cover the planned Stops. Distinct from this is an optional **Hard end date** the Traveller may set as a ceiling. The app holds many trips; you work in one at a time.
 _Avoid_: Holiday, vacation (use "Trip" in code/UI consistently)
 
+**Plan**:
+The itinerary *arrangement* of a Trip — its ordered Stops (and their nights/dates), the Transport between them, Accommodation, Chapters, scheduled Items, and the estimated Costs attached to all of those. A Trip has exactly one **real plan** — the live arrangement every dated view, the **Summary**, the **Calendar feed**, sharing and reminders read from — and zero or more **Forks**: non-live Plans kept alongside it for comparison. Trip-wide things are *not* part of a Plan and are shared across all of a Trip's Plans: the **Wishlist**, **Checklists**, **Journal**, **Notes**, **Attachments**, **Exchange rates**, **Home currency**, name, cover image and **Traveller** membership.
+_Avoid_: Itinerary (that's the editable view onto a Plan), variant (a Fork is the variant), version
+
 **Hard end date**:
 An optional, Traveller-set date the Trip must be over by — a return flight, the day back at work. It is a *constraint*, not a computed value: it never moves on its own and never auto-extends. Distinct from the **soft end date** — the computed end (the last Stop's depart) that only ever grows to cover scheduled Stops. A Trip with no Hard end date is simply unconstrained. The app compares the Trip's **projected** end (every Stop's nights flowed forward from the anchor, rough Stops included — see **Firm up**) against the Hard end date and raises a **Flag** as the plan nears (info) or runs past it (warning); the Plan overview shows the same state inline.
 _Avoid_: Deadline, cap, limit; soft end date (that's the computed end); Pinned (reserved for Stops); hard/soft are the only end-date qualifiers
@@ -43,7 +47,7 @@ The dated, time-ordered list of Items within a Stop (and across the whole Trip).
 _Avoid_: Schedule, agenda
 
 **Item**:
-A thing to do or see that sits on the Timeline — an activity, a sight, a meal, a booked experience. Carries a **Category** (see below), an optional cost, location, notes, link and booking reference. An Item is either **scheduled** (pinned to a date/time) or **unscheduled** (in the Wishlist). Accommodation and Transport are NOT Items — they are first-class types of their own.
+A thing to do or see that sits on the Timeline — an activity, a sight, a meal, a booked experience. Carries a **Category** (see below), an optional cost, location, notes, link and booking reference. An Item is either an **unscheduled** Wishlist idea (trip-wide, shared across all Plans) or a **scheduled** Item placed on a particular **Plan**'s Timeline (pinned to a date/time, and belonging to that Plan). Scheduling **places a copy** of a Wishlist idea onto the current Plan — it does not consume the idea, which stays in the shared Wishlist (see **Wishlist**). Accommodation and Transport are NOT Items — they are first-class types of their own.
 _Avoid_: Event, entry, task
 
 **Category**:
@@ -51,7 +55,7 @@ The classifier on an Item used for colour-coding and budget grouping (e.g. Sight
 _Avoid_: Type, tag, label
 
 **Wishlist**:
-The pool of unscheduled Items you've collected but not yet committed to a day — candidate places/activities. Scheduling an Item moves it from the Wishlist onto the Timeline; it's the same Item, just with a date/time now.
+A trip-wide, shared pool of unscheduled Items — candidate places/activities you've collected but not committed to a day. It is *not* part of any **Plan**: the same Wishlist is seen by every Plan (the real plan and all Forks). Scheduling an idea **places a copy** of it onto the current Plan's Timeline as a Plan-owned scheduled Item; the idea itself **stays in the Wishlist** (shown with a "✓ in this plan" marker), so it can also be placed differently in another Plan. **Votes** stay attached to the shared Wishlist idea, never to the placed copy. Un-scheduling removes only the current Plan's copy; the idea remains in the pool.
 _Avoid_: Backlog, ideas, bucket list, shortlist
 
 ### Money
@@ -161,12 +165,20 @@ The single picture that represents a Trip wherever it's shown (currently the tri
 _Avoid_: thumbnail; avatar/image (that's a Traveller's photo); banner; "route map" alone (reserved for the interactive Leaflet map on the Summary / the **Day map**)
 
 **Duplicate**:
-Creating a brand-new Trip from an existing one's reusable *structure* — its Stops (carried over as **rough**), Chapters, Wishlist and Checklists — with every date reset, so a proven skeleton can seed a fresh Trip. A one-way clone: the new Trip is fully independent of its source, and the source is untouched. Distinct from a **Fork** (a dated what-if *variant* of the same Trip, kept alongside the original and compared before one is chosen) — a separate concept, not yet built.
+Creating a brand-new Trip from an existing one's reusable *structure* — its Stops (carried over as **rough**), Chapters, Wishlist and Checklists — with every date reset, so a proven skeleton can seed a fresh Trip. A one-way clone: the new Trip is fully independent of its source, and the source is untouched. Distinct from a **Fork** (a what-if *variant* **Plan** of the same Trip, kept alongside the real plan and compared before one is chosen).
 _Avoid_: Copy, clone (use "Duplicate" in UI/code); Template (reserved for the reusable **Packing list** templates); Fork (that's the dated variant)
 
-**Fork** _(not yet built — reserved)_:
-A dated what-if *variant* of a Trip, kept alongside the original so two arrangements (e.g. X→X→X vs Y→Y→Y) can be compared on projected end, budget and Flags before one is promoted to the real plan and the rest discarded. Distinct from **Duplicate** (which throws dates away to seed an independent new Trip) and from **Make it fit** (which previews trim/drop edits to one plan, not parallel variants).
-_Avoid_: Duplicate, copy, scenario, branch
+**Fork** _(planned — not yet built)_:
+A what-if *variant* **Plan** of a Trip, kept alongside the **real plan** so different arrangements (e.g. Italy-first vs +Switzerland) can be compared before one is chosen. A Fork is a full-power Plan — you edit it with the same tools as the real plan (add/reorder/re-night Stops, **Firm up**, **Pinned**, **Make it fit**, Transport, Accommodation, scheduled Items, estimated Costs) and it has its own **projected end**, **Flags** and **Budget** — but it is *not live*: editing a Fork never touches the dated views, **Summary**, **Calendar feed**, sharing or reminders, which always follow the real plan. Forks are **shared** between both **Travellers** and may be created from the real plan or from another Fork (peers afterward, no parent tree); a soft cap of ~4 keeps the **Compare** view readable. Forks are silent in the **Activity** feed except for three milestones: a Fork created, **promoted**, or discarded. Available only in pre-departure **Phases** (Sketching, Planning, Final prep). Distinct from **Duplicate** (which throws dates away to seed an independent *new Trip*) and from **Make it fit** (which previews trim/drop edits to *one* Plan, not parallel variants).
+_Avoid_: Duplicate, copy, scenario, branch, version
+
+**Promote**:
+Making a **Fork** the Trip's new **real plan**: the Fork's arrangement replaces the current real plan, and all Forks are then discarded — the exploration is resolved. Irreversible, and guarded by a confirm that previews the change and explicitly lists any *committed* things in the outgoing real plan the swap would lose — **paid** Costs, **Accommodation**/**Transport** confirmation numbers, and **Attachments** on Plan entities. Trip-wide things (Wishlist, Checklists, Journal, Notes) are untouched. Recorded as an **Activity**. Distinct from **Make it fit** (edits one Plan) and **Duplicate** (spawns a new Trip).
+_Avoid_: Apply, commit, merge, accept, choose
+
+**Compare**:
+The read-only side-by-side view of a Trip's **real plan** and all its **Forks**, one column each, the real plan as the leftmost baseline. Rows cover **Route** (Stops in order, nights, countries), **projected end** vs **Hard end date**, **Budget** total (estimated, Home currency), **Flags** (by severity), Stop and night totals, and transit metrics (scheduled transit time, driving hours, flight count). Each Fork's figures show a **delta** against the real plan. From a column you open a Fork to edit, or **Promote** it.
+_Avoid_: Versus, diff, dashboard
 
 ## Flagged ambiguities
 
