@@ -98,7 +98,12 @@ function DialogFooter({
   return (
     <div
       className={cn(
-        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        // flex-col: DOM order is Cancel → Primary (primary last in DOM).
+        // On mobile (bottom sheet): primary renders at the bottom — closest to the thumb.
+        // On desktop (sm+): flex-row lays buttons out horizontally, primary at the right.
+        // flex-col-reverse was avoided because it put primary at the top (hard to reach on
+        // a bottom sheet) and inverted the natural DOM/focus order (primary before cancel).
+        "flex flex-col gap-2 sm:flex-row sm:justify-end",
         className,
       )}
       {...props}
