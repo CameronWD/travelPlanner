@@ -5,14 +5,17 @@ import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate, todayISO } from "@/lib/dates";
 import { buildItinerary } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
+import { nearbyWishlistItems } from "@/lib/nearby";
 import { flagTightConnections } from "@/lib/flags";
 import { daylight, utcHmToZone } from "@/lib/daylight";
 import { getDayWeather } from "@/lib/weather";
 import { tzAbbrev } from "@/lib/dates";
+import { zoneLabel } from "@/lib/time-display";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
 import { DayNav } from "@/components/trip/day-nav";
 import { DayMapPanel } from "@/components/trip/day-map-panel";
+import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
 import { DayFeasibility } from "@/components/trip/day-feasibility";
 import { WeatherDaylightCard } from "@/components/trip/weather-daylight-card";
 import { AddItemButton } from "@/components/trip/item-form-dialog";
@@ -56,7 +59,7 @@ export default async function DayPage({
         ? trip.endDate
         : date;
 
-  const [stops, items, transports, accommodations, journalEntry, journalPhotos] =
+  const [stops, items, transports, accommodations, journalEntry, journalPhotos, wishlistLocated] =
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops don't appear on a dated day view.
@@ -115,7 +118,7 @@ export default async function DayPage({
         },
       }),
       db.accommodation.findMany({
-        where: { tripId },
+        where: { tripId, checkIn: { lte: effectiveDate }, checkOut: { gte: effectiveDate } },
         orderBy: { checkIn: "asc" },
         select: {
           id: true,
@@ -151,6 +154,10 @@ export default async function DayPage({
           uploadedById: true,
           createdAt: true,
         },
+      }),
+      db.item.findMany({
+        where: { tripId, date: null, lat: { not: null }, lng: { not: null } },
+        select: { id: true, title: true, category: true, lat: true, lng: true },
       }),
     ]);
 
@@ -269,6 +276,27 @@ export default async function DayPage({
   });
   const itemDirections = buildItemDirections(dayMapModel);
 
+  // ── Nearby Wishlist items ─────────────────────────────────────────────────
+  // Anchors: located scheduled items for today + tonight's accommodation
+  const nearbyAnchors = [
+    ...dayItems
+      .filter((i) => i.lat != null && i.lng != null)
+      .map((i) => ({ lat: i.lat!, lng: i.lng! })),
+    ...(dayAccommodation?.lat != null && dayAccommodation?.lng != null
+      ? [{ lat: dayAccommodation.lat!, lng: dayAccommodation.lng! }]
+      : []),
+  ];
+  const nearby = nearbyWishlistItems({
+    anchors: nearbyAnchors,
+    candidates: wishlistLocated.map((i) => ({
+      id: i.id,
+      title: i.title,
+      category: i.category,
+      lat: i.lat!,
+      lng: i.lng!,
+    })),
+  });
+
   // ── Weather & daylight ────────────────────────────────────────────────────
   const dayStop = stops.find((s) => s.id === dayPlan.stop?.id);
   const dlRaw =
@@ -337,6 +365,11 @@ export default async function DayPage({
           <p className="text-sm text-muted-foreground">
             {dayPlan.stop.name}
             {dayPlan.stop.country ? `, ${dayPlan.stop.country}` : ""}
+            {dayPlan.stop.timezone && (
+              <span className="text-xs text-muted-foreground">
+                {" · "}{zoneLabel(dayPlan.stop.timezone, effectiveDate)}
+              </span>
+            )}
           </p>
         )}
       </div>
@@ -354,6 +387,9 @@ export default async function DayPage({
 
       {/* Day map (collapsed toggle) */}
       <DayMapPanel tripId={tripId} model={dayMapModel} />
+
+      {/* Nearby Wishlist items */}
+      <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
 
       {/* Feasibility advisory */}
       <DayFeasibility entries={feasibility} />

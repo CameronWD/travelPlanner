@@ -1,5 +1,16 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+
+// Must be declared before component imports so vi.mock hoisting works.
+vi.mock("@/server/actions/trips", () => ({
+  duplicateTrip: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
+
 import { TripCard } from "./trip-card";
 
 const defaultProps = {
@@ -104,5 +115,16 @@ describe("TripCard", () => {
     const img = screen.getByRole("img", { name: /europe cover/i });
     expect(img).toBeInTheDocument();
     expect(img).toHaveAttribute("src", "/api/trips/trip-123/cover");
+  });
+
+  it("opens the ⋯ menu and shows Duplicate item when the trigger is clicked", async () => {
+    const user = userEvent.setup();
+    render(<TripCard {...defaultProps} />);
+
+    const trigger = screen.getByRole("button", { name: /trip actions/i });
+    await user.click(trigger);
+
+    const item = await screen.findByRole("menuitem", { name: /duplicate/i });
+    expect(item).toBeInTheDocument();
   });
 });

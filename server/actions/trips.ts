@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { requireUser, requireTripAccess } from "@/lib/guards";
+import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import {
   createTripSchema,
   tripSchema,
@@ -232,4 +233,109 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
 
   // Unreachable — redirect() throws, return satisfies the type.
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// duplicateTrip
+// ---------------------------------------------------------------------------
+
+export type DuplicateTripResult =
+  | { success: true; tripId: string }
+  | { success: false; error: string };
+
+/**
+ * Duplicate a trip. Creates a new trip with the same structure but with all
+ * dates reset to null (rough skeleton). The duplicator becomes the owner;
+ * co-traveller memberships are copied as-is.
+ *
+ * Accommodations, costs, FX rates and all history are dropped per ADR-0018.
+ */
+export async function duplicateTrip(
+  sourceTripId: string,
+  newName: string,
+): Promise<DuplicateTripResult> {
+  const { user } = await requireTripAccess(sourceTripId);
+
+  const source = await db.trip.findUnique({
+    where: { id: sourceTripId },
+    include: {
+      members: { select: { userId: true, role: true } },
+      chapters: true,
+      stops: true,
+      items: true,
+      transports: true,
+      checklistItems: true,
+    },
+  });
+  if (!source) return { success: false, error: "Trip not found" };
+
+  const name = newName.trim() || `Copy of ${source.name}`;
+  const plan = buildDuplicatePlan(
+    {
+      name: source.name,
+      homeCurrency: source.homeCurrency,
+      drivingWindingFactor: source.drivingWindingFactor,
+      drivingAvgSpeedKph: source.drivingAvgSpeedKph,
+      chapters: source.chapters,
+      stops: source.stops,
+      items: source.items.map((i) => ({ ...i })),
+      transports: source.transports,
+      checklistItems: source.checklistItems,
+    },
+    name,
+  );
+
+  const newTrip = await db.$transaction(async (tx) => {
+    const trip = await tx.trip.create({ data: { ...plan.trip, createdById: user.id } });
+
+    // Owner = duplicator; copy every co-traveller membership too (ADR-0018).
+    await tx.tripMember.create({ data: { tripId: trip.id, userId: user.id, role: "owner" } });
+    for (const m of source.members) {
+      if (m.userId === user.id) continue;
+      await tx.tripMember.create({ data: { tripId: trip.id, userId: m.userId, role: m.role } });
+    }
+
+    const chapterIdMap = new Map<string, string>();
+    for (const c of plan.chapters) {
+      const created = await tx.chapter.create({ data: { tripId: trip.id, ...c.data } });
+      chapterIdMap.set(c.sourceId, created.id);
+    }
+
+    const stopIdMap = new Map<string, string>();
+    for (const s of plan.stops) {
+      const created = await tx.stop.create({
+        data: { tripId: trip.id, chapterId: s.sourceChapterId ? chapterIdMap.get(s.sourceChapterId) ?? null : null, ...s.data },
+      });
+      stopIdMap.set(s.sourceId, created.id);
+    }
+
+    for (const it of plan.items) {
+      await tx.item.create({
+        data: { tripId: trip.id, stopId: it.sourceStopId ? stopIdMap.get(it.sourceStopId) ?? null : null, ...it.data },
+      });
+    }
+
+    for (const t of plan.transports) {
+      await tx.transport.create({
+        data: {
+          tripId: trip.id,
+          fromStopId: t.sourceFromStopId ? stopIdMap.get(t.sourceFromStopId) ?? null : null,
+          toStopId: t.sourceToStopId ? stopIdMap.get(t.sourceToStopId) ?? null : null,
+          ...t.data,
+        },
+      });
+    }
+
+    for (const c of plan.checklistItems) {
+      await tx.checklistItem.create({ data: { tripId: trip.id, ...c.data } });
+    }
+
+    return trip;
+  });
+
+  // Note: "TRIP" is not a valid ActivityEntityType (valid: STOP, ITEM, TRANSPORT,
+  // ACCOMMODATION, CHAPTER, COST, NOTE), so recordActivity is omitted here.
+  // This is a best-effort concern that must never break the mutation.
+  revalidatePath("/trips");
+  return { success: true, tripId: newTrip.id };
 }

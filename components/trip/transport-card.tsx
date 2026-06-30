@@ -4,6 +4,7 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { TRANSPORT_MODE_META, durationMinutes, formatDuration } from "@/lib/transport";
 import type { TransportMode } from "@/lib/enums";
+import { transportTimeDisplay, shortDate, dayDeltaSuffix } from "@/lib/time-display";
 import { CostEditor } from "./cost-editor";
 import type { CostRow } from "@/server/actions/costs";
 
@@ -49,32 +50,6 @@ interface TransportCardProps {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function formatInstant(dt: Date | null | undefined, timezone?: string | null): string | null {
-  if (!dt) return null;
-  try {
-    return new Intl.DateTimeFormat("en-AU", {
-      timeZone: timezone ?? "UTC",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(dt);
-  } catch {
-    return new Intl.DateTimeFormat("en-AU", {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(dt);
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -93,8 +68,9 @@ export function TransportCard({
   const fromLabel = t.fromStopName ?? t.depPlace ?? null;
   const toLabel = t.toStopName ?? t.arrPlace ?? null;
 
-  const depTimeStr = formatInstant(t.depAt, t.fromStopTimezone);
-  const arrTimeStr = formatInstant(t.arrAt, t.toStopTimezone);
+  const td = transportTimeDisplay({
+    depAt: t.depAt, arrAt: t.arrAt, fromTimezone: t.fromStopTimezone, toTimezone: t.toStopTimezone,
+  });
 
   const mins = durationMinutes(t.depAt, t.arrAt);
   const duration = mins !== null ? formatDuration(mins) : null;
@@ -160,18 +136,21 @@ export function TransportCard({
       </div>
 
       {/* Times row */}
-      {(depTimeStr || arrTimeStr || duration || (!duration && t.driveEstimate)) && (
+      {(td.dep || td.arr || duration || (!duration && t.driveEstimate)) && (
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-          {depTimeStr && (
+          {td.dep && (
             <span>
               <span className="font-medium text-foreground/70">dep</span>{" "}
-              {depTimeStr}
+              {shortDate(td.dep.dateISO)} {td.dep.time}{" "}
+              <abbr title={t.fromStopTimezone ?? "Time zone unknown"} className="no-underline text-foreground/60">{td.dep.zone}</abbr>
             </span>
           )}
-          {arrTimeStr && (
+          {td.arr && (
             <span>
               <span className="font-medium text-foreground/70">arr</span>{" "}
-              {arrTimeStr}
+              {td.arr.time}{" "}
+              <abbr title={t.toStopTimezone ?? "Time zone unknown"} className="no-underline text-foreground/60">{td.arr.zone}</abbr>
+              {dayDeltaSuffix(td.dayDelta)}
             </span>
           )}
           {duration && (

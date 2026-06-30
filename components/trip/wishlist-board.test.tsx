@@ -5,6 +5,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+// Mock WishlistMapLoader so Leaflet never touches jsdom.
+vi.mock("./wishlist-map-loader", () => ({
+  WishlistMapLoader: () => <div data-testid="wishlist-map" />,
+}));
+
 // ── Mock server actions ────────────────────────────────────────────────────────
 // Must be declared before component imports so vi.mock hoisting works.
 
@@ -242,5 +247,29 @@ describe("WishlistBoard — Schedule button", () => {
 
     expect(await screen.findByRole("dialog", { name: "Schedule item" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Schedule item" })).toBeInTheDocument();
+  });
+});
+
+describe("WishlistBoard — List/Map toggle", () => {
+  it("defaults to List and reveals the map only when Map is chosen", async () => {
+    const user = userEvent.setup();
+    render(
+      <WishlistBoard
+        tripId="t1"
+        stops={[]}
+        items={[
+          { id: "i1", title: "Colosseum", category: "SIGHTSEEING", lat: 41.89, lng: 12.49 },
+          { id: "i2", title: "No location", category: "FOOD" },
+        ]}
+      />,
+    );
+    // List is the default — map must not be rendered
+    expect(screen.queryByTestId("wishlist-map")).not.toBeInTheDocument();
+    // Click the Map toggle
+    await user.click(screen.getByRole("radio", { name: /map/i }));
+    // Map renders
+    expect(screen.getByTestId("wishlist-map")).toBeInTheDocument();
+    // Unlocated count line
+    expect(screen.getByText(/1 not on the map/i)).toBeInTheDocument();
   });
 });

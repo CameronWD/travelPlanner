@@ -9,13 +9,18 @@ import {
   pickDayPlan,
 } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
+import { nearbyWishlistItems } from "@/lib/nearby";
 import { chapterForDate } from "@/lib/chapters";
+import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
 import { DayMapPanel } from "@/components/trip/day-map-panel";
+import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
 import { MapLink } from "@/components/trip/map-link";
 import { TransportCountdown } from "@/components/trip/transport-countdown";
+import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
+import { zoneLabel } from "@/lib/time-display";
 import type { TransportMode } from "@/lib/enums";
 import {
   RemindersCard,
@@ -26,7 +31,7 @@ import { ChapterChip } from "@/components/trip/chapter-chip";
 export async function PhaseTravelling({ tripId }: { tripId: string }) {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { startDate: true, endDate: true },
+    select: { startDate: true, endDate: true, homeCurrency: true },
   });
   if (!trip) notFound();
 
@@ -51,8 +56,8 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
   const isAfterTrip = today > endDate;
   const isWithinTrip = today >= startDate && today <= endDate;
 
-  // Fetch all itinerary data (plus reminders + chapters)
-  const [stops, items, transports, accommodations, reminders, chapters] = await Promise.all([
+  // Fetch all itinerary data (plus costs + reminders + chapters + located wishlist candidates)
+  const [stops, items, transports, accommodations, costs, reminders, chapters, wishlistLocated] = await Promise.all([
     db.stop.findMany({
       // Rough (date-less) stops don't appear on a dated "today" view.
       where: { tripId, arriveDate: { not: null } },
@@ -125,6 +130,21 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         lng: true,
       },
     }),
+    db.cost.findMany({
+      where: { tripId },
+      select: {
+        id: true,
+        estimatedMinor: true,
+        actualMinor: true,
+        currency: true,
+        rateToHome: true,
+        paidAt: true,
+        ownerType: true,
+        ownerId: true,
+        label: true,
+        category: true,
+      },
+    }),
     db.reminder.findMany({
       where: { tripId },
       orderBy: { fireAt: "asc" },
@@ -145,6 +165,10 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         startDate: true,
         endDate: true,
       },
+    }),
+    db.item.findMany({
+      where: { tripId, date: null, lat: { not: null }, lng: { not: null } },
+      select: { id: true, title: true, category: true, lat: true, lng: true },
     }),
   ]);
 
@@ -233,6 +257,16 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
 
   const effectiveStop = dayPlan?.stop ?? null;
 
+  // ── Spend so far ────────────────────────────────────────────────────────────
+  const homeCurrency = trip.homeCurrency;
+  const spend = buildSpendSoFar({
+    costs: costs as SpendCost[],
+    homeCurrency,
+    tripStart: startDate,
+    tripEnd: endDate,
+    today: effectiveDate,
+  });
+
   // ── Day-map model (for effectiveDate) ──────────────────────────────────────
   const dayItems = items
     .filter((item) => item.date === effectiveDate)
@@ -278,6 +312,27 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
     transports: dayTransports,
   });
   const itemDirections = buildItemDirections(dayMapModel);
+
+  // ── Nearby Wishlist items ─────────────────────────────────────────────────
+  // Anchors: located scheduled items for today + tonight's accommodation
+  const nearbyAnchors = [
+    ...dayItems
+      .filter((i) => i.lat != null && i.lng != null)
+      .map((i) => ({ lat: i.lat!, lng: i.lng! })),
+    ...(dayAccommodation?.lat != null && dayAccommodation?.lng != null
+      ? [{ lat: dayAccommodation.lat!, lng: dayAccommodation.lng! }]
+      : []),
+  ];
+  const nearby = nearbyWishlistItems({
+    anchors: nearbyAnchors,
+    candidates: wishlistLocated.map((i) => ({
+      id: i.id,
+      title: i.title,
+      category: i.category,
+      lat: i.lat!,
+      lng: i.lng!,
+    })),
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -348,6 +403,9 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         </section>
       )}
 
+      {/* ── Spend so far (compact glance) ── */}
+      <SpendSoFarCard compact spend={spend} homeCurrency={homeCurrency} />
+
       {/* ── Next transport countdown ── */}
       {nextTransportDep && nextTransportDep.transport.depAt && (
         <section className="flex flex-col gap-1">
@@ -357,6 +415,10 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
           <TransportCountdown
             depAt={new Date(nextTransportDep.transport.depAt).toISOString()}
             depTimeLabel={nextTransportDep.depTimeLabel}
+            depZone={zoneLabel(
+              stops.find((s) => s.id === nextTransportDep.transport.fromStopId)?.timezone,
+              effectiveDate,
+            )}
             label={buildTransportLabel(nextTransportDep.transport)}
           />
         </section>
@@ -380,6 +442,9 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
             </p>
           )}
         </div>
+
+        {/* Nearby Wishlist items */}
+        <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
       </section>
 
       {/* ── Tonight's accommodation ── */}

@@ -163,11 +163,9 @@ export function AttachmentList({
                   target="_blank"
                   rel="noopener noreferrer"
                   aria-label={`View ${att.filename}`}
+                  className="inline-flex size-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                 >
-                  <Button variant="ghost" size="icon" asChild={false}>
-                    <span className="sr-only">View {att.filename}</span>
-                    <ExternalLink className="size-4" />
-                  </Button>
+                  <ExternalLink className="size-4" aria-hidden="true" />
                 </a>
 
                 <Button

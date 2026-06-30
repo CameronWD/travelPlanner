@@ -43,7 +43,7 @@ import {
 } from "@/server/actions/checklists";
 import type { ChecklistKind } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { SPRING_POP } from "@/lib/motion";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
@@ -399,6 +399,7 @@ function ChecklistRow({
   showDueDate?: boolean;
   showAssignee?: boolean;
 }) {
+  const reduce = useReducedMotion();
   const [pending, startTransition] = useTransition();
   const [editOpen, setEditOpen] = React.useState(false);
   const { confirm, dialog: confirmDialog } = useConfirm();
@@ -460,9 +461,9 @@ function ChecklistRow({
         >
           <motion.span
             key={item.done ? "done" : "todo"}
-            initial={{ scale: 0.6 }}
+            initial={reduce ? false : { scale: 0.6 }}
             animate={{ scale: 1 }}
-            transition={SPRING_POP}
+            transition={reduce ? { duration: 0 } : SPRING_POP}
             className="inline-flex"
           >
             {item.done ? (

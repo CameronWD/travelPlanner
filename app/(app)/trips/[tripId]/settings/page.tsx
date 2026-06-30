@@ -17,6 +17,7 @@ import { SharePanel } from "@/components/trip/settings/share-panel";
 import { CalendarFeedPanel } from "@/components/trip/settings/calendar-feed-panel";
 import { DrivingEstimatesPanel } from "@/components/trip/settings/driving-estimates-panel";
 import { DangerZone } from "@/components/trip/settings/danger-zone";
+import { DuplicateTripDialog } from "@/components/trip/duplicate-trip-dialog";
 import { ChaptersManager } from "@/components/trip/chapters-manager";
 
 export default async function SettingsPage({
@@ -191,6 +192,20 @@ export default async function SettingsPage({
             initialWindingFactor={trip.drivingWindingFactor}
             initialAvgSpeedKph={trip.drivingAvgSpeedKph}
           />
+        </CardContent>
+      </Card>
+
+      {/* ── Duplicate ── */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Duplicate</CardTitle>
+          <CardDescription>
+            Start a new trip from this one&apos;s structure — dates reset,
+            bookings and costs left behind.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DuplicateTripDialog tripId={tripId} tripName={trip.name} />
         </CardContent>
       </Card>
 

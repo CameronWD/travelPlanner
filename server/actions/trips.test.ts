@@ -20,6 +20,11 @@ const {
   tripDeleteMock,
   tripFindUniqueMock,
   memberCreateMock,
+  chapterCreateMock,
+  stopCreateMock,
+  itemCreateMock,
+  transportCreateMock,
+  checklistItemCreateMock,
   transactionMock,
   attachmentFindManyMock,
   storageDeleteMock,
@@ -30,6 +35,11 @@ const {
   const tripDeleteMock = vi.fn();
   const tripFindUniqueMock = vi.fn();
   const memberCreateMock = vi.fn();
+  const chapterCreateMock = vi.fn();
+  const stopCreateMock = vi.fn();
+  const itemCreateMock = vi.fn();
+  const transportCreateMock = vi.fn();
+  const checklistItemCreateMock = vi.fn();
   const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const storageDeleteMock = vi.fn().mockResolvedValue(undefined);
   const storageSaveMock = vi.fn().mockResolvedValue(undefined);
@@ -40,6 +50,11 @@ const {
     const tx = {
       trip: { create: tripCreateMock },
       tripMember: { create: memberCreateMock },
+      chapter: { create: chapterCreateMock },
+      stop: { create: stopCreateMock },
+      item: { create: itemCreateMock },
+      transport: { create: transportCreateMock },
+      checklistItem: { create: checklistItemCreateMock },
     };
     return cb(tx);
   });
@@ -59,6 +74,11 @@ const {
     tripDeleteMock,
     tripFindUniqueMock,
     memberCreateMock,
+    chapterCreateMock,
+    stopCreateMock,
+    itemCreateMock,
+    transportCreateMock,
+    checklistItemCreateMock,
     transactionMock,
     attachmentFindManyMock,
     storageDeleteMock,
@@ -74,6 +94,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     $transaction: transactionMock,
     trip: {
+      create: tripCreateMock,
       update: tripUpdateMock,
       delete: tripDeleteMock,
       findUnique: tripFindUniqueMock,
@@ -97,8 +118,9 @@ vi.mock("@/lib/storage", () => ({
 }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 
-import { createTrip, updateTrip, deleteTrip, setTripHardEndDate } from "./trips";
+import { createTrip, updateTrip, deleteTrip, setTripHardEndDate, duplicateTrip } from "./trips";
 
 const VALID_INPUT = {
   name: "Japan 2026",
@@ -472,5 +494,66 @@ describe("setTripHardEndDate", () => {
     const r = await setTripHardEndDate(TRIP_ID, "2026-07-20");
     expect(r.success).toBe(false);
     expect(tripUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// duplicateTrip
+// ---------------------------------------------------------------------------
+
+describe("duplicateTrip", () => {
+  it("creates a new trip + owner membership + copies co-travellers, and remaps children", async () => {
+    requireTripAccessMock.mockResolvedValue({ user: { id: "user-1" }, membership: { role: "member" } });
+    tripFindUniqueMock.mockResolvedValue({
+      id: "src", name: "Europe 2026", homeCurrency: "AUD", drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
+      members: [{ userId: "user-1", role: "owner" }, { userId: "user-2", role: "member" }],
+      chapters: [{ id: "ch1", name: "Italy", colour: "rose", startDate: "2026-08-01", endDate: "2026-08-10", sortOrder: 0 }],
+      stops: [
+        { id: "s1", name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, timezone: "Europe/Rome",
+          arriveDate: "2026-08-01", departDate: "2026-08-04", nights: null, pinned: true,
+          sortOrder: 0, chapterId: "ch1", chapterSortOrder: 0, notes: null },
+        { id: "s2", name: "Florence", country: "Italy", lat: 43.8, lng: 11.2, timezone: "Europe/Rome",
+          arriveDate: "2026-08-04", departDate: "2026-08-07", nights: null, pinned: false,
+          sortOrder: 1, chapterId: "ch1", chapterSortOrder: 1, notes: null },
+      ],
+      items: [{ stopId: "s1", title: "Colosseum", category: "SIGHTSEEING", date: "2026-08-02", startTime: "09:00",
+                endTime: null, lat: null, lng: null, address: null, link: null, booking: "B", notes: null }],
+      transports: [{ fromStopId: "s1", toStopId: "s2", mode: "TRAIN", depPlace: "A", arrPlace: "B",
+                     depAt: new Date("2026-08-04T08:00:00Z"), arrAt: new Date("2026-08-04T10:00:00Z"),
+                     reference: "R1", notes: "n", depLat: 1, depLng: 2, arrLat: 3, arrLng: 4 }],
+      checklistItems: [{ kind: "PRETRIP", text: "Passport", dueDate: "2026-07-01" }],
+    });
+    tripCreateMock.mockResolvedValue({ id: "new" });
+    chapterCreateMock.mockResolvedValue({ id: "new-ch1" });
+    stopCreateMock
+      .mockResolvedValueOnce({ id: "new-s1" })
+      .mockResolvedValueOnce({ id: "new-s2" });
+    itemCreateMock.mockResolvedValue({ id: "new-i1" });
+    transportCreateMock.mockResolvedValue({ id: "new-t1" });
+    checklistItemCreateMock.mockResolvedValue({ id: "new-cl1" });
+
+    const result = await duplicateTrip("src", "Copy of Europe 2026");
+
+    expect(result).toEqual({ success: true, tripId: "new" });
+    expect(tripCreateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ name: "Copy of Europe 2026", homeCurrency: "AUD", createdById: "user-1" }),
+    }));
+    // owner + one co-traveller membership
+    expect(memberCreateMock).toHaveBeenCalledWith({ data: { tripId: "new", userId: "user-1", role: "owner" } });
+    expect(memberCreateMock).toHaveBeenCalledWith({ data: { tripId: "new", userId: "user-2", role: "member" } });
+    // stops created rough (dates null), remapped to new chapter
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", name: "Rome", arriveDate: null, departDate: null, chapterId: "new-ch1" }) });
+    expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", name: "Florence", arriveDate: null, departDate: null, chapterId: "new-ch1" }) });
+    // item created unscheduled under the remapped stop
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", stopId: "new-s1", date: null, booking: null }) });
+    // transport remapped to new stop ids, dates cleared
+    expect(transportCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", fromStopId: "new-s1", toStopId: "new-s2", depAt: null, arrAt: null, reference: null }) });
+    // checklist item copied with dates cleared and done reset
+    expect(checklistItemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", text: "Passport", done: false, dueDate: null, assignedToId: null }) });
+  });
+
+  it("denies when the caller lacks access", async () => {
+    requireTripAccessMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    await expect(duplicateTrip("src", "x")).rejects.toThrow();
   });
 });

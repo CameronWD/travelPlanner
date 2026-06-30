@@ -31,8 +31,15 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     /** Hide the built-in close button. */
     hideClose?: boolean;
+    /**
+     * Skip the padded inner wrapper and mobile grab handle entirely.
+     * Use this for custom-layout dialogs (e.g. command palette) that manage
+     * their own padding, sticky headers, and scroll containers.
+     * When false (default) the behaviour is byte-identical to before.
+     */
+    bare?: boolean;
   }
->(({ className, children, hideClose, ...props }, ref) => (
+>(({ className, children, hideClose, bare, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -50,15 +57,21 @@ const DialogContent = React.forwardRef<
       )}
       {...props}
     >
-      {/* Mobile grab handle (decorative) */}
-      <div
-        aria-hidden="true"
-        className="mx-auto mt-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30 sm:hidden"
-      />
-      {/* Scrollable body — the frame above never scrolls, so the ✕ stays put. */}
-      <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-6 pt-4 sm:pt-6">
-        {children}
-      </div>
+      {bare ? (
+        children
+      ) : (
+        <>
+          {/* Mobile grab handle (decorative) */}
+          <div
+            aria-hidden="true"
+            className="mx-auto mt-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30 sm:hidden"
+          />
+          {/* Scrollable body — the frame above never scrolls, so the ✕ stays put. */}
+          <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-6 pt-4 sm:pt-6">
+            {children}
+          </div>
+        </>
+      )}
       {!hideClose ? (
         <DialogPrimitive.Close
           className={cn(

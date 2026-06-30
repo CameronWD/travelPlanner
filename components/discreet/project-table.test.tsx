@@ -1,5 +1,15 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+// Must be declared before component imports so vi.mock hoisting works.
+vi.mock("@/server/actions/trips", () => ({
+  duplicateTrip: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
+
 import { ProjectTable } from "@/components/discreet/project-table";
 
 describe("ProjectTable", () => {

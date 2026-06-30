@@ -679,6 +679,77 @@ export function flagHardEndDate(
 }
 
 // ---------------------------------------------------------------------------
+// Rule 14: Accommodation coverage gap (warning)
+//
+// For each scheduled stop with >= 1 night that HAS at least one accommodation,
+// count how many nights are not covered by any accommodation booking.
+// (Zero-accommodation stops are handled by flagStopsWithoutAccommodation.)
+// ---------------------------------------------------------------------------
+
+export function flagAccommodationCoverageGaps(
+  stops: FlagStop[],
+  accommodations: FlagAccommodation[],
+): Flag[] {
+  const byStop = new Map<string, FlagAccommodation[]>();
+  for (const a of accommodations) {
+    const arr = byStop.get(a.stopId) ?? [];
+    arr.push(a);
+    byStop.set(a.stopId, arr);
+  }
+  const flags: Flag[] = [];
+  for (const stop of stops) {
+    const nights = nightsBetween(stop.arriveDate, stop.departDate);
+    if (nights < 1) continue;
+    const accoms = byStop.get(stop.id) ?? [];
+    if (accoms.length === 0) continue; // zero-accommodation handled elsewhere
+    let uncovered = 0;
+    for (let d = 0; d < nights; d++) {
+      const night = addDays(stop.arriveDate, d);
+      const covered = accoms.some((a) => a.checkIn <= night && night < a.checkOut);
+      if (!covered) uncovered++;
+    }
+    if (uncovered > 0) {
+      flags.push({
+        id: `accom-gap-${stop.id}`,
+        severity: "warning",
+        message: `${stop.name} has ${uncovered} night${uncovered === 1 ? "" : "s"} without accommodation booked.`,
+        targetType: "STOP",
+        targetId: stop.id,
+      });
+    }
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
+// Rule 13: Missing connection between consecutive stops (info)
+//
+// For each pair of consecutive stops (by sortOrder) that have no transport
+// linking them in either direction, fire an info flag on the TRANSPORT target
+// type to prompt the user to book a connection.
+// ---------------------------------------------------------------------------
+
+export function flagMissingConnections(stops: FlagStop[], transports: FlagTransport[]): Flag[] {
+  const sorted = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
+  const linked = new Set<string>();
+  for (const t of transports) {
+    if (t.fromStopId && t.toStopId) linked.add(`${t.fromStopId}|${t.toStopId}`);
+  }
+  const flags: Flag[] = [];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i], b = sorted[i + 1];
+    if (linked.has(`${a.id}|${b.id}`) || linked.has(`${b.id}|${a.id}`)) continue;
+    flags.push({
+      id: `missing-connection-${a.id}-${b.id}`,
+      severity: "info",
+      message: `No transport booked between ${a.name} and ${b.name}.`,
+      targetType: "TRANSPORT",
+    });
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -698,6 +769,7 @@ export function flagHardEndDate(
  *   10. Long driving day (warning)
  *   11. Hard end date (warning/info)
  *   12. Tight / impossible connections (warning/info)
+ *   13. Missing connection between consecutive stops (info)
  */
 export function detectFlags({
   stops,
@@ -731,5 +803,7 @@ export function detectFlags({
       avgSpeedKph: drivingAvgSpeedKph ?? 80,
     }),
     ...flagHardEndDate(projectedEnd, hardEndDate),
+    ...flagMissingConnections(stops, transports),
+    ...flagAccommodationCoverageGaps(stops, accommodations),
   ];
 }

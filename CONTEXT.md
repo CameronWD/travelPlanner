@@ -72,6 +72,10 @@ _Avoid_: Misc, extra
 The read-only roll-up view: grand total (in Home currency), and breakdowns by Category, by Stop, and by day, each showing estimated vs actual. No target/cap — totals only.
 _Avoid_: Budget cap, limit (there is no limit feature)
 
+**Spend so far**:
+A read-only money lens, distinct from the **Budget** roll-up, tracking how actual spending compares with estimates: the **estimated** total, what's been **paid** to date (Costs carrying a paid date), how those paid Costs' actuals run over/under their own estimates, and the estimated amount still to come. Cash-flow basis — a Cost counts once it's marked paid. Surfaced on the Budget view and the Travelling/Past **Home**. Like the Budget it has no target or cap; over-estimate spending is shown here only, never raised as a **Flag**.
+_Avoid_: Burn-down (implies a cap we don't have), budget pace, remaining budget, overspend alert
+
 **Exchange rate**:
 The conversion factor between a currency and the Home currency. Auto-fetched and cached, with optional manual override per Trip.
 _Avoid_: FX, forex
@@ -83,7 +87,7 @@ The read-only overview of a whole Trip: each Stop with its nights, the Transport
 _Avoid_: Report, dashboard
 
 **Flag**:
-An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, an empty day, Transport times that don't line up with Stop dates, a very short stay, backtracking in the route, a **packed day** (more scheduled than is realistic), a day whose plans are **geographically spread out** (located Items far apart), Items whose times **overlap**, a **long driving day** (more estimated driving in one day than is comfortable), a **Pinned** Stop the surrounding plan can't fit around, or the plan's **projected** end running up against (within a couple of nights) or past the **Hard end date**.
+An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, **no Transport connecting two consecutive Stops** (a missing connection), a night at a Stop with **no Accommodation cover** (a coverage gap, finer than a Stop with none at all), an empty day, Transport times that don't line up with Stop dates, a very short stay, backtracking in the route, a **packed day** (more scheduled than is realistic), a day whose plans are **geographically spread out** (located Items far apart), Items whose times **overlap**, a **long driving day** (more estimated driving in one day than is comfortable), a **Pinned** Stop the surrounding plan can't fit around, or the plan's **projected** end running up against (within a couple of nights) or past the **Hard end date**. A Flag is always something the Traveller can act on; pure awareness signals (e.g. spending over estimate — see **Spend so far**) are not Flags.
 _Avoid_: Warning, alert, issue, error
 
 **Home**:
@@ -155,6 +159,14 @@ _Avoid_: invitation link/email, membership request, share
 **Trip cover image**:
 The single picture that represents a Trip wherever it's shown (currently the trips-list card and the Trip **Home** hero). A photo the Traveller uploads; when none is set the app falls back to an auto-generated **route render** — a stylised drawing of the Trip's located Stops as pins joined by a path, *not* a real tile map — and, for a Trip with no located Stops yet, a neutral monogram panel. The old hashed warm-gradient cover is retired.
 _Avoid_: thumbnail; avatar/image (that's a Traveller's photo); banner; "route map" alone (reserved for the interactive Leaflet map on the Summary / the **Day map**)
+
+**Duplicate**:
+Creating a brand-new Trip from an existing one's reusable *structure* — its Stops (carried over as **rough**), Chapters, Wishlist and Checklists — with every date reset, so a proven skeleton can seed a fresh Trip. A one-way clone: the new Trip is fully independent of its source, and the source is untouched. Distinct from a **Fork** (a dated what-if *variant* of the same Trip, kept alongside the original and compared before one is chosen) — a separate concept, not yet built.
+_Avoid_: Copy, clone (use "Duplicate" in UI/code); Template (reserved for the reusable **Packing list** templates); Fork (that's the dated variant)
+
+**Fork** _(not yet built — reserved)_:
+A dated what-if *variant* of a Trip, kept alongside the original so two arrangements (e.g. X→X→X vs Y→Y→Y) can be compared on projected end, budget and Flags before one is promoted to the real plan and the rest discarded. Distinct from **Duplicate** (which throws dates away to seed an independent new Trip) and from **Make it fit** (which previews trim/drop edits to one plan, not parallel variants).
+_Avoid_: Duplicate, copy, scenario, branch
 
 ## Flagged ambiguities
 
