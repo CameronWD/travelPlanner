@@ -49,6 +49,9 @@ vi.mock("@/components/discreet/discreet-toggle", () => ({
   ),
 }));
 
+vi.mock("@/components/command-palette-mount", () => ({ CommandPaletteMount: () => null }));
+vi.mock("@/components/command-palette-trigger", () => ({ CommandPaletteTrigger: () => null }));
+
 // ── Imports (after mocks) ──
 
 import { auth } from "@/lib/auth";
