@@ -19,6 +19,10 @@ import { isRateStale } from "@/lib/fx";
 import type { RateEntry } from "@/components/trip/rates-panel";
 import { ChapterChip } from "@/components/trip/chapter-chip";
 import type { BudgetCost, BudgetStopWithDates, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
+import { buildSpendSoFar } from "@/lib/spend-so-far";
+import type { SpendCost } from "@/lib/spend-so-far";
+import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
+import { todayISO } from "@/lib/dates";
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -177,6 +181,28 @@ export default async function BudgetPage({
     chapters,
   });
 
+  // Build SpendCost[] — same as budgetCosts but with paidAt from allCosts
+  const spendCosts: SpendCost[] = allCosts.map((c) => ({
+    id: c.id,
+    estimatedMinor: c.estimatedMinor,
+    actualMinor: c.actualMinor,
+    currency: c.currency,
+    rateToHome: c.rateToHome,
+    ownerType: c.ownerType as SpendCost["ownerType"],
+    ownerId: c.ownerId,
+    label: c.label,
+    category: c.category,
+    paidAt: c.paidAt,
+  }));
+
+  const spend = buildSpendSoFar({
+    costs: spendCosts,
+    homeCurrency,
+    tripStart: startDate,
+    tripEnd: endDate,
+    today: todayISO(),
+  });
+
   // Build rates data for the panel
   // Distinct foreign currencies from all costs
   const foreignCurrencies = [
@@ -321,6 +347,9 @@ export default async function BudgetPage({
           </div>
         </CardContent>
       </Card>
+
+      {/* Spend so far card */}
+      <SpendSoFarCard spend={spend} homeCurrency={homeCurrency} />
 
       {/* Legend for the estimated-vs-spent columns shown in the sections below */}
       <div className="flex items-center justify-end gap-4 px-1 text-xs text-muted-foreground">
