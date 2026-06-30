@@ -15,6 +15,7 @@ import { relativeTime } from "@/lib/relative-time";
 import { addNote, deleteNote } from "@/server/actions/notes";
 import type { TargetType } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -79,6 +80,7 @@ function ThreadBody({
   const [error, setError] = React.useState<string | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const now = new Date();
+  const { confirm, dialog } = useConfirm();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -96,7 +98,17 @@ function ThreadBody({
     });
   }
 
-  function handleDelete(noteId: string) {
+  async function handleDelete(noteId: string, excerpt: string) {
+    const title = excerpt
+      ? `Delete "${excerpt.length > 60 ? excerpt.slice(0, 60) + "…" : excerpt}"?`
+      : "Delete this note?";
+    const confirmed = await confirm({
+      title,
+      description: "This note will be permanently removed.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     startTransition(async () => {
       await deleteNote(noteId);
     });
@@ -104,6 +116,7 @@ function ThreadBody({
 
   return (
     <div className="flex flex-col gap-3">
+      {dialog}
       {/* Notes list */}
       {notes.length > 0 ? (
         <AnimatedList as="ul" role="list" className="flex flex-col gap-2.5">
@@ -142,7 +155,7 @@ function ThreadBody({
                 variant="ghost"
                 size="icon"
                 disabled={isPending}
-                onClick={() => handleDelete(note.id)}
+                onClick={() => handleDelete(note.id, note.body)}
                 aria-label="Delete note"
                 className={cn(
                   "size-5 shrink-0 self-start text-muted-foreground/40 hover:text-destructive",

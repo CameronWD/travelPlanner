@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import { setStopNights, deleteStop } from "@/server/actions/stops";
@@ -113,6 +114,7 @@ function MakeItFitDialog({
     },
   );
   const [pending, setPending] = React.useState(false);
+  const { confirm, dialog } = useConfirm();
 
   const liveTrims = flex
     .filter((f) => nightsById[f.id] !== currentNights(f))
@@ -150,7 +152,14 @@ function MakeItFitDialog({
     }
   }
 
-  async function drop(id: string) {
+  async function drop(id: string, name: string) {
+    const confirmed = await confirm({
+      title: `Drop "${name}"?`,
+      description: "This stop will be permanently removed from your trip.",
+      confirmLabel: "Drop",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setPending(true);
     try {
       const r = await deleteStop(id);
@@ -167,6 +176,8 @@ function MakeItFitDialog({
   const hardEndLabel = hardEndDate ? formatLongDate(hardEndDate) : "";
 
   return (
+    <>
+    {dialog}
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
@@ -269,7 +280,7 @@ function MakeItFitDialog({
                     variant="ghost"
                     size="sm"
                     disabled={pending}
-                    onClick={() => drop(c.id)}
+                    onClick={() => drop(c.id, c.name)}
                   >
                     Drop {c.name}
                   </Button>
@@ -280,5 +291,6 @@ function MakeItFitDialog({
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

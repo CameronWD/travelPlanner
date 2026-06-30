@@ -9,6 +9,7 @@ import {
   revokeCalendarFeed,
   updateCalendarFeedFilter,
 } from "@/server/actions/calendar-feed";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 export interface CalendarFeedPanelProps {
   tripId: string;
@@ -33,6 +34,7 @@ export function CalendarFeedPanel({
   const [copied, setCopied] = React.useState(false);
   const [filter, setFilter] = React.useState(initialFilter);
   const [isPending, startTransition] = React.useTransition();
+  const { confirm, dialog } = useConfirm();
 
   const setType = (
     key: "includeTransport" | "includeAccommodation" | "includeActivities",
@@ -55,8 +57,17 @@ export function CalendarFeedPanel({
 
   const handleCreate = () =>
     startTransition(async () => setToken((await createCalendarFeed(tripId)).token));
-  const handleRotate = () =>
+  const handleRotate = async () => {
+    const confirmed = await confirm({
+      title: "Regenerate calendar feed?",
+      description:
+        "This invalidates the current calendar URL — anyone subscribed will need the new link.",
+      confirmLabel: "Regenerate",
+      destructive: true,
+    });
+    if (!confirmed) return;
     startTransition(async () => setToken((await rotateCalendarFeed(tripId)).token));
+  };
   const handleRevoke = () =>
     startTransition(async () => {
       await revokeCalendarFeed(tripId);
@@ -76,21 +87,26 @@ export function CalendarFeedPanel({
 
   if (!path) {
     return (
-      <div className="flex flex-col gap-3">
-        <p className="text-sm text-muted-foreground">
-          No calendar feed active. Create one to subscribe in Google, Apple or Outlook Calendar.
-        </p>
-        <div>
-          <Button type="button" variant="outline" onClick={handleCreate} loading={isPending}>
-            <CalendarPlus className="size-4" aria-hidden="true" />
-            Create calendar feed
-          </Button>
+      <>
+        {dialog}
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted-foreground">
+            No calendar feed active. Create one to subscribe in Google, Apple or Outlook Calendar.
+          </p>
+          <div>
+            <Button type="button" variant="outline" onClick={handleCreate} loading={isPending}>
+              <CalendarPlus className="size-4" aria-hidden="true" />
+              Create calendar feed
+            </Button>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
+    <>
+    {dialog}
     <div className="space-y-3">
       <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
         <LinkIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -157,5 +173,6 @@ export function CalendarFeedPanel({
         old URL immediately.
       </p>
     </div>
+    </>
   );
 }

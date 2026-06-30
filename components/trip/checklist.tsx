@@ -44,6 +44,7 @@ import type { ChecklistKind } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { motion } from "motion/react";
 import { SPRING_POP } from "@/lib/motion";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -399,6 +400,7 @@ function ChecklistRow({
 }) {
   const [pending, startTransition] = useTransition();
   const [editOpen, setEditOpen] = React.useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   const status = dueDateStatus(item.dueDate, item.done);
 
@@ -408,7 +410,14 @@ function ChecklistRow({
     });
   }
 
-  function remove() {
+  async function remove() {
+    const confirmed = await confirm({
+      title: `Delete "${item.text}"?`,
+      description: "This item will be permanently removed from the checklist.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     startTransition(async () => {
       await deleteChecklistItem(item.id);
     });
@@ -422,6 +431,7 @@ function ChecklistRow({
 
   return (
     <>
+      {confirmDialog}
       <EditItemDialog
         item={item}
         members={members}
