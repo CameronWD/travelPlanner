@@ -23,7 +23,7 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 import { CURRENCIES } from "@/lib/currencies";
-import { formatMoney, formatMinor, parseAmountToMinor } from "@/lib/money";
+import { formatMoney, formatMinor, parseAmountToMinor, convertMinor } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
@@ -365,7 +365,7 @@ export function OtherCostEditor({
                       <span className="text-muted-foreground/60">
                         ≈&nbsp;
                         {formatMoney(
-                          Math.round(cost.estimatedMinor * cost.rateToHome),
+                          convertMinor(cost.estimatedMinor, cost.currency, homeCurrency, cost.rateToHome),
                           homeCurrency,
                         )}
                       </span>

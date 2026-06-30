@@ -139,4 +139,33 @@ describe("OtherCostEditor", () => {
 
     vi.unstubAllGlobals();
   });
+
+  it("home-currency equivalent uses convertMinor scaling for JPY->AUD (not raw multiply)", () => {
+    // ¥100,000 at rate 0.011 should display as A$1,100.00 (convertMinor result: 110000 minor AUD),
+    // NOT A$11.00 (the wrong raw-multiply result: Math.round(100000 * 0.011) = 1100 minor AUD).
+    const jpyCost: CostRow = {
+      id: "cost-jpy",
+      estimatedMinor: 100000,
+      actualMinor: null,
+      currency: "JPY",
+      rateToHome: 0.011,
+      paidAt: null,
+      ownerType: "OTHER",
+      ownerId: null,
+      label: "Shinkansen ticket",
+      category: null,
+    };
+
+    render(
+      <OtherCostEditor
+        {...baseProps}
+        homeCurrency="AUD"
+        costs={[jpyCost]}
+      />,
+    );
+
+    // The correct converted display must be A$1,100.00, not A$11.00
+    expect(screen.getByText(/1,100\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/≈.*11\.00/)).not.toBeInTheDocument();
+  });
 });
