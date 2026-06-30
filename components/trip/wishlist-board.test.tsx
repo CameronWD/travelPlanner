@@ -35,12 +35,16 @@ vi.mock("@/server/actions/costs", () => ({
 // the real card only renders it in mode="scheduled" but the handler lives
 // in WishlistBoard. We stub the card to surface the action for testing.
 vi.mock("./item-card", () => ({
-  ItemCard: ({ item, onUnschedule }: {
+  ItemCard: ({ item, onUnschedule, onSchedule }: {
     item: { id: string; title: string };
     onUnschedule?: (id: string) => void;
+    onSchedule?: (item: { id: string; title: string }) => void;
   }) => (
     <div>
       <span>{item.title}</span>
+      {onSchedule && (
+        <button onClick={() => onSchedule(item)}>Schedule {item.title}</button>
+      )}
       {onUnschedule && (
         <button onClick={() => onUnschedule(item.id)}>Unschedule</button>
       )}
@@ -58,7 +62,8 @@ vi.mock("./item-form-dialog", () => ({
 }));
 
 vi.mock("./schedule-item-dialog", () => ({
-  ScheduleItemDialog: () => null,
+  ScheduleItemDialog: ({ open, itemTitle }: { open: boolean; itemTitle: string }) =>
+    open ? <div role="dialog" aria-label="Schedule idea"><h2>Schedule idea</h2><p>{itemTitle}</p></div> : null,
 }));
 
 import { unscheduleItem, scheduleItem } from "@/server/actions/items";
@@ -216,5 +221,26 @@ describe("WishlistBoard — unschedule undo-toast", () => {
 
     // Toast should NOT appear on failure
     expect(screen.queryByText("Moved to Wishlist")).not.toBeInTheDocument();
+  });
+});
+
+describe("WishlistBoard — Schedule button", () => {
+  it("renders a Schedule button for an unscheduled wishlist item", async () => {
+    const item = makeItem({ id: "item-10", date: null, startTime: null, endTime: null });
+    renderBoard([item]);
+
+    expect(await screen.findByRole("button", { name: `Schedule ${item.title}` })).toBeInTheDocument();
+  });
+
+  it("opens ScheduleItemDialog when Schedule button is clicked", async () => {
+    const user = userEvent.setup();
+    const item = makeItem({ id: "item-11", date: null, startTime: null, endTime: null });
+    renderBoard([item]);
+
+    const scheduleBtn = await screen.findByRole("button", { name: `Schedule ${item.title}` });
+    await user.click(scheduleBtn);
+
+    expect(await screen.findByRole("dialog", { name: "Schedule idea" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Schedule idea" })).toBeInTheDocument();
   });
 });

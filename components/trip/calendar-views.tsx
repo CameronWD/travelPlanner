@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, CalendarCheck } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { MonthGrid } from "@/components/trip/month-grid";
 import { addMonths, startOfMonthISO, formatMonthYear, monthKey } from "@/lib/dates";
 import { rescheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
+import { ScheduleItemDialog } from "@/components/trip/schedule-item-dialog";
 import { categoryDotClass } from "@/components/trip/category-dot";
 import { cn } from "@/lib/cn";
 import { DURATION, EASE_OUT } from "@/lib/motion";
@@ -121,6 +122,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems 
   );
 
   const [railOpen, setRailOpen] = React.useState(true);
+  const [schedulingItem, setSchedulingItem] = React.useState<WishlistRailItem | null>(null);
 
   // `view` is "agenda" on the server and during hydration (getViewServerSnapshot),
   // resolving to the stored/responsive preference only after hydration — so gating
@@ -215,7 +217,19 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems 
                           className="flex cursor-grab items-center gap-1.5 rounded-md border border-border bg-card px-2 py-1.5 text-xs active:cursor-grabbing"
                         >
                           <span className={cn("size-2 shrink-0 rounded-full", categoryDotClass(w.category))} />
-                          <span className="truncate">{w.title}</span>
+                          <span className="truncate flex-1">{w.title}</span>
+                          <button
+                            type="button"
+                            aria-label={`Schedule ${w.title}`}
+                            title="Schedule this idea"
+                            className="shrink-0 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSchedulingItem(w);
+                            }}
+                          >
+                            <CalendarCheck className="size-3.5" aria-hidden="true" />
+                          </button>
                         </li>
                       ))}
                     </ul>
@@ -229,6 +243,20 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems 
           )}
         </motion.div>
       </AnimatePresence>
+
+      {/* Schedule item dialog — keyboard/touch path for wishlist rail */}
+      {schedulingItem && (
+        <ScheduleItemDialog
+          itemId={schedulingItem.id}
+          itemTitle={schedulingItem.title}
+          defaultDate={tripStart}
+          open={Boolean(schedulingItem)}
+          onOpenChange={(open) => {
+            if (!open) setSchedulingItem(null);
+          }}
+          onSaved={() => setSchedulingItem(null)}
+        />
+      )}
     </div>
   );
 }
