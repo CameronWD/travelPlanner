@@ -13,6 +13,7 @@ import {
   flagLongDrivingDays,
   flagHardEndDate,
   flagTightConnections,
+  flagMissingConnections,
   SPREAD_DAY_THRESHOLD_KM,
   LONG_DRIVE_DAY_THRESHOLD_MIN,
   TIGHT_CONNECTION_BUFFER_MIN,
@@ -820,5 +821,22 @@ describe("flagHardEndDate", () => {
 
   it("returns nothing with comfortable slack (> 2 nights)", () => {
     expect(flagHardEndDate("2026-07-15", "2026-07-25")).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule 13: Missing connection between consecutive stops
+// ---------------------------------------------------------------------------
+
+describe("flagMissingConnections", () => {
+  it("flags consecutive scheduled stops with no transport between them", () => {
+    const flags = flagMissingConnections([LONDON, PARIS], []); // LONDON sortOrder 0, PARIS 1
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toMatchObject({ severity: "info", targetType: "TRANSPORT" });
+    expect(flags[0].message).toMatch(/London.*Paris|Paris.*London/);
+  });
+  it("does not flag when a transport links them (either direction)", () => {
+    const t = makeTransport({ id: "t1", fromStopId: "london", toStopId: "paris" });
+    expect(flagMissingConnections([LONDON, PARIS], [t])).toHaveLength(0);
   });
 });

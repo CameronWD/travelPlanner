@@ -679,6 +679,34 @@ export function flagHardEndDate(
 }
 
 // ---------------------------------------------------------------------------
+// Rule 13: Missing connection between consecutive stops (info)
+//
+// For each pair of consecutive stops (by sortOrder) that have no transport
+// linking them in either direction, fire an info flag on the TRANSPORT target
+// type to prompt the user to book a connection.
+// ---------------------------------------------------------------------------
+
+export function flagMissingConnections(stops: FlagStop[], transports: FlagTransport[]): Flag[] {
+  const sorted = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
+  const linked = new Set<string>();
+  for (const t of transports) {
+    if (t.fromStopId && t.toStopId) linked.add(`${t.fromStopId}|${t.toStopId}`);
+  }
+  const flags: Flag[] = [];
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i], b = sorted[i + 1];
+    if (linked.has(`${a.id}|${b.id}`) || linked.has(`${b.id}|${a.id}`)) continue;
+    flags.push({
+      id: `missing-connection-${a.id}-${b.id}`,
+      severity: "info",
+      message: `No transport booked between ${a.name} and ${b.name}.`,
+      targetType: "TRANSPORT",
+    });
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -698,6 +726,7 @@ export function flagHardEndDate(
  *   10. Long driving day (warning)
  *   11. Hard end date (warning/info)
  *   12. Tight / impossible connections (warning/info)
+ *   13. Missing connection between consecutive stops (info)
  */
 export function detectFlags({
   stops,
@@ -731,5 +760,6 @@ export function detectFlags({
       avgSpeedKph: drivingAvgSpeedKph ?? 80,
     }),
     ...flagHardEndDate(projectedEnd, hardEndDate),
+    ...flagMissingConnections(stops, transports),
   ];
 }
