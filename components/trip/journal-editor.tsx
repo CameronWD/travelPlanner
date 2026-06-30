@@ -170,16 +170,21 @@ export function JournalEditor({
   const [lastSaved, setLastSaved] = React.useState<Date | null>(
     updatedAt ?? null,
   );
+  const [saveStatus, setSaveStatus] = React.useState<"saving" | "saved" | null>(null);
 
   function handleSave() {
     setSaveError(null);
+    setSaveStatus("saving");
     startTransition(async () => {
       const result = await saveJournalEntry(tripId, date, body);
       if (!result.success) {
         const firstError = Object.values(result.errors)[0]?.[0];
         setSaveError(firstError ?? "Failed to save.");
+        setSaveStatus(null);
       } else {
         setLastSaved(new Date());
+        setSaveStatus("saved");
+        setTimeout(() => setSaveStatus(null), 2000);
       }
     });
   }
@@ -212,12 +217,23 @@ export function JournalEditor({
           <div className="text-xs text-muted-foreground">
             {body.length}/5000
           </div>
-          {lastSaved && author ? (
-            <p className="text-xs text-muted-foreground">
-              Last edited by {author.name ?? "someone"}{" "}
-              {relativeTime(lastSaved)}
-            </p>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {saveStatus ? (
+              <p
+                role="status"
+                aria-live="polite"
+                className="text-xs text-muted-foreground"
+              >
+                {saveStatus === "saving" ? "Saving…" : "Saved"}
+              </p>
+            ) : null}
+            {lastSaved && author ? (
+              <p className="text-xs text-muted-foreground">
+                Last edited by {author.name ?? "someone"}{" "}
+                {relativeTime(lastSaved)}
+              </p>
+            ) : null}
+          </div>
         </div>
       </div>
 

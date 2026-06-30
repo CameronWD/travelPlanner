@@ -343,6 +343,7 @@ function TransportForm({
             value={depPlace}
             onChange={(e) => setDepPlace(e.target.value)}
             placeholder="e.g. Heathrow T5"
+            autoFocus
             disabled={isPending}
           />
         </Field>

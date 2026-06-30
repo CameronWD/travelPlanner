@@ -85,6 +85,18 @@ describe("ActivityFeed", () => {
     expect(screen.getByText(/Don't forget the passports!/i)).toBeInTheDocument();
   });
 
+  it("renders the <time> element with a dateTime attribute and a title for the absolute timestamp", () => {
+    render(<ActivityFeed activities={[CREATED_ACTIVITY]} />);
+    const timeEl = document.querySelector("time");
+    expect(timeEl).toBeTruthy();
+    // dateTime should be the ISO string
+    expect(timeEl?.getAttribute("dateTime")).toBe(
+      CREATED_ACTIVITY.createdAt.toISOString(),
+    );
+    // title should be the locale string (non-empty)
+    expect(timeEl?.getAttribute("title")).toBeTruthy();
+  });
+
   it("renders a summary payload as '{actor} {summary}', not the generic headline", () => {
     render(
       <ActivityFeed

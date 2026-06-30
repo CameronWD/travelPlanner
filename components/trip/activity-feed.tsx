@@ -130,6 +130,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
 
               <time
                 dateTime={activity.createdAt.toISOString()}
+                title={activity.createdAt.toLocaleString()}
                 className="text-xs text-muted-foreground"
               >
                 {relativeTime(activity.createdAt)}
