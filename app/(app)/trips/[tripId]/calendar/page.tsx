@@ -94,12 +94,30 @@ export default async function CalendarPage({
 
   // Graceful empty state — no stops, or a date-less trip, means there is no
   // dated calendar to project.
-  if (stops.length === 0 || !trip.startDate || !trip.endDate) {
+  if (!trip.startDate || !trip.endDate) {
     return (
       <EmptyState
         icon={CalendarDays}
-        title="No itinerary yet"
-        description="Add stops on the Plan page to start building your day-by-day calendar."
+        title="No dates yet"
+        description="Set your trip's start and end dates to see a day-by-day calendar."
+        action={
+          <Link
+            href={`/trips/${tripId}/plan`}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+          >
+            <MapPin className="size-4" aria-hidden="true" />
+            Go to Plan
+          </Link>
+        }
+      />
+    );
+  }
+  if (stops.length === 0) {
+    return (
+      <EmptyState
+        icon={CalendarDays}
+        title="No Stops yet"
+        description="Add Stops on the Plan page to start building your day-by-day calendar."
         action={
           <Link
             href={`/trips/${tripId}/plan`}

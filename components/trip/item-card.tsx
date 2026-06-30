@@ -126,7 +126,8 @@ export function ItemCard({
               className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
               disabled={isPending}
               onClick={() => onSchedule(item)}
-              title="Schedule this idea"
+              aria-label={`Schedule ${item.title}`}
+              title="Schedule this item"
             >
               <CalendarCheck className="size-3.5" aria-hidden="true" />
               Schedule

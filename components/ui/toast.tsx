@@ -15,7 +15,9 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitive.Viewport
     ref={ref}
     className={cn(
-      "fixed bottom-0 right-0 z-100 flex max-h-screen w-full flex-col-reverse gap-2 p-4 sm:bottom-4 sm:right-4 sm:top-auto sm:max-w-sm",
+      // On mobile (default): sit above the fixed tab bar (~4rem) plus safe-area-inset-bottom.
+      // At sm+: standard bottom-4 right-4 positioning (no tab bar).
+      "fixed bottom-0 right-0 z-100 flex max-h-screen w-full flex-col-reverse gap-2 p-4 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:bottom-4 sm:right-4 sm:top-auto sm:max-w-sm sm:pb-4",
       className,
     )}
     {...props}
@@ -26,8 +28,11 @@ ToastViewport.displayName = ToastPrimitive.Viewport.displayName;
 const toastVariants = cva(
   cn(
     "group pointer-events-auto relative flex w-full items-start justify-between gap-3 overflow-hidden rounded-xl border p-4 shadow-soft-lg",
-    "data-[state=open]:tp-slide-in-right data-[state=closed]:tp-fade-out",
-    "data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=cancel]:translate-x-0 data-[swipe=end]:tp-slide-out-right",
+    // Gate slide/fade animations behind motion-safe so reduced-motion users get no animation.
+    // Note: globals.css also has a prefers-reduced-motion rule that collapses all tp-* durations
+    // to 0.01ms — this motion-safe: layer makes the intent explicit at the component level.
+    "motion-safe:data-[state=open]:tp-slide-in-right motion-safe:data-[state=closed]:tp-fade-out",
+    "data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=cancel]:translate-x-0 motion-safe:data-[swipe=end]:tp-slide-out-right",
   ),
   {
     variants: {
@@ -106,7 +111,8 @@ const ToastClose = React.forwardRef<
     ref={ref}
     aria-label="Close"
     className={cn(
-      "shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+      // p-3.5 (14px each side) + 16px icon = 44px total; meets the 44px touch target.
+      "shrink-0 rounded-md p-3.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       className,
     )}

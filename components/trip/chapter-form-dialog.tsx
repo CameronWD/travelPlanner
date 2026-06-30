@@ -14,6 +14,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { CHAPTER_COLOURS, type ChapterColour } from "@/lib/chapter-colours";
+import { FormError } from "@/components/ui/form-error";
 import { createChapter, updateChapter } from "@/server/actions/chapters";
 import { cn } from "@/lib/cn";
 
@@ -238,11 +239,7 @@ function ChapterForm({
       )}
 
       {/* Form-level error */}
-      {errors._form && (
-        <p className="text-sm font-medium text-destructive">
-          {errors._form[0]}
-        </p>
-      )}
+      <FormError>{errors._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>

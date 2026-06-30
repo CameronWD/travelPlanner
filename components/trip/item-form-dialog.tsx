@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
+import { Field, useFieldControl } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { CATEGORIES, type Category } from "@/lib/categories";
 import { CategoryPill } from "./category-pill";
+import { FormError } from "@/components/ui/form-error";
 import { createItem, updateItem } from "@/server/actions/items";
 import type { ItemCardItem } from "./item-card";
 
@@ -65,6 +66,48 @@ export interface ItemFormDialogProps {
 }
 
 // ---------------------------------------------------------------------------
+// CategoryGroup — pill selector wired to the surrounding <Field> context
+// ---------------------------------------------------------------------------
+
+interface CategoryGroupProps {
+  category: Category;
+  onSelect: (cat: Category) => void;
+  disabled?: boolean;
+}
+
+function CategoryGroup({ category, onSelect, disabled }: CategoryGroupProps) {
+  const fieldControl = useFieldControl();
+  return (
+    <div
+      role="group"
+      aria-label="Category"
+      {...fieldControl}
+      className="flex flex-wrap gap-2"
+    >
+      {CATEGORIES.map((cat) => (
+        <button
+          key={cat.value}
+          type="button"
+          onClick={() => onSelect(cat.value as Category)}
+          disabled={disabled}
+          className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-full"
+          aria-pressed={category === cat.value}
+        >
+          <CategoryPill
+            category={cat.value as Category}
+            className={
+              category === cat.value
+                ? "ring-2 ring-offset-2 ring-offset-background ring-current"
+                : "opacity-60 hover:opacity-90"
+            }
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Dialog wrapper
 // ---------------------------------------------------------------------------
 
@@ -85,7 +128,7 @@ export function ItemFormDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {item ? "Edit idea" : "Add idea"}
+            {item ? "Edit Item" : "Add Item"}
           </DialogTitle>
         </DialogHeader>
         <ItemForm
@@ -112,13 +155,13 @@ export function AddItemButton({
   stops,
   tripStartDate,
   defaultUnscheduled = true,
-  label = "Add idea",
+  label = "Add Item",
 }: {
   tripId: string;
   stops: StopOption[];
   tripStartDate?: string;
   defaultUnscheduled?: boolean;
-  /** Button label. Defaults to "Add idea". */
+  /** Button label. Defaults to "Add Item". */
   label?: string;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -158,7 +201,7 @@ export function EditItemButton({
         className="size-8"
         onClick={() => setOpen(true)}
         aria-label={`Edit ${item.title}`}
-        title="Edit idea"
+        title="Edit Item"
       >
         <Pencil className="size-4" aria-hidden="true" />
       </Button>
@@ -266,37 +309,13 @@ function ItemForm({
       </Field>
 
       {/* Category */}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium leading-none text-foreground">
-          Category
-        </span>
-        <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat.value}
-              type="button"
-              onClick={() => setCategory(cat.value as Category)}
-              disabled={isPending}
-              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-full"
-              aria-pressed={category === cat.value}
-            >
-              <CategoryPill
-                category={cat.value as Category}
-                className={
-                  category === cat.value
-                    ? "ring-2 ring-offset-2 ring-offset-background ring-current"
-                    : "opacity-60 hover:opacity-90"
-                }
-              />
-            </button>
-          ))}
-        </div>
-        {errors.category && (
-          <p className="text-xs font-medium text-destructive">
-            {errors.category[0]}
-          </p>
-        )}
-      </div>
+      <Field label="Category" error={errors.category?.[0]}>
+        <CategoryGroup
+          category={category}
+          onSelect={setCategory}
+          disabled={isPending}
+        />
+      </Field>
 
       {/* Stop (optional) */}
       {stops.length > 0 && (
@@ -333,7 +352,7 @@ function ItemForm({
             setEndTime("");
           }
         }}
-        description="Leave blank to keep this as an unscheduled idea"
+        description="Leave blank to keep this as an unscheduled item"
         error={errors.date?.[0]}
         disabled={isPending}
       />
@@ -355,7 +374,7 @@ function ItemForm({
         <Field
           label="End time"
           error={errors.endTime?.[0]}
-          description={timesDisabled ? "Set a date first" : undefined}
+          description={timesDisabled ? "Set a date first" : !startTime ? "Set a start time first" : undefined}
         >
           <Input
             type="time"
@@ -407,11 +426,7 @@ function ItemForm({
         />
       </Field>
 
-      {errors._form && (
-        <p className="text-sm font-medium text-destructive">
-          {errors._form[0]}
-        </p>
-      )}
+      <FormError>{errors._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>
@@ -420,7 +435,7 @@ function ItemForm({
           </Button>
         </DialogClose>
         <Button type="submit" variant="primary" loading={isPending}>
-          {isEdit ? "Save changes" : "Add idea"}
+          {isEdit ? "Save changes" : "Add Item"}
         </Button>
       </DialogFooter>
     </form>

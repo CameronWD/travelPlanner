@@ -31,10 +31,32 @@ export interface RatesPanelProps {
 }
 
 // ---------------------------------------------------------------------------
+// Rate formatting — adaptive precision
+// ---------------------------------------------------------------------------
+
+/**
+ * Format an exchange rate with ~4 significant figures so very small rates
+ * (e.g. 0.000012) never render as "0.0000" and large rates aren't over-padded.
+ *
+ * Uses `Number.toPrecision(4)` and trims trailing zeros, but keeps at least the
+ * digits needed to show the value clearly.
+ */
+export function formatRate(rate: number): string {
+  // For large rates (e.g. VND/IDR ≥ 1000) keep the integer value exact;
+  // for smaller rates use 4 sig figs and strip trailing zeros.
+  if (rate >= 1000) {
+    return Math.round(rate).toString();
+  }
+  return parseFloat(rate.toPrecision(4)).toString();
+}
+
+// ---------------------------------------------------------------------------
 // Source badge
 // ---------------------------------------------------------------------------
 
-function SourceBadge({ source, stale }: { source: RateEntry["source"]; stale: boolean }) {
+// `stale` is kept in the prop type so callers don't need updating, but the
+// display logic now relies solely on `source` (which already encodes staleness).
+export function SourceBadge({ source }: { source: RateEntry["source"]; stale?: boolean }) {
   if (source === "manual") {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-violet-600 dark:text-violet-400">
@@ -43,7 +65,7 @@ function SourceBadge({ source, stale }: { source: RateEntry["source"]; stale: bo
       </span>
     );
   }
-  if (source === "fetched" && !stale) {
+  if (source === "fetched") {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
         <CheckCircle2 className="size-3" aria-hidden="true" />
@@ -51,7 +73,10 @@ function SourceBadge({ source, stale }: { source: RateEntry["source"]; stale: bo
       </span>
     );
   }
-  if (source === "stale" || stale) {
+  // Only show "Stale" when the source is explicitly "stale" — not on any
+  // other source+stale combination. This prevents a just-fetched rate from
+  // being labelled stale if there is any prop mismatch.
+  if (source === "stale") {
     return (
       <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
         <Clock className="size-3" aria-hidden="true" />
@@ -122,13 +147,13 @@ function RateRow({
           <span className="font-mono text-sm font-semibold">
             {entry.currency}/{homeCurrency}
           </span>
-          <SourceBadge source={entry.source} stale={entry.stale} />
+          <SourceBadge source={entry.source} />
         </div>
 
         <div className="flex items-center gap-1.5">
           {entry.rate !== null ? (
             <span className="font-mono text-sm tabular-nums">
-              {entry.rate.toFixed(4)}
+              {formatRate(entry.rate)}
             </span>
           ) : (
             <span className="text-xs text-muted-foreground italic">—</span>

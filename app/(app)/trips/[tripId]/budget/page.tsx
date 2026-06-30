@@ -73,7 +73,7 @@ export default async function BudgetPage({
       <EmptyState
         icon={Wallet}
         title="No dates yet"
-        description="Set your trip's start and end dates to see a day-by-day budget breakdown."
+        description="Set your trip's start and end dates to see a budget breakdown."
       />
     );
   }
@@ -220,6 +220,19 @@ export default async function BudgetPage({
     (d) => d.estimatedMinor > 0 || d.actualMinor > 0,
   );
 
+  // Build per-row missing-rate indicators: which categories have costs whose
+  // currency has no exchange rate? Used to show inline badges below the banner.
+  const missingRateCurrencies = new Set(budget.missingRates);
+  const categoriesWithMissingRates = new Set<string>(
+    allCosts
+      .filter(
+        (c) =>
+          c.currency.toUpperCase() !== homeCurrency.toUpperCase() &&
+          missingRateCurrencies.has(c.currency.toUpperCase()),
+      )
+      .map((c) => c.category ?? "Other"),
+  );
+
   if (!hasAnyCosts) {
     return (
       <EmptyState
@@ -271,34 +284,40 @@ export default async function BudgetPage({
               </p>
             </div>
 
-            {budget.grandTotal.actualMinor > 0 && (
-              <div className="flex flex-col gap-1 sm:text-right">
-                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                  Spent so far
+            <div className="flex flex-col gap-1 sm:text-right">
+              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                Spent so far
+              </p>
+              {budget.grandTotal.actualMinor > 0 ? (
+                <>
+                  <p className="font-display text-4xl font-semibold tracking-tight">
+                    <AnimatedMoney minor={budget.grandTotal.actualMinor} currency={homeCurrency} />
+                  </p>
+                  {gapMinor !== null && (
+                    <div className="flex items-center gap-1 text-sm sm:justify-end">
+                      {gapMinor >= 0 ? (
+                        <TrendingDown className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+                      ) : (
+                        <TrendingUp className="size-3.5 text-rose-600 dark:text-rose-400" aria-hidden="true" />
+                      )}
+                      <span
+                        className={
+                          gapMinor >= 0
+                            ? "text-emerald-700 dark:text-emerald-400"
+                            : "text-rose-700 dark:text-rose-400"
+                        }
+                      >
+                        {formatGap(gapMinor, homeCurrency).label}
+                      </span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-lg text-muted-foreground">
+                  No payments yet
                 </p>
-                <p className="font-display text-2xl font-semibold">
-                  <AnimatedMoney minor={budget.grandTotal.actualMinor} currency={homeCurrency} />
-                </p>
-                {gapMinor !== null && (
-                  <div className="flex items-center gap-1 text-sm sm:justify-end">
-                    {gapMinor >= 0 ? (
-                      <TrendingDown className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                    ) : (
-                      <TrendingUp className="size-3.5 text-rose-600 dark:text-rose-400" aria-hidden="true" />
-                    )}
-                    <span
-                      className={
-                        gapMinor >= 0
-                          ? "text-emerald-700 dark:text-emerald-400"
-                          : "text-rose-700 dark:text-rose-400"
-                      }
-                    >
-                      {formatGap(gapMinor, homeCurrency).label}
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -325,9 +344,21 @@ export default async function BudgetPage({
                 return (
                   <div key={cat.category} className="flex flex-col gap-1">
                     <div className="flex items-center justify-between gap-2 text-sm">
-                      <span className="min-w-0 truncate font-medium">{cat.category}</span>
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <span className="truncate font-medium">{cat.category}</span>
+                        {categoriesWithMissingRates.has(cat.category) && (
+                          <span
+                            title="Some costs in this category are excluded — missing exchange rate"
+                            aria-label="Missing rate"
+                            className="shrink-0 inline-flex items-center gap-0.5 rounded-sm bg-amber-100 dark:bg-amber-900/40 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400"
+                          >
+                            <AlertTriangle className="size-2.5" aria-hidden="true" />
+                            No rate
+                          </span>
+                        )}
+                      </span>
                       <div className="flex items-center gap-3 tabular-nums text-right">
-                        <span className="text-muted-foreground text-xs">{pct}%</span>
+                        <span className="text-muted-foreground text-xs" title="% of estimated">{pct}% est.</span>
                         <CostAmounts
                           estimatedMinor={cat.estimatedMinor}
                           actualMinor={cat.actualMinor}

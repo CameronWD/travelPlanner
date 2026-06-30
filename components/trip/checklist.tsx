@@ -14,6 +14,7 @@ import {
   Clock3,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { EmptyState } from "@/components/ui/empty-state";
 import { todayISO } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,7 @@ import type { ChecklistKind } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { motion } from "motion/react";
 import { SPRING_POP } from "@/lib/motion";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -399,6 +401,7 @@ function ChecklistRow({
 }) {
   const [pending, startTransition] = useTransition();
   const [editOpen, setEditOpen] = React.useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirm();
 
   const status = dueDateStatus(item.dueDate, item.done);
 
@@ -408,7 +411,14 @@ function ChecklistRow({
     });
   }
 
-  function remove() {
+  async function remove() {
+    const confirmed = await confirm({
+      title: `Delete "${item.text}"?`,
+      description: "This item will be permanently removed from the checklist.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     startTransition(async () => {
       await deleteChecklistItem(item.id);
     });
@@ -422,6 +432,7 @@ function ChecklistRow({
 
   return (
     <>
+      {confirmDialog}
       <EditItemDialog
         item={item}
         members={members}
@@ -613,21 +624,15 @@ export function Checklist({
   if (items.length === 0) {
     return (
       <div className="flex flex-col gap-4">
-        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border bg-card/50 px-6 py-10 text-center">
-          <div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
-            <CheckSquare className="size-6" aria-hidden="true" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <h3 className="font-display text-base font-semibold">
-              {kind === "PRETRIP" ? "No pre-trip tasks yet" : "Packing list is empty"}
-            </h3>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              {kind === "PRETRIP"
-                ? "Add tasks like booking confirmations, paperwork, and anything to sort before you leave."
-                : "Add what you need to pack — or apply a saved template to get started quickly."}
-            </p>
-          </div>
-        </div>
+        <EmptyState
+          icon={CheckSquare}
+          title={kind === "PRETRIP" ? "No pre-trip tasks yet" : "Packing list is empty"}
+          description={
+            kind === "PRETRIP"
+              ? "Add tasks like booking confirmations, paperwork, and anything to sort before you leave."
+              : "Add what you need to pack — or apply a saved template to get started quickly."
+          }
+        />
         <AddItemForm
           tripId={tripId}
           kind={kind}

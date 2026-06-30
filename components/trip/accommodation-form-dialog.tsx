@@ -16,6 +16,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { FormError } from "@/components/ui/form-error";
 import { accommodationDateWarnings } from "@/lib/validations/accommodation";
 import {
   createAccommodation,
@@ -185,13 +186,18 @@ function AccommodationForm({
   const [isPending, startTransition] = React.useTransition();
 
   // Soft warnings (reactive, non-blocking)
-  const dateWarnings =
-    checkIn && checkOut
-      ? accommodationDateWarnings(
-          { checkIn, checkOut },
-          stopDateRange,
-        )
-      : [];
+  const dateWarnings: string[] = [];
+  if (checkIn && checkOut) {
+    if (checkOut <= checkIn) {
+      dateWarnings.push(
+        "Check-out is on or before check-in — double-check these dates.",
+      );
+    } else {
+      dateWarnings.push(
+        ...accommodationDateWarnings({ checkIn, checkOut }, stopDateRange),
+      );
+    }
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -272,6 +278,7 @@ function AccommodationForm({
           {dateWarnings.map((w) => (
             <Badge
               key={w}
+              role="status"
               variant="warning"
               className="flex w-fit items-center gap-1 text-xs"
             >
@@ -301,11 +308,7 @@ function AccommodationForm({
         />
       </Field>
 
-      {errors._form && (
-        <p className="text-sm font-medium text-destructive">
-          {errors._form[0]}
-        </p>
-      )}
+      <FormError>{errors._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>

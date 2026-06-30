@@ -8,12 +8,15 @@ import type { CostRow } from "@/server/actions/costs";
 import { ItemFormDialog, type StopOption } from "./item-form-dialog";
 import { ScheduleItemDialog } from "./schedule-item-dialog";
 import { AddItemButton } from "./item-form-dialog";
-import { deleteItem, unscheduleItem } from "@/server/actions/items";
+import { deleteItem, unscheduleItem, scheduleItem } from "@/server/actions/items";
+import { toastWithUndo } from "@/components/ui/undo-toast";
+import { toast } from "@/components/ui/use-toast";
 import type { NoteView } from "./note-thread";
 import type { VoteView } from "./vote-control";
 import { sortItemsByVotes } from "@/lib/votes";
 import { AiActivitySuggestions } from "./ai-activity-suggestions";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,6 +64,7 @@ export function WishlistBoard({
   currentUserId,
   aiConfigured = false,
 }: WishlistBoardProps) {
+  const { confirm, dialog } = useConfirm();
   const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
 
   // ── Dialog state ──
@@ -70,7 +74,14 @@ export function WishlistBoard({
 
   // ── Handlers ──
   async function handleDelete(itemId: string) {
-    if (!confirm("Delete this idea? This cannot be undone.")) return;
+    const item = items.find((i) => i.id === itemId);
+    const confirmed = await confirm({
+      title: `Delete "${item?.title ?? "this item"}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setPendingId(itemId);
     try {
       await deleteItem(itemId);
@@ -80,9 +91,34 @@ export function WishlistBoard({
   }
 
   async function handleUnschedule(itemId: string) {
+    const item = items.find((i) => i.id === itemId);
+
+    // Capture the prior schedule BEFORE the mutation; after it succeeds
+    // these fields will be cleared on the server.
+    const priorDate = item?.date ?? null;
+    const priorStartTime = item?.startTime ?? null;
+    const priorEndTime = item?.endTime ?? null;
+
     setPendingId(itemId);
     try {
-      await unscheduleItem(itemId);
+      const result = await unscheduleItem(itemId);
+      if (result.success && priorDate) {
+        toastWithUndo({
+          title: "Moved to Wishlist",
+          description: item?.title,
+          onUndo: async () => {
+            try {
+              await scheduleItem(itemId, {
+                date: priorDate,
+                ...(priorStartTime ? { startTime: priorStartTime } : {}),
+                ...(priorEndTime ? { endTime: priorEndTime } : {}),
+              });
+            } catch {
+              toast({ title: "Couldn't undo", variant: "destructive" });
+            }
+          },
+        });
+      }
     } finally {
       setPendingId(null);
     }
@@ -137,7 +173,7 @@ export function WishlistBoard({
         <div>
           <h2 className="font-display text-2xl font-semibold">Wishlist</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            Ideas you&apos;re not sure about yet — collect them here and schedule later.
+            Items you&apos;re not sure about yet — collect them here and schedule later.
           </p>
         </div>
         <AddItemButton
@@ -152,8 +188,8 @@ export function WishlistBoard({
       {isEmpty && (
         <EmptyState
           icon={Heart}
-          title="No ideas yet"
-          description="Collect activities, restaurants, and sights you'd love to do — schedule them when you're ready."
+          title="No Items yet"
+          description="Collect activities, sights, and restaurants you'd love to do — schedule them to a Stop when you're ready."
         />
       )}
 
@@ -276,6 +312,8 @@ export function WishlistBoard({
           onSaved={() => setSchedulingItem(null)}
         />
       )}
+
+      {dialog}
     </div>
   );
 }

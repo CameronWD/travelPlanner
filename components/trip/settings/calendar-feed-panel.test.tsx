@@ -10,7 +10,7 @@ vi.mock("@/server/actions/calendar-feed", () => ({
   updateCalendarFeedFilter: vi.fn(async () => undefined),
 }));
 
-import { updateCalendarFeedFilter } from "@/server/actions/calendar-feed";
+import { rotateCalendarFeed, updateCalendarFeedFilter } from "@/server/actions/calendar-feed";
 
 describe("CalendarFeedPanel", () => {
   beforeEach(() => {
@@ -71,5 +71,42 @@ describe("CalendarFeedPanel", () => {
     expect(
       screen.getByRole("button", { name: /create calendar feed/i }),
     ).toBeInTheDocument();
+  });
+
+  it("Regenerate shows a confirmation dialog with the warning copy before firing", async () => {
+    const user = userEvent.setup();
+    render(<CalendarFeedPanel tripId="trip-1" initialToken="tok-abc" />);
+
+    // Click Regenerate — must NOT call rotateCalendarFeed yet
+    await user.click(screen.getByRole("button", { name: /regenerate/i }));
+
+    // Dialog should appear with the correct title and description
+    expect(
+      await screen.findByText("Regenerate calendar feed?"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /invalidates the current calendar URL — anyone subscribed will need the new link/i,
+      ),
+    ).toBeInTheDocument();
+
+    // rotateCalendarFeed must NOT have been called yet
+    expect(rotateCalendarFeed).not.toHaveBeenCalled();
+
+    // Confirm — now it should fire
+    await user.click(screen.getByRole("button", { name: "Regenerate" }));
+    expect(rotateCalendarFeed).toHaveBeenCalledWith("trip-1");
+  });
+
+  it("Regenerate does NOT fire when the dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    render(<CalendarFeedPanel tripId="trip-1" initialToken="tok-abc" />);
+
+    await user.click(screen.getByRole("button", { name: /regenerate/i }));
+    await screen.findByText("Regenerate calendar feed?");
+
+    // Cancel
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(rotateCalendarFeed).not.toHaveBeenCalled();
   });
 });

@@ -5,6 +5,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -100,5 +101,31 @@ describe("Dialog", () => {
     const header = screen.getByText("Invite traveller").closest("div");
     expect(header?.className).toContain("sticky");
     expect(header?.className).toContain("top-0");
+  });
+});
+
+describe("DialogFooter", () => {
+  it("uses flex-col so the primary button (last in DOM) renders at the bottom for thumb reach on mobile", () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Test</DialogTitle>
+          <DialogFooter>
+            <button>Cancel</button>
+            <button>Save</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>,
+    );
+
+    const footer = screen.getByRole("button", { name: "Cancel" }).closest("div")!;
+    // flex-col (not flex-col-reverse): primary is last in DOM and visually at the bottom
+    expect(footer.className).toContain("flex-col");
+    expect(footer.className).not.toContain("flex-col-reverse");
+
+    // DOM order: Cancel precedes Save
+    const buttons = footer.querySelectorAll("button");
+    expect(buttons[0]).toHaveTextContent("Cancel");
+    expect(buttons[1]).toHaveTextContent("Save");
   });
 });

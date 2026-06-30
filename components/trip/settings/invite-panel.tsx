@@ -144,10 +144,10 @@ export function InvitePanel({ tripId, members, pendingInvites }: InvitePanelProp
 
       {/* Invite form */}
       <div>
-        <h4 className="mb-1 text-sm font-medium text-foreground">Invite by email</h4>
+        <h4 className="mb-1 text-sm font-medium text-foreground">Add a Traveller by email</h4>
         <p className="mb-3 text-xs text-muted-foreground">
-          The person just signs in with that Google account &mdash; they&apos;ll automatically join
-          when they first log in. No email is sent.
+          No email is sent. An Invite is created here, and access activates automatically the
+          next time that person signs in with the matching email address.
         </p>
         <form onSubmit={handleInvite} noValidate className="flex gap-2">
           <Field
@@ -177,8 +177,8 @@ export function InvitePanel({ tripId, members, pendingInvites }: InvitePanelProp
           </div>
         </form>
         {inviteSuccess && (
-          <p className="mt-2 text-sm text-success">
-            Invite created! They&apos;ll join automatically when they sign in.
+          <p role="status" className="mt-2 text-sm text-success">
+            Invite created — no email was sent. They&apos;ll join automatically the next time they sign in.
           </p>
         )}
       </div>

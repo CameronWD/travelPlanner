@@ -16,6 +16,7 @@ vi.mock("@/server/actions/stops", () => ({
   deleteStop: vi.fn().mockResolvedValue({ success: true }),
   moveStop: vi.fn().mockResolvedValue({ success: true }),
   firmUpSegment: vi.fn().mockResolvedValue({ success: true }),
+  firmUpTrip: vi.fn().mockResolvedValue({ success: true }),
   setStopDates: vi.fn().mockResolvedValue({ success: true }),
   toggleStopPin: vi.fn().mockResolvedValue({ success: true }),
   makeStopRough: vi.fn().mockResolvedValue({ success: true }),
@@ -59,7 +60,7 @@ vi.mock("@/components/ui/use-toast", async (importOriginal) => {
   return { ...mod, toast: vi.fn() };
 });
 
-import { deleteStop, moveStop, firmUpSegment } from "@/server/actions/stops";
+import { deleteStop, moveStop, firmUpSegment, firmUpTrip } from "@/server/actions/stops";
 import { toast } from "@/components/ui/use-toast";
 import { ItineraryManager, type ItineraryStop } from "./itinerary-manager";
 
@@ -102,8 +103,6 @@ const baseProps = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Default: user always confirms the browser dialog
-  vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 
 // ---------------------------------------------------------------------------
@@ -112,7 +111,6 @@ beforeEach(() => {
 
 describe("delete confirmation gating", () => {
   it("does NOT call deleteStop when the confirm dialog is cancelled", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     const user = userEvent.setup();
     const stop = makeStop({ id: "stop-abc", name: "Rome" });
 
@@ -123,12 +121,14 @@ describe("delete confirmation gating", () => {
     // The delete button has aria-label "Delete {name}"
     await user.click(screen.getByRole("button", { name: "Delete Rome" }));
 
-    expect(window.confirm).toHaveBeenCalledOnce();
+    // Dialog should appear — click Cancel
+    const cancelBtn = await screen.findByRole("button", { name: "Cancel" });
+    await user.click(cancelBtn);
+
     expect(deleteStop).not.toHaveBeenCalled();
   });
 
   it("calls deleteStop with the stop id when the confirm dialog is accepted", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     const user = userEvent.setup();
     const stop = makeStop({ id: "stop-abc", name: "Rome" });
 
@@ -138,10 +138,50 @@ describe("delete confirmation gating", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete Rome" }));
 
-    expect(window.confirm).toHaveBeenCalledOnce();
+    // Dialog should appear — click Delete
+    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
+    await user.click(deleteBtn);
+
     await waitFor(() => {
       expect(deleteStop).toHaveBeenCalledWith("stop-abc");
     });
+  });
+
+  it("shows the stop name in the delete dialog title", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "stop-abc", name: "Rome" });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[stop]} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete Rome" }));
+
+    // Dialog title contains the stop name in quotes
+    expect(await screen.findByText(/Delete "Rome"\?/)).toBeInTheDocument();
+  });
+
+  it("shows the stop name in the make-rough dialog title", async () => {
+    const user = userEvent.setup();
+    // A dated stop has a "Make rough" action in the overflow menu
+    const stop = makeStop({
+      id: "stop-abc",
+      name: "Venice",
+      arriveDate: "2026-08-01",
+      departDate: "2026-08-05",
+    });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[stop]} />,
+    );
+
+    // Open overflow menu and click Make rough (two overflow buttons exist: mobile + desktop)
+    const overflowBtns = screen.getAllByRole("button", { name: "More actions for Venice" });
+    await user.click(overflowBtns[0]);
+    await user.click(await screen.findByRole("menuitem", { name: /make rough/i }));
+
+    // Dialog title contains the stop name in quotes
+    expect(await screen.findByText(/Make "Venice" rough again\?/)).toBeInTheDocument();
   });
 });
 
@@ -222,6 +262,8 @@ describe("firm-up (Set dates)", () => {
     render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
     await user.click(screen.getByRole("button", { name: /set dates/i }));
+    // Confirm the dialog
+    await user.click(await screen.findByRole("button", { name: /date stops/i }));
 
     await waitFor(() => {
       expect(firmUpSegment).toHaveBeenCalledWith({ tripId: TRIP_ID, chapterId: null });
@@ -241,6 +283,8 @@ describe("firm-up (Set dates)", () => {
     render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
     await user.click(screen.getByRole("button", { name: /set dates/i }));
+    // Confirm the dialog
+    await user.click(await screen.findByRole("button", { name: /date stops/i }));
 
     await waitFor(() => {
       expect(firmUpSegment).toHaveBeenCalled();
@@ -266,6 +310,8 @@ describe("firm-up (Set dates)", () => {
     render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
     await user.click(screen.getByRole("button", { name: /set dates/i }));
+    // Confirm the dialog
+    await user.click(await screen.findByRole("button", { name: /date stops/i }));
 
     await waitFor(() => {
       expect(firmUpSegment).toHaveBeenCalled();
@@ -300,6 +346,8 @@ describe("optimistic pending state", () => {
     expect(setDatesBtn).not.toBeDisabled();
 
     await user.click(setDatesBtn);
+    // Confirm the dialog so the action begins
+    await user.click(await screen.findByRole("button", { name: /date stops/i }));
 
     // While in-flight, button should be disabled
     await waitFor(() => {
@@ -315,8 +363,6 @@ describe("optimistic pending state", () => {
   });
 
   it("stop card enters pending state (pointer-events-none) while deleteStop is in flight", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-
     let resolveDelete!: (v: { success: true }) => void;
     const pendingPromise = new Promise<{ success: true }>((res) => {
       resolveDelete = res;
@@ -331,6 +377,10 @@ describe("optimistic pending state", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Delete Paris" }));
+
+    // Confirm the dialog
+    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
+    await user.click(deleteBtn);
 
     // While in-flight, the StopCard root div gets pointer-events-none AND the delete button is disabled
     await waitFor(() => {
@@ -367,8 +417,23 @@ describe("rough chapters with no stops yet", () => {
 
     // The chapter must be visible so rough stops can be added into it...
     expect(screen.getByText("France")).toBeInTheDocument();
-    // ...and we must NOT be stuck on the bare "Sketch your trip" empty state.
-    expect(screen.queryByText(/sketch your trip/i)).toBeNull();
+    // ...and we must NOT be stuck on the bare "Add your first Stop" empty state.
+    expect(screen.queryByRole("heading", { name: /add your first stop/i })).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5b. Empty-state heading when there are zero stops and no chapters
+// ---------------------------------------------------------------------------
+
+describe("zero-stops empty state", () => {
+  it("renders the EmptyState heading 'Add your first Stop' when there are no stops and no chapters", () => {
+    render(
+      <ItineraryManager {...baseProps} initialStops={[]} chapters={[]} />,
+    );
+    expect(
+      screen.getByRole("heading", { name: /add your first stop/i }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -415,5 +480,215 @@ describe("drag handle rendering", () => {
     );
 
     expect(screen.queryAllByLabelText(/reorder/i)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 7. Whole-trip firm-up confirm dialog
+// ---------------------------------------------------------------------------
+
+describe("whole-trip firm-up confirm dialog", () => {
+  it("opens a confirm dialog with rough-stop count when 'Date all stops from start' is clicked", async () => {
+    const user = userEvent.setup();
+    const roughStop1 = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+    const roughStop2 = makeStop({ id: "s-2", name: "Berlin", arriveDate: null, departDate: null, sortOrder: 1 });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[roughStop1, roughStop2]}
+        tripStartDate="2026-08-01"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /date all stops from start/i }));
+
+    // Dialog should appear with rough count in its content
+    expect(await screen.findByText(/2 rough stop/i)).toBeInTheDocument();
+  });
+
+  it("fires firmUpTrip only after the user confirms", async () => {
+    const user = userEvent.setup();
+    const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[roughStop]}
+        tripStartDate="2026-08-01"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /date all stops from start/i }));
+
+    // firmUpTrip should NOT have been called yet
+    expect(firmUpTrip).not.toHaveBeenCalled();
+
+    // Confirm the dialog
+    const confirmBtn = await screen.findByRole("button", { name: /date stops/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(firmUpTrip).toHaveBeenCalledWith(TRIP_ID);
+    });
+  });
+
+  it("does NOT fire firmUpTrip when the dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[roughStop]}
+        tripStartDate="2026-08-01"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /date all stops from start/i }));
+
+    const cancelBtn = await screen.findByRole("button", { name: /cancel/i });
+    await user.click(cancelBtn);
+
+    expect(firmUpTrip).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Chapter collapse localStorage persistence
+// ---------------------------------------------------------------------------
+
+describe("chapter collapse localStorage persistence", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("writes collapsed chapter ids to localStorage on toggle", async () => {
+    const user = userEvent.setup();
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[]}
+        chapters={[
+          { id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null, sortOrder: 0 },
+        ]}
+      />,
+    );
+
+    // Click the chapter header to collapse it
+    const collapseBtn = screen.getByRole("button", { name: /france chapter.*collapse/i });
+    await user.click(collapseBtn);
+
+    const stored = localStorage.getItem("itinerary-collapse:trip-1");
+    expect(stored).not.toBeNull();
+    const parsed = JSON.parse(stored!);
+    expect(parsed).toContain("ch-1");
+  });
+
+  it("hydrates collapse state from localStorage on mount", () => {
+    // Pre-populate localStorage before render
+    localStorage.setItem("itinerary-collapse:trip-1", JSON.stringify(["ch-1"]));
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[]}
+        chapters={[
+          { id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null, sortOrder: 0 },
+        ]}
+      />,
+    );
+
+    // Chapter header should report collapsed (aria-expanded="false")
+    const collapseBtn = screen.getByRole("button", { name: /france chapter.*expand/i });
+    expect(collapseBtn).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. Per-chapter firm-up confirm dialog
+// ---------------------------------------------------------------------------
+
+describe("per-chapter firm-up confirm dialog", () => {
+  it("opens a confirm dialog with the chapter rough-stop count when 'Set dates' is clicked on a rough chapter", async () => {
+    const user = userEvent.setup();
+    const roughStop = makeStop({
+      id: "s-1",
+      name: "Lyon",
+      arriveDate: null,
+      departDate: null,
+      chapterId: "ch-1",
+    });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[roughStop]}
+        chapters={[{ id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null, sortOrder: 0 }]}
+      />,
+    );
+
+    // The chapter header has a "Set dates" button
+    await user.click(screen.getByRole("button", { name: /set dates/i }));
+
+    // Dialog should appear with rough count
+    expect(await screen.findByText(/1 rough stop/i)).toBeInTheDocument();
+  });
+
+  it("fires firmUpSegment only after the user confirms per-chapter dialog", async () => {
+    const user = userEvent.setup();
+    const roughStop = makeStop({
+      id: "s-1",
+      name: "Lyon",
+      arriveDate: null,
+      departDate: null,
+      chapterId: "ch-1",
+    });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[roughStop]}
+        chapters={[{ id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null, sortOrder: 0 }]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /set dates/i }));
+
+    // Not called yet
+    expect(firmUpSegment).not.toHaveBeenCalled();
+
+    const confirmBtn = await screen.findByRole("button", { name: /date stops/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(firmUpSegment).toHaveBeenCalledWith({ tripId: TRIP_ID, chapterId: "ch-1" });
+    });
+  });
+
+  it("does NOT fire firmUpSegment when the per-chapter dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    const roughStop = makeStop({
+      id: "s-1",
+      name: "Lyon",
+      arriveDate: null,
+      departDate: null,
+      chapterId: "ch-1",
+    });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[roughStop]}
+        chapters={[{ id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null, sortOrder: 0 }]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /set dates/i }));
+
+    const cancelBtn = await screen.findByRole("button", { name: /cancel/i });
+    await user.click(cancelBtn);
+
+    expect(firmUpSegment).not.toHaveBeenCalled();
   });
 });

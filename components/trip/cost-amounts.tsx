@@ -26,14 +26,17 @@ export function CostAmounts({
       <span aria-label="Estimated" className="min-w-[5rem] text-right">
         {formatMoney(estimatedMinor, currency)}
       </span>
-      {actualMinor > 0 && (
-        <span
-          aria-label="Spent"
-          className="min-w-[5rem] text-right text-emerald-600 dark:text-emerald-400"
-        >
-          {formatMoney(actualMinor, currency)}
-        </span>
-      )}
+      <span
+        aria-label="Spent"
+        className={
+          "min-w-[5rem] text-right" +
+          (actualMinor > 0
+            ? " text-emerald-600 dark:text-emerald-400"
+            : " text-muted-foreground")
+        }
+      >
+        {actualMinor > 0 ? formatMoney(actualMinor, currency) : "—"}
+      </span>
     </div>
   );
 }

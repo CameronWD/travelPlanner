@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MakeItFit } from "./make-it-fit";
 import type { FitStop } from "@/lib/make-it-fit";
 
@@ -44,12 +45,36 @@ describe("MakeItFit", () => {
     await waitFor(() => expect(setStopNights).toHaveBeenCalled());
   });
 
-  it("drops a stop via deleteStop", async () => {
+  it("drop shows a confirmation dialog naming the stop before firing deleteStop", async () => {
+    const user = userEvent.setup();
     render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
     fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
     const dropRome = await screen.findByRole("button", { name: /drop rome/i });
-    fireEvent.click(dropRome);
+    await user.click(dropRome);
+
+    // Confirm dialog must appear with stop name
+    expect(await screen.findByText(/Drop "Rome"\?/i)).toBeInTheDocument();
+
+    // deleteStop must NOT have been called yet
+    expect(deleteStop).not.toHaveBeenCalled();
+
+    // Confirm
+    await user.click(screen.getByRole("button", { name: "Drop" }));
     await waitFor(() => expect(deleteStop).toHaveBeenCalledWith("a"));
+  });
+
+  it("drop does NOT fire when the dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+    const dropRome = await screen.findByRole("button", { name: /drop rome/i });
+    await user.click(dropRome);
+
+    await screen.findByText(/Drop "Rome"\?/i);
+
+    // Cancel
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(deleteStop).not.toHaveBeenCalled();
   });
 
   it("re-simulates live and disables Apply when the inputs are reset to current nights", () => {

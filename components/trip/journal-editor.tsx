@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Camera, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FormError } from "@/components/ui/form-error";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/cn";
 import { relativeTime } from "@/lib/relative-time";
@@ -119,14 +120,7 @@ function PhotoStrip({
       ) : null}
 
       {/* Upload error */}
-      {uploadError ? (
-        <p
-          role="alert"
-          className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          {uploadError}
-        </p>
-      ) : null}
+      <FormError>{uploadError ?? undefined}</FormError>
 
       {/* Upload control */}
       <div>
@@ -176,19 +170,35 @@ export function JournalEditor({
   const [lastSaved, setLastSaved] = React.useState<Date | null>(
     updatedAt ?? null,
   );
+  const [saveStatus, setSaveStatus] = React.useState<"saving" | "saved" | null>(null);
+  const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function handleSave() {
+    // Cancel any pending timer before starting a new save
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
     setSaveError(null);
+    setSaveStatus("saving");
     startTransition(async () => {
       const result = await saveJournalEntry(tripId, date, body);
       if (!result.success) {
         const firstError = Object.values(result.errors)[0]?.[0];
         setSaveError(firstError ?? "Failed to save.");
+        setSaveStatus(null);
       } else {
         setLastSaved(new Date());
+        setSaveStatus("saved");
+        saveTimerRef.current = setTimeout(() => setSaveStatus(null), 2000);
       }
     });
   }
+
+  // Cleanup: cancel timer on unmount
+  React.useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
 
   function handleBlur() {
     // Autosave on blur if body changed from initial
@@ -218,24 +228,28 @@ export function JournalEditor({
           <div className="text-xs text-muted-foreground">
             {body.length}/5000
           </div>
-          {lastSaved && author ? (
-            <p className="text-xs text-muted-foreground">
-              Last edited by {author.name ?? "someone"}{" "}
-              {relativeTime(lastSaved)}
-            </p>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {saveStatus ? (
+              <p
+                role="status"
+                aria-live="polite"
+                className="text-xs text-muted-foreground"
+              >
+                {saveStatus === "saving" ? "Saving…" : "Saved"}
+              </p>
+            ) : null}
+            {lastSaved && author ? (
+              <p className="text-xs text-muted-foreground">
+                Last edited by {author.name ?? "someone"}{" "}
+                {relativeTime(lastSaved)}
+              </p>
+            ) : null}
+          </div>
         </div>
       </div>
 
       {/* Save error */}
-      {saveError ? (
-        <p
-          role="alert"
-          className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          {saveError}
-        </p>
-      ) : null}
+      <FormError>{saveError ?? undefined}</FormError>
 
       {/* Save button — visible when there are unsaved changes */}
       {hasChanges ? (

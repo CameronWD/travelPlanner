@@ -7,7 +7,7 @@ vi.mock("@/server/actions/costs", () => ({
   updateCost: vi.fn().mockResolvedValue({ success: true }),
   deleteCost: vi.fn().mockResolvedValue({ success: true }),
 }));
-import { createCost, updateCost } from "@/server/actions/costs";
+import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 
 import { CostEditor } from "./cost-editor";
 import type { CostRow } from "@/server/actions/costs";
@@ -31,6 +31,19 @@ const sampleCost: CostRow = {
   ownerType: "TRANSPORT",
   ownerId: "owner-1",
   label: null,
+  category: null,
+};
+
+const labeledCost: CostRow = {
+  id: "cost-2",
+  estimatedMinor: 3500,
+  actualMinor: null,
+  currency: "AUD",
+  rateToHome: 1,
+  paidAt: null,
+  ownerType: "TRANSPORT",
+  ownerId: "owner-1",
+  label: "Train ticket",
   category: null,
 };
 
@@ -87,6 +100,22 @@ describe("CostEditor", () => {
     );
   });
 
+  it("deleting a cost shows a dialog with the cost label and calls deleteCost on confirm", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} costs={[labeledCost]} />);
+
+    await user.click(screen.getByRole("button", { name: /delete cost/i }));
+
+    // Dialog appears with the cost label
+    expect(await screen.findByText(/Train ticket/)).toBeInTheDocument();
+
+    // Click the Delete button
+    const deleteBtn = screen.getByRole("button", { name: "Delete" });
+    await user.click(deleteBtn);
+
+    expect(deleteCost).toHaveBeenCalledWith("cost-2");
+  });
+
   it("editing an existing cost opens a prefilled edit dialog and calls updateCost", async () => {
     const user = userEvent.setup();
     render(<CostEditor {...baseProps} costs={[sampleCost]} />);
@@ -108,5 +137,43 @@ describe("CostEditor", () => {
         currency: "AUD",
       }),
     );
+  });
+
+  it("a field error (estimatedMinor) sets aria-invalid on the estimated field and renders via Field error slot", async () => {
+    (createCost as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { estimatedMinor: ["Amount is required"] },
+    });
+
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByText("Amount is required")).toBeInTheDocument();
+    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    expect(estimatedInput).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("a _form error appears with role=alert via FormError", async () => {
+    (createCost as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { _form: ["Server error"] },
+    });
+
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+
+    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    await user.clear(estimatedInput);
+    await user.type(estimatedInput, "10.00");
+
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Server error");
   });
 });

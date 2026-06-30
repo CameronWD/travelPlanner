@@ -124,10 +124,7 @@ describe("OtherCostEditor", () => {
     );
   });
 
-  it("deleting a cost calls deleteCost with the cost id after browser confirm", async () => {
-    // Stub window.confirm to auto-accept the native dialog
-    vi.stubGlobal("confirm", vi.fn().mockReturnValue(true));
-
+  it("deleting a cost calls deleteCost with the cost id after confirming the dialog", async () => {
     const user = userEvent.setup();
     render(<OtherCostEditor {...baseProps} costs={[sampleCost]} />);
 
@@ -135,8 +132,51 @@ describe("OtherCostEditor", () => {
       screen.getByRole("button", { name: /delete travel insurance/i }),
     );
 
-    expect(deleteCost).toHaveBeenCalledWith("cost-1");
+    // Dialog appears — click the Delete button
+    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
+    await user.click(deleteBtn);
 
-    vi.unstubAllGlobals();
+    expect(deleteCost).toHaveBeenCalledWith("cost-1");
+  });
+
+  it("delete dialog shows the cost label in the title", async () => {
+    const user = userEvent.setup();
+    render(<OtherCostEditor {...baseProps} costs={[sampleCost]} />);
+
+    await user.click(
+      screen.getByRole("button", { name: /delete travel insurance/i }),
+    );
+
+    // Dialog title (h2) should contain the cost label in quotes
+    expect(await screen.findByText(/Delete "Travel insurance"\?/)).toBeInTheDocument();
+  });
+
+  it("home-currency equivalent uses convertMinor scaling for JPY->AUD (not raw multiply)", () => {
+    // ¥100,000 at rate 0.011 should display as A$1,100.00 (convertMinor result: 110000 minor AUD),
+    // NOT A$11.00 (the wrong raw-multiply result: Math.round(100000 * 0.011) = 1100 minor AUD).
+    const jpyCost: CostRow = {
+      id: "cost-jpy",
+      estimatedMinor: 100000,
+      actualMinor: null,
+      currency: "JPY",
+      rateToHome: 0.011,
+      paidAt: null,
+      ownerType: "OTHER",
+      ownerId: null,
+      label: "Shinkansen ticket",
+      category: null,
+    };
+
+    render(
+      <OtherCostEditor
+        {...baseProps}
+        homeCurrency="AUD"
+        costs={[jpyCost]}
+      />,
+    );
+
+    // The correct converted display must be A$1,100.00, not A$11.00
+    expect(screen.getByText(/1,100\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/≈.*11\.00/)).not.toBeInTheDocument();
   });
 });

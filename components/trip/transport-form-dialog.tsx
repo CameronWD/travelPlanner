@@ -22,6 +22,8 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { TRANSPORT_MODE_LIST } from "@/lib/transport";
+import { Badge } from "@/components/ui/badge";
+import { FormError } from "@/components/ui/form-error";
 import { createTransport, updateTransport } from "@/server/actions/transport";
 import type { TransportCardTransport } from "./transport-card";
 
@@ -341,6 +343,7 @@ function TransportForm({
             value={depPlace}
             onChange={(e) => setDepPlace(e.target.value)}
             placeholder="e.g. Heathrow T5"
+            autoFocus
             disabled={isPending}
           />
         </Field>
@@ -374,6 +377,17 @@ function TransportForm({
         </Field>
       </div>
 
+      {/* Soft date-order warning */}
+      {depAt && arrAt && depAt >= arrAt && (
+        <Badge
+          role="status"
+          variant="warning"
+          className="flex w-fit items-center gap-1 text-xs"
+        >
+          Departure is on or after arrival — double-check these times.
+        </Badge>
+      )}
+
       {/* Reference */}
       <Field label="Booking reference / number" error={errors.reference?.[0]}>
         <Input
@@ -394,11 +408,7 @@ function TransportForm({
         />
       </Field>
 
-      {errors._form && (
-        <p className="text-sm font-medium text-destructive">
-          {errors._form[0]}
-        </p>
-      )}
+      <FormError>{errors._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>

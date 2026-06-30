@@ -58,7 +58,7 @@ describe("ItemFormDialog", () => {
     render(<ItemFormDialog {...baseProps} />);
 
     // Submit immediately — title field is empty by default
-    await user.click(screen.getByRole("button", { name: /add idea/i }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
 
     // The action IS called (no client-side gate)
     expect(createItem).toHaveBeenCalledWith(
@@ -80,7 +80,7 @@ describe("ItemFormDialog", () => {
     const titleInput = screen.getByPlaceholderText(/visit the night market/i);
     await user.type(titleInput, "Eiffel Tower");
 
-    await user.click(screen.getByRole("button", { name: /add idea/i }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
 
     expect(createItem).toHaveBeenCalledWith(
       "trip-1",
@@ -111,7 +111,7 @@ describe("ItemFormDialog", () => {
     const startTimeInput = screen.getByLabelText(/start time/i);
     await user.type(startTimeInput, "19:00");
 
-    await user.click(screen.getByRole("button", { name: /add idea/i }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
 
     expect(createItem).toHaveBeenCalledWith(
       "trip-1",
@@ -130,8 +130,8 @@ describe("ItemFormDialog", () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} item={existingItem} />);
 
-    // Dialog title should say "Edit idea"
-    expect(screen.getByRole("heading", { name: /edit idea/i })).toBeInTheDocument();
+    // Dialog title should say "Edit Item"
+    expect(screen.getByRole("heading", { name: /edit item/i })).toBeInTheDocument();
 
     // Clear and replace the title
     const titleInput = screen.getByPlaceholderText(/visit the night market/i);
@@ -162,10 +162,86 @@ describe("ItemFormDialog", () => {
     const titleInput = screen.getByPlaceholderText(/visit the night market/i);
     await user.type(titleInput, "Any title");
 
-    await user.click(screen.getByRole("button", { name: /add idea/i }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
 
     expect(
       await screen.findByText("Something went wrong, please try again"),
     ).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 5: field-level title error wires aria-invalid to the title control
+  // -------------------------------------------------------------------------
+  it("a title field error sets aria-invalid on the title input", async () => {
+    (createItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { title: ["Title is required"] },
+    });
+
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+
+    expect(await screen.findByText("Title is required")).toBeInTheDocument();
+    const titleInput = screen.getByPlaceholderText(/visit the night market/i);
+    expect(titleInput).toHaveAttribute("aria-invalid", "true");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 6: _form error appears with role=alert via FormError
+  // -------------------------------------------------------------------------
+  it("_form error renders with role=alert", async () => {
+    (createItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { _form: ["Server error"] },
+    });
+
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+
+    const titleInput = screen.getByPlaceholderText(/visit the night market/i);
+    await user.type(titleInput, "Any title");
+
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Server error");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 7: category field error wires aria-invalid to the category group
+  // -------------------------------------------------------------------------
+  it("a category field error sets aria-invalid on the category group", async () => {
+    (createItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { category: ["Category is required"] },
+    });
+
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+
+    expect(await screen.findByText("Category is required")).toBeInTheDocument();
+    const categoryGroup = screen.getByRole("group", { name: "Category" });
+    expect(categoryGroup).toHaveAttribute("aria-invalid", "true");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 8: end-time field shows "Set a start time first" hint when date is
+  //          set but start time is empty
+  // -------------------------------------------------------------------------
+  it("end-time field shows 'Set a start time first' hint when date is set but start time is empty", async () => {
+    render(
+      <ItemFormDialog
+        {...baseProps}
+        defaultUnscheduled={false}
+        tripStartDate="2026-07-10"
+      />,
+    );
+
+    // Date is pre-filled (tripStartDate), start time is empty → hint should show
+    expect(screen.getByText("Set a start time first")).toBeInTheDocument();
   });
 });

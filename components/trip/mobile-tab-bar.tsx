@@ -66,10 +66,23 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
       <Sheet open={open} onOpenChange={setOpen}>
         {/* asChild lets us apply className to the underlying button */}
         <SheetTrigger asChild>
-          <button className="flex flex-1 flex-col items-center gap-0.5 py-2 text-xs text-muted-foreground">
-            <Menu className="size-5" aria-hidden="true" />
-            More
-          </button>
+          {(() => {
+            const moreActive = more.some((item) =>
+              isNavActive(item.href, pathname, base),
+            );
+            return (
+              <button
+                className={cn(
+                  "flex flex-1 flex-col items-center gap-0.5 py-2 text-xs",
+                  moreActive ? "text-primary" : "text-muted-foreground",
+                )}
+                aria-label="More navigation"
+              >
+                <Menu className="size-5" aria-hidden="true" />
+                More
+              </button>
+            );
+          })()}
         </SheetTrigger>
         <SheetContent side="bottom">
           {/* Visually-hidden title and description for a11y */}

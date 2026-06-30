@@ -14,7 +14,7 @@ export function OfflineBanner() {
   return (
     <div
       role="status"
-      className="sticky top-0 z-50 flex items-center justify-center gap-2 bg-warning px-4 py-1.5 text-center text-sm font-medium text-warning-foreground"
+      className="sticky top-0 z-30 flex items-center justify-center gap-2 bg-warning px-4 py-1.5 text-center text-sm font-medium text-warning-foreground"
     >
       <WifiOff className="size-4 shrink-0" aria-hidden />
       You&apos;re offline — showing your saved trip. Changes need a connection.

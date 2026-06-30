@@ -16,6 +16,7 @@ import { cn } from "@/lib/cn";
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
 import type { TargetType } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,6 +83,7 @@ export function AttachmentList({
   const [uploadError, setUploadError] = React.useState<string | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const { confirm, dialog } = useConfirm();
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -105,7 +107,14 @@ export function AttachmentList({
     });
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string, filename: string) {
+    const confirmed = await confirm({
+      title: `Delete "${filename}"?`,
+      description: "This attachment will be permanently removed.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setDeletingId(id);
     startTransition(async () => {
       await deleteAttachment(id);
@@ -114,6 +123,8 @@ export function AttachmentList({
   }
 
   return (
+    <>
+    {dialog}
     <div className="space-y-3">
       {/* File list */}
       {attachments.length > 0 ? (
@@ -164,7 +175,7 @@ export function AttachmentList({
                   size="icon"
                   aria-label={`Delete ${att.filename}`}
                   disabled={isPending && deletingId === att.id}
-                  onClick={() => handleDelete(att.id)}
+                  onClick={() => handleDelete(att.id, att.filename)}
                 >
                   {isPending && deletingId === att.id ? (
                     <Loader2 className="size-4 animate-spin" />
@@ -215,5 +226,6 @@ export function AttachmentList({
         </label>
       </div>
     </div>
+    </>
   );
 }

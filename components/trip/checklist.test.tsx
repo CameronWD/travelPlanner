@@ -9,7 +9,7 @@ vi.mock("@/server/actions/checklists", () => ({
   deleteChecklistItem: vi.fn().mockResolvedValue({ success: true }),
   reorderChecklistItem: vi.fn().mockResolvedValue({ success: true }),
 }));
-import { toggleChecklistItem, addChecklistItem } from "@/server/actions/checklists";
+import { toggleChecklistItem, addChecklistItem, deleteChecklistItem } from "@/server/actions/checklists";
 
 import { Checklist } from "./checklist";
 import type { ChecklistItemRow } from "./checklist";
@@ -80,5 +80,54 @@ describe("Checklist", () => {
         kind: "PRETRIP",
       }),
     );
+  });
+
+  it("delete shows a confirmation dialog naming the item and fires only after confirming", async () => {
+    const user = userEvent.setup();
+    render(
+      <Checklist
+        tripId="trip-1"
+        kind="PRETRIP"
+        items={seedItems}
+        showDueDate={false}
+        showAssignee={false}
+      />,
+    );
+
+    // Hover to reveal actions then click delete on first item
+    const deleteButtons = screen.getAllByRole("button", { name: /delete item/i });
+    await user.click(deleteButtons[0]);
+
+    // Dialog title should appear with the item text
+    expect(
+      await screen.findByRole("heading", { name: /Delete "Book airport taxi"\?/i }),
+    ).toBeInTheDocument();
+
+    // deleteChecklistItem must NOT have been called yet
+    expect(deleteChecklistItem).not.toHaveBeenCalled();
+
+    // Confirm deletion
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(deleteChecklistItem).toHaveBeenCalledWith("item-1");
+  });
+
+  it("delete does NOT fire when the dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    render(
+      <Checklist
+        tripId="trip-1"
+        kind="PRETRIP"
+        items={seedItems}
+        showDueDate={false}
+        showAssignee={false}
+      />,
+    );
+
+    const deleteButtons = screen.getAllByRole("button", { name: /delete item/i });
+    await user.click(deleteButtons[0]);
+    await screen.findByRole("heading", { name: /Delete "Book airport taxi"\?/i });
+
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(deleteChecklistItem).not.toHaveBeenCalled();
   });
 });

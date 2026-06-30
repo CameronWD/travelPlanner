@@ -130,15 +130,15 @@ export function MonthGrid({
                     </span>
                   )}
                   {itemCount > 0 && (
-                    <span className="mt-0.5 text-[11px] text-muted-foreground">
-                      • {itemCount} {itemCount === 1 ? "thing" : "things"}
+                    <span className="mt-0.5 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      +{itemCount} {itemCount === 1 ? "thing" : "things"}
                     </span>
                   )}
                 </div>
               ) : itemCount > 0 ? (
                 <div className="flex flex-1 items-center justify-center">
-                  <span className="text-[11px] text-muted-foreground">
-                    • {itemCount} {itemCount === 1 ? "thing" : "things"}
+                  <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                    +{itemCount} {itemCount === 1 ? "thing" : "things"}
                   </span>
                 </div>
               ) : (
@@ -148,7 +148,7 @@ export function MonthGrid({
           );
 
           const cellClasses = cn(
-            "min-h-24 border-b border-r border-border border-l-2 p-1.5 transition-colors md:min-h-20",
+            "min-h-28 border-b border-r border-border border-l-2 p-1.5 transition-colors md:min-h-20",
             bandClass,
             !active && "bg-muted/20",
             active && onDropItem && dragOver === cell.dateISO && "bg-primary/10 ring-1 ring-inset ring-primary",

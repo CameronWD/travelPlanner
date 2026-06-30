@@ -71,22 +71,26 @@ export function NewTripForm() {
 
       {/* Date range (optional — sketch first, set dates as you firm up stops) */}
       <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-foreground">Dates</span>
+          <span className="text-xs text-muted-foreground">optional — sketch first</span>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <DateField
             name="startDate"
-            label="Start date (optional)"
+            label="Start date"
             error={fieldError("startDate")}
             disabled={isPending}
           />
           <DateField
             name="endDate"
-            label="End date (optional)"
+            label="End date"
             error={fieldError("endDate")}
             disabled={isPending}
           />
         </div>
         <p className="text-xs text-muted-foreground">
-          Leave blank to sketch first — you can set dates as you firm up stops.
+          Leave dates blank to start planning now and add dates later as you firm up stops.
         </p>
       </div>
 

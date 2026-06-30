@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Plus, BookOpen, CalendarClock, GripVertical } from "lucide-react";
+import { Plus, BookOpen, CalendarClock, GripVertical, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { StopCard, type StopCardStop } from "./stop-card";
 import { StopFormDialog } from "./stop-form-dialog";
 import { QuickAddStops } from "./quick-add-stops";
@@ -33,14 +34,16 @@ import {
 } from "@/server/actions/stops";
 import { reorderChapters } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
-import { suggestNextStopDates, formatDateRange } from "@/lib/dates";
+import { suggestNextStopDates, formatDateRange, formatLongDate } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import { groupStopsByChapter, isTransportBetweenLegs, sortGroupStops } from "@/lib/chapters";
 import { moveStopInOrder, moveChapterBlocks } from "@/lib/reorder";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import type { TransportMode } from "@/lib/enums";
+import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { CostRow } from "@/server/actions/costs";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { NoteView } from "./note-thread";
 import {
   DndContext,
@@ -160,6 +163,7 @@ function SortableStop({
       {...listeners}
       {...attributes}
       aria-label={`Reorder ${stop.name}`}
+      title="Drag to reorder"
       className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
     >
       <GripVertical className="size-4" aria-hidden="true" />
@@ -262,6 +266,8 @@ export function ItineraryManager({
   notesByStopId,
   currentUserId,
 }: ItineraryManagerProps) {
+  const { confirm, dialog } = useConfirm();
+
   // ── Local mutable copies (for optimistic drag reordering) ──
   // Seeded from props; the drag handlers mutate them optimistically.
   // Re-sync during render (getDerivedStateFromProps pattern) when props identity
@@ -320,7 +326,21 @@ export function ItineraryManager({
   );
 
   // ── Chapter group collapse state (keyed by chapter id or "ungrouped") ──
-  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(new Set());
+  // Persisted to localStorage under `${tripId}:${chapterId}` keys so state
+  // survives a page refresh. Guard for SSR: localStorage is browser-only.
+  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set<string>();
+    try {
+      const stored = localStorage.getItem(`itinerary-collapse:${tripId}`);
+      if (stored) {
+        const parsed = JSON.parse(stored) as string[];
+        if (Array.isArray(parsed)) return new Set(parsed);
+      }
+    } catch {
+      // Ignore parse errors — start fresh
+    }
+    return new Set<string>();
+  });
 
   function toggleGroup(key: string) {
     setCollapsedGroups((prev) => {
@@ -329,6 +349,17 @@ export function ItineraryManager({
         next.delete(key);
       } else {
         next.add(key);
+      }
+      // Persist to localStorage (SSR guard)
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(
+            `itinerary-collapse:${tripId}`,
+            JSON.stringify([...next]),
+          );
+        } catch {
+          // Quota exceeded or private browsing — silently ignore
+        }
       }
       return next;
     });
@@ -339,7 +370,14 @@ export function ItineraryManager({
 
   // ── Stop handlers ──
   async function handleDeleteStop(stopId: string) {
-    if (!confirm("Delete this stop? This cannot be undone.")) return;
+    const stop = localStops.find((s) => s.id === stopId);
+    const confirmed = await confirm({
+      title: `Delete "${stop?.name ?? "this stop"}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setPendingId(stopId);
     try {
       await deleteStop(stopId);
@@ -367,7 +405,14 @@ export function ItineraryManager({
   }
 
   async function handleMakeRough(stopId: string) {
-    if (!confirm("Make this stop rough again? Its dates will be cleared.")) return;
+    const stop = localStops.find((s) => s.id === stopId);
+    const confirmed = await confirm({
+      title: `Make "${stop?.name ?? "this stop"}" rough again?`,
+      description: "Its dates will be cleared and later stops will re-flow.",
+      confirmLabel: "Make rough",
+      destructive: false,
+    });
+    if (!confirmed) return;
     setPendingId(stopId);
     try {
       await makeStopRough(stopId);
@@ -383,6 +428,43 @@ export function ItineraryManager({
   // Firm up a whole leg — dates every rough stop in a chapter (id) or the
   // ungrouped run (null). The core rough → scheduled transition.
   async function handleFirmUp(chapterId: string | null) {
+    // Compute rough stop count and anchor for the confirm summary.
+    // Read localStops directly (not the `stops` alias) so the React Compiler
+    // can keep cross-await reads out of the memo dependency analysis.
+    const chapterStops = chapterId
+      ? localStops.filter((s) => s.chapterId === chapterId)
+      : localStops.filter((s) => s.chapterId === null);
+    const roughCount = chapterStops.filter((s) => s.arriveDate === null).length;
+
+    // Anchor: the depart date of the last scheduled stop before this chapter's
+    // first stop in the global order, or tripStartDate, or a generic fallback.
+    const firstChapterStopIdx = localStops.findIndex(
+      (s) => chapterId ? s.chapterId === chapterId : s.chapterId === null,
+    );
+    let anchorLabel = "the trip start";
+    if (firstChapterStopIdx > 0) {
+      const precedingDated = localStops
+        .slice(0, firstChapterStopIdx)
+        .reverse()
+        .find((s) => s.departDate !== null);
+      if (precedingDated?.departDate) {
+        anchorLabel = formatLongDate(precedingDated.departDate);
+      } else if (tripStartDate) {
+        anchorLabel = formatLongDate(tripStartDate);
+      }
+    } else if (tripStartDate) {
+      anchorLabel = formatLongDate(tripStartDate);
+    }
+
+    const stopWord = roughCount === 1 ? "stop" : "stops";
+    const confirmed = await confirm({
+      title: "Date this chapter's stops?",
+      description: `This will date ${roughCount} rough ${stopWord} from ${anchorLabel}. You can make any stop rough again afterwards.`,
+      confirmLabel: "Date stops",
+      destructive: false,
+    });
+    if (!confirmed) return;
+
     setPendingId(`firm-up-${chapterId ?? "ungrouped"}`);
     try {
       const r = await firmUpSegment({ tripId, chapterId });
@@ -403,6 +485,18 @@ export function ItineraryManager({
 
   // Date every rough stop across the whole trip from the start date, in one action.
   async function handleFirmUpTrip() {
+    const roughCount = localStops.filter((s) => s.arriveDate === null).length;
+    const anchorLabel = tripStartDate ? formatLongDate(tripStartDate) : "the trip start";
+    const stopWord = roughCount === 1 ? "stop" : "stops";
+
+    const confirmed = await confirm({
+      title: "Date all stops from start?",
+      description: `This will date ${roughCount} rough ${stopWord} from ${anchorLabel}. You can make any stop rough again afterwards.`,
+      confirmLabel: "Date stops",
+      destructive: false,
+    });
+    if (!confirmed) return;
+
     setPendingId("firm-up-trip");
     try {
       const r = await firmUpTrip(tripId);
@@ -421,7 +515,25 @@ export function ItineraryManager({
 
   // ── Transport handlers ──
   async function handleDeleteTransport(transportId: string) {
-    if (!confirm("Delete this transport leg? This cannot be undone.")) return;
+    const t = initialTransports.find((tr) => tr.id === transportId);
+    const modeLabel = t ? (TRANSPORT_MODE_META[t.mode]?.label ?? t.mode) : "transport leg";
+    // Build a route identifier from place names if available.
+    const routeLabel = t
+      ? (t.depPlace && t.arrPlace
+        ? `${modeLabel} from ${t.depPlace} to ${t.arrPlace}`
+        : t.depPlace
+          ? `${modeLabel} from ${t.depPlace}`
+          : t.arrPlace
+            ? `${modeLabel} to ${t.arrPlace}`
+            : modeLabel)
+      : modeLabel;
+    const confirmed = await confirm({
+      title: `Delete "${routeLabel}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setPendingId(transportId);
     try {
       await deleteTransport(transportId);
@@ -432,7 +544,14 @@ export function ItineraryManager({
 
   // ── Accommodation handlers ──
   async function handleDeleteAccommodation(accId: string) {
-    if (!confirm("Delete this accommodation? This cannot be undone.")) return;
+    const acc = localStops.flatMap((s) => s.accommodations).find((a) => a.id === accId);
+    const confirmed = await confirm({
+      title: `Delete "${acc?.name ?? "this accommodation"}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setPendingId(accId);
     try {
       await deleteAccommodation(accId);
@@ -1182,9 +1301,17 @@ export function ItineraryManager({
           {/* Other transports (not linked to consecutive stops, or home bookends) */}
           {otherTransports.length > 0 && (
             <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4">
-              <h3 className="text-sm font-medium text-muted-foreground">
-                Other transport
-              </h3>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  Other transport
+                </h3>
+                <p
+                  className="text-xs text-muted-foreground/70"
+                  title="These legs cross chapter boundaries or have an unlinked endpoint, so they're shown separately rather than between two stops."
+                >
+                  Between-chapter or unlinked legs
+                </p>
+              </div>
               {otherTransports.map((t) => (
                 <TransportCard
                   key={t.id}
@@ -1244,24 +1371,21 @@ export function ItineraryManager({
           </div>
         </DndContext>
       ) : (
-        // ── Empty state: warm prompt with inline add + new chapter ──
-        <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-border/70 bg-card/40 px-6 py-12 text-center">
-          <div className="flex flex-col gap-1">
-            <h2 className="font-display text-2xl font-semibold text-foreground">
-              Sketch your trip
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Add a chapter or a place to get started
-            </p>
-          </div>
-          <div className="w-full max-w-md">
-            <QuickAddStops tripId={tripId} chapterId={null} />
-          </div>
-          <Button variant="outline" size="md" onClick={handleNewChapter}>
-            <BookOpen className="size-4" aria-hidden="true" />
-            New chapter
-          </Button>
-        </div>
+        // ── Empty state: no Stops yet ──
+        <EmptyState
+          icon={MapPin}
+          title="Add your first Stop"
+          description="Add places you want to visit — rough stops to start, or dated stops once you know the plan."
+          action={
+            <div className="flex flex-col items-center gap-3 w-full max-w-md">
+              <QuickAddStops tripId={tripId} chapterId={null} />
+              <Button variant="outline" size="md" onClick={handleNewChapter}>
+                <BookOpen className="size-4" aria-hidden="true" />
+                New chapter
+              </Button>
+            </div>
+          }
+        />
       )}
 
       {/* ─── Dialogs ─── */}
@@ -1375,6 +1499,8 @@ export function ItineraryManager({
           onSave={(dates) => handleSaveAdjustDates(adjustingStop.id, dates)}
         />
       )}
+
+      {dialog}
     </div>
   );
 }

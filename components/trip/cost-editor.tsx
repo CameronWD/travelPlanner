@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
+import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { CostSummary } from "./cost-summary";
@@ -22,6 +23,7 @@ import type { CostOwnerType } from "@/lib/enums";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -178,11 +180,7 @@ function CostDialogForm({
           </Field>
 
           {/* Form-level error */}
-          {errors._form && (
-            <p className="text-xs font-medium text-destructive">
-              {errors._form[0]}
-            </p>
-          )}
+          <FormError>{errors._form?.[0]}</FormError>
 
           <DialogFooter>
             <Button
@@ -227,6 +225,7 @@ export function CostEditor({
   homeCurrency,
   defaultCurrency,
 }: CostEditorProps) {
+  const { confirm, dialog } = useConfirm();
   const baseCurrency = defaultCurrency ?? homeCurrency ?? "AUD";
 
   const [addOpen, setAddOpen] = React.useState(false);
@@ -293,7 +292,14 @@ export function CostEditor({
   }
 
   async function handleDelete(costId: string) {
-    if (!confirm("Delete this cost? This cannot be undone.")) return;
+    const cost = costs.find((c) => c.id === costId);
+    const confirmed = await confirm({
+      title: `Delete "${cost?.label ?? "this cost"}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setPendingDeleteId(costId);
     try {
       await deleteCost(costId);
@@ -400,6 +406,8 @@ export function CostEditor({
           onCancel={() => setEditingCost(null)}
         />
       )}
+
+      {dialog}
     </div>
   );
 }

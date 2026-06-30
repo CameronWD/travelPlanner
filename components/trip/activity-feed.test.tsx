@@ -40,7 +40,10 @@ const NOTED_ACTIVITY: ActivityRow = {
 describe("ActivityFeed", () => {
   it("renders an empty state when activities is empty", () => {
     render(<ActivityFeed activities={[]} />);
-    expect(screen.getByText(/no activity yet/i)).toBeInTheDocument();
+    // EmptyState renders the title in an h3
+    expect(screen.getByRole("heading", { name: /no activity yet/i })).toBeInTheDocument();
+    // Description is present
+    expect(screen.getByText(/changes to your trip/i)).toBeInTheDocument();
   });
 
   it("renders the CREATED headline text", () => {
@@ -80,6 +83,18 @@ describe("ActivityFeed", () => {
     expect(screen.getByText(/left a note/i)).toBeInTheDocument();
     // Excerpt rendered in quotes
     expect(screen.getByText(/Don't forget the passports!/i)).toBeInTheDocument();
+  });
+
+  it("renders the <time> element with a dateTime attribute and a title for the absolute timestamp", () => {
+    render(<ActivityFeed activities={[CREATED_ACTIVITY]} />);
+    const timeEl = document.querySelector("time");
+    expect(timeEl).toBeTruthy();
+    // dateTime should be the ISO string
+    expect(timeEl?.getAttribute("dateTime")).toBe(
+      CREATED_ACTIVITY.createdAt.toISOString(),
+    );
+    // title should be the locale string (non-empty)
+    expect(timeEl?.getAttribute("title")).toBeTruthy();
   });
 
   it("renders a summary payload as '{actor} {summary}', not the generic headline", () => {

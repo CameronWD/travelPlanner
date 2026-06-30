@@ -8,6 +8,7 @@ import { ChapterFormDialog, type ChapterFormDialogChapter } from "./chapter-form
 import { deleteChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { formatDateRange } from "@/lib/dates";
 import { cn } from "@/lib/cn";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -23,6 +24,7 @@ interface ChaptersManagerProps {
 // ---------------------------------------------------------------------------
 
 export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
+  const { confirm, dialog } = useConfirm();
   // ── Dialog state ──
   const [addOpen, setAddOpen] = React.useState(false);
   const [editingChapter, setEditingChapter] =
@@ -37,12 +39,13 @@ export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
 
   // ── Handlers ──
   async function handleDelete(chapter: ChapterFormDialogChapter) {
-    if (
-      !confirm(
-        `Delete the chapter "${chapter.name}"? This cannot be undone.`,
-      )
-    )
-      return;
+    const confirmed = await confirm({
+      title: `Delete chapter "${chapter.name}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
 
     setError(null);
     setPendingId(chapter.id);
@@ -173,6 +176,8 @@ export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
           }}
         />
       )}
+
+      {dialog}
     </div>
   );
 }

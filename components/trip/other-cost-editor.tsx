@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
+import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -23,11 +24,12 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 import { CURRENCIES } from "@/lib/currencies";
-import { formatMoney, formatMinor, parseAmountToMinor } from "@/lib/money";
+import { formatMoney, formatMinor, parseAmountToMinor, convertMinor } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -232,9 +234,7 @@ function OtherCostDialog({
             />
           </Field>
 
-          {errors._form && (
-            <p className="text-xs font-medium text-destructive">{errors._form[0]}</p>
-          )}
+          <FormError>{errors._form?.[0]}</FormError>
 
           <DialogFooter>
             <Button
@@ -270,6 +270,7 @@ export function OtherCostEditor({
   homeCurrency,
   defaultCurrency,
 }: OtherCostEditorProps) {
+  const { confirm, dialog } = useConfirm();
   const baseCurrency = defaultCurrency ?? homeCurrency ?? "AUD";
 
   const [addOpen, setAddOpen] = React.useState(false);
@@ -310,7 +311,14 @@ export function OtherCostEditor({
   }
 
   async function handleDelete(costId: string) {
-    if (!confirm("Delete this cost? This cannot be undone.")) return;
+    const cost = costs.find((c) => c.id === costId);
+    const confirmed = await confirm({
+      title: `Delete "${cost?.label ?? "this cost"}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setPendingDeleteId(costId);
     try {
       await deleteCost(costId);
@@ -365,7 +373,7 @@ export function OtherCostEditor({
                       <span className="text-muted-foreground/60">
                         ≈&nbsp;
                         {formatMoney(
-                          Math.round(cost.estimatedMinor * cost.rateToHome),
+                          convertMinor(cost.estimatedMinor, cost.currency, homeCurrency, cost.rateToHome),
                           homeCurrency,
                         )}
                       </span>
@@ -441,6 +449,8 @@ export function OtherCostEditor({
           onCancel={() => setEditingCost(null)}
         />
       )}
+
+      {dialog}
     </div>
   );
 }

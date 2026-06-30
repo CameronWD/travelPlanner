@@ -103,15 +103,68 @@ export default async function SummaryPage({
     },
   });
   if (!trip) notFound();
-  // The summary's budget, nights, and flags are all anchored to the trip
-  // window; a date-less trip has nothing dated to summarise yet.
+
+  // For a date-less trip: still show rough Stops (if any), then the date-less notice.
   if (!trip.startDate || !trip.endDate) {
+    const roughStopsForDateless = await db.stop.findMany({
+      where: { tripId, arriveDate: null },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, nights: true, country: true, chapterId: true },
+    });
+    const datelessChapters = roughStopsForDateless.some((s) => s.chapterId)
+      ? await db.chapter.findMany({
+          where: { tripId },
+          select: { id: true, name: true, colour: true },
+        })
+      : [];
+
     return (
-      <EmptyState
-        icon={Calendar}
-        title="No dates yet"
-        description="Set your trip's start and end dates to see a summary of your itinerary, budget, and flags."
-      />
+      <div className="flex flex-col gap-6">
+        {roughStopsForDateless.length > 0 && (
+          <section aria-labelledby="rough-heading-dateless">
+            <div className="mb-4 flex items-center gap-2">
+              <MapPin className="size-4 text-primary" aria-hidden="true" />
+              <h2 id="rough-heading-dateless" className="font-display text-lg font-semibold text-foreground">
+                Stops added so far
+              </h2>
+            </div>
+            <div className="flex flex-col gap-3">
+              {roughStopsForDateless.map((stop) => {
+                const nights = stop.nights ?? 1;
+                const chapter = stop.chapterId
+                  ? datelessChapters.find((c) => c.id === stop.chapterId)
+                  : undefined;
+                return (
+                  <div
+                    key={stop.id}
+                    className="rounded-2xl border border-border bg-card p-5 shadow-soft"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-display text-base font-semibold text-foreground">
+                        {stop.name}
+                      </h3>
+                      {stop.country && (
+                        <span className="text-sm text-muted-foreground">{stop.country}</span>
+                      )}
+                      <span className="text-sm text-muted-foreground">
+                        ~{nights} night{nights === 1 ? "" : "s"}
+                      </span>
+                      {chapter && (
+                        <ChapterChip name={chapter.name} colour={chapter.colour} />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+        <EmptyState
+          icon={Calendar}
+          title="No dates yet"
+          description="Set your trip's start and end dates to see a summary of your itinerary, budget, and flags."
+        />
+      </div>
     );
   }
 
