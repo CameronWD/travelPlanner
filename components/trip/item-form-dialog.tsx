@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Plus, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
+import { Field, useFieldControl } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
@@ -63,6 +63,48 @@ export interface ItemFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
+}
+
+// ---------------------------------------------------------------------------
+// CategoryGroup — pill selector wired to the surrounding <Field> context
+// ---------------------------------------------------------------------------
+
+interface CategoryGroupProps {
+  category: Category;
+  onSelect: (cat: Category) => void;
+  disabled?: boolean;
+}
+
+function CategoryGroup({ category, onSelect, disabled }: CategoryGroupProps) {
+  const fieldControl = useFieldControl();
+  return (
+    <div
+      role="group"
+      aria-label="Category"
+      {...fieldControl}
+      className="flex flex-wrap gap-2"
+    >
+      {CATEGORIES.map((cat) => (
+        <button
+          key={cat.value}
+          type="button"
+          onClick={() => onSelect(cat.value as Category)}
+          disabled={disabled}
+          className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-full"
+          aria-pressed={category === cat.value}
+        >
+          <CategoryPill
+            category={cat.value as Category}
+            className={
+              category === cat.value
+                ? "ring-2 ring-offset-2 ring-offset-background ring-current"
+                : "opacity-60 hover:opacity-90"
+            }
+          />
+        </button>
+      ))}
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -268,27 +310,11 @@ function ItemForm({
 
       {/* Category */}
       <Field label="Category" error={errors.category?.[0]}>
-        <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat.value}
-              type="button"
-              onClick={() => setCategory(cat.value as Category)}
-              disabled={isPending}
-              className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-full"
-              aria-pressed={category === cat.value}
-            >
-              <CategoryPill
-                category={cat.value as Category}
-                className={
-                  category === cat.value
-                    ? "ring-2 ring-offset-2 ring-offset-background ring-current"
-                    : "opacity-60 hover:opacity-90"
-                }
-              />
-            </button>
-          ))}
-        </div>
+        <CategoryGroup
+          category={category}
+          onSelect={setCategory}
+          disabled={isPending}
+        />
       </Field>
 
       {/* Stop (optional) */}

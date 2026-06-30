@@ -210,7 +210,26 @@ describe("ItemFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 7: end-time field shows "Set a start time first" hint when date is
+  // Case 7: category field error wires aria-invalid to the category group
+  // -------------------------------------------------------------------------
+  it("a category field error sets aria-invalid on the category group", async () => {
+    (createItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { category: ["Category is required"] },
+    });
+
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add idea/i }));
+
+    expect(await screen.findByText("Category is required")).toBeInTheDocument();
+    const categoryGroup = screen.getByRole("group", { name: "Category" });
+    expect(categoryGroup).toHaveAttribute("aria-invalid", "true");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 8: end-time field shows "Set a start time first" hint when date is
   //          set but start time is empty
   // -------------------------------------------------------------------------
   it("end-time field shows 'Set a start time first' hint when date is set but start time is empty", async () => {

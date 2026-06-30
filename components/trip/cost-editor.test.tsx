@@ -152,6 +152,8 @@ describe("CostEditor", () => {
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     expect(await screen.findByText("Amount is required")).toBeInTheDocument();
+    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    expect(estimatedInput).toHaveAttribute("aria-invalid", "true");
   });
 
   it("a _form error appears with role=alert via FormError", async () => {
