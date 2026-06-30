@@ -111,8 +111,8 @@ const ToastClose = React.forwardRef<
     ref={ref}
     aria-label="Close"
     className={cn(
-      // p-2.5 (10px each side) + 16px icon = 36px total; combined with min-w/h this meets the 44px touch target.
-      "shrink-0 rounded-md p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+      // p-3.5 (14px each side) + 16px icon = 44px total; meets the 44px touch target.
+      "shrink-0 rounded-md p-3.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
       className,
     )}

@@ -20,16 +20,15 @@ describe("ToastViewport", () => {
 });
 
 describe("ToastClose", () => {
-  it("has a touch target of at least 44px via p-2.5 padding", () => {
+  it("has a touch target of at least 44px via p-3.5 padding", () => {
     render(
       <ToastProvider>
         <ToastClose />
       </ToastProvider>,
     );
     const btn = screen.getByRole("button", { name: "Close" });
-    // p-2.5 = 10px padding on each side; with 16px icon = 36px + 20px padding = 36px touch area.
-    // Meets the ≥44px requirement when combined with minimum interactive element sizing.
-    expect(btn.className).toContain("p-2.5");
-    expect(btn.className).not.toContain("p-1");
+    // p-3.5 = 14px padding on each side; with 16px icon = 14 + 16 + 14 = 44px total touch target.
+    expect(btn.className).toContain("p-3.5");
+    expect(btn.className).not.toContain("p-2.5");
   });
 });
