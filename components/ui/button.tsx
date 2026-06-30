@@ -62,11 +62,19 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     // When asChild is set the consumer owns the single child element, so we
     // can't inject a spinner without breaking Slot's single-child contract.
     const showSpinner = loading && !asChild;
+    // Non-button elements (e.g. <a>) ignore the native `disabled` attribute, so
+    // apply inert styling + aria when loading with asChild.
+    const inertWhenAsChild = loading && asChild;
     return (
       <Comp
         ref={ref}
-        className={cn(buttonVariants({ variant, size }), className)}
+        className={cn(
+          buttonVariants({ variant, size }),
+          inertWhenAsChild && "pointer-events-none opacity-50",
+          className,
+        )}
         disabled={asChild ? undefined : (disabled ?? loading)}
+        aria-disabled={inertWhenAsChild || undefined}
         aria-busy={loading || undefined}
         data-loading={loading || undefined}
         {...props}

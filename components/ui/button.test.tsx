@@ -67,4 +67,16 @@ describe("Button", () => {
     expect(link).toHaveAttribute("href", "https://example.com/trips");
     expect(link).toHaveClass("bg-primary");
   });
+
+  it("marks an asChild button inert and busy while loading", () => {
+    render(
+      <Button asChild loading>
+        <a href="/x">Go</a>
+      </Button>,
+    );
+    const el = screen.getByRole("link", { name: "Go" });
+    expect(el).toHaveAttribute("aria-disabled", "true");
+    expect(el).toHaveAttribute("aria-busy", "true");
+    expect(el.className).toMatch(/pointer-events-none/);
+  });
 });
