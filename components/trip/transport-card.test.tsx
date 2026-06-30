@@ -12,6 +12,23 @@ import { TransportCard } from "./transport-card";
 
 const base = { id: "t1", mode: "CAR" as const, sortOrder: 0 };
 
+describe("TransportCard timezone labels + cross-zone marker", () => {
+  it("labels dep/arr with their zone and a +1 day marker for overnight cross-zone flights", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "t1", mode: "FLIGHT" as const, sortOrder: 0,
+          depAt: new Date("2026-08-05T18:00:00Z"), arrAt: new Date("2026-08-06T07:30:00Z"),
+          fromStopTimezone: "Europe/Rome", toStopTimezone: "Asia/Tokyo",
+        }}
+      />,
+    );
+    expect(screen.getByText(/20:00/)).toBeInTheDocument();
+    expect(screen.getByText(/16:30/)).toBeInTheDocument();
+    expect(screen.getByText(/\+1 day/)).toBeInTheDocument();
+  });
+});
+
 describe("TransportCard drive estimate", () => {
   it("shows the drive estimate when present and there are no real times", () => {
     render(
