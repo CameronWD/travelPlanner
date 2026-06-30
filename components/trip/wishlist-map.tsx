@@ -134,12 +134,6 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
         const icon = categoryIcon(L, item.category);
         const popupHtml = `<div style="min-width:140px;line-height:1.5">
           <strong style="font-size:14px">${escapeHtml(item.title)}</strong>
-          <div style="margin-top:6px">
-            <button
-              onclick="(function(el){while(el&&el.tagName!=='BUTTON')el=el.parentElement;el&&el.dispatchEvent(new CustomEvent('wishlist-select',{bubbles:true,detail:{id:${JSON.stringify(item.id)}}}))})(this)"
-              style="font-size:12px;color:#2563eb;background:none;border:none;cursor:pointer;padding:0"
-            >Schedule</button>
-          </div>
         </div>`;
 
         const marker = L.marker([item.lat, item.lng], { icon })

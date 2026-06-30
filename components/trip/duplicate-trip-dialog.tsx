@@ -27,6 +27,8 @@ interface DuplicateTripDialogProps {
   open?: boolean;
   /** Controlled mode: called when the dialog wants to open or close. */
   onOpenChange?: (open: boolean) => void;
+  /** When true, uses neutral workspace-safe copy instead of trip-specific wording. */
+  disguised?: boolean;
 }
 
 export function DuplicateTripDialog({
@@ -34,6 +36,7 @@ export function DuplicateTripDialog({
   tripName,
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
+  disguised = false,
 }: DuplicateTripDialogProps) {
   const router = useRouter();
   const isControlled = controlledOpen !== undefined;
@@ -80,9 +83,11 @@ export function DuplicateTripDialog({
       )}
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Duplicate this trip?</DialogTitle>
+          <DialogTitle>{disguised ? "Duplicate this project?" : "Duplicate this trip?"}</DialogTitle>
           <DialogDescription>
-            Your co-travellers will be added to the duplicate too.
+            {disguised
+              ? "Collaborators will be added too."
+              : "Your co-travellers will be added to the duplicate too."}
           </DialogDescription>
         </DialogHeader>
 

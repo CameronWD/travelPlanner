@@ -92,6 +92,7 @@ export function ProjectTable({ projects }: { projects: ProjectRow[] }) {
         tripName={duplicateState?.name ?? ""}
         open={duplicateState !== null}
         onOpenChange={(o) => { if (!o) setDuplicateState(null); }}
+        disguised
       />
     </>
   );

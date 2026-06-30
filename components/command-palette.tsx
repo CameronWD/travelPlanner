@@ -10,7 +10,7 @@ import {
   Search,
   WifiOff,
 } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/ui/theme-provider";
 import { searchTrip, listMyTrips } from "@/server/actions/search";
@@ -432,6 +432,7 @@ export function CommandPalette({ open, onOpenChange, tripId }: CommandPalettePro
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent bare hideClose>
+        <DialogTitle className="sr-only">Command palette</DialogTitle>
         {open && (
           <CommandPaletteInner onOpenChange={onOpenChange} tripId={tripId} />
         )}

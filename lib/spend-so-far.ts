@@ -30,6 +30,8 @@ export function buildSpendSoFar(input: {
     if (estimatedHome === null) continue; // missing rate — excluded everywhere
     estimatedTotal += estimatedHome;
     if (c.paidAt != null) {
+      // Cash-flow basis: a cost marked paid with no actual amount contributes 0 to paidSoFar,
+      // but its estimate still counts toward paidEstimate (so variance reflects the gap).
       paidSoFar += actualHome ?? 0;
       paidEstimate += estimatedHome;
     }
