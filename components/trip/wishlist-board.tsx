@@ -14,6 +14,7 @@ import type { VoteView } from "./vote-control";
 import { sortItemsByVotes } from "@/lib/votes";
 import { AiActivitySuggestions } from "./ai-activity-suggestions";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,6 +62,7 @@ export function WishlistBoard({
   currentUserId,
   aiConfigured = false,
 }: WishlistBoardProps) {
+  const { confirm, dialog } = useConfirm();
   const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
 
   // ── Dialog state ──
@@ -70,7 +72,14 @@ export function WishlistBoard({
 
   // ── Handlers ──
   async function handleDelete(itemId: string) {
-    if (!confirm("Delete this idea? This cannot be undone.")) return;
+    const item = items.find((i) => i.id === itemId);
+    const confirmed = await confirm({
+      title: `Delete "${item?.title ?? "this item"}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setPendingId(itemId);
     try {
       await deleteItem(itemId);
@@ -276,6 +285,8 @@ export function WishlistBoard({
           onSaved={() => setSchedulingItem(null)}
         />
       )}
+
+      {dialog}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { StopCard, type StopCardStop } from "./stop-card";
 import { StopFormDialog } from "./stop-form-dialog";
 import { deleteStop, moveStop } from "@/server/actions/stops";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface StopsManagerProps {
   tripId: string;
@@ -21,6 +22,7 @@ interface StopsManagerProps {
  * rely on revalidatePath to refresh the page data.
  */
 export function StopsManager({ tripId, initialStops }: StopsManagerProps) {
+  const { confirm, dialog } = useConfirm();
   const [editingStop, setEditingStop] = React.useState<StopCardStop | null>(
     null,
   );
@@ -28,7 +30,14 @@ export function StopsManager({ tripId, initialStops }: StopsManagerProps) {
   const [pendingId, setPendingId] = React.useState<string | null>(null);
 
   async function handleDelete(stopId: string) {
-    if (!confirm("Delete this stop? This cannot be undone.")) return;
+    const stop = initialStops.find((s) => s.id === stopId);
+    const confirmed = await confirm({
+      title: `Delete "${stop?.name ?? "this stop"}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setPendingId(stopId);
     try {
       await deleteStop(stopId);
@@ -116,6 +125,8 @@ export function StopsManager({ tripId, initialStops }: StopsManagerProps) {
           }}
         />
       )}
+
+      {dialog}
     </div>
   );
 }

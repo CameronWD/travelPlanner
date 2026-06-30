@@ -28,6 +28,7 @@ import { cn } from "@/lib/cn";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -270,6 +271,7 @@ export function OtherCostEditor({
   homeCurrency,
   defaultCurrency,
 }: OtherCostEditorProps) {
+  const { confirm, dialog } = useConfirm();
   const baseCurrency = defaultCurrency ?? homeCurrency ?? "AUD";
 
   const [addOpen, setAddOpen] = React.useState(false);
@@ -310,7 +312,14 @@ export function OtherCostEditor({
   }
 
   async function handleDelete(costId: string) {
-    if (!confirm("Delete this cost? This cannot be undone.")) return;
+    const cost = costs.find((c) => c.id === costId);
+    const confirmed = await confirm({
+      title: `Delete "${cost?.label ?? "this cost"}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setPendingDeleteId(costId);
     try {
       await deleteCost(costId);
@@ -441,6 +450,8 @@ export function OtherCostEditor({
           onCancel={() => setEditingCost(null)}
         />
       )}
+
+      {dialog}
     </div>
   );
 }

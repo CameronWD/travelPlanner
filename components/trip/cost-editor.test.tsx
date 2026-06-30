@@ -7,7 +7,7 @@ vi.mock("@/server/actions/costs", () => ({
   updateCost: vi.fn().mockResolvedValue({ success: true }),
   deleteCost: vi.fn().mockResolvedValue({ success: true }),
 }));
-import { createCost, updateCost } from "@/server/actions/costs";
+import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 
 import { CostEditor } from "./cost-editor";
 import type { CostRow } from "@/server/actions/costs";
@@ -31,6 +31,19 @@ const sampleCost: CostRow = {
   ownerType: "TRANSPORT",
   ownerId: "owner-1",
   label: null,
+  category: null,
+};
+
+const labeledCost: CostRow = {
+  id: "cost-2",
+  estimatedMinor: 3500,
+  actualMinor: null,
+  currency: "AUD",
+  rateToHome: 1,
+  paidAt: null,
+  ownerType: "TRANSPORT",
+  ownerId: "owner-1",
+  label: "Train ticket",
   category: null,
 };
 
@@ -85,6 +98,22 @@ describe("CostEditor", () => {
         actualMinor: 4875,
       }),
     );
+  });
+
+  it("deleting a cost shows a dialog with the cost label and calls deleteCost on confirm", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} costs={[labeledCost]} />);
+
+    await user.click(screen.getByRole("button", { name: /delete cost/i }));
+
+    // Dialog appears with the cost label
+    expect(await screen.findByText(/Train ticket/)).toBeInTheDocument();
+
+    // Click the Delete button
+    const deleteBtn = screen.getByRole("button", { name: "Delete" });
+    await user.click(deleteBtn);
+
+    expect(deleteCost).toHaveBeenCalledWith("cost-2");
   });
 
   it("editing an existing cost opens a prefilled edit dialog and calls updateCost", async () => {

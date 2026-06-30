@@ -40,7 +40,9 @@ import { groupStopsByChapter, isTransportBetweenLegs, sortGroupStops } from "@/l
 import { moveStopInOrder, moveChapterBlocks } from "@/lib/reorder";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import type { TransportMode } from "@/lib/enums";
+import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { CostRow } from "@/server/actions/costs";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { NoteView } from "./note-thread";
 import {
   DndContext,
@@ -262,6 +264,8 @@ export function ItineraryManager({
   notesByStopId,
   currentUserId,
 }: ItineraryManagerProps) {
+  const { confirm, dialog } = useConfirm();
+
   // ── Local mutable copies (for optimistic drag reordering) ──
   // Seeded from props; the drag handlers mutate them optimistically.
   // Re-sync during render (getDerivedStateFromProps pattern) when props identity
@@ -339,7 +343,14 @@ export function ItineraryManager({
 
   // ── Stop handlers ──
   async function handleDeleteStop(stopId: string) {
-    if (!confirm("Delete this stop? This cannot be undone.")) return;
+    const stop = localStops.find((s) => s.id === stopId);
+    const confirmed = await confirm({
+      title: `Delete "${stop?.name ?? "this stop"}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setPendingId(stopId);
     try {
       await deleteStop(stopId);
@@ -367,7 +378,14 @@ export function ItineraryManager({
   }
 
   async function handleMakeRough(stopId: string) {
-    if (!confirm("Make this stop rough again? Its dates will be cleared.")) return;
+    const stop = localStops.find((s) => s.id === stopId);
+    const confirmed = await confirm({
+      title: `Make "${stop?.name ?? "this stop"}" rough again?`,
+      description: "Its dates will be cleared and later stops will re-flow.",
+      confirmLabel: "Make rough",
+      destructive: false,
+    });
+    if (!confirmed) return;
     setPendingId(stopId);
     try {
       await makeStopRough(stopId);
@@ -421,7 +439,15 @@ export function ItineraryManager({
 
   // ── Transport handlers ──
   async function handleDeleteTransport(transportId: string) {
-    if (!confirm("Delete this transport leg? This cannot be undone.")) return;
+    const t = initialTransports.find((tr) => tr.id === transportId);
+    const modeLabel = t ? (TRANSPORT_MODE_META[t.mode]?.label ?? t.mode) : "transport leg";
+    const confirmed = await confirm({
+      title: `Delete ${modeLabel}?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setPendingId(transportId);
     try {
       await deleteTransport(transportId);
@@ -432,7 +458,14 @@ export function ItineraryManager({
 
   // ── Accommodation handlers ──
   async function handleDeleteAccommodation(accId: string) {
-    if (!confirm("Delete this accommodation? This cannot be undone.")) return;
+    const acc = localStops.flatMap((s) => s.accommodations).find((a) => a.id === accId);
+    const confirmed = await confirm({
+      title: `Delete "${acc?.name ?? "this accommodation"}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
     setPendingId(accId);
     try {
       await deleteAccommodation(accId);
@@ -1375,6 +1408,8 @@ export function ItineraryManager({
           onSave={(dates) => handleSaveAdjustDates(adjustingStop.id, dates)}
         />
       )}
+
+      {dialog}
     </div>
   );
 }

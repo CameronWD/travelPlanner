@@ -102,8 +102,6 @@ const baseProps = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  // Default: user always confirms the browser dialog
-  vi.spyOn(window, "confirm").mockReturnValue(true);
 });
 
 // ---------------------------------------------------------------------------
@@ -112,7 +110,6 @@ beforeEach(() => {
 
 describe("delete confirmation gating", () => {
   it("does NOT call deleteStop when the confirm dialog is cancelled", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(false);
     const user = userEvent.setup();
     const stop = makeStop({ id: "stop-abc", name: "Rome" });
 
@@ -123,12 +120,14 @@ describe("delete confirmation gating", () => {
     // The delete button has aria-label "Delete {name}"
     await user.click(screen.getByRole("button", { name: "Delete Rome" }));
 
-    expect(window.confirm).toHaveBeenCalledOnce();
+    // Dialog should appear — click Cancel
+    const cancelBtn = await screen.findByRole("button", { name: "Cancel" });
+    await user.click(cancelBtn);
+
     expect(deleteStop).not.toHaveBeenCalled();
   });
 
   it("calls deleteStop with the stop id when the confirm dialog is accepted", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     const user = userEvent.setup();
     const stop = makeStop({ id: "stop-abc", name: "Rome" });
 
@@ -138,10 +137,50 @@ describe("delete confirmation gating", () => {
 
     await user.click(screen.getByRole("button", { name: "Delete Rome" }));
 
-    expect(window.confirm).toHaveBeenCalledOnce();
+    // Dialog should appear — click Delete
+    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
+    await user.click(deleteBtn);
+
     await waitFor(() => {
       expect(deleteStop).toHaveBeenCalledWith("stop-abc");
     });
+  });
+
+  it("shows the stop name in the delete dialog title", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "stop-abc", name: "Rome" });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[stop]} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete Rome" }));
+
+    // Dialog title contains the stop name in quotes
+    expect(await screen.findByText(/Delete "Rome"\?/)).toBeInTheDocument();
+  });
+
+  it("shows the stop name in the make-rough dialog title", async () => {
+    const user = userEvent.setup();
+    // A dated stop has a "Make rough" action in the overflow menu
+    const stop = makeStop({
+      id: "stop-abc",
+      name: "Venice",
+      arriveDate: "2026-08-01",
+      departDate: "2026-08-05",
+    });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[stop]} />,
+    );
+
+    // Open overflow menu and click Make rough (two overflow buttons exist: mobile + desktop)
+    const overflowBtns = screen.getAllByRole("button", { name: "More actions for Venice" });
+    await user.click(overflowBtns[0]);
+    await user.click(await screen.findByRole("menuitem", { name: /make rough/i }));
+
+    // Dialog title contains the stop name in quotes
+    expect(await screen.findByText(/Make "Venice" rough again\?/)).toBeInTheDocument();
   });
 });
 
@@ -315,8 +354,6 @@ describe("optimistic pending state", () => {
   });
 
   it("stop card enters pending state (pointer-events-none) while deleteStop is in flight", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-
     let resolveDelete!: (v: { success: true }) => void;
     const pendingPromise = new Promise<{ success: true }>((res) => {
       resolveDelete = res;
@@ -331,6 +368,10 @@ describe("optimistic pending state", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Delete Paris" }));
+
+    // Confirm the dialog
+    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
+    await user.click(deleteBtn);
 
     // While in-flight, the StopCard root div gets pointer-events-none AND the delete button is disabled
     await waitFor(() => {
