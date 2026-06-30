@@ -185,13 +185,18 @@ function AccommodationForm({
   const [isPending, startTransition] = React.useTransition();
 
   // Soft warnings (reactive, non-blocking)
-  const dateWarnings =
-    checkIn && checkOut
-      ? accommodationDateWarnings(
-          { checkIn, checkOut },
-          stopDateRange,
-        )
-      : [];
+  const dateWarnings: string[] = [];
+  if (checkIn && checkOut) {
+    if (checkOut <= checkIn) {
+      dateWarnings.push(
+        "Check-out is on or before check-in — double-check these dates.",
+      );
+    } else {
+      dateWarnings.push(
+        ...accommodationDateWarnings({ checkIn, checkOut }, stopDateRange),
+      );
+    }
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -272,6 +277,7 @@ function AccommodationForm({
           {dateWarnings.map((w) => (
             <Badge
               key={w}
+              role="status"
               variant="warning"
               className="flex w-fit items-center gap-1 text-xs"
             >

@@ -192,4 +192,74 @@ describe("TransportFormDialog", () => {
       await screen.findByText("Departure time must be before arrival time"),
     ).toBeInTheDocument();
   });
+
+  // -------------------------------------------------------------------------
+  // Case 6: soft date-order warning — inverted times shows warning, submit enabled
+  // -------------------------------------------------------------------------
+  it("shows a date-order warning when departure is on or after arrival, but submit stays enabled", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} />);
+
+    const depAtInput = screen.getByLabelText(/departure time/i);
+    const arrAtInput = screen.getByLabelText(/arrival time/i);
+
+    // Set departure AFTER arrival (inverted)
+    await user.type(depAtInput, "2026-07-10T14:00");
+    await user.type(arrAtInput, "2026-07-10T09:00");
+
+    // Warning should appear
+    expect(
+      screen.getByText(/departure is on or after arrival/i),
+    ).toBeInTheDocument();
+
+    // Submit button must remain enabled
+    expect(
+      screen.getByRole("button", { name: /add transport/i }),
+    ).toBeEnabled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 7: soft date-order warning disappears when one field is cleared
+  // -------------------------------------------------------------------------
+  it("hides the date-order warning when one of the datetime fields is cleared", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} />);
+
+    const depAtInput = screen.getByLabelText(/departure time/i);
+    const arrAtInput = screen.getByLabelText(/arrival time/i);
+
+    // Set inverted order
+    await user.type(depAtInput, "2026-07-10T14:00");
+    await user.type(arrAtInput, "2026-07-10T09:00");
+
+    // Warning present
+    expect(
+      screen.getByText(/departure is on or after arrival/i),
+    ).toBeInTheDocument();
+
+    // Clear arrival — warning should disappear
+    await user.clear(arrAtInput);
+
+    expect(
+      screen.queryByText(/departure is on or after arrival/i),
+    ).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 8: no warning shown when dates are in valid order
+  // -------------------------------------------------------------------------
+  it("does not show a date-order warning when departure is before arrival", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} />);
+
+    const depAtInput = screen.getByLabelText(/departure time/i);
+    const arrAtInput = screen.getByLabelText(/arrival time/i);
+
+    await user.type(depAtInput, "2026-07-10T09:00");
+    await user.type(arrAtInput, "2026-07-10T14:00");
+
+    expect(
+      screen.queryByText(/departure is on or after arrival/i),
+    ).not.toBeInTheDocument();
+  });
 });

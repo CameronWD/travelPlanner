@@ -22,6 +22,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { TRANSPORT_MODE_LIST } from "@/lib/transport";
+import { Badge } from "@/components/ui/badge";
 import { createTransport, updateTransport } from "@/server/actions/transport";
 import type { TransportCardTransport } from "./transport-card";
 
@@ -373,6 +374,17 @@ function TransportForm({
           />
         </Field>
       </div>
+
+      {/* Soft date-order warning */}
+      {depAt && arrAt && depAt >= arrAt && (
+        <Badge
+          role="status"
+          variant="warning"
+          className="flex w-fit items-center gap-1 text-xs"
+        >
+          Departure is on or after arrival — double-check these times.
+        </Badge>
+      )}
 
       {/* Reference */}
       <Field label="Booking reference / number" error={errors.reference?.[0]}>
