@@ -392,6 +392,8 @@ export default async function SummaryPage({
 
   return (
     <div className="flex flex-col gap-8">
+      <h1 className="font-display text-2xl font-semibold text-foreground">Trip summary</h1>
+
       {/* ── Header stat bar ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatCard

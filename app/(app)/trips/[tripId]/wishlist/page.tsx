@@ -190,17 +190,20 @@ export default async function WishlistPage({
   }));
 
   return (
-    <WishlistBoard
-      tripId={trip.id}
-      tripStartDate={trip.startDate}
-      stops={trip.stops}
-      items={items}
-      costsByItemId={costsByItemId}
-      homeCurrency={trip.homeCurrency}
-      notesByItemId={notesByItemId}
-      votesByItemId={votesByItemId}
-      currentUserId={user.id}
-      aiConfigured={isAiConfigured()}
-    />
+    <>
+      <h1 className="sr-only">Wishlist</h1>
+      <WishlistBoard
+        tripId={trip.id}
+        tripStartDate={trip.startDate}
+        stops={trip.stops}
+        items={items}
+        costsByItemId={costsByItemId}
+        homeCurrency={trip.homeCurrency}
+        notesByItemId={notesByItemId}
+        votesByItemId={votesByItemId}
+        currentUserId={user.id}
+        aiConfigured={isAiConfigured()}
+      />
+    </>
   );
 }

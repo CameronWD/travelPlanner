@@ -246,8 +246,8 @@ export function NoteThread({
           variant="ghost"
           size="sm"
           className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-          title="Notes"
-          aria-label={`${notes.length} note${notes.length === 1 ? "" : "s"}`}
+          title={notes.length === 0 ? "Notes" : `Notes (${notes.length})`}
+          aria-label={notes.length === 0 ? "Notes" : `Notes (${notes.length})`}
         >
           <MessageCircle className="size-3.5" aria-hidden="true" />
           {notes.length > 0 && (

@@ -77,6 +77,7 @@ export function NearbyWishlist({
 
                   <button
                     type="button"
+                    aria-label={`Add ${item.title} to today`}
                     className="shrink-0 rounded-md border border-border bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
                     onClick={async () => {
                       const result = await scheduleItem(item.id, { date });
