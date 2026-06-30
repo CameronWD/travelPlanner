@@ -191,7 +191,6 @@ export default async function WishlistPage({
 
   return (
     <>
-      <h1 className="sr-only">Wishlist</h1>
       <WishlistBoard
         tripId={trip.id}
         tripStartDate={trip.startDate}

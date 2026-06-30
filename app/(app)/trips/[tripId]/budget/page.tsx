@@ -281,7 +281,7 @@ export default async function BudgetPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-display text-2xl font-semibold text-foreground">Budget</h1>
+      <h2 className="sr-only">Budget</h2>
 
       {/* Missing rates warning */}
       {budget.hasMissingRates && (
