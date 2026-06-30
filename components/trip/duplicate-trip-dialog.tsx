@@ -23,14 +23,25 @@ import { toast } from "@/components/ui/use-toast";
 interface DuplicateTripDialogProps {
   tripId: string;
   tripName: string;
+  /** Controlled mode: caller manages open state. When provided, the built-in trigger button is NOT rendered. */
+  open?: boolean;
+  /** Controlled mode: called when the dialog wants to open or close. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function DuplicateTripDialog({
   tripId,
   tripName,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: DuplicateTripDialogProps) {
   const router = useRouter();
-  const [open, setOpen] = React.useState(false);
+  const isControlled = controlledOpen !== undefined;
+
+  // Uncontrolled internal state (only used when not in controlled mode)
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(false);
+  const open = isControlled ? controlledOpen : uncontrolledOpen;
+
   const [name, setName] = React.useState(`Copy of ${tripName}`);
   const [isPending, startTransition] = useTransition();
 
@@ -38,7 +49,11 @@ export function DuplicateTripDialog({
     if (!newOpen) {
       setName(`Copy of ${tripName}`);
     }
-    setOpen(newOpen);
+    if (isControlled) {
+      controlledOnOpenChange?.(newOpen);
+    } else {
+      setUncontrolledOpen(newOpen);
+    }
   }
 
   function handleDuplicate() {
@@ -48,7 +63,7 @@ export function DuplicateTripDialog({
         router.push(`/trips/${res.tripId}`);
       } else {
         toast({ title: "Couldn't duplicate", variant: "destructive" });
-        setOpen(false);
+        handleOpenChange(false);
       }
     });
   }
@@ -56,12 +71,14 @@ export function DuplicateTripDialog({
   return (
     <div>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogTrigger asChild>
-          <Button variant="outline" size="md">
-            <Copy className="size-4" aria-hidden="true" />
-            Duplicate trip
-          </Button>
-        </DialogTrigger>
+        {!isControlled && (
+          <DialogTrigger asChild>
+            <Button variant="outline" size="md">
+              <Copy className="size-4" aria-hidden="true" />
+              Duplicate trip
+            </Button>
+          </DialogTrigger>
+        )}
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Duplicate this trip?</DialogTitle>
