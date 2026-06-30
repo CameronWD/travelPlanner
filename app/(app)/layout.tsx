@@ -16,6 +16,8 @@ import {
 import { SignOutMenuItem } from "@/components/ui/sign-out-button";
 import { DiscreetToggle } from "@/components/discreet/discreet-toggle";
 import { OfflineBanner } from "@/components/offline-banner";
+import { CommandPaletteMount } from "@/components/command-palette-mount";
+import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
 import { cn } from "@/lib/cn";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -73,6 +75,7 @@ export default async function AppLayout({
   return (
     <div className={cn("flex min-h-full flex-col", discreet && "discreet")}>
       <OfflineBanner />
+      <CommandPaletteMount disabled={discreet} />
       {/* ── Top bar ── */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
@@ -94,6 +97,7 @@ export default async function AppLayout({
 
           {/* Right-hand controls */}
           <div className="flex items-center gap-1">
+            {!discreet && <CommandPaletteTrigger />}
             <ThemeToggle />
 
             {/* Traveller avatar dropdown */}
