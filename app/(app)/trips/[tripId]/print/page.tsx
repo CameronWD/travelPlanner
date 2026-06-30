@@ -12,6 +12,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
+import { zoneLabel } from "@/lib/time-display";
 import { buildItinerary } from "@/lib/itinerary";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
 import { PrintButton } from "./print-button";
@@ -392,6 +393,9 @@ export default async function PrintPage({
                     {day.stop && (
                       <span className="text-sm text-muted-foreground">
                         {day.stop.name}
+                        {day.stop.timezone && (
+                          <> · {zoneLabel(day.stop.timezone, day.dateISO)}</>
+                        )}
                       </span>
                     )}
                   </div>

@@ -9,6 +9,7 @@ import { flagTightConnections } from "@/lib/flags";
 import { daylight, utcHmToZone } from "@/lib/daylight";
 import { getDayWeather } from "@/lib/weather";
 import { tzAbbrev } from "@/lib/dates";
+import { zoneLabel } from "@/lib/time-display";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
 import { DayNav } from "@/components/trip/day-nav";
@@ -337,6 +338,11 @@ export default async function DayPage({
           <p className="text-sm text-muted-foreground">
             {dayPlan.stop.name}
             {dayPlan.stop.country ? `, ${dayPlan.stop.country}` : ""}
+            {dayPlan.stop.timezone && (
+              <span className="text-xs text-muted-foreground">
+                {" · "}{zoneLabel(dayPlan.stop.timezone, effectiveDate)}
+              </span>
+            )}
           </p>
         )}
       </div>
