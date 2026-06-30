@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, CalendarCheck } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Button } from "@/components/ui/button";
 import { AgendaView } from "@/components/trip/agenda-view";
@@ -84,6 +84,8 @@ export interface CalendarViewsProps {
 }
 
 export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems }: CalendarViewsProps) {
+  const reduce = useReducedMotion();
+
   // useSyncExternalStore gives us the SSR-safe default (agenda on server) and
   // the resolved preference on the client without ever calling setState in an effect.
   const view = React.useSyncExternalStore(
@@ -177,10 +179,10 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems 
       <AnimatePresence mode="wait" initial={false}>
         <motion.div
           key={view}
-          initial={{ opacity: 0 }}
+          initial={reduce ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: DURATION.fast, ease: EASE_OUT }}
+          transition={reduce ? { duration: 0 } : { duration: DURATION.fast, ease: EASE_OUT }}
         >
           {view === "month" ? (
             <div className="flex flex-col gap-4 lg:flex-row">

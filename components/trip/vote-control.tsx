@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -72,6 +72,7 @@ export function VoteControl({
   votes,
   currentUserId,
 }: VoteControlProps) {
+  const reduce = useReducedMotion();
   const [isPending, startTransition] = React.useTransition();
 
   const myVote = votes.find((v) => v.userId === currentUserId);
@@ -131,9 +132,9 @@ export function VoteControl({
             {myVote?.level === level ? (
               <motion.span
                 aria-hidden="true"
-                initial={{ scale: 0.6 }}
+                initial={reduce ? false : { scale: 0.6 }}
                 animate={{ scale: 1 }}
-                transition={SPRING_POP}
+                transition={reduce ? { duration: 0 } : SPRING_POP}
               >
                 {LEVEL_EMOJI[level]}
               </motion.span>
