@@ -118,7 +118,7 @@ export default async function DayPage({
         },
       }),
       db.accommodation.findMany({
-        where: { tripId },
+        where: { tripId, checkIn: { lte: effectiveDate }, checkOut: { gt: effectiveDate } },
         orderBy: { checkIn: "asc" },
         select: {
           id: true,
