@@ -17,6 +17,8 @@ import { sortItemsByVotes } from "@/lib/votes";
 import { AiActivitySuggestions } from "./ai-activity-suggestions";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Segmented, SegmentedItem } from "@/components/ui/segmented";
+import { WishlistMapLoader } from "./wishlist-map-loader";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,6 +68,12 @@ export function WishlistBoard({
 }: WishlistBoardProps) {
   const { confirm, dialog } = useConfirm();
   const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
+
+  // ── View toggle ──
+  const [view, setView] = React.useState<"list" | "map">("list");
+
+  // ── Stop filter (for map view chip row) ──
+  const [mapStopFilter, setMapStopFilter] = React.useState<string>("all");
 
   // ── Dialog state ──
   const [editingItem, setEditingItem] = React.useState<ItemCardItem | null>(null);
@@ -159,6 +167,32 @@ export function WishlistBoard({
 
   const isEmpty = items.length === 0;
 
+  // ── Located items (have lat+lng) — used in map view ──
+  const locatedItems = React.useMemo(
+    () =>
+      items
+        .filter((i) => i.lat != null && i.lng != null)
+        .map((i) => ({ id: i.id, title: i.title, category: i.category, lat: i.lat!, lng: i.lng! })),
+    [items],
+  );
+
+  // Located items filtered by the stop chip selection
+  const mapItems = React.useMemo(() => {
+    if (mapStopFilter === "all") return locatedItems;
+    return locatedItems.filter((i) => {
+      const found = items.find((item) => item.id === i.id);
+      return found?.stopId === mapStopFilter;
+    });
+  }, [locatedItems, mapStopFilter, items]);
+
+  const unlocatedCount = items.length - locatedItems.length;
+
+  // ── onSelect handler for the map: opens ScheduleItemDialog ──
+  function handleMapSelect(id: string) {
+    const item = items.find((i) => i.id === id) ?? null;
+    setSchedulingItem(item);
+  }
+
   // First stop date (for defaulting schedule dialog)
   // Prefer the first stop's arrival; fall back to the trip start. Either may be
   // null/undefined for rough stops / a date-less trip, in which case the
@@ -176,16 +210,27 @@ export function WishlistBoard({
             Items you&apos;re not sure about yet — collect them here and schedule later.
           </p>
         </div>
-        <AddItemButton
-          tripId={tripId}
-          stops={stopOptions}
-          tripStartDate={tripStartDateValue}
-          defaultUnscheduled={true}
-        />
+        <div className="flex items-center gap-3">
+          <Segmented
+            type="single"
+            value={view}
+            onValueChange={(v) => v && setView(v as "list" | "map")}
+            aria-label="Wishlist view"
+          >
+            <SegmentedItem value="list">List</SegmentedItem>
+            <SegmentedItem value="map">Map</SegmentedItem>
+          </Segmented>
+          <AddItemButton
+            tripId={tripId}
+            stops={stopOptions}
+            tripStartDate={tripStartDateValue}
+            defaultUnscheduled={true}
+          />
+        </div>
       </div>
 
-      {/* Empty state */}
-      {isEmpty && (
+      {/* Empty state — only in list view */}
+      {view === "list" && isEmpty && (
         <EmptyState
           icon={Heart}
           title="No Items yet"
@@ -193,8 +238,54 @@ export function WishlistBoard({
         />
       )}
 
-      {/* Items grouped by stop — always shown when AI is configured (even empty stops) */}
-      {(!isEmpty || aiConfigured) && stops.length > 0 && (
+      {/* ── Map view ── */}
+      {view === "map" && (
+        <div className="flex flex-col gap-4">
+          {/* Stop-filter chip row — "All" is always first */}
+          {stops.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setMapStopFilter("all")}
+                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                  mapStopFilter === "all"
+                    ? "bg-foreground text-background"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                All
+              </button>
+              {stops.map((stop) => (
+                <button
+                  key={stop.id}
+                  type="button"
+                  onClick={() => setMapStopFilter(stop.id)}
+                  className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                    mapStopFilter === stop.id
+                      ? "bg-foreground text-background"
+                      : "bg-muted text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {stop.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* The map itself */}
+          <WishlistMapLoader items={mapItems} onSelect={handleMapSelect} />
+
+          {/* Unlocated count — collapsed one-liner */}
+          {unlocatedCount > 0 && (
+            <p className="text-sm text-muted-foreground">
+              {unlocatedCount} not on the map — add a location
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ── List view — Items grouped by stop ── */}
+      {view === "list" && (!isEmpty || aiConfigured) && stops.length > 0 && (
         <div className="flex flex-col gap-6">
           {/* Stop-grouped sections */}
           {stopsToShow.map((stop) => {
