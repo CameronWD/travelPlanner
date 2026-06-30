@@ -34,7 +34,7 @@ export function DayMapPanel({
           className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
         >
           <Map className="size-4 shrink-0" aria-hidden="true" />
-          {open ? "Hide day map" : "🗺 Show day map"}
+          {open ? "Hide day map" : "Show day map"}
         </button>
       </div>
       {open && (

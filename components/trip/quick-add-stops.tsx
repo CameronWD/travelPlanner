@@ -32,12 +32,18 @@ export function QuickAddStops({ tripId, chapterId }: QuickAddStopsProps) {
     const safeNights = Number.isFinite(parsedNights) && parsedNights >= 0 ? parsedNights : 0;
 
     startTransition(async () => {
-      await createStop(tripId, {
+      const result = await createStop(tripId, {
         mode: "rough",
         name: trimmed,
         nights: safeNights,
         ...(chapterId ? { chapterId } : {}),
       });
+      // Only clear and refocus on success — on failure, preserve the typed value
+      // so the user can correct it without retyping.
+      if (result && "success" in result && !result.success) {
+        inputRef.current?.focus();
+        return;
+      }
       setName("");
       inputRef.current?.focus();
     });

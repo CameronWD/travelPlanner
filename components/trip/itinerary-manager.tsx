@@ -163,6 +163,7 @@ function SortableStop({
       {...listeners}
       {...attributes}
       aria-label={`Reorder ${stop.name}`}
+      title="Drag to reorder"
       className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
     >
       <GripVertical className="size-4" aria-hidden="true" />
@@ -325,7 +326,21 @@ export function ItineraryManager({
   );
 
   // ── Chapter group collapse state (keyed by chapter id or "ungrouped") ──
-  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(new Set());
+  // Persisted to localStorage under `${tripId}:${chapterId}` keys so state
+  // survives a page refresh. Guard for SSR: localStorage is browser-only.
+  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set<string>();
+    try {
+      const stored = localStorage.getItem(`itinerary-collapse:${tripId}`);
+      if (stored) {
+        const parsed = JSON.parse(stored) as string[];
+        if (Array.isArray(parsed)) return new Set(parsed);
+      }
+    } catch {
+      // Ignore parse errors — start fresh
+    }
+    return new Set<string>();
+  });
 
   function toggleGroup(key: string) {
     setCollapsedGroups((prev) => {
@@ -334,6 +349,17 @@ export function ItineraryManager({
         next.delete(key);
       } else {
         next.add(key);
+      }
+      // Persist to localStorage (SSR guard)
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(
+            `itinerary-collapse:${tripId}`,
+            JSON.stringify([...next]),
+          );
+        } catch {
+          // Quota exceeded or private browsing — silently ignore
+        }
       }
       return next;
     });
@@ -1263,9 +1289,17 @@ export function ItineraryManager({
           {/* Other transports (not linked to consecutive stops, or home bookends) */}
           {otherTransports.length > 0 && (
             <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4">
-              <h3 className="text-sm font-medium text-muted-foreground">
-                Other transport
-              </h3>
+              <div>
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  Other transport
+                </h3>
+                <p
+                  className="text-xs text-muted-foreground/70"
+                  title="These legs cross chapter boundaries or have an unlinked endpoint, so they're shown separately rather than between two stops."
+                >
+                  Between-chapter or unlinked legs
+                </p>
+              </div>
               {otherTransports.map((t) => (
                 <TransportCard
                   key={t.id}

@@ -107,7 +107,16 @@ export function VoteControl({
           <SegmentedItem
             key={level}
             value={level}
-            aria-label={LEVEL_LABEL[level]}
+            aria-label={
+              myVote?.level === level
+                ? `${LEVEL_LABEL[level]} (active — click to clear your vote)`
+                : LEVEL_LABEL[level]
+            }
+            title={
+              myVote?.level === level
+                ? "Click again to clear your vote"
+                : undefined
+            }
             className="gap-1 px-2 py-1 text-xs"
             onClick={() => {
               // Handle clicking the currently-active item (Radix won't fire onValueChange

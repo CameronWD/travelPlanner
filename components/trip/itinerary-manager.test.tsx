@@ -555,6 +555,57 @@ describe("whole-trip firm-up confirm dialog", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 9. Chapter collapse localStorage persistence
+// ---------------------------------------------------------------------------
+
+describe("chapter collapse localStorage persistence", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("writes collapsed chapter ids to localStorage on toggle", async () => {
+    const user = userEvent.setup();
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[]}
+        chapters={[
+          { id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null, sortOrder: 0 },
+        ]}
+      />,
+    );
+
+    // Click the chapter header to collapse it
+    const collapseBtn = screen.getByRole("button", { name: /france chapter.*collapse/i });
+    await user.click(collapseBtn);
+
+    const stored = localStorage.getItem("itinerary-collapse:trip-1");
+    expect(stored).not.toBeNull();
+    const parsed = JSON.parse(stored!);
+    expect(parsed).toContain("ch-1");
+  });
+
+  it("hydrates collapse state from localStorage on mount", () => {
+    // Pre-populate localStorage before render
+    localStorage.setItem("itinerary-collapse:trip-1", JSON.stringify(["ch-1"]));
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[]}
+        chapters={[
+          { id: "ch-1", name: "France", colour: "rose", startDate: null, endDate: null, sortOrder: 0 },
+        ]}
+      />,
+    );
+
+    // Chapter header should report collapsed (aria-expanded="false")
+    const collapseBtn = screen.getByRole("button", { name: /france chapter.*expand/i });
+    expect(collapseBtn).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 8. Per-chapter firm-up confirm dialog
 // ---------------------------------------------------------------------------
 

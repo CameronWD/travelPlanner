@@ -32,4 +32,23 @@ describe("VoteControl", () => {
     await user.click(screen.getByRole("radio", { name: "Must" }));
     expect(setVote).toHaveBeenCalledWith("t1", "i1", "MUST");
   });
+
+  it("shows a clear-vote hint on the active level's aria-label", () => {
+    const votes: VoteView[] = [{ userId: "u1", level: "KEEN", user: { name: "Alice", image: null } }];
+    render(<VoteControl {...baseProps} votes={votes} />);
+    // The active level includes the clear hint in its accessible label
+    expect(
+      screen.getByRole("radio", { name: /keen.*clear your vote/i }),
+    ).toBeInTheDocument();
+    // Inactive levels do not carry the hint
+    expect(screen.getByRole("radio", { name: "Must" })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Meh" })).toBeInTheDocument();
+  });
+
+  it("shows a title tooltip on the active level", () => {
+    const votes: VoteView[] = [{ userId: "u1", level: "MUST", user: { name: "Alice", image: null } }];
+    render(<VoteControl {...baseProps} votes={votes} />);
+    const mustItem = screen.getByRole("radio", { name: /must.*clear your vote/i });
+    expect(mustItem).toHaveAttribute("title", "Click again to clear your vote");
+  });
 });
