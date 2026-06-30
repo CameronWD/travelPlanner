@@ -10,6 +10,7 @@ import { ScheduleItemDialog } from "./schedule-item-dialog";
 import { AddItemButton } from "./item-form-dialog";
 import { deleteItem, unscheduleItem, scheduleItem } from "@/server/actions/items";
 import { toastWithUndo } from "@/components/ui/undo-toast";
+import { toast } from "@/components/ui/use-toast";
 import type { NoteView } from "./note-thread";
 import type { VoteView } from "./vote-control";
 import { sortItemsByVotes } from "@/lib/votes";
@@ -113,7 +114,7 @@ export function WishlistBoard({
                 ...(priorEndTime ? { endTime: priorEndTime } : {}),
               });
             } catch {
-              // Undo failure is non-critical; a future toast could surface this.
+              toast({ title: "Couldn't undo", variant: "destructive" });
             }
           },
         });

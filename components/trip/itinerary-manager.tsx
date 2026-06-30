@@ -429,19 +429,21 @@ export function ItineraryManager({
   // ungrouped run (null). The core rough → scheduled transition.
   async function handleFirmUp(chapterId: string | null) {
     // Compute rough stop count and anchor for the confirm summary.
+    // Read localStops directly (not the `stops` alias) so the React Compiler
+    // can keep cross-await reads out of the memo dependency analysis.
     const chapterStops = chapterId
-      ? stops.filter((s) => s.chapterId === chapterId)
-      : stops.filter((s) => s.chapterId === null);
+      ? localStops.filter((s) => s.chapterId === chapterId)
+      : localStops.filter((s) => s.chapterId === null);
     const roughCount = chapterStops.filter((s) => s.arriveDate === null).length;
 
     // Anchor: the depart date of the last scheduled stop before this chapter's
     // first stop in the global order, or tripStartDate, or a generic fallback.
-    const firstChapterStopIdx = stops.findIndex(
+    const firstChapterStopIdx = localStops.findIndex(
       (s) => chapterId ? s.chapterId === chapterId : s.chapterId === null,
     );
     let anchorLabel = "the trip start";
     if (firstChapterStopIdx > 0) {
-      const precedingDated = stops
+      const precedingDated = localStops
         .slice(0, firstChapterStopIdx)
         .reverse()
         .find((s) => s.departDate !== null);
@@ -483,7 +485,7 @@ export function ItineraryManager({
 
   // Date every rough stop across the whole trip from the start date, in one action.
   async function handleFirmUpTrip() {
-    const roughCount = stops.filter((s) => s.arriveDate === null).length;
+    const roughCount = localStops.filter((s) => s.arriveDate === null).length;
     const anchorLabel = tripStartDate ? formatLongDate(tripStartDate) : "the trip start";
     const stopWord = roughCount === 1 ? "stop" : "stops";
 
@@ -515,8 +517,18 @@ export function ItineraryManager({
   async function handleDeleteTransport(transportId: string) {
     const t = initialTransports.find((tr) => tr.id === transportId);
     const modeLabel = t ? (TRANSPORT_MODE_META[t.mode]?.label ?? t.mode) : "transport leg";
+    // Build a route identifier from place names if available.
+    const routeLabel = t
+      ? (t.depPlace && t.arrPlace
+        ? `${modeLabel} from ${t.depPlace} to ${t.arrPlace}`
+        : t.depPlace
+          ? `${modeLabel} from ${t.depPlace}`
+          : t.arrPlace
+            ? `${modeLabel} to ${t.arrPlace}`
+            : modeLabel)
+      : modeLabel;
     const confirmed = await confirm({
-      title: `Delete ${modeLabel}?`,
+      title: `Delete "${routeLabel}"?`,
       description: "This can't be undone.",
       confirmLabel: "Delete",
       destructive: true,
@@ -1363,7 +1375,7 @@ export function ItineraryManager({
         <EmptyState
           icon={MapPin}
           title="Add your first Stop"
-          description="Add places you want to visit — rough stops for ideas, or dated stops once you know the plan."
+          description="Add places you want to visit — rough stops to start, or dated stops once you know the plan."
           action={
             <div className="flex flex-col items-center gap-3 w-full max-w-md">
               <QuickAddStops tripId={tripId} chapterId={null} />

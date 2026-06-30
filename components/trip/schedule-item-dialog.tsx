@@ -55,7 +55,7 @@ export function ScheduleItemDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Schedule idea</DialogTitle>
+          <DialogTitle>Schedule item</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
           Pick a date for{" "}

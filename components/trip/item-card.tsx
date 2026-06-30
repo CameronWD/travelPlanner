@@ -127,7 +127,7 @@ export function ItemCard({
               disabled={isPending}
               onClick={() => onSchedule(item)}
               aria-label={`Schedule ${item.title}`}
-              title="Schedule this idea"
+              title="Schedule this item"
             >
               <CalendarCheck className="size-3.5" aria-hidden="true" />
               Schedule

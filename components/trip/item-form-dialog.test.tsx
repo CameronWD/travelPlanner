@@ -58,7 +58,7 @@ describe("ItemFormDialog", () => {
     render(<ItemFormDialog {...baseProps} />);
 
     // Submit immediately — title field is empty by default
-    await user.click(screen.getByRole("button", { name: /add idea/i }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
 
     // The action IS called (no client-side gate)
     expect(createItem).toHaveBeenCalledWith(
@@ -80,7 +80,7 @@ describe("ItemFormDialog", () => {
     const titleInput = screen.getByPlaceholderText(/visit the night market/i);
     await user.type(titleInput, "Eiffel Tower");
 
-    await user.click(screen.getByRole("button", { name: /add idea/i }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
 
     expect(createItem).toHaveBeenCalledWith(
       "trip-1",
@@ -111,7 +111,7 @@ describe("ItemFormDialog", () => {
     const startTimeInput = screen.getByLabelText(/start time/i);
     await user.type(startTimeInput, "19:00");
 
-    await user.click(screen.getByRole("button", { name: /add idea/i }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
 
     expect(createItem).toHaveBeenCalledWith(
       "trip-1",
@@ -130,8 +130,8 @@ describe("ItemFormDialog", () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} item={existingItem} />);
 
-    // Dialog title should say "Edit idea"
-    expect(screen.getByRole("heading", { name: /edit idea/i })).toBeInTheDocument();
+    // Dialog title should say "Edit Item"
+    expect(screen.getByRole("heading", { name: /edit item/i })).toBeInTheDocument();
 
     // Clear and replace the title
     const titleInput = screen.getByPlaceholderText(/visit the night market/i);
@@ -162,7 +162,7 @@ describe("ItemFormDialog", () => {
     const titleInput = screen.getByPlaceholderText(/visit the night market/i);
     await user.type(titleInput, "Any title");
 
-    await user.click(screen.getByRole("button", { name: /add idea/i }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
 
     expect(
       await screen.findByText("Something went wrong, please try again"),
@@ -181,7 +181,7 @@ describe("ItemFormDialog", () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} />);
 
-    await user.click(screen.getByRole("button", { name: /add idea/i }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
 
     expect(await screen.findByText("Title is required")).toBeInTheDocument();
     const titleInput = screen.getByPlaceholderText(/visit the night market/i);
@@ -203,7 +203,7 @@ describe("ItemFormDialog", () => {
     const titleInput = screen.getByPlaceholderText(/visit the night market/i);
     await user.type(titleInput, "Any title");
 
-    await user.click(screen.getByRole("button", { name: /add idea/i }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Server error");
@@ -221,7 +221,7 @@ describe("ItemFormDialog", () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} />);
 
-    await user.click(screen.getByRole("button", { name: /add idea/i }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
 
     expect(await screen.findByText("Category is required")).toBeInTheDocument();
     const categoryGroup = screen.getByRole("group", { name: "Category" });

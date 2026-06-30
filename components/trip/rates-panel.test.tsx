@@ -45,6 +45,15 @@ describe("formatRate", () => {
     // 1234 has 4 sig figs already — show as "1234"
     expect(formatRate(1234)).toBe("1234");
   });
+
+  it("keeps large integer rates exact (e.g. VND/IDR ~23456 must not round to 23460)", () => {
+    // Without the large-rate branch, toPrecision(4) would give "23460".
+    expect(formatRate(23456)).toBe("23456");
+  });
+
+  it("rounds large non-integer rates to the nearest integer (e.g. 16432.7 → '16433')", () => {
+    expect(formatRate(16432.7)).toBe("16433");
+  });
 });
 
 // ---------------------------------------------------------------------------

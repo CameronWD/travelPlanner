@@ -29,11 +29,11 @@ import { resolveView } from "./calendar-views";
 function mockEnv(minWidthMatches: boolean, stored: string | null) {
   vi.stubGlobal(
     "localStorage",
-    { getItem: (_key: string) => stored } as unknown as Storage,
+    { getItem: () => stored } as unknown as Storage,
   );
   vi.stubGlobal(
     "matchMedia",
-    ((_q: string) => ({ matches: minWidthMatches })) as unknown as typeof matchMedia,
+    ((() => ({ matches: minWidthMatches })) as unknown as typeof matchMedia),
   );
 }
 

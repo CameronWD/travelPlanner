@@ -42,7 +42,11 @@ export interface RatesPanelProps {
  * digits needed to show the value clearly.
  */
 export function formatRate(rate: number): string {
-  // toPrecision gives us 4 sig figs; parseFloat removes trailing zeros.
+  // For large rates (e.g. VND/IDR ≥ 1000) keep the integer value exact;
+  // for smaller rates use 4 sig figs and strip trailing zeros.
+  if (rate >= 1000) {
+    return Math.round(rate).toString();
+  }
   return parseFloat(rate.toPrecision(4)).toString();
 }
 
@@ -143,7 +147,7 @@ function RateRow({
           <span className="font-mono text-sm font-semibold">
             {entry.currency}/{homeCurrency}
           </span>
-          <SourceBadge source={entry.source} stale={entry.stale} />
+          <SourceBadge source={entry.source} />
         </div>
 
         <div className="flex items-center gap-1.5">

@@ -63,7 +63,7 @@ vi.mock("./item-form-dialog", () => ({
 
 vi.mock("./schedule-item-dialog", () => ({
   ScheduleItemDialog: ({ open, itemTitle }: { open: boolean; itemTitle: string }) =>
-    open ? <div role="dialog" aria-label="Schedule idea"><h2>Schedule idea</h2><p>{itemTitle}</p></div> : null,
+    open ? <div role="dialog" aria-label="Schedule item"><h2>Schedule item</h2><p>{itemTitle}</p></div> : null,
 }));
 
 import { unscheduleItem, scheduleItem } from "@/server/actions/items";
@@ -240,7 +240,7 @@ describe("WishlistBoard — Schedule button", () => {
     const scheduleBtn = await screen.findByRole("button", { name: `Schedule ${item.title}` });
     await user.click(scheduleBtn);
 
-    expect(await screen.findByRole("dialog", { name: "Schedule idea" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Schedule idea" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Schedule item" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Schedule item" })).toBeInTheDocument();
   });
 });

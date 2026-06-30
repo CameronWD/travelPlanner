@@ -128,7 +128,7 @@ export function ItemFormDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {item ? "Edit idea" : "Add idea"}
+            {item ? "Edit Item" : "Add Item"}
           </DialogTitle>
         </DialogHeader>
         <ItemForm
@@ -155,13 +155,13 @@ export function AddItemButton({
   stops,
   tripStartDate,
   defaultUnscheduled = true,
-  label = "Add idea",
+  label = "Add Item",
 }: {
   tripId: string;
   stops: StopOption[];
   tripStartDate?: string;
   defaultUnscheduled?: boolean;
-  /** Button label. Defaults to "Add idea". */
+  /** Button label. Defaults to "Add Item". */
   label?: string;
 }) {
   const [open, setOpen] = React.useState(false);
@@ -201,7 +201,7 @@ export function EditItemButton({
         className="size-8"
         onClick={() => setOpen(true)}
         aria-label={`Edit ${item.title}`}
-        title="Edit idea"
+        title="Edit Item"
       >
         <Pencil className="size-4" aria-hidden="true" />
       </Button>
@@ -352,7 +352,7 @@ function ItemForm({
             setEndTime("");
           }
         }}
-        description="Leave blank to keep this as an unscheduled idea"
+        description="Leave blank to keep this as an unscheduled item"
         error={errors.date?.[0]}
         disabled={isPending}
       />
@@ -435,7 +435,7 @@ function ItemForm({
           </Button>
         </DialogClose>
         <Button type="submit" variant="primary" loading={isPending}>
-          {isEdit ? "Save changes" : "Add idea"}
+          {isEdit ? "Save changes" : "Add Item"}
         </Button>
       </DialogFooter>
     </form>

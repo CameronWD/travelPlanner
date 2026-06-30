@@ -313,7 +313,7 @@ export default async function BudgetPage({
                   )}
                 </>
               ) : (
-                <p className="font-display text-4xl font-semibold tracking-tight text-muted-foreground">
+                <p className="text-lg text-muted-foreground">
                   No payments yet
                 </p>
               )}

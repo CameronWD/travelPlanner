@@ -221,7 +221,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems 
                           <button
                             type="button"
                             aria-label={`Schedule ${w.title}`}
-                            title="Schedule this idea"
+                            title="Schedule this item"
                             className="shrink-0 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
                             onClick={(e) => {
                               e.stopPropagation();

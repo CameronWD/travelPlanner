@@ -40,7 +40,7 @@ export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
   // ── Handlers ──
   async function handleDelete(chapter: ChapterFormDialogChapter) {
     const confirmed = await confirm({
-      title: `Delete "${chapter.name}"?`,
+      title: `Delete chapter "${chapter.name}"?`,
       description: "This can't be undone.",
       confirmLabel: "Delete",
       destructive: true,
