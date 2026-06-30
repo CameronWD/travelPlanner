@@ -11,12 +11,14 @@ import {
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
 import { nearbyWishlistItems } from "@/lib/nearby";
 import { chapterForDate } from "@/lib/chapters";
+import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
 import { DayMapPanel } from "@/components/trip/day-map-panel";
 import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
 import { MapLink } from "@/components/trip/map-link";
 import { TransportCountdown } from "@/components/trip/transport-countdown";
+import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import { zoneLabel } from "@/lib/time-display";
 import type { TransportMode } from "@/lib/enums";
@@ -29,7 +31,7 @@ import { ChapterChip } from "@/components/trip/chapter-chip";
 export async function PhaseTravelling({ tripId }: { tripId: string }) {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { startDate: true, endDate: true },
+    select: { startDate: true, endDate: true, homeCurrency: true },
   });
   if (!trip) notFound();
 
@@ -54,8 +56,8 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
   const isAfterTrip = today > endDate;
   const isWithinTrip = today >= startDate && today <= endDate;
 
-  // Fetch all itinerary data (plus reminders + chapters + located wishlist candidates)
-  const [stops, items, transports, accommodations, reminders, chapters, wishlistLocated] = await Promise.all([
+  // Fetch all itinerary data (plus costs + reminders + chapters + located wishlist candidates)
+  const [stops, items, transports, accommodations, costs, reminders, chapters, wishlistLocated] = await Promise.all([
     db.stop.findMany({
       // Rough (date-less) stops don't appear on a dated "today" view.
       where: { tripId, arriveDate: { not: null } },
@@ -126,6 +128,21 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         notes: true,
         lat: true,
         lng: true,
+      },
+    }),
+    db.cost.findMany({
+      where: { tripId },
+      select: {
+        id: true,
+        estimatedMinor: true,
+        actualMinor: true,
+        currency: true,
+        rateToHome: true,
+        paidAt: true,
+        ownerType: true,
+        ownerId: true,
+        label: true,
+        category: true,
       },
     }),
     db.reminder.findMany({
@@ -239,6 +256,16 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
   })();
 
   const effectiveStop = dayPlan?.stop ?? null;
+
+  // ── Spend so far ────────────────────────────────────────────────────────────
+  const homeCurrency = trip.homeCurrency;
+  const spend = buildSpendSoFar({
+    costs: costs as SpendCost[],
+    homeCurrency,
+    tripStart: startDate,
+    tripEnd: endDate,
+    today: effectiveDate,
+  });
 
   // ── Day-map model (for effectiveDate) ──────────────────────────────────────
   const dayItems = items
@@ -375,6 +402,9 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
           </div>
         </section>
       )}
+
+      {/* ── Spend so far (compact glance) ── */}
+      <SpendSoFarCard compact spend={spend} homeCurrency={homeCurrency} />
 
       {/* ── Next transport countdown ── */}
       {nextTransportDep && nextTransportDep.transport.depAt && (

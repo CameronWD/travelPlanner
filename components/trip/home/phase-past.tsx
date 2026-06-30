@@ -11,9 +11,11 @@ import {
   type BudgetAccommodation,
   type BudgetTransport,
 } from "@/lib/budget";
+import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
 import { chapterForStop } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import { Button } from "@/components/ui/button";
+import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
 
@@ -27,6 +29,7 @@ const COST_SELECT = {
   actualMinor: true,
   currency: true,
   rateToHome: true,
+  paidAt: true,
   ownerType: true,
   ownerId: true,
   label: true,
@@ -190,6 +193,15 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   const { grandTotal } = budget;
   const hasActual = grandTotal.actualMinor > 0;
 
+  // Spend retro: use trip end as "today" so tripElapsedPct reads 100 %
+  const spend = buildSpendSoFar({
+    costs: costs as SpendCost[],
+    homeCurrency,
+    tripStart: startDate,
+    tripEnd: endDate,
+    today: endDate,
+  });
+
   const mapStops: RouteMapStop[] = datedStops.map((s) => {
     const ch = chapterForStop(s, datedChapters);
     return {
@@ -227,6 +239,9 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
           {hasActual ? "spent" : "estimated"}
         </p>
       </section>
+
+      {/* ── Spend retro ── */}
+      <SpendSoFarCard spend={spend} homeCurrency={homeCurrency} />
 
       {/* ── Route map ── */}
       {mapStops.length > 0 && (
