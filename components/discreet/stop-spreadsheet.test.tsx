@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StopSpreadsheet } from "@/components/discreet/stop-spreadsheet";
 import type { SheetRow } from "@/lib/discreet";
@@ -71,6 +71,51 @@ describe("StopSpreadsheet (a11y + cost formatting)", () => {
     render(<StopSpreadsheet tripId="t1" rows={[{ ...rows[0], pinned: true }]} homeCurrency="AUD" />);
     expect(screen.getByText(/\$\s?420\.00/)).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "Pinned" })).toBeInTheDocument();
+  });
+});
+
+describe("StopSpreadsheet (inline revert feedback)", () => {
+  it("marks the notes cell aria-invalid when the save is rejected and restores the prior value", async () => {
+    vi.mocked(setStopNotes).mockResolvedValue({ success: false, errors: {} });
+    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+    fireEvent.click(screen.getByText("arrive pm"));
+    const input = screen.getByDisplayValue("arrive pm");
+    fireEvent.change(input, { target: { value: "bad value" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    // After rejection: cell should revert and the td should carry aria-invalid="true"
+    await waitFor(() => expect(screen.getByText("arrive pm")).toBeInTheDocument());
+    const cell = screen.getByText("arrive pm").closest("td");
+    expect(cell).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("clears aria-invalid after ~3 seconds", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.mocked(setStopNotes).mockResolvedValue({ success: false, errors: {} });
+    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+    fireEvent.click(screen.getByText("arrive pm"));
+    const input = screen.getByDisplayValue("arrive pm");
+    fireEvent.change(input, { target: { value: "bad value" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    // Wait for the async save to complete (real time still advances for promises)
+    await waitFor(() => expect(screen.getByText("arrive pm")).toBeInTheDocument());
+    const cell = screen.getByText("arrive pm").closest("td");
+    expect(cell).toHaveAttribute("aria-invalid", "true");
+    // Advance past the 3-second auto-clear
+    await act(async () => { vi.advanceTimersByTime(3100); });
+    expect(cell).not.toHaveAttribute("aria-invalid", "true");
+    vi.useRealTimers();
+  });
+
+  it("marks the nights cell aria-invalid when setStopNights is rejected", async () => {
+    vi.mocked(setStopNights).mockResolvedValue({ success: false, errors: {} });
+    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+    fireEvent.click(screen.getByText("7")); // Milford nights
+    const input = screen.getByDisplayValue("7");
+    fireEvent.change(input, { target: { value: "99" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(screen.getByText("7")).toBeInTheDocument());
+    const cell = screen.getByText("7").closest("td");
+    expect(cell).toHaveAttribute("aria-invalid", "true");
   });
 });
 

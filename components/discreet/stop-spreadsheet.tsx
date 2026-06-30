@@ -14,7 +14,17 @@ function EditableDateCell({ value, scheduled, onSave, className }: { value: stri
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(value ?? "");
   const [pending, startTransition] = React.useTransition();
+  const [invalid, setInvalid] = React.useState(false);
   const committed = React.useRef(false);
+  const invalidTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function markInvalid() {
+    if (invalidTimer.current) clearTimeout(invalidTimer.current);
+    setInvalid(true);
+    invalidTimer.current = setTimeout(() => setInvalid(false), INVALID_DURATION_MS);
+  }
+
+  React.useEffect(() => () => { if (invalidTimer.current) clearTimeout(invalidTimer.current); }, []);
 
   if (!scheduled || value == null) {
     return <td className={className}>—</td>;
@@ -33,7 +43,8 @@ function EditableDateCell({ value, scheduled, onSave, className }: { value: stri
     if (!draft || draft === value) return;
     const next = draft;
     startTransition(async () => {
-      await onSave(next);
+      const ok = await onSave(next);
+      if (!ok) markInvalid();
     });
   }
 
@@ -48,7 +59,15 @@ function EditableDateCell({ value, scheduled, onSave, className }: { value: stri
       </td>
     );
   }
-  return (<td className={`${className} cursor-text`} onClick={startEditing}>{formatLongDate(value)}</td>);
+  return (
+    <td
+      className={`${className} cursor-text${invalid ? " ring-1 ring-destructive" : ""}`}
+      aria-invalid={invalid ? "true" : undefined}
+      onClick={startEditing}
+    >
+      {formatLongDate(value)}
+    </td>
+  );
 }
 
 export interface StopSpreadsheetProps {
@@ -57,11 +76,23 @@ export interface StopSpreadsheetProps {
   homeCurrency: string;
 }
 
+const INVALID_DURATION_MS = 3000;
+
 function EditableTextCell({ value, onSave, className }: { value: string | null; onSave: (next: string) => Promise<boolean>; className?: string }) {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(value ?? "");
   const [pending, startTransition] = React.useTransition();
+  const [invalid, setInvalid] = React.useState(false);
   const committed = React.useRef(false);
+  const invalidTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function markInvalid() {
+    if (invalidTimer.current) clearTimeout(invalidTimer.current);
+    setInvalid(true);
+    invalidTimer.current = setTimeout(() => setInvalid(false), INVALID_DURATION_MS);
+  }
+
+  React.useEffect(() => () => { if (invalidTimer.current) clearTimeout(invalidTimer.current); }, []);
 
   function startEditing() {
     committed.current = false;
@@ -76,7 +107,8 @@ function EditableTextCell({ value, onSave, className }: { value: string | null; 
     if ((value ?? "") === draft) return;
     const next = draft;
     startTransition(async () => {
-      await onSave(next);
+      const ok = await onSave(next);
+      if (!ok) markInvalid();
     });
   }
 
@@ -91,14 +123,32 @@ function EditableTextCell({ value, onSave, className }: { value: string | null; 
       </td>
     );
   }
-  return (<td className={`${className} cursor-text`} onClick={startEditing}>{value ?? "—"}</td>);
+  return (
+    <td
+      className={`${className} cursor-text${invalid ? " ring-1 ring-destructive" : ""}`}
+      aria-invalid={invalid ? "true" : undefined}
+      onClick={startEditing}
+    >
+      {value ?? "—"}
+    </td>
+  );
 }
 
 function EditableNumberCell({ value, onSave, className }: { value: number; onSave: (next: number) => Promise<boolean>; className?: string }) {
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(String(value));
   const [pending, startTransition] = React.useTransition();
+  const [invalid, setInvalid] = React.useState(false);
   const committed = React.useRef(false);
+  const invalidTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function markInvalid() {
+    if (invalidTimer.current) clearTimeout(invalidTimer.current);
+    setInvalid(true);
+    invalidTimer.current = setTimeout(() => setInvalid(false), INVALID_DURATION_MS);
+  }
+
+  React.useEffect(() => () => { if (invalidTimer.current) clearTimeout(invalidTimer.current); }, []);
 
   function startEditing() {
     committed.current = false;
@@ -113,7 +163,8 @@ function EditableNumberCell({ value, onSave, className }: { value: number; onSav
     const n = Number(draft);
     if (!Number.isInteger(n) || n < 0 || n === value) return;
     startTransition(async () => {
-      await onSave(n);
+      const ok = await onSave(n);
+      if (!ok) markInvalid();
     });
   }
 
@@ -128,7 +179,15 @@ function EditableNumberCell({ value, onSave, className }: { value: number; onSav
       </td>
     );
   }
-  return (<td className={`${className} cursor-text`} onClick={startEditing}>{value}</td>);
+  return (
+    <td
+      className={`${className} cursor-text${invalid ? " ring-1 ring-destructive" : ""}`}
+      aria-invalid={invalid ? "true" : undefined}
+      onClick={startEditing}
+    >
+      {value}
+    </td>
+  );
 }
 
 export function StopSpreadsheet({ tripId, rows, homeCurrency }: StopSpreadsheetProps) {
