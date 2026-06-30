@@ -1,5 +1,15 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// Must be declared before component imports so vi.mock hoisting works.
+vi.mock("@/server/actions/trips", () => ({
+  duplicateTrip: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }),
+}));
+
 import { TripCard } from "./trip-card";
 
 const defaultProps = {
