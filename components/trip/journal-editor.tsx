@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Camera, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { FormError } from "@/components/ui/form-error";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/cn";
 import { relativeTime } from "@/lib/relative-time";
@@ -119,14 +120,7 @@ function PhotoStrip({
       ) : null}
 
       {/* Upload error */}
-      {uploadError ? (
-        <p
-          role="alert"
-          className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          {uploadError}
-        </p>
-      ) : null}
+      <FormError>{uploadError ?? undefined}</FormError>
 
       {/* Upload control */}
       <div>
@@ -228,14 +222,7 @@ export function JournalEditor({
       </div>
 
       {/* Save error */}
-      {saveError ? (
-        <p
-          role="alert"
-          className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          {saveError}
-        </p>
-      ) : null}
+      <FormError>{saveError ?? undefined}</FormError>
 
       {/* Save button — visible when there are unsaved changes */}
       {hasChanges ? (

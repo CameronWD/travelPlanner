@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { CATEGORIES, type Category } from "@/lib/categories";
 import { CategoryPill } from "./category-pill";
+import { FormError } from "@/components/ui/form-error";
 import { createItem, updateItem } from "@/server/actions/items";
 import type { ItemCardItem } from "./item-card";
 
@@ -266,10 +267,7 @@ function ItemForm({
       </Field>
 
       {/* Category */}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium leading-none text-foreground">
-          Category
-        </span>
+      <Field label="Category" error={errors.category?.[0]}>
         <div className="flex flex-wrap gap-2">
           {CATEGORIES.map((cat) => (
             <button
@@ -291,12 +289,7 @@ function ItemForm({
             </button>
           ))}
         </div>
-        {errors.category && (
-          <p className="text-xs font-medium text-destructive">
-            {errors.category[0]}
-          </p>
-        )}
-      </div>
+      </Field>
 
       {/* Stop (optional) */}
       {stops.length > 0 && (
@@ -355,7 +348,7 @@ function ItemForm({
         <Field
           label="End time"
           error={errors.endTime?.[0]}
-          description={timesDisabled ? "Set a date first" : undefined}
+          description={timesDisabled ? "Set a date first" : !startTime ? "Set a start time first" : undefined}
         >
           <Input
             type="time"
@@ -407,11 +400,7 @@ function ItemForm({
         />
       </Field>
 
-      {errors._form && (
-        <p className="text-sm font-medium text-destructive">
-          {errors._form[0]}
-        </p>
-      )}
+      <FormError>{errors._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>

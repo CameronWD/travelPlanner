@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
 import {
@@ -156,7 +157,7 @@ function ScheduleForm({
         <Field
           label="End time"
           error={errors.endTime?.[0]}
-          description={timesDisabled ? "Set a date first" : undefined}
+          description={timesDisabled ? "Set a date first" : !startTime ? "Set a start time first" : undefined}
         >
           <Input
             type="time"
@@ -167,11 +168,7 @@ function ScheduleForm({
         </Field>
       </div>
 
-      {errors._form && (
-        <p className="text-sm font-medium text-destructive">
-          {errors._form[0]}
-        </p>
-      )}
+      <FormError>{errors._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>

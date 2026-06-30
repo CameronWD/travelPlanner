@@ -23,6 +23,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { TIMEZONES, guessTimezoneForCountry } from "@/lib/tz";
+import { FormError } from "@/components/ui/form-error";
 import { createStop, updateStop } from "@/server/actions/stops";
 import type { StopInput } from "@/lib/validations/stop";
 import type { StopCardStop } from "./stop-card";
@@ -352,11 +353,7 @@ function StopForm({
       </Field>
 
       {/* Form-level error */}
-      {errors._form && (
-        <p className="text-sm font-medium text-destructive">
-          {errors._form[0]}
-        </p>
-      )}
+      <FormError>{errors._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>

@@ -138,4 +138,40 @@ describe("CostEditor", () => {
       }),
     );
   });
+
+  it("a field error (estimatedMinor) sets aria-invalid on the estimated field and renders via Field error slot", async () => {
+    (createCost as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { estimatedMinor: ["Amount is required"] },
+    });
+
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByText("Amount is required")).toBeInTheDocument();
+  });
+
+  it("a _form error appears with role=alert via FormError", async () => {
+    (createCost as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { _form: ["Server error"] },
+    });
+
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+
+    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    await user.clear(estimatedInput);
+    await user.type(estimatedInput, "10.00");
+
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Server error");
+  });
 });

@@ -16,6 +16,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { FormError } from "@/components/ui/form-error";
 import { accommodationDateWarnings } from "@/lib/validations/accommodation";
 import {
   createAccommodation,
@@ -307,11 +308,7 @@ function AccommodationForm({
         />
       </Field>
 
-      {errors._form && (
-        <p className="text-sm font-medium text-destructive">
-          {errors._form[0]}
-        </p>
-      )}
+      <FormError>{errors._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>

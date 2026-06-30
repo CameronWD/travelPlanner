@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
+import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -233,9 +234,7 @@ function OtherCostDialog({
             />
           </Field>
 
-          {errors._form && (
-            <p className="text-xs font-medium text-destructive">{errors._form[0]}</p>
-          )}
+          <FormError>{errors._form?.[0]}</FormError>
 
           <DialogFooter>
             <Button

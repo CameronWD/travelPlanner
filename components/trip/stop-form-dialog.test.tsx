@@ -73,4 +73,39 @@ describe("StopFormDialog", () => {
 
     expect(await screen.findByText("Name is too short")).toBeInTheDocument();
   });
+
+  it("a field error wires aria-invalid to the control via the Field error slot", async () => {
+    const { createStop: mockCreateStop } = await import("@/server/actions/stops");
+    (mockCreateStop as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { name: ["Name is required"] },
+    });
+
+    const user = userEvent.setup();
+    render(<StopFormDialog {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add stop/i }));
+
+    // Error message appears
+    expect(await screen.findByText("Name is required")).toBeInTheDocument();
+    // Control gets aria-invalid
+    const nameInput = screen.getByPlaceholderText(/e\.g\. london/i);
+    expect(nameInput).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("a server-returned _form error appears with role=alert", async () => {
+    const { createStop: mockCreateStop } = await import("@/server/actions/stops");
+    (mockCreateStop as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { _form: ["Something went wrong on the server"] },
+    });
+
+    const user = userEvent.setup();
+    render(<StopFormDialog {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add stop/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Something went wrong on the server");
+  });
 });

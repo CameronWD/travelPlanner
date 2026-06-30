@@ -224,4 +224,48 @@ describe("AccommodationFormDialog", () => {
       screen.queryByText(/check-out is on or before check-in/i),
     ).not.toBeInTheDocument();
   });
+
+  // -------------------------------------------------------------------------
+  // Case 9: field error wires aria-invalid to the name control via Field slot
+  // -------------------------------------------------------------------------
+  it("a name field error renders via Field error slot and sets aria-invalid on the control", async () => {
+    (createAccommodation as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { name: ["Accommodation name is required"] },
+    });
+
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} />);
+
+    await user.click(
+      screen.getByRole("button", { name: /add accommodation/i }),
+    );
+
+    expect(await screen.findByText("Accommodation name is required")).toBeInTheDocument();
+    const nameInput = screen.getByPlaceholderText(/hilton garden inn/i);
+    expect(nameInput).toHaveAttribute("aria-invalid", "true");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 10: _form error appears with role=alert via FormError
+  // -------------------------------------------------------------------------
+  it("_form error renders with role=alert", async () => {
+    (createAccommodation as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { _form: ["Server error"] },
+    });
+
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} />);
+
+    const nameInput = screen.getByPlaceholderText(/hilton garden inn/i);
+    await user.type(nameInput, "My Hotel");
+
+    await user.click(
+      screen.getByRole("button", { name: /add accommodation/i }),
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Server error");
+  });
 });

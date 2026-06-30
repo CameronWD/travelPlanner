@@ -262,4 +262,41 @@ describe("TransportFormDialog", () => {
       screen.queryByText(/departure is on or after arrival/i),
     ).not.toBeInTheDocument();
   });
+
+  // -------------------------------------------------------------------------
+  // Case 9: field-level error wires aria-invalid to the right control
+  // -------------------------------------------------------------------------
+  it("a depAt field error sets aria-invalid on the departure time input", async () => {
+    (createTransport as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { depAt: ["Departure time is required"] },
+    });
+
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add transport/i }));
+
+    expect(await screen.findByText("Departure time is required")).toBeInTheDocument();
+    const depAtInput = screen.getByLabelText(/departure time/i);
+    expect(depAtInput).toHaveAttribute("aria-invalid", "true");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 10: _form error appears with role=alert via FormError
+  // -------------------------------------------------------------------------
+  it("_form error renders with role=alert", async () => {
+    (createTransport as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { _form: ["Server error"] },
+    });
+
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add transport/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Server error");
+  });
 });

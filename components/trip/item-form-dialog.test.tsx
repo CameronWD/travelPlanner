@@ -168,4 +168,61 @@ describe("ItemFormDialog", () => {
       await screen.findByText("Something went wrong, please try again"),
     ).toBeInTheDocument();
   });
+
+  // -------------------------------------------------------------------------
+  // Case 5: field-level title error wires aria-invalid to the title control
+  // -------------------------------------------------------------------------
+  it("a title field error sets aria-invalid on the title input", async () => {
+    (createItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { title: ["Title is required"] },
+    });
+
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add idea/i }));
+
+    expect(await screen.findByText("Title is required")).toBeInTheDocument();
+    const titleInput = screen.getByPlaceholderText(/visit the night market/i);
+    expect(titleInput).toHaveAttribute("aria-invalid", "true");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 6: _form error appears with role=alert via FormError
+  // -------------------------------------------------------------------------
+  it("_form error renders with role=alert", async () => {
+    (createItem as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      success: false,
+      errors: { _form: ["Server error"] },
+    });
+
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+
+    const titleInput = screen.getByPlaceholderText(/visit the night market/i);
+    await user.type(titleInput, "Any title");
+
+    await user.click(screen.getByRole("button", { name: /add idea/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Server error");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 7: end-time field shows "Set a start time first" hint when date is
+  //          set but start time is empty
+  // -------------------------------------------------------------------------
+  it("end-time field shows 'Set a start time first' hint when date is set but start time is empty", async () => {
+    render(
+      <ItemFormDialog
+        {...baseProps}
+        defaultUnscheduled={false}
+        tripStartDate="2026-07-10"
+      />,
+    );
+
+    // Date is pre-filled (tripStartDate), start time is empty → hint should show
+    expect(screen.getByText("Set a start time first")).toBeInTheDocument();
+  });
 });

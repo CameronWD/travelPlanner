@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { TRANSPORT_MODE_LIST } from "@/lib/transport";
 import { Badge } from "@/components/ui/badge";
+import { FormError } from "@/components/ui/form-error";
 import { createTransport, updateTransport } from "@/server/actions/transport";
 import type { TransportCardTransport } from "./transport-card";
 
@@ -406,11 +407,7 @@ function TransportForm({
         />
       </Field>
 
-      {errors._form && (
-        <p className="text-sm font-medium text-destructive">
-          {errors._form[0]}
-        </p>
-      )}
+      <FormError>{errors._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>
