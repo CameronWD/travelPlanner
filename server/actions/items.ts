@@ -350,7 +350,8 @@ export async function scheduleItem(
   }
 
   // --- In-place reschedule branch (item already has a date) ---
-  const before = await db.item.findUnique({ where: { id: itemId } });
+  // Reuse fullItem as the before snapshot — it's the same row read above.
+  const before = fullItem;
 
   const updated = await db.item.update({
     where: { id: itemId },

@@ -643,11 +643,11 @@ describe("scheduleItem records activity", () => {
   });
 
   it("scheduleItem records an ITEM UPDATED activity when rescheduling an already-placed item", async () => {
-    // Already placed item (has a date) → keep in-place update behaviour
+    // Already placed item (has a date) → keep in-place update behaviour.
+    // fullItem is reused as the before snapshot (no second findUnique needed).
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1" }) // requireItemAccess
-      .mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1", forkId: null, date: "2026-07-01", title: "Louvre", category: "SIGHTSEEING" }) // full item (determines path)
-      .mockResolvedValueOnce({ id: "placed-1", title: "Louvre", date: "2026-07-01", startTime: null, endTime: null }); // before row for describeChanges
+      .mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1", forkId: null, date: "2026-07-01", title: "Louvre", category: "SIGHTSEEING", startTime: null, endTime: null }); // full item (determines path AND serves as before)
     itemUpdateMock.mockResolvedValue({ id: "placed-1", title: "Louvre", date: "2026-07-03", startTime: null, endTime: null });
 
     await scheduleItem("placed-1", { date: "2026-07-03" }, null);
@@ -657,6 +657,9 @@ describe("scheduleItem records activity", () => {
         verb: "UPDATED",
         entityType: "ITEM",
         entityId: "placed-1",
+        changes: expect.arrayContaining([
+          expect.objectContaining({ field: "date" }),
+        ]),
       }),
     );
   });
