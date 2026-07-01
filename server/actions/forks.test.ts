@@ -1491,4 +1491,24 @@ describe("moveFork", () => {
     expect(res).toEqual({ success: true });
     expect(forkUpdateMock).not.toHaveBeenCalled();
   });
+
+  it("is a no-op at the right edge", async () => {
+    requireForkAccessMock.mockResolvedValue({
+      user: { id: "user-1" }, fork: { id: "fork-c", tripId: "trip-1", name: "Variant C" },
+      trip: { id: "trip-1", startDate: null, endDate: null },
+    });
+    const res = await moveFork("fork-c", "right");
+    expect(res).toEqual({ success: true });
+    expect(forkUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op when the fork id is not found in the list", async () => {
+    requireForkAccessMock.mockResolvedValue({
+      user: { id: "user-1" }, fork: { id: "fork-x", tripId: "trip-1", name: "Ghost Fork" },
+      trip: { id: "trip-1", startDate: null, endDate: null },
+    });
+    const res = await moveFork("fork-x", "left");
+    expect(res).toEqual({ success: true });
+    expect(forkUpdateMock).not.toHaveBeenCalled();
+  });
 });
