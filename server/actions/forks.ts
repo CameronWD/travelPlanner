@@ -9,7 +9,7 @@ import { buildForkPlan } from "@/lib/fork-plan";
 import { recordActivity } from "@/server/actions/activity";
 import { todayISO } from "@/lib/dates";
 import type { PlanId } from "@/lib/plan-scope";
-import { computePlanMetrics, type PlanMetrics } from "@/lib/compare";
+import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } from "@/lib/compare";
 
 const MAX_FORKS = 4;
 
@@ -467,4 +467,239 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
   });
 
   return { trip, plans };
+}
+
+// ---------------------------------------------------------------------------
+// getPromotionPreview
+// ---------------------------------------------------------------------------
+
+export interface PromotionLossItem {
+  kind: "PAID_COST" | "CONFIRMATION" | "ATTACHMENT";
+  label: string;
+}
+
+export interface PromotionPreview {
+  lossList: PromotionLossItem[];
+  deltas: MetricDeltas;
+}
+
+/**
+ * Inspect the current real plan (forkId: null) for committed data that would
+ * be lost if the given fork were promoted. Also computes metric deltas
+ * (real plan → fork).
+ */
+export async function getPromotionPreview(forkId: string): Promise<PromotionPreview> {
+  // 1. Auth — get fork + tripId
+  const { fork } = await requireForkAccess(forkId);
+  const tripId = fork.tripId;
+
+  // 2. Load the real plan's six entity collections (forkId: null)
+  const realWhere = { tripId, forkId: null };
+  const forkWhere = { tripId, forkId };
+
+  const [
+    realStops, realTransports, realAccommodations, realItems, realCosts,
+    forkStops, forkTransports, forkAccommodations, forkItems, forkCosts,
+  ] = await Promise.all([
+    db.stop.findMany({ where: realWhere, select: { id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true, timezone: true } }),
+    db.transport.findMany({ where: realWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, reference: true } }),
+    db.accommodation.findMany({ where: realWhere, select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true, confirmation: true } }),
+    db.item.findMany({ where: realWhere, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true } }),
+    db.cost.findMany({ where: realWhere, select: { id: true, estimatedMinor: true, actualMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
+    db.stop.findMany({ where: forkWhere, select: { id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true, timezone: true } }),
+    db.transport.findMany({ where: forkWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true } }),
+    db.accommodation.findMany({ where: forkWhere, select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true } }),
+    db.item.findMany({ where: forkWhere, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true } }),
+    db.cost.findMany({ where: forkWhere, select: { id: true, estimatedMinor: true, actualMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true } }),
+  ]);
+
+  // 3. Collect real-plan entity IDs for attachment lookup
+  const realStopIds = new Set(realStops.map((s) => s.id));
+  const realTransportIds = new Set(realTransports.map((t) => t.id));
+  const realAccommodationIds = new Set(realAccommodations.map((a) => a.id));
+  const realItemIds = new Set(realItems.map((i) => i.id));
+
+  // 4. Load trip fields + exchange rates for metrics
+  const [trip, exchangeRates] = await Promise.all([
+    db.trip.findUnique({
+      where: { id: tripId },
+      select: {
+        id: true,
+        name: true,
+        startDate: true,
+        hardEndDate: true,
+        homeCurrency: true,
+        drivingWindingFactor: true,
+        drivingAvgSpeedKph: true,
+      },
+    }),
+    db.exchangeRate.findMany({
+      where: { tripId },
+      select: { base: true, quote: true, rate: true },
+    }),
+  ]);
+
+  if (!trip) throw new Error(`Trip ${tripId} not found`);
+
+  // 5. Load attachments for the trip, filter to those targeting real-plan entities
+  const allAttachments = await db.attachment.findMany({
+    where: { tripId },
+    select: { id: true, filename: true, targetType: true, targetId: true },
+  });
+
+  // 6. Build loss list
+  const lossList: PromotionLossItem[] = [];
+
+  // PAID_COST — real-plan costs that have been paid
+  for (const cost of realCosts) {
+    if (cost.paidAt !== null) {
+      lossList.push({ kind: "PAID_COST", label: cost.label ?? `Cost ${cost.id}` });
+    }
+  }
+
+  // CONFIRMATION — real-plan accommodations with confirmation
+  for (const acc of realAccommodations) {
+    if (acc.confirmation !== null) {
+      lossList.push({ kind: "CONFIRMATION", label: acc.name ?? `Accommodation ${acc.id}` });
+    }
+  }
+
+  // CONFIRMATION — real-plan transports with reference
+  for (const transport of realTransports) {
+    if ((transport as { reference?: string | null }).reference !== null && (transport as { reference?: string | null }).reference !== undefined) {
+      lossList.push({ kind: "CONFIRMATION", label: `${transport.mode} ref: ${(transport as { reference?: string | null }).reference}` });
+    }
+  }
+
+  // ATTACHMENT — attachments pointing at real-plan Stop/Transport/Accommodation/Item
+  for (const att of allAttachments) {
+    if (!att.targetId) continue;
+    const { targetType, targetId } = att;
+    const isRealPlanEntity =
+      (targetType === "STOP" && realStopIds.has(targetId)) ||
+      (targetType === "TRANSPORT" && realTransportIds.has(targetId)) ||
+      (targetType === "ACCOMMODATION" && realAccommodationIds.has(targetId)) ||
+      (targetType === "ITEM" && realItemIds.has(targetId));
+
+    if (isRealPlanEntity) {
+      lossList.push({ kind: "ATTACHMENT", label: att.filename });
+    }
+  }
+
+  // 7. Compute metric deltas
+  const tripFields = {
+    startDate: trip.startDate,
+    hardEndDate: trip.hardEndDate,
+    homeCurrency: trip.homeCurrency,
+    drivingWindingFactor: trip.drivingWindingFactor,
+    drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
+  };
+
+  const mapStop = (s: typeof realStops[number]) => ({ ...s, timezone: s.timezone ?? "UTC" });
+  const mapTransport = (t: { id: string; mode: string; fromStopId: string | null; toStopId: string | null; depAt: Date | string | null; arrAt: Date | string | null }) => ({
+    ...t,
+    depAt: t.depAt instanceof Date ? t.depAt.toISOString() : (t.depAt ?? null),
+    arrAt: t.arrAt instanceof Date ? t.arrAt.toISOString() : (t.arrAt ?? null),
+  });
+
+  const realPlanMetrics = computePlanMetrics({
+    stops: realStops.map(mapStop),
+    transports: realTransports.map(mapTransport),
+    accommodations: realAccommodations,
+    items: realItems,
+    costs: realCosts,
+    trip: tripFields,
+    exchangeRates,
+  });
+
+  const forkMetrics = computePlanMetrics({
+    stops: forkStops.map(mapStop),
+    transports: forkTransports.map(mapTransport),
+    accommodations: forkAccommodations,
+    items: forkItems,
+    costs: forkCosts,
+    trip: tripFields,
+    exchangeRates,
+  });
+
+  const deltas = diffMetrics(realPlanMetrics, forkMetrics);
+
+  return { lossList, deltas };
+}
+
+// ---------------------------------------------------------------------------
+// promoteFork
+// ---------------------------------------------------------------------------
+
+export type PromoteForkResult = { success: true } | { success: false; error: string };
+
+/**
+ * Promote a fork to become the new real plan.
+ *
+ * Transaction ordering (critical — avoids relational/unique clashes):
+ *   1. Delete old real-plan rows for all six entities (forkId: null).
+ *   2. Retag the promoted fork's rows to forkId: null.
+ *   3. Delete ALL forks for the trip (the promoted one now has no rows;
+ *      others cascade-delete their rows).
+ *
+ * This leaves exactly one real plan and zero forks.
+ */
+export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
+  // 1. Auth + existence check
+  const { fork, trip } = await requireForkAccess(forkId);
+  const tripId = fork.tripId;
+
+  // 2. Phase gate
+  try {
+    assertForkingAllowed(
+      computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today: todayISO() }),
+    );
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Promoting not allowed in this phase",
+    };
+  }
+
+  // 3. Transaction — strictly ordered
+  await db.$transaction(async (tx) => {
+    // Step 1: delete old real-plan rows for all six entities
+    await tx.stop.deleteMany({ where: { tripId, forkId: null } });
+    await tx.chapter.deleteMany({ where: { tripId, forkId: null } });
+    await tx.transport.deleteMany({ where: { tripId, forkId: null } });
+    await tx.accommodation.deleteMany({ where: { tripId, forkId: null } });
+    await tx.item.deleteMany({ where: { tripId, forkId: null } });
+    await tx.cost.deleteMany({ where: { tripId, forkId: null } });
+
+    // Step 2: retag the promoted fork's rows to forkId: null (they become the real plan)
+    await tx.stop.updateMany({ where: { forkId }, data: { forkId: null } });
+    await tx.chapter.updateMany({ where: { forkId }, data: { forkId: null } });
+    await tx.transport.updateMany({ where: { forkId }, data: { forkId: null } });
+    await tx.accommodation.updateMany({ where: { forkId }, data: { forkId: null } });
+    await tx.item.updateMany({ where: { forkId }, data: { forkId: null } });
+    await tx.cost.updateMany({ where: { forkId }, data: { forkId: null } });
+
+    // Step 3: remove ALL forks for this trip (promoted one now has no rows;
+    // any other forks cascade-delete their rows)
+    await tx.fork.deleteMany({ where: { tripId } });
+  });
+
+  // 4. Record activity — use recordActivity directly (not fork-silencing guard)
+  await recordActivity({
+    tripId,
+    verb: "PROMOTED",
+    entityType: "FORK",
+    entityId: forkId,
+    entityLabel: fork.name,
+  });
+
+  // 5. Revalidate all live surfaces
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/trips/${tripId}/plan`);
+  revalidatePath(`/calendar`);
+  revalidatePath(`/budget`);
+  revalidatePath(`/summary`);
+  revalidatePath(`/trips/${tripId}/compare`);
+
+  return { success: true };
 }

@@ -29,40 +29,69 @@ const {
   forkCreateMock,
   forkUpdateMock,
   forkDeleteMock,
+  forkDeleteManyMock,
   chapterFindManyMock,
   chapterCreateMock,
+  chapterDeleteManyMock,
+  chapterUpdateManyMock,
   stopFindManyMock,
   stopCreateMock,
+  stopDeleteManyMock,
+  stopUpdateManyMock,
   accommodationFindManyMock,
   accommodationCreateMock,
+  accommodationDeleteManyMock,
+  accommodationUpdateManyMock,
   itemFindManyMock,
   itemCreateMock,
+  itemDeleteManyMock,
+  itemUpdateManyMock,
   transportFindManyMock,
   transportCreateMock,
+  transportDeleteManyMock,
+  transportUpdateManyMock,
   costFindManyMock,
   costCreateMock,
+  costDeleteManyMock,
+  costUpdateManyMock,
+  attachmentFindManyMock,
   exchangeRateFindManyMock,
   tripFindUniqueMock,
   txMock,
   computePlanMetricsMock,
+  diffMetricsMock,
 } = vi.hoisted(() => {
   const forkCountMock = vi.fn();
   const forkFindManyMock = vi.fn().mockResolvedValue([]);
   const forkCreateMock = vi.fn();
   const forkUpdateMock = vi.fn();
   const forkDeleteMock = vi.fn();
+  const forkDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const chapterFindManyMock = vi.fn().mockResolvedValue([]);
   const chapterCreateMock = vi.fn();
+  const chapterDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const chapterUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const stopFindManyMock = vi.fn().mockResolvedValue([]);
   const stopCreateMock = vi.fn();
+  const stopDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const stopUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const accommodationFindManyMock = vi.fn().mockResolvedValue([]);
   const accommodationCreateMock = vi.fn();
+  const accommodationDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const accommodationUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const itemFindManyMock = vi.fn().mockResolvedValue([]);
   const itemCreateMock = vi.fn();
+  const itemDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const itemUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const transportFindManyMock = vi.fn().mockResolvedValue([]);
   const transportCreateMock = vi.fn();
+  const transportDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const transportUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const costFindManyMock = vi.fn().mockResolvedValue([]);
   const costCreateMock = vi.fn();
+  const costDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const costUpdateManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const exchangeRateFindManyMock = vi.fn().mockResolvedValue([]);
   const tripFindUniqueMock = vi.fn();
 
@@ -81,16 +110,29 @@ const {
     route: [],
   });
 
+  // diffMetrics mock — returns zero deltas
+  const diffMetricsMock = vi.fn().mockReturnValue({
+    stopCount: 0,
+    nightTotal: 0,
+    budgetHomeMinor: null,
+    flagWarnings: 0,
+    flagInfos: 0,
+    transitMinutes: 0,
+    drivingMinutes: 0,
+    flightCount: 0,
+    projectedEndDays: null,
+  });
+
   // $transaction executes the callback with a fake tx stub
   const txMock = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
     const tx = {
-      fork: { create: forkCreateMock },
-      chapter: { create: chapterCreateMock },
-      stop: { create: stopCreateMock },
-      accommodation: { create: accommodationCreateMock },
-      item: { create: itemCreateMock },
-      transport: { create: transportCreateMock },
-      cost: { create: costCreateMock },
+      fork: { create: forkCreateMock, deleteMany: forkDeleteManyMock },
+      chapter: { create: chapterCreateMock, deleteMany: chapterDeleteManyMock, updateMany: chapterUpdateManyMock },
+      stop: { create: stopCreateMock, deleteMany: stopDeleteManyMock, updateMany: stopUpdateManyMock },
+      accommodation: { create: accommodationCreateMock, deleteMany: accommodationDeleteManyMock, updateMany: accommodationUpdateManyMock },
+      item: { create: itemCreateMock, deleteMany: itemDeleteManyMock, updateMany: itemUpdateManyMock },
+      transport: { create: transportCreateMock, deleteMany: transportDeleteManyMock, updateMany: transportUpdateManyMock },
+      cost: { create: costCreateMock, deleteMany: costDeleteManyMock, updateMany: costUpdateManyMock },
     };
     return cb(tx);
   });
@@ -103,7 +145,7 @@ const {
     requireForkAccessMock: vi.fn().mockResolvedValue({
       user: { id: "user-1" },
       fork: { id: "fork-1", tripId: "trip-1", name: "Variant 1" },
-      trip: { id: "trip-1" },
+      trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14" },
     }),
     assertForkingAllowedMock: vi.fn(), // no-op by default (forking allowed)
     computeTripPhaseMock: vi.fn().mockReturnValue("planning"),
@@ -115,27 +157,43 @@ const {
     forkCreateMock,
     forkUpdateMock,
     forkDeleteMock,
+    forkDeleteManyMock,
     chapterFindManyMock,
     chapterCreateMock,
+    chapterDeleteManyMock,
+    chapterUpdateManyMock,
     stopFindManyMock,
     stopCreateMock,
+    stopDeleteManyMock,
+    stopUpdateManyMock,
     accommodationFindManyMock,
     accommodationCreateMock,
+    accommodationDeleteManyMock,
+    accommodationUpdateManyMock,
     itemFindManyMock,
     itemCreateMock,
+    itemDeleteManyMock,
+    itemUpdateManyMock,
     transportFindManyMock,
     transportCreateMock,
+    transportDeleteManyMock,
+    transportUpdateManyMock,
     costFindManyMock,
     costCreateMock,
+    costDeleteManyMock,
+    costUpdateManyMock,
+    attachmentFindManyMock,
     exchangeRateFindManyMock,
     tripFindUniqueMock,
     txMock,
     computePlanMetricsMock,
+    diffMetricsMock,
   };
 });
 
 vi.mock("@/lib/compare", () => ({
   computePlanMetrics: computePlanMetricsMock,
+  diffMetrics: diffMetricsMock,
 }));
 
 vi.mock("@/lib/guards", () => ({
@@ -163,13 +221,14 @@ vi.mock("next/cache", () => ({
 vi.mock("@/lib/db", () => ({
   db: {
     $transaction: txMock,
-    fork: { count: forkCountMock, findMany: forkFindManyMock, create: forkCreateMock, update: forkUpdateMock, delete: forkDeleteMock },
-    chapter: { findMany: chapterFindManyMock, create: chapterCreateMock },
-    stop: { findMany: stopFindManyMock, create: stopCreateMock },
-    accommodation: { findMany: accommodationFindManyMock, create: accommodationCreateMock },
-    item: { findMany: itemFindManyMock, create: itemCreateMock },
-    transport: { findMany: transportFindManyMock, create: transportCreateMock },
-    cost: { findMany: costFindManyMock, create: costCreateMock },
+    fork: { count: forkCountMock, findMany: forkFindManyMock, create: forkCreateMock, update: forkUpdateMock, delete: forkDeleteMock, deleteMany: forkDeleteManyMock },
+    chapter: { findMany: chapterFindManyMock, create: chapterCreateMock, deleteMany: chapterDeleteManyMock, updateMany: chapterUpdateManyMock },
+    stop: { findMany: stopFindManyMock, create: stopCreateMock, deleteMany: stopDeleteManyMock, updateMany: stopUpdateManyMock },
+    accommodation: { findMany: accommodationFindManyMock, create: accommodationCreateMock, deleteMany: accommodationDeleteManyMock, updateMany: accommodationUpdateManyMock },
+    item: { findMany: itemFindManyMock, create: itemCreateMock, deleteMany: itemDeleteManyMock, updateMany: itemUpdateManyMock },
+    transport: { findMany: transportFindManyMock, create: transportCreateMock, deleteMany: transportDeleteManyMock, updateMany: transportUpdateManyMock },
+    cost: { findMany: costFindManyMock, create: costCreateMock, deleteMany: costDeleteManyMock, updateMany: costUpdateManyMock },
+    attachment: { findMany: attachmentFindManyMock },
     exchangeRate: { findMany: exchangeRateFindManyMock },
     trip: { findUnique: tripFindUniqueMock },
   },
@@ -179,7 +238,7 @@ vi.mock("@/lib/db", () => ({
 // Import SUT after mocks are registered
 // ---------------------------------------------------------------------------
 
-import { createFork, renameFork, discardFork, getComparison } from "./forks";
+import { createFork, renameFork, discardFork, getComparison, getPromotionPreview, promoteFork } from "./forks";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -204,16 +263,35 @@ afterEach(() => {
     user: { id: "user-1" },
     membership: { role: "owner" },
   });
+  requireForkAccessMock.mockResolvedValue({
+    user: { id: "user-1" },
+    fork: { id: "fork-1", tripId: "trip-1", name: "Variant 1" },
+    trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14" },
+  });
   assertForkingAllowedMock.mockImplementation(() => undefined);
   computeTripPhaseMock.mockReturnValue("planning");
   todayISOMock.mockReturnValue("2026-07-01");
   forkFindManyMock.mockResolvedValue([]);
+  forkDeleteManyMock.mockResolvedValue({ count: 0 });
   chapterFindManyMock.mockResolvedValue([]);
+  chapterDeleteManyMock.mockResolvedValue({ count: 0 });
+  chapterUpdateManyMock.mockResolvedValue({ count: 0 });
   stopFindManyMock.mockResolvedValue([]);
+  stopDeleteManyMock.mockResolvedValue({ count: 0 });
+  stopUpdateManyMock.mockResolvedValue({ count: 0 });
   accommodationFindManyMock.mockResolvedValue([]);
+  accommodationDeleteManyMock.mockResolvedValue({ count: 0 });
+  accommodationUpdateManyMock.mockResolvedValue({ count: 0 });
   itemFindManyMock.mockResolvedValue([]);
+  itemDeleteManyMock.mockResolvedValue({ count: 0 });
+  itemUpdateManyMock.mockResolvedValue({ count: 0 });
   transportFindManyMock.mockResolvedValue([]);
+  transportDeleteManyMock.mockResolvedValue({ count: 0 });
+  transportUpdateManyMock.mockResolvedValue({ count: 0 });
   costFindManyMock.mockResolvedValue([]);
+  costDeleteManyMock.mockResolvedValue({ count: 0 });
+  costUpdateManyMock.mockResolvedValue({ count: 0 });
+  attachmentFindManyMock.mockResolvedValue([]);
   exchangeRateFindManyMock.mockResolvedValue([]);
   computePlanMetricsMock.mockReturnValue({
     stopCount: 0,
@@ -227,6 +305,17 @@ afterEach(() => {
     drivingMinutes: 0,
     flightCount: 0,
     route: [],
+  });
+  diffMetricsMock.mockReturnValue({
+    stopCount: 0,
+    nightTotal: 0,
+    budgetHomeMinor: null,
+    flagWarnings: 0,
+    flagInfos: 0,
+    transitMinutes: 0,
+    drivingMinutes: 0,
+    flightCount: 0,
+    projectedEndDays: null,
   });
 });
 
@@ -938,6 +1027,357 @@ describe("getComparison", () => {
       await getComparison("trip-1");
 
       expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getPromotionPreview
+// ---------------------------------------------------------------------------
+
+describe("getPromotionPreview", () => {
+  const tripRow = {
+    id: "trip-1",
+    name: "My Trip",
+    startDate: "2026-10-01",
+    hardEndDate: null,
+    homeCurrency: "AUD",
+    drivingWindingFactor: 1.3,
+    drivingAvgSpeedKph: 80,
+  };
+
+  beforeEach(() => {
+    tripFindUniqueMock.mockResolvedValue(tripRow);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    stopFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+  });
+
+  describe("auth", () => {
+    it("calls requireForkAccess with the forkId", async () => {
+      await getPromotionPreview("fork-9");
+
+      expect(requireForkAccessMock).toHaveBeenCalledWith("fork-9");
+    });
+  });
+
+  describe("loss list: PAID_COST", () => {
+    it("includes a PAID_COST entry for each cost with paidAt !== null in the real plan", async () => {
+      costFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => {
+        if (args.where.forkId === null) {
+          return Promise.resolve([
+            { id: "cost-paid", label: "Flight deposit", paidAt: "2026-05-01", ownerType: "OTHER", ownerId: null },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const result = await getPromotionPreview("fork-9");
+
+      expect(result.lossList).toContainEqual(
+        expect.objectContaining({ kind: "PAID_COST", label: expect.stringContaining("Flight deposit") }),
+      );
+    });
+
+    it("does NOT include a PAID_COST entry for a cost with paidAt === null", async () => {
+      costFindManyMock.mockResolvedValue([
+        { id: "cost-unpaid", label: "Visa fee", paidAt: null, ownerType: "OTHER", ownerId: null },
+      ]);
+
+      const result = await getPromotionPreview("fork-9");
+
+      expect(result.lossList.filter((l) => l.kind === "PAID_COST")).toHaveLength(0);
+    });
+  });
+
+  describe("loss list: CONFIRMATION", () => {
+    it("includes a CONFIRMATION entry for an accommodation with confirmation !== null", async () => {
+      accommodationFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => {
+        if (args.where.forkId === null) {
+          return Promise.resolve([
+            { id: "acc-1", name: "Hotel Roma", confirmation: "CONF-123", stopId: "stop-1", checkIn: "2026-10-01", checkOut: "2026-10-04" },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const result = await getPromotionPreview("fork-9");
+
+      expect(result.lossList).toContainEqual(
+        expect.objectContaining({ kind: "CONFIRMATION", label: expect.stringContaining("Hotel Roma") }),
+      );
+    });
+
+    it("includes a CONFIRMATION entry for a transport with reference !== null", async () => {
+      transportFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => {
+        if (args.where.forkId === null) {
+          return Promise.resolve([
+            { id: "transport-1", mode: "FLIGHT", reference: "QF1", fromStopId: null, toStopId: null, depAt: null, arrAt: null },
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      const result = await getPromotionPreview("fork-9");
+
+      expect(result.lossList).toContainEqual(
+        expect.objectContaining({ kind: "CONFIRMATION", label: expect.stringContaining("QF1") }),
+      );
+    });
+
+    it("does NOT include a CONFIRMATION entry for accommodation with confirmation === null", async () => {
+      accommodationFindManyMock.mockResolvedValue([
+        { id: "acc-1", name: "Hotel Roma", confirmation: null, stopId: "stop-1", checkIn: "2026-10-01", checkOut: "2026-10-04" },
+      ]);
+
+      const result = await getPromotionPreview("fork-9");
+
+      expect(result.lossList.filter((l) => l.kind === "CONFIRMATION")).toHaveLength(0);
+    });
+  });
+
+  describe("loss list: ATTACHMENT", () => {
+    it("includes an ATTACHMENT entry for an attachment targeting a real-plan Stop", async () => {
+      stopFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => {
+        if (args.where.forkId === null) {
+          return Promise.resolve([{ id: "stop-real-1", name: "Paris", country: "FR", nights: 3, sortOrder: 0, arriveDate: null, departDate: null, pinned: false, lat: null, lng: null, timezone: "UTC" }]);
+        }
+        return Promise.resolve([]);
+      });
+      attachmentFindManyMock.mockResolvedValue([
+        { id: "att-1", filename: "paris-photo.jpg", targetType: "STOP", targetId: "stop-real-1" },
+      ]);
+
+      const result = await getPromotionPreview("fork-9");
+
+      expect(result.lossList).toContainEqual(
+        expect.objectContaining({ kind: "ATTACHMENT", label: expect.stringContaining("paris-photo.jpg") }),
+      );
+    });
+
+    it("does NOT include an ATTACHMENT entry for an attachment targeting a fork entity", async () => {
+      // Real-plan stop is stop-real-1, attachment targets stop-fork-1 (a fork stop, not real-plan)
+      stopFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => {
+        if (args.where.forkId === null) {
+          return Promise.resolve([{ id: "stop-real-1", name: "Paris", country: "FR", nights: 3, sortOrder: 0, arriveDate: null, departDate: null, pinned: false, lat: null, lng: null, timezone: "UTC" }]);
+        }
+        return Promise.resolve([]);
+      });
+      attachmentFindManyMock.mockResolvedValue([
+        { id: "att-2", filename: "fork-photo.jpg", targetType: "STOP", targetId: "stop-fork-1" },
+      ]);
+
+      const result = await getPromotionPreview("fork-9");
+
+      expect(result.lossList.filter((l) => l.kind === "ATTACHMENT")).toHaveLength(0);
+    });
+
+    it("does NOT include an ATTACHMENT with targetType TRIP (not a plan entity)", async () => {
+      attachmentFindManyMock.mockResolvedValue([
+        { id: "att-3", filename: "cover.jpg", targetType: "TRIP", targetId: "trip-1" },
+      ]);
+
+      const result = await getPromotionPreview("fork-9");
+
+      expect(result.lossList.filter((l) => l.kind === "ATTACHMENT")).toHaveLength(0);
+    });
+  });
+
+  describe("empty loss list", () => {
+    it("returns an empty lossList when the real plan has no paid costs, confirmations, or relevant attachments", async () => {
+      const result = await getPromotionPreview("fork-9");
+
+      expect(result.lossList).toHaveLength(0);
+    });
+  });
+
+  describe("deltas", () => {
+    it("computes deltas via diffMetrics(realPlanMetrics, forkMetrics)", async () => {
+      const stubDeltas = {
+        stopCount: 2,
+        nightTotal: -1,
+        budgetHomeMinor: 5000,
+        flagWarnings: 0,
+        flagInfos: 1,
+        transitMinutes: 0,
+        drivingMinutes: 0,
+        flightCount: 1,
+        projectedEndDays: 3,
+      };
+      diffMetricsMock.mockReturnValue(stubDeltas);
+
+      const result = await getPromotionPreview("fork-9");
+
+      expect(result.deltas).toEqual(stubDeltas);
+    });
+
+    it("calls diffMetrics with realPlanMetrics as base and forkMetrics as variant", async () => {
+      const realMetrics = { stopCount: 3, nightTotal: 7, countries: [], projectedEnd: null, hardEndState: "none" as const, budgetHomeMinor: null, flagCounts: { warning: 0, info: 0 }, transitMinutes: 0, drivingMinutes: 0, flightCount: 0, route: [] };
+      const forkMetrics = { stopCount: 5, nightTotal: 14, countries: [], projectedEnd: null, hardEndState: "none" as const, budgetHomeMinor: null, flagCounts: { warning: 0, info: 0 }, transitMinutes: 0, drivingMinutes: 0, flightCount: 0, route: [] };
+
+      // computePlanMetrics returns different values for each call
+      computePlanMetricsMock
+        .mockReturnValueOnce(realMetrics)  // first call = real plan
+        .mockReturnValueOnce(forkMetrics); // second call = fork
+
+      await getPromotionPreview("fork-9");
+
+      expect(diffMetricsMock).toHaveBeenCalledWith(realMetrics, forkMetrics);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// promoteFork
+// ---------------------------------------------------------------------------
+
+describe("promoteFork", () => {
+  beforeEach(() => {
+    requireForkAccessMock.mockResolvedValue({
+      user: { id: "user-1" },
+      fork: { id: "fork-9", tripId: "trip-1", name: "Plan B" },
+      trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14" },
+    });
+    computeTripPhaseMock.mockReturnValue("planning");
+    tripFindUniqueMock.mockResolvedValue({
+      id: "trip-1",
+      startDate: "2026-10-01",
+      endDate: "2026-10-14",
+    });
+  });
+
+  describe("phase gate", () => {
+    it("rejects when the trip is in travelling phase", async () => {
+      computeTripPhaseMock.mockReturnValue("travelling");
+      assertForkingAllowedMock.mockImplementation(() => {
+        throw new Error("Forking is only available before departure");
+      });
+
+      const result = await promoteFork("fork-9");
+
+      expect(result).toEqual({ success: false, error: expect.any(String) });
+      expect(txMock).not.toHaveBeenCalled();
+    });
+
+    it("rejects when the trip is in past phase", async () => {
+      computeTripPhaseMock.mockReturnValue("past");
+      assertForkingAllowedMock.mockImplementation(() => {
+        throw new Error("Forking is only available before departure");
+      });
+
+      const result = await promoteFork("fork-9");
+
+      expect(result).toEqual({ success: false, error: expect.any(String) });
+      expect(txMock).not.toHaveBeenCalled();
+    });
+
+    it("succeeds in planning phase", async () => {
+      computeTripPhaseMock.mockReturnValue("planning");
+
+      const result = await promoteFork("fork-9");
+
+      expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe("transaction: ordering and shape", () => {
+    it("deletes old real-plan rows for each entity (step 1)", async () => {
+      await promoteFork("fork-9");
+
+      expect(stopDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
+      expect(chapterDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
+      expect(transportDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
+      expect(accommodationDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
+      expect(itemDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
+      expect(costDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
+    });
+
+    it("retags promoted fork rows to forkId: null for each entity (step 2)", async () => {
+      await promoteFork("fork-9");
+
+      expect(stopUpdateManyMock).toHaveBeenCalledWith({ where: { forkId: "fork-9" }, data: { forkId: null } });
+      expect(chapterUpdateManyMock).toHaveBeenCalledWith({ where: { forkId: "fork-9" }, data: { forkId: null } });
+      expect(transportUpdateManyMock).toHaveBeenCalledWith({ where: { forkId: "fork-9" }, data: { forkId: null } });
+      expect(accommodationUpdateManyMock).toHaveBeenCalledWith({ where: { forkId: "fork-9" }, data: { forkId: null } });
+      expect(itemUpdateManyMock).toHaveBeenCalledWith({ where: { forkId: "fork-9" }, data: { forkId: null } });
+      expect(costUpdateManyMock).toHaveBeenCalledWith({ where: { forkId: "fork-9" }, data: { forkId: null } });
+    });
+
+    it("deletes all forks for the trip (step 3)", async () => {
+      await promoteFork("fork-9");
+
+      expect(forkDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1" } });
+    });
+
+    it("deletes real-plan rows BEFORE retagging (step 1 precedes step 2)", async () => {
+      const callOrder: string[] = [];
+      stopDeleteManyMock.mockImplementation(() => { callOrder.push("delete"); return Promise.resolve({ count: 0 }); });
+      stopUpdateManyMock.mockImplementation(() => { callOrder.push("update"); return Promise.resolve({ count: 0 }); });
+
+      await promoteFork("fork-9");
+
+      const deleteIdx = callOrder.indexOf("delete");
+      const updateIdx = callOrder.indexOf("update");
+      expect(deleteIdx).toBeLessThan(updateIdx);
+    });
+
+    it("retagging happens BEFORE fork deleteMany (step 2 precedes step 3)", async () => {
+      const callOrder: string[] = [];
+      stopUpdateManyMock.mockImplementation(() => { callOrder.push("update"); return Promise.resolve({ count: 0 }); });
+      forkDeleteManyMock.mockImplementation(() => { callOrder.push("forkDelete"); return Promise.resolve({ count: 0 }); });
+
+      await promoteFork("fork-9");
+
+      const updateIdx = callOrder.indexOf("update");
+      const forkDeleteIdx = callOrder.indexOf("forkDelete");
+      expect(updateIdx).toBeLessThan(forkDeleteIdx);
+    });
+
+    it("runs inside a single db.$transaction call", async () => {
+      await promoteFork("fork-9");
+
+      expect(txMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("activity log", () => {
+    it("records PROMOTED FORK activity with the fork name", async () => {
+      await promoteFork("fork-9");
+
+      expect(recordActivityMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          tripId: "trip-1",
+          verb: "PROMOTED",
+          entityType: "FORK",
+          entityId: "fork-9",
+          entityLabel: "Plan B",
+        }),
+      );
+    });
+  });
+
+  describe("cache invalidation", () => {
+    it("revalidates the core trip paths after promotion", async () => {
+      await promoteFork("fork-9");
+
+      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/plan");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/calendar");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/budget");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/summary");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/compare");
+    });
+  });
+
+  describe("auth", () => {
+    it("calls requireForkAccess with the forkId", async () => {
+      await promoteFork("fork-9");
+
+      expect(requireForkAccessMock).toHaveBeenCalledWith("fork-9");
     });
   });
 });
