@@ -21,6 +21,7 @@ export const ACTIVITY_VERBS = [
   "UPDATED",
   "DELETED",
   "NOTED",
+  "PROMOTED",
 ] as const;
 export type ActivityVerb = (typeof ACTIVITY_VERBS)[number];
 
@@ -309,6 +310,7 @@ const VERB_WORD: Record<ActivityVerb, string> = {
   UPDATED: "updated",
   DELETED: "removed",
   NOTED: "left a note",
+  PROMOTED: "promoted",
 };
 
 const ENTITY_NOUN: Record<ActivityEntityType, string> = {

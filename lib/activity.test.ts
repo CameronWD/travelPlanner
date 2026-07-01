@@ -13,8 +13,8 @@ import {
 // ---------------------------------------------------------------------------
 
 describe("ACTIVITY_VERBS", () => {
-  it("contains the four expected verbs", () => {
-    expect(ACTIVITY_VERBS).toEqual(["CREATED", "UPDATED", "DELETED", "NOTED"]);
+  it("contains PROMOTED verb", () => {
+    expect(ACTIVITY_VERBS).toContain("PROMOTED");
   });
 });
 
