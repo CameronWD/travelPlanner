@@ -264,3 +264,62 @@ describe("Timeline — long-name truncation", () => {
     expect(arrSpan).not.toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task-3 structural assertions: mobile-hardening (gutter width + title truncation)
+// ---------------------------------------------------------------------------
+
+const LONG_ITEM_TITLE =
+  "A Very Long Timed Item Title That Would Overflow On A 320px Mobile Screen Without Truncation";
+
+const dayPlanWithLongTimedTitle: DayPlan = {
+  dateISO: "2025-07-01",
+  stop: {
+    id: "stop-1",
+    name: "Tokyo",
+    timezone: "Asia/Tokyo",
+    arriveDate: "2025-07-01",
+    departDate: "2025-07-03",
+    sortOrder: 0,
+  },
+  timedItems: [
+    {
+      kind: "item",
+      item: {
+        id: "item-long-1",
+        title: LONG_ITEM_TITLE,
+        category: "ACTIVITY",
+        date: "2025-07-01",
+        startTime: "09:00",
+        endTime: "11:00",
+      },
+    },
+  ],
+  untimedItems: [],
+  transportEntries: [],
+  accommodationEntries: [],
+};
+
+describe("Timeline — mobile-hardening structural assertions (Task 3)", () => {
+  it("timed item title span carries truncate class for overflow prevention", () => {
+    const { container } = render(
+      <Timeline day={dayPlanWithLongTimedTitle} variant="day" />,
+    );
+    const titleSpan = Array.from(container.querySelectorAll("span")).find(
+      (s) => s.textContent === LONG_ITEM_TITLE,
+    );
+    expect(titleSpan).not.toBeUndefined();
+    const cls = titleSpan!.className;
+    expect(cls.match(/\btruncate\b/) || cls.match(/\bbreak-words\b/)).toBeTruthy();
+  });
+
+  it("TimeGutter span carries w-9 class for mobile-width shrinkage", () => {
+    const { container } = render(
+      <Timeline day={dayPlanWithLongTimedTitle} variant="day" />,
+    );
+    // TimeGutter renders as a shrink-0 span with font-mono and w-9
+    const gutterSpan = container.querySelector("span.w-9");
+    expect(gutterSpan).not.toBeNull();
+    expect(gutterSpan!.className).toMatch(/\bw-9\b/);
+  });
+});
