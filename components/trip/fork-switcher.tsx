@@ -21,13 +21,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { createFork, renameFork, discardFork } from "@/server/actions/forks";
+import { MAX_FORKS } from "@/lib/fork-plan";
 import type { TripPhase } from "@/lib/trip-phase";
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const MAX_FORKS = 4;
 
 // ---------------------------------------------------------------------------
 // Types

@@ -148,6 +148,8 @@ beforeEach(() => {
   });
   // Default: chapter lookup returns a real-plan chapter (forkId null)
   chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: null });
+  // Default: stop.findMany returns no rows (individual tests override as needed).
+  stopFindManyMock.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -616,6 +618,12 @@ describe("moveStop", () => {
     expect(queryRawMock.mock.calls[0][1]).toBe("trip-1");
     // SQL must include forkId scoping.
     expect(sqlParts.join(" ")).toContain("forkId");
+    // The real-plan branch must emit an IS NULL predicate — the Prisma.Sql
+    // fragment for the forkId scope has NO bound values (guards against a future
+    // `= NULL` regression, which would never match rows).
+    const forkIdSqlArg = queryRawMock.mock.calls[0][2] as { values: unknown[] };
+    expect(forkIdSqlArg).toBeTruthy();
+    expect(forkIdSqlArg.values).toEqual([]);
   });
 
   it("moveStop scopes sibling query to the stop's forkId when moving a fork stop", async () => {
@@ -1235,6 +1243,72 @@ describe("reorderStops", () => {
     }
     expect(stopUpdateMock).not.toHaveBeenCalled();
     expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  // I3 — chapter validation must be scoped to the plan of the stops being
+  // reordered, closing a cross-plan write vector.
+  it("scopes chapter validation to the FORK when reordering fork stops", async () => {
+    // The stops being reordered belong to fork-9.
+    stopFindManyMock.mockResolvedValue([
+      { id: "fa", forkId: "fork-9" },
+      { id: "fb", forkId: "fork-9" },
+    ]);
+    chapterFindManyMock.mockResolvedValue([{ id: "fc1", startDate: null }]);
+    queryRawMock.mockResolvedValue([
+      { id: "fa", tripId: "t1", arriveDate: null },
+      { id: "fb", tripId: "t1", arriveDate: null },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+
+    const result = await reorderStops("t1", [
+      { id: "fa", chapterId: "fc1" },
+      { id: "fb", chapterId: null },
+    ]);
+
+    expect(result.success).toBe(true);
+    // Chapters must be fetched scoped to the fork plan (forkId: fork-9), not the real plan.
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "t1", forkId: "fork-9" }) }),
+    );
+  });
+
+  it("scopes chapter validation to the REAL plan when reordering real-plan stops", async () => {
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", forkId: null },
+      { id: "b", forkId: null },
+    ]);
+    chapterFindManyMock.mockResolvedValue([{ id: "c1", startDate: null }]);
+    queryRawMock.mockResolvedValue([
+      { id: "a", tripId: "t1", arriveDate: null },
+      { id: "b", tripId: "t1", arriveDate: null },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+
+    const result = await reorderStops("t1", [
+      { id: "a", chapterId: "c1" },
+      { id: "b", chapterId: null },
+    ]);
+
+    expect(result.success).toBe(true);
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "t1", forkId: null }) }),
+    );
+  });
+
+  it("rejects a reorder payload mixing stops from different plans", async () => {
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", forkId: null },
+      { id: "fb", forkId: "fork-9" },
+    ]);
+
+    const result = await reorderStops("t1", [
+      { id: "a", chapterId: "c1" },
+      { id: "fb", chapterId: "c1" },
+    ]);
+
+    expect(result.success).toBe(false);
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).not.toHaveBeenCalled();
   });
 
   it("ignores chapterId for a DATED (scheduled) stop: only writes sortOrder", async () => {

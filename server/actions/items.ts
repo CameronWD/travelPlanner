@@ -163,13 +163,13 @@ export async function updateItem(
 
   const data = parsed.data;
 
-  // Validate stopId belongs to this trip (and is a real-plan stop)
+  // Validate stopId belongs to this trip and to the item's own plan.
   if (data.stopId) {
     const stop = await db.stop.findUnique({
       where: { id: data.stopId },
       select: { id: true, tripId: true, forkId: true },
     });
-    if (!stop || stop.tripId !== item.tripId || stop.forkId !== null) {
+    if (!stop || stop.tripId !== item.tripId || stop.forkId !== item.forkId) {
       return {
         success: false,
         errors: { stopId: ["Stop does not belong to this trip"] },

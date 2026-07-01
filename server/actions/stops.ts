@@ -11,7 +11,7 @@ import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowStop, type Flo
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
-import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
+import { planScope, type PlanId } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -846,10 +846,28 @@ export async function reorderStops(
   // dated chapter (R1). We don't error on chapters that aren't found here;
   // that case is either irrelevant (dated stop whose chapterId will be ignored)
   // or caught by the DB foreign-key constraint on write.
+  // Derive the plan (forkId) from the stops being reordered. They all belong to
+  // a single plan; reject a mixed-plan payload. Chapters are then validated
+  // within that plan only (I3) — closing a cross-plan write vector where a
+  // crafted payload could point a stop at another plan's chapter.
+  const reorderIds = items.map((i) => i.id);
+  const reorderStopRows = await db.stop.findMany({
+    where: { id: { in: reorderIds }, tripId },
+    select: { id: true, forkId: true },
+  });
+  const planForkIds = new Set(reorderStopRows.map((s) => s.forkId));
+  if (planForkIds.size > 1) {
+    return {
+      success: false,
+      errors: { id: ["Stops in a reorder must all belong to the same plan."] },
+    };
+  }
+  const reorderForkId: PlanId = reorderStopRows[0]?.forkId ?? null;
+
   const targetChapterIds = [...new Set(items.map((i) => i.chapterId).filter((c): c is string => c != null))];
   if (targetChapterIds.length > 0) {
     const chapters = await db.chapter.findMany({
-      where: { id: { in: targetChapterIds }, tripId },
+      where: { id: { in: targetChapterIds }, tripId, ...planScope(reorderForkId) },
       select: { id: true, startDate: true },
     });
     for (const ch of chapters) {

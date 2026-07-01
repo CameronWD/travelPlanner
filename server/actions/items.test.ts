@@ -387,6 +387,41 @@ describe("updateItem", () => {
     expect(itemUpdateMock).not.toHaveBeenCalled();
   });
 
+  // I2 — a fork item can be reassigned to a stop in its OWN plan (the fork).
+  it("allows reassigning a fork item to a fork stop (same plan)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "fi-1", tripId: "trip-1", forkId: "fork-9" }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "fi-1", title: "Old", category: "SIGHTSEEING" }); // before row
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-f", tripId: "trip-1", forkId: "fork-9" });
+    itemUpdateMock.mockResolvedValue({ id: "fi-1", title: "Visit the Museum", category: "SIGHTSEEING" });
+
+    const result = await updateItem("fi-1", { ...VALID_INPUT, stopId: "stop-f" });
+
+    expect(result.success).toBe(true);
+    expect(itemUpdateMock).toHaveBeenCalled();
+  });
+
+  it("rejects reassigning a fork item to a real-plan stop (cross-plan)", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "fi-2", tripId: "trip-1", forkId: "fork-9" });
+    // Stop is real-plan (forkId null) but item lives in fork-9.
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-r", tripId: "trip-1", forkId: null });
+
+    const result = await updateItem("fi-2", { ...VALID_INPUT, stopId: "stop-r" });
+
+    expect(result.success).toBe(false);
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects reassigning a real-plan item to a fork stop (cross-plan)", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "ri-1", tripId: "trip-1", forkId: null });
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-f", tripId: "trip-1", forkId: "fork-9" });
+
+    const result = await updateItem("ri-1", { ...VALID_INPUT, stopId: "stop-f" });
+
+    expect(result.success).toBe(false);
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
   it("geocodes address on update when address is present", async () => {
     itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
     itemUpdateMock.mockResolvedValue({});

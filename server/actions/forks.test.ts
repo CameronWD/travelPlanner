@@ -130,7 +130,7 @@ const {
       chapter: { create: chapterCreateMock, deleteMany: chapterDeleteManyMock, updateMany: chapterUpdateManyMock },
       stop: { create: stopCreateMock, deleteMany: stopDeleteManyMock, updateMany: stopUpdateManyMock },
       accommodation: { create: accommodationCreateMock, deleteMany: accommodationDeleteManyMock, updateMany: accommodationUpdateManyMock },
-      item: { create: itemCreateMock, deleteMany: itemDeleteManyMock, updateMany: itemUpdateManyMock },
+      item: { findMany: itemFindManyMock, create: itemCreateMock, deleteMany: itemDeleteManyMock, updateMany: itemUpdateManyMock },
       transport: { create: transportCreateMock, deleteMany: transportDeleteManyMock, updateMany: transportUpdateManyMock },
       cost: { create: costCreateMock, deleteMany: costDeleteManyMock, updateMany: costUpdateManyMock },
     };
@@ -405,12 +405,42 @@ describe("createFork", () => {
       expect(accommodationFindManyMock).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
       );
+      // Items: PLACEMENTS only — wishlist ideas (date null) are never copied.
       expect(itemFindManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
+        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null, date: { not: null } }) }),
       );
       expect(costFindManyMock).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
       );
+    });
+
+    it("loads items with date: { not: null } so wishlist ideas are excluded", async () => {
+      await createFork("trip-1", "Plan B");
+
+      const itemCall = itemFindManyMock.mock.calls[0][0];
+      expect(itemCall.where.date).toEqual({ not: null });
+    });
+
+    it("does NOT copy a cost whose owner (a wishlist idea) was not copied", async () => {
+      // An ITEM cost owned by an idea id that is NOT among the copied items must
+      // be skipped — otherwise it would become a dangling-owner (ownerId null)
+      // cost in the fork.
+      costFindManyMock.mockResolvedValue([
+        {
+          id: "cost-idea",
+          estimatedMinor: 5000, actualMinor: null,
+          currency: "AUD", rateToHome: 1,
+          paidAt: null, ownerType: "ITEM", ownerId: "idea-999",
+          label: "Idea cost", category: null,
+        },
+      ]);
+      // No items copied → itemIdMap empty → owner "idea-999" resolves to null.
+      itemFindManyMock.mockResolvedValue([]);
+
+      await createFork("trip-1", "Plan B");
+
+      // The idea-owned cost must NOT be created in the fork.
+      expect(costCreateMock).not.toHaveBeenCalled();
     });
 
     it("creates a Fork row with the correct name", async () => {
@@ -1292,8 +1322,48 @@ describe("promoteFork", () => {
       expect(chapterDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
       expect(transportDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
       expect(accommodationDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
-      expect(itemDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
-      expect(costDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
+      // Items: PLACEMENTS only (date not null) — wishlist ideas (date null) survive.
+      expect(itemDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null, date: { not: null } } });
+      // Costs: everything EXCEPT ITEM costs owned by surviving ideas.
+      expect(costDeleteManyMock).toHaveBeenCalledWith({
+        where: {
+          tripId: "trip-1",
+          forkId: null,
+          NOT: { ownerType: "ITEM", ownerId: { in: [] } },
+        },
+      });
+    });
+
+    it("does NOT delete real-plan wishlist ideas (date null) — only placements", async () => {
+      await promoteFork("fork-9");
+
+      // The item deleteMany must be scoped to placements (date not null), so a
+      // date-null idea is never targeted for deletion.
+      expect(itemDeleteManyMock).toHaveBeenCalledWith({
+        where: { tripId: "trip-1", forkId: null, date: { not: null } },
+      });
+      // It must NOT be the old unscoped shape that would nuke ideas too.
+      expect(itemDeleteManyMock).not.toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
+    });
+
+    it("preserves ITEM costs owned by surviving wishlist ideas", async () => {
+      // Surviving ideas gathered inside the tx.
+      itemFindManyMock.mockResolvedValue([{ id: "idea-1" }, { id: "idea-2" }]);
+
+      await promoteFork("fork-9");
+
+      // The ideas are gathered from real-plan, date-null items.
+      expect(itemFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tripId: "trip-1", forkId: null, date: null } }),
+      );
+      // Cost deleteMany excludes ITEM costs owned by those surviving ideas.
+      expect(costDeleteManyMock).toHaveBeenCalledWith({
+        where: {
+          tripId: "trip-1",
+          forkId: null,
+          NOT: { ownerType: "ITEM", ownerId: { in: ["idea-1", "idea-2"] } },
+        },
+      });
     });
 
     it("retags promoted fork rows to forkId: null for each entity (step 2)", async () => {

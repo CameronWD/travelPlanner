@@ -188,10 +188,11 @@ export async function updateTransport(
   const fromStopId = data.fromStopId || null;
   const toStopId = data.toStopId || null;
 
-  const stopError = await validateStopBelongsToTrip(transport.tripId, [
-    fromStopId,
-    toStopId,
-  ]);
+  const stopError = await validateStopBelongsToTrip(
+    transport.tripId,
+    [fromStopId, toStopId],
+    transport.forkId,
+  );
   if (stopError) return stopError;
 
   const before = await db.transport.findUnique({ where: { id: transportId } });

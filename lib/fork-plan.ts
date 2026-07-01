@@ -12,6 +12,14 @@
  * remaps FK relationships from the `sourceId` / `source*Id` keys.
  */
 
+/**
+ * Soft cap on the number of forks (what-if variants) per trip. Single source of
+ * truth — imported by the server action (createFork) and the ForkSwitcher UI.
+ * Lives here (not in the "use server" forks.ts) because a "use server" module
+ * may only export async functions.
+ */
+export const MAX_FORKS = 4;
+
 // ---------------------------------------------------------------------------
 // Source types
 // ---------------------------------------------------------------------------

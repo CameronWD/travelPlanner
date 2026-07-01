@@ -11,7 +11,7 @@ import {
 import { geocodePlace } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
-import { planScope, type PlanId } from "@/lib/plan-scope";
+import { type PlanId } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types

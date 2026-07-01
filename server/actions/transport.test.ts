@@ -410,6 +410,49 @@ describe("updateTransport", () => {
       }),
     );
   });
+
+  // I1 — a fork transport must validate its stops against the FORK plan.
+  it("scopes stop FK validation to the transport's fork (fork transport → fork stops)", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "ft-1", tripId: "trip-1", forkId: "fork-9" }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "ft-1", mode: "FLIGHT" }); // before row
+    stopFindManyMock.mockResolvedValue([{ id: "stop-f", tripId: "trip-1", forkId: "fork-9" }]);
+    transportUpdateMock.mockResolvedValue({ id: "ft-1", mode: "TRAIN" });
+
+    const result = await updateTransport("ft-1", { mode: "TRAIN", fromStopId: "stop-f" });
+
+    expect(result.success).toBe(true);
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ forkId: "fork-9" }) }),
+    );
+  });
+
+  it("rejects a fork transport pointing at a real-plan stop", async () => {
+    // Validation fails after requireTransportAccess, so only ONE findUnique runs.
+    transportFindUniqueMock.mockResolvedValue({ id: "ft-2", tripId: "trip-1", forkId: "fork-9" });
+    // Fork scope returns no matching stop (the stop is real-plan, forkId null).
+    stopFindManyMock.mockResolvedValue([]);
+
+    const result = await updateTransport("ft-2", { mode: "TRAIN", fromStopId: "stop-real" });
+
+    expect(result.success).toBe(false);
+    expect(transportUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("scopes stop FK validation to the real plan for a real-plan transport", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "rt-1", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "rt-1", mode: "FLIGHT" }); // before row
+    stopFindManyMock.mockResolvedValue([{ id: "stop-r", tripId: "trip-1", forkId: null }]);
+    transportUpdateMock.mockResolvedValue({ id: "rt-1", mode: "TRAIN" });
+
+    const result = await updateTransport("rt-1", { mode: "TRAIN", fromStopId: "stop-r" });
+
+    expect(result.success).toBe(true);
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
