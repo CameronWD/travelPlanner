@@ -909,12 +909,13 @@ export async function reorderStops(
  */
 export async function getTripProjection(
   tripId: string,
+  forkId?: PlanId,
 ): Promise<{ projectedEnd: string | null; hardEndDate: string | null }> {
   await requireTripAccess(tripId);
   const [trip, stops] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, hardEndDate: true } }),
     db.stop.findMany({
-      where: { tripId },
+      where: { tripId, ...planScope(forkId) },
       orderBy: { sortOrder: "asc" },
       select: { id: true, arriveDate: true, departDate: true, nights: true, pinned: true, sortOrder: true },
     }),

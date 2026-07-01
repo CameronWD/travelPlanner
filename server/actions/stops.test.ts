@@ -1117,6 +1117,24 @@ describe("getTripProjection", () => {
     const r = await getTripProjection("trip-1");
     expect(r).toEqual({ projectedEnd: null, hardEndDate: null });
   });
+
+  it("scopes stop query to forkId: null (real plan) when no forkId is provided", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: null, hardEndDate: null });
+    stopFindManyMock.mockResolvedValue([]);
+    await getTripProjection("trip-1");
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
+    );
+  });
+
+  it("scopes stop query to the given forkId when one is supplied", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: null, hardEndDate: null });
+    stopFindManyMock.mockResolvedValue([]);
+    await getTripProjection("trip-1", "fork-9");
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ forkId: "fork-9" }) }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
