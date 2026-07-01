@@ -36,6 +36,7 @@ model User {
 
   // Domain relations
   createdTrips     Trip[]            @relation("TripCreatedBy")
+  forksCreated     Fork[]            @relation("ForkCreatedBy")
   memberships        TripMember[]
   notes              Note[]
   votes              Vote[]
@@ -130,10 +131,35 @@ model Trip {
   chapters       Chapter[]
   activities     Activity[]
 
+  forks          Fork[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([createdById])
+}
+
+model Fork {
+  id          String @id @default(cuid())
+  tripId      String
+  name        String
+  sortOrder   Int    @default(0)
+  createdById String
+
+  trip      Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  createdBy User @relation("ForkCreatedBy", fields: [createdById], references: [id])
+
+  stops          Stop[]
+  chapters       Chapter[]
+  transports     Transport[]
+  accommodations Accommodation[]
+  items          Item[]
+  costs          Cost[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tripId])
 }
 
 model TripMember {
@@ -173,6 +199,7 @@ model Invite {
 model Stop {
   id               String  @id @default(cuid())
   tripId           String
+  forkId           String?
   name             String
   country          String?
   lat              Float?
@@ -188,6 +215,7 @@ model Stop {
   notes            String?
 
   trip           Trip            @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fork           Fork?           @relation(fields: [forkId], references: [id], onDelete: Cascade)
   chapter        Chapter?        @relation(fields: [chapterId], references: [id], onDelete: SetNull)
   accommodations Accommodation[]
   items          Item[]
@@ -198,12 +226,14 @@ model Stop {
   updatedAt DateTime @updatedAt
 
   @@index([tripId])
+  @@index([forkId])
   @@index([chapterId])
 }
 
 model Chapter {
   id        String  @id @default(cuid())
   tripId    String
+  forkId    String?
   name      String
   colour    String  // lib/chapter-colours.ts CHAPTER_COLOUR_VALUES
   startDate String? // "YYYY-MM-DD" — null while rough
@@ -211,17 +241,20 @@ model Chapter {
   sortOrder Int     @default(0)
 
   trip  Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fork  Fork?  @relation(fields: [forkId], references: [id], onDelete: Cascade)
   stops Stop[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([tripId])
+  @@index([forkId])
 }
 
 model Transport {
   id         String    @id @default(cuid())
   tripId     String
+  forkId     String?
   fromStopId String?
   toStopId   String?
   mode       String // lib/enums.ts TRANSPORT_MODES
@@ -238,6 +271,7 @@ model Transport {
   sortOrder  Int       @default(0)
 
   trip     Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fork     Fork? @relation(fields: [forkId], references: [id], onDelete: Cascade)
   fromStop Stop? @relation("TransportFromStop", fields: [fromStopId], references: [id], onDelete: SetNull)
   toStop   Stop? @relation("TransportToStop", fields: [toStopId], references: [id], onDelete: SetNull)
 
@@ -245,11 +279,13 @@ model Transport {
   updatedAt DateTime @updatedAt
 
   @@index([tripId])
+  @@index([forkId])
 }
 
 model Accommodation {
   id           String  @id @default(cuid())
   tripId       String
+  forkId       String?
   stopId       String
   name         String
   address      String?
@@ -260,19 +296,22 @@ model Accommodation {
   lat          Float?
   lng          Float?
 
-  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  stop Stop @relation(fields: [stopId], references: [id], onDelete: Cascade)
+  trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fork Fork? @relation(fields: [forkId], references: [id], onDelete: Cascade)
+  stop Stop  @relation(fields: [stopId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([tripId])
+  @@index([forkId])
   @@index([stopId])
 }
 
 model Item {
   id        String  @id @default(cuid())
   tripId    String
+  forkId    String?
   stopId    String?
   title     String
   category  String // lib/categories.ts CATEGORY_VALUES
@@ -288,6 +327,7 @@ model Item {
   sortOrder Int     @default(0)
 
   trip  Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fork  Fork?  @relation(fields: [forkId], references: [id], onDelete: Cascade)
   stop  Stop?  @relation(fields: [stopId], references: [id], onDelete: SetNull)
   votes Vote[]
 
@@ -295,12 +335,14 @@ model Item {
   updatedAt DateTime @updatedAt
 
   @@index([tripId])
+  @@index([forkId])
   @@index([stopId])
 }
 
 model Cost {
   id             String    @id @default(cuid())
   tripId         String
+  forkId         String?
   estimatedMinor Int // minor units, always present
   actualMinor    Int? // minor units, optional
   currency       String // ISO 4217
@@ -311,12 +353,14 @@ model Cost {
   label          String? // names an OTHER cost (e.g. "Travel insurance")
   category       String?
 
-  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fork Fork? @relation(fields: [forkId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([tripId])
+  @@index([forkId])
   @@index([ownerType, ownerId])
 }
 
