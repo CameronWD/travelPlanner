@@ -10,7 +10,7 @@ import { stopForDate } from "@/lib/itinerary";
 import { geocodePlace } from "@/lib/geocode";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
-import { REAL_PLAN } from "@/lib/plan-scope";
+import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -272,8 +272,13 @@ const scheduleDateSchema = z
 export type ScheduleItemInput = z.infer<typeof scheduleDateSchema>;
 
 /**
- * Schedule an item: set its date (and optional times), moving it from the
- * Wishlist onto the Timeline.
+ * Schedule an item onto the timeline (ADR 0019 copy-in semantics).
+ *
+ * - If the target is a Wishlist idea (date===null && forkId===null): CREATE a
+ *   placed copy in the target plan (forkId param), setting sourceItemId to the
+ *   idea's id. The idea row is left untouched.
+ * - If the target already has a date (it's a placed/scheduled item): keep the
+ *   existing in-place reschedule behaviour (update date/startTime/endTime).
  *
  * The date is allowed to be outside the trip date range — this is a soft rule;
  * we store it as-is and the UI can warn.
@@ -281,8 +286,9 @@ export type ScheduleItemInput = z.infer<typeof scheduleDateSchema>;
 export async function scheduleItem(
   itemId: string,
   input: ScheduleItemInput,
-): Promise<ItemActionResult> {
-  const item = await requireItemAccess(itemId);
+  forkId?: PlanId,
+): Promise<ItemActionResult & { placedItemId?: string }> {
+  const accessItem = await requireItemAccess(itemId);
 
   const parsed = scheduleDateSchema.safeParse(input);
   if (!parsed.success) {
@@ -291,6 +297,59 @@ export async function scheduleItem(
 
   const { date, startTime, endTime } = parsed.data;
 
+  // Fetch the full item row to determine which branch to take.
+  const fullItem = await db.item.findUnique({ where: { id: itemId } });
+  if (!fullItem) notFound();
+
+  const isWishlistIdea = fullItem.date === null && fullItem.forkId === null;
+
+  if (isWishlistIdea) {
+    // --- Copy-in placement branch ---
+    // Compute sortOrder scoped to the target plan (highest existing placed sortOrder + 1).
+    const maxPlaced = await db.item.findFirst({
+      where: {
+        tripId: accessItem.tripId,
+        ...planScope(forkId),
+        date: { not: null },
+      },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
+    const sortOrder = (maxPlaced?.sortOrder ?? -1) + 1;
+
+    const placed = await db.item.create({
+      data: {
+        tripId: accessItem.tripId,
+        forkId: forkId ?? null,
+        sourceItemId: itemId,
+        title: fullItem.title,
+        category: fullItem.category,
+        stopId: fullItem.stopId ?? null,
+        lat: fullItem.lat ?? null,
+        lng: fullItem.lng ?? null,
+        address: fullItem.address ?? null,
+        link: fullItem.link ?? null,
+        notes: fullItem.notes ?? null,
+        date,
+        startTime: startTime ?? null,
+        endTime: endTime ?? null,
+        sortOrder,
+      },
+    });
+
+    await recordActivity({
+      tripId: accessItem.tripId,
+      verb: "CREATED",
+      entityType: "ITEM",
+      entityId: placed.id,
+      entityLabel: entityLabel("ITEM", placed as unknown as Record<string, unknown>),
+    });
+
+    revalidateItemPaths(accessItem.tripId);
+    return { success: true, placedItemId: placed.id };
+  }
+
+  // --- In-place reschedule branch (item already has a date) ---
   const before = await db.item.findUnique({ where: { id: itemId } });
 
   const updated = await db.item.update({
@@ -303,7 +362,7 @@ export async function scheduleItem(
   });
 
   await recordActivity({
-    tripId: item.tripId,
+    tripId: accessItem.tripId,
     verb: "UPDATED",
     entityType: "ITEM",
     entityId: itemId,
@@ -311,39 +370,37 @@ export async function scheduleItem(
     changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
 
-  revalidateItemPaths(item.tripId);
+  revalidateItemPaths(accessItem.tripId);
   return { success: true };
 }
 
 /**
- * Unschedule an item: clear its date and times, returning it to the Wishlist.
+ * Unschedule (remove) a placed item (ADR 0019 copy-in semantics).
+ *
+ * Deletes the placed copy. The originating wishlist idea (if any) is left
+ * intact. Directly-created timeline items (sourceItemId===null) are also
+ * deleted — they have no idea to fall back to ("remove from timeline").
  */
 export async function unscheduleItem(
   itemId: string,
 ): Promise<ItemActionResult> {
-  const item = await requireItemAccess(itemId);
+  const accessItem = await requireItemAccess(itemId);
 
-  const before = await db.item.findUnique({ where: { id: itemId } });
+  // Fetch the full item so we have its title for the activity log.
+  const fullItem = await db.item.findUnique({ where: { id: itemId } });
+  if (!fullItem) notFound();
 
-  const updated = await db.item.update({
-    where: { id: itemId },
-    data: {
-      date: null,
-      startTime: null,
-      endTime: null,
-    },
-  });
+  await db.item.delete({ where: { id: itemId } });
 
   await recordActivity({
-    tripId: item.tripId,
-    verb: "UPDATED",
+    tripId: accessItem.tripId,
+    verb: "DELETED",
     entityType: "ITEM",
     entityId: itemId,
-    entityLabel: entityLabel("ITEM", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+    entityLabel: entityLabel("ITEM", fullItem as unknown as Record<string, unknown>),
   });
 
-  revalidateItemPaths(item.tripId);
+  revalidateItemPaths(accessItem.tripId);
   return { success: true };
 }
 
