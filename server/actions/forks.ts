@@ -13,6 +13,29 @@ import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } 
 
 const MAX_FORKS = 4;
 
+// ---------------------------------------------------------------------------
+// listForks
+// ---------------------------------------------------------------------------
+
+export interface ForkListItem {
+  id: string;
+  name: string;
+  sortOrder: number;
+}
+
+/**
+ * List all forks for a trip in sortOrder.
+ * Used by the trip layout to populate the ForkSwitcher.
+ */
+export async function listForks(tripId: string): Promise<ForkListItem[]> {
+  await requireTripAccess(tripId);
+  return db.fork.findMany({
+    where: { tripId },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, name: true, sortOrder: true },
+  });
+}
+
 export type CreateForkResult =
   | { success: true; forkId: string }
   | { success: false; error: string };
