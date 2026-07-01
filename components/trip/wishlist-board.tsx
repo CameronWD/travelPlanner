@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Heart, MapPin } from "lucide-react";
+import { Check, Heart, MapPin } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ItemCard, type ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
@@ -48,6 +48,10 @@ export interface WishlistBoardProps {
   currentUserId?: string;
   /** Whether the AI features are configured (key is set). */
   aiConfigured?: boolean;
+  /** Active fork plan id — scheduling places the copy into this fork. Null/undefined = real plan. */
+  activeForkId?: string | null;
+  /** Idea ids that already have a scheduled copy in the active plan. */
+  placedIdeaIds?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -65,7 +69,13 @@ export function WishlistBoard({
   votesByItemId,
   currentUserId,
   aiConfigured = false,
+  activeForkId,
+  placedIdeaIds,
 }: WishlistBoardProps) {
+  const placedSet = React.useMemo(
+    () => new Set(placedIdeaIds ?? []),
+    [placedIdeaIds],
+  );
   const { confirm, dialog } = useConfirm();
   const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
 
@@ -313,21 +323,32 @@ export function WishlistBoard({
                   <AnimatedList className="flex flex-col gap-2">
                     {stopItems.map((item) => (
                       <AnimatedItem key={item.id}>
-                        <ItemCard
-                          item={item}
-                          mode="wishlist"
-                          isPending={pendingId === item.id}
-                          onEdit={setEditingItem}
-                          onDelete={handleDelete}
-                          onSchedule={setSchedulingItem}
-                          onUnschedule={handleUnschedule}
-                          costs={costsByItemId?.get(item.id)}
-                          tripId={tripId}
-                          homeCurrency={homeCurrency}
-                          notes={notesByItemId?.get(item.id) ?? []}
-                          votes={votesByItemId?.get(item.id) ?? []}
-                          currentUserId={currentUserId}
-                        />
+                        <div className="flex flex-col gap-1">
+                          <ItemCard
+                            item={item}
+                            mode="wishlist"
+                            isPending={pendingId === item.id}
+                            onEdit={setEditingItem}
+                            onDelete={handleDelete}
+                            onSchedule={setSchedulingItem}
+                            onUnschedule={handleUnschedule}
+                            costs={costsByItemId?.get(item.id)}
+                            tripId={tripId}
+                            homeCurrency={homeCurrency}
+                            notes={notesByItemId?.get(item.id) ?? []}
+                            votes={votesByItemId?.get(item.id) ?? []}
+                            currentUserId={currentUserId}
+                          />
+                          {placedSet.has(item.id) && (
+                            <span
+                              data-testid={`placed-marker-${item.id}`}
+                              className="inline-flex w-fit items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                            >
+                              <Check className="size-3" aria-hidden="true" />
+                              in this plan
+                            </span>
+                          )}
+                        </div>
                       </AnimatedItem>
                     ))}
                   </AnimatedList>
@@ -351,21 +372,32 @@ export function WishlistBoard({
               <AnimatedList className="flex flex-col gap-2">
                 {anywhereItems.map((item) => (
                   <AnimatedItem key={item.id}>
-                    <ItemCard
-                      item={item}
-                      mode="wishlist"
-                      isPending={pendingId === item.id}
-                      onEdit={setEditingItem}
-                      onDelete={handleDelete}
-                      onSchedule={setSchedulingItem}
-                      onUnschedule={handleUnschedule}
-                      costs={costsByItemId?.get(item.id)}
-                      tripId={tripId}
-                      homeCurrency={homeCurrency}
-                      notes={notesByItemId?.get(item.id) ?? []}
-                      votes={votesByItemId?.get(item.id) ?? []}
-                      currentUserId={currentUserId}
-                    />
+                    <div className="flex flex-col gap-1">
+                      <ItemCard
+                        item={item}
+                        mode="wishlist"
+                        isPending={pendingId === item.id}
+                        onEdit={setEditingItem}
+                        onDelete={handleDelete}
+                        onSchedule={setSchedulingItem}
+                        onUnschedule={handleUnschedule}
+                        costs={costsByItemId?.get(item.id)}
+                        tripId={tripId}
+                        homeCurrency={homeCurrency}
+                        notes={notesByItemId?.get(item.id) ?? []}
+                        votes={votesByItemId?.get(item.id) ?? []}
+                        currentUserId={currentUserId}
+                      />
+                      {placedSet.has(item.id) && (
+                        <span
+                          data-testid={`placed-marker-${item.id}`}
+                          className="inline-flex w-fit items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                        >
+                          <Check className="size-3" aria-hidden="true" />
+                          in this plan
+                        </span>
+                      )}
+                    </div>
                   </AnimatedItem>
                 ))}
               </AnimatedList>
@@ -396,6 +428,7 @@ export function WishlistBoard({
           itemId={schedulingItem.id}
           itemTitle={schedulingItem.title}
           defaultDate={defaultScheduleDate}
+          forkId={activeForkId}
           open={Boolean(schedulingItem)}
           onOpenChange={(open) => {
             if (!open) setSchedulingItem(null);
