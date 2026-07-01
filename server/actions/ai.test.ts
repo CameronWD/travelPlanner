@@ -142,6 +142,25 @@ describe("aiSuggestActivities", () => {
     });
   });
 
+  it("scopes existing-item dedup read to real plan (forkId: null)", async () => {
+    stopFindUniqueMock.mockResolvedValue({
+      id: "stop-1",
+      name: "Paris",
+      country: "France",
+      tripId: "trip-1",
+    });
+    itemFindManyMock.mockResolvedValue([]);
+    suggestActivitiesMock.mockResolvedValue({ ok: true, data: { suggestions: [] } });
+
+    await aiSuggestActivities("trip-1", "stop-1");
+
+    expect(itemFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", stopId: "stop-1", forkId: null }),
+      }),
+    );
+  });
+
   it("forwards the lib result", async () => {
     stopFindUniqueMock.mockResolvedValue({
       id: "stop-1",

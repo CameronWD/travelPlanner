@@ -65,6 +65,29 @@ describe("searchTrip", () => {
     );
   });
 
+  it("scopes all four reads to the real plan (forkId: null)", async () => {
+    requireTripAccessMock.mockResolvedValue({ user: { id: "u1" }, membership: { role: "owner" } });
+    stopFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+
+    await searchTrip("t1", "rome");
+
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "t1", forkId: null }) }),
+    );
+    expect(itemFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "t1", forkId: null }) }),
+    );
+    expect(transportFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "t1", forkId: null }) }),
+    );
+    expect(accommodationFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "t1", forkId: null }) }),
+    );
+  });
+
   it("routes unscheduled items (date=null) to /wishlist", async () => {
     requireTripAccessMock.mockResolvedValue({ user: { id: "u1" }, membership: { role: "owner" } });
     stopFindManyMock.mockResolvedValue([]);

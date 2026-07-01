@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireTripAccess, requireUser } from "@/lib/guards";
+import { REAL_PLAN } from "@/lib/plan-scope";
 
 export interface SearchHit {
   type: "stop" | "item" | "transport" | "accommodation";
@@ -23,22 +24,22 @@ export async function searchTrip(tripId: string, query: string): Promise<SearchH
 
   const [stops, items, transports, accommodations] = await Promise.all([
     db.stop.findMany({
-      where: { tripId, name: ci },
+      where: { tripId, ...REAL_PLAN, name: ci },
       take: TAKE,
       select: { id: true, name: true },
     }),
     db.item.findMany({
-      where: { tripId, title: ci },
+      where: { tripId, ...REAL_PLAN, title: ci },
       take: TAKE,
       select: { id: true, title: true, date: true, stopId: true },
     }),
     db.transport.findMany({
-      where: { tripId, OR: [{ depPlace: ci }, { arrPlace: ci }, { reference: ci }] },
+      where: { tripId, ...REAL_PLAN, OR: [{ depPlace: ci }, { arrPlace: ci }, { reference: ci }] },
       take: TAKE,
       select: { id: true, depPlace: true, arrPlace: true },
     }),
     db.accommodation.findMany({
-      where: { tripId, name: ci },
+      where: { tripId, ...REAL_PLAN, name: ci },
       take: TAKE,
       select: { id: true, name: true },
     }),

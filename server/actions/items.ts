@@ -447,7 +447,9 @@ export async function rescheduleItem(
 
   const stops = await db.stop.findMany({
     // Only scheduled stops can cover a calendar day.
-    where: { tripId: item.tripId, arriveDate: { not: null } },
+    // Scope to the same plan as the item being rescheduled so fork placements
+    // validate against fork stops, and real-plan moves against real-plan stops.
+    where: { tripId: item.tripId, ...planScope(item.forkId), arriveDate: { not: null } },
     select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
   });
 
