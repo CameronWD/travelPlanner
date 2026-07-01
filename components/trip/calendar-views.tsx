@@ -158,7 +158,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems 
             >
               <ChevronLeft className="size-4" aria-hidden="true" />
             </Button>
-            <span className="min-w-32 text-center font-display text-sm font-semibold">
+            <span className="min-w-24 sm:min-w-32 truncate text-center font-display text-sm font-semibold">
               {formatMonthYear(monthAnchor)}
             </span>
             <Button

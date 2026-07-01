@@ -50,3 +50,36 @@ describe("MonthGrid — location hero", () => {
     expect(screen.queryByText("Paris")).not.toBeInTheDocument();
   });
 });
+
+describe("MonthGrid — mobile containment (Step 1)", () => {
+  it("day-grid element has min-w-[560px] class", () => {
+    const { container } = render(
+      <MonthGrid
+        tripId="t1"
+        monthAnchorISO="2026-07-01"
+        days={[]}
+        tripStart="2026-07-01"
+        tripEnd="2026-07-31"
+      />,
+    );
+    // The day-cells grid is the second grid-cols-7 element (after the weekday header)
+    const grids = container.querySelectorAll(".grid-cols-7");
+    const dayGrid = grids[1];
+    expect(dayGrid).toBeTruthy();
+    expect(dayGrid.classList.contains("min-w-[560px]")).toBe(true);
+  });
+
+  it("scroll wrapper has overflow-x-auto class", () => {
+    const { container } = render(
+      <MonthGrid
+        tripId="t1"
+        monthAnchorISO="2026-07-01"
+        days={[]}
+        tripStart="2026-07-01"
+        tripEnd="2026-07-31"
+      />,
+    );
+    const wrapper = container.querySelector(".overflow-x-auto");
+    expect(wrapper).toBeTruthy();
+  });
+});

@@ -35,11 +35,11 @@ export function AgendaView({ tripId, days }: AgendaViewProps) {
                 >
                   {formatLongDate(day.dateISO)}
                   {isToday && (
-                    <Badge variant="default" className="text-[10px] px-1.5 py-0 font-medium">
+                    <Badge variant="default" className="text-xs sm:text-[10px] px-1.5 py-0 font-medium">
                       Today
                     </Badge>
                   )}
-                  <span className="text-xs text-muted-foreground group-hover:text-primary/70 transition-colors">
+                  <span className="hidden sm:inline text-xs text-muted-foreground group-hover:text-primary/70 transition-colors">
                     →
                   </span>
                 </Link>
