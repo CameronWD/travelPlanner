@@ -148,6 +148,7 @@ describe("ForkSwitcher", () => {
   it("opens a name dialog (not immediate createFork) when New variant is clicked", async () => {
     const user = userEvent.setup();
     render(<ForkSwitcher {...baseProps} forks={[]} />);
+    await user.click(screen.getByRole("button", { name: /open plan switcher/i }));
     await user.click(screen.getByText("New variant"));
     // Dialog should appear — createFork not yet called
     expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -157,6 +158,7 @@ describe("ForkSwitcher", () => {
   it("calls createFork with the typed name and navigates to the new fork", async () => {
     const user = userEvent.setup();
     render(<ForkSwitcher {...baseProps} forks={[]} />);
+    await user.click(screen.getByRole("button", { name: /open plan switcher/i }));
     await user.click(screen.getByText("New variant"));
     const input = await screen.findByLabelText(/variant name/i);
     await user.clear(input);
