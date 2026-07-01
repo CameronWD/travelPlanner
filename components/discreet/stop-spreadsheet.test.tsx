@@ -89,21 +89,31 @@ describe("StopSpreadsheet (inline revert feedback)", () => {
   });
 
   it("clears aria-invalid after ~3 seconds", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.mocked(setStopNotes).mockResolvedValue({ success: false, errors: {} });
-    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
-    fireEvent.click(screen.getByText("arrive pm"));
-    const input = screen.getByDisplayValue("arrive pm");
-    fireEvent.change(input, { target: { value: "bad value" } });
-    fireEvent.keyDown(input, { key: "Enter" });
-    // Wait for the async save to complete (real time still advances for promises)
-    await waitFor(() => expect(screen.getByText("arrive pm")).toBeInTheDocument());
-    const cell = screen.getByText("arrive pm").closest("td");
-    expect(cell).toHaveAttribute("aria-invalid", "true");
-    // Advance past the 3-second auto-clear
-    await act(async () => { vi.advanceTimersByTime(3100); });
-    expect(cell).not.toHaveAttribute("aria-invalid", "true");
-    vi.useRealTimers();
+    // Fake timers WITHOUT shouldAdvanceTime: we advance the 3s auto-clear
+    // manually below. (shouldAdvanceTime let real wall-clock — which balloons
+    // under CI/sandbox load — fire the timer early and race the assertion.)
+    vi.useFakeTimers();
+    try {
+      vi.mocked(setStopNotes).mockResolvedValue({ success: false, errors: {} });
+      render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+      fireEvent.click(screen.getByText("arrive pm"));
+      const input = screen.getByDisplayValue("arrive pm");
+      fireEvent.change(input, { target: { value: "bad value" } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      // Flush the async save rejection + transition deterministically. We do
+      // NOT use waitFor here: with fake timers installed it advances them while
+      // polling, which would fire the very 3s auto-clear this test is checking.
+      await act(async () => {});
+      const cell = screen.getByText("arrive pm").closest("td");
+      expect(cell).toHaveAttribute("aria-invalid", "true");
+      // Deterministically fire the 3s auto-clear.
+      await act(async () => { vi.advanceTimersByTime(3100); });
+      expect(cell).not.toHaveAttribute("aria-invalid", "true");
+    } finally {
+      // Restore real timers even if an assertion throws, so fake timers can
+      // never leak into sibling tests in this file.
+      vi.useRealTimers();
+    }
   });
 
   it("marks the nights cell aria-invalid when setStopNights is rejected", async () => {
