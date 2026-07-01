@@ -566,8 +566,8 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
 
   // CONFIRMATION — real-plan transports with reference
   for (const transport of realTransports) {
-    if ((transport as { reference?: string | null }).reference !== null && (transport as { reference?: string | null }).reference !== undefined) {
-      lossList.push({ kind: "CONFIRMATION", label: `${transport.mode} ref: ${(transport as { reference?: string | null }).reference}` });
+    if (transport.reference !== null && transport.reference !== undefined) {
+      lossList.push({ kind: "CONFIRMATION", label: `${transport.mode} ref: ${transport.reference}` });
     }
   }
 
@@ -696,9 +696,9 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
   // 5. Revalidate all live surfaces
   revalidatePath(`/trips/${tripId}`);
   revalidatePath(`/trips/${tripId}/plan`);
-  revalidatePath(`/calendar`);
-  revalidatePath(`/budget`);
-  revalidatePath(`/summary`);
+  revalidatePath(`/trips/${tripId}/calendar`);
+  revalidatePath(`/trips/${tripId}/budget`);
+  revalidatePath(`/trips/${tripId}/summary`);
   revalidatePath(`/trips/${tripId}/compare`);
 
   return { success: true };

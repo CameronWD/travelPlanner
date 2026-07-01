@@ -1366,9 +1366,9 @@ describe("promoteFork", () => {
 
       expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
       expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/plan");
-      expect(revalidatePathMock).toHaveBeenCalledWith("/calendar");
-      expect(revalidatePathMock).toHaveBeenCalledWith("/budget");
-      expect(revalidatePathMock).toHaveBeenCalledWith("/summary");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/calendar");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/budget");
+      expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/summary");
       expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/compare");
     });
   });
