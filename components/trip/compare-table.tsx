@@ -136,8 +136,8 @@ function RouteCell({ plan }: { plan: ComparisonPlan }) {
   return (
     <div className="flex flex-col gap-1 min-w-[180px]">
       {route.map((stop, i) => (
-        <div key={i} className="flex items-baseline gap-1 text-sm">
-          <span className="font-medium text-foreground">{stop.name}</span>
+        <div key={i} className="flex items-baseline gap-1 min-w-0 text-sm">
+          <span className="font-medium text-foreground truncate">{stop.name}</span>
           {stop.country && (
             <span className="text-xs text-muted-foreground">{stop.country}</span>
           )}
@@ -149,7 +149,7 @@ function RouteCell({ plan }: { plan: ComparisonPlan }) {
         </div>
       ))}
       {countries.length > 0 && (
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-xs text-muted-foreground mt-1 truncate">
           {countries.join(" · ")}
         </p>
       )}
@@ -329,8 +329,52 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
 
   return (
     <>
+      {/* Mobile: stacked cards (real plan + one card per fork). Desktop keeps the table. */}
+      <div className="flex flex-col gap-4 sm:hidden">
+        {plans.map((plan, planIndex) => {
+          const isReal = planIndex === 0;
+          return (
+            <div
+              key={plan.forkId ?? "real"}
+              className="rounded-2xl border border-border bg-card shadow-soft"
+            >
+              <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+                <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+                  {plan.name}
+                </span>
+                {!isReal && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0 text-xs"
+                    onClick={() => setPromoteOpenFor(plan.forkId)}
+                    aria-label={`Promote ${plan.name}`}
+                  >
+                    <GitMerge className="mr-1 size-3.5 shrink-0" aria-hidden="true" />
+                    Promote
+                  </Button>
+                )}
+              </div>
+              <dl className="divide-y divide-border">
+                {METRIC_ROWS.map((row) => (
+                  <div key={row.id} className="flex items-start justify-between gap-3 px-4 py-2">
+                    <dt className="shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {row.label}
+                    </dt>
+                    <dd className="flex min-w-0 flex-col items-end gap-1 text-right">
+                      {renderCell(plan, row.id)}
+                      {!isReal && renderDelta(plan, row.id)}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          );
+        })}
+      </div>
+
       {/* Horizontal-scroll container — wide content stays inside; page never scrolls sideways */}
-      <div className="overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
+      <div className="hidden sm:block overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
         <table className="min-w-full border-collapse">
           <thead>
             <tr className="border-b border-border bg-muted/50">
@@ -353,8 +397,8 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
                   scope="col"
                   className="px-4 py-3 text-left min-w-[200px]"
                 >
-                  <div className="flex flex-col gap-2">
-                    <span className="text-sm font-semibold text-foreground">
+                  <div className="flex flex-col gap-2 min-w-0">
+                    <span className="text-sm font-semibold text-foreground truncate">
                       {plan.name}
                     </span>
                     <Button

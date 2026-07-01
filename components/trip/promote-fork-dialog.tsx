@@ -218,11 +218,11 @@ function PromoteForkDialogInner({
           </div>
           <ul className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3">
             {lossList.map((item, idx) => (
-              <li key={idx} className="flex items-start gap-2 text-sm">
+              <li key={idx} className="flex items-start gap-2 min-w-0 text-sm">
                 <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 text-xs font-medium text-destructive">
                   {KIND_LABELS[item.kind]}
                 </span>
-                <span className="text-foreground">{item.label}</span>
+                <span className="min-w-0 truncate text-foreground">{item.label}</span>
               </li>
             ))}
           </ul>
