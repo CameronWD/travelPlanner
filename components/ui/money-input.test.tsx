@@ -75,8 +75,15 @@ describe("MoneyInput", () => {
     expect(screen.getByLabelText("Amount")).toHaveClass("min-w-0");
   });
 
-  it("currency trigger has w-24 class for the narrower picker width", () => {
+  it("currency trigger has w-20 class for the narrower picker width on mobile", () => {
     render(<MoneyInput currency="EUR" amount="" onValueChange={() => {}} />);
-    expect(screen.getByLabelText("Currency")).toHaveClass("w-24");
+    expect(screen.getByLabelText("Currency")).toHaveClass("w-20");
+  });
+
+  it("currency trigger has responsive width classes: w-20 mobile, sm:w-24 desktop", () => {
+    render(<MoneyInput currency="EUR" amount="" onValueChange={() => {}} />);
+    const trigger = screen.getByLabelText("Currency");
+    expect(trigger.className).toContain("w-20");
+    expect(trigger.className).toContain("sm:w-24");
   });
 });

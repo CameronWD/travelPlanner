@@ -40,7 +40,7 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
         <div className="flex flex-col gap-3">
           {/* Estimated total */}
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm text-muted-foreground">Estimated total</span>
+            <span className="text-sm text-muted-foreground min-w-0 truncate">Estimated total</span>
             <span className="tabular-nums font-medium">
               {formatMoney(estimatedTotalMinor, homeCurrency)}
             </span>
@@ -48,7 +48,7 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
 
           {/* Paid so far with variance chip */}
           <div className="flex items-start justify-between gap-2">
-            <span className="text-sm font-medium">Paid so far</span>
+            <span className="text-sm font-medium min-w-0 truncate">Paid so far</span>
             <div className="flex flex-col items-end gap-0.5">
               <span className="tabular-nums font-semibold">
                 {formatMoney(paidSoFarMinor, homeCurrency)}
@@ -82,7 +82,7 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
 
           {/* Estimated remaining */}
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm text-muted-foreground">Est. remaining</span>
+            <span className="text-sm text-muted-foreground min-w-0 truncate">Est. remaining</span>
             <span className="tabular-nums font-medium">
               {formatMoney(estimatedRemainingMinor, homeCurrency)}
             </span>
