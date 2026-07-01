@@ -461,7 +461,7 @@ describe("createFork", () => {
           id: "acc-src",
           stopId: "stop-src",
           name: "Hotel Roma",
-          address: null, checkIn: null, checkOut: null, confirmation: null,
+          address: null, checkIn: "2026-10-01", checkOut: "2026-10-04", confirmation: null,
           notes: null, lat: null, lng: null,
         },
       ]);

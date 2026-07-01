@@ -117,15 +117,14 @@ export async function createFork(
     const accIdMap = new Map<string, string>(); // sourceAccId → newAccId
     for (let i = 0; i < plan.accommodations.length; i++) {
       const a = plan.accommodations[i];
+      const newStopId = a.sourceStopId ? stopIdMap.get(a.sourceStopId) : undefined;
+      if (!newStopId) throw new Error(`createFork: accommodation references uncopied stop ${a.sourceStopId}`);
       const created = await tx.accommodation.create({
         data: {
           tripId,
           forkId,
-          stopId: a.sourceStopId ? (stopIdMap.get(a.sourceStopId) ?? a.sourceStopId) : "",
+          stopId: newStopId,
           ...a.data,
-          // DB schema: checkIn/checkOut are String (non-nullable)
-          checkIn: a.data.checkIn ?? "",
-          checkOut: a.data.checkOut ?? "",
         },
       });
       // Key by the SOURCE accommodation id from the original array
@@ -181,7 +180,6 @@ export async function createFork(
           tripId,
           forkId,
           ...c.data,
-          estimatedMinor: c.data.estimatedMinor ?? 0,
           ownerId: newOwnerId,
         },
       });

@@ -65,8 +65,8 @@ export interface ForkSourceAccommodation {
   stopId: string | null;
   name: string;
   address: string | null;
-  checkIn: string | null;
-  checkOut: string | null;
+  checkIn: string;
+  checkOut: string;
   confirmation: string | null;
   notes: string | null;
   lat: number | null;
@@ -92,7 +92,7 @@ export interface ForkSourceItem {
 
 export interface ForkSourceCost {
   id: string;
-  estimatedMinor: number | null;
+  estimatedMinor: number;
   actualMinor: number | null;
   currency: string;
   rateToHome: number | null;
@@ -168,8 +168,8 @@ export interface ForkPlan {
     data: {
       name: string;
       address: string | null;
-      checkIn: string | null;
-      checkOut: string | null;
+      checkIn: string;
+      checkOut: string;
       confirmation: string | null;
       notes: string | null;
       lat: number | null;
@@ -198,7 +198,7 @@ export interface ForkPlan {
     sourceOwnerType: string;
     sourceOwnerId: string | null;
     data: {
-      estimatedMinor: number | null;
+      estimatedMinor: number;
       actualMinor: null;
       currency: string;
       rateToHome: number | null;
