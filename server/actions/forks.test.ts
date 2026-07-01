@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   requireTripAccessMock,
+  requireForkAccessMock,
   assertForkingAllowedMock,
   computeTripPhaseMock,
   todayISOMock,
@@ -25,6 +26,8 @@ const {
   revalidatePathMock,
   forkCountMock,
   forkCreateMock,
+  forkUpdateMock,
+  forkDeleteMock,
   chapterFindManyMock,
   chapterCreateMock,
   stopFindManyMock,
@@ -42,6 +45,8 @@ const {
 } = vi.hoisted(() => {
   const forkCountMock = vi.fn();
   const forkCreateMock = vi.fn();
+  const forkUpdateMock = vi.fn();
+  const forkDeleteMock = vi.fn();
   const chapterFindManyMock = vi.fn().mockResolvedValue([]);
   const chapterCreateMock = vi.fn();
   const stopFindManyMock = vi.fn().mockResolvedValue([]);
@@ -75,6 +80,11 @@ const {
       user: { id: "user-1" },
       membership: { role: "owner" },
     }),
+    requireForkAccessMock: vi.fn().mockResolvedValue({
+      user: { id: "user-1" },
+      fork: { id: "fork-1", tripId: "trip-1", name: "Variant 1" },
+      trip: { id: "trip-1" },
+    }),
     assertForkingAllowedMock: vi.fn(), // no-op by default (forking allowed)
     computeTripPhaseMock: vi.fn().mockReturnValue("planning"),
     todayISOMock: vi.fn().mockReturnValue("2026-07-01"),
@@ -82,6 +92,8 @@ const {
     revalidatePathMock: vi.fn(),
     forkCountMock,
     forkCreateMock,
+    forkUpdateMock,
+    forkDeleteMock,
     chapterFindManyMock,
     chapterCreateMock,
     stopFindManyMock,
@@ -101,6 +113,7 @@ const {
 
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: requireTripAccessMock,
+  requireForkAccess: requireForkAccessMock,
   assertForkingAllowed: assertForkingAllowedMock,
 }));
 
@@ -123,7 +136,7 @@ vi.mock("next/cache", () => ({
 vi.mock("@/lib/db", () => ({
   db: {
     $transaction: txMock,
-    fork: { count: forkCountMock, create: forkCreateMock },
+    fork: { count: forkCountMock, create: forkCreateMock, update: forkUpdateMock, delete: forkDeleteMock },
     chapter: { findMany: chapterFindManyMock, create: chapterCreateMock },
     stop: { findMany: stopFindManyMock, create: stopCreateMock },
     accommodation: { findMany: accommodationFindManyMock, create: accommodationCreateMock },
@@ -138,7 +151,7 @@ vi.mock("@/lib/db", () => ({
 // Import SUT after mocks are registered
 // ---------------------------------------------------------------------------
 
-import { createFork } from "./forks";
+import { createFork, renameFork, discardFork } from "./forks";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -516,5 +529,136 @@ describe("createFork", () => {
         }),
       );
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renameFork
+// ---------------------------------------------------------------------------
+
+describe("renameFork", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    requireForkAccessMock.mockResolvedValue({
+      user: { id: "user-1" },
+      fork: { id: "fork-1", tripId: "trip-1", name: "Variant 1" },
+      trip: { id: "trip-1" },
+    });
+  });
+
+  it("calls requireForkAccess with the forkId", async () => {
+    forkUpdateMock.mockResolvedValue({ id: "fork-1", name: "New Name", tripId: "trip-1" });
+
+    await renameFork("fork-1", "New Name");
+
+    expect(requireForkAccessMock).toHaveBeenCalledWith("fork-1");
+  });
+
+  it("returns error for empty name (empty string)", async () => {
+    const res = await renameFork("fork-1", "");
+
+    expect(res).toEqual({ success: false, error: expect.any(String) });
+    expect(forkUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("returns error for whitespace-only name", async () => {
+    const res = await renameFork("fork-1", "   ");
+
+    expect(res).toEqual({ success: false, error: expect.any(String) });
+    expect(forkUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("trims and updates with valid name", async () => {
+    forkUpdateMock.mockResolvedValue({ id: "fork-1", name: "Trimmed Name", tripId: "trip-1" });
+
+    const res = await renameFork("fork-1", "  Trimmed Name  ");
+
+    expect(res).toEqual({ success: true });
+    expect(forkUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "fork-1" },
+        data: { name: "Trimmed Name" },
+      }),
+    );
+  });
+
+  it("logs UPDATED FORK activity with trimmed name", async () => {
+    forkUpdateMock.mockResolvedValue({ id: "fork-1", name: "Plan B", tripId: "trip-1" });
+
+    await renameFork("fork-1", "Plan B");
+
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "UPDATED",
+        entityType: "FORK",
+        entityId: "fork-1",
+        entityLabel: "Plan B",
+      }),
+    );
+  });
+
+  it("revalidates both trip paths", async () => {
+    forkUpdateMock.mockResolvedValue({ id: "fork-1", name: "Plan B", tripId: "trip-1" });
+
+    await renameFork("fork-1", "Plan B");
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/compare");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// discardFork
+// ---------------------------------------------------------------------------
+
+describe("discardFork", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    requireForkAccessMock.mockResolvedValue({
+      user: { id: "user-1" },
+      fork: { id: "fork-1", tripId: "trip-1", name: "Variant 1" },
+      trip: { id: "trip-1" },
+    });
+  });
+
+  it("calls requireForkAccess with the forkId", async () => {
+    forkDeleteMock.mockResolvedValue({ id: "fork-1", name: "Variant 1", tripId: "trip-1" });
+
+    await discardFork("fork-1");
+
+    expect(requireForkAccessMock).toHaveBeenCalledWith("fork-1");
+  });
+
+  it("deletes the fork by id", async () => {
+    forkDeleteMock.mockResolvedValue({ id: "fork-1", name: "Variant 1", tripId: "trip-1" });
+
+    const res = await discardFork("fork-1");
+
+    expect(res).toEqual({ success: true });
+    expect(forkDeleteMock).toHaveBeenCalledWith({ where: { id: "fork-1" } });
+  });
+
+  it("logs DELETED FORK activity with the fork name from requireForkAccess", async () => {
+    forkDeleteMock.mockResolvedValue({ id: "fork-1", name: "Variant 1", tripId: "trip-1" });
+
+    await discardFork("fork-1");
+
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: "DELETED",
+        entityType: "FORK",
+        entityId: "fork-1",
+        entityLabel: "Variant 1",
+      }),
+    );
+  });
+
+  it("revalidates both trip paths", async () => {
+    forkDeleteMock.mockResolvedValue({ id: "fork-1", name: "Variant 1", tripId: "trip-1" });
+
+    await discardFork("fork-1");
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/compare");
   });
 });

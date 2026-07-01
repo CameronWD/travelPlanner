@@ -60,6 +60,7 @@ export async function requireForkAccess(forkId: string) {
     select: {
       id: true,
       tripId: true,
+      name: true,
       trip: { select: { id: true, startDate: true, endDate: true } },
     },
   });

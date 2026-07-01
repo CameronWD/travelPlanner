@@ -1,8 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireTripAccess, assertForkingAllowed } from "@/lib/guards";
+import { requireTripAccess, requireForkAccess, assertForkingAllowed } from "@/lib/guards";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { buildForkPlan } from "@/lib/fork-plan";
 import { recordActivity } from "@/server/actions/activity";
@@ -202,4 +203,86 @@ export async function createFork(
   revalidatePath(`/trips/${tripId}/compare`);
 
   return { success: true, forkId: fork.id };
+}
+
+// ---------------------------------------------------------------------------
+// Result type shared by renameFork / discardFork
+// ---------------------------------------------------------------------------
+
+export type ForkMutationResult = { success: true } | { success: false; error: string };
+
+// ---------------------------------------------------------------------------
+// renameFork
+// ---------------------------------------------------------------------------
+
+const renameSchema = z.object({
+  name: z.string().trim().min(1, "Name must not be empty"),
+});
+
+/**
+ * Rename an existing fork.
+ */
+export async function renameFork(
+  forkId: string,
+  name: string,
+): Promise<ForkMutationResult> {
+  // 1. Parse & validate
+  const parsed = renameSchema.safeParse({ name });
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Invalid name" };
+  }
+  const trimmedName = parsed.data.name;
+
+  // 2. Auth + existence check
+  const { fork } = await requireForkAccess(forkId);
+  const tripId = fork.tripId;
+
+  // 3. Persist
+  await db.fork.update({ where: { id: forkId }, data: { name: trimmedName } });
+
+  // 4. Activity log
+  await recordActivity({
+    tripId,
+    verb: "UPDATED",
+    entityType: "FORK",
+    entityId: forkId,
+    entityLabel: trimmedName,
+  });
+
+  // 5. Cache invalidation
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/trips/${tripId}/compare`);
+
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// discardFork
+// ---------------------------------------------------------------------------
+
+/**
+ * Permanently delete a fork (cascade removes its plan rows).
+ */
+export async function discardFork(forkId: string): Promise<ForkMutationResult> {
+  // 1. Auth + existence check — capture fork name before deletion
+  const { fork } = await requireForkAccess(forkId);
+  const { tripId, name } = fork;
+
+  // 2. Delete (schema cascade handles child rows)
+  await db.fork.delete({ where: { id: forkId } });
+
+  // 3. Activity log
+  await recordActivity({
+    tripId,
+    verb: "DELETED",
+    entityType: "FORK",
+    entityId: forkId,
+    entityLabel: name,
+  });
+
+  // 4. Cache invalidation
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/trips/${tripId}/compare`);
+
+  return { success: true };
 }
