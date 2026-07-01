@@ -338,7 +338,7 @@ export default async function SharePage({
                           </span>
                           {transport.depPlace && (
                             <div className="min-w-0 flex items-center gap-1">
-                              <span className="truncate">from {transport.depPlace}</span>
+                              <span className="min-w-0 truncate">from {transport.depPlace}</span>
                             </div>
                           )}
                           {transport.depPlace && transport.arrPlace && (
@@ -346,7 +346,7 @@ export default async function SharePage({
                           )}
                           {transport.arrPlace && (
                             <div className="min-w-0 flex items-center gap-1">
-                              <span className="truncate">{transport.arrPlace}</span>
+                              <span className="min-w-0 truncate">{transport.arrPlace}</span>
                             </div>
                           )}
                         </div>
@@ -443,11 +443,11 @@ export default async function SharePage({
                               </span>
                               {(t.depPlace || t.arrPlace) && (
                                 <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                                  {t.depPlace && <span className="truncate">{t.depPlace}</span>}
+                                  {t.depPlace && <span className="min-w-0 truncate">{t.depPlace}</span>}
                                   {t.depPlace && t.arrPlace && (
                                     <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
                                   )}
-                                  {t.arrPlace && <span className="truncate">{t.arrPlace}</span>}
+                                  {t.arrPlace && <span className="min-w-0 truncate">{t.arrPlace}</span>}
                                 </div>
                               )}
                             </div>
