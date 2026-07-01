@@ -10,7 +10,7 @@ import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowStop, type Flo
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
-import { REAL_PLAN } from "@/lib/plan-scope";
+import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -36,6 +36,7 @@ async function requireStopAccess(stopId: string): Promise<{
   departDate: string | null;
   nights: number | null;
   pinned: boolean;
+  forkId: string | null;
 }> {
   const stop = await db.stop.findUnique({
     where: { id: stopId },
@@ -47,6 +48,7 @@ async function requireStopAccess(stopId: string): Promise<{
       departDate: true,
       nights: true,
       pinned: true,
+      forkId: true,
     },
   });
   if (!stop) {
@@ -79,6 +81,7 @@ function validationErrors(error: { flatten(): { fieldErrors: Record<string, stri
 export async function createStop(
   tripId: string,
   input: StopInput,
+  forkId?: PlanId,
 ): Promise<StopActionResult> {
   await requireTripAccess(tripId);
 
@@ -88,7 +91,7 @@ export async function createStop(
   }
 
   const maxStop = await db.stop.findFirst({
-    where: { tripId, ...REAL_PLAN },
+    where: { tripId, ...planScope(forkId) },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
@@ -96,9 +99,22 @@ export async function createStop(
 
   if (parsed.data.mode === "rough") {
     const { name, country, nights, chapterId, notes } = parsed.data;
+
+    // Validate chapterId belongs to the same plan if provided
+    if (chapterId) {
+      const chapter = await db.chapter.findUnique({
+        where: { id: chapterId },
+        select: { forkId: true },
+      });
+      if (!chapter || chapter.forkId !== (forkId ?? null)) {
+        return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
+      }
+    }
+
     const created = await db.stop.create({
       data: {
         tripId,
+        forkId: forkId ?? null,
         name,
         country: country ?? null,
         nights,
@@ -134,6 +150,7 @@ export async function createStop(
   const created = await db.stop.create({
     data: {
       tripId,
+      forkId: forkId ?? null,
       name,
       country: country ?? null,
       timezone,
@@ -326,7 +343,7 @@ export async function moveStop(
  * validation before calling this function.
  */
 async function applyStopDates(
-  stop: { id: string; tripId: string; sortOrder: number },
+  stop: { id: string; tripId: string; sortOrder: number; forkId: string | null },
   dates: { arriveDate: string; departDate: string },
 ): Promise<StopActionResult> {
   const before = await db.stop.findUnique({
@@ -350,7 +367,7 @@ async function applyStopDates(
   });
 
   const following = await db.stop.findMany({
-    where: { tripId: stop.tripId, sortOrder: { gt: stop.sortOrder }, ...REAL_PLAN },
+    where: { tripId: stop.tripId, sortOrder: { gt: stop.sortOrder }, ...planScope(stop.forkId) },
     orderBy: { sortOrder: "asc" },
     select: { id: true, sortOrder: true, nights: true, pinned: true, arriveDate: true, departDate: true },
   });
@@ -782,7 +799,7 @@ export async function assignStopToChapter(stopId: string, chapterId: string | nu
   let chapterSortOrder = 0;
   if (chapterId) {
     const last = await db.stop.findFirst({
-      where: { tripId: stop.tripId, chapterId, ...REAL_PLAN },
+      where: { tripId: stop.tripId, chapterId, ...planScope(stop.forkId) },
       orderBy: { chapterSortOrder: "desc" },
       select: { chapterSortOrder: true },
     });

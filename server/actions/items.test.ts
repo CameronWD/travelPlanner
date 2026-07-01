@@ -140,6 +140,45 @@ describe("plan-scope: createItem stop FK validation", () => {
   });
 });
 
+describe("plan-scope: createItem with forkId", () => {
+  it("creates an item in the given fork with fork-scoped sortOrder", async () => {
+    itemFindFirstMock.mockResolvedValue({ sortOrder: 3 });
+    itemCreateMock.mockResolvedValue({ id: "item-9" });
+
+    await createItem("trip-1", VALID_INPUT, "fork-9");
+
+    expect(itemFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
+    );
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ forkId: "fork-9", sortOrder: 4 }),
+    });
+  });
+
+  it("writes forkId: null on create when no forkId is passed (real plan)", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+
+    await createItem("trip-1", VALID_INPUT);
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ forkId: null }),
+    });
+  });
+
+  it("rejects a stop from a different plan when forkId is passed", async () => {
+    // Stop is real-plan (forkId: null) but creating item in fork-9
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    itemFindFirstMock.mockResolvedValue(null);
+
+    const result = await createItem("trip-1", { ...VALID_INPUT, stopId: "stop-1" }, "fork-9");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors.stopId).toBeDefined();
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("createItem", () => {
   it("creates an item with sortOrder = max + 1", async () => {
     itemFindFirstMock.mockResolvedValue({ sortOrder: 4 });

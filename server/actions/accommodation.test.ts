@@ -69,6 +69,8 @@ beforeEach(() => {
     user: { id: "user-1" },
     membership: { role: "owner" },
   });
+  // Default: accommodation lookup returns a real-plan row
+  accFindUniqueMock.mockResolvedValue({ id: "acc-default", tripId: "trip-1", forkId: null });
 });
 
 afterEach(() => {
@@ -82,6 +84,42 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // createAccommodation
 // ---------------------------------------------------------------------------
+
+describe("plan-scope: createAccommodation with forkId", () => {
+  it("creates accommodation in the given fork and writes forkId on the row", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-fork", tripId: "trip-1", forkId: "fork-9" });
+    accCreateMock.mockResolvedValue({ id: "acc-9" });
+
+    const result = await createAccommodation({ ...VALID_INPUT, stopId: "stop-fork" }, "fork-9");
+
+    expect(result.success).toBe(true);
+    expect(accCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ forkId: "fork-9" }),
+    });
+  });
+
+  it("writes forkId: null on create when no forkId is passed (real plan)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    accCreateMock.mockResolvedValue({ id: "acc-1" });
+
+    await createAccommodation(VALID_INPUT);
+
+    expect(accCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ forkId: null }),
+    });
+  });
+
+  it("rejects a stop from a different plan when forkId is passed", async () => {
+    // Stop is real-plan (forkId: null) but we're creating in fork-9
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+
+    const result = await createAccommodation(VALID_INPUT, "fork-9");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors.stopId).toBeDefined();
+    expect(accCreateMock).not.toHaveBeenCalled();
+  });
+});
 
 describe("plan-scope: createAccommodation stop FK validation", () => {
   it("selects forkId when looking up the stop and rejects a fork stop", async () => {
@@ -113,7 +151,7 @@ describe("plan-scope: createAccommodation stop FK validation", () => {
 
 describe("plan-scope: updateAccommodation stop FK validation", () => {
   it("selects forkId when looking up the stop and rejects a fork stop", async () => {
-    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1" });
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null });
     // Stop belongs to trip but is a fork row
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: "fork-abc" });
 
@@ -260,7 +298,7 @@ describe("createAccommodation", () => {
 
 describe("updateAccommodation", () => {
   it("updates and revalidates", async () => {
-    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1" });
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null });
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
     accUpdateMock.mockResolvedValue({});
 
@@ -278,7 +316,7 @@ describe("updateAccommodation", () => {
   });
 
   it("returns validation error and does not write", async () => {
-    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1" });
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null });
 
     const result = await updateAccommodation("acc-1", { ...VALID_INPUT, name: "" });
 
@@ -287,7 +325,7 @@ describe("updateAccommodation", () => {
   });
 
   it("rejects stopId that belongs to a different trip", async () => {
-    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1" });
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null });
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-99", forkId: null });
 
     const result = await updateAccommodation("acc-1", VALID_INPUT);
@@ -300,7 +338,7 @@ describe("updateAccommodation", () => {
   });
 
   it("access-checks via accommodation's tripId", async () => {
-    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-3" });
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-3", forkId: null });
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-3", forkId: null });
     accUpdateMock.mockResolvedValue({});
 
@@ -310,7 +348,7 @@ describe("updateAccommodation", () => {
   });
 
   it("geocodes address on update and stores coords", async () => {
-    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1" });
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null });
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
     accUpdateMock.mockResolvedValue({});
     geocodePlaceMock.mockResolvedValue({ lat: 51.5074, lng: -0.1278 });
@@ -330,7 +368,7 @@ describe("updateAccommodation", () => {
   });
 
   it("stores null coords on update when no address", async () => {
-    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1" });
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null });
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
     accUpdateMock.mockResolvedValue({});
 
@@ -346,7 +384,7 @@ describe("updateAccommodation", () => {
 
   it("records UPDATED activity with changes array", async () => {
     accFindUniqueMock
-      .mockResolvedValueOnce({ id: "acc-1", tripId: "trip-1" }) // requireAccommodationAccess
+      .mockResolvedValueOnce({ id: "acc-1", tripId: "trip-1", forkId: null }) // requireAccommodationAccess
       .mockResolvedValueOnce({ id: "acc-1", name: "Old Hotel", checkIn: "2026-07-01", checkOut: "2026-07-04" }); // before row
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
     accUpdateMock.mockResolvedValue({ id: "acc-1", name: "New Hotel", checkIn: "2026-07-01", checkOut: "2026-07-04" });
@@ -370,7 +408,7 @@ describe("updateAccommodation", () => {
 
 describe("deleteAccommodation", () => {
   it("deletes and revalidates", async () => {
-    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1" });
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null });
     accDeleteMock.mockResolvedValue({});
 
     const result = await deleteAccommodation("acc-1");
@@ -381,7 +419,7 @@ describe("deleteAccommodation", () => {
   });
 
   it("access-checks via accommodation's tripId", async () => {
-    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-4" });
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-4", forkId: null });
     accDeleteMock.mockResolvedValue({});
 
     await deleteAccommodation("acc-1");
@@ -391,7 +429,7 @@ describe("deleteAccommodation", () => {
 
   it("records DELETED activity with the snapshotted name as entityLabel", async () => {
     accFindUniqueMock
-      .mockResolvedValueOnce({ id: "acc-1", tripId: "trip-1" }) // requireAccommodationAccess
+      .mockResolvedValueOnce({ id: "acc-1", tripId: "trip-1", forkId: null }) // requireAccommodationAccess
       .mockResolvedValueOnce({ name: "Grand Hotel" }); // doomed label
     accDeleteMock.mockResolvedValue({});
 

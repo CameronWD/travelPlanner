@@ -8,7 +8,7 @@ import { transportSchema, type TransportInput } from "@/lib/validations/transpor
 import { geocodePlace } from "@/lib/geocode";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
-import { REAL_PLAN } from "@/lib/plan-scope";
+import { planScope, type PlanId } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -52,24 +52,26 @@ function validationErrors(
 }
 
 /**
- * If fromStopId or toStopId are provided, verify they belong to `tripId`.
+ * If fromStopId or toStopId are provided, verify they belong to `tripId` and the same plan.
  * Returns an error result if validation fails, null if ok.
  */
 async function validateStopBelongsToTrip(
   tripId: string,
   stopIds: (string | undefined | null)[],
+  forkId?: PlanId,
 ): Promise<TransportActionResult | null> {
   const ids = stopIds.filter((id): id is string => Boolean(id));
   if (ids.length === 0) return null;
 
+  const targetForkId = forkId ?? null;
   const stops = await db.stop.findMany({
-    where: { id: { in: ids }, ...REAL_PLAN },
-    select: { id: true, tripId: true },
+    where: { id: { in: ids }, ...planScope(forkId) },
+    select: { id: true, tripId: true, forkId: true },
   });
 
   for (const id of ids) {
     const stop = stops.find((s) => s.id === id);
-    if (!stop || stop.tripId !== tripId) {
+    if (!stop || stop.tripId !== tripId || stop.forkId !== targetForkId) {
       return {
         success: false,
         errors: {
@@ -94,6 +96,7 @@ async function validateStopBelongsToTrip(
 export async function createTransport(
   tripId: string,
   input: TransportInput,
+  forkId?: PlanId,
 ): Promise<TransportActionResult> {
   await requireTripAccess(tripId);
 
@@ -108,13 +111,13 @@ export async function createTransport(
   const fromStopId = data.fromStopId || null;
   const toStopId = data.toStopId || null;
 
-  // Validate stop ownership
-  const stopError = await validateStopBelongsToTrip(tripId, [fromStopId, toStopId]);
+  // Validate stop ownership (same plan)
+  const stopError = await validateStopBelongsToTrip(tripId, [fromStopId, toStopId], forkId);
   if (stopError) return stopError;
 
   // Determine sort order
   const maxTransport = await db.transport.findFirst({
-    where: { tripId, ...REAL_PLAN },
+    where: { tripId, ...planScope(forkId) },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
@@ -140,6 +143,7 @@ export async function createTransport(
   const created = await db.transport.create({
     data: {
       tripId,
+      forkId: forkId ?? null,
       mode: data.mode,
       fromStopId,
       toStopId,

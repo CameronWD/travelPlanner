@@ -9,7 +9,7 @@ import { chaptersOverlap, suggestChapterRuns } from "@/lib/chapters";
 import { nextChapterColour } from "@/lib/chapter-colours";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
-import { REAL_PLAN } from "@/lib/plan-scope";
+import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -58,10 +58,11 @@ async function firstOverlap(
   tripId: string,
   range: { startDate?: string; endDate?: string },
   excludeId?: string,
+  forkId?: PlanId,
 ) {
   if (!range.startDate || !range.endDate) return null; // rough chapter never overlaps
   const siblings = await db.chapter.findMany({
-    where: { tripId, ...REAL_PLAN },
+    where: { tripId, ...planScope(forkId) },
     select: { id: true, startDate: true, endDate: true },
   });
   return siblings.find(
@@ -70,9 +71,9 @@ async function firstOverlap(
   ) ?? null;
 }
 
-async function nextSortOrder(tripId: string): Promise<number> {
+async function nextSortOrder(tripId: string, forkId?: PlanId): Promise<number> {
   // sortOrder is only a stable creation-order tiebreak; chapters are ordered by startDate at read time.
-  return db.chapter.count({ where: { tripId, ...REAL_PLAN } });
+  return db.chapter.count({ where: { tripId, ...planScope(forkId) } });
 }
 
 // ---------------------------------------------------------------------------
@@ -83,18 +84,19 @@ export async function createChapter(
   tripId: string,
   input: ChapterInput,
   originStopId?: string,
+  forkId?: PlanId,
 ): Promise<ChapterActionResult> {
   await requireTripAccess(tripId);
 
   const parsed = chapterSchema.safeParse(input);
   if (!parsed.success) return validationErrors(parsed.error);
 
-  if (await firstOverlap(tripId, parsed.data)) {
+  if (await firstOverlap(tripId, parsed.data, undefined, forkId)) {
     return { success: false, errors: { startDate: ["Chapters cannot overlap another chapter's dates"] } };
   }
 
   const created = await db.chapter.create({
-    data: { tripId, ...parsed.data, sortOrder: await nextSortOrder(tripId) },
+    data: { tripId, forkId: forkId ?? null, ...parsed.data, sortOrder: await nextSortOrder(tripId, forkId) },
   });
 
   // When created from a stop ("Start a chapter here"), link a ROUGH origin
@@ -104,9 +106,9 @@ export async function createChapter(
   if (originStopId) {
     const origin = await db.stop.findUnique({
       where: { id: originStopId },
-      select: { tripId: true, arriveDate: true },
+      select: { tripId: true, arriveDate: true, forkId: true },
     });
-    if (origin && origin.tripId === tripId && origin.arriveDate === null) {
+    if (origin && origin.tripId === tripId && origin.arriveDate === null && origin.forkId === (forkId ?? null)) {
       await db.stop.update({
         where: { id: originStopId },
         data: { chapterId: created.id, chapterSortOrder: 0 },

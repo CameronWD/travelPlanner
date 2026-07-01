@@ -75,6 +75,38 @@ describe("plan-scope: createChapter overlap + sortOrder", () => {
   });
 });
 
+describe("plan-scope: createChapter with forkId", () => {
+  it("creates a chapter in the given fork with fork-scoped overlap + sortOrder", async () => {
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCountMock.mockResolvedValue(1);
+    chapterCreateMock.mockResolvedValue({ id: "c9", name: "Italy", colour: "rose" });
+
+    await createChapter("trip-1", VALID, undefined, "fork-9");
+
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
+    );
+    expect(chapterCountMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
+    );
+    expect(chapterCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ forkId: "fork-9", sortOrder: 1 }),
+    });
+  });
+
+  it("writes forkId: null on create when no forkId is passed (real plan)", async () => {
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCountMock.mockResolvedValue(0);
+    chapterCreateMock.mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
+
+    await createChapter("trip-1", VALID);
+
+    expect(chapterCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ forkId: null }),
+    });
+  });
+});
+
 describe("plan-scope: suggestChaptersFromCountries", () => {
   it("fetches stops within the real plan only (forkId null)", async () => {
     stopFindManyMock.mockResolvedValue([]);
@@ -324,7 +356,7 @@ const COLOUR = CHAPTER_COLOURS[0].value;
 describe("createChapter — origin stop linking", () => {
   it("links a ROUGH origin stop to the new chapter", async () => {
     chapterCreateMock.mockResolvedValue({ id: "ch-new", name: "France" });
-    stopFindUniqueMock.mockResolvedValue({ tripId: "trip-1", arriveDate: null });
+    stopFindUniqueMock.mockResolvedValue({ tripId: "trip-1", arriveDate: null, forkId: null });
 
     const r = await createChapter("trip-1", { name: "France", colour: COLOUR }, "stop-1");
 

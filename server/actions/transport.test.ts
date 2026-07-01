@@ -118,6 +118,56 @@ describe("plan-scope: createTransport stop FK validation", () => {
   });
 });
 
+describe("plan-scope: createTransport with forkId", () => {
+  it("creates a transport in the given fork with fork-scoped sortOrder", async () => {
+    transportFindFirstMock.mockResolvedValue({ sortOrder: 2 });
+    transportCreateMock.mockResolvedValue({ id: "t-9" });
+
+    await createTransport("trip-1", VALID_INPUT, "fork-9");
+
+    expect(transportFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
+    );
+    expect(transportCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ forkId: "fork-9", sortOrder: 3 }),
+    });
+  });
+
+  it("writes forkId: null on create when no forkId is passed (real plan)", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-10" });
+
+    await createTransport("trip-1", VALID_INPUT);
+
+    expect(transportCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ forkId: null }),
+    });
+  });
+
+  it("scopes stop FK validation to the given fork when forkId is provided", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    stopFindManyMock.mockResolvedValue([{ id: "stop-f", tripId: "trip-1", forkId: "fork-9" }]);
+    transportCreateMock.mockResolvedValue({ id: "t-9" });
+
+    await createTransport("trip-1", { mode: "TRAIN", fromStopId: "stop-f" }, "fork-9");
+
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ forkId: "fork-9" }) }),
+    );
+  });
+
+  it("rejects a stop from a different plan (real-plan stop when creating in a fork)", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    // Stop exists but has forkId: null (real plan), not matching the fork we're creating in
+    stopFindManyMock.mockResolvedValue([{ id: "stop-1", tripId: "trip-1", forkId: null }]);
+
+    const result = await createTransport("trip-1", { mode: "TRAIN", fromStopId: "stop-1" }, "fork-9");
+
+    expect(result.success).toBe(false);
+    expect(transportCreateMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("createTransport", () => {
   it("creates a transport with sortOrder = 0 when none exist", async () => {
     transportFindFirstMock.mockResolvedValue(null);
@@ -189,7 +239,7 @@ describe("createTransport", () => {
 
   it("allows fromStopId when stop belongs to the same trip", async () => {
     transportFindFirstMock.mockResolvedValue(null);
-    stopFindManyMock.mockResolvedValue([{ id: "stop-1", tripId: "trip-1" }]);
+    stopFindManyMock.mockResolvedValue([{ id: "stop-1", tripId: "trip-1", forkId: null }]);
     transportCreateMock.mockResolvedValue({ id: "t-1" });
 
     const result = await createTransport("trip-1", {

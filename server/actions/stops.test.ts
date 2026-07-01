@@ -145,6 +145,8 @@ beforeEach(() => {
     user: { id: "user-1" },
     membership: { role: "owner" },
   });
+  // Default: chapter lookup returns a real-plan chapter (forkId null)
+  chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: null });
 });
 
 afterEach(() => {
@@ -201,6 +203,72 @@ describe("plan-scope: applyStopDates ripple findMany", () => {
     expect(stopFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ tripId: "trip-1", forkId: null }),
+      }),
+    );
+  });
+});
+
+describe("plan-scope: createStop with forkId", () => {
+  it("creates a stop in the given fork with fork-scoped sortOrder", async () => {
+    stopFindFirstMock.mockResolvedValue({ sortOrder: 1 });
+    stopCreateMock.mockResolvedValue({ id: "s9", name: "Bern" });
+    chapterFindUniqueMock.mockResolvedValue(null); // no chapter for this test
+
+    await createStop("trip-1", { mode: "rough" as const, name: "Bern", nights: 2 }, "fork-9");
+
+    expect(stopFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
+    );
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ forkId: "fork-9", sortOrder: 2 }),
+    });
+  });
+
+  it("writes forkId: null on create when no forkId is passed (real plan)", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "s10", name: "Rome" });
+
+    await createStop("trip-1", ROUGH_INPUT);
+
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ forkId: null }),
+    });
+  });
+
+  it("rejects a rough stop whose chapterId belongs to a different plan", async () => {
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: "other-fork" });
+    stopFindFirstMock.mockResolvedValue(null);
+
+    const result = await createStop("trip-1", ROUGH_INPUT, "fork-9");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors.chapterId).toBeDefined();
+    expect(stopCreateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("plan-scope: applyStopDates ripple scoped to edited stop's forkId", () => {
+  it("fetches following stops scoped to the fork when the edited stop is in a fork", async () => {
+    // requireStopAccess returns a fork stop
+    stopFindUniqueMock.mockResolvedValue({
+      id: "fork-stop-1",
+      tripId: "trip-1",
+      sortOrder: 0,
+      arriveDate: null,
+      departDate: null,
+      nights: null,
+      pinned: false,
+      forkId: "fork-9",
+    });
+    stopFindManyMock.mockResolvedValue([]);
+    tripFindUniqueMock.mockResolvedValue({ endDate: "2026-07-20" });
+    tripUpdateMock.mockResolvedValue({});
+
+    await setStopDates("fork-stop-1", { arriveDate: "2026-07-12", departDate: "2026-07-15" });
+
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }),
       }),
     );
   });

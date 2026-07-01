@@ -119,6 +119,37 @@ afterEach(() => {
 // createCost
 // ---------------------------------------------------------------------------
 
+describe("plan-scope: createCost with forkId", () => {
+  it("creates a cost in the given fork and writes forkId on the row", async () => {
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costCreateMock.mockResolvedValue({ id: "cost-9" });
+
+    const result = await createCost("trip-1", VALID_OTHER_INPUT, "fork-9");
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ forkId: "fork-9" }),
+      }),
+    );
+  });
+
+  it("writes forkId: null on create when no forkId is passed (real plan)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costCreateMock.mockResolvedValue({ id: "cost-1" });
+
+    await createCost("trip-1", VALID_OTHER_INPUT);
+
+    expect(costCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ forkId: null }),
+      }),
+    );
+  });
+});
+
 describe("createCost", () => {
   it("creates a cost and snapshots rateToHome = 1 when currency === homeCurrency", async () => {
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });

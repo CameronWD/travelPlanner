@@ -9,6 +9,7 @@ import { costSchema, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
+import { type PlanId } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -125,6 +126,7 @@ function revalidateTripPaths(tripId: string) {
 export async function createCost(
   tripId: string,
   input: CostRawInput,
+  forkId?: PlanId,
 ): Promise<CostActionResult> {
   await requireTripAccess(tripId);
 
@@ -166,6 +168,7 @@ export async function createCost(
     return tx.cost.create({
       data: {
         tripId,
+        forkId: forkId ?? null,
         estimatedMinor: data.estimatedMinor,
         actualMinor: data.actualMinor ?? null,
         currency: data.currency,
