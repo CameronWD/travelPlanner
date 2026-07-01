@@ -32,6 +32,7 @@ export const ACTIVITY_ENTITY_TYPES = [
   "CHAPTER",
   "COST",
   "NOTE",
+  "FORK",
 ] as const;
 export type ActivityEntityType = (typeof ACTIVITY_ENTITY_TYPES)[number];
 
@@ -202,6 +203,8 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
   ],
   // NOTE carries an excerpt, not field diffs
   NOTE: [],
+  // FORK has no diffable fields — it's a container entity
+  FORK: [],
 };
 
 // ---------------------------------------------------------------------------
@@ -291,6 +294,9 @@ export function entityLabel(
 
     case "NOTE":
       return "note";
+
+    case "FORK":
+      return str(row.name) || "fork";
   }
 }
 
@@ -313,6 +319,7 @@ const ENTITY_NOUN: Record<ActivityEntityType, string> = {
   CHAPTER: "chapter",
   COST: "cost",
   NOTE: "note",
+  FORK: "fork",
 };
 
 /**

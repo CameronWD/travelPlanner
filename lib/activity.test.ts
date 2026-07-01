@@ -19,7 +19,7 @@ describe("ACTIVITY_VERBS", () => {
 });
 
 describe("ACTIVITY_ENTITY_TYPES", () => {
-  it("contains the seven expected entity types", () => {
+  it("contains the expected entity types including FORK", () => {
     expect(ACTIVITY_ENTITY_TYPES).toEqual([
       "STOP",
       "ITEM",
@@ -28,6 +28,7 @@ describe("ACTIVITY_ENTITY_TYPES", () => {
       "CHAPTER",
       "COST",
       "NOTE",
+      "FORK",
     ]);
   });
 });
