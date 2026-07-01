@@ -127,7 +127,7 @@ const {
   // $transaction executes the callback with a fake tx stub
   const txMock = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
     const tx = {
-      fork: { create: forkCreateMock, deleteMany: forkDeleteManyMock },
+      fork: { create: forkCreateMock, update: forkUpdateMock, deleteMany: forkDeleteManyMock },
       chapter: { create: chapterCreateMock, deleteMany: chapterDeleteManyMock, updateMany: chapterUpdateManyMock },
       stop: { create: stopCreateMock, deleteMany: stopDeleteManyMock, updateMany: stopUpdateManyMock },
       accommodation: { create: accommodationCreateMock, deleteMany: accommodationDeleteManyMock, updateMany: accommodationUpdateManyMock },
@@ -239,7 +239,7 @@ vi.mock("@/lib/db", () => ({
 // Import SUT after mocks are registered
 // ---------------------------------------------------------------------------
 
-import { createFork, renameFork, discardFork, getComparison, getPromotionPreview, promoteFork } from "./forks";
+import { createFork, renameFork, discardFork, getComparison, getPromotionPreview, promoteFork, moveFork } from "./forks";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -1453,5 +1453,42 @@ describe("promoteFork", () => {
 
       expect(requireForkAccessMock).toHaveBeenCalledWith("fork-9");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// moveFork
+// ---------------------------------------------------------------------------
+
+describe("moveFork", () => {
+  beforeEach(() => {
+    requireForkAccessMock.mockResolvedValue({
+      user: { id: "user-1" },
+      fork: { id: "fork-b", tripId: "trip-1", name: "Variant B" },
+      trip: { id: "trip-1", startDate: null, endDate: null },
+    });
+    forkFindManyMock.mockResolvedValue([
+      { id: "fork-a", sortOrder: 0 },
+      { id: "fork-b", sortOrder: 1 },
+      { id: "fork-c", sortOrder: 2 },
+    ]);
+  });
+
+  it("swaps sortOrder with the left neighbour and records no activity", async () => {
+    const res = await moveFork("fork-b", "left");
+    expect(res).toEqual({ success: true });
+    expect(forkUpdateMock).toHaveBeenCalledWith({ where: { id: "fork-b" }, data: { sortOrder: 0 } });
+    expect(forkUpdateMock).toHaveBeenCalledWith({ where: { id: "fork-a" }, data: { sortOrder: 1 } });
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op at the left edge", async () => {
+    requireForkAccessMock.mockResolvedValue({
+      user: { id: "user-1" }, fork: { id: "fork-a", tripId: "trip-1", name: "Variant A" },
+      trip: { id: "trip-1", startDate: null, endDate: null },
+    });
+    const res = await moveFork("fork-a", "left");
+    expect(res).toEqual({ success: true });
+    expect(forkUpdateMock).not.toHaveBeenCalled();
   });
 });
