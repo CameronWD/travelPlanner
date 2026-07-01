@@ -582,3 +582,84 @@ describe("computePlanMetrics — legs", () => {
     expect(metrics.legs).toEqual([{ fromName: "Rome", toName: "Florence", mode: "TRAIN" }]);
   });
 });
+
+import { diffRoute } from "./compare";
+
+// Minimal PlanMetrics builder — only route + legs matter to diffRoute.
+function pm(
+  route: PlanMetrics["route"],
+  legs: PlanMetrics["legs"] = [],
+): PlanMetrics {
+  return {
+    stopCount: route.length, nightTotal: 0, countries: [], projectedEnd: null,
+    hardEndState: "none", budgetHomeMinor: null, flagCounts: { warning: 0, info: 0 },
+    transitMinutes: 0, drivingMinutes: 0, flightCount: 0, route, legs,
+  };
+}
+const R = (name: string, nights: number | null, country: string | null = "IT") => ({ name, country, nights });
+
+describe("diffRoute", () => {
+  it("reports an identical route as 'Same route' with all stops 'same'", () => {
+    const base = pm([R("Rome", 3), R("Florence", 2)]);
+    const d = diffRoute(base, pm([R("Rome", 3), R("Florence", 2)]));
+    expect(d.summary).toBe("Same route");
+    expect(d.stops.map((s) => s.kind)).toEqual(["same", "same"]);
+  });
+
+  it("marks an added stop and lists it in the summary", () => {
+    const base = pm([R("Rome", 3), R("Florence", 2)]);
+    const d = diffRoute(base, pm([R("Rome", 3), R("Lucerne", 3, "CH"), R("Florence", 2)]));
+    const lucerne = d.stops.find((s) => s.name === "Lucerne");
+    expect(lucerne?.kind).toBe("added");
+    // interleaved at its variant position (between Rome and Florence)
+    expect(d.stops.map((s) => s.name)).toEqual(["Rome", "Lucerne", "Florence"]);
+    expect(d.summary).toBe("+Lucerne");
+  });
+
+  it("marks a dropped stop as a ghost at its real-plan position", () => {
+    const base = pm([R("Rome", 3), R("Venice", 3), R("Florence", 2)]);
+    const d = diffRoute(base, pm([R("Rome", 3), R("Florence", 2)]));
+    const venice = d.stops.find((s) => s.name === "Venice");
+    expect(venice?.kind).toBe("dropped");
+    expect(d.stops.map((s) => s.name)).toEqual(["Rome", "Venice", "Florence"]);
+    expect(d.summary).toBe("-Venice");
+  });
+
+  it("marks a re-nighted stop with base + new nights", () => {
+    const base = pm([R("Rome", 4)]);
+    const d = diffRoute(base, pm([R("Rome", 2)]));
+    expect(d.stops[0]).toMatchObject({ name: "Rome", kind: "renighted", nights: 2, baseNights: 4 });
+    expect(d.summary).toBe("Rome 4→2n");
+  });
+
+  it("detects a reordered common stop as 'moved', not drop+add", () => {
+    const base = pm([R("A", 1), R("B", 1), R("C", 1)]);
+    const d = diffRoute(base, pm([R("A", 1), R("C", 1), R("B", 1)]));
+    const kinds = new Set(d.stops.map((s) => s.kind));
+    expect(kinds.has("moved")).toBe(true);
+    expect(kinds.has("dropped")).toBe(false);
+    expect(kinds.has("added")).toBe(false);
+    expect(d.summary).toBe("Reordered");
+  });
+
+  it("matches stops case-insensitively by name+country", () => {
+    const base = pm([R("Rome", 3)]);
+    const d = diffRoute(base, pm([R("rome", 3)]));
+    expect(d.stops[0].kind).toBe("same");
+  });
+
+  it("reports a transport-mode change between two common stops", () => {
+    const base = pm([R("Rome", 3), R("Florence", 2)], [{ fromName: "Rome", toName: "Florence", mode: "TRAIN" }]);
+    const variant = pm([R("Rome", 3), R("Florence", 2)], [{ fromName: "Rome", toName: "Florence", mode: "FLIGHT" }]);
+    const d = diffRoute(base, variant);
+    expect(d.legChanges).toEqual([{ fromName: "Rome", toName: "Florence", fromMode: "TRAIN", toMode: "FLIGHT" }]);
+    expect(d.summary).toBe("Transport changed");
+  });
+
+  it("combines added + dropped + renighted in the summary, in that order", () => {
+    const base = pm([R("Rome", 4), R("Venice", 3)]);
+    const variant = pm([R("Rome", 2), R("Lucerne", 3, "CH")]);
+    const d = diffRoute(base, variant);
+    expect(d.summary).toBe("+Lucerne · -Venice · Rome 4→2n");
+  });
+});
