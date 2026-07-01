@@ -108,6 +108,7 @@ const {
     drivingMinutes: 0,
     flightCount: 0,
     route: [],
+    legs: [],
   });
 
   // diffMetrics mock — returns zero deltas
@@ -305,6 +306,7 @@ afterEach(() => {
     drivingMinutes: 0,
     flightCount: 0,
     route: [],
+    legs: [],
   });
   diffMetricsMock.mockReturnValue({
     stopCount: 0,
@@ -876,6 +878,7 @@ describe("getComparison", () => {
       drivingMinutes: 0,
       flightCount: 0,
       route: [],
+      legs: [],
     });
   });
 
@@ -1040,6 +1043,7 @@ describe("getComparison", () => {
         drivingMinutes: 60,
         flightCount: 1,
         route: [],
+        legs: [],
       };
       computePlanMetricsMock.mockReturnValue(stubMetrics);
       forkFindManyMock.mockResolvedValue([]);
@@ -1246,8 +1250,8 @@ describe("getPromotionPreview", () => {
     });
 
     it("calls diffMetrics with realPlanMetrics as base and forkMetrics as variant", async () => {
-      const realMetrics = { stopCount: 3, nightTotal: 7, countries: [], projectedEnd: null, hardEndState: "none" as const, budgetHomeMinor: null, flagCounts: { warning: 0, info: 0 }, transitMinutes: 0, drivingMinutes: 0, flightCount: 0, route: [] };
-      const forkMetrics = { stopCount: 5, nightTotal: 14, countries: [], projectedEnd: null, hardEndState: "none" as const, budgetHomeMinor: null, flagCounts: { warning: 0, info: 0 }, transitMinutes: 0, drivingMinutes: 0, flightCount: 0, route: [] };
+      const realMetrics = { stopCount: 3, nightTotal: 7, countries: [], projectedEnd: null, hardEndState: "none" as const, budgetHomeMinor: null, flagCounts: { warning: 0, info: 0 }, transitMinutes: 0, drivingMinutes: 0, flightCount: 0, route: [], legs: [] };
+      const forkMetrics = { stopCount: 5, nightTotal: 14, countries: [], projectedEnd: null, hardEndState: "none" as const, budgetHomeMinor: null, flagCounts: { warning: 0, info: 0 }, transitMinutes: 0, drivingMinutes: 0, flightCount: 0, route: [], legs: [] };
 
       // computePlanMetrics returns different values for each call
       computePlanMetricsMock

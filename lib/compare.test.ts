@@ -513,6 +513,7 @@ describe("diffMetrics", () => {
     drivingMinutes: 90,
     flightCount: 1,
     route: [],
+    legs: [],
   };
 
   const variant: PlanMetrics = {
@@ -527,6 +528,7 @@ describe("diffMetrics", () => {
     drivingMinutes: 60,
     flightCount: 2,
     route: [],
+    legs: [],
   };
 
   it("computes numeric deltas variant minus base", () => {
@@ -557,5 +559,26 @@ describe("diffMetrics", () => {
     const variantNullBudget: PlanMetrics = { ...variant, budgetHomeMinor: null };
     const d = diffMetrics(base, variantNullBudget);
     expect(d.budgetHomeMinor).toBeNull();
+  });
+});
+
+describe("computePlanMetrics — legs", () => {
+  it("emits one leg per transport whose endpoints both resolve, with resolved stop names", () => {
+    const metrics = computePlanMetrics({
+      stops: [
+        { id: "s1", name: "Rome", country: "IT", nights: 3, sortOrder: 0, arriveDate: null, departDate: null, pinned: false, lat: null, lng: null, timezone: "UTC" },
+        { id: "s2", name: "Florence", country: "IT", nights: 2, sortOrder: 1, arriveDate: null, departDate: null, pinned: false, lat: null, lng: null, timezone: "UTC" },
+      ],
+      transports: [
+        { id: "t1", mode: "TRAIN", fromStopId: "s1", toStopId: "s2", depAt: null, arrAt: null },
+        { id: "t2", mode: "FLIGHT", fromStopId: "s1", toStopId: "nope", depAt: null, arrAt: null },
+      ],
+      accommodations: [],
+      items: [],
+      costs: [],
+      trip: { startDate: null, hardEndDate: null, homeCurrency: "AUD", drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80 },
+      exchangeRates: [],
+    });
+    expect(metrics.legs).toEqual([{ fromName: "Rome", toName: "Florence", mode: "TRAIN" }]);
   });
 });

@@ -42,6 +42,7 @@ const realPlan: ComparisonPlan = {
       { name: "Lyon", country: "France", nights: 4 },
       { name: "Rome", country: "Italy", nights: 7 },
     ],
+    legs: [],
   },
 };
 
@@ -65,6 +66,7 @@ const forkA: ComparisonPlan = {
       { name: "Rome", country: "Italy", nights: 5 },
       { name: "Barcelona", country: "Spain", nights: 4 },
     ],
+    legs: [],
   },
 };
 

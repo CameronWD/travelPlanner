@@ -108,6 +108,7 @@ export interface PlanMetrics {
   drivingMinutes: number;
   flightCount: number;
   route: { name: string; country: string | null; nights: number | null }[];
+  legs: { fromName: string; toName: string; mode: string }[];
 }
 
 export interface MetricDeltas {
@@ -366,6 +367,16 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
   // ---------------------------------------------------------------------------
 
   const stopById = new Map(stops.map((s) => [s.id, s]));
+
+  const legs: PlanMetrics["legs"] = [];
+  for (const t of transports) {
+    if (!t.fromStopId || !t.toStopId) continue;
+    const from = stopById.get(t.fromStopId);
+    const to = stopById.get(t.toStopId);
+    if (!from || !to) continue;
+    legs.push({ fromName: from.name, toName: to.name, mode: t.mode });
+  }
+
   let drivingMinutes = 0;
 
   for (const t of transports) {
@@ -398,6 +409,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     drivingMinutes,
     flightCount,
     route,
+    legs,
   };
 }
 
