@@ -25,6 +25,7 @@ const {
   recordActivityMock,
   revalidatePathMock,
   forkCountMock,
+  forkFindManyMock,
   forkCreateMock,
   forkUpdateMock,
   forkDeleteMock,
@@ -40,10 +41,13 @@ const {
   transportCreateMock,
   costFindManyMock,
   costCreateMock,
+  exchangeRateFindManyMock,
   tripFindUniqueMock,
   txMock,
+  computePlanMetricsMock,
 } = vi.hoisted(() => {
   const forkCountMock = vi.fn();
+  const forkFindManyMock = vi.fn().mockResolvedValue([]);
   const forkCreateMock = vi.fn();
   const forkUpdateMock = vi.fn();
   const forkDeleteMock = vi.fn();
@@ -59,7 +63,23 @@ const {
   const transportCreateMock = vi.fn();
   const costFindManyMock = vi.fn().mockResolvedValue([]);
   const costCreateMock = vi.fn();
+  const exchangeRateFindManyMock = vi.fn().mockResolvedValue([]);
   const tripFindUniqueMock = vi.fn();
+
+  // computePlanMetrics mock — returns a predictable stub metrics object
+  const computePlanMetricsMock = vi.fn().mockReturnValue({
+    stopCount: 0,
+    nightTotal: 0,
+    countries: [],
+    projectedEnd: null,
+    hardEndState: "none",
+    budgetHomeMinor: null,
+    flagCounts: { warning: 0, info: 0 },
+    transitMinutes: 0,
+    drivingMinutes: 0,
+    flightCount: 0,
+    route: [],
+  });
 
   // $transaction executes the callback with a fake tx stub
   const txMock = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
@@ -91,6 +111,7 @@ const {
     recordActivityMock: vi.fn().mockResolvedValue(undefined),
     revalidatePathMock: vi.fn(),
     forkCountMock,
+    forkFindManyMock,
     forkCreateMock,
     forkUpdateMock,
     forkDeleteMock,
@@ -106,10 +127,16 @@ const {
     transportCreateMock,
     costFindManyMock,
     costCreateMock,
+    exchangeRateFindManyMock,
     tripFindUniqueMock,
     txMock,
+    computePlanMetricsMock,
   };
 });
+
+vi.mock("@/lib/compare", () => ({
+  computePlanMetrics: computePlanMetricsMock,
+}));
 
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: requireTripAccessMock,
@@ -136,13 +163,14 @@ vi.mock("next/cache", () => ({
 vi.mock("@/lib/db", () => ({
   db: {
     $transaction: txMock,
-    fork: { count: forkCountMock, create: forkCreateMock, update: forkUpdateMock, delete: forkDeleteMock },
+    fork: { count: forkCountMock, findMany: forkFindManyMock, create: forkCreateMock, update: forkUpdateMock, delete: forkDeleteMock },
     chapter: { findMany: chapterFindManyMock, create: chapterCreateMock },
     stop: { findMany: stopFindManyMock, create: stopCreateMock },
     accommodation: { findMany: accommodationFindManyMock, create: accommodationCreateMock },
     item: { findMany: itemFindManyMock, create: itemCreateMock },
     transport: { findMany: transportFindManyMock, create: transportCreateMock },
     cost: { findMany: costFindManyMock, create: costCreateMock },
+    exchangeRate: { findMany: exchangeRateFindManyMock },
     trip: { findUnique: tripFindUniqueMock },
   },
 }));
@@ -151,7 +179,7 @@ vi.mock("@/lib/db", () => ({
 // Import SUT after mocks are registered
 // ---------------------------------------------------------------------------
 
-import { createFork, renameFork, discardFork } from "./forks";
+import { createFork, renameFork, discardFork, getComparison } from "./forks";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -179,12 +207,27 @@ afterEach(() => {
   assertForkingAllowedMock.mockImplementation(() => undefined);
   computeTripPhaseMock.mockReturnValue("planning");
   todayISOMock.mockReturnValue("2026-07-01");
+  forkFindManyMock.mockResolvedValue([]);
   chapterFindManyMock.mockResolvedValue([]);
   stopFindManyMock.mockResolvedValue([]);
   accommodationFindManyMock.mockResolvedValue([]);
   itemFindManyMock.mockResolvedValue([]);
   transportFindManyMock.mockResolvedValue([]);
   costFindManyMock.mockResolvedValue([]);
+  exchangeRateFindManyMock.mockResolvedValue([]);
+  computePlanMetricsMock.mockReturnValue({
+    stopCount: 0,
+    nightTotal: 0,
+    countries: [],
+    projectedEnd: null,
+    hardEndState: "none",
+    budgetHomeMinor: null,
+    flagCounts: { warning: 0, info: 0 },
+    transitMinutes: 0,
+    drivingMinutes: 0,
+    flightCount: 0,
+    route: [],
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -660,5 +703,241 @@ describe("discardFork", () => {
 
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/compare");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getComparison
+// ---------------------------------------------------------------------------
+
+describe("getComparison", () => {
+  const tripRow = {
+    id: "trip-1",
+    name: "My Trip",
+    startDate: "2026-10-01",
+    hardEndDate: null,
+    homeCurrency: "AUD",
+    drivingWindingFactor: 1.3,
+    drivingAvgSpeedKph: 80,
+  };
+
+  beforeEach(() => {
+    tripFindUniqueMock.mockResolvedValue(tripRow);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    stopFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    requireTripAccessMock.mockResolvedValue({
+      user: { id: "user-1" },
+      membership: { role: "owner" },
+    });
+    tripFindUniqueMock.mockResolvedValue(tripRow);
+    forkFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    stopFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    computePlanMetricsMock.mockReturnValue({
+      stopCount: 0,
+      nightTotal: 0,
+      countries: [],
+      projectedEnd: null,
+      hardEndState: "none",
+      budgetHomeMinor: null,
+      flagCounts: { warning: 0, info: 0 },
+      transitMinutes: 0,
+      drivingMinutes: 0,
+      flightCount: 0,
+      route: [],
+    });
+  });
+
+  describe("plan list structure", () => {
+    it("returns real plan first (forkId null, named 'Real plan') when no forks exist", async () => {
+      forkFindManyMock.mockResolvedValue([]);
+
+      const result = await getComparison("trip-1");
+
+      expect(result.plans).toHaveLength(1);
+      expect(result.plans[0]).toMatchObject({ forkId: null, name: "Real plan" });
+    });
+
+    it("returns real plan then forks in sortOrder", async () => {
+      forkFindManyMock.mockResolvedValue([
+        { id: "fork-A", name: "Variant A", sortOrder: 0 },
+        { id: "fork-B", name: "Variant B", sortOrder: 1 },
+      ]);
+
+      const result = await getComparison("trip-1");
+
+      expect(result.plans).toHaveLength(3);
+      expect(result.plans[0]).toMatchObject({ forkId: null, name: "Real plan" });
+      expect(result.plans[1]).toMatchObject({ forkId: "fork-A", name: "Variant A" });
+      expect(result.plans[2]).toMatchObject({ forkId: "fork-B", name: "Variant B" });
+    });
+
+    it("includes trip fields on the result", async () => {
+      forkFindManyMock.mockResolvedValue([]);
+
+      const result = await getComparison("trip-1");
+
+      expect(result.trip).toMatchObject({ id: "trip-1", name: "My Trip" });
+    });
+  });
+
+  describe("per-plan scoped loading", () => {
+    it("loads the real plan's six collections with forkId: null", async () => {
+      forkFindManyMock.mockResolvedValue([]);
+
+      await getComparison("trip-1");
+
+      expect(stopFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
+      );
+      expect(transportFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
+      );
+      expect(accommodationFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
+      );
+      expect(itemFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
+      );
+      expect(costFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
+      );
+    });
+
+    it("loads each fork's collections scoped to its forkId", async () => {
+      forkFindManyMock.mockResolvedValue([
+        { id: "fork-A", name: "Variant A", sortOrder: 0 },
+      ]);
+
+      await getComparison("trip-1");
+
+      // The fork's stop query should use forkId: "fork-A"
+      expect(stopFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-A" }) }),
+      );
+      expect(costFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-A" }) }),
+      );
+    });
+
+    it("loads exchangeRates once (trip-scoped, not per plan)", async () => {
+      forkFindManyMock.mockResolvedValue([
+        { id: "fork-A", name: "Variant A", sortOrder: 0 },
+        { id: "fork-B", name: "Variant B", sortOrder: 1 },
+      ]);
+
+      await getComparison("trip-1");
+
+      // Should be called exactly once regardless of plan count
+      expect(exchangeRateFindManyMock).toHaveBeenCalledTimes(1);
+      expect(exchangeRateFindManyMock).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1" }) }),
+      );
+    });
+  });
+
+  describe("metrics computation", () => {
+    it("calls computePlanMetrics for each plan (real + each fork)", async () => {
+      forkFindManyMock.mockResolvedValue([
+        { id: "fork-A", name: "Variant A", sortOrder: 0 },
+      ]);
+
+      await getComparison("trip-1");
+
+      expect(computePlanMetricsMock).toHaveBeenCalledTimes(2);
+    });
+
+    it("passes the correct trip fields to computePlanMetrics", async () => {
+      forkFindManyMock.mockResolvedValue([]);
+
+      await getComparison("trip-1");
+
+      expect(computePlanMetricsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          trip: expect.objectContaining({
+            startDate: "2026-10-01",
+            homeCurrency: "AUD",
+            drivingWindingFactor: 1.3,
+            drivingAvgSpeedKph: 80,
+          }),
+        }),
+      );
+    });
+
+    it("passes the real plan's rows (forkId: null) to computePlanMetrics for index 0", async () => {
+      const realStops = [
+        {
+          id: "s-real",
+          name: "Sydney",
+          country: "AU",
+          nights: 3,
+          sortOrder: 0,
+          arriveDate: "2026-10-01",
+          departDate: "2026-10-04",
+          pinned: false,
+          lat: -33.8,
+          lng: 151.2,
+          timezone: "Australia/Sydney",
+        },
+      ];
+      // stopFindManyMock returns real stops when called with forkId: null
+      stopFindManyMock.mockImplementation((args: { where: { forkId: string | null } }) => {
+        if (args.where.forkId === null) return Promise.resolve(realStops);
+        return Promise.resolve([]);
+      });
+      forkFindManyMock.mockResolvedValue([]);
+
+      await getComparison("trip-1");
+
+      expect(computePlanMetricsMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          stops: realStops,
+        }),
+      );
+    });
+
+    it("puts computePlanMetrics result as the metrics field of each plan", async () => {
+      const stubMetrics = {
+        stopCount: 5,
+        nightTotal: 14,
+        countries: ["AU", "JP"],
+        projectedEnd: "2026-10-15",
+        hardEndState: "ok" as const,
+        budgetHomeMinor: 300000,
+        flagCounts: { warning: 1, info: 2 },
+        transitMinutes: 120,
+        drivingMinutes: 60,
+        flightCount: 1,
+        route: [],
+      };
+      computePlanMetricsMock.mockReturnValue(stubMetrics);
+      forkFindManyMock.mockResolvedValue([]);
+
+      const result = await getComparison("trip-1");
+
+      expect(result.plans[0].metrics).toEqual(stubMetrics);
+    });
+  });
+
+  describe("auth", () => {
+    it("calls requireTripAccess with tripId", async () => {
+      forkFindManyMock.mockResolvedValue([]);
+
+      await getComparison("trip-1");
+
+      expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    });
   });
 });
