@@ -288,7 +288,7 @@ function TimedItemRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-2">
-          <span className="truncate text-sm font-medium leading-tight text-foreground">
+          <span className="truncate text-sm font-medium leading-tight text-foreground min-w-0">
             {item.title}
           </span>
           {!isDay && timeLabel && (

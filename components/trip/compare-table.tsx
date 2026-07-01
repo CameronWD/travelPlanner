@@ -137,7 +137,7 @@ function RouteCell({ plan }: { plan: ComparisonPlan }) {
     <div className="flex flex-col gap-1 min-w-[180px]">
       {route.map((stop, i) => (
         <div key={i} className="flex items-baseline gap-1 min-w-0 text-sm">
-          <span className="font-medium text-foreground truncate">{stop.name}</span>
+          <span className="font-medium text-foreground truncate min-w-0">{stop.name}</span>
           {stop.country && (
             <span className="text-xs text-muted-foreground">{stop.country}</span>
           )}
