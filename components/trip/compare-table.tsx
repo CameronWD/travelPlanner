@@ -4,7 +4,7 @@ import * as React from "react";
 import { GitMerge } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { formatLongDate } from "@/lib/dates";
-import { diffMetrics } from "@/lib/compare";
+import { diffMetrics, diffRoute, type RouteDiffStop } from "@/lib/compare";
 import type { ComparisonPlan } from "@/server/actions/forks";
 import { PromoteForkDialog } from "@/components/trip/promote-fork-dialog";
 import { Button } from "@/components/ui/button";
@@ -158,6 +158,64 @@ function RouteCell({ plan }: { plan: ComparisonPlan }) {
 }
 
 // ---------------------------------------------------------------------------
+// Route diff cell (fork columns)
+// ---------------------------------------------------------------------------
+
+function nightsLabel(n: number | null): string | null {
+  return n !== null && n > 0 ? `${n}n` : null;
+}
+
+function DiffStopRow({ stop }: { stop: RouteDiffStop }) {
+  const base = "flex items-baseline gap-1 min-w-0 text-sm";
+  if (stop.kind === "dropped") {
+    return (
+      <div className={base}>
+        <span className="truncate min-w-0 text-muted-foreground line-through">{stop.name}</span>
+        {nightsLabel(stop.nights) && (
+          <span className="ml-auto text-xs text-muted-foreground line-through font-mono">{nightsLabel(stop.nights)}</span>
+        )}
+      </div>
+    );
+  }
+  const tone =
+    stop.kind === "added"
+      ? "text-emerald-700 dark:text-emerald-400"
+      : stop.kind === "renighted"
+        ? "text-amber-700 dark:text-amber-400"
+        : "text-foreground";
+  return (
+    <div className={base}>
+      {stop.kind === "added" && <span className="shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden="true">+</span>}
+      {stop.kind === "moved" && <span className="shrink-0 text-muted-foreground" aria-hidden="true">↕</span>}
+      <span className={`truncate min-w-0 font-medium ${tone}`}>{stop.name}</span>
+      {stop.country && <span className="text-xs text-muted-foreground">{stop.country}</span>}
+      {stop.kind === "renighted" ? (
+        <span className="ml-auto text-xs text-amber-700 dark:text-amber-400 font-mono">{stop.baseNights ?? "?"}→{stop.nights ?? "?"}n</span>
+      ) : (
+        nightsLabel(stop.nights) && <span className="ml-auto text-xs text-muted-foreground font-mono">{nightsLabel(stop.nights)}</span>
+      )}
+    </div>
+  );
+}
+
+function RouteDiffCell({ base, plan }: { base: ComparisonPlan; plan: ComparisonPlan }) {
+  const diff = diffRoute(base.metrics, plan.metrics);
+  return (
+    <div className="flex flex-col gap-1 min-w-[180px]">
+      <p className="text-xs font-medium text-muted-foreground">{diff.summary}</p>
+      {diff.stops.map((s, i) => (
+        <DiffStopRow key={i} stop={s} />
+      ))}
+      {diff.legChanges.map((l, i) => (
+        <p key={`leg-${i}`} className="text-xs text-amber-700 dark:text-amber-400 truncate">
+          {l.fromName}→{l.toName}: {l.fromMode.toLowerCase()} → {l.toMode.toLowerCase()}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Delta badge
 // ---------------------------------------------------------------------------
 
@@ -230,7 +288,9 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
     const m = plan.metrics;
     switch (rowId) {
       case "route":
-        return <RouteCell plan={plan} />;
+        return plan.forkId === null
+          ? <RouteCell plan={plan} />
+          : <RouteDiffCell base={realPlan} plan={plan} />;
       case "projected-end":
         return (
           <div className="flex flex-col gap-1">
