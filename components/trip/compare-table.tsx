@@ -3,6 +3,7 @@
 import * as React from "react";
 import { GitMerge } from "lucide-react";
 import { formatMoney } from "@/lib/money";
+import { formatLongDate } from "@/lib/dates";
 import { diffMetrics } from "@/lib/compare";
 import type { ComparisonPlan } from "@/server/actions/forks";
 import { PromoteForkDialog } from "@/components/trip/promote-fork-dialog";
@@ -234,7 +235,7 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
         return (
           <div className="flex flex-col gap-1">
             <span className="font-mono text-sm text-foreground">
-              {m.projectedEnd ?? "—"}
+              {m.projectedEnd ? formatLongDate(m.projectedEnd) : "—"}
             </span>
             <Badge variant={hardEndBadgeVariant(m.hardEndState)} className="w-fit text-xs">
               {hardEndLabel(m.hardEndState)}
