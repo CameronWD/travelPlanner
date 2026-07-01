@@ -213,8 +213,8 @@ export function WishlistBoard({
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <div className="min-w-0 truncate">
           <h2 className="font-display text-2xl font-semibold">Wishlist</h2>
           <p className="mt-0.5 text-sm text-muted-foreground">
             Items you&apos;re not sure about yet — collect them here and schedule later.
