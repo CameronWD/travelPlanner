@@ -321,25 +321,33 @@ export default async function SharePage({
                       {accom && (
                         <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
                           <Home className="size-3.5 shrink-0" aria-hidden="true" />
-                          <span className="font-medium text-foreground">{accom.name}</span>
-                          {accom.address && (
-                            <span className="text-xs">{accom.address}</span>
-                          )}
+                          <div className="min-w-0 flex-1">
+                            <span className="block truncate font-medium text-foreground">{accom.name}</span>
+                            {accom.address && (
+                              <span className="block truncate text-xs">{accom.address}</span>
+                            )}
+                          </div>
                         </div>
                       )}
 
                       {/* Outbound transport */}
                       {transport && !isLast && (
-                        <div className="mt-3 flex items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                          <span className="font-medium text-foreground">
+                        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+                          <span className="shrink-0 font-medium text-foreground">
                             {modeLabel(transport.mode)}
                           </span>
-                          {transport.depPlace && <span>from {transport.depPlace}</span>}
+                          {transport.depPlace && (
+                            <div className="min-w-0 flex items-center gap-1">
+                              <span className="truncate">from {transport.depPlace}</span>
+                            </div>
+                          )}
+                          {transport.depPlace && transport.arrPlace && (
+                            <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
+                          )}
                           {transport.arrPlace && (
-                            <>
-                              <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
-                              <span>{transport.arrPlace}</span>
-                            </>
+                            <div className="min-w-0 flex items-center gap-1">
+                              <span className="truncate">{transport.arrPlace}</span>
+                            </div>
                           )}
                         </div>
                       )}
@@ -425,7 +433,7 @@ export default async function SharePage({
                             className="flex items-start gap-2 text-sm rounded-lg bg-primary/5 border border-primary/10 px-3 py-1.5"
                           >
                             {gutterTime && (
-                              <span className="font-mono text-xs text-muted-foreground shrink-0 pt-0.5 w-10 text-right">
+                              <span className="font-mono text-xs text-muted-foreground shrink-0 pt-0.5 w-8 sm:w-10 text-right">
                                 {gutterTime}
                               </span>
                             )}
@@ -434,12 +442,12 @@ export default async function SharePage({
                                 {isDep ? "Departs" : "Arrives"} — {modeLabel(t.mode)}
                               </span>
                               {(t.depPlace || t.arrPlace) && (
-                                <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                                  {t.depPlace && <span>{t.depPlace}</span>}
+                                <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                                  {t.depPlace && <span className="truncate">{t.depPlace}</span>}
                                   {t.depPlace && t.arrPlace && (
                                     <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
                                   )}
-                                  {t.arrPlace && <span>{t.arrPlace}</span>}
+                                  {t.arrPlace && <span className="truncate">{t.arrPlace}</span>}
                                 </div>
                               )}
                             </div>
@@ -458,7 +466,7 @@ export default async function SharePage({
                             key={item.id}
                             className="flex items-start gap-2 text-sm px-2 py-0.5"
                           >
-                            <span className="font-mono text-xs text-muted-foreground shrink-0 pt-0.5 w-10 text-right">
+                            <span className="font-mono text-xs text-muted-foreground shrink-0 pt-0.5 w-8 sm:w-10 text-right">
                               {item.startTime}
                             </span>
                             <div className="min-w-0 flex-1">
@@ -483,7 +491,7 @@ export default async function SharePage({
                       {/* Untimed items */}
                       {day.untimedItems.length > 0 && (
                         <div className="mt-0.5">
-                          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70 mb-1">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70 mb-1">
                             Anytime
                           </p>
                           {day.untimedItems.map((entry) => (
