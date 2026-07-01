@@ -434,6 +434,7 @@ export interface FirmUpSegmentArgs {
   tripId: string;
   chapterId?: string | null;
   anchorDate?: string;
+  forkId?: PlanId;
 }
 
 /**
@@ -443,13 +444,13 @@ export interface FirmUpSegmentArgs {
  * Updates the chapter's startDate/endDate to span its now-dated stops.
  */
 export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopActionResult> {
-  const { tripId, chapterId } = args;
+  const { tripId, chapterId, forkId } = args;
   await requireTripAccess(tripId);
 
   const [trip, stops] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
     db.stop.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...planScope(forkId) },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -525,7 +526,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
       select: { name: true, startDate: true, endDate: true },
     });
     await db.chapter.update({ where: { id: chapterId }, data: { startDate: start, endDate: end } });
-    await recordPlanActivity(null, {
+    await recordPlanActivity(forkId, {
       tripId,
       verb: "UPDATED",
       entityType: "CHAPTER",
@@ -541,7 +542,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
     const firstArrive = results[0].arriveDate;
     const lastDepart = results[results.length - 1].departDate;
     const n = results.length;
-    await recordPlanActivity(null, {
+    await recordPlanActivity(forkId, {
       tripId,
       verb: "UPDATED",
       entityType: "STOP",
@@ -566,13 +567,13 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
  * surfaced (pins are never overwritten). Grows the trip window and brings each
  * chapter's band onto its now-dated stops. Best-effort geocode per dated stop.
  */
-export async function firmUpTrip(tripId: string, anchorDate?: string): Promise<StopActionResult> {
+export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: PlanId): Promise<StopActionResult> {
   await requireTripAccess(tripId);
 
   const [trip, stops] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
     db.stop.findMany({
-      where: { tripId, ...REAL_PLAN },
+      where: { tripId, ...planScope(forkId) },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true, sortOrder: true, chapterId: true, nights: true, pinned: true,
@@ -662,7 +663,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string): Promise<S
     await db.chapter.update({ where: { id: span.id }, data: { startDate: span.start, endDate: span.end } });
   }
 
-  await recordPlanActivity(null, {
+  await recordPlanActivity(forkId, {
     tripId,
     verb: "UPDATED",
     entityType: "STOP",
