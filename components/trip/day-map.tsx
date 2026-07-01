@@ -134,7 +134,7 @@ function buildPopupHtml(
     }
   }
 
-  return `<div style="min-width:160px;line-height:1.5">
+  return `<div style="min-width:min(160px,80vw);max-width:min(260px,90vw);line-height:1.5">
     <strong style="font-size:14px">${escapeHtml(point.label)}</strong>
     ${openInMapsHtml}
     ${directionsHtml}
