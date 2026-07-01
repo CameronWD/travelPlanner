@@ -24,7 +24,7 @@ export default async function TripHomePage({
   if (!trip) notFound();
 
   const coverStops = await db.stop.findMany({
-    where: { tripId, lat: { not: null }, lng: { not: null } },
+    where: { tripId, forkId: null, lat: { not: null }, lng: { not: null } },
     orderBy: { sortOrder: "asc" },
     select: { lat: true, lng: true },
   });

@@ -34,7 +34,7 @@ export default async function WishlistPage({
         },
       },
       items: {
-        where: { date: null }, // UNSCHEDULED items only
+        where: { forkId: null, date: null }, // UNSCHEDULED items only
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -69,6 +69,7 @@ export default async function WishlistPage({
     itemIds.length > 0
       ? db.cost.findMany({
           where: {
+            forkId: null,
             ownerType: "ITEM",
             ownerId: { in: itemIds },
           },

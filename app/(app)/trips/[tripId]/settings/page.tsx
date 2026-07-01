@@ -66,7 +66,7 @@ export default async function SettingsPage({
     getShareLink(tripId),
     getCalendarFeed(tripId),
     db.chapter.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { startDate: "asc" },
       select: {
         id: true,

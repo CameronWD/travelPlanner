@@ -39,7 +39,7 @@ export default async function TripsPage() {
 
   // Fetch located stops for route-render cover fallback.
   const coverStopsRaw = await db.stop.findMany({
-    where: { tripId: { in: tripIds }, lat: { not: null }, lng: { not: null } },
+    where: { tripId: { in: tripIds }, forkId: null, lat: { not: null }, lng: { not: null } },
     orderBy: { sortOrder: "asc" },
     select: { tripId: true, lat: true, lng: true },
   });

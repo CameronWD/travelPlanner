@@ -46,7 +46,7 @@ export default async function TripPlanPage({
       },
     }),
     db.stop.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -81,7 +81,7 @@ export default async function TripPlanPage({
       },
     }),
     db.transport.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -105,6 +105,7 @@ export default async function TripPlanPage({
     db.cost.findMany({
       where: {
         tripId,
+        forkId: null,
         ownerType: { in: ["TRANSPORT", "ACCOMMODATION"] },
         ownerId: { not: null },
       },
@@ -112,7 +113,7 @@ export default async function TripPlanPage({
       select: COST_SELECT,
     }),
     db.chapter.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: [{ startDate: "asc" }, { sortOrder: "asc" }],
       select: { id: true, name: true, colour: true, startDate: true, endDate: true, sortOrder: true },
     }),

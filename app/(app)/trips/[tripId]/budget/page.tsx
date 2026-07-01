@@ -87,26 +87,26 @@ export default async function BudgetPage({
   // Fetch everything in parallel
   const [allCosts, stops, items, accommodations, transports, exchangeRates, chapters] = await Promise.all([
     db.cost.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { createdAt: "asc" },
       select: COST_SELECT,
     }),
     db.stop.findMany({
       // Rough (date-less) stops carry no costs onto the dated budget.
-      where: { tripId, arriveDate: { not: null } },
+      where: { tripId, forkId: null, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
     }),
     db.item.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       select: { id: true, stopId: true, category: true, date: true },
     }),
     db.accommodation.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       select: { id: true, stopId: true, checkIn: true, checkOut: true },
     }),
     db.transport.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       select: { id: true, fromStopId: true, toStopId: true, depAt: true },
     }),
     db.exchangeRate.findMany({
@@ -116,7 +116,7 @@ export default async function BudgetPage({
     db.chapter.findMany({
       // Rough (date-less) chapters have no dated window, so buildBudget would
       // emit a blank $0 row for each — match the summary page and exclude them.
-      where: { tripId, startDate: { not: null } },
+      where: { tripId, forkId: null, startDate: { not: null } },
       orderBy: { startDate: "asc" },
       select: { id: true, name: true, colour: true, startDate: true, endDate: true },
     }),

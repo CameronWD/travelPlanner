@@ -63,7 +63,7 @@ export default async function DayPage({
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops don't appear on a dated day view.
-        where: { tripId, arriveDate: { not: null } },
+        where: { tripId, forkId: null, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -78,7 +78,7 @@ export default async function DayPage({
         },
       }),
       db.item.findMany({
-        where: { tripId, date: { not: null } },
+        where: { tripId, forkId: null, date: { not: null } },
         orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
         select: {
           id: true,
@@ -98,7 +98,7 @@ export default async function DayPage({
         },
       }),
       db.transport.findMany({
-        where: { tripId },
+        where: { tripId, forkId: null },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -118,7 +118,7 @@ export default async function DayPage({
         },
       }),
       db.accommodation.findMany({
-        where: { tripId, checkIn: { lte: effectiveDate }, checkOut: { gte: effectiveDate } },
+        where: { tripId, forkId: null, checkIn: { lte: effectiveDate }, checkOut: { gte: effectiveDate } },
         orderBy: { checkIn: "asc" },
         select: {
           id: true,
@@ -156,7 +156,7 @@ export default async function DayPage({
         },
       }),
       db.item.findMany({
-        where: { tripId, date: null, lat: { not: null }, lng: { not: null } },
+        where: { tripId, forkId: null, date: null, lat: { not: null }, lng: { not: null } },
         select: { id: true, title: true, category: true, lat: true, lng: true },
       }),
     ]);

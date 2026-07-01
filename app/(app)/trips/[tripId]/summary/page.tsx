@@ -107,13 +107,13 @@ export default async function SummaryPage({
   // For a date-less trip: still show rough Stops (if any), then the date-less notice.
   if (!trip.startDate || !trip.endDate) {
     const roughStopsForDateless = await db.stop.findMany({
-      where: { tripId, arriveDate: null },
+      where: { tripId, forkId: null, arriveDate: null },
       orderBy: { sortOrder: "asc" },
       select: { id: true, name: true, nights: true, country: true, chapterId: true },
     });
     const datelessChapters = roughStopsForDateless.some((s) => s.chapterId)
       ? await db.chapter.findMany({
-          where: { tripId },
+          where: { tripId, forkId: null },
           select: { id: true, name: true, colour: true },
         })
       : [];
@@ -176,7 +176,7 @@ export default async function SummaryPage({
       db.stop.findMany({
         // Rough (date-less) stops are excluded from the dated summary; a later
         // task surfaces them as "not yet scheduled".
-        where: { tripId, arriveDate: { not: null } },
+        where: { tripId, forkId: null, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -193,7 +193,7 @@ export default async function SummaryPage({
         },
       }),
       db.transport.findMany({
-        where: { tripId },
+        where: { tripId, forkId: null },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -208,7 +208,7 @@ export default async function SummaryPage({
         },
       }),
       db.accommodation.findMany({
-        where: { tripId },
+        where: { tripId, forkId: null },
         select: {
           id: true,
           stopId: true,
@@ -218,11 +218,11 @@ export default async function SummaryPage({
         },
       }),
       db.item.findMany({
-        where: { tripId },
+        where: { tripId, forkId: null },
         select: { id: true, stopId: true, category: true, date: true, startTime: true, endTime: true, lat: true, lng: true },
       }),
       db.cost.findMany({
-        where: { tripId },
+        where: { tripId, forkId: null },
         orderBy: { createdAt: "asc" },
         select: COST_SELECT,
       }),
@@ -232,12 +232,12 @@ export default async function SummaryPage({
       }),
       db.chapter.findMany({
         // Only dated chapters group the dated summary.
-        where: { tripId, startDate: { not: null } },
+        where: { tripId, forkId: null, startDate: { not: null } },
         orderBy: { startDate: "asc" },
         select: { id: true, name: true, colour: true, startDate: true, endDate: true },
       }),
       db.stop.findMany({
-        where: { tripId, arriveDate: null },
+        where: { tripId, forkId: null, arriveDate: null },
         orderBy: { sortOrder: "asc" },
         select: { id: true, name: true, nights: true, country: true, chapterId: true, pinned: true, sortOrder: true },
       }),
