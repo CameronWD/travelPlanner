@@ -2,14 +2,16 @@
 
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlace } from "@/lib/geocode";
 import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowStop, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
-import { recordActivity } from "@/server/actions/activity";
+import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
+import { planScope, type PlanId } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -35,6 +37,7 @@ async function requireStopAccess(stopId: string): Promise<{
   departDate: string | null;
   nights: number | null;
   pinned: boolean;
+  forkId: string | null;
 }> {
   const stop = await db.stop.findUnique({
     where: { id: stopId },
@@ -46,6 +49,7 @@ async function requireStopAccess(stopId: string): Promise<{
       departDate: true,
       nights: true,
       pinned: true,
+      forkId: true,
     },
   });
   if (!stop) {
@@ -78,6 +82,7 @@ function validationErrors(error: { flatten(): { fieldErrors: Record<string, stri
 export async function createStop(
   tripId: string,
   input: StopInput,
+  forkId?: PlanId,
 ): Promise<StopActionResult> {
   await requireTripAccess(tripId);
 
@@ -87,7 +92,7 @@ export async function createStop(
   }
 
   const maxStop = await db.stop.findFirst({
-    where: { tripId },
+    where: { tripId, ...planScope(forkId) },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
@@ -95,9 +100,22 @@ export async function createStop(
 
   if (parsed.data.mode === "rough") {
     const { name, country, nights, chapterId, notes } = parsed.data;
+
+    // Validate chapterId belongs to the same plan if provided
+    if (chapterId) {
+      const chapter = await db.chapter.findUnique({
+        where: { id: chapterId },
+        select: { forkId: true },
+      });
+      if (!chapter || chapter.forkId !== (forkId ?? null)) {
+        return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
+      }
+    }
+
     const created = await db.stop.create({
       data: {
         tripId,
+        forkId: forkId ?? null,
         name,
         country: country ?? null,
         nights,
@@ -112,7 +130,7 @@ export async function createStop(
         sortOrder,
       },
     });
-    await recordActivity({ tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
+    await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
     revalidatePath(`/trips/${tripId}`);
     return { success: true };
   }
@@ -133,6 +151,7 @@ export async function createStop(
   const created = await db.stop.create({
     data: {
       tripId,
+      forkId: forkId ?? null,
       name,
       country: country ?? null,
       timezone,
@@ -146,7 +165,7 @@ export async function createStop(
     },
   });
 
-  await recordActivity({ tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${tripId}`);
   return { success: true };
 }
@@ -186,7 +205,7 @@ export async function updateStop(
         timezone: null,
       },
     });
-    await recordActivity({
+    await recordPlanActivity(stop.forkId, {
       tripId: stop.tripId,
       verb: "UPDATED",
       entityType: "STOP",
@@ -226,7 +245,7 @@ export async function updateStop(
     },
   });
 
-  await recordActivity({
+  await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -248,7 +267,7 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
 
   const doomed = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
   await db.stop.delete({ where: { id: stopId } });
-  await recordActivity({ tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
+  await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
 
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
@@ -277,6 +296,7 @@ export async function moveStop(
       SELECT "id", "sortOrder"
       FROM "Stop"
       WHERE "tripId" = ${stop.tripId}
+        AND "forkId" ${stop.forkId ? Prisma.sql`= ${stop.forkId}` : Prisma.sql`IS NULL`}
       ORDER BY "sortOrder" ASC
       FOR UPDATE
     `;
@@ -303,7 +323,7 @@ export async function moveStop(
 
   if (moved) {
     const named = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
-    await recordActivity({
+    await recordPlanActivity(stop.forkId, {
       tripId: stop.tripId,
       verb: "UPDATED",
       entityType: "STOP",
@@ -325,7 +345,7 @@ export async function moveStop(
  * validation before calling this function.
  */
 async function applyStopDates(
-  stop: { id: string; tripId: string; sortOrder: number },
+  stop: { id: string; tripId: string; sortOrder: number; forkId: string | null },
   dates: { arriveDate: string; departDate: string },
 ): Promise<StopActionResult> {
   const before = await db.stop.findUnique({
@@ -335,7 +355,7 @@ async function applyStopDates(
 
   await db.stop.update({ where: { id: stop.id }, data: { arriveDate: dates.arriveDate, departDate: dates.departDate } });
 
-  await recordActivity({
+  await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -349,7 +369,7 @@ async function applyStopDates(
   });
 
   const following = await db.stop.findMany({
-    where: { tripId: stop.tripId, sortOrder: { gt: stop.sortOrder } },
+    where: { tripId: stop.tripId, sortOrder: { gt: stop.sortOrder }, ...planScope(stop.forkId) },
     orderBy: { sortOrder: "asc" },
     select: { id: true, sortOrder: true, nights: true, pinned: true, arriveDate: true, departDate: true },
   });
@@ -416,6 +436,7 @@ export interface FirmUpSegmentArgs {
   tripId: string;
   chapterId?: string | null;
   anchorDate?: string;
+  forkId?: PlanId;
 }
 
 /**
@@ -425,13 +446,13 @@ export interface FirmUpSegmentArgs {
  * Updates the chapter's startDate/endDate to span its now-dated stops.
  */
 export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopActionResult> {
-  const { tripId, chapterId } = args;
+  const { tripId, chapterId, forkId } = args;
   await requireTripAccess(tripId);
 
   const [trip, stops] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
     db.stop.findMany({
-      where: { tripId },
+      where: { tripId, ...planScope(forkId) },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -507,7 +528,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
       select: { name: true, startDate: true, endDate: true },
     });
     await db.chapter.update({ where: { id: chapterId }, data: { startDate: start, endDate: end } });
-    await recordActivity({
+    await recordPlanActivity(forkId, {
       tripId,
       verb: "UPDATED",
       entityType: "CHAPTER",
@@ -523,7 +544,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
     const firstArrive = results[0].arriveDate;
     const lastDepart = results[results.length - 1].departDate;
     const n = results.length;
-    await recordActivity({
+    await recordPlanActivity(forkId, {
       tripId,
       verb: "UPDATED",
       entityType: "STOP",
@@ -548,13 +569,13 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
  * surfaced (pins are never overwritten). Grows the trip window and brings each
  * chapter's band onto its now-dated stops. Best-effort geocode per dated stop.
  */
-export async function firmUpTrip(tripId: string, anchorDate?: string): Promise<StopActionResult> {
+export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: PlanId): Promise<StopActionResult> {
   await requireTripAccess(tripId);
 
   const [trip, stops] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
     db.stop.findMany({
-      where: { tripId },
+      where: { tripId, ...planScope(forkId) },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true, sortOrder: true, chapterId: true, nights: true, pinned: true,
@@ -644,7 +665,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string): Promise<S
     await db.chapter.update({ where: { id: span.id }, data: { startDate: span.start, endDate: span.end } });
   }
 
-  await recordActivity({
+  await recordPlanActivity(forkId, {
     tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -672,7 +693,7 @@ export async function toggleStopPin(stopId: string): Promise<StopActionResult> {
   }
   await db.stop.update({ where: { id: stopId }, data: { pinned: !stop.pinned } });
   const named = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
-  await recordActivity({
+  await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -704,7 +725,7 @@ export async function makeStopRough(stopId: string): Promise<StopActionResult> {
     data: { arriveDate: null, departDate: null, timezone: null, pinned: false, nights },
   });
 
-  await recordActivity({
+  await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -730,7 +751,7 @@ export async function setStopNotes(stopId: string, notes: string): Promise<StopA
   const trimmed = notes.trim();
   const before = await db.stop.findUnique({ where: { id: stopId } });
   const updated = await db.stop.update({ where: { id: stopId }, data: { notes: trimmed === "" ? null : trimmed } });
-  await recordActivity({
+  await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -760,7 +781,7 @@ export async function setStopNights(stopId: string, nights: number): Promise<Sto
   }
   const before = await db.stop.findUnique({ where: { id: stopId } });
   const updated = await db.stop.update({ where: { id: stopId }, data: { nights } });
-  await recordActivity({
+  await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -781,7 +802,7 @@ export async function assignStopToChapter(stopId: string, chapterId: string | nu
   let chapterSortOrder = 0;
   if (chapterId) {
     const last = await db.stop.findFirst({
-      where: { tripId: stop.tripId, chapterId },
+      where: { tripId: stop.tripId, chapterId, ...planScope(stop.forkId) },
       orderBy: { chapterSortOrder: "desc" },
       select: { chapterSortOrder: true },
     });
@@ -793,7 +814,7 @@ export async function assignStopToChapter(stopId: string, chapterId: string | nu
       before?.chapterId ? db.chapter.findUnique({ where: { id: before.chapterId }, select: { name: true } }) : Promise.resolve(null),
       chapterId ? db.chapter.findUnique({ where: { id: chapterId }, select: { name: true } }) : Promise.resolve(null),
     ]);
-    await recordActivity({
+    await recordPlanActivity(stop.forkId, {
       tripId: stop.tripId,
       verb: "UPDATED",
       entityType: "STOP",
@@ -825,10 +846,28 @@ export async function reorderStops(
   // dated chapter (R1). We don't error on chapters that aren't found here;
   // that case is either irrelevant (dated stop whose chapterId will be ignored)
   // or caught by the DB foreign-key constraint on write.
+  // Derive the plan (forkId) from the stops being reordered. They all belong to
+  // a single plan; reject a mixed-plan payload. Chapters are then validated
+  // within that plan only (I3) — closing a cross-plan write vector where a
+  // crafted payload could point a stop at another plan's chapter.
+  const reorderIds = items.map((i) => i.id);
+  const reorderStopRows = await db.stop.findMany({
+    where: { id: { in: reorderIds }, tripId },
+    select: { id: true, forkId: true },
+  });
+  const planForkIds = new Set(reorderStopRows.map((s) => s.forkId));
+  if (planForkIds.size > 1) {
+    return {
+      success: false,
+      errors: { id: ["Stops in a reorder must all belong to the same plan."] },
+    };
+  }
+  const reorderForkId: PlanId = reorderStopRows[0]?.forkId ?? null;
+
   const targetChapterIds = [...new Set(items.map((i) => i.chapterId).filter((c): c is string => c != null))];
   if (targetChapterIds.length > 0) {
     const chapters = await db.chapter.findMany({
-      where: { id: { in: targetChapterIds }, tripId },
+      where: { id: { in: targetChapterIds }, tripId, ...planScope(reorderForkId) },
       select: { id: true, startDate: true },
     });
     for (const ch of chapters) {
@@ -890,12 +929,13 @@ export async function reorderStops(
  */
 export async function getTripProjection(
   tripId: string,
+  forkId?: PlanId,
 ): Promise<{ projectedEnd: string | null; hardEndDate: string | null }> {
   await requireTripAccess(tripId);
   const [trip, stops] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, hardEndDate: true } }),
     db.stop.findMany({
-      where: { tripId },
+      where: { tripId, ...planScope(forkId) },
       orderBy: { sortOrder: "asc" },
       select: { id: true, arriveDate: true, departDate: true, nights: true, pinned: true, sortOrder: true },
     }),

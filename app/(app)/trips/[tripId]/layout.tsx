@@ -1,18 +1,22 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { formatDateRange } from "@/lib/dates";
+import { formatDateRange, todayISO } from "@/lib/dates";
 import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TripNav } from "@/components/trip/trip-nav";
 import { MobileTabBar } from "@/components/trip/mobile-tab-bar";
 import { NotificationBell } from "@/components/trip/notification-bell";
+import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { OfflineWarmer } from "@/components/offline-warmer";
 import {
   getUnreadActivityCount,
   getRecentActivity,
 } from "@/server/actions/activity";
+import { listForks } from "@/server/actions/forks";
+import { computeTripPhase } from "@/lib/trip-phase";
+import { getDiscreetState } from "@/lib/discreet-server";
 
 function initials(name?: string | null): string {
   if (!name) return "?";
@@ -58,10 +62,21 @@ export default async function TripLayout({
     notFound();
   }
 
-  const [unreadCount, recent] = await Promise.all([
+  const [unreadCount, recent, forks, { discreet }] = await Promise.all([
     getUnreadActivityCount(tripId),
     getRecentActivity(tripId, 10),
+    listForks(tripId),
+    getDiscreetState(),
   ]);
+
+  const tripPhase = computeTripPhase({
+    startDate: trip.startDate,
+    endDate: trip.endDate,
+    today: todayISO(),
+  });
+
+  // Forking is allowed in sketching / planning / final-prep (not travelling/past)
+  const showForkSwitcher = !discreet && (tripPhase !== "travelling" && tripPhase !== "past");
 
   // A date-less trip shows a placeholder instead of a range.
   const dateRange =
@@ -88,7 +103,7 @@ export default async function TripLayout({
             </div>
           </div>
 
-          {/* Member avatars + notification bell */}
+          {/* Member avatars + fork switcher + notification bell */}
           <div className="flex items-center gap-2">
             {trip.members.length > 0 && (
               <div className="flex -space-x-2" aria-label="Trip members">
@@ -112,6 +127,13 @@ export default async function TripLayout({
                   </div>
                 )}
               </div>
+            )}
+            {showForkSwitcher && (
+              <ForkSwitcher
+                tripId={tripId}
+                forks={forks}
+                phase={tripPhase}
+              />
             )}
             <NotificationBell
               tripId={tripId}

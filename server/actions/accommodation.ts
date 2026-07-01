@@ -9,8 +9,9 @@ import {
   type AccommodationInput,
 } from "@/lib/validations/accommodation";
 import { geocodePlace } from "@/lib/geocode";
-import { recordActivity } from "@/server/actions/activity";
+import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
+import { type PlanId } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -31,10 +32,11 @@ export type AccommodationActionResult =
 async function requireAccommodationAccess(accommodationId: string): Promise<{
   id: string;
   tripId: string;
+  forkId: string | null;
 }> {
   const acc = await db.accommodation.findUnique({
     where: { id: accommodationId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, forkId: true },
   });
   if (!acc) {
     notFound();
@@ -64,6 +66,7 @@ function validationErrors(
  */
 export async function createAccommodation(
   input: AccommodationInput,
+  forkId?: PlanId,
 ): Promise<AccommodationActionResult> {
   const parsed = accommodationSchema.safeParse(input);
   if (!parsed.success) {
@@ -72,12 +75,12 @@ export async function createAccommodation(
 
   const data = parsed.data;
 
-  // Look up the stop to get the tripId
+  // Look up the stop to get the tripId (must belong to the same plan)
   const stop = await db.stop.findUnique({
     where: { id: data.stopId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, forkId: true },
   });
-  if (!stop) {
+  if (!stop || stop.forkId !== (forkId ?? null)) {
     return {
       success: false,
       errors: { stopId: ["Stop not found"] },
@@ -99,6 +102,7 @@ export async function createAccommodation(
   const created = await db.accommodation.create({
     data: {
       tripId: stop.tripId,
+      forkId: forkId ?? null,
       stopId: data.stopId,
       name: data.name,
       address: data.address ?? null,
@@ -111,7 +115,7 @@ export async function createAccommodation(
     },
   });
 
-  await recordActivity({ tripId: stop.tripId, verb: "CREATED", entityType: "ACCOMMODATION", entityId: created.id, entityLabel: entityLabel("ACCOMMODATION", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(forkId, { tripId: stop.tripId, verb: "CREATED", entityType: "ACCOMMODATION", entityId: created.id, entityLabel: entityLabel("ACCOMMODATION", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
 }
@@ -134,12 +138,12 @@ export async function updateAccommodation(
 
   const data = parsed.data;
 
-  // Ensure the new stopId still belongs to the same trip
+  // Ensure the new stopId still belongs to the same trip and plan
   const stop = await db.stop.findUnique({
     where: { id: data.stopId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, forkId: true },
   });
-  if (!stop || stop.tripId !== acc.tripId) {
+  if (!stop || stop.tripId !== acc.tripId || stop.forkId !== acc.forkId) {
     return {
       success: false,
       errors: { stopId: ["Stop does not belong to this trip"] },
@@ -172,7 +176,7 @@ export async function updateAccommodation(
     },
   });
 
-  await recordActivity({
+  await recordPlanActivity(acc.forkId, {
     tripId: acc.tripId,
     verb: "UPDATED",
     entityType: "ACCOMMODATION",
@@ -194,7 +198,7 @@ export async function deleteAccommodation(
 
   const doomed = await db.accommodation.findUnique({ where: { id: accommodationId }, select: { name: true } });
   await db.accommodation.delete({ where: { id: accommodationId } });
-  await recordActivity({ tripId: acc.tripId, verb: "DELETED", entityType: "ACCOMMODATION", entityId: accommodationId, entityLabel: doomed?.name ?? "" });
+  await recordPlanActivity(acc.forkId, { tripId: acc.tripId, verb: "DELETED", entityType: "ACCOMMODATION", entityId: accommodationId, entityLabel: doomed?.name ?? "" });
 
   revalidatePath(`/trips/${acc.tripId}`);
   return { success: true };

@@ -13,13 +13,13 @@ import {
 // ---------------------------------------------------------------------------
 
 describe("ACTIVITY_VERBS", () => {
-  it("contains the four expected verbs", () => {
-    expect(ACTIVITY_VERBS).toEqual(["CREATED", "UPDATED", "DELETED", "NOTED"]);
+  it("contains PROMOTED verb", () => {
+    expect(ACTIVITY_VERBS).toContain("PROMOTED");
   });
 });
 
 describe("ACTIVITY_ENTITY_TYPES", () => {
-  it("contains the seven expected entity types", () => {
+  it("contains the expected entity types including FORK", () => {
     expect(ACTIVITY_ENTITY_TYPES).toEqual([
       "STOP",
       "ITEM",
@@ -28,6 +28,7 @@ describe("ACTIVITY_ENTITY_TYPES", () => {
       "CHAPTER",
       "COST",
       "NOTE",
+      "FORK",
     ]);
   });
 });

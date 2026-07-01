@@ -127,6 +127,8 @@ interface ItineraryManagerProps {
   notesByStopId?: Map<string, NoteView[]>;
   /** Current authenticated user's ID */
   currentUserId?: string;
+  /** Fork being edited (null = real plan). Threaded to all create actions. */
+  forkId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -265,6 +267,7 @@ export function ItineraryManager({
   tripEndDate,
   notesByStopId,
   currentUserId,
+  forkId,
 }: ItineraryManagerProps) {
   const { confirm, dialog } = useConfirm();
 
@@ -467,7 +470,7 @@ export function ItineraryManager({
 
     setPendingId(`firm-up-${chapterId ?? "ungrouped"}`);
     try {
-      const r = await firmUpSegment({ tripId, chapterId });
+      const r = await firmUpSegment({ tripId, chapterId, forkId: forkId ?? undefined });
       if (!r.success) {
         toast({
           variant: "destructive",
@@ -499,7 +502,7 @@ export function ItineraryManager({
 
     setPendingId("firm-up-trip");
     try {
-      const r = await firmUpTrip(tripId);
+      const r = await firmUpTrip(tripId, undefined, forkId ?? undefined);
       if (!r.success) {
         toast({
           variant: "destructive",
@@ -1400,6 +1403,7 @@ export function ItineraryManager({
         defaultArriveDate={suggestedStopDates.arriveDate}
         defaultDepartDate={suggestedStopDates.departDate}
         chapters={chapters.map((c) => ({ id: c.id, name: c.name }))}
+        forkId={forkId ?? null}
       />
 
       {/* Edit stop */}
@@ -1414,6 +1418,7 @@ export function ItineraryManager({
           tripStartDate={tripStartDate}
           tripEndDate={tripEndDate}
           chapters={chapters.map((c) => ({ id: c.id, name: c.name }))}
+          forkId={forkId ?? null}
         />
       )}
 
@@ -1428,6 +1433,7 @@ export function ItineraryManager({
           onOpenChange={(open) => {
             if (!open) setAddTransportDefaults(null);
           }}
+          forkId={forkId ?? null}
         />
       )}
 
@@ -1441,6 +1447,7 @@ export function ItineraryManager({
           onOpenChange={(open) => {
             if (!open) setEditingTransport(null);
           }}
+          forkId={forkId ?? null}
         />
       )}
 
@@ -1456,6 +1463,7 @@ export function ItineraryManager({
           onOpenChange={(open) => {
             if (!open) setAddAccommodationStop(null);
           }}
+          forkId={forkId ?? null}
         />
       )}
 
@@ -1475,6 +1483,7 @@ export function ItineraryManager({
               setEditingAccStop(null);
             }
           }}
+          forkId={forkId ?? null}
         />
       )}
 
@@ -1486,6 +1495,7 @@ export function ItineraryManager({
         defaultStart={chapterDialogDefaults.defaultStart}
         defaultEnd={chapterDialogDefaults.defaultEnd}
         originStopId={chapterDialogDefaults.originStopId}
+        forkId={forkId ?? null}
       />
 
       {/* Adjust dates (ripple path for already-dated stops) */}

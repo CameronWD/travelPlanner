@@ -66,9 +66,14 @@ vi.mock("./item-form-dialog", () => ({
   AddItemButton: () => null,
 }));
 
+// Capture forkId so tests can inspect what was passed to the dialog.
+const lastScheduleDialogProps: { forkId?: string | null } = {};
+
 vi.mock("./schedule-item-dialog", () => ({
-  ScheduleItemDialog: ({ open, itemTitle }: { open: boolean; itemTitle: string }) =>
-    open ? <div role="dialog" aria-label="Schedule item"><h2>Schedule item</h2><p>{itemTitle}</p></div> : null,
+  ScheduleItemDialog: ({ open, itemTitle, forkId }: { open: boolean; itemTitle: string; forkId?: string | null }) => {
+    lastScheduleDialogProps.forkId = forkId;
+    return open ? <div role="dialog" aria-label="Schedule item"><h2>Schedule item</h2><p>{itemTitle}</p></div> : null;
+  },
 }));
 
 import { unscheduleItem, scheduleItem } from "@/server/actions/items";
@@ -271,5 +276,94 @@ describe("WishlistBoard — List/Map toggle", () => {
     expect(screen.getByTestId("wishlist-map")).toBeInTheDocument();
     // Unlocated count line
     expect(screen.getByText(/1 not on the map/i)).toBeInTheDocument();
+  });
+});
+
+describe("WishlistBoard — activeForkId threading to ScheduleItemDialog", () => {
+  it("passes activeForkId to ScheduleItemDialog when a fork is active", async () => {
+    const user = userEvent.setup();
+    const item = makeItem({ id: "item-20", date: null, startTime: null, endTime: null });
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={[item]}
+        activeForkId="fork-abc"
+      />,
+    );
+
+    const scheduleBtn = await screen.findByRole("button", { name: `Schedule ${item.title}` });
+    await user.click(scheduleBtn);
+
+    await screen.findByRole("dialog", { name: "Schedule item" });
+    expect(lastScheduleDialogProps.forkId).toBe("fork-abc");
+  });
+
+  it("passes undefined forkId to ScheduleItemDialog when no fork is active", async () => {
+    const user = userEvent.setup();
+    const item = makeItem({ id: "item-21", date: null, startTime: null, endTime: null });
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={[item]}
+      />,
+    );
+
+    const scheduleBtn = await screen.findByRole("button", { name: `Schedule ${item.title}` });
+    await user.click(scheduleBtn);
+
+    await screen.findByRole("dialog", { name: "Schedule item" });
+    // activeForkId not passed → undefined
+    expect(lastScheduleDialogProps.forkId).toBeUndefined();
+  });
+});
+
+describe("WishlistBoard — placed idea marker", () => {
+  it("shows the 'in this plan' marker for ideas in placedIdeaIds", async () => {
+    const item = makeItem({ id: "item-30", date: null, startTime: null, endTime: null });
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={[item]}
+        placedIdeaIds={["item-30"]}
+      />,
+    );
+
+    expect(await screen.findByTestId("placed-marker-item-30")).toBeInTheDocument();
+    expect(screen.getByTestId("placed-marker-item-30")).toHaveTextContent("in this plan");
+  });
+
+  it("does not show the marker for ideas NOT in placedIdeaIds", async () => {
+    const item = makeItem({ id: "item-31", date: null, startTime: null, endTime: null });
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={[item]}
+        placedIdeaIds={[]}
+      />,
+    );
+
+    // Wait for the item to render
+    await screen.findByText(item.title);
+    expect(screen.queryByTestId("placed-marker-item-31")).not.toBeInTheDocument();
+  });
+
+  it("shows marker only for placed ideas when multiple items present", async () => {
+    const placed = makeItem({ id: "item-40", title: "Placed Idea", date: null, startTime: null, endTime: null });
+    const unplaced = makeItem({ id: "item-41", title: "Unplaced Idea", date: null, startTime: null, endTime: null, stopId: "stop-1", stopName: "Paris" });
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={[placed, unplaced]}
+        placedIdeaIds={["item-40"]}
+      />,
+    );
+
+    expect(await screen.findByTestId("placed-marker-item-40")).toBeInTheDocument();
+    expect(screen.queryByTestId("placed-marker-item-41")).not.toBeInTheDocument();
   });
 });

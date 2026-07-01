@@ -119,6 +119,37 @@ afterEach(() => {
 // createCost
 // ---------------------------------------------------------------------------
 
+describe("plan-scope: createCost with forkId", () => {
+  it("creates a cost in the given fork and writes forkId on the row", async () => {
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costCreateMock.mockResolvedValue({ id: "cost-9" });
+
+    const result = await createCost("trip-1", VALID_OTHER_INPUT, "fork-9");
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ forkId: "fork-9" }),
+      }),
+    );
+  });
+
+  it("writes forkId: null on create when no forkId is passed (real plan)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costCreateMock.mockResolvedValue({ id: "cost-1" });
+
+    await createCost("trip-1", VALID_OTHER_INPUT);
+
+    expect(costCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ forkId: null }),
+      }),
+    );
+  });
+});
+
 describe("createCost", () => {
   it("creates a cost and snapshots rateToHome = 1 when currency === homeCurrency", async () => {
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
@@ -506,5 +537,93 @@ describe("updateCost — activity", () => {
     await updateCost("cost-1", { ...VALID_TRANSPORT_INPUT, currency: "EUR" });
 
     expect(recordActivity).toHaveBeenCalledWith(expect.objectContaining({ tripId: "trip-1", verb: "UPDATED", entityType: "COST", entityId: "cost-1" }));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fork-silent: activity must NOT fire for fork-scoped mutations
+// ---------------------------------------------------------------------------
+
+describe("fork-silent: createCost in a fork does NOT record activity", () => {
+  it("does not call recordActivity when forkId is set (fork-scoped create)", async () => {
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costCreateMock.mockResolvedValue({ id: "fc-cost-1" });
+
+    await createCost("trip-1", VALID_TRANSPORT_INPUT, "fork-x");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when forkId is null (real-plan create)", async () => {
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costCreateMock.mockResolvedValue({ id: "rc-cost-1" });
+
+    await createCost("trip-1", VALID_TRANSPORT_INPUT);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityType: "COST" }),
+    );
+  });
+});
+
+describe("fork-silent: updateCost in a fork does NOT record activity", () => {
+  it("does not call recordActivity when cost.forkId is non-null (fork-scoped update)", async () => {
+    costFindUniqueMock
+      .mockResolvedValueOnce({ id: "fc-cost-2", tripId: "trip-1", forkId: "fork-x" }) // requireCostAccess
+      .mockResolvedValueOnce({ id: "fc-cost-2", tripId: "trip-1", forkId: "fork-x", estimatedMinor: 5000, currency: "AUD" }); // before-row
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costUpdateMock.mockResolvedValue({ id: "fc-cost-2", estimatedMinor: 6000, currency: "AUD" });
+
+    await updateCost("fc-cost-2", VALID_TRANSPORT_INPUT);
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when cost.forkId is null (real-plan update)", async () => {
+    costFindUniqueMock
+      .mockResolvedValueOnce({ id: "rc-cost-2", tripId: "trip-1", forkId: null }) // requireCostAccess
+      .mockResolvedValueOnce({ id: "rc-cost-2", tripId: "trip-1", forkId: null, estimatedMinor: 5000, currency: "AUD" }); // before-row
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costUpdateMock.mockResolvedValue({ id: "rc-cost-2", estimatedMinor: 6000, currency: "AUD" });
+
+    await updateCost("rc-cost-2", VALID_TRANSPORT_INPUT);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "UPDATED", entityType: "COST" }),
+    );
+  });
+});
+
+describe("fork-silent: deleteCost in a fork does NOT record activity", () => {
+  it("does not call recordActivity when cost.forkId is non-null (fork-scoped delete)", async () => {
+    costFindUniqueMock
+      .mockResolvedValueOnce({ id: "fc-cost-3", tripId: "trip-1", forkId: "fork-x" }) // requireCostAccess
+      .mockResolvedValueOnce({ label: "Hotel" }); // doomed label
+    costDeleteMock.mockResolvedValue({});
+
+    await deleteCost("fc-cost-3");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when cost.forkId is null (real-plan delete)", async () => {
+    costFindUniqueMock
+      .mockResolvedValueOnce({ id: "rc-cost-3", tripId: "trip-1", forkId: null }) // requireCostAccess
+      .mockResolvedValueOnce({ label: "Hotel" }); // doomed label
+    costDeleteMock.mockResolvedValue({});
+
+    await deleteCost("rc-cost-3");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "COST" }),
+    );
   });
 });

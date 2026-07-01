@@ -70,7 +70,7 @@ export default async function PrintPage({
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops are excluded from the dated print view.
-        where: { tripId, arriveDate: { not: null } },
+        where: { tripId, forkId: null, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -86,7 +86,7 @@ export default async function PrintPage({
         },
       }),
       db.transport.findMany({
-        where: { tripId },
+        where: { tripId, forkId: null },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -103,7 +103,7 @@ export default async function PrintPage({
         },
       }),
       db.accommodation.findMany({
-        where: { tripId },
+        where: { tripId, forkId: null },
         orderBy: { checkIn: "asc" },
         select: {
           id: true,
@@ -116,7 +116,7 @@ export default async function PrintPage({
         },
       }),
       db.item.findMany({
-        where: { tripId },
+        where: { tripId, forkId: null },
         orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
         select: {
           id: true,
@@ -132,7 +132,7 @@ export default async function PrintPage({
         },
       }),
       db.cost.findMany({
-        where: { tripId },
+        where: { tripId, forkId: null },
         orderBy: { createdAt: "asc" },
         select: {
           id: true,

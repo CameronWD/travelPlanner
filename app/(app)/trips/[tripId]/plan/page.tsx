@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { planScope } from "@/lib/plan-scope";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import { StopSpreadsheet } from "@/components/discreet/stop-spreadsheet";
 import { getDiscreetState } from "@/lib/discreet-server";
@@ -27,11 +28,22 @@ const COST_SELECT = {
 
 export default async function TripPlanPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tripId: string }>;
+  searchParams: Promise<{ plan?: string }>;
 }) {
   const { tripId } = await params;
+  const { plan } = await searchParams;
+  const selectedForkId = plan ?? null;
+
   const { user } = await requireTripAccess(tripId);
+
+  // Validate the fork exists for this trip; fall back to real plan if not.
+  const forkExists = selectedForkId
+    ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true } })
+    : null;
+  const activeForkId = forkExists ? selectedForkId : null;
 
   const [trip, stops, transports, allCosts, chapters] = await Promise.all([
     db.trip.findUnique({
@@ -46,7 +58,7 @@ export default async function TripPlanPage({
       },
     }),
     db.stop.findMany({
-      where: { tripId },
+      where: { tripId, ...planScope(activeForkId) },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -81,7 +93,7 @@ export default async function TripPlanPage({
       },
     }),
     db.transport.findMany({
-      where: { tripId },
+      where: { tripId, ...planScope(activeForkId) },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -105,6 +117,7 @@ export default async function TripPlanPage({
     db.cost.findMany({
       where: {
         tripId,
+        ...planScope(activeForkId),
         ownerType: { in: ["TRANSPORT", "ACCOMMODATION"] },
         ownerId: { not: null },
       },
@@ -112,7 +125,7 @@ export default async function TripPlanPage({
       select: COST_SELECT,
     }),
     db.chapter.findMany({
-      where: { tripId },
+      where: { tripId, ...planScope(activeForkId) },
       orderBy: [{ startDate: "asc" }, { sortOrder: "asc" }],
       select: { id: true, name: true, colour: true, startDate: true, endDate: true, sortOrder: true },
     }),
@@ -224,6 +237,11 @@ export default async function TripPlanPage({
 
   return (
     <div className="flex flex-col gap-6">
+      {activeForkId && (
+        <div className="rounded-md bg-blue-50 border border-blue-200 px-4 py-2 text-sm text-blue-800">
+          You&apos;re editing a variant — changes don&apos;t affect your live plan.
+        </div>
+      )}
       {stops.length > 0 && (
         <PlanOverview
           tripId={tripId}
@@ -238,6 +256,7 @@ export default async function TripPlanPage({
       <ItineraryManager
         tripId={tripId}
         homeCurrency={trip?.homeCurrency}
+        forkId={activeForkId}
         tripStartDate={tripStartDate}
         tripEndDate={tripEndDate}
         notesByStopId={notesByStopId}

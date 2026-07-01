@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { findMembership } from "@/lib/access";
+import type { TripPhase } from "@/lib/trip-phase";
 
 export { findMembership } from "@/lib/access";
 export type { MembershipLike } from "@/lib/access";
@@ -35,4 +36,35 @@ export async function requireTripAccess(tripId: string) {
     notFound();
   }
   return { user, membership };
+}
+
+/**
+ * Throw when the trip's phase does not allow forking. Forking is only
+ * available before departure (sketching / planning / final-prep).
+ */
+export function assertForkingAllowed(phase: TripPhase): void {
+  if (phase === "travelling" || phase === "past") {
+    throw new Error("Forking is only available before departure");
+  }
+}
+
+/**
+ * Require that the current user can access the given fork. Verifies the fork
+ * exists and that the user is a member of its parent trip. Returns the user,
+ * the fork row, and the trip's date fields.
+ */
+export async function requireForkAccess(forkId: string) {
+  const user = await requireUser();
+  const fork = await db.fork.findUnique({
+    where: { id: forkId },
+    select: {
+      id: true,
+      tripId: true,
+      name: true,
+      trip: { select: { id: true, startDate: true, endDate: true } },
+    },
+  });
+  if (!fork) notFound();
+  await requireTripAccess(fork.tripId);
+  return { user, fork, trip: fork.trip };
 }

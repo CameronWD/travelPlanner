@@ -52,6 +52,8 @@ export interface ChapterFormDialogProps {
   defaultEnd?: string;
   /** When creating from a stop, the originating stop's id — linked to the new chapter if rough. */
   originStopId?: string;
+  /** Fork to create the chapter in (null = real plan). */
+  forkId?: string | null;
 }
 
 /**
@@ -69,6 +71,7 @@ export function ChapterFormDialog({
   defaultStart,
   defaultEnd,
   originStopId,
+  forkId,
 }: ChapterFormDialogProps) {
   // The key causes React to remount the form component whenever the dialog
   // opens or the chapter changes, giving us fresh initial state for free.
@@ -91,6 +94,7 @@ export function ChapterFormDialog({
           defaultStart={defaultStart}
           defaultEnd={defaultEnd}
           originStopId={originStopId}
+          forkId={forkId}
         />
       </DialogContent>
     </Dialog>
@@ -109,6 +113,7 @@ interface ChapterFormProps {
   defaultStart?: string;
   defaultEnd?: string;
   originStopId?: string;
+  forkId?: string | null;
 }
 
 function ChapterForm({
@@ -119,6 +124,7 @@ function ChapterForm({
   defaultStart,
   defaultEnd,
   originStopId,
+  forkId,
 }: ChapterFormProps) {
   const isEdit = Boolean(chapter);
 
@@ -153,7 +159,7 @@ function ChapterForm({
       const result =
         isEdit && chapter
           ? await updateChapter(chapter.id, input)
-          : await createChapter(tripId, input, originStopId);
+          : await createChapter(tripId, input, originStopId, forkId ?? undefined);
 
       if (!result.success) {
         setErrors(result.errors as FormErrors);

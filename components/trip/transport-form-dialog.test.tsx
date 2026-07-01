@@ -69,6 +69,7 @@ describe("TransportFormDialog", () => {
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({ mode: "FLIGHT" }),
+      undefined,
     );
 
     // Server-returned field error is rendered
@@ -116,6 +117,7 @@ describe("TransportFormDialog", () => {
         fromStopId: undefined,
         toStopId: undefined,
       }),
+      undefined,
     );
     expect(createTransport).toHaveBeenCalledTimes(1);
   });

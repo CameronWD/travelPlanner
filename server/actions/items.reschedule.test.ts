@@ -41,8 +41,8 @@ const ITEM_ID = "item-1";
 
 afterEach(() => vi.clearAllMocks());
 
-function arrangeTrip() {
-  itemFindUniqueMock.mockResolvedValue({ id: ITEM_ID, tripId: TRIP_ID });
+function arrangeTrip(forkId: string | null = null) {
+  itemFindUniqueMock.mockResolvedValue({ id: ITEM_ID, tripId: TRIP_ID, forkId });
   tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: "2026-07-31" });
   stopFindManyMock.mockResolvedValue([
     { id: "stop-paris", arriveDate: "2026-07-01", departDate: "2026-07-10", sortOrder: 0 },
@@ -89,5 +89,26 @@ describe("rescheduleItem", () => {
     const result = await rescheduleItem(ITEM_ID, "15-07-2026");
     expect(result.success).toBe(false);
     expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("scopes stop lookup to real plan (forkId: null) when item is in real plan", async () => {
+    arrangeTrip(null); // real-plan item
+    await rescheduleItem(ITEM_ID, "2026-07-15");
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: TRIP_ID, forkId: null }),
+      }),
+    );
+  });
+
+  it("scopes stop lookup to fork when item belongs to a fork", async () => {
+    const FORK_ID = "fork-abc";
+    arrangeTrip(FORK_ID);
+    await rescheduleItem(ITEM_ID, "2026-07-15");
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: TRIP_ID, forkId: FORK_ID }),
+      }),
+    );
   });
 });

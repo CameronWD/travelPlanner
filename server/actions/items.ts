@@ -8,8 +8,9 @@ import { requireTripAccess } from "@/lib/guards";
 import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { stopForDate } from "@/lib/itinerary";
 import { geocodePlace } from "@/lib/geocode";
-import { recordActivity } from "@/server/actions/activity";
+import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
+import { planScope, type PlanId } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -30,10 +31,11 @@ export type ItemActionResult =
 async function requireItemAccess(itemId: string): Promise<{
   id: string;
   tripId: string;
+  forkId: string | null;
 }> {
   const item = await db.item.findUnique({
     where: { id: itemId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, forkId: true },
   });
   if (!item) {
     notFound();
@@ -75,6 +77,7 @@ function revalidateItemPaths(tripId: string) {
 export async function createItem(
   tripId: string,
   input: ItemInput,
+  forkId?: PlanId,
 ): Promise<ItemActionResult> {
   await requireTripAccess(tripId);
 
@@ -85,13 +88,13 @@ export async function createItem(
 
   const data = parsed.data;
 
-  // Validate stopId belongs to this trip
+  // Validate stopId belongs to this trip and the same plan
   if (data.stopId) {
     const stop = await db.stop.findUnique({
       where: { id: data.stopId },
-      select: { id: true, tripId: true },
+      select: { id: true, tripId: true, forkId: true },
     });
-    if (!stop || stop.tripId !== tripId) {
+    if (!stop || stop.tripId !== tripId || stop.forkId !== (forkId ?? null)) {
       return {
         success: false,
         errors: { stopId: ["Stop does not belong to this trip"] },
@@ -99,9 +102,9 @@ export async function createItem(
     }
   }
 
-  // Sort order: max + 1 within the trip
+  // Sort order: max + 1 within the target plan
   const maxItem = await db.item.findFirst({
-    where: { tripId },
+    where: { tripId, ...planScope(forkId) },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
@@ -119,6 +122,7 @@ export async function createItem(
   const created = await db.item.create({
     data: {
       tripId,
+      forkId: forkId ?? null,
       stopId: data.stopId ?? null,
       title: data.title,
       category: data.category,
@@ -135,7 +139,7 @@ export async function createItem(
     },
   });
 
-  await recordActivity({ tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>) });
   revalidateItemPaths(tripId);
   return { success: true };
 }
@@ -159,13 +163,13 @@ export async function updateItem(
 
   const data = parsed.data;
 
-  // Validate stopId belongs to this trip
+  // Validate stopId belongs to this trip and to the item's own plan.
   if (data.stopId) {
     const stop = await db.stop.findUnique({
       where: { id: data.stopId },
-      select: { id: true, tripId: true },
+      select: { id: true, tripId: true, forkId: true },
     });
-    if (!stop || stop.tripId !== item.tripId) {
+    if (!stop || stop.tripId !== item.tripId || stop.forkId !== item.forkId) {
       return {
         success: false,
         errors: { stopId: ["Stop does not belong to this trip"] },
@@ -202,7 +206,7 @@ export async function updateItem(
     },
   });
 
-  await recordActivity({
+  await recordPlanActivity(item.forkId, {
     tripId: item.tripId,
     verb: "UPDATED",
     entityType: "ITEM",
@@ -222,7 +226,7 @@ export async function deleteItem(itemId: string): Promise<ItemActionResult> {
 
   const doomed = await db.item.findUnique({ where: { id: itemId }, select: { title: true } });
   await db.item.delete({ where: { id: itemId } });
-  await recordActivity({ tripId: item.tripId, verb: "DELETED", entityType: "ITEM", entityId: itemId, entityLabel: doomed?.title ?? "" });
+  await recordPlanActivity(item.forkId, { tripId: item.tripId, verb: "DELETED", entityType: "ITEM", entityId: itemId, entityLabel: doomed?.title ?? "" });
 
   revalidateItemPaths(item.tripId);
   return { success: true };
@@ -271,8 +275,13 @@ const scheduleDateSchema = z
 export type ScheduleItemInput = z.infer<typeof scheduleDateSchema>;
 
 /**
- * Schedule an item: set its date (and optional times), moving it from the
- * Wishlist onto the Timeline.
+ * Schedule an item onto the timeline (ADR 0019 copy-in semantics).
+ *
+ * - If the target is a Wishlist idea (date===null && forkId===null): CREATE a
+ *   placed copy in the target plan (forkId param), setting sourceItemId to the
+ *   idea's id. The idea row is left untouched.
+ * - If the target already has a date (it's a placed/scheduled item): keep the
+ *   existing in-place reschedule behaviour (update date/startTime/endTime).
  *
  * The date is allowed to be outside the trip date range — this is a soft rule;
  * we store it as-is and the UI can warn.
@@ -280,8 +289,9 @@ export type ScheduleItemInput = z.infer<typeof scheduleDateSchema>;
 export async function scheduleItem(
   itemId: string,
   input: ScheduleItemInput,
-): Promise<ItemActionResult> {
-  const item = await requireItemAccess(itemId);
+  forkId?: PlanId,
+): Promise<ItemActionResult & { placedItemId?: string }> {
+  const accessItem = await requireItemAccess(itemId);
 
   const parsed = scheduleDateSchema.safeParse(input);
   if (!parsed.success) {
@@ -290,7 +300,61 @@ export async function scheduleItem(
 
   const { date, startTime, endTime } = parsed.data;
 
-  const before = await db.item.findUnique({ where: { id: itemId } });
+  // Fetch the full item row to determine which branch to take.
+  const fullItem = await db.item.findUnique({ where: { id: itemId } });
+  if (!fullItem) notFound();
+
+  const isWishlistIdea = fullItem.date === null && fullItem.forkId === null;
+
+  if (isWishlistIdea) {
+    // --- Copy-in placement branch ---
+    // Compute sortOrder scoped to the target plan (highest existing placed sortOrder + 1).
+    const maxPlaced = await db.item.findFirst({
+      where: {
+        tripId: accessItem.tripId,
+        ...planScope(forkId),
+        date: { not: null },
+      },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
+    const sortOrder = (maxPlaced?.sortOrder ?? -1) + 1;
+
+    const placed = await db.item.create({
+      data: {
+        tripId: accessItem.tripId,
+        forkId: forkId ?? null,
+        sourceItemId: itemId,
+        title: fullItem.title,
+        category: fullItem.category,
+        stopId: fullItem.stopId ?? null,
+        lat: fullItem.lat ?? null,
+        lng: fullItem.lng ?? null,
+        address: fullItem.address ?? null,
+        link: fullItem.link ?? null,
+        notes: fullItem.notes ?? null,
+        date,
+        startTime: startTime ?? null,
+        endTime: endTime ?? null,
+        sortOrder,
+      },
+    });
+
+    await recordPlanActivity(forkId, {
+      tripId: accessItem.tripId,
+      verb: "CREATED",
+      entityType: "ITEM",
+      entityId: placed.id,
+      entityLabel: entityLabel("ITEM", placed as unknown as Record<string, unknown>),
+    });
+
+    revalidateItemPaths(accessItem.tripId);
+    return { success: true, placedItemId: placed.id };
+  }
+
+  // --- In-place reschedule branch (item already has a date) ---
+  // Reuse fullItem as the before snapshot — it's the same row read above.
+  const before = fullItem;
 
   const updated = await db.item.update({
     where: { id: itemId },
@@ -301,8 +365,8 @@ export async function scheduleItem(
     },
   });
 
-  await recordActivity({
-    tripId: item.tripId,
+  await recordPlanActivity(accessItem.forkId, {
+    tripId: accessItem.tripId,
     verb: "UPDATED",
     entityType: "ITEM",
     entityId: itemId,
@@ -310,39 +374,37 @@ export async function scheduleItem(
     changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
 
-  revalidateItemPaths(item.tripId);
+  revalidateItemPaths(accessItem.tripId);
   return { success: true };
 }
 
 /**
- * Unschedule an item: clear its date and times, returning it to the Wishlist.
+ * Unschedule (remove) a placed item (ADR 0019 copy-in semantics).
+ *
+ * Deletes the placed copy. The originating wishlist idea (if any) is left
+ * intact. Directly-created timeline items (sourceItemId===null) are also
+ * deleted — they have no idea to fall back to ("remove from timeline").
  */
 export async function unscheduleItem(
   itemId: string,
 ): Promise<ItemActionResult> {
-  const item = await requireItemAccess(itemId);
+  const accessItem = await requireItemAccess(itemId);
 
-  const before = await db.item.findUnique({ where: { id: itemId } });
+  // Fetch the full item so we have its title for the activity log.
+  const fullItem = await db.item.findUnique({ where: { id: itemId } });
+  if (!fullItem) notFound();
 
-  const updated = await db.item.update({
-    where: { id: itemId },
-    data: {
-      date: null,
-      startTime: null,
-      endTime: null,
-    },
-  });
+  await db.item.delete({ where: { id: itemId } });
 
-  await recordActivity({
-    tripId: item.tripId,
-    verb: "UPDATED",
+  await recordPlanActivity(accessItem.forkId, {
+    tripId: accessItem.tripId,
+    verb: "DELETED",
     entityType: "ITEM",
     entityId: itemId,
-    entityLabel: entityLabel("ITEM", updated as unknown as Record<string, unknown>),
-    changes: describeChanges("ITEM", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+    entityLabel: entityLabel("ITEM", fullItem as unknown as Record<string, unknown>),
   });
 
-  revalidateItemPaths(item.tripId);
+  revalidateItemPaths(accessItem.tripId);
   return { success: true };
 }
 
@@ -385,7 +447,9 @@ export async function rescheduleItem(
 
   const stops = await db.stop.findMany({
     // Only scheduled stops can cover a calendar day.
-    where: { tripId: item.tripId, arriveDate: { not: null } },
+    // Scope to the same plan as the item being rescheduled so fork placements
+    // validate against fork stops, and real-plan moves against real-plan stops.
+    where: { tripId: item.tripId, ...planScope(item.forkId), arriveDate: { not: null } },
     select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
   });
 
@@ -408,7 +472,7 @@ export async function rescheduleItem(
     data: { date: targetDateISO, stopId: covering?.id ?? null },
   });
 
-  await recordActivity({
+  await recordPlanActivity(item.forkId, {
     tripId: item.tripId,
     verb: "UPDATED",
     entityType: "ITEM",

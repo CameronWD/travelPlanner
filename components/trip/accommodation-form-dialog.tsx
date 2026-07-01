@@ -49,6 +49,8 @@ export interface AccommodationFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
+  /** Fork to create the accommodation in (null = real plan). */
+  forkId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -62,6 +64,7 @@ export function AccommodationFormDialog({
   open,
   onOpenChange,
   onSaved,
+  forkId,
 }: AccommodationFormDialogProps) {
   const formKey = open
     ? `${accommodation?.id ?? "new"}-${String(open)}`
@@ -82,6 +85,7 @@ export function AccommodationFormDialog({
           accommodation={accommodation}
           onClose={() => onOpenChange(false)}
           onSaved={onSaved}
+          forkId={forkId}
         />
       </DialogContent>
     </Dialog>
@@ -159,6 +163,7 @@ interface AccommodationFormProps {
   accommodation?: AccommodationCardAccommodation | null;
   onClose: () => void;
   onSaved?: () => void;
+  forkId?: string | null;
 }
 
 function AccommodationForm({
@@ -167,6 +172,7 @@ function AccommodationForm({
   accommodation,
   onClose,
   onSaved,
+  forkId,
 }: AccommodationFormProps) {
   const isEdit = Boolean(accommodation);
 
@@ -217,7 +223,7 @@ function AccommodationForm({
       const result =
         isEdit && accommodation
           ? await updateAccommodation(accommodation.id, input)
-          : await createAccommodation(input);
+          : await createAccommodation(input, forkId ?? undefined);
 
       if (!result.success) {
         setErrors(result.errors as FormErrors);

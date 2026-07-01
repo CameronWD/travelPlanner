@@ -7,8 +7,9 @@ import { requireTripAccess } from "@/lib/guards";
 import { chapterSchema, type ChapterInput } from "@/lib/validations/chapter";
 import { chaptersOverlap, suggestChapterRuns } from "@/lib/chapters";
 import { nextChapterColour } from "@/lib/chapter-colours";
-import { recordActivity } from "@/server/actions/activity";
+import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
+import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -36,10 +37,10 @@ function revalidateChapterPaths(tripId: string) {
   }
 }
 
-async function requireChapterAccess(chapterId: string): Promise<{ id: string; tripId: string }> {
+async function requireChapterAccess(chapterId: string): Promise<{ id: string; tripId: string; forkId: string | null }> {
   const chapter = await db.chapter.findUnique({
     where: { id: chapterId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, forkId: true },
   });
   if (!chapter) notFound();
   await requireTripAccess(chapter.tripId);
@@ -57,10 +58,11 @@ async function firstOverlap(
   tripId: string,
   range: { startDate?: string; endDate?: string },
   excludeId?: string,
+  forkId?: PlanId,
 ) {
   if (!range.startDate || !range.endDate) return null; // rough chapter never overlaps
   const siblings = await db.chapter.findMany({
-    where: { tripId },
+    where: { tripId, ...planScope(forkId) },
     select: { id: true, startDate: true, endDate: true },
   });
   return siblings.find(
@@ -69,9 +71,9 @@ async function firstOverlap(
   ) ?? null;
 }
 
-async function nextSortOrder(tripId: string): Promise<number> {
+async function nextSortOrder(tripId: string, forkId?: PlanId): Promise<number> {
   // sortOrder is only a stable creation-order tiebreak; chapters are ordered by startDate at read time.
-  return db.chapter.count({ where: { tripId } });
+  return db.chapter.count({ where: { tripId, ...planScope(forkId) } });
 }
 
 // ---------------------------------------------------------------------------
@@ -82,18 +84,19 @@ export async function createChapter(
   tripId: string,
   input: ChapterInput,
   originStopId?: string,
+  forkId?: PlanId,
 ): Promise<ChapterActionResult> {
   await requireTripAccess(tripId);
 
   const parsed = chapterSchema.safeParse(input);
   if (!parsed.success) return validationErrors(parsed.error);
 
-  if (await firstOverlap(tripId, parsed.data)) {
+  if (await firstOverlap(tripId, parsed.data, undefined, forkId)) {
     return { success: false, errors: { startDate: ["Chapters cannot overlap another chapter's dates"] } };
   }
 
   const created = await db.chapter.create({
-    data: { tripId, ...parsed.data, sortOrder: await nextSortOrder(tripId) },
+    data: { tripId, forkId: forkId ?? null, ...parsed.data, sortOrder: await nextSortOrder(tripId, forkId) },
   });
 
   // When created from a stop ("Start a chapter here"), link a ROUGH origin
@@ -103,9 +106,9 @@ export async function createChapter(
   if (originStopId) {
     const origin = await db.stop.findUnique({
       where: { id: originStopId },
-      select: { tripId: true, arriveDate: true },
+      select: { tripId: true, arriveDate: true, forkId: true },
     });
-    if (origin && origin.tripId === tripId && origin.arriveDate === null) {
+    if (origin && origin.tripId === tripId && origin.arriveDate === null && origin.forkId === (forkId ?? null)) {
       await db.stop.update({
         where: { id: originStopId },
         data: { chapterId: created.id, chapterSortOrder: 0 },
@@ -113,7 +116,7 @@ export async function createChapter(
     }
   }
 
-  await recordActivity({ tripId, verb: "CREATED", entityType: "CHAPTER", entityId: created.id, entityLabel: entityLabel("CHAPTER", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "CHAPTER", entityId: created.id, entityLabel: entityLabel("CHAPTER", created as unknown as Record<string, unknown>) });
   revalidateChapterPaths(tripId);
   return { success: true };
 }
@@ -133,7 +136,7 @@ export async function updateChapter(
 
   const before = await loadFullChapter(chapterId);
   const updated = await db.chapter.update({ where: { id: chapterId }, data: parsed.data });
-  await recordActivity({
+  await recordPlanActivity(chapter.forkId, {
     tripId: chapter.tripId,
     verb: "UPDATED",
     entityType: "CHAPTER",
@@ -149,7 +152,7 @@ export async function deleteChapter(chapterId: string): Promise<ChapterActionRes
   const chapter = await requireChapterAccess(chapterId);
   const doomed = await db.chapter.findUnique({ where: { id: chapterId }, select: { name: true } });
   await db.chapter.delete({ where: { id: chapterId } });
-  await recordActivity({ tripId: chapter.tripId, verb: "DELETED", entityType: "CHAPTER", entityId: chapterId, entityLabel: doomed?.name ?? "" });
+  await recordPlanActivity(chapter.forkId, { tripId: chapter.tripId, verb: "DELETED", entityType: "CHAPTER", entityId: chapterId, entityLabel: doomed?.name ?? "" });
   revalidateChapterPaths(chapter.tripId);
   return { success: true };
 }
@@ -187,11 +190,11 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
 
   const [stops, existing] = await Promise.all([
     db.stop.findMany({
-      where: { tripId },
+      where: { tripId, ...REAL_PLAN },
       select: { id: true, arriveDate: true, departDate: true, country: true, sortOrder: true },
     }),
     db.chapter.findMany({
-      where: { tripId },
+      where: { tripId, ...REAL_PLAN },
       select: { id: true, colour: true, startDate: true, endDate: true },
     }),
   ]);
@@ -225,7 +228,7 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
 
   if (data.length > 0) {
     await db.chapter.createMany({ data });
-    await recordActivity({
+    await recordPlanActivity(null, {
       tripId,
       verb: "CREATED",
       entityType: "CHAPTER",

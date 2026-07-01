@@ -112,6 +112,7 @@ import {
   reorderStops,
   setStopDates,
   firmUpSegment,
+  firmUpTrip,
   toggleStopPin,
   makeStopRough,
   assignStopToChapter,
@@ -145,6 +146,10 @@ beforeEach(() => {
     user: { id: "user-1" },
     membership: { role: "owner" },
   });
+  // Default: chapter lookup returns a real-plan chapter (forkId null)
+  chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: null });
+  // Default: stop.findMany returns no rows (individual tests override as needed).
+  stopFindManyMock.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -154,6 +159,144 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 // createStop
 // ---------------------------------------------------------------------------
+
+describe("plan-scope: createStop sortOrder", () => {
+  it("computes sortOrder within the real plan only (forkId null)", async () => {
+    stopFindFirstMock.mockResolvedValue({ sortOrder: 2 });
+    stopCreateMock.mockResolvedValue({ id: "stop-1", name: "Rome" });
+
+    await createStop("trip-1", ROUGH_INPUT);
+
+    expect(stopFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: null }),
+      }),
+    );
+  });
+});
+
+describe("plan-scope: assignStopToChapter sortOrder", () => {
+  it("computes chapterSortOrder within the real plan only (forkId null)", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false })
+      .mockResolvedValueOnce({ name: "Rome", chapterId: null });
+    stopFindFirstMock.mockResolvedValue({ chapterSortOrder: 3 });
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindUniqueMock.mockResolvedValue({ name: "Italy" });
+
+    await assignStopToChapter("a", "ch-italy");
+
+    expect(stopFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", chapterId: "ch-italy", forkId: null }),
+      }),
+    );
+  });
+});
+
+describe("plan-scope: applyStopDates ripple findMany", () => {
+  it("fetches following stops within the real plan only (forkId null)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "b", tripId: "trip-1", sortOrder: 1, arriveDate: null, departDate: null, nights: null, pinned: false });
+    stopFindManyMock.mockResolvedValue([]);
+    tripFindUniqueMock.mockResolvedValue({ endDate: "2026-07-10" });
+    tripUpdateMock.mockResolvedValue({});
+
+    await setStopDates("b", { arriveDate: "2026-07-12", departDate: "2026-07-15" });
+
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: null }),
+      }),
+    );
+  });
+});
+
+describe("plan-scope: createStop with forkId", () => {
+  it("creates a stop in the given fork with fork-scoped sortOrder", async () => {
+    stopFindFirstMock.mockResolvedValue({ sortOrder: 1 });
+    stopCreateMock.mockResolvedValue({ id: "s9", name: "Bern" });
+    chapterFindUniqueMock.mockResolvedValue(null); // no chapter for this test
+
+    await createStop("trip-1", { mode: "rough" as const, name: "Bern", nights: 2 }, "fork-9");
+
+    expect(stopFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }) }),
+    );
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ forkId: "fork-9", sortOrder: 2 }),
+    });
+  });
+
+  it("writes forkId: null on create when no forkId is passed (real plan)", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "s10", name: "Rome" });
+
+    await createStop("trip-1", ROUGH_INPUT);
+
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ forkId: null }),
+    });
+  });
+
+  it("rejects a rough stop whose chapterId belongs to a different plan", async () => {
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: "other-fork" });
+    stopFindFirstMock.mockResolvedValue(null);
+
+    const result = await createStop("trip-1", ROUGH_INPUT, "fork-9");
+
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors.chapterId).toBeDefined();
+    expect(stopCreateMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("plan-scope: applyStopDates ripple scoped to edited stop's forkId", () => {
+  it("fetches following stops scoped to the fork when the edited stop is in a fork", async () => {
+    // requireStopAccess returns a fork stop
+    stopFindUniqueMock.mockResolvedValue({
+      id: "fork-stop-1",
+      tripId: "trip-1",
+      sortOrder: 0,
+      arriveDate: null,
+      departDate: null,
+      nights: null,
+      pinned: false,
+      forkId: "fork-9",
+    });
+    stopFindManyMock.mockResolvedValue([]);
+    tripFindUniqueMock.mockResolvedValue({ endDate: "2026-07-20" });
+    tripUpdateMock.mockResolvedValue({});
+
+    await setStopDates("fork-stop-1", { arriveDate: "2026-07-12", departDate: "2026-07-15" });
+
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }),
+      }),
+    );
+  });
+});
+
+describe("plan-scope: firmUpSegment/firmUpTrip findMany", () => {
+  it("firmUpSegment fetches stops within the real plan only (forkId null)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", sortOrder: 0, chapterId: "it", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+    chapterFindUniqueMock.mockResolvedValue({ name: "Italy", startDate: null, endDate: null });
+    chapterUpdateMock.mockResolvedValue({});
+
+    await firmUpSegment({ tripId: "trip-1", chapterId: "it" });
+
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: null }),
+      }),
+    );
+  });
+});
 
 describe("createStop", () => {
   it("creates a stop with sortOrder = 0 when no stops exist", async () => {
@@ -459,6 +602,7 @@ describe("moveStop", () => {
       departDate: null,
       nights: null,
       pinned: false,
+      forkId: null,
     });
     queryRawMock.mockResolvedValue(stops);
     stopUpdateMock.mockResolvedValue({});
@@ -472,6 +616,45 @@ describe("moveStop", () => {
     expect(sqlParts.join(" ")).toContain("FOR UPDATE");
     // First bound value is the tripId.
     expect(queryRawMock.mock.calls[0][1]).toBe("trip-1");
+    // SQL must include forkId scoping.
+    expect(sqlParts.join(" ")).toContain("forkId");
+    // The real-plan branch must emit an IS NULL predicate — the Prisma.Sql
+    // fragment for the forkId scope has NO bound values (guards against a future
+    // `= NULL` regression, which would never match rows).
+    const forkIdSqlArg = queryRawMock.mock.calls[0][2] as { values: unknown[] };
+    expect(forkIdSqlArg).toBeTruthy();
+    expect(forkIdSqlArg.values).toEqual([]);
+  });
+
+  it("moveStop scopes sibling query to the stop's forkId when moving a fork stop", async () => {
+    stopFindUniqueMock.mockResolvedValue({
+      id: "fork-stop-2",
+      tripId: "trip-1",
+      sortOrder: 1,
+      arriveDate: null,
+      departDate: null,
+      nights: null,
+      pinned: false,
+      forkId: "fork-9",
+    });
+    const forkStops = [
+      { id: "fork-stop-1", sortOrder: 0 },
+      { id: "fork-stop-2", sortOrder: 1 },
+    ];
+    queryRawMock.mockResolvedValue(forkStops);
+    stopUpdateMock.mockResolvedValue({});
+
+    const result = await moveStop("fork-stop-2", "up");
+
+    expect(result.success).toBe(true);
+    // The SQL template strings must contain the "forkId" column reference.
+    const sqlParts = queryRawMock.mock.calls[0][0] as string[];
+    expect(sqlParts.join(" ")).toContain("forkId");
+    // The Prisma.Sql object for the = ${forkId} branch has a non-empty values array.
+    // This distinguishes it from the IS NULL branch (which has no values).
+    const forkIdSqlArg = queryRawMock.mock.calls[0][2] as { values: unknown[] };
+    expect(forkIdSqlArg).toBeTruthy();
+    expect(forkIdSqlArg.values).toEqual(["fork-9"]);
   });
 
   it("swaps sortOrder with the previous stop when moving up", async () => {
@@ -976,6 +1159,24 @@ describe("getTripProjection", () => {
     const r = await getTripProjection("trip-1");
     expect(r).toEqual({ projectedEnd: null, hardEndDate: null });
   });
+
+  it("scopes stop query to forkId: null (real plan) when no forkId is provided", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: null, hardEndDate: null });
+    stopFindManyMock.mockResolvedValue([]);
+    await getTripProjection("trip-1");
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
+    );
+  });
+
+  it("scopes stop query to the given forkId when one is supplied", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: null, hardEndDate: null });
+    stopFindManyMock.mockResolvedValue([]);
+    await getTripProjection("trip-1", "fork-9");
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ forkId: "fork-9" }) }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1044,6 +1245,72 @@ describe("reorderStops", () => {
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
+  // I3 — chapter validation must be scoped to the plan of the stops being
+  // reordered, closing a cross-plan write vector.
+  it("scopes chapter validation to the FORK when reordering fork stops", async () => {
+    // The stops being reordered belong to fork-9.
+    stopFindManyMock.mockResolvedValue([
+      { id: "fa", forkId: "fork-9" },
+      { id: "fb", forkId: "fork-9" },
+    ]);
+    chapterFindManyMock.mockResolvedValue([{ id: "fc1", startDate: null }]);
+    queryRawMock.mockResolvedValue([
+      { id: "fa", tripId: "t1", arriveDate: null },
+      { id: "fb", tripId: "t1", arriveDate: null },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+
+    const result = await reorderStops("t1", [
+      { id: "fa", chapterId: "fc1" },
+      { id: "fb", chapterId: null },
+    ]);
+
+    expect(result.success).toBe(true);
+    // Chapters must be fetched scoped to the fork plan (forkId: fork-9), not the real plan.
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "t1", forkId: "fork-9" }) }),
+    );
+  });
+
+  it("scopes chapter validation to the REAL plan when reordering real-plan stops", async () => {
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", forkId: null },
+      { id: "b", forkId: null },
+    ]);
+    chapterFindManyMock.mockResolvedValue([{ id: "c1", startDate: null }]);
+    queryRawMock.mockResolvedValue([
+      { id: "a", tripId: "t1", arriveDate: null },
+      { id: "b", tripId: "t1", arriveDate: null },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+
+    const result = await reorderStops("t1", [
+      { id: "a", chapterId: "c1" },
+      { id: "b", chapterId: null },
+    ]);
+
+    expect(result.success).toBe(true);
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "t1", forkId: null }) }),
+    );
+  });
+
+  it("rejects a reorder payload mixing stops from different plans", async () => {
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", forkId: null },
+      { id: "fb", forkId: "fork-9" },
+    ]);
+
+    const result = await reorderStops("t1", [
+      { id: "a", chapterId: "c1" },
+      { id: "fb", chapterId: "c1" },
+    ]);
+
+    expect(result.success).toBe(false);
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
   it("ignores chapterId for a DATED (scheduled) stop: only writes sortOrder", async () => {
     // No target chapters to validate (scheduled stop's chapterId is ignored, not validated)
     chapterFindManyMock.mockResolvedValue([]);
@@ -1062,6 +1329,227 @@ describe("reorderStops", () => {
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "d" }, data: { sortOrder: 0 } });
     expect(stopUpdateMock).not.toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ chapterId: expect.anything() }) }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// firmUpTrip
+// ---------------------------------------------------------------------------
+
+describe("firmUpTrip", () => {
+  it("fetches stops from the real plan when no forkId is passed (forkId null)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", sortOrder: 0, chapterId: null, nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+
+    await firmUpTrip("trip-1");
+
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: null }),
+      }),
+    );
+  });
+
+  it("fetches stops scoped to the fork when forkId is passed", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "fork-rome", sortOrder: 0, chapterId: null, nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+
+    await firmUpTrip("trip-1", undefined, "fork-9");
+
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }),
+      }),
+    );
+  });
+
+  it("does NOT record activity when forkId is passed (fork is silent)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "fr1", sortOrder: 0, chapterId: null, nights: 2, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Nice", country: "France" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+
+    await firmUpTrip("trip-1", undefined, "fork-9");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES record activity when no forkId is passed (real plan)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "rp1", sortOrder: 0, chapterId: null, nights: 2, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Nice", country: "France" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+
+    await firmUpTrip("trip-1");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "UPDATED", entityType: "STOP" }),
+    );
+  });
+
+  it("updates chapter spans when firming up a fork with chapters", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", sortOrder: 0, chapterId: "ch-a", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+    chapterUpdateMock.mockResolvedValue({});
+
+    const result = await firmUpTrip("trip-1", undefined, "fork-9");
+
+    expect(result.success).toBe(true);
+    // The chapter update must be called (chapter span recalculation runs regardless of plan)
+    expect(chapterUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "ch-a" } }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// firmUpSegment (fork-scoping)
+// ---------------------------------------------------------------------------
+
+describe("firmUpSegment fork-scoping", () => {
+  it("fetches stops scoped to the fork when forkId is in args", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "fr", sortOrder: 0, chapterId: "ch-it", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+    chapterFindUniqueMock.mockResolvedValue({ name: "Italy", startDate: null, endDate: null });
+    chapterUpdateMock.mockResolvedValue({});
+
+    await firmUpSegment({ tripId: "trip-1", chapterId: "ch-it", forkId: "fork-9" });
+
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: "fork-9" }),
+      }),
+    );
+  });
+
+  it("does NOT record activity when forkId is set in args (fork is silent)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "fr2", sortOrder: 0, chapterId: "ch-it", nights: 2, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Venice", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+    chapterFindUniqueMock.mockResolvedValue({ name: "Italy", startDate: null, endDate: null });
+    chapterUpdateMock.mockResolvedValue({});
+
+    await firmUpSegment({ tripId: "trip-1", chapterId: "ch-it", forkId: "fork-9" });
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES record activity when no forkId in args (real plan, chapter)", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "rp2", sortOrder: 0, chapterId: "ch-it", nights: 2, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Venice", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+    chapterFindUniqueMock.mockResolvedValue({ name: "Italy", startDate: null, endDate: null });
+    chapterUpdateMock.mockResolvedValue({});
+
+    await firmUpSegment({ tripId: "trip-1", chapterId: "ch-it" });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "UPDATED", entityType: "CHAPTER" }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fork-silent: activity must NOT fire for fork-scoped mutations
+// ---------------------------------------------------------------------------
+
+describe("fork-silent: createStop in a fork does NOT record activity", () => {
+  it("does not call recordActivity when forkId is set (fork-scoped create)", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "fs-1", name: "Bern" });
+
+    await createStop("trip-1", { mode: "rough" as const, name: "Bern", nights: 2 }, "fork-x");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when forkId is null (real-plan create)", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "rp-1", name: "Paris" });
+
+    await createStop("trip-1", { mode: "rough" as const, name: "Paris", nights: 2 });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityType: "STOP" }),
+    );
+  });
+});
+
+describe("fork-silent: updateStop in a fork does NOT record activity", () => {
+  it("does not call recordActivity when stop.forkId is non-null (fork-scoped update)", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false, forkId: "fork-x" }) // requireStopAccess
+      .mockResolvedValueOnce({ id: "s1", name: "Old", country: null, nights: 2, arriveDate: null, departDate: null }); // before snapshot
+    stopUpdateMock.mockResolvedValue({ id: "s1", name: "New", country: null });
+
+    await updateStop("s1", { mode: "rough" as const, name: "New", nights: 2 });
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when stop.forkId is null (real-plan update)", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s2", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false, forkId: null }) // requireStopAccess
+      .mockResolvedValueOnce({ id: "s2", name: "Old", country: null, nights: 2, arriveDate: null, departDate: null }); // before snapshot
+    stopUpdateMock.mockResolvedValue({ id: "s2", name: "New", country: null });
+
+    await updateStop("s2", { mode: "rough" as const, name: "New", nights: 2 });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "UPDATED", entityType: "STOP" }),
+    );
+  });
+});
+
+describe("fork-silent: deleteStop in a fork does NOT record activity", () => {
+  it("does not call recordActivity when stop.forkId is non-null (fork-scoped delete)", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s3", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: "fork-x" }) // requireStopAccess
+      .mockResolvedValueOnce({ name: "Rome" }); // label fetch
+    stopDeleteMock.mockResolvedValue({});
+
+    await deleteStop("s3");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when stop.forkId is null (real-plan delete)", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s4", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null }) // requireStopAccess
+      .mockResolvedValueOnce({ name: "Rome" }); // label fetch
+    stopDeleteMock.mockResolvedValue({});
+
+    await deleteStop("s4");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "STOP" }),
     );
   });
 });

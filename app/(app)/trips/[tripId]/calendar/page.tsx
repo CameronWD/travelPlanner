@@ -26,7 +26,7 @@ export default async function CalendarPage({
   const [stops, items, transports, accommodations, wishlistItems] = await Promise.all([
     db.stop.findMany({
       // Rough (date-less) stops have no place on a dated calendar.
-      where: { tripId, arriveDate: { not: null } },
+      where: { tripId, forkId: null, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -39,7 +39,7 @@ export default async function CalendarPage({
       },
     }),
     db.item.findMany({
-      where: { tripId, date: { not: null } },
+      where: { tripId, forkId: null, date: { not: null } },
       orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
       select: {
         id: true,
@@ -56,7 +56,7 @@ export default async function CalendarPage({
       },
     }),
     db.transport.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -72,7 +72,7 @@ export default async function CalendarPage({
       },
     }),
     db.accommodation.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { checkIn: "asc" },
       select: {
         id: true,
@@ -86,7 +86,7 @@ export default async function CalendarPage({
       },
     }),
     db.item.findMany({
-      where: { tripId, date: null },
+      where: { tripId, forkId: null, date: null },
       orderBy: { sortOrder: "asc" },
       select: { id: true, title: true, category: true, stopId: true },
     }),

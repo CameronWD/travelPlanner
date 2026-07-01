@@ -32,6 +32,8 @@ export interface ScheduleItemDialogProps {
   itemTitle: string;
   /** Default date to pre-fill — typically trip start or first stop date. */
   defaultDate?: string;
+  /** When set, the scheduled copy is placed into this fork plan rather than the real plan. */
+  forkId?: string | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
@@ -45,6 +47,7 @@ export function ScheduleItemDialog({
   itemId,
   itemTitle,
   defaultDate,
+  forkId,
   open,
   onOpenChange,
   onSaved,
@@ -65,6 +68,7 @@ export function ScheduleItemDialog({
           key={formKey}
           itemId={itemId}
           defaultDate={defaultDate}
+          forkId={forkId}
           onClose={() => onOpenChange(false)}
           onSaved={onSaved}
         />
@@ -80,6 +84,7 @@ export function ScheduleItemDialog({
 interface ScheduleFormProps {
   itemId: string;
   defaultDate?: string;
+  forkId?: string | null;
   onClose: () => void;
   onSaved?: () => void;
 }
@@ -87,6 +92,7 @@ interface ScheduleFormProps {
 function ScheduleForm({
   itemId,
   defaultDate,
+  forkId,
   onClose,
   onSaved,
 }: ScheduleFormProps) {
@@ -108,11 +114,15 @@ function ScheduleForm({
     }
 
     startTransition(async () => {
-      const result = await scheduleItem(itemId, {
-        date,
-        startTime: startTime || undefined,
-        endTime: endTime || undefined,
-      });
+      const result = await scheduleItem(
+        itemId,
+        {
+          date,
+          startTime: startTime || undefined,
+          endTime: endTime || undefined,
+        },
+        forkId ?? undefined,
+      );
 
       if (!result.success) {
         setErrors(result.errors as FormErrors);

@@ -61,6 +61,8 @@ export interface TransportFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
+  /** Fork to create the transport in (null = real plan). */
+  forkId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,6 +78,7 @@ export function TransportFormDialog({
   open,
   onOpenChange,
   onSaved,
+  forkId,
 }: TransportFormDialogProps) {
   const formKey = open ? `${transport?.id ?? "new"}-${String(open)}` : "closed";
 
@@ -96,6 +99,7 @@ export function TransportFormDialog({
           defaultToStopId={defaultToStopId}
           onClose={() => onOpenChange(false)}
           onSaved={onSaved}
+          forkId={forkId}
         />
       </DialogContent>
     </Dialog>
@@ -183,6 +187,7 @@ interface TransportFormProps {
   defaultToStopId?: string;
   onClose: () => void;
   onSaved?: () => void;
+  forkId?: string | null;
 }
 
 /** Sentinel for "none selected" in stop selects */
@@ -211,6 +216,7 @@ function TransportForm({
   defaultToStopId,
   onClose,
   onSaved,
+  forkId,
 }: TransportFormProps) {
   const isEdit = Boolean(transport);
 
@@ -254,7 +260,7 @@ function TransportForm({
       const result =
         isEdit && transport
           ? await updateTransport(transport.id, input)
-          : await createTransport(tripId, input);
+          : await createTransport(tripId, input, forkId ?? undefined);
 
       if (!result.success) {
         setErrors(result.errors as FormErrors);

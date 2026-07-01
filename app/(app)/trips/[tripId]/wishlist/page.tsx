@@ -10,12 +10,22 @@ import type { VoteView } from "@/components/trip/vote-control";
 
 export default async function WishlistPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tripId: string }>;
+  searchParams: Promise<{ plan?: string }>;
 }) {
   const { tripId } = await params;
+  const { plan } = await searchParams;
 
   const { user } = await requireTripAccess(tripId);
+
+  // Validate the fork exists for this trip; fall back to real plan if not.
+  const selectedForkId = plan ?? null;
+  const forkExists = selectedForkId
+    ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true } })
+    : null;
+  const activeForkId = forkExists ? selectedForkId : null;
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -34,7 +44,7 @@ export default async function WishlistPage({
         },
       },
       items: {
-        where: { date: null }, // UNSCHEDULED items only
+        where: { forkId: null, date: null }, // UNSCHEDULED items only
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -64,11 +74,12 @@ export default async function WishlistPage({
 
   const itemIds = trip.items.map((i) => i.id);
 
-  // Fetch ITEM costs, notes, and votes in parallel
-  const [itemCosts, itemNotes, itemVotes] = await Promise.all([
+  // Fetch ITEM costs, notes, votes AND active-plan placements in parallel
+  const [itemCosts, itemNotes, itemVotes, activePlacements] = await Promise.all([
     itemIds.length > 0
       ? db.cost.findMany({
           where: {
+            forkId: null,
             ownerType: "ITEM",
             ownerId: { in: itemIds },
           },
@@ -135,6 +146,18 @@ export default async function WishlistPage({
           level: string;
           user: { name: string | null; image: string | null };
         }>),
+
+    // Placements: idea ids that already have a scheduled copy in the active plan
+    itemIds.length > 0
+      ? db.item.findMany({
+          where: {
+            tripId,
+            forkId: activeForkId,
+            sourceItemId: { in: itemIds },
+          },
+          select: { sourceItemId: true },
+        })
+      : Promise.resolve([] as Array<{ sourceItemId: string | null }>),
   ]);
 
   // Group costs by itemId
@@ -171,6 +194,11 @@ export default async function WishlistPage({
     votesByItemId.set(vote.itemId, existing);
   }
 
+  // Idea ids that already have a scheduled copy in the active plan
+  const placedIdeaIds = activePlacements
+    .map((p) => p.sourceItemId)
+    .filter((id): id is string => id !== null);
+
   // Shape items for the board: resolve stop name
   const items: ItemCardItem[] = trip.items.map((item) => ({
     id: item.id,
@@ -201,6 +229,8 @@ export default async function WishlistPage({
       votesByItemId={votesByItemId}
       currentUserId={user.id}
       aiConfigured={isAiConfigured()}
+      activeForkId={activeForkId}
+      placedIdeaIds={placedIdeaIds}
     />
   );
 }

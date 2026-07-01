@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import {
   suggestActivities,
   draftPackingList,
@@ -44,9 +45,10 @@ export async function aiSuggestActivities(
     };
   }
 
-  // Load existing item titles for this stop so AI can avoid duplicates
+  // Load existing item titles for this stop so AI can avoid duplicates.
+  // AI suggestions operate on the real plan; forks are not surfaced here.
   const existingItems = await db.item.findMany({
-    where: { tripId, stopId },
+    where: { tripId, stopId, ...REAL_PLAN },
     select: { title: true },
   });
   const existingTitles = existingItems.map((i) => i.title);
