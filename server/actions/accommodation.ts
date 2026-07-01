@@ -9,7 +9,7 @@ import {
   type AccommodationInput,
 } from "@/lib/validations/accommodation";
 import { geocodePlace } from "@/lib/geocode";
-import { recordActivity } from "@/server/actions/activity";
+import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 
@@ -115,7 +115,7 @@ export async function createAccommodation(
     },
   });
 
-  await recordActivity({ tripId: stop.tripId, verb: "CREATED", entityType: "ACCOMMODATION", entityId: created.id, entityLabel: entityLabel("ACCOMMODATION", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(forkId, { tripId: stop.tripId, verb: "CREATED", entityType: "ACCOMMODATION", entityId: created.id, entityLabel: entityLabel("ACCOMMODATION", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
 }
@@ -176,7 +176,7 @@ export async function updateAccommodation(
     },
   });
 
-  await recordActivity({
+  await recordPlanActivity(acc.forkId, {
     tripId: acc.tripId,
     verb: "UPDATED",
     entityType: "ACCOMMODATION",
@@ -198,7 +198,7 @@ export async function deleteAccommodation(
 
   const doomed = await db.accommodation.findUnique({ where: { id: accommodationId }, select: { name: true } });
   await db.accommodation.delete({ where: { id: accommodationId } });
-  await recordActivity({ tripId: acc.tripId, verb: "DELETED", entityType: "ACCOMMODATION", entityId: accommodationId, entityLabel: doomed?.name ?? "" });
+  await recordPlanActivity(acc.forkId, { tripId: acc.tripId, verb: "DELETED", entityType: "ACCOMMODATION", entityId: accommodationId, entityLabel: doomed?.name ?? "" });
 
   revalidatePath(`/trips/${acc.tripId}`);
   return { success: true };

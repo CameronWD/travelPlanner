@@ -813,3 +813,81 @@ describe("rescheduleItem", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// fork-silent: activity must NOT fire for fork-scoped mutations
+// ---------------------------------------------------------------------------
+
+describe("fork-silent: createItem in a fork does NOT record activity", () => {
+  it("does not call recordActivity when forkId is set (fork-scoped create)", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "fi-1" });
+
+    await createItem("trip-1", VALID_INPUT, "fork-x");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when forkId is null (real-plan create)", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "ri-1", title: "Visit the Museum" });
+
+    await createItem("trip-1", VALID_INPUT);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityType: "ITEM" }),
+    );
+  });
+});
+
+describe("fork-silent: updateItem in a fork does NOT record activity", () => {
+  it("does not call recordActivity when item.forkId is non-null (fork-scoped update)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "fi-2", tripId: "trip-1", forkId: "fork-x" }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "fi-2", title: "Old", forkId: "fork-x" }); // before snapshot
+    itemUpdateMock.mockResolvedValue({ id: "fi-2", title: "New" });
+
+    await updateItem("fi-2", VALID_INPUT);
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when item.forkId is null (real-plan update)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "ri-2", tripId: "trip-1", forkId: null }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "ri-2", title: "Old", forkId: null }); // before snapshot
+    itemUpdateMock.mockResolvedValue({ id: "ri-2", title: "New" });
+
+    await updateItem("ri-2", VALID_INPUT);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "UPDATED", entityType: "ITEM" }),
+    );
+  });
+});
+
+describe("fork-silent: deleteItem in a fork does NOT record activity", () => {
+  it("does not call recordActivity when item.forkId is non-null (fork-scoped delete)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "fi-3", tripId: "trip-1", forkId: "fork-x" }) // requireItemAccess
+      .mockResolvedValueOnce({ title: "Visit the Museum" }); // label fetch
+    itemDeleteMock.mockResolvedValue({});
+
+    await deleteItem("fi-3");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when item.forkId is null (real-plan delete)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "ri-3", tripId: "trip-1", forkId: null }) // requireItemAccess
+      .mockResolvedValueOnce({ title: "Visit the Museum" }); // label fetch
+    itemDeleteMock.mockResolvedValue({});
+
+    await deleteItem("ri-3");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "ITEM" }),
+    );
+  });
+});

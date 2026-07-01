@@ -450,3 +450,81 @@ describe("deleteTransport", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// fork-silent: activity must NOT fire for fork-scoped mutations
+// ---------------------------------------------------------------------------
+
+describe("fork-silent: createTransport in a fork does NOT record activity", () => {
+  it("does not call recordActivity when forkId is set (fork-scoped create)", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "ft-1", mode: "FLIGHT" });
+
+    await createTransport("trip-1", VALID_INPUT, "fork-x");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when forkId is null (real-plan create)", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "rt-1", mode: "FLIGHT" });
+
+    await createTransport("trip-1", VALID_INPUT);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityType: "TRANSPORT" }),
+    );
+  });
+});
+
+describe("fork-silent: updateTransport in a fork does NOT record activity", () => {
+  it("does not call recordActivity when transport.forkId is non-null (fork-scoped update)", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "ft-2", tripId: "trip-1", forkId: "fork-x" }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "ft-2", mode: "FLIGHT" }); // before snapshot
+    transportUpdateMock.mockResolvedValue({ id: "ft-2", mode: "TRAIN" });
+
+    await updateTransport("ft-2", { mode: "TRAIN" as const });
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when transport.forkId is null (real-plan update)", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "rt-2", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "rt-2", mode: "FLIGHT" }); // before snapshot
+    transportUpdateMock.mockResolvedValue({ id: "rt-2", mode: "TRAIN" });
+
+    await updateTransport("rt-2", { mode: "TRAIN" as const });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "UPDATED", entityType: "TRANSPORT" }),
+    );
+  });
+});
+
+describe("fork-silent: deleteTransport in a fork does NOT record activity", () => {
+  it("does not call recordActivity when transport.forkId is non-null (fork-scoped delete)", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "ft-3", tripId: "trip-1", forkId: "fork-x" }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "ft-3", mode: "FLIGHT", reference: null, depPlace: null }); // doomed label
+    transportDeleteMock.mockResolvedValue({});
+
+    await deleteTransport("ft-3");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when transport.forkId is null (real-plan delete)", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "rt-3", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "rt-3", mode: "FLIGHT", reference: null, depPlace: null }); // doomed label
+    transportDeleteMock.mockResolvedValue({});
+
+    await deleteTransport("rt-3");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "TRANSPORT" }),
+    );
+  });
+});

@@ -7,7 +7,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { costSchema, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
-import { recordActivity } from "@/server/actions/activity";
+import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 
@@ -30,10 +30,11 @@ export type CostActionResult =
 async function requireCostAccess(costId: string): Promise<{
   id: string;
   tripId: string;
+  forkId: string | null;
 }> {
   const cost = await db.cost.findUnique({
     where: { id: costId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, forkId: true },
   });
   if (!cost) {
     notFound();
@@ -183,7 +184,7 @@ export async function createCost(
     });
   });
 
-  await recordActivity({ tripId, verb: "CREATED", entityType: "COST", entityId: cost.id, entityLabel: entityLabel("COST", data as unknown as Record<string, unknown>) });
+  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "COST", entityId: cost.id, entityLabel: entityLabel("COST", data as unknown as Record<string, unknown>) });
   revalidateTripPaths(tripId);
   return { success: true, cost };
 }
@@ -249,7 +250,7 @@ export async function updateCost(
     });
   });
 
-  await recordActivity({
+  await recordPlanActivity(existing.forkId, {
     tripId: existing.tripId,
     verb: "UPDATED",
     entityType: "COST",
@@ -269,7 +270,7 @@ export async function deleteCost(costId: string): Promise<CostActionResult> {
 
   const doomed = await db.cost.findUnique({ where: { id: costId }, select: { label: true } });
   await db.cost.delete({ where: { id: costId } });
-  await recordActivity({ tripId: existing.tripId, verb: "DELETED", entityType: "COST", entityId: costId, entityLabel: doomed?.label ?? "cost" });
+  await recordPlanActivity(existing.forkId, { tripId: existing.tripId, verb: "DELETED", entityType: "COST", entityId: costId, entityLabel: doomed?.label ?? "cost" });
 
   revalidateTripPaths(existing.tripId);
   return { success: true };

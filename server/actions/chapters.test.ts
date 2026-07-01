@@ -349,6 +349,88 @@ describe("reorderChapters", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// fork-silent: activity must NOT fire for fork-scoped mutations
+// ---------------------------------------------------------------------------
+
+describe("fork-silent: createChapter in a fork does NOT record activity", () => {
+  it("does not call recordActivity when forkId is set (fork-scoped create)", async () => {
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCountMock.mockResolvedValue(0);
+    chapterCreateMock.mockResolvedValue({ id: "fc-1", name: "Italy", colour: "rose" });
+
+    await createChapter("trip-1", VALID, undefined, "fork-x");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when forkId is null (real-plan create)", async () => {
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCountMock.mockResolvedValue(0);
+    chapterCreateMock.mockResolvedValue({ id: "rc-1", name: "Italy", colour: "rose" });
+
+    await createChapter("trip-1", VALID);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityType: "CHAPTER" }),
+    );
+  });
+});
+
+describe("fork-silent: updateChapter in a fork does NOT record activity", () => {
+  it("does not call recordActivity when chapter.forkId is non-null (fork-scoped update)", async () => {
+    chapterFindUniqueMock
+      .mockResolvedValueOnce({ id: "fc-2", tripId: "trip-1", forkId: "fork-x" }) // requireChapterAccess
+      .mockResolvedValueOnce({ id: "fc-2", tripId: "trip-1", forkId: "fork-x", name: "Old", colour: "rose" }); // loadFullChapter
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterUpdateMock.mockResolvedValue({ id: "fc-2", name: "Italy", colour: "rose" });
+
+    await updateChapter("fc-2", VALID);
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when chapter.forkId is null (real-plan update)", async () => {
+    chapterFindUniqueMock
+      .mockResolvedValueOnce({ id: "rc-2", tripId: "trip-1", forkId: null }) // requireChapterAccess
+      .mockResolvedValueOnce({ id: "rc-2", tripId: "trip-1", forkId: null, name: "Old", colour: "rose" }); // loadFullChapter
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterUpdateMock.mockResolvedValue({ id: "rc-2", name: "Italy", colour: "rose" });
+
+    await updateChapter("rc-2", VALID);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "UPDATED", entityType: "CHAPTER" }),
+    );
+  });
+});
+
+describe("fork-silent: deleteChapter in a fork does NOT record activity", () => {
+  it("does not call recordActivity when chapter.forkId is non-null (fork-scoped delete)", async () => {
+    chapterFindUniqueMock
+      .mockResolvedValueOnce({ id: "fc-3", tripId: "trip-1", forkId: "fork-x" }) // requireChapterAccess
+      .mockResolvedValueOnce({ name: "Italy" }); // findUnique for label
+    chapterDeleteMock.mockResolvedValue({ id: "fc-3" });
+
+    await deleteChapter("fc-3");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when chapter.forkId is null (real-plan delete)", async () => {
+    chapterFindUniqueMock
+      .mockResolvedValueOnce({ id: "rc-3", tripId: "trip-1", forkId: null }) // requireChapterAccess
+      .mockResolvedValueOnce({ name: "Italy" }); // findUnique for label
+    chapterDeleteMock.mockResolvedValue({ id: "rc-3" });
+
+    await deleteChapter("rc-3");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "CHAPTER" }),
+    );
+  });
+});
+
 import { CHAPTER_COLOURS } from "@/lib/chapter-colours";
 
 const COLOUR = CHAPTER_COLOURS[0].value;

@@ -1205,3 +1205,81 @@ describe("reorderStops", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// fork-silent: activity must NOT fire for fork-scoped mutations
+// ---------------------------------------------------------------------------
+
+describe("fork-silent: createStop in a fork does NOT record activity", () => {
+  it("does not call recordActivity when forkId is set (fork-scoped create)", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "fs-1", name: "Bern" });
+
+    await createStop("trip-1", { mode: "rough" as const, name: "Bern", nights: 2 }, "fork-x");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when forkId is null (real-plan create)", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "rp-1", name: "Paris" });
+
+    await createStop("trip-1", { mode: "rough" as const, name: "Paris", nights: 2 });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityType: "STOP" }),
+    );
+  });
+});
+
+describe("fork-silent: updateStop in a fork does NOT record activity", () => {
+  it("does not call recordActivity when stop.forkId is non-null (fork-scoped update)", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false, forkId: "fork-x" }) // requireStopAccess
+      .mockResolvedValueOnce({ id: "s1", name: "Old", country: null, nights: 2, arriveDate: null, departDate: null }); // before snapshot
+    stopUpdateMock.mockResolvedValue({ id: "s1", name: "New", country: null });
+
+    await updateStop("s1", { mode: "rough" as const, name: "New", nights: 2 });
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when stop.forkId is null (real-plan update)", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s2", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false, forkId: null }) // requireStopAccess
+      .mockResolvedValueOnce({ id: "s2", name: "Old", country: null, nights: 2, arriveDate: null, departDate: null }); // before snapshot
+    stopUpdateMock.mockResolvedValue({ id: "s2", name: "New", country: null });
+
+    await updateStop("s2", { mode: "rough" as const, name: "New", nights: 2 });
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "UPDATED", entityType: "STOP" }),
+    );
+  });
+});
+
+describe("fork-silent: deleteStop in a fork does NOT record activity", () => {
+  it("does not call recordActivity when stop.forkId is non-null (fork-scoped delete)", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s3", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: "fork-x" }) // requireStopAccess
+      .mockResolvedValueOnce({ name: "Rome" }); // label fetch
+    stopDeleteMock.mockResolvedValue({});
+
+    await deleteStop("s3");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when stop.forkId is null (real-plan delete)", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s4", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null }) // requireStopAccess
+      .mockResolvedValueOnce({ name: "Rome" }); // label fetch
+    stopDeleteMock.mockResolvedValue({});
+
+    await deleteStop("s4");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "STOP" }),
+    );
+  });
+});

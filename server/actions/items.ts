@@ -8,7 +8,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { stopForDate } from "@/lib/itinerary";
 import { geocodePlace } from "@/lib/geocode";
-import { recordActivity } from "@/server/actions/activity";
+import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 
@@ -31,10 +31,11 @@ export type ItemActionResult =
 async function requireItemAccess(itemId: string): Promise<{
   id: string;
   tripId: string;
+  forkId: string | null;
 }> {
   const item = await db.item.findUnique({
     where: { id: itemId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, forkId: true },
   });
   if (!item) {
     notFound();
@@ -138,7 +139,7 @@ export async function createItem(
     },
   });
 
-  await recordActivity({ tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>) });
   revalidateItemPaths(tripId);
   return { success: true };
 }
@@ -205,7 +206,7 @@ export async function updateItem(
     },
   });
 
-  await recordActivity({
+  await recordPlanActivity(item.forkId, {
     tripId: item.tripId,
     verb: "UPDATED",
     entityType: "ITEM",
@@ -225,7 +226,7 @@ export async function deleteItem(itemId: string): Promise<ItemActionResult> {
 
   const doomed = await db.item.findUnique({ where: { id: itemId }, select: { title: true } });
   await db.item.delete({ where: { id: itemId } });
-  await recordActivity({ tripId: item.tripId, verb: "DELETED", entityType: "ITEM", entityId: itemId, entityLabel: doomed?.title ?? "" });
+  await recordPlanActivity(item.forkId, { tripId: item.tripId, verb: "DELETED", entityType: "ITEM", entityId: itemId, entityLabel: doomed?.title ?? "" });
 
   revalidateItemPaths(item.tripId);
   return { success: true };
@@ -339,7 +340,7 @@ export async function scheduleItem(
       },
     });
 
-    await recordActivity({
+    await recordPlanActivity(forkId, {
       tripId: accessItem.tripId,
       verb: "CREATED",
       entityType: "ITEM",
@@ -364,7 +365,7 @@ export async function scheduleItem(
     },
   });
 
-  await recordActivity({
+  await recordPlanActivity(accessItem.forkId, {
     tripId: accessItem.tripId,
     verb: "UPDATED",
     entityType: "ITEM",
@@ -395,7 +396,7 @@ export async function unscheduleItem(
 
   await db.item.delete({ where: { id: itemId } });
 
-  await recordActivity({
+  await recordPlanActivity(accessItem.forkId, {
     tripId: accessItem.tripId,
     verb: "DELETED",
     entityType: "ITEM",
@@ -469,7 +470,7 @@ export async function rescheduleItem(
     data: { date: targetDateISO, stopId: covering?.id ?? null },
   });
 
-  await recordActivity({
+  await recordPlanActivity(item.forkId, {
     tripId: item.tripId,
     verb: "UPDATED",
     entityType: "ITEM",

@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
 import { geocodePlace } from "@/lib/geocode";
-import { recordActivity } from "@/server/actions/activity";
+import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 
@@ -29,10 +29,11 @@ export type TransportActionResult =
 async function requireTransportAccess(transportId: string): Promise<{
   id: string;
   tripId: string;
+  forkId: string | null;
 }> {
   const transport = await db.transport.findUnique({
     where: { id: transportId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, forkId: true },
   });
   if (!transport) {
     notFound();
@@ -161,7 +162,7 @@ export async function createTransport(
     },
   });
 
-  await recordActivity({ tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${tripId}`);
   return { success: true };
 }
@@ -231,7 +232,7 @@ export async function updateTransport(
     },
   });
 
-  await recordActivity({
+  await recordPlanActivity(transport.forkId, {
     tripId: transport.tripId,
     verb: "UPDATED",
     entityType: "TRANSPORT",
@@ -253,7 +254,7 @@ export async function deleteTransport(
 
   const doomed = await db.transport.findUnique({ where: { id: transportId } });
   await db.transport.delete({ where: { id: transportId } });
-  await recordActivity({ tripId: transport.tripId, verb: "DELETED", entityType: "TRANSPORT", entityId: transportId, entityLabel: entityLabel("TRANSPORT", (doomed ?? {}) as unknown as Record<string, unknown>) });
+  await recordPlanActivity(transport.forkId, { tripId: transport.tripId, verb: "DELETED", entityType: "TRANSPORT", entityId: transportId, entityLabel: entityLabel("TRANSPORT", (doomed ?? {}) as unknown as Record<string, unknown>) });
 
   revalidatePath(`/trips/${transport.tripId}`);
   return { success: true };

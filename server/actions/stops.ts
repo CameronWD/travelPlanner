@@ -8,7 +8,7 @@ import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlace } from "@/lib/geocode";
 import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowStop, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
-import { recordActivity } from "@/server/actions/activity";
+import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
 
@@ -129,7 +129,7 @@ export async function createStop(
         sortOrder,
       },
     });
-    await recordActivity({ tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
+    await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
     revalidatePath(`/trips/${tripId}`);
     return { success: true };
   }
@@ -164,7 +164,7 @@ export async function createStop(
     },
   });
 
-  await recordActivity({ tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
   revalidatePath(`/trips/${tripId}`);
   return { success: true };
 }
@@ -204,7 +204,7 @@ export async function updateStop(
         timezone: null,
       },
     });
-    await recordActivity({
+    await recordPlanActivity(stop.forkId, {
       tripId: stop.tripId,
       verb: "UPDATED",
       entityType: "STOP",
@@ -244,7 +244,7 @@ export async function updateStop(
     },
   });
 
-  await recordActivity({
+  await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -266,7 +266,7 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
 
   const doomed = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
   await db.stop.delete({ where: { id: stopId } });
-  await recordActivity({ tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
+  await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
 
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
@@ -321,7 +321,7 @@ export async function moveStop(
 
   if (moved) {
     const named = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
-    await recordActivity({
+    await recordPlanActivity(stop.forkId, {
       tripId: stop.tripId,
       verb: "UPDATED",
       entityType: "STOP",
@@ -353,7 +353,7 @@ async function applyStopDates(
 
   await db.stop.update({ where: { id: stop.id }, data: { arriveDate: dates.arriveDate, departDate: dates.departDate } });
 
-  await recordActivity({
+  await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -525,7 +525,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
       select: { name: true, startDate: true, endDate: true },
     });
     await db.chapter.update({ where: { id: chapterId }, data: { startDate: start, endDate: end } });
-    await recordActivity({
+    await recordPlanActivity(null, {
       tripId,
       verb: "UPDATED",
       entityType: "CHAPTER",
@@ -541,7 +541,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
     const firstArrive = results[0].arriveDate;
     const lastDepart = results[results.length - 1].departDate;
     const n = results.length;
-    await recordActivity({
+    await recordPlanActivity(null, {
       tripId,
       verb: "UPDATED",
       entityType: "STOP",
@@ -662,7 +662,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string): Promise<S
     await db.chapter.update({ where: { id: span.id }, data: { startDate: span.start, endDate: span.end } });
   }
 
-  await recordActivity({
+  await recordPlanActivity(null, {
     tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -690,7 +690,7 @@ export async function toggleStopPin(stopId: string): Promise<StopActionResult> {
   }
   await db.stop.update({ where: { id: stopId }, data: { pinned: !stop.pinned } });
   const named = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
-  await recordActivity({
+  await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -722,7 +722,7 @@ export async function makeStopRough(stopId: string): Promise<StopActionResult> {
     data: { arriveDate: null, departDate: null, timezone: null, pinned: false, nights },
   });
 
-  await recordActivity({
+  await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -748,7 +748,7 @@ export async function setStopNotes(stopId: string, notes: string): Promise<StopA
   const trimmed = notes.trim();
   const before = await db.stop.findUnique({ where: { id: stopId } });
   const updated = await db.stop.update({ where: { id: stopId }, data: { notes: trimmed === "" ? null : trimmed } });
-  await recordActivity({
+  await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -778,7 +778,7 @@ export async function setStopNights(stopId: string, nights: number): Promise<Sto
   }
   const before = await db.stop.findUnique({ where: { id: stopId } });
   const updated = await db.stop.update({ where: { id: stopId }, data: { nights } });
-  await recordActivity({
+  await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,
     verb: "UPDATED",
     entityType: "STOP",
@@ -811,7 +811,7 @@ export async function assignStopToChapter(stopId: string, chapterId: string | nu
       before?.chapterId ? db.chapter.findUnique({ where: { id: before.chapterId }, select: { name: true } }) : Promise.resolve(null),
       chapterId ? db.chapter.findUnique({ where: { id: chapterId }, select: { name: true } }) : Promise.resolve(null),
     ]);
-    await recordActivity({
+    await recordPlanActivity(stop.forkId, {
       tripId: stop.tripId,
       verb: "UPDATED",
       entityType: "STOP",

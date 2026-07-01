@@ -7,7 +7,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { chapterSchema, type ChapterInput } from "@/lib/validations/chapter";
 import { chaptersOverlap, suggestChapterRuns } from "@/lib/chapters";
 import { nextChapterColour } from "@/lib/chapter-colours";
-import { recordActivity } from "@/server/actions/activity";
+import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
 
@@ -37,10 +37,10 @@ function revalidateChapterPaths(tripId: string) {
   }
 }
 
-async function requireChapterAccess(chapterId: string): Promise<{ id: string; tripId: string }> {
+async function requireChapterAccess(chapterId: string): Promise<{ id: string; tripId: string; forkId: string | null }> {
   const chapter = await db.chapter.findUnique({
     where: { id: chapterId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, forkId: true },
   });
   if (!chapter) notFound();
   await requireTripAccess(chapter.tripId);
@@ -116,7 +116,7 @@ export async function createChapter(
     }
   }
 
-  await recordActivity({ tripId, verb: "CREATED", entityType: "CHAPTER", entityId: created.id, entityLabel: entityLabel("CHAPTER", created as unknown as Record<string, unknown>) });
+  await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "CHAPTER", entityId: created.id, entityLabel: entityLabel("CHAPTER", created as unknown as Record<string, unknown>) });
   revalidateChapterPaths(tripId);
   return { success: true };
 }
@@ -136,7 +136,7 @@ export async function updateChapter(
 
   const before = await loadFullChapter(chapterId);
   const updated = await db.chapter.update({ where: { id: chapterId }, data: parsed.data });
-  await recordActivity({
+  await recordPlanActivity(chapter.forkId, {
     tripId: chapter.tripId,
     verb: "UPDATED",
     entityType: "CHAPTER",
@@ -152,7 +152,7 @@ export async function deleteChapter(chapterId: string): Promise<ChapterActionRes
   const chapter = await requireChapterAccess(chapterId);
   const doomed = await db.chapter.findUnique({ where: { id: chapterId }, select: { name: true } });
   await db.chapter.delete({ where: { id: chapterId } });
-  await recordActivity({ tripId: chapter.tripId, verb: "DELETED", entityType: "CHAPTER", entityId: chapterId, entityLabel: doomed?.name ?? "" });
+  await recordPlanActivity(chapter.forkId, { tripId: chapter.tripId, verb: "DELETED", entityType: "CHAPTER", entityId: chapterId, entityLabel: doomed?.name ?? "" });
   revalidateChapterPaths(chapter.tripId);
   return { success: true };
 }
@@ -228,7 +228,7 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
 
   if (data.length > 0) {
     await db.chapter.createMany({ data });
-    await recordActivity({
+    await recordPlanActivity(null, {
       tripId,
       verb: "CREATED",
       entityType: "CHAPTER",

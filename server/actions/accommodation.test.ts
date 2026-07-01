@@ -440,3 +440,79 @@ describe("deleteAccommodation", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// fork-silent: activity must NOT fire for fork-scoped mutations
+// ---------------------------------------------------------------------------
+
+describe("fork-silent: createAccommodation in a fork does NOT record activity", () => {
+  it("does not call recordActivity when forkId is set (fork-scoped create)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: "fork-x" });
+    accCreateMock.mockResolvedValue({ id: "fa-1", name: "Grand Hotel" });
+
+    await createAccommodation(VALID_INPUT, "fork-x");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when forkId is null (real-plan create)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    accCreateMock.mockResolvedValue({ id: "ra-1", name: "Grand Hotel" });
+
+    await createAccommodation(VALID_INPUT);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "CREATED", entityType: "ACCOMMODATION" }),
+    );
+  });
+});
+
+describe("fork-silent: updateAccommodation in a fork does NOT record activity", () => {
+  it("does not call recordActivity when acc.forkId is non-null (fork-scoped update)", async () => {
+    accFindUniqueMock.mockResolvedValue({ id: "fa-2", tripId: "trip-1", forkId: "fork-x" });
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: "fork-x" });
+    accUpdateMock.mockResolvedValue({ id: "fa-2", name: "Grand Hotel" });
+
+    await updateAccommodation("fa-2", VALID_INPUT);
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when acc.forkId is null (real-plan update)", async () => {
+    accFindUniqueMock.mockResolvedValue({ id: "ra-2", tripId: "trip-1", forkId: null });
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    accUpdateMock.mockResolvedValue({ id: "ra-2", name: "Grand Hotel" });
+
+    await updateAccommodation("ra-2", VALID_INPUT);
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "UPDATED", entityType: "ACCOMMODATION" }),
+    );
+  });
+});
+
+describe("fork-silent: deleteAccommodation in a fork does NOT record activity", () => {
+  it("does not call recordActivity when acc.forkId is non-null (fork-scoped delete)", async () => {
+    accFindUniqueMock
+      .mockResolvedValueOnce({ id: "fa-3", tripId: "trip-1", forkId: "fork-x" }) // requireAccommodationAccess
+      .mockResolvedValueOnce({ name: "Grand Hotel" }); // doomed label
+    accDeleteMock.mockResolvedValue({});
+
+    await deleteAccommodation("fa-3");
+
+    expect(recordActivity).not.toHaveBeenCalled();
+  });
+
+  it("DOES call recordActivity when acc.forkId is null (real-plan delete)", async () => {
+    accFindUniqueMock
+      .mockResolvedValueOnce({ id: "ra-3", tripId: "trip-1", forkId: null }) // requireAccommodationAccess
+      .mockResolvedValueOnce({ name: "Grand Hotel" }); // doomed label
+    accDeleteMock.mockResolvedValue({});
+
+    await deleteAccommodation("ra-3");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ verb: "DELETED", entityType: "ACCOMMODATION" }),
+    );
+  });
+});
