@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { isAiConfigured } from "@/lib/ai";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
+import { VariantBanner } from "@/components/trip/variant-banner";
+import { getDiscreetState } from "@/lib/discreet-server";
 import type { ItemCardItem } from "@/components/trip/item-card";
 import type { CostRow } from "@/server/actions/costs";
 import type { NoteView } from "@/components/trip/note-thread";
@@ -19,13 +21,14 @@ export default async function WishlistPage({
   const { plan } = await searchParams;
 
   const { user } = await requireTripAccess(tripId);
+  const { discreet } = await getDiscreetState();
 
   // Validate the fork exists for this trip; fall back to real plan if not.
   const selectedForkId = plan ?? null;
-  const forkExists = selectedForkId
-    ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true } })
+  const activeFork = selectedForkId
+    ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
     : null;
-  const activeForkId = forkExists ? selectedForkId : null;
+  const activeForkId = activeFork ? activeFork.id : null;
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -218,19 +221,22 @@ export default async function WishlistPage({
   }));
 
   return (
-    <WishlistBoard
-      tripId={trip.id}
-      tripStartDate={trip.startDate}
-      stops={trip.stops}
-      items={items}
-      costsByItemId={costsByItemId}
-      homeCurrency={trip.homeCurrency}
-      notesByItemId={notesByItemId}
-      votesByItemId={votesByItemId}
-      currentUserId={user.id}
-      aiConfigured={isAiConfigured()}
-      activeForkId={activeForkId}
-      placedIdeaIds={placedIdeaIds}
-    />
+    <div className="flex flex-col gap-6">
+      {activeFork && !discreet && <VariantBanner tripId={trip.id} variantName={activeFork.name} />}
+      <WishlistBoard
+        tripId={trip.id}
+        tripStartDate={trip.startDate}
+        stops={trip.stops}
+        items={items}
+        costsByItemId={costsByItemId}
+        homeCurrency={trip.homeCurrency}
+        notesByItemId={notesByItemId}
+        votesByItemId={votesByItemId}
+        currentUserId={user.id}
+        aiConfigured={isAiConfigured()}
+        activeForkId={activeForkId}
+        placedIdeaIds={placedIdeaIds}
+      />
+    </div>
   );
 }
