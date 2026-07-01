@@ -10,6 +10,11 @@ import type { ComparisonPlan } from "@/server/actions/forks";
 vi.mock("@/server/actions/forks", () => ({
   getPromotionPreview: vi.fn(),
   promoteFork: vi.fn(),
+  moveFork: vi.fn().mockResolvedValue({ success: true }),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn(() => ({ refresh: vi.fn() })),
 }));
 
 // Mock PromoteForkDialog — we only need to verify it is rendered and openable
@@ -282,5 +287,22 @@ describe("CompareTable — route diff in fork columns", () => {
     expect(screen.getAllByText(/Lucerne/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Venice/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/4→2n|4→2/).length).toBeGreaterThan(0);
+  });
+});
+
+describe("CompareTable — reorder arrows", () => {
+  it("renders reorder arrows on fork columns, disabled at the ends", () => {
+    const real = { forkId: null, name: "Real plan", metrics: makeMetrics({ route: [R("Rome", 3)] }) };
+    const b = { forkId: "fork-b", name: "Variant B", metrics: makeMetrics({ route: [R("Rome", 3)] }) };
+    const c = { forkId: "fork-c", name: "Variant C", metrics: makeMetrics({ route: [R("Rome", 3)] }) };
+    render(<CompareTable trip={{ id: "trip-1", name: "Trip", homeCurrency: "AUD" }} plans={[real, b, c]} />);
+
+    // Four "move left" controls (one per fork per viewport: mobile + desktop);
+    // the first fork's buttons are disabled.
+    const moveLeft = screen.getAllByRole("button", { name: /move .* left/i });
+    expect(moveLeft).toHaveLength(4);
+    expect(moveLeft[0]).toBeDisabled();
+    const moveRight = screen.getAllByRole("button", { name: /move .* right/i });
+    expect(moveRight[moveRight.length - 1]).toBeDisabled();
   });
 });
