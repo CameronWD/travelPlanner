@@ -95,6 +95,51 @@ afterEach(() => {
 // createItem
 // ---------------------------------------------------------------------------
 
+describe("plan-scope: createItem sortOrder", () => {
+  it("computes sortOrder within the real plan only (forkId null)", async () => {
+    itemFindFirstMock.mockResolvedValue({ sortOrder: 4 });
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+
+    await createItem("trip-1", VALID_INPUT);
+
+    expect(itemFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: null }),
+      }),
+    );
+  });
+});
+
+describe("plan-scope: createItem stop FK validation", () => {
+  it("validates stopId is a real-plan stop (forkId null) when provided", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+
+    await createItem("trip-1", { ...VALID_INPUT, stopId: "stop-1" });
+
+    expect(stopFindUniqueMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "stop-1" }),
+        select: expect.objectContaining({ forkId: true }),
+      }),
+    );
+  });
+
+  it("rejects a stop that belongs to a fork (forkId non-null)", async () => {
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: "fork-abc" });
+    itemFindFirstMock.mockResolvedValue(null);
+
+    const result = await createItem("trip-1", { ...VALID_INPUT, stopId: "stop-1" });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.stopId).toBeDefined();
+    }
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("createItem", () => {
   it("creates an item with sortOrder = max + 1", async () => {
     itemFindFirstMock.mockResolvedValue({ sortOrder: 4 });
@@ -163,7 +208,7 @@ describe("createItem", () => {
   });
 
   it("accepts a stopId that belongs to the same trip", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1" });
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-1" });
 

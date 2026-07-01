@@ -9,6 +9,7 @@ import { chaptersOverlap, suggestChapterRuns } from "@/lib/chapters";
 import { nextChapterColour } from "@/lib/chapter-colours";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
+import { REAL_PLAN } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -60,7 +61,7 @@ async function firstOverlap(
 ) {
   if (!range.startDate || !range.endDate) return null; // rough chapter never overlaps
   const siblings = await db.chapter.findMany({
-    where: { tripId },
+    where: { tripId, ...REAL_PLAN },
     select: { id: true, startDate: true, endDate: true },
   });
   return siblings.find(
@@ -71,7 +72,7 @@ async function firstOverlap(
 
 async function nextSortOrder(tripId: string): Promise<number> {
   // sortOrder is only a stable creation-order tiebreak; chapters are ordered by startDate at read time.
-  return db.chapter.count({ where: { tripId } });
+  return db.chapter.count({ where: { tripId, ...REAL_PLAN } });
 }
 
 // ---------------------------------------------------------------------------
@@ -187,11 +188,11 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
 
   const [stops, existing] = await Promise.all([
     db.stop.findMany({
-      where: { tripId },
+      where: { tripId, ...REAL_PLAN },
       select: { id: true, arriveDate: true, departDate: true, country: true, sortOrder: true },
     }),
     db.chapter.findMany({
-      where: { tripId },
+      where: { tripId, ...REAL_PLAN },
       select: { id: true, colour: true, startDate: true, endDate: true },
     }),
   ]);

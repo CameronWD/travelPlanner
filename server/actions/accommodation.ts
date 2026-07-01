@@ -11,6 +11,7 @@ import {
 import { geocodePlace } from "@/lib/geocode";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
+import { REAL_PLAN } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -72,12 +73,12 @@ export async function createAccommodation(
 
   const data = parsed.data;
 
-  // Look up the stop to get the tripId
+  // Look up the stop to get the tripId (must be a real-plan stop)
   const stop = await db.stop.findUnique({
     where: { id: data.stopId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, forkId: true },
   });
-  if (!stop) {
+  if (!stop || stop.forkId !== REAL_PLAN.forkId) {
     return {
       success: false,
       errors: { stopId: ["Stop not found"] },
@@ -134,12 +135,12 @@ export async function updateAccommodation(
 
   const data = parsed.data;
 
-  // Ensure the new stopId still belongs to the same trip
+  // Ensure the new stopId still belongs to the same trip (and is a real-plan stop)
   const stop = await db.stop.findUnique({
     where: { id: data.stopId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, forkId: true },
   });
-  if (!stop || stop.tripId !== acc.tripId) {
+  if (!stop || stop.tripId !== acc.tripId || stop.forkId !== REAL_PLAN.forkId) {
     return {
       success: false,
       errors: { stopId: ["Stop does not belong to this trip"] },

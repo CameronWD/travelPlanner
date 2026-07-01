@@ -10,6 +10,7 @@ import { stopForDate } from "@/lib/itinerary";
 import { geocodePlace } from "@/lib/geocode";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
+import { REAL_PLAN } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -85,13 +86,13 @@ export async function createItem(
 
   const data = parsed.data;
 
-  // Validate stopId belongs to this trip
+  // Validate stopId belongs to this trip (and is a real-plan stop)
   if (data.stopId) {
     const stop = await db.stop.findUnique({
       where: { id: data.stopId },
-      select: { id: true, tripId: true },
+      select: { id: true, tripId: true, forkId: true },
     });
-    if (!stop || stop.tripId !== tripId) {
+    if (!stop || stop.tripId !== tripId || stop.forkId !== null) {
       return {
         success: false,
         errors: { stopId: ["Stop does not belong to this trip"] },
@@ -99,9 +100,9 @@ export async function createItem(
     }
   }
 
-  // Sort order: max + 1 within the trip
+  // Sort order: max + 1 within the real plan
   const maxItem = await db.item.findFirst({
-    where: { tripId },
+    where: { tripId, ...REAL_PLAN },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
@@ -159,13 +160,13 @@ export async function updateItem(
 
   const data = parsed.data;
 
-  // Validate stopId belongs to this trip
+  // Validate stopId belongs to this trip (and is a real-plan stop)
   if (data.stopId) {
     const stop = await db.stop.findUnique({
       where: { id: data.stopId },
-      select: { id: true, tripId: true },
+      select: { id: true, tripId: true, forkId: true },
     });
-    if (!stop || stop.tripId !== item.tripId) {
+    if (!stop || stop.tripId !== item.tripId || stop.forkId !== null) {
       return {
         success: false,
         errors: { stopId: ["Stop does not belong to this trip"] },

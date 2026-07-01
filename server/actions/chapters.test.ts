@@ -47,6 +47,62 @@ afterEach(() => {
   dbTransactionMock.mockResolvedValue(undefined);
 });
 
+describe("plan-scope: createChapter overlap + sortOrder", () => {
+  it("firstOverlap fetches chapters within the real plan only (forkId null)", async () => {
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCreateMock.mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
+
+    await createChapter("trip-1", VALID);
+
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: null }),
+      }),
+    );
+  });
+
+  it("nextSortOrder counts chapters within the real plan only (forkId null)", async () => {
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCreateMock.mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
+
+    await createChapter("trip-1", VALID);
+
+    expect(chapterCountMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: null }),
+      }),
+    );
+  });
+});
+
+describe("plan-scope: suggestChaptersFromCountries", () => {
+  it("fetches stops within the real plan only (forkId null)", async () => {
+    stopFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+
+    await suggestChaptersFromCountries("trip-1");
+
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: null }),
+      }),
+    );
+  });
+
+  it("fetches existing chapters within the real plan only (forkId null)", async () => {
+    stopFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+
+    await suggestChaptersFromCountries("trip-1");
+
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: null }),
+      }),
+    );
+  });
+});
+
 describe("createChapter", () => {
   it("creates a chapter with sortOrder by start date when none overlap", async () => {
     chapterFindManyMock.mockResolvedValue([]);

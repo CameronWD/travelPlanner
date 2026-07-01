@@ -10,6 +10,7 @@ import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowStop, type Flo
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
+import { REAL_PLAN } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -87,7 +88,7 @@ export async function createStop(
   }
 
   const maxStop = await db.stop.findFirst({
-    where: { tripId },
+    where: { tripId, ...REAL_PLAN },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
@@ -349,7 +350,7 @@ async function applyStopDates(
   });
 
   const following = await db.stop.findMany({
-    where: { tripId: stop.tripId, sortOrder: { gt: stop.sortOrder } },
+    where: { tripId: stop.tripId, sortOrder: { gt: stop.sortOrder }, ...REAL_PLAN },
     orderBy: { sortOrder: "asc" },
     select: { id: true, sortOrder: true, nights: true, pinned: true, arriveDate: true, departDate: true },
   });
@@ -431,7 +432,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   const [trip, stops] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
     db.stop.findMany({
-      where: { tripId },
+      where: { tripId, ...REAL_PLAN },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -554,7 +555,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string): Promise<S
   const [trip, stops] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
     db.stop.findMany({
-      where: { tripId },
+      where: { tripId, ...REAL_PLAN },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true, sortOrder: true, chapterId: true, nights: true, pinned: true,
@@ -781,7 +782,7 @@ export async function assignStopToChapter(stopId: string, chapterId: string | nu
   let chapterSortOrder = 0;
   if (chapterId) {
     const last = await db.stop.findFirst({
-      where: { tripId: stop.tripId, chapterId },
+      where: { tripId: stop.tripId, chapterId, ...REAL_PLAN },
       orderBy: { chapterSortOrder: "desc" },
       select: { chapterSortOrder: true },
     });

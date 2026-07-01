@@ -87,6 +87,37 @@ afterEach(() => {
 // createTransport
 // ---------------------------------------------------------------------------
 
+describe("plan-scope: createTransport sortOrder", () => {
+  it("computes sortOrder within the real plan only (forkId null)", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-1" });
+
+    await createTransport("trip-1", VALID_INPUT);
+
+    expect(transportFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ tripId: "trip-1", forkId: null }),
+      }),
+    );
+  });
+});
+
+describe("plan-scope: createTransport stop FK validation", () => {
+  it("fetches stop FK validation rows scoped to the real plan (forkId null)", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    stopFindManyMock.mockResolvedValue([{ id: "stop-1", tripId: "trip-1", forkId: null }]);
+    transportCreateMock.mockResolvedValue({ id: "t-1" });
+
+    await createTransport("trip-1", { mode: "TRAIN", fromStopId: "stop-1" });
+
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ forkId: null }),
+      }),
+    );
+  });
+});
+
 describe("createTransport", () => {
   it("creates a transport with sortOrder = 0 when none exist", async () => {
     transportFindFirstMock.mockResolvedValue(null);

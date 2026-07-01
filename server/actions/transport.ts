@@ -8,6 +8,7 @@ import { transportSchema, type TransportInput } from "@/lib/validations/transpor
 import { geocodePlace } from "@/lib/geocode";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel, describeChanges } from "@/lib/activity";
+import { REAL_PLAN } from "@/lib/plan-scope";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -62,7 +63,7 @@ async function validateStopBelongsToTrip(
   if (ids.length === 0) return null;
 
   const stops = await db.stop.findMany({
-    where: { id: { in: ids } },
+    where: { id: { in: ids }, ...REAL_PLAN },
     select: { id: true, tripId: true },
   });
 
@@ -113,7 +114,7 @@ export async function createTransport(
 
   // Determine sort order
   const maxTransport = await db.transport.findFirst({
-    where: { tripId },
+    where: { tripId, ...REAL_PLAN },
     orderBy: { sortOrder: "desc" },
     select: { sortOrder: true },
   });
