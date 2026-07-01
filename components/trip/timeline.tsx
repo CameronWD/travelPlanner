@@ -159,7 +159,7 @@ function TimeGutter({
 }) {
   if (!isDay) return null;
   return (
-    <span className="w-9 sm:w-11 shrink-0 text-right text-[11px] font-mono text-muted-foreground/80 leading-tight pt-0.5">
+    <span className="w-9 sm:w-11 shrink-0 text-right text-xs sm:text-[11px] font-mono text-muted-foreground/80 leading-tight pt-0.5">
       {time ?? ""}
     </span>
   );
@@ -292,7 +292,7 @@ function TimedItemRow({
             {item.title}
           </span>
           {!isDay && timeLabel && (
-            <span className="text-[11px] text-muted-foreground">{timeLabel}</span>
+            <span className="text-xs sm:text-[11px] text-muted-foreground">{timeLabel}</span>
           )}
           <DirectionsLink directions={directions} label={item.title} />
         </div>
