@@ -67,7 +67,7 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
           {displayCount !== null && (
             <span
               aria-hidden="true"
-              className="absolute -right-0.5 -top-0.5 flex min-w-[1rem] items-center justify-center rounded-full bg-primary px-0.5 text-[10px] font-semibold leading-4 text-primary-foreground"
+              className="absolute -right-0.5 -top-0.5 flex min-w-[1rem] items-center justify-center rounded-full bg-primary px-0.5 text-[11px] font-semibold leading-4 text-primary-foreground"
             >
               {displayCount}
             </span>
@@ -75,7 +75,7 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
         </button>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-80">
+      <DropdownMenuContent align="end" className="w-[calc(100vw-1rem)] sm:w-80">
         <div className="flex items-center justify-between px-2 py-1.5">
           <DropdownMenuLabel className="px-0 py-0 text-sm font-semibold text-foreground">
             Notifications

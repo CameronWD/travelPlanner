@@ -12,4 +12,12 @@ describe("ChapterChip", () => {
     render(<ChapterChip name="Mystery" colour="weird" />);
     expect(screen.getByText("Mystery")).toBeTruthy();
   });
+  it("has max-w-full on the outer chip and truncate on the inner text span so long names ellipsize", () => {
+    const { container } = render(<ChapterChip name="A very long chapter name that should be truncated" colour="rose" />);
+    const chip = container.firstChild as HTMLElement;
+    expect(chip.className).toContain("max-w-full");
+    const inner = container.querySelector(".truncate") as HTMLElement;
+    expect(inner).toBeTruthy();
+    expect(inner.className).toContain("truncate");
+  });
 });

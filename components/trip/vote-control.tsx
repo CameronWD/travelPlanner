@@ -150,7 +150,7 @@ export function VoteControl({
       {otherVotes.map((vote) => (
         <div
           key={vote.userId}
-          className="flex items-center gap-1.5"
+          className="flex flex-wrap items-center gap-1.5"
           title={`${vote.user.name ?? "Traveller"}: ${LEVEL_LABEL[vote.level]}`}
         >
           <Avatar className="size-5 shrink-0">
@@ -166,7 +166,7 @@ export function VoteControl({
           </Avatar>
           <span
             className={cn(
-              "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+              "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs sm:text-[10px] font-medium",
               vote.level === "MUST" &&
                 "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
               vote.level === "KEEN" &&

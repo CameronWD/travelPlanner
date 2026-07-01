@@ -101,7 +101,7 @@ export function Timeline({ day, variant = "agenda", itemDirections }: TimelinePr
       {/* Untimed items */}
       {day.untimedItems.length > 0 && (
         <div className={cn("flex flex-col", isDay ? "gap-2 mt-1" : "gap-1")}>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70 mt-1">
+          <p className="text-xs sm:text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70 mt-1">
             Anytime
           </p>
           {day.untimedItems.map((e) => (
@@ -159,7 +159,7 @@ function TimeGutter({
 }) {
   if (!isDay) return null;
   return (
-    <span className="w-11 shrink-0 text-right text-[11px] font-mono text-muted-foreground/80 leading-tight pt-0.5">
+    <span className="w-9 sm:w-11 shrink-0 text-right text-xs sm:text-[11px] font-mono text-muted-foreground/80 leading-tight pt-0.5">
       {time ?? ""}
     </span>
   );
@@ -229,13 +229,13 @@ function TransportRow({
             {isDep ? "Departs" : "Arrives"} — {meta?.label ?? t.mode}
           </span>
           {t.reference && (
-            <span className="rounded bg-muted px-1 py-0 text-[11px] font-mono text-muted-foreground">
+            <span className="rounded bg-muted px-1 py-0 text-xs sm:text-[11px] font-mono text-muted-foreground">
               {t.reference}
             </span>
           )}
           {/* Same-day time summary: "08:24 → 11:47" */}
           {sameDayLabels && (
-            <span className="text-[11px] font-mono text-muted-foreground">
+            <span className="text-xs sm:text-[11px] font-mono text-muted-foreground">
               {sameDayLabels.dep} → {sameDayLabels.arr}
             </span>
           )}
@@ -254,7 +254,7 @@ function TransportRow({
 
         {/* Multi-day notice */}
         {isDep && depEntry && !depEntry.arrivesSameDay && depEntry.arrivalDateISO && (
-          <p className="mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+          <p className="mt-0.5 text-xs sm:text-[11px] text-amber-600 dark:text-amber-400">
             Arrives {depEntry.arrivalDateISO}
           </p>
         )}
@@ -288,11 +288,11 @@ function TimedItemRow({
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-2">
-          <span className="text-sm font-medium leading-tight text-foreground">
+          <span className="truncate text-sm font-medium leading-tight text-foreground min-w-0">
             {item.title}
           </span>
           {!isDay && timeLabel && (
-            <span className="text-[11px] text-muted-foreground">{timeLabel}</span>
+            <span className="text-xs sm:text-[11px] text-muted-foreground">{timeLabel}</span>
           )}
           <DirectionsLink directions={directions} label={item.title} />
         </div>

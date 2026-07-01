@@ -12,13 +12,13 @@ export function ChapterChip({ name, colour, className, ...props }: ChapterChipPr
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex max-w-full items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
         meta.chipClass,
         className,
       )}
       {...props}
     >
-      {name}
+      <span className="min-w-0 truncate">{name}</span>
     </span>
   );
 }

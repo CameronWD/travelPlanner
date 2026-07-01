@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { CompareTable } from "@/components/trip/compare-table";
 import type { ComparisonPlan } from "@/server/actions/forks";
@@ -81,12 +81,14 @@ beforeEach(() => {
 describe("CompareTable — column order and labels", () => {
   it("renders the real plan column with label 'Real plan'", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getByText("Real plan")).toBeInTheDocument();
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("Real plan")).toBeInTheDocument();
   });
 
   it("renders the fork column with its name", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getByText("Beach variant")).toBeInTheDocument();
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("Beach variant")).toBeInTheDocument();
   });
 
   it("renders the real plan column before fork columns", () => {
@@ -101,75 +103,85 @@ describe("CompareTable — column order and labels", () => {
 describe("CompareTable — metric rows", () => {
   it("renders the Route row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getByText(/Route/i)).toBeInTheDocument();
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Route$/i)).toBeInTheDocument();
   });
 
   it("renders the Projected end row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getByText(/Projected end/i)).toBeInTheDocument();
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Projected end$/i)).toBeInTheDocument();
   });
 
   it("renders the Budget row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getByText(/Budget/i)).toBeInTheDocument();
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Budget$/i)).toBeInTheDocument();
   });
 
   it("renders the Flags row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getByText(/Flags/i)).toBeInTheDocument();
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Flags$/i)).toBeInTheDocument();
   });
 
   it("renders the Stops row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getByText(/^Stops$/i)).toBeInTheDocument();
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Stops$/i)).toBeInTheDocument();
   });
 
   it("renders the Nights row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getByText(/^Nights$/i)).toBeInTheDocument();
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Nights$/i)).toBeInTheDocument();
   });
 
   it("renders the Transit time row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getByText(/Transit time/i)).toBeInTheDocument();
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Transit time$/i)).toBeInTheDocument();
   });
 
   it("renders the Driving row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getByText(/Driving/i)).toBeInTheDocument();
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Driving$/i)).toBeInTheDocument();
   });
 
   it("renders the Flights row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getByText(/Flights/i)).toBeInTheDocument();
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Flights$/i)).toBeInTheDocument();
   });
 });
 
 describe("CompareTable — delta badges", () => {
   it("shows a delta badge in the fork column (e.g. +2 nights)", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    // nightTotal delta = 16 - 14 = +2
-    expect(screen.getByText("+2 nights")).toBeInTheDocument();
+    // nightTotal delta = 16 - 14 = +2 — appears in both mobile and desktop
+    expect(screen.getAllByText("+2 nights")).toHaveLength(2);
   });
 
   it("shows a delta badge for stop count", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
     // stopCount delta = 6 - 5 = +1
-    expect(screen.getByText("+1 stop")).toBeInTheDocument();
+    expect(screen.getAllByText("+1 stop")).toHaveLength(2);
   });
 
   it("shows a delta badge for flights", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
     // flightCount delta = 3 - 2 = +1
-    expect(screen.getByText("+1 flight")).toBeInTheDocument();
+    expect(screen.getAllByText("+1 flight")).toHaveLength(2);
   });
 });
 
 describe("CompareTable — Promote affordance", () => {
-  it("renders a Promote button per fork column", () => {
+  it("renders a Promote button per fork — one in mobile card and one in desktop table", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    const promoteButtons = screen.getAllByRole("button", { name: /promote/i });
-    expect(promoteButtons).toHaveLength(1); // one fork
+    const promoteButtons = screen.getAllByRole("button", { name: /promote beach variant/i });
+    // Two buttons rendered: one in mobile cards (sm:hidden) and one in desktop table (hidden sm:block)
+    expect(promoteButtons).toHaveLength(2);
   });
 
   it("does NOT render a Promote button for the real plan column", () => {
@@ -179,7 +191,8 @@ describe("CompareTable — Promote affordance", () => {
 
   it("opens the PromoteForkDialog when Promote is clicked", async () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    const promoteBtn = screen.getByRole("button", { name: /promote/i });
+    // Click the first available promote button (mobile card)
+    const promoteBtn = screen.getAllByRole("button", { name: /promote beach variant/i })[0];
     fireEvent.click(promoteBtn);
     await waitFor(() => {
       expect(screen.getByTestId("promote-dialog")).toBeInTheDocument();
@@ -206,7 +219,30 @@ describe("CompareTable — discreet mode", () => {
 describe("CompareTable — real plan only (no forks)", () => {
   it("renders just the real plan column with no Promote button", () => {
     render(<CompareTable trip={trip} plans={[realPlan]} />);
-    expect(screen.getByText("Real plan")).toBeInTheDocument();
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("Real plan")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /promote/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("CompareTable — responsive layout visibility gates", () => {
+  it("renders a mobile card container (sm:hidden) when given plans", () => {
+    const { container } = render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
+    const mobileBlock = container.querySelector(".sm\\:hidden");
+    expect(mobileBlock).toBeInTheDocument();
+  });
+
+  it("renders a desktop table container (hidden sm:block) when given plans", () => {
+    const { container } = render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
+    const desktopBlock = container.querySelector(".hidden.sm\\:block");
+    expect(desktopBlock).toBeInTheDocument();
+  });
+
+  it("mobile cards contain one card per plan", () => {
+    const { container } = render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
+    const mobileBlock = container.querySelector(".sm\\:hidden");
+    // Each plan gets a rounded-2xl card
+    const cards = mobileBlock?.querySelectorAll(".rounded-2xl");
+    expect(cards?.length).toBe(2);
   });
 });

@@ -256,7 +256,7 @@ export function NoteThread({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-80"
+        className="w-[calc(100vw-1rem)] sm:w-80"
         align="end"
         side="bottom"
         sideOffset={6}

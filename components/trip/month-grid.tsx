@@ -51,17 +51,18 @@ export function MonthGrid({
 
   return (
     <div className="overflow-hidden rounded-xl border border-border">
-      {/* Weekday header */}
-      <div className="grid grid-cols-7 border-b border-border bg-muted/40 text-center text-xs font-medium text-muted-foreground">
-        {MONTH_GRID_WEEKDAYS.map((wd) => (
-          <div key={wd} className="px-1 py-2">
-            {wd}
-          </div>
-        ))}
-      </div>
+      <div className="overflow-x-auto sm:overflow-visible">
+        {/* Weekday header */}
+        <div className="grid grid-cols-7 min-w-[560px] sm:min-w-0 border-b border-border bg-muted/40 text-center text-xs font-medium text-muted-foreground">
+          {MONTH_GRID_WEEKDAYS.map((wd) => (
+            <div key={wd} className="px-1 py-2">
+              {wd}
+            </div>
+          ))}
+        </div>
 
-      {/* Weeks */}
-      <div className="grid grid-cols-7">
+        {/* Weeks */}
+        <div className="grid grid-cols-7 min-w-[560px] sm:min-w-0">
         {weeks.flat().map((cell) => {
           const active = cell.inMonth && inWindow(cell.dateISO);
           // Only surface itinerary content on active (in-month, in-window) cells —
@@ -97,16 +98,16 @@ export function MonthGrid({
                     return (
                       <Icon
                         key={`${t.kind}-${t.transport.id}`}
-                        className="size-3 text-muted-foreground"
+                        className="size-3 shrink-0 text-muted-foreground"
                         aria-hidden="true"
                       />
                     );
                   })}
                   {day?.accommodationEntries.map((a) =>
                     a.kind === "accommodation-checkin" ? (
-                      <LogIn key={`in-${a.accommodation.id}`} className="size-3 text-emerald-600" aria-hidden="true" />
+                      <LogIn key={`in-${a.accommodation.id}`} className="size-3 shrink-0 text-emerald-600" aria-hidden="true" />
                     ) : (
-                      <LogOut key={`out-${a.accommodation.id}`} className="size-3 text-rose-600" aria-hidden="true" />
+                      <LogOut key={`out-${a.accommodation.id}`} className="size-3 shrink-0 text-rose-600" aria-hidden="true" />
                     ),
                   )}
                   {packed && (
@@ -192,6 +193,7 @@ export function MonthGrid({
             </div>
           );
         })}
+        </div>
       </div>
     </div>
   );

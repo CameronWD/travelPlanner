@@ -109,7 +109,7 @@ const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
           disabled={disabled}
         >
           <SelectTrigger
-            className="w-24 shrink-0"
+            className="w-20 sm:w-24 shrink-0"
             aria-label="Currency"
           >
             <SelectValue placeholder="Currency" />

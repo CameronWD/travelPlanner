@@ -132,7 +132,7 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
       // Place a marker per wishlist item
       for (const item of items) {
         const icon = categoryIcon(L, item.category);
-        const popupHtml = `<div style="min-width:140px;line-height:1.5">
+        const popupHtml = `<div style="min-width:min(140px,80vw);max-width:min(240px,90vw);line-height:1.5">
           <strong style="font-size:14px">${escapeHtml(item.title)}</strong>
         </div>`;
 

@@ -92,7 +92,7 @@ export default async function TripLayout({
       <div className="pb-4 pt-2">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex flex-col gap-1">
-            <h1 className="font-display text-3xl font-semibold leading-tight tracking-tight text-foreground">
+            <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">
               {trip.name}
             </h1>
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">

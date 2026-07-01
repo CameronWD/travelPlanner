@@ -114,7 +114,7 @@ export default async function AppLayout({
                 </Avatar>
               </DropdownMenuTrigger>
 
-              <DropdownMenuContent align="end" className="min-w-52">
+              <DropdownMenuContent align="end" className="min-w-0 sm:min-w-52">
                 <DropdownMenuLabel className="flex flex-col gap-0.5">
                   <span className="text-sm font-medium text-foreground">
                     {name ?? "Traveller"}

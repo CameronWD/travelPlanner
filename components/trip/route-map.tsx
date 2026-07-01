@@ -182,7 +182,7 @@ export function RouteMap({ stops, height = 360 }: RouteMapProps) {
           : "";
 
         const popupContent = `
-          <div style="min-width:140px;line-height:1.4">
+          <div style="min-width:min(140px,80vw);max-width:min(240px,90vw);line-height:1.4">
             <strong style="font-size:14px">${escapeHtml(stop.name)}</strong>${chapterLine}<br/>
             <span style="font-size:12px;color:#666">
               ${formatDateRange(stop.arriveDate, stop.departDate)}

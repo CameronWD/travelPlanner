@@ -307,7 +307,7 @@ export default async function BudgetPage({
               <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
                 Estimated total
               </p>
-              <p className="font-display text-4xl font-semibold tracking-tight">
+              <p className="font-display text-2xl sm:text-4xl font-semibold tracking-tight break-words">
                 <AnimatedMoney minor={budget.grandTotal.estimatedMinor} currency={homeCurrency} />
               </p>
             </div>
@@ -318,7 +318,7 @@ export default async function BudgetPage({
               </p>
               {budget.grandTotal.actualMinor > 0 ? (
                 <>
-                  <p className="font-display text-4xl font-semibold tracking-tight">
+                  <p className="font-display text-2xl sm:text-4xl font-semibold tracking-tight break-words">
                     <AnimatedMoney minor={budget.grandTotal.actualMinor} currency={homeCurrency} />
                   </p>
                   {gapMinor !== null && (

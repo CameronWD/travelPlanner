@@ -13,7 +13,7 @@ const DropdownMenuSub = DropdownMenuPrimitive.Sub;
 const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
 const menuContentClasses = cn(
-  "z-50 min-w-44 overflow-hidden rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-soft-lg",
+  "z-50 min-w-44 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-soft-lg",
   "data-[state=open]:tp-pop-in data-[state=closed]:tp-pop-out",
 );
 

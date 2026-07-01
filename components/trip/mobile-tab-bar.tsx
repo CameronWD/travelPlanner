@@ -57,8 +57,8 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
             )}
             aria-current={active ? "page" : undefined}
           >
-            <Icon className="size-5" aria-hidden="true" />
-            {item.label}
+            <Icon className="size-5 shrink-0" aria-hidden="true" />
+            <span className="truncate">{item.label}</span>
           </Link>
         );
       })}
@@ -78,8 +78,8 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
                 )}
                 aria-label="More navigation"
               >
-                <Menu className="size-5" aria-hidden="true" />
-                More
+                <Menu className="size-5 shrink-0" aria-hidden="true" />
+                <span className="truncate">More</span>
               </button>
             );
           })()}

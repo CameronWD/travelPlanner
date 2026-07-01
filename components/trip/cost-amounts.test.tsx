@@ -35,4 +35,11 @@ describe("CostAmounts", () => {
     const { container } = render(<CostAmounts estimatedMinor={1000} actualMinor={0} currency="AUD" />);
     expect(container.firstElementChild?.className).toContain("shrink-0");
   });
+
+  it("estimated span has responsive min-w classes for mobile (4rem) and desktop (sm:5rem)", () => {
+    render(<CostAmounts estimatedMinor={1000} actualMinor={0} currency="AUD" />);
+    const estimated = screen.getByLabelText(/estimated/i);
+    expect(estimated.className).toContain("min-w-[4rem]");
+    expect(estimated.className).toContain("sm:min-w-[5rem]");
+  });
 });
