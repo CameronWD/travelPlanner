@@ -318,6 +318,47 @@ export async function discardFork(forkId: string): Promise<ForkMutationResult> {
 }
 
 // ---------------------------------------------------------------------------
+// moveFork
+// ---------------------------------------------------------------------------
+
+/**
+ * Reorder a fork by swapping its sortOrder with the adjacent fork.
+ * Cosmetic only (drives Compare column + switcher order) — no FOR UPDATE lock
+ * (a transposed cosmetic order self-heals on the next move) and no Activity log
+ * (forks stay silent except created/promoted/discarded).
+ */
+export async function moveFork(
+  forkId: string,
+  direction: "left" | "right",
+): Promise<ForkMutationResult> {
+  const { fork } = await requireForkAccess(forkId);
+  const tripId = fork.tripId;
+
+  const forks = await db.fork.findMany({
+    where: { tripId },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, sortOrder: true },
+  });
+
+  const idx = forks.findIndex((f) => f.id === forkId);
+  if (idx === -1) return { success: true }; // vanished mid-flight — nothing to do
+  const swapIdx = direction === "left" ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= forks.length) return { success: true }; // at the edge — no-op
+
+  const current = forks[idx];
+  const neighbour = forks[swapIdx];
+
+  await db.$transaction(async (tx) => {
+    await tx.fork.update({ where: { id: current.id }, data: { sortOrder: neighbour.sortOrder } });
+    await tx.fork.update({ where: { id: neighbour.id }, data: { sortOrder: current.sortOrder } });
+  });
+
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/trips/${tripId}/compare`);
+  return { success: true };
+}
+
+// ---------------------------------------------------------------------------
 // getComparison
 // ---------------------------------------------------------------------------
 

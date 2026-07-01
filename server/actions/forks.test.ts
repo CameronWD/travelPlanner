@@ -108,6 +108,7 @@ const {
     drivingMinutes: 0,
     flightCount: 0,
     route: [],
+    legs: [],
   });
 
   // diffMetrics mock — returns zero deltas
@@ -126,7 +127,7 @@ const {
   // $transaction executes the callback with a fake tx stub
   const txMock = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
     const tx = {
-      fork: { create: forkCreateMock, deleteMany: forkDeleteManyMock },
+      fork: { create: forkCreateMock, update: forkUpdateMock, deleteMany: forkDeleteManyMock },
       chapter: { create: chapterCreateMock, deleteMany: chapterDeleteManyMock, updateMany: chapterUpdateManyMock },
       stop: { create: stopCreateMock, deleteMany: stopDeleteManyMock, updateMany: stopUpdateManyMock },
       accommodation: { create: accommodationCreateMock, deleteMany: accommodationDeleteManyMock, updateMany: accommodationUpdateManyMock },
@@ -238,7 +239,7 @@ vi.mock("@/lib/db", () => ({
 // Import SUT after mocks are registered
 // ---------------------------------------------------------------------------
 
-import { createFork, renameFork, discardFork, getComparison, getPromotionPreview, promoteFork } from "./forks";
+import { createFork, renameFork, discardFork, getComparison, getPromotionPreview, promoteFork, moveFork } from "./forks";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -305,6 +306,7 @@ afterEach(() => {
     drivingMinutes: 0,
     flightCount: 0,
     route: [],
+    legs: [],
   });
   diffMetricsMock.mockReturnValue({
     stopCount: 0,
@@ -876,6 +878,7 @@ describe("getComparison", () => {
       drivingMinutes: 0,
       flightCount: 0,
       route: [],
+      legs: [],
     });
   });
 
@@ -1040,6 +1043,7 @@ describe("getComparison", () => {
         drivingMinutes: 60,
         flightCount: 1,
         route: [],
+        legs: [],
       };
       computePlanMetricsMock.mockReturnValue(stubMetrics);
       forkFindManyMock.mockResolvedValue([]);
@@ -1246,8 +1250,8 @@ describe("getPromotionPreview", () => {
     });
 
     it("calls diffMetrics with realPlanMetrics as base and forkMetrics as variant", async () => {
-      const realMetrics = { stopCount: 3, nightTotal: 7, countries: [], projectedEnd: null, hardEndState: "none" as const, budgetHomeMinor: null, flagCounts: { warning: 0, info: 0 }, transitMinutes: 0, drivingMinutes: 0, flightCount: 0, route: [] };
-      const forkMetrics = { stopCount: 5, nightTotal: 14, countries: [], projectedEnd: null, hardEndState: "none" as const, budgetHomeMinor: null, flagCounts: { warning: 0, info: 0 }, transitMinutes: 0, drivingMinutes: 0, flightCount: 0, route: [] };
+      const realMetrics = { stopCount: 3, nightTotal: 7, countries: [], projectedEnd: null, hardEndState: "none" as const, budgetHomeMinor: null, flagCounts: { warning: 0, info: 0 }, transitMinutes: 0, drivingMinutes: 0, flightCount: 0, route: [], legs: [] };
+      const forkMetrics = { stopCount: 5, nightTotal: 14, countries: [], projectedEnd: null, hardEndState: "none" as const, budgetHomeMinor: null, flagCounts: { warning: 0, info: 0 }, transitMinutes: 0, drivingMinutes: 0, flightCount: 0, route: [], legs: [] };
 
       // computePlanMetrics returns different values for each call
       computePlanMetricsMock
@@ -1449,5 +1453,62 @@ describe("promoteFork", () => {
 
       expect(requireForkAccessMock).toHaveBeenCalledWith("fork-9");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// moveFork
+// ---------------------------------------------------------------------------
+
+describe("moveFork", () => {
+  beforeEach(() => {
+    requireForkAccessMock.mockResolvedValue({
+      user: { id: "user-1" },
+      fork: { id: "fork-b", tripId: "trip-1", name: "Variant B" },
+      trip: { id: "trip-1", startDate: null, endDate: null },
+    });
+    forkFindManyMock.mockResolvedValue([
+      { id: "fork-a", sortOrder: 0 },
+      { id: "fork-b", sortOrder: 1 },
+      { id: "fork-c", sortOrder: 2 },
+    ]);
+  });
+
+  it("swaps sortOrder with the left neighbour and records no activity", async () => {
+    const res = await moveFork("fork-b", "left");
+    expect(res).toEqual({ success: true });
+    expect(forkUpdateMock).toHaveBeenCalledWith({ where: { id: "fork-b" }, data: { sortOrder: 0 } });
+    expect(forkUpdateMock).toHaveBeenCalledWith({ where: { id: "fork-a" }, data: { sortOrder: 1 } });
+    expect(recordActivityMock).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op at the left edge", async () => {
+    requireForkAccessMock.mockResolvedValue({
+      user: { id: "user-1" }, fork: { id: "fork-a", tripId: "trip-1", name: "Variant A" },
+      trip: { id: "trip-1", startDate: null, endDate: null },
+    });
+    const res = await moveFork("fork-a", "left");
+    expect(res).toEqual({ success: true });
+    expect(forkUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op at the right edge", async () => {
+    requireForkAccessMock.mockResolvedValue({
+      user: { id: "user-1" }, fork: { id: "fork-c", tripId: "trip-1", name: "Variant C" },
+      trip: { id: "trip-1", startDate: null, endDate: null },
+    });
+    const res = await moveFork("fork-c", "right");
+    expect(res).toEqual({ success: true });
+    expect(forkUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("is a no-op when the fork id is not found in the list", async () => {
+    requireForkAccessMock.mockResolvedValue({
+      user: { id: "user-1" }, fork: { id: "fork-x", tripId: "trip-1", name: "Ghost Fork" },
+      trip: { id: "trip-1", startDate: null, endDate: null },
+    });
+    const res = await moveFork("fork-x", "left");
+    expect(res).toEqual({ success: true });
+    expect(forkUpdateMock).not.toHaveBeenCalled();
   });
 });

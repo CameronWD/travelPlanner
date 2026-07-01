@@ -12,6 +12,7 @@ import { convertMinor } from "@/lib/money";
 import { DEFAULT_HOME_CURRENCY } from "@/lib/currencies";
 import { PlanOverview } from "@/components/trip/plan-overview";
 import { summarizePlan } from "@/lib/plan-overview";
+import { VariantBanner } from "@/components/trip/variant-banner";
 
 const COST_SELECT = {
   id: true,
@@ -40,10 +41,10 @@ export default async function TripPlanPage({
   const { user } = await requireTripAccess(tripId);
 
   // Validate the fork exists for this trip; fall back to real plan if not.
-  const forkExists = selectedForkId
-    ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true } })
+  const activeFork = selectedForkId
+    ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
     : null;
-  const activeForkId = forkExists ? selectedForkId : null;
+  const activeForkId = activeFork ? activeFork.id : null;
 
   const [trip, stops, transports, allCosts, chapters] = await Promise.all([
     db.trip.findUnique({
@@ -237,11 +238,7 @@ export default async function TripPlanPage({
 
   return (
     <div className="flex flex-col gap-6">
-      {activeForkId && (
-        <div className="rounded-md bg-blue-50 border border-blue-200 px-4 py-2 text-sm text-blue-800">
-          You&apos;re editing a variant — changes don&apos;t affect your live plan.
-        </div>
-      )}
+      {activeFork && <VariantBanner tripId={tripId} variantName={activeFork.name} />}
       {stops.length > 0 && (
         <PlanOverview
           tripId={tripId}

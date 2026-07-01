@@ -10,6 +10,11 @@ import type { ComparisonPlan } from "@/server/actions/forks";
 vi.mock("@/server/actions/forks", () => ({
   getPromotionPreview: vi.fn(),
   promoteFork: vi.fn(),
+  moveFork: vi.fn().mockResolvedValue({ success: true }),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: vi.fn(() => ({ refresh: vi.fn() })),
 }));
 
 // Mock PromoteForkDialog — we only need to verify it is rendered and openable
@@ -18,6 +23,19 @@ vi.mock("@/components/trip/promote-fork-dialog", () => ({
     open ? <div data-testid="promote-dialog">{forkName}</div> : null,
   ),
 }));
+
+// ---------------------------------------------------------------------------
+// Fixture helpers
+// ---------------------------------------------------------------------------
+
+const R = (name: string, nights: number | null, country: string | null = "IT") => ({ name, country, nights });
+function makeMetrics(over: Partial<import("@/lib/compare").PlanMetrics>): import("@/lib/compare").PlanMetrics {
+  return {
+    stopCount: 0, nightTotal: 0, countries: [], projectedEnd: null, hardEndState: "none",
+    budgetHomeMinor: null, flagCounts: { warning: 0, info: 0 }, transitMinutes: 0,
+    drivingMinutes: 0, flightCount: 0, route: [], legs: [], ...over,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -42,6 +60,7 @@ const realPlan: ComparisonPlan = {
       { name: "Lyon", country: "France", nights: 4 },
       { name: "Rome", country: "Italy", nights: 7 },
     ],
+    legs: [],
   },
 };
 
@@ -65,6 +84,7 @@ const forkA: ComparisonPlan = {
       { name: "Rome", country: "Italy", nights: 5 },
       { name: "Barcelona", country: "Spain", nights: 4 },
     ],
+    legs: [],
   },
 };
 
@@ -244,5 +264,45 @@ describe("CompareTable — responsive layout visibility gates", () => {
     // Each plan gets a rounded-2xl card
     const cards = mobileBlock?.querySelectorAll(".rounded-2xl");
     expect(cards?.length).toBe(2);
+  });
+});
+
+describe("CompareTable — route diff in fork columns", () => {
+  it("shows the route diff in a fork column: added, dropped, re-nighted and a summary", () => {
+    const real = {
+      forkId: null,
+      name: "Real plan",
+      metrics: makeMetrics({ route: [R("Rome", 4), R("Venice", 3)], legs: [] }),
+    };
+    const fork = {
+      forkId: "fork-1",
+      name: "Variant B",
+      metrics: makeMetrics({ route: [R("Rome", 2), R("Lucerne", 3, "CH")], legs: [] }),
+    };
+    render(<CompareTable trip={{ id: "trip-1", name: "Trip", homeCurrency: "AUD" }} plans={[real, fork]} />);
+
+    // Summary line for the fork
+    expect(screen.getAllByText("+Lucerne · -Venice · Rome 4→2n").length).toBeGreaterThan(0);
+    // Added / dropped / re-nighted markers appear
+    expect(screen.getAllByText(/Lucerne/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Venice/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/4→2n|4→2/).length).toBeGreaterThan(0);
+  });
+});
+
+describe("CompareTable — reorder arrows", () => {
+  it("renders reorder arrows on fork columns, disabled at the ends", () => {
+    const real = { forkId: null, name: "Real plan", metrics: makeMetrics({ route: [R("Rome", 3)] }) };
+    const b = { forkId: "fork-b", name: "Variant B", metrics: makeMetrics({ route: [R("Rome", 3)] }) };
+    const c = { forkId: "fork-c", name: "Variant C", metrics: makeMetrics({ route: [R("Rome", 3)] }) };
+    render(<CompareTable trip={{ id: "trip-1", name: "Trip", homeCurrency: "AUD" }} plans={[real, b, c]} />);
+
+    // Four "move left" controls (one per fork per viewport: mobile + desktop);
+    // the first fork's buttons are disabled.
+    const moveLeft = screen.getAllByRole("button", { name: /move .* left/i });
+    expect(moveLeft).toHaveLength(4);
+    expect(moveLeft[0]).toBeDisabled();
+    const moveRight = screen.getAllByRole("button", { name: /move .* right/i });
+    expect(moveRight[moveRight.length - 1]).toBeDisabled();
   });
 });

@@ -108,6 +108,7 @@ export interface PlanMetrics {
   drivingMinutes: number;
   flightCount: number;
   route: { name: string; country: string | null; nights: number | null }[];
+  legs: { fromName: string; toName: string; mode: string }[];
 }
 
 export interface MetricDeltas {
@@ -366,6 +367,16 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
   // ---------------------------------------------------------------------------
 
   const stopById = new Map(stops.map((s) => [s.id, s]));
+
+  const legs: PlanMetrics["legs"] = [];
+  for (const t of transports) {
+    if (!t.fromStopId || !t.toStopId) continue;
+    const from = stopById.get(t.fromStopId);
+    const to = stopById.get(t.toStopId);
+    if (!from || !to) continue;
+    legs.push({ fromName: from.name, toName: to.name, mode: t.mode });
+  }
+
   let drivingMinutes = 0;
 
   for (const t of transports) {
@@ -398,7 +409,141 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     drivingMinutes,
     flightCount,
     route,
+    legs,
   };
+}
+
+// ---------------------------------------------------------------------------
+// diffRoute — structural route diff (variant vs base/real plan)
+// ---------------------------------------------------------------------------
+
+export type RouteChangeKind = "same" | "added" | "dropped" | "renighted" | "moved";
+
+export interface RouteDiffStop {
+  name: string;
+  country: string | null;
+  /** Variant's nights (for a dropped stop, the real plan's nights). */
+  nights: number | null;
+  /** Real plan's nights — set for "renighted" and "moved"; null otherwise. */
+  baseNights: number | null;
+  kind: RouteChangeKind;
+}
+
+export interface LegModeChange {
+  fromName: string;
+  toName: string;
+  fromMode: string;
+  toMode: string;
+}
+
+export interface RouteDiff {
+  /** Variant route in order, with dropped stops interleaved at their base position. */
+  stops: RouteDiffStop[];
+  legChanges: LegModeChange[];
+  summary: string;
+}
+
+type RouteStop = PlanMetrics["route"][number];
+
+function routeKey(name: string, country: string | null): string {
+  return `${name.trim().toLowerCase()}|${(country ?? "").trim().toLowerCase()}`;
+}
+
+function legKey(fromName: string, toName: string): string {
+  return `${fromName.trim().toLowerCase()}→${toName.trim().toLowerCase()}`;
+}
+
+/** Ordered LCS-diff ops over two key arrays. */
+function diffOps(a: string[], b: string[]): Array<{ op: "eq" | "del" | "ins"; ai: number; bi: number }> {
+  const n = a.length;
+  const m = b.length;
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+    }
+  }
+  const ops: Array<{ op: "eq" | "del" | "ins"; ai: number; bi: number }> = [];
+  let i = 0;
+  let j = 0;
+  while (i < n && j < m) {
+    if (a[i] === b[j]) { ops.push({ op: "eq", ai: i, bi: j }); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) { ops.push({ op: "del", ai: i, bi: -1 }); i++; }
+    else { ops.push({ op: "ins", ai: -1, bi: j }); j++; }
+  }
+  while (i < n) { ops.push({ op: "del", ai: i, bi: -1 }); i++; }
+  while (j < m) { ops.push({ op: "ins", ai: -1, bi: j }); j++; }
+  return ops;
+}
+
+export function diffRoute(base: PlanMetrics, variant: PlanMetrics): RouteDiff {
+  const baseRoute: RouteStop[] = base.route;
+  const variantRoute: RouteStop[] = variant.route;
+  const baseKeys = baseRoute.map((s) => routeKey(s.name, s.country));
+  const variantKeys = variantRoute.map((s) => routeKey(s.name, s.country));
+  const baseSet = new Set(baseKeys);
+  const variantSet = new Set(variantKeys);
+
+  const baseNightsByKey = new Map<string, number | null>();
+  baseRoute.forEach((s, i) => {
+    if (!baseNightsByKey.has(baseKeys[i])) baseNightsByKey.set(baseKeys[i], s.nights);
+  });
+
+  const stops: RouteDiffStop[] = [];
+  for (const o of diffOps(baseKeys, variantKeys)) {
+    if (o.op === "eq") {
+      const bs = baseRoute[o.ai];
+      const vs = variantRoute[o.bi];
+      if (vs.nights !== bs.nights) {
+        stops.push({ name: vs.name, country: vs.country, nights: vs.nights, baseNights: bs.nights, kind: "renighted" });
+      } else {
+        stops.push({ name: vs.name, country: vs.country, nights: vs.nights, baseNights: null, kind: "same" });
+      }
+    } else if (o.op === "del") {
+      // A base stop whose key still exists in the variant is a moved partner — it
+      // is rendered once at its variant (ins) position; skip it here.
+      if (variantSet.has(baseKeys[o.ai])) continue;
+      const bs = baseRoute[o.ai];
+      stops.push({ name: bs.name, country: bs.country, nights: bs.nights, baseNights: null, kind: "dropped" });
+    } else {
+      const vs = variantRoute[o.bi];
+      const key = variantKeys[o.bi];
+      if (baseSet.has(key)) {
+        stops.push({ name: vs.name, country: vs.country, nights: vs.nights, baseNights: baseNightsByKey.get(key) ?? null, kind: "moved" });
+      } else {
+        stops.push({ name: vs.name, country: vs.country, nights: vs.nights, baseNights: null, kind: "added" });
+      }
+    }
+  }
+
+  // Transport-mode changes: legs present in both, differing mode.
+  const baseLegMode = new Map<string, string>();
+  for (const l of base.legs) baseLegMode.set(legKey(l.fromName, l.toName), l.mode);
+  const legChanges: LegModeChange[] = [];
+  for (const l of variant.legs) {
+    const prev = baseLegMode.get(legKey(l.fromName, l.toName));
+    if (prev !== undefined && prev !== l.mode) {
+      legChanges.push({ fromName: l.fromName, toName: l.toName, fromMode: prev, toMode: l.mode });
+    }
+  }
+
+  // Summary
+  const added = stops.filter((s) => s.kind === "added").map((s) => `+${s.name}`);
+  const dropped = stops.filter((s) => s.kind === "dropped").map((s) => `-${s.name}`);
+  const renighted = stops
+    .filter((s) => s.kind === "renighted")
+    .map((s) => `${s.name} ${s.baseNights ?? "?"}→${s.nights ?? "?"}n`);
+  const parts = [...added, ...dropped, ...renighted];
+  const moved = stops.some((s) => s.kind === "moved");
+
+  let summary: string;
+  if (parts.length > 0) summary = parts.join(" · ");
+  else if (moved && legChanges.length > 0) summary = "Reordered · transport changed";
+  else if (moved) summary = "Reordered";
+  else if (legChanges.length > 0) summary = "Transport changed";
+  else summary = "Same route";
+
+  return { stops, legChanges, summary };
 }
 
 // ---------------------------------------------------------------------------

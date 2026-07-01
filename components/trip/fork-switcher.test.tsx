@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 // ── Module mocks (must be declared before component imports) ──
 
 vi.mock("@/server/actions/forks", () => ({
-  createFork: vi.fn().mockResolvedValue({ success: true, forkId: "fork-new" }),
+  createFork: vi.fn().mockResolvedValue({ success: true, forkId: "new-fork" }),
   renameFork: vi.fn().mockResolvedValue({ success: true }),
   discardFork: vi.fn().mockResolvedValue({ success: true }),
 }));
@@ -119,15 +119,13 @@ describe("ForkSwitcher", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 3. Selecting a fork navigates with ?plan=
+  // 3. Selecting a fork routes to the Plan editor for that variant
   // -------------------------------------------------------------------------
-  it("navigates to ?plan=<forkId> when a fork is selected", async () => {
+  it("navigates to the Plan editor for a variant when selected", async () => {
     const user = userEvent.setup();
     render(<ForkSwitcher {...baseProps} />);
     await user.click(screen.getByText("Variant 1"));
-    expect(mockPush).toHaveBeenCalledWith(
-      expect.stringContaining("plan=fork-1"),
-    );
+    expect(mockPush).toHaveBeenCalledWith("/trips/t1/plan?plan=fork-1");
   });
 
   it("clears the ?plan= param when Real plan is selected", async () => {
@@ -145,23 +143,31 @@ describe("ForkSwitcher", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 4. New variant calls createFork
+  // 4. New variant prompts for a name via dialog before creating
   // -------------------------------------------------------------------------
-  it("calls createFork when New variant is clicked", async () => {
+  it("opens a name dialog (not immediate createFork) when New variant is clicked", async () => {
     const user = userEvent.setup();
     render(<ForkSwitcher {...baseProps} forks={[]} />);
+    await user.click(screen.getByRole("button", { name: /open plan switcher/i }));
     await user.click(screen.getByText("New variant"));
-    expect(createFork).toHaveBeenCalledWith("t1");
+    // Dialog should appear — createFork not yet called
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(createFork).not.toHaveBeenCalled();
   });
 
-  it("navigates to the new fork after creation", async () => {
+  it("calls createFork with the typed name and navigates to the new fork", async () => {
     const user = userEvent.setup();
     render(<ForkSwitcher {...baseProps} forks={[]} />);
+    await user.click(screen.getByRole("button", { name: /open plan switcher/i }));
     await user.click(screen.getByText("New variant"));
-    // createFork resolves to { success: true, forkId: "fork-new" }
+    const input = await screen.findByLabelText(/variant name/i);
+    await user.clear(input);
+    await user.type(input, "Beach Route");
+    await user.click(screen.getByRole("button", { name: /^create$/i }));
+    expect(createFork).toHaveBeenCalledWith("t1", "Beach Route", undefined);
     await vi.waitFor(() => {
       expect(mockPush).toHaveBeenCalledWith(
-        expect.stringContaining("plan=fork-new"),
+        expect.stringContaining("plan=new-fork"),
       );
     });
   });
@@ -260,7 +266,42 @@ describe("ForkSwitcher", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 12. Discarding the active fork navigates to real plan
+  // 12+. Three new tests from the task brief
+  // -------------------------------------------------------------------------
+
+  it("selecting a variant routes to the Plan editor for it", async () => {
+    const user = userEvent.setup();
+    render(<ForkSwitcher tripId="t1" forks={[{ id: "fork-b", name: "Variant B" }]} phase="planning" />);
+    await user.click(screen.getByRole("button", { name: /open plan switcher/i }));
+    await user.click(screen.getByText("Variant B"));
+    expect(mockPush).toHaveBeenCalledWith("/trips/t1/plan?plan=fork-b");
+  });
+
+  it("New variant prompts for a name before creating", async () => {
+    const user = userEvent.setup();
+    render(<ForkSwitcher tripId="t1" forks={[]} phase="planning" />);
+    await user.click(screen.getByRole("button", { name: /open plan switcher/i }));
+    await user.click(screen.getByText("New variant"));
+    const input = await screen.findByLabelText(/variant name/i);
+    await user.clear(input);
+    await user.type(input, "Italy-first");
+    await user.click(screen.getByRole("button", { name: /^create$/i }));
+    expect(createFork).toHaveBeenCalledWith("t1", "Italy-first", undefined);
+  });
+
+  it("Duplicate creates a fork from the source variant", async () => {
+    const user = userEvent.setup();
+    render(<ForkSwitcher tripId="t1" forks={[{ id: "fork-b", name: "Variant B" }]} phase="planning" />);
+    await user.click(screen.getByRole("button", { name: /open plan switcher/i }));
+    await user.click(screen.getByRole("button", { name: /duplicate variant b/i }));
+    const input = await screen.findByLabelText(/variant name/i);
+    expect(input).toHaveValue("Copy of Variant B");
+    await user.click(screen.getByRole("button", { name: /^create$/i }));
+    expect(createFork).toHaveBeenCalledWith("t1", "Copy of Variant B", "fork-b");
+  });
+
+  // -------------------------------------------------------------------------
+  // Discarding the active fork navigates to real plan
   // -------------------------------------------------------------------------
   it("navigates to the real plan after discarding the active fork", async () => {
     const user = userEvent.setup();

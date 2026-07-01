@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { GitMerge } from "lucide-react";
+import { GitMerge, ChevronLeft, ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/money";
 import { formatLongDate } from "@/lib/dates";
-import { diffMetrics } from "@/lib/compare";
+import { diffMetrics, diffRoute, type RouteDiffStop } from "@/lib/compare";
 import type { ComparisonPlan } from "@/server/actions/forks";
+import { moveFork } from "@/server/actions/forks";
 import { PromoteForkDialog } from "@/components/trip/promote-fork-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -158,6 +160,64 @@ function RouteCell({ plan }: { plan: ComparisonPlan }) {
 }
 
 // ---------------------------------------------------------------------------
+// Route diff cell (fork columns)
+// ---------------------------------------------------------------------------
+
+function nightsLabel(n: number | null): string | null {
+  return n !== null && n > 0 ? `${n}n` : null;
+}
+
+function DiffStopRow({ stop }: { stop: RouteDiffStop }) {
+  const base = "flex items-baseline gap-1 min-w-0 text-sm";
+  if (stop.kind === "dropped") {
+    return (
+      <div className={base}>
+        <span className="truncate min-w-0 text-muted-foreground line-through">{stop.name}</span>
+        {nightsLabel(stop.nights) && (
+          <span className="ml-auto text-xs text-muted-foreground line-through font-mono">{nightsLabel(stop.nights)}</span>
+        )}
+      </div>
+    );
+  }
+  const tone =
+    stop.kind === "added"
+      ? "text-emerald-700 dark:text-emerald-400"
+      : stop.kind === "renighted"
+        ? "text-amber-700 dark:text-amber-400"
+        : "text-foreground";
+  return (
+    <div className={base}>
+      {stop.kind === "added" && <span className="shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden="true">+</span>}
+      {stop.kind === "moved" && <span className="shrink-0 text-muted-foreground" aria-hidden="true">↕</span>}
+      <span className={`truncate min-w-0 font-medium ${tone}`}>{stop.name}</span>
+      {stop.country && <span className="text-xs text-muted-foreground">{stop.country}</span>}
+      {stop.kind === "renighted" ? (
+        <span className="ml-auto text-xs text-amber-700 dark:text-amber-400 font-mono">{stop.baseNights ?? "?"}→{stop.nights ?? "?"}n</span>
+      ) : (
+        nightsLabel(stop.nights) && <span className="ml-auto text-xs text-muted-foreground font-mono">{nightsLabel(stop.nights)}</span>
+      )}
+    </div>
+  );
+}
+
+function RouteDiffCell({ base, plan }: { base: ComparisonPlan; plan: ComparisonPlan }) {
+  const diff = diffRoute(base.metrics, plan.metrics);
+  return (
+    <div className="flex flex-col gap-1 min-w-[180px]">
+      <p className="text-xs font-medium text-muted-foreground">{diff.summary}</p>
+      {diff.stops.map((s, i) => (
+        <DiffStopRow key={i} stop={s} />
+      ))}
+      {diff.legChanges.map((l, i) => (
+        <p key={`leg-${i}`} className="text-xs text-amber-700 dark:text-amber-400 truncate">
+          {l.fromName}→{l.toName}: {l.fromMode.toLowerCase()} → {l.toMode.toLowerCase()}
+        </p>
+      ))}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Delta badge
 // ---------------------------------------------------------------------------
 
@@ -178,11 +238,47 @@ function DeltaBadge({ text }: { text: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Reorder arrows
+// ---------------------------------------------------------------------------
+
+function ReorderArrows({
+  planName, isFirst, isLast, onMove, pending,
+}: { planName: string; isFirst: boolean; isLast: boolean; onMove: (d: "left" | "right") => void; pending: boolean }) {
+  return (
+    <span className="flex items-center gap-0.5">
+      <button
+        type="button" aria-label={`Move ${planName} left`} disabled={isFirst || pending}
+        onClick={() => onMove("left")}
+        className="rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <ChevronLeft className="size-3.5" aria-hidden="true" />
+      </button>
+      <button
+        type="button" aria-label={`Move ${planName} right`} disabled={isLast || pending}
+        onClick={() => onMove("right")}
+        className="rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <ChevronRight className="size-3.5" aria-hidden="true" />
+      </button>
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
 export function CompareTable({ trip, plans, discreet = false }: CompareTableProps) {
   const [promoteOpenFor, setPromoteOpenFor] = React.useState<string | null>(null);
+  const router = useRouter();
+  const [reorderPending, startReorder] = React.useTransition();
+
+  function handleMove(forkId: string, direction: "left" | "right") {
+    startReorder(async () => {
+      await moveFork(forkId, direction);
+      router.refresh();
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Discreet gate — hide fork/plan vocabulary when discreet mode is active.
@@ -230,7 +326,9 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
     const m = plan.metrics;
     switch (rowId) {
       case "route":
-        return <RouteCell plan={plan} />;
+        return plan.forkId === null
+          ? <RouteCell plan={plan} />
+          : <RouteDiffCell base={realPlan} plan={plan} />;
       case "projected-end":
         return (
           <div className="flex flex-col gap-1">
@@ -343,16 +441,25 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
                   {plan.name}
                 </span>
                 {!isReal && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="shrink-0 text-xs"
-                    onClick={() => setPromoteOpenFor(plan.forkId)}
-                    aria-label={`Promote ${plan.name}`}
-                  >
-                    <GitMerge className="mr-1 size-3.5 shrink-0" aria-hidden="true" />
-                    Promote
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <ReorderArrows
+                      planName={plan.name}
+                      isFirst={planIndex - 1 === 0}
+                      isLast={planIndex === plans.length - 1}
+                      onMove={(d) => handleMove(plan.forkId!, d)}
+                      pending={reorderPending}
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0 text-xs"
+                      onClick={() => setPromoteOpenFor(plan.forkId)}
+                      aria-label={`Promote ${plan.name}`}
+                    >
+                      <GitMerge className="mr-1 size-3.5 shrink-0" aria-hidden="true" />
+                      Promote
+                    </Button>
+                  </div>
                 )}
               </div>
               <dl className="divide-y divide-border">
@@ -391,16 +498,23 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
                 {realPlan.name}
               </th>
               {/* Fork columns */}
-              {forkPlans.map((plan) => (
+              {forkPlans.map((plan, forkIndex) => (
                 <th
                   key={plan.forkId}
                   scope="col"
                   className="px-4 py-3 text-left min-w-[200px]"
                 >
                   <div className="flex flex-col gap-2 min-w-0">
-                    <span className="text-sm font-semibold text-foreground truncate">
-                      {plan.name}
-                    </span>
+                    <div className="flex items-center justify-between gap-1 min-w-0">
+                      <span className="text-sm font-semibold text-foreground truncate">{plan.name}</span>
+                      <ReorderArrows
+                        planName={plan.name}
+                        isFirst={forkIndex === 0}
+                        isLast={forkIndex === forkPlans.length - 1}
+                        onMove={(d) => handleMove(plan.forkId!, d)}
+                        pending={reorderPending}
+                      />
+                    </div>
                     <Button
                       size="sm"
                       variant="outline"
