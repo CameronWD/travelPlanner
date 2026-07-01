@@ -600,6 +600,7 @@ describe("moveStop", () => {
       departDate: null,
       nights: null,
       pinned: false,
+      forkId: null,
     });
     queryRawMock.mockResolvedValue(stops);
     stopUpdateMock.mockResolvedValue({});
@@ -613,6 +614,39 @@ describe("moveStop", () => {
     expect(sqlParts.join(" ")).toContain("FOR UPDATE");
     // First bound value is the tripId.
     expect(queryRawMock.mock.calls[0][1]).toBe("trip-1");
+    // SQL must include forkId scoping.
+    expect(sqlParts.join(" ")).toContain("forkId");
+  });
+
+  it("moveStop scopes sibling query to the stop's forkId when moving a fork stop", async () => {
+    stopFindUniqueMock.mockResolvedValue({
+      id: "fork-stop-2",
+      tripId: "trip-1",
+      sortOrder: 1,
+      arriveDate: null,
+      departDate: null,
+      nights: null,
+      pinned: false,
+      forkId: "fork-9",
+    });
+    const forkStops = [
+      { id: "fork-stop-1", sortOrder: 0 },
+      { id: "fork-stop-2", sortOrder: 1 },
+    ];
+    queryRawMock.mockResolvedValue(forkStops);
+    stopUpdateMock.mockResolvedValue({});
+
+    const result = await moveStop("fork-stop-2", "up");
+
+    expect(result.success).toBe(true);
+    // The SQL template strings must contain the "forkId" column reference.
+    const sqlParts = queryRawMock.mock.calls[0][0] as string[];
+    expect(sqlParts.join(" ")).toContain("forkId");
+    // The Prisma.Sql object for the = ${forkId} branch has a non-empty values array.
+    // This distinguishes it from the IS NULL branch (which has no values).
+    const forkIdSqlArg = queryRawMock.mock.calls[0][2] as { values: unknown[] };
+    expect(forkIdSqlArg).toBeTruthy();
+    expect(forkIdSqlArg.values).toEqual(["fork-9"]);
   });
 
   it("swaps sortOrder with the previous stop when moving up", async () => {

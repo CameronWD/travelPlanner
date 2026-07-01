@@ -91,6 +91,7 @@ describe("AccommodationFormDialog", () => {
         checkIn: stopDateRange.arriveDate,
         checkOut: stopDateRange.departDate,
       }),
+      undefined,
     );
   });
 

@@ -60,7 +60,10 @@ vi.mock("@/components/ui/use-toast", async (importOriginal) => {
   return { ...mod, toast: vi.fn() };
 });
 
-import { deleteStop, moveStop, firmUpSegment, firmUpTrip } from "@/server/actions/stops";
+import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop } from "@/server/actions/stops";
+import { createTransport } from "@/server/actions/transport";
+import { createAccommodation } from "@/server/actions/accommodation";
+import { createChapter } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { ItineraryManager, type ItineraryStop } from "./itinerary-manager";
 
@@ -266,7 +269,7 @@ describe("firm-up (Set dates)", () => {
     await user.click(await screen.findByRole("button", { name: /date stops/i }));
 
     await waitFor(() => {
-      expect(firmUpSegment).toHaveBeenCalledWith({ tripId: TRIP_ID, chapterId: null });
+      expect(firmUpSegment).toHaveBeenCalledWith({ tripId: TRIP_ID, chapterId: null, forkId: undefined });
     });
   });
 
@@ -529,7 +532,7 @@ describe("whole-trip firm-up confirm dialog", () => {
     await user.click(confirmBtn);
 
     await waitFor(() => {
-      expect(firmUpTrip).toHaveBeenCalledWith(TRIP_ID);
+      expect(firmUpTrip).toHaveBeenCalledWith(TRIP_ID, undefined, undefined);
     });
   });
 
@@ -662,7 +665,7 @@ describe("per-chapter firm-up confirm dialog", () => {
     await user.click(confirmBtn);
 
     await waitFor(() => {
-      expect(firmUpSegment).toHaveBeenCalledWith({ tripId: TRIP_ID, chapterId: "ch-1" });
+      expect(firmUpSegment).toHaveBeenCalledWith({ tripId: TRIP_ID, chapterId: "ch-1", forkId: undefined });
     });
   });
 
@@ -690,5 +693,195 @@ describe("per-chapter firm-up confirm dialog", () => {
     await user.click(cancelBtn);
 
     expect(firmUpSegment).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 10. Fork-aware action forwarding
+// ---------------------------------------------------------------------------
+
+const FORK_ID = "fork-abc";
+
+describe("fork-aware firmUpSegment", () => {
+  it("calls firmUpSegment with forkId when ItineraryManager has forkId prop", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stop]}
+        forkId={FORK_ID}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /set dates/i }));
+    await user.click(await screen.findByRole("button", { name: /date stops/i }));
+
+    await waitFor(() => {
+      expect(firmUpSegment).toHaveBeenCalledWith({
+        tripId: TRIP_ID,
+        chapterId: null,
+        forkId: FORK_ID,
+      });
+    });
+  });
+});
+
+describe("fork-aware firmUpTrip", () => {
+  it("calls firmUpTrip with forkId as the third arg when ItineraryManager has forkId prop", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stop]}
+        forkId={FORK_ID}
+        tripStartDate="2026-08-01"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /date all stops from start/i }));
+    await user.click(await screen.findByRole("button", { name: /date stops/i }));
+
+    await waitFor(() => {
+      expect(firmUpTrip).toHaveBeenCalledWith(TRIP_ID, undefined, FORK_ID);
+    });
+  });
+});
+
+describe("fork-aware createStop", () => {
+  it("calls createStop with forkId when the Add stop dialog is submitted with a forkId prop", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop()]}
+        forkId={FORK_ID}
+      />,
+    );
+
+    // Open Add stop dialog via the "Add stop" button
+    await user.click(screen.getByRole("button", { name: /^add stop$/i }));
+
+    // Fill in the stop name (required)
+    const nameInput = await screen.findByPlaceholderText(/e\.g\. London/i);
+    await user.type(nameInput, "Berlin");
+
+    // Submit the form
+    await user.click(screen.getByRole("button", { name: /^add stop$/i, hidden: false }));
+
+    await waitFor(() => {
+      expect(createStop).toHaveBeenCalledWith(
+        TRIP_ID,
+        expect.objectContaining({ name: "Berlin" }),
+        FORK_ID,
+      );
+    });
+  });
+});
+
+describe("fork-aware createChapter", () => {
+  it("calls createChapter with forkId when the New chapter dialog is submitted with a forkId prop", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[]}
+        forkId={FORK_ID}
+      />,
+    );
+
+    // Open New chapter dialog (in the empty state action buttons)
+    await user.click(screen.getByRole("button", { name: /new chapter/i }));
+
+    // Fill in the chapter name (required)
+    const nameInput = await screen.findByPlaceholderText(/e\.g\. France/i);
+    await user.type(nameInput, "Germany");
+
+    // Submit the form
+    const submitBtn = screen.getByRole("button", { name: /^add chapter$/i });
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(createChapter).toHaveBeenCalledWith(
+        TRIP_ID,
+        expect.objectContaining({ name: "Germany" }),
+        undefined, // originStopId
+        FORK_ID,
+      );
+    });
+  });
+});
+
+describe("fork-aware createTransport", () => {
+  it("calls createTransport with forkId when the Add transport dialog is submitted with a forkId prop", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop()]}
+        forkId={FORK_ID}
+      />,
+    );
+
+    // Open transport dialog via the "Add transport (other)" button
+    await user.click(screen.getByRole("button", { name: /add transport \(other\)/i }));
+
+    // The form has a mode select; FLIGHT is the default so we can submit directly.
+    // Fill in the dep place to satisfy some minimal input.
+    const submitBtn = await screen.findByRole("button", { name: /^add transport$/i });
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(createTransport).toHaveBeenCalledWith(
+        TRIP_ID,
+        expect.anything(),
+        FORK_ID,
+      );
+    });
+  });
+});
+
+describe("fork-aware createAccommodation", () => {
+  it("calls createAccommodation with forkId when the Add accommodation dialog is submitted with a forkId prop", async () => {
+    const user = userEvent.setup();
+
+    // Need a dated stop to show the "Add accommodation" button
+    const datedStop = makeStop({
+      id: "s-dated",
+      name: "Vienna",
+      arriveDate: "2026-08-01",
+      departDate: "2026-08-05",
+    });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[datedStop]}
+        forkId={FORK_ID}
+      />,
+    );
+
+    // Open the add accommodation dialog
+    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
+
+    // Fill in the name (required)
+    const nameInput = await screen.findByPlaceholderText(/e\.g\. Hilton/i);
+    await user.type(nameInput, "Hotel Berlin");
+
+    // Submit
+    await user.click(screen.getByRole("button", { name: /^add accommodation$/i }));
+
+    await waitFor(() => {
+      expect(createAccommodation).toHaveBeenCalledWith(
+        expect.objectContaining({ stopId: "s-dated", name: "Hotel Berlin" }),
+        FORK_ID,
+      );
+    });
   });
 });

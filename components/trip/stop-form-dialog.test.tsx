@@ -33,6 +33,7 @@ describe("StopFormDialog", () => {
     expect(createStop).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({ mode: "rough", name: "" }),
+      undefined,
     );
   });
 
@@ -52,6 +53,7 @@ describe("StopFormDialog", () => {
         mode: "rough",
         name: "Paris",
       }),
+      undefined,
     );
   });
 

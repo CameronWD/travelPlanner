@@ -2,6 +2,7 @@
 
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
@@ -295,6 +296,7 @@ export async function moveStop(
       SELECT "id", "sortOrder"
       FROM "Stop"
       WHERE "tripId" = ${stop.tripId}
+        AND "forkId" ${stop.forkId ? Prisma.sql`= ${stop.forkId}` : Prisma.sql`IS NULL`}
       ORDER BY "sortOrder" ASC
       FOR UPDATE
     `;

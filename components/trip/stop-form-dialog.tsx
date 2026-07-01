@@ -58,6 +58,8 @@ export interface StopFormDialogProps {
   /** Default dates for a NEW stop (ignored in edit mode). */
   defaultArriveDate?: string;
   defaultDepartDate?: string;
+  /** Fork to create the stop in (null = real plan). */
+  forkId?: string | null;
 }
 
 /**
@@ -81,6 +83,7 @@ export function StopFormDialog({
   tripEndDate,
   defaultArriveDate,
   defaultDepartDate,
+  forkId,
 }: StopFormDialogProps) {
   // The key causes React to remount the form component whenever the dialog
   // opens or the stop changes, giving us fresh initial state for free.
@@ -105,6 +108,7 @@ export function StopFormDialog({
           tripEndDate={tripEndDate}
           defaultArriveDate={defaultArriveDate}
           defaultDepartDate={defaultDepartDate}
+          forkId={forkId}
         />
       </DialogContent>
     </Dialog>
@@ -127,6 +131,7 @@ interface StopFormProps {
   tripEndDate?: string;
   defaultArriveDate?: string;
   defaultDepartDate?: string;
+  forkId?: string | null;
 }
 
 function StopForm({
@@ -139,6 +144,7 @@ function StopForm({
   tripEndDate,
   defaultArriveDate,
   defaultDepartDate,
+  forkId,
 }: StopFormProps) {
   const isEdit = Boolean(stop);
 
@@ -211,7 +217,7 @@ function StopForm({
       const result =
         isEdit && stop
           ? await updateStop(stop.id, input)
-          : await createStop(tripId, input);
+          : await createStop(tripId, input, forkId ?? undefined);
 
       if (!result.success) {
         setErrors(result.errors as FormErrors);
