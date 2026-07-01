@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { CompareTable } from "@/components/trip/compare-table";
 import type { ComparisonPlan } from "@/server/actions/forks";
@@ -81,13 +81,14 @@ beforeEach(() => {
 describe("CompareTable — column order and labels", () => {
   it("renders the real plan column with label 'Real plan'", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    // Both mobile and desktop render the same plan names — assert at least one present
-    expect(screen.getAllByText("Real plan").length).toBeGreaterThan(0);
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("Real plan")).toBeInTheDocument();
   });
 
   it("renders the fork column with its name", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getAllByText("Beach variant").length).toBeGreaterThan(0);
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("Beach variant")).toBeInTheDocument();
   });
 
   it("renders the real plan column before fork columns", () => {
@@ -102,47 +103,56 @@ describe("CompareTable — column order and labels", () => {
 describe("CompareTable — metric rows", () => {
   it("renders the Route row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getAllByText(/^Route$/i).length).toBeGreaterThan(0);
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Route$/i)).toBeInTheDocument();
   });
 
   it("renders the Projected end row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getAllByText(/^Projected end$/i).length).toBeGreaterThan(0);
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Projected end$/i)).toBeInTheDocument();
   });
 
   it("renders the Budget row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getAllByText(/^Budget$/i).length).toBeGreaterThan(0);
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Budget$/i)).toBeInTheDocument();
   });
 
   it("renders the Flags row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getAllByText(/^Flags$/i).length).toBeGreaterThan(0);
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Flags$/i)).toBeInTheDocument();
   });
 
   it("renders the Stops row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getAllByText(/^Stops$/i).length).toBeGreaterThan(0);
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Stops$/i)).toBeInTheDocument();
   });
 
   it("renders the Nights row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getAllByText(/^Nights$/i).length).toBeGreaterThan(0);
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Nights$/i)).toBeInTheDocument();
   });
 
   it("renders the Transit time row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getAllByText(/^Transit time$/i).length).toBeGreaterThan(0);
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Transit time$/i)).toBeInTheDocument();
   });
 
   it("renders the Driving row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getAllByText(/^Driving$/i).length).toBeGreaterThan(0);
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Driving$/i)).toBeInTheDocument();
   });
 
   it("renders the Flights row", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
-    expect(screen.getAllByText(/^Flights$/i).length).toBeGreaterThan(0);
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText(/^Flights$/i)).toBeInTheDocument();
   });
 });
 
@@ -150,19 +160,19 @@ describe("CompareTable — delta badges", () => {
   it("shows a delta badge in the fork column (e.g. +2 nights)", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
     // nightTotal delta = 16 - 14 = +2 — appears in both mobile and desktop
-    expect(screen.getAllByText("+2 nights").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+2 nights")).toHaveLength(2);
   });
 
   it("shows a delta badge for stop count", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
     // stopCount delta = 6 - 5 = +1
-    expect(screen.getAllByText("+1 stop").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+1 stop")).toHaveLength(2);
   });
 
   it("shows a delta badge for flights", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
     // flightCount delta = 3 - 2 = +1
-    expect(screen.getAllByText("+1 flight").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("+1 flight")).toHaveLength(2);
   });
 });
 
@@ -209,7 +219,8 @@ describe("CompareTable — discreet mode", () => {
 describe("CompareTable — real plan only (no forks)", () => {
   it("renders just the real plan column with no Promote button", () => {
     render(<CompareTable trip={trip} plans={[realPlan]} />);
-    expect(screen.getAllByText("Real plan").length).toBeGreaterThan(0);
+    const table = within(screen.getByRole("table"));
+    expect(table.getByText("Real plan")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /promote/i })).not.toBeInTheDocument();
   });
 });
