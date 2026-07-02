@@ -28,16 +28,16 @@ beforeEach(() => {
 
 describe("CoverImageField", () => {
   it("renders a file input", () => {
-    render(<CoverImageField tripId="t1" hasCover={false} />);
-    const input = document.querySelector('input[type="file"]');
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+    const input = container.querySelector('input[type="file"]');
     expect(input).not.toBeNull();
   });
 
   it("selecting a file calls setTripCover with FormData containing tripId and the file, then calls router.refresh()", async () => {
     const user = userEvent.setup();
-    render(<CoverImageField tripId="t1" hasCover={false} />);
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
 
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
     expect(fileInput).not.toBeNull();
 
     const file = new File(["img-data"], "photo.png", { type: "image/png" });
@@ -72,9 +72,9 @@ describe("CoverImageField", () => {
   it("shows a friendly error when the upload throws (e.g. body too large)", async () => {
     const user = userEvent.setup();
     setTripCoverMock.mockRejectedValueOnce(new Error("Body exceeded 1 MB limit"));
-    render(<CoverImageField tripId="t1" hasCover={false} />);
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
 
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
     expect(fileInput).not.toBeNull();
 
     const file = new File(["x".repeat(10)], "big.jpg", { type: "image/jpeg" });
