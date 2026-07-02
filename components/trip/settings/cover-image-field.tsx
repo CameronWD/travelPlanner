@@ -20,9 +20,13 @@ export function CoverImageField({ tripId, hasCover }: { tripId: string; hasCover
     fd.set("tripId", tripId);
     fd.set("file", file);
     startTransition(async () => {
-      const r = await setTripCover(fd);
-      if (!r.success) toast({ variant: "destructive", title: r.error });
-      else router.refresh();
+      try {
+        const r = await setTripCover(fd);
+        if (!r.success) toast({ variant: "destructive", title: r.error });
+        else router.refresh();
+      } catch {
+        toast({ variant: "destructive", title: "Upload failed — the image may be too large (max 10 MB)." });
+      }
     });
   }
 

@@ -2,15 +2,21 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const refreshMock = vi.fn();
+const { refreshMock, setTripCoverMock, removeTripCoverMock, toastMock } = vi.hoisted(() => ({
+  refreshMock: vi.fn(),
+  setTripCoverMock: vi.fn(),
+  removeTripCoverMock: vi.fn(),
+  toastMock: vi.fn(),
+}));
+
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock }) }));
 
-const setTripCoverMock = vi.fn();
-const removeTripCoverMock = vi.fn();
 vi.mock("@/server/actions/cover", () => ({
   setTripCover: (...args: unknown[]) => setTripCoverMock(...args),
   removeTripCover: (...args: unknown[]) => removeTripCoverMock(...args),
 }));
+
+vi.mock("@/components/ui/use-toast", () => ({ toast: toastMock }));
 
 import { CoverImageField } from "./cover-image-field";
 
@@ -61,5 +67,19 @@ describe("CoverImageField", () => {
     // hasCover = false: Remove button absent
     rerender(<CoverImageField tripId="t1" hasCover={false} />);
     expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
+  });
+
+  it("shows a friendly error when the upload throws (e.g. body too large)", async () => {
+    const user = userEvent.setup();
+    setTripCoverMock.mockRejectedValueOnce(new Error("Body exceeded 1 MB limit"));
+    render(<CoverImageField tripId="t1" hasCover={false} />);
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).not.toBeNull();
+
+    const file = new File(["x".repeat(10)], "big.jpg", { type: "image/jpeg" });
+    await user.upload(fileInput, file);
+
+    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" })));
   });
 });
