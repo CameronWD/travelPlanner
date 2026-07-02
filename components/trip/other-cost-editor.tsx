@@ -329,6 +329,19 @@ export function OtherCostEditor({
 
   return (
     <div className="flex flex-col gap-3">
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-1.5 self-start"
+        onClick={() => {
+          setErrors({});
+          setAddOpen(true);
+        }}
+      >
+        <Plus className="size-4" aria-hidden="true" />
+        Add cost
+      </Button>
+
       {costs.length === 0 ? (
         <EmptyState
           icon={ReceiptText}
@@ -337,7 +350,7 @@ export function OtherCostEditor({
           className="py-8"
         />
       ) : (
-        <AnimatedList className="flex flex-col gap-1">
+        <AnimatedList className="flex flex-col gap-1" data-testid="other-cost-list">
           {costs.map((cost) => (
             <AnimatedItem
               key={cost.id}
@@ -410,19 +423,6 @@ export function OtherCostEditor({
           ))}
         </AnimatedList>
       )}
-
-      <Button
-        variant="outline"
-        size="sm"
-        className="gap-1.5 self-start"
-        onClick={() => {
-          setErrors({});
-          setAddOpen(true);
-        }}
-      >
-        <Plus className="size-4" aria-hidden="true" />
-        Add cost
-      </Button>
 
       <OtherCostDialog
         key={addOpen ? "add-open" : "add-closed"}

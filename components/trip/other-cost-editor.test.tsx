@@ -179,4 +179,14 @@ describe("OtherCostEditor", () => {
     expect(screen.getByText(/1,100\.00/)).toBeInTheDocument();
     expect(screen.queryByText(/≈.*11\.00/)).not.toBeInTheDocument();
   });
+
+  it("renders the Add cost button above the cost list", () => {
+    render(<OtherCostEditor {...baseProps} costs={[sampleCost]} />);
+
+    const btn = screen.getByRole("button", { name: /add cost/i });
+    const list = screen.getByTestId("other-cost-list");
+
+    // Button should appear before the list in document order
+    expect(btn.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
