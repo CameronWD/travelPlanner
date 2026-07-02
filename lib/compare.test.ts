@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import {
   computePlanMetrics,
   diffMetrics,
+  diffRoute,
   type PlanMetricsInput,
   type PlanMetrics,
 } from "./compare";
@@ -582,8 +583,6 @@ describe("computePlanMetrics — legs", () => {
     expect(metrics.legs).toEqual([{ fromName: "Rome", toName: "Florence", mode: "TRAIN" }]);
   });
 });
-
-import { diffRoute } from "./compare";
 
 // Minimal PlanMetrics builder — only route + legs matter to diffRoute.
 function pm(

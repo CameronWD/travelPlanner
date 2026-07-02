@@ -200,8 +200,8 @@ function DiffStopRow({ stop }: { stop: RouteDiffStop }) {
   );
 }
 
-function RouteDiffCell({ base, plan }: { base: ComparisonPlan; plan: ComparisonPlan }) {
-  const diff = diffRoute(base.metrics, plan.metrics);
+function RouteDiffCell({ realPlan, plan }: { realPlan: ComparisonPlan; plan: ComparisonPlan }) {
+  const diff = diffRoute(realPlan.metrics, plan.metrics);
   return (
     <div className="flex flex-col gap-1 min-w-[180px]">
       <p className="text-xs font-medium text-muted-foreground">{diff.summary}</p>
@@ -328,7 +328,7 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
       case "route":
         return plan.forkId === null
           ? <RouteCell plan={plan} />
-          : <RouteDiffCell base={realPlan} plan={plan} />;
+          : <RouteDiffCell realPlan={realPlan} plan={plan} />;
       case "projected-end":
         return (
           <div className="flex flex-col gap-1">

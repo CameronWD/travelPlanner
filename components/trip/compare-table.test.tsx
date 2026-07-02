@@ -281,8 +281,8 @@ describe("CompareTable — route diff in fork columns", () => {
     };
     render(<CompareTable trip={{ id: "trip-1", name: "Trip", homeCurrency: "AUD" }} plans={[real, fork]} />);
 
-    // Summary line for the fork
-    expect(screen.getAllByText("+Lucerne · -Venice · Rome 4→2n").length).toBeGreaterThan(0);
+    // Summary line for the fork — one per viewport (mobile card + desktop table)
+    expect(screen.getAllByText("+Lucerne · -Venice · Rome 4→2n")).toHaveLength(2);
     // Added / dropped / re-nighted markers appear
     expect(screen.getAllByText(/Lucerne/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Venice/).length).toBeGreaterThan(0);
@@ -304,5 +304,29 @@ describe("CompareTable — reorder arrows", () => {
     expect(moveLeft[0]).toBeDisabled();
     const moveRight = screen.getAllByRole("button", { name: /move .* right/i });
     expect(moveRight[moveRight.length - 1]).toBeDisabled();
+  });
+
+  it("enables both arrows on a middle fork (neither first nor last)", () => {
+    const real = { forkId: null, name: "Real plan", metrics: makeMetrics({ route: [R("Rome", 3)] }) };
+    const b = { forkId: "fork-b", name: "Variant B", metrics: makeMetrics({ route: [R("Rome", 3)] }) };
+    const c = { forkId: "fork-c", name: "Variant C", metrics: makeMetrics({ route: [R("Rome", 3)] }) };
+    const d = { forkId: "fork-d", name: "Variant D", metrics: makeMetrics({ route: [R("Rome", 3)] }) };
+    render(<CompareTable trip={{ id: "trip-1", name: "Trip", homeCurrency: "AUD" }} plans={[real, b, c, d]} />);
+
+    // Middle fork "Variant C" is neither first nor last, so both its arrows stay enabled
+    // (guards against a disable-all regression that the ends-only test would miss).
+    const cLeft = screen.getAllByRole("button", { name: /move Variant C left/i });
+    const cRight = screen.getAllByRole("button", { name: /move Variant C right/i });
+    expect(cLeft).toHaveLength(2); // one per viewport: mobile + desktop
+    expect(cRight).toHaveLength(2);
+    for (const btn of [...cLeft, ...cRight]) expect(btn).toBeEnabled();
+  });
+
+  it("renders no reorder arrows for the real plan column", () => {
+    const real = { forkId: null, name: "Real plan", metrics: makeMetrics({ route: [R("Rome", 3)] }) };
+    const b = { forkId: "fork-b", name: "Variant B", metrics: makeMetrics({ route: [R("Rome", 3)] }) };
+    render(<CompareTable trip={{ id: "trip-1", name: "Trip", homeCurrency: "AUD" }} plans={[real, b]} />);
+
+    expect(screen.queryByRole("button", { name: /move Real plan/i })).not.toBeInTheDocument();
   });
 });

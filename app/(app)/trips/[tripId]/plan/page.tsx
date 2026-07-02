@@ -238,6 +238,8 @@ export default async function TripPlanPage({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Discreet mode returns the stop-spreadsheet view earlier in this function and
+          never reaches this branch, so the variant banner cannot leak fork vocabulary. */}
       {activeFork && <VariantBanner tripId={tripId} variantName={activeFork.name} />}
       {stops.length > 0 && (
         <PlanOverview

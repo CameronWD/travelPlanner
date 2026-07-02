@@ -169,7 +169,13 @@ function CreateVariantForm({
   return (
     <form onSubmit={handleSubmit}>
       <div className="py-4">
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Variant name" aria-label="Variant name" disabled={isPending} />
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Variant name"
+          aria-label="Variant name"
+          disabled={isPending}
+        />
         {error && <p className="mt-2 text-sm text-destructive" role="alert">{error}</p>}
       </div>
       <DialogFooter>
@@ -350,7 +356,7 @@ export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
                   className="rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-30"
                   aria-label={`Duplicate ${fork.name}`}
                   disabled={atCap}
-                  onClick={(e) => { e.stopPropagation(); if (!atCap) setCreateTarget({ mode: "duplicate", source: fork }); }}
+                  onClick={(e) => { e.stopPropagation(); setCreateTarget({ mode: "duplicate", source: fork }); }}
                 >
                   <Copy className="size-3.5" aria-hidden="true" />
                 </button>
