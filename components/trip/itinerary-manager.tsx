@@ -1049,7 +1049,7 @@ export function ItineraryManager({
                     return renderStop(stop, idx, isFirst, isLast);
                   })}
                 </SortableContext>
-                <QuickAddStops tripId={tripId} chapterId={null} />
+                <QuickAddStops tripId={tripId} chapterId={null} forkId={forkId ?? null} />
               </>
             ) : (
               // ── Chapters path: grouped rendering with seams ──
@@ -1133,7 +1133,7 @@ export function ItineraryManager({
                                         return renderStop(stop, globalIdx, isFirst, isLast);
                                       })}
                                     </SortableContext>
-                                    <QuickAddStops tripId={tripId} chapterId={group.chapter!.id} />
+                                    <QuickAddStops tripId={tripId} chapterId={group.chapter!.id} forkId={forkId ?? null} />
                                   </div>
                                 )}
                               </div>
@@ -1174,7 +1174,7 @@ export function ItineraryManager({
                                   const isLast = globalIdx === stops.length - 1;
                                   return renderStop(stop, globalIdx, isFirst, isLast);
                                 })}
-                                <QuickAddStops tripId={tripId} chapterId={group.chapter.id} />
+                                <QuickAddStops tripId={tripId} chapterId={group.chapter.id} forkId={forkId ?? null} />
                               </div>
                             )}
                           </div>
@@ -1209,7 +1209,7 @@ export function ItineraryManager({
                               return renderStop(stop, globalIdx, isFirst, isLast);
                             })}
                           </SortableContext>
-                          <QuickAddStops tripId={tripId} chapterId={null} />
+                          <QuickAddStops tripId={tripId} chapterId={null} forkId={forkId ?? null} />
                         </div>
                       )}
                     </React.Fragment>
@@ -1292,7 +1292,7 @@ export function ItineraryManager({
                               No stops yet — add one
                             </p>
                           )}
-                          <QuickAddStops tripId={tripId} chapterId={chapter.id} />
+                          <QuickAddStops tripId={tripId} chapterId={chapter.id} forkId={forkId ?? null} />
                         </div>
                       )}
                     </div>
@@ -1381,7 +1381,7 @@ export function ItineraryManager({
           description="Add places you want to visit — rough stops to start, or dated stops once you know the plan."
           action={
             <div className="flex flex-col items-center gap-3 w-full max-w-md">
-              <QuickAddStops tripId={tripId} chapterId={null} />
+              <QuickAddStops tripId={tripId} chapterId={null} forkId={forkId ?? null} />
               <Button variant="outline" size="md" onClick={handleNewChapter}>
                 <BookOpen className="size-4" aria-hidden="true" />
                 New chapter

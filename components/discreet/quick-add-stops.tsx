@@ -1,27 +1,27 @@
 "use client";
 
 import * as React from "react";
-import { Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { createStop } from "@/server/actions/stops";
 
 export interface QuickAddStopsProps {
   tripId: string;
   /** When set, new rough stops are added into this chapter. */
   chapterId?: string | null;
-  /** When set, new stops are created in the given fork (variant plan). Omit or null for the real plan. */
+  /**
+   * Fork id for parity with the trip variant. Discreet mode always operates on
+   * the real plan — pass null or omit; this prop is accepted purely for
+   * interface consistency.
+   */
   forkId?: string | null;
 }
 
 /**
- * Compact inline row for rapidly adding rough stops: a place name input, a
- * small nights estimate, and an Add button. Enter submits, the place input is
- * cleared and refocused after each add for fast repeated entry.
+ * Minimal discreet-mode variant of QuickAddStops. Accepts the same props as
+ * the trip variant (including forkId for interface parity) but always writes to
+ * the real plan — discreet mode has no active-fork context.
  */
 export function QuickAddStops({ tripId, chapterId, forkId }: QuickAddStopsProps) {
   const [name, setName] = React.useState("");
-  const [nights, setNights] = React.useState("2");
   const [isPending, startTransition] = React.useTransition();
   const inputRef = React.useRef<HTMLInputElement>(null);
 
@@ -30,18 +30,13 @@ export function QuickAddStops({ tripId, chapterId, forkId }: QuickAddStopsProps)
     const trimmed = name.trim();
     if (!trimmed || isPending) return;
 
-    const parsedNights = Number.parseInt(nights, 10);
-    const safeNights = Number.isFinite(parsedNights) && parsedNights >= 0 ? parsedNights : 0;
-
     startTransition(async () => {
       const result = await createStop(tripId, {
         mode: "rough",
         name: trimmed,
-        nights: safeNights,
+        nights: 0,
         ...(chapterId ? { chapterId } : {}),
       }, forkId ?? undefined);
-      // Only clear and refocus on success — on failure, preserve the typed value
-      // so the user can correct it without retyping.
       if (result && "success" in result && !result.success) {
         inputRef.current?.focus();
         return;
@@ -52,29 +47,19 @@ export function QuickAddStops({ tripId, chapterId, forkId }: QuickAddStopsProps)
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-center gap-2">
-      <Input
+    <form onSubmit={handleSubmit} className="flex items-center gap-1 text-sm">
+      <input
         ref={inputRef}
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="Add a place…"
         aria-label="Add a place"
         disabled={isPending}
-        className="flex-1"
+        className="flex-1 border border-border rounded px-2 py-0.5"
       />
-      <Input
-        type="number"
-        min={0}
-        value={nights}
-        onChange={(e) => setNights(e.target.value)}
-        aria-label="Nights"
-        disabled={isPending}
-        className="w-20"
-      />
-      <Button type="submit" variant="outline" size="md" loading={isPending}>
-        <Plus className="size-4" aria-hidden="true" />
+      <button type="submit" disabled={isPending} className="px-2 py-0.5 border border-border rounded">
         Add
-      </Button>
+      </button>
     </form>
   );
 }
