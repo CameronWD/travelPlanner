@@ -177,7 +177,7 @@ Making a **Fork** the Trip's new **real plan**: the Fork's arrangement replaces 
 _Avoid_: Apply, commit, merge, accept, choose
 
 **Compare**:
-The read-only side-by-side view of a Trip's **real plan** and all its **Forks**, one column each, the real plan as the leftmost baseline. Rows cover **Route** (Stops in order, nights, countries), **projected end** vs **Hard end date**, **Budget** total (estimated, Home currency), **Flags** (by severity), Stop and night totals, and transit metrics (scheduled transit time, driving hours, flight count). Each Fork's figures show a **delta** against the real plan. The **Route** row additionally marks, per Fork, which Stops were **added**, **dropped**, **re-nighted** or **reordered**, and any change of **Transport** mode, all relative to the real plan; every other row shows a numeric **delta** against the real plan. From a column you open a Fork to edit, or **Promote** it.
+The read-only side-by-side view of a Trip's **real plan** and all its **Forks**, one column each, the real plan as the leftmost baseline. Rows cover **Route** (Stops in order, nights, countries), **projected end** vs **Hard end date**, **Budget** total (estimated, Home currency), **Flags** (by severity), Stop and night totals, and transit metrics (scheduled transit time, driving hours, flight count). Each Fork's figures are shown as a **delta** against the real plan: the **Route** row marks, per Fork, which Stops were **added**, **dropped**, **re-nighted** or **reordered**, and any change of **Transport** mode; every other row shows a numeric delta. From a column you open a Fork to edit, or **Promote** it.
 _Avoid_: Versus, diff, dashboard
 
 ## Flagged ambiguities
