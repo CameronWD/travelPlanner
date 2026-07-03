@@ -15,7 +15,7 @@ describe("QuickAddStops", () => {
     const input = screen.getByPlaceholderText(/add a place/i);
     await userEvent.type(input, "Rome");
     await userEvent.click(screen.getByRole("button", { name: /add/i }));
-    expect(createStop).toHaveBeenCalledWith("trip-1", expect.objectContaining({ mode: "rough", name: "Rome", chapterId: "it" }));
+    expect(createStop).toHaveBeenCalledWith("trip-1", expect.objectContaining({ mode: "rough", name: "Rome", chapterId: "it" }), undefined, null);
     expect(input).toHaveValue("");
   });
 
@@ -27,5 +27,34 @@ describe("QuickAddStops", () => {
     await userEvent.click(screen.getByRole("button", { name: /add/i }));
     // Input should NOT be cleared on failure so the user can correct it
     expect(input).toHaveValue("BadPlace");
+  });
+
+  it("passes the active forkId to createStop when forkId prop is set", async () => {
+    render(<QuickAddStops tripId="t1" chapterId={null} forkId="fork-1" />);
+    const input = screen.getByPlaceholderText(/add a place/i);
+    await userEvent.type(input, "Rome");
+    await userEvent.click(screen.getByRole("button", { name: /add/i }));
+    expect(createStop).toHaveBeenCalledWith("t1", expect.objectContaining({ name: "Rome" }), "fork-1", null);
+  });
+
+  it("passes undefined to createStop when forkId is null", async () => {
+    render(<QuickAddStops tripId="t1" chapterId={null} forkId={null} />);
+    const input = screen.getByPlaceholderText(/add a place/i);
+    await userEvent.type(input, "Berlin");
+    await userEvent.click(screen.getByRole("button", { name: /add/i }));
+    expect(createStop).toHaveBeenCalledWith("t1", expect.objectContaining({ name: "Berlin" }), undefined, null);
+  });
+
+  it("forwards afterStopId as the 4th arg to createStop", async () => {
+    render(<QuickAddStops tripId="trip-1" chapterId="ch-1" afterStopId="stop-anchor" />);
+    const input = screen.getByPlaceholderText(/add a place/i);
+    await userEvent.type(input, "Florence");
+    await userEvent.click(screen.getByRole("button", { name: /add/i }));
+    expect(createStop).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ name: "Florence" }),
+      undefined,
+      "stop-anchor",
+    );
   });
 });

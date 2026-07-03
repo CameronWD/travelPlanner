@@ -8,7 +8,7 @@ import { computeTripPhase } from "@/lib/trip-phase";
 import { buildForkPlan, MAX_FORKS } from "@/lib/fork-plan";
 import { recordActivity } from "@/server/actions/activity";
 import { todayISO } from "@/lib/dates";
-import type { PlanId } from "@/lib/plan-scope";
+import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, type PlanId } from "@/lib/plan-scope";
 import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } from "@/lib/compare";
 
 // ---------------------------------------------------------------------------
@@ -93,9 +93,10 @@ export async function createFork(
       db.stop.findMany({ where: sourceWhere }),
       db.transport.findMany({ where: sourceWhere }),
       db.accommodation.findMany({ where: sourceWhere }),
-      // Placements only — wishlist ideas (date null) are trip-wide/shared and
-      // must never be copied into a fork (C1a).
-      db.item.findMany({ where: { ...sourceWhere, date: { not: null } } }),
+      // Plan placements only — trip-wide/shared wishlist ideas (no stop, no
+      // date) must never be copied into a fork (C1a). ADR 0022: a placement is
+      // any Item with a Stop OR a date, so dateless stop things-to-do copy too.
+      db.item.findMany({ where: { ...sourceWhere, ...PLAN_PLACEMENT_WHERE } }),
       db.cost.findMany({ where: sourceWhere }),
     ]);
 
@@ -467,9 +468,10 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
           },
         }),
         db.item.findMany({
-          // Placements only — unscheduled wishlist ideas (date null) are not part
-          // of the arrangement being compared (C1c). Keeps real-vs-fork symmetric.
-          where: { ...where, date: { not: null } },
+          // Plan placements only — trip-wide wishlist ideas (no stop, no date)
+          // are not part of the arrangement being compared (C1c). ADR 0022:
+          // placement = Stop OR date. Keeps real-vs-fork symmetric.
+          where: { ...where, ...PLAN_PLACEMENT_WHERE },
           select: {
             id: true,
             stopId: true,
@@ -576,12 +578,12 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     db.stop.findMany({ where: realWhere, select: { id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true, timezone: true } }),
     db.transport.findMany({ where: realWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, reference: true } }),
     db.accommodation.findMany({ where: realWhere, select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true, confirmation: true } }),
-    db.item.findMany({ where: { ...realWhere, date: { not: null } }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true } }),
+    db.item.findMany({ where: { ...realWhere, ...PLAN_PLACEMENT_WHERE }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true } }),
     db.cost.findMany({ where: realWhere, select: { id: true, estimatedMinor: true, actualMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
     db.stop.findMany({ where: forkWhere, select: { id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true, timezone: true } }),
     db.transport.findMany({ where: forkWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true } }),
     db.accommodation.findMany({ where: forkWhere, select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true } }),
-    db.item.findMany({ where: { ...forkWhere, date: { not: null } }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true } }),
+    db.item.findMany({ where: { ...forkWhere, ...PLAN_PLACEMENT_WHERE }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true } }),
     db.cost.findMany({ where: forkWhere, select: { id: true, estimatedMinor: true, actualMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true } }),
   ]);
 
@@ -737,19 +739,21 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
   await db.$transaction(async (tx) => {
     // Step 1: delete old real-plan rows for all six entities.
     //
-    // Wishlist ideas (Item rows with date null) are trip-wide/shared and are NOT
+    // ADR 0022: trip-wide/shared wishlist ideas (no Stop AND no date) are NOT
     // part of any plan — they must survive promotion (C1b). So we delete only
-    // real-plan PLACEMENTS (date not null), and preserve ITEM costs owned by
-    // surviving ideas.
+    // real-plan PLACEMENTS (Stop OR date, which now includes dateless stop
+    // things-to-do), and preserve ITEM costs owned by surviving ideas.
     await tx.stop.deleteMany({ where: { tripId, forkId: null } });
     await tx.chapter.deleteMany({ where: { tripId, forkId: null } });
     await tx.transport.deleteMany({ where: { tripId, forkId: null } });
     await tx.accommodation.deleteMany({ where: { tripId, forkId: null } });
-    await tx.item.deleteMany({ where: { tripId, forkId: null, date: { not: null } } });
+    await tx.item.deleteMany({ where: { tripId, forkId: null, ...PLAN_PLACEMENT_WHERE } });
 
     // Gather surviving wishlist idea ids so their ITEM costs are preserved.
+    // Ideas are the both-null items only — a dateless stop placement is NOT an
+    // idea (it was deleted above; its cost should be replaced, not preserved).
     const ideas = await tx.item.findMany({
-      where: { tripId, forkId: null, date: null },
+      where: { tripId, forkId: null, ...WISHLIST_IDEA_WHERE },
       select: { id: true },
     });
     await tx.cost.deleteMany({

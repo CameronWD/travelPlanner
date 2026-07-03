@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 /**
  * Tests for transport server actions.
  *
- * Mocks: lib/db, lib/guards, next/cache
+ * Mocks: lib/db, lib/guards, next/cache, lib/fx
  */
 
 const {
@@ -16,7 +16,27 @@ const {
   transportUpdateMock,
   transportDeleteMock,
   stopFindManyMock,
+  tripFindUniqueMock,
+  costFindManyMock,
+  costCreateMock,
+  costUpdateMock,
+  resolveRateForTripMock,
+  persistRateMock,
+  transactionMock,
 } = vi.hoisted(() => {
+  const costCreateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
+  const costUpdateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
+  const transactionMock = vi.fn(async (arg: unknown) => {
+    if (typeof arg === "function") {
+      return (arg as (tx: unknown) => unknown)({
+        cost: { create: costCreateMock, update: costUpdateMock },
+        exchangeRate: { upsert: vi.fn().mockResolvedValue({}) },
+      });
+    }
+    if (Array.isArray(arg)) return Promise.all(arg);
+    return arg;
+  });
+
   return {
     requireTripAccessMock: vi.fn().mockResolvedValue({
       user: { id: "user-1" },
@@ -30,6 +50,13 @@ const {
     transportUpdateMock: vi.fn(),
     transportDeleteMock: vi.fn(),
     stopFindManyMock: vi.fn().mockResolvedValue([]),
+    tripFindUniqueMock: vi.fn().mockResolvedValue({ homeCurrency: "AUD" }),
+    costFindManyMock: vi.fn().mockResolvedValue([]),
+    costCreateMock,
+    costUpdateMock,
+    resolveRateForTripMock: vi.fn().mockResolvedValue({ rate: 0.6, persist: null }),
+    persistRateMock: vi.fn().mockResolvedValue(undefined),
+    transactionMock,
   };
 });
 
@@ -37,6 +64,10 @@ vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/fx", () => ({
+  resolveRateForTrip: resolveRateForTripMock,
+  persistRate: persistRateMock,
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     transport: {
@@ -49,6 +80,15 @@ vi.mock("@/lib/db", () => ({
     stop: {
       findMany: stopFindManyMock,
     },
+    trip: {
+      findUnique: tripFindUniqueMock,
+    },
+    cost: {
+      findMany: costFindManyMock,
+      create: costCreateMock,
+      update: costUpdateMock,
+    },
+    $transaction: transactionMock,
   },
 }));
 
@@ -569,5 +609,205 @@ describe("fork-silent: deleteTransport in a fork does NOT record activity", () =
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "DELETED", entityType: "TRANSPORT" }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Inline cost: createTransport with cost fields
+// ---------------------------------------------------------------------------
+
+describe("createTransport: inline cost creation", () => {
+  it("creates a Cost with ownerType TRANSPORT and the new transport id when estimatedMinor+currency are provided", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-cost-1", mode: "FLIGHT" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.6, persist: null });
+    costFindManyMock.mockResolvedValue([]); // not called on create path but reset for clarity
+
+    const result = await createTransport("trip-1", {
+      mode: "FLIGHT",
+      estimatedMinor: 12000,
+      currency: "EUR",
+    });
+
+    expect(result.success).toBe(true);
+    // trip lookup happened to find home currency
+    expect(tripFindUniqueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "trip-1" } }),
+    );
+    // resolveRateForTrip called with the cost currency and home currency
+    expect(resolveRateForTripMock).toHaveBeenCalledWith(
+      "trip-1",
+      "EUR",
+      "AUD",
+      expect.anything(),
+    );
+    // transaction used to create cost
+    expect(transactionMock).toHaveBeenCalled();
+    // cost.create called inside the transaction with correct ownerType/ownerId
+    expect(costCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          ownerType: "TRANSPORT",
+          ownerId: "t-cost-1",
+          estimatedMinor: 12000,
+          currency: "EUR",
+          rateToHome: 0.6,
+        }),
+      }),
+    );
+  });
+
+  it("does NOT create a Cost when no estimatedMinor is provided", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-no-cost", mode: "TRAIN" });
+
+    await createTransport("trip-1", { mode: "TRAIN" });
+
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(costCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("snapshots rateToHome=1 when cost currency equals home currency", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-same-cur", mode: "BUS" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+
+    await createTransport("trip-1", {
+      mode: "BUS",
+      estimatedMinor: 5000,
+      currency: "AUD",
+    });
+
+    expect(costCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ rateToHome: 1 }),
+      }),
+    );
+  });
+
+  it("persists the FX rate inside the transaction when resolveRateForTrip returns a persist descriptor", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "t-persist", mode: "FLIGHT" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({
+      rate: 0.55,
+      persist: { base: "USD", quote: "AUD", rate: 0.55 },
+    });
+
+    await createTransport("trip-1", {
+      mode: "FLIGHT",
+      estimatedMinor: 8000,
+      currency: "USD",
+    });
+
+    expect(persistRateMock).toHaveBeenCalledWith(
+      expect.anything(), // the tx object
+      "trip-1",
+      { base: "USD", quote: "AUD", rate: 0.55 },
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Inline cost: updateTransport with cost fields
+// ---------------------------------------------------------------------------
+
+describe("updateTransport: inline cost update/create", () => {
+  it("creates a Cost when transport has 0 existing costs and estimatedMinor is provided", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tu-1", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "tu-1", mode: "FLIGHT" }); // before snapshot
+    transportUpdateMock.mockResolvedValue({ id: "tu-1", mode: "TRAIN" });
+    costFindManyMock.mockResolvedValue([]); // 0 existing costs
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.6, persist: null });
+
+    const result = await updateTransport("tu-1", {
+      mode: "TRAIN",
+      estimatedMinor: 7500,
+      currency: "EUR",
+    });
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          ownerType: "TRANSPORT",
+          ownerId: "tu-1",
+          estimatedMinor: 7500,
+          currency: "EUR",
+        }),
+      }),
+    );
+  });
+
+  it("updates the existing Cost when transport has exactly 1 cost and estimatedMinor is provided", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tu-2", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "tu-2", mode: "FLIGHT" }); // before snapshot
+    transportUpdateMock.mockResolvedValue({ id: "tu-2", mode: "FLIGHT" });
+    costFindManyMock.mockResolvedValue([
+      { id: "existing-cost-1", ownerType: "TRANSPORT", ownerId: "tu-2" },
+    ]); // exactly 1 existing cost
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.65, persist: null });
+
+    const result = await updateTransport("tu-2", {
+      mode: "FLIGHT",
+      estimatedMinor: 9900,
+      currency: "USD",
+    });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "existing-cost-1" },
+        data: expect.objectContaining({
+          estimatedMinor: 9900,
+          currency: "USD",
+          rateToHome: 0.65,
+        }),
+      }),
+    );
+    expect(costCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("does NOT touch any costs when transport has >1 existing costs (CostEditor authoritative)", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tu-3", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "tu-3", mode: "FLIGHT" }); // before snapshot
+    transportUpdateMock.mockResolvedValue({ id: "tu-3", mode: "FLIGHT" });
+    costFindManyMock.mockResolvedValue([
+      { id: "c-a", ownerType: "TRANSPORT", ownerId: "tu-3" },
+      { id: "c-b", ownerType: "TRANSPORT", ownerId: "tu-3" },
+    ]); // >1 costs
+
+    const result = await updateTransport("tu-3", {
+      mode: "FLIGHT",
+      estimatedMinor: 5000,
+      currency: "AUD",
+    });
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).not.toHaveBeenCalled();
+    // Transaction should not be called for cost when >1 costs
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("does NOT create or update costs when estimatedMinor is absent (even with 0 existing costs)", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tu-4", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "tu-4", mode: "FLIGHT" }); // before snapshot
+    transportUpdateMock.mockResolvedValue({ id: "tu-4", mode: "TRAIN" });
+    costFindManyMock.mockResolvedValue([]); // 0 existing costs
+
+    await updateTransport("tu-4", { mode: "TRAIN" });
+
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(costCreateMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).not.toHaveBeenCalled();
   });
 });

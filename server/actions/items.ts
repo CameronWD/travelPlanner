@@ -11,6 +11,7 @@ import { geocodePlace } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
+import { resolveRateForTrip, persistRate } from "@/lib/fx";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -61,6 +62,7 @@ function revalidateItemPaths(tripId: string) {
   revalidatePath(`/trips/${tripId}`);
   revalidatePath(`/trips/${tripId}/wishlist`);
   revalidatePath(`/trips/${tripId}/calendar`);
+  revalidatePath(`/trips/${tripId}/plan`);
 }
 
 // ---------------------------------------------------------------------------
@@ -139,6 +141,39 @@ export async function createItem(
     },
   });
 
+  // If an inline cost was supplied, create a single item-owned Cost.
+  // Resolve the FX rate BEFORE opening a transaction (network must not hold a
+  // DB transaction open — ADR 0007).
+  if (data.estimatedMinor !== undefined && data.currency) {
+    const trip = await db.trip.findUnique({
+      where: { id: tripId },
+      select: { homeCurrency: true },
+    });
+    if (trip) {
+      const resolved = await resolveRateForTrip(tripId, data.currency, trip.homeCurrency, { db });
+      await db.$transaction(async (tx) => {
+        if (resolved.persist) {
+          await persistRate(tx, tripId, resolved.persist);
+        }
+        await (tx as typeof db).cost.create({
+          data: {
+            tripId,
+            forkId: forkId ?? null,
+            ownerType: "ITEM",
+            ownerId: created.id,
+            estimatedMinor: data.estimatedMinor!,
+            actualMinor: data.actualMinor ?? null,
+            currency: data.currency!,
+            rateToHome: resolved.rate,
+            paidAt: data.paidAt ? new Date(data.paidAt) : null,
+            label: null,
+            category: null,
+          },
+        });
+      });
+    }
+  }
+
   await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>) });
   revalidateItemPaths(tripId);
   return { success: true };
@@ -205,6 +240,63 @@ export async function updateItem(
       lng,
     },
   });
+
+  // Inline cost management (mirrors transport cost logic):
+  // 0 existing costs + amount provided → create
+  // 1 existing cost + amount provided → update it
+  // >1 existing costs → leave CostEditor authoritative (never clobber)
+  // No amount provided → skip
+  if (data.estimatedMinor !== undefined && data.currency) {
+    const existingCosts = await db.cost.findMany({
+      where: { ownerType: "ITEM", ownerId: itemId },
+      select: { id: true },
+    });
+
+    if (existingCosts.length <= 1) {
+      const trip = await db.trip.findUnique({
+        where: { id: item.tripId },
+        select: { homeCurrency: true },
+      });
+      if (trip) {
+        const resolved = await resolveRateForTrip(item.tripId, data.currency, trip.homeCurrency, { db });
+        await db.$transaction(async (tx) => {
+          if (resolved.persist) {
+            await persistRate(tx, item.tripId, resolved.persist);
+          }
+          if (existingCosts.length === 0) {
+            await (tx as typeof db).cost.create({
+              data: {
+                tripId: item.tripId,
+                forkId: item.forkId ?? null,
+                ownerType: "ITEM",
+                ownerId: itemId,
+                estimatedMinor: data.estimatedMinor!,
+                actualMinor: data.actualMinor ?? null,
+                currency: data.currency!,
+                rateToHome: resolved.rate,
+                paidAt: data.paidAt ? new Date(data.paidAt) : null,
+                label: null,
+                category: null,
+              },
+            });
+          } else {
+            // exactly 1 existing cost
+            await (tx as typeof db).cost.update({
+              where: { id: existingCosts[0].id },
+              data: {
+                estimatedMinor: data.estimatedMinor!,
+                actualMinor: data.actualMinor ?? null,
+                currency: data.currency!,
+                rateToHome: resolved.rate,
+                paidAt: data.paidAt ? new Date(data.paidAt) : null,
+              },
+            });
+          }
+        });
+      }
+    }
+    // >1 costs: do nothing — CostEditor is authoritative
+  }
 
   await recordPlanActivity(item.forkId, {
     tripId: item.tripId,

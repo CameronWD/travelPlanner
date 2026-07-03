@@ -7,6 +7,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
+import { MoneyInput } from "@/components/ui/money-input";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +23,10 @@ import {
   createAccommodation,
   updateAccommodation,
 } from "@/server/actions/accommodation";
+import { CURRENCIES } from "@/lib/currencies";
+import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import type { AccommodationCardAccommodation } from "./accommodation-card";
+import type { CostRow } from "@/server/actions/costs";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,6 +40,10 @@ interface FormErrors {
   checkOut?: string[];
   confirmation?: string[];
   notes?: string[];
+  estimatedMinor?: string[];
+  currency?: string[];
+  actualMinor?: string[];
+  paidAt?: string[];
   _form?: string[];
 }
 
@@ -51,6 +59,14 @@ export interface AccommodationFormDialogProps {
   onSaved?: () => void;
   /** Fork to create the accommodation in (null = real plan). */
   forkId?: string | null;
+  /** Trip's home currency — used as default for the cost currency picker. */
+  homeCurrency?: string;
+  /**
+   * Existing costs on the accommodation (edit mode only).
+   * When exactly one cost is present, the cost fields are pre-filled from it.
+   * When >1 costs are present, the cost fields are hidden (CostEditor is authoritative).
+   */
+  costs?: CostRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -65,6 +81,8 @@ export function AccommodationFormDialog({
   onOpenChange,
   onSaved,
   forkId,
+  homeCurrency,
+  costs,
 }: AccommodationFormDialogProps) {
   const formKey = open
     ? `${accommodation?.id ?? "new"}-${String(open)}`
@@ -86,6 +104,8 @@ export function AccommodationFormDialog({
           onClose={() => onOpenChange(false)}
           onSaved={onSaved}
           forkId={forkId}
+          homeCurrency={homeCurrency}
+          costs={costs}
         />
       </DialogContent>
     </Dialog>
@@ -164,7 +184,11 @@ interface AccommodationFormProps {
   onClose: () => void;
   onSaved?: () => void;
   forkId?: string | null;
+  homeCurrency?: string;
+  costs?: CostRow[];
 }
+
+const CURRENCY_CODES = CURRENCIES.map((c) => c.code);
 
 function AccommodationForm({
   stopId,
@@ -173,8 +197,17 @@ function AccommodationForm({
   onClose,
   onSaved,
   forkId,
+  homeCurrency,
+  costs,
 }: AccommodationFormProps) {
   const isEdit = Boolean(accommodation);
+
+  // Determine the single existing cost (if any) for prefill.
+  // When >1 costs exist the CostEditor is authoritative — hide the inline fields.
+  const singleCost = costs?.length === 1 ? costs[0] : null;
+  const hasMultipleCosts = (costs?.length ?? 0) > 1;
+
+  const defaultCurrency = homeCurrency ?? "AUD";
 
   const [name, setName] = React.useState(accommodation?.name ?? "");
   const [address, setAddress] = React.useState(accommodation?.address ?? "");
@@ -188,6 +221,23 @@ function AccommodationForm({
     accommodation?.confirmation ?? "",
   );
   const [notes, setNotes] = React.useState(accommodation?.notes ?? "");
+
+  // Inline cost fields
+  const [estimatedAmount, setEstimatedAmount] = React.useState(
+    singleCost ? formatMinor(singleCost.estimatedMinor, singleCost.currency) : "",
+  );
+  const [currency, setCurrency] = React.useState(
+    singleCost?.currency ?? defaultCurrency,
+  );
+  const [actualAmount, setActualAmount] = React.useState(
+    singleCost && singleCost.actualMinor !== null && singleCost.actualMinor !== undefined
+      ? formatMinor(singleCost.actualMinor, singleCost.currency)
+      : "",
+  );
+  const [paidAt, setPaidAt] = React.useState(
+    singleCost?.paidAt ? new Date(singleCost.paidAt).toISOString().slice(0, 10) : "",
+  );
+
   const [errors, setErrors] = React.useState<FormErrors>({});
   const [isPending, startTransition] = React.useTransition();
 
@@ -209,7 +259,15 @@ function AccommodationForm({
     e.preventDefault();
     setErrors({});
 
-    const input = {
+    const estimatedMinor = estimatedAmount.trim()
+      ? (parseAmountToMinor(estimatedAmount, currency) ?? undefined)
+      : undefined;
+    const actualMinor = actualAmount.trim()
+      ? (parseAmountToMinor(actualAmount, currency) ?? undefined)
+      : undefined;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const input: any = {
       stopId,
       name,
       address: address.trim() || undefined,
@@ -217,6 +275,12 @@ function AccommodationForm({
       checkOut,
       confirmation: confirmation.trim() || undefined,
       notes: notes.trim() || undefined,
+      ...(estimatedMinor !== undefined && {
+        estimatedMinor,
+        currency,
+        actualMinor: actualMinor ?? null,
+        paidAt: paidAt || null,
+      }),
     };
 
     startTransition(async () => {
@@ -313,6 +377,60 @@ function AccommodationForm({
           disabled={isPending}
         />
       </Field>
+
+      {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
+      {!hasMultipleCosts && (
+        <>
+          {/* Estimated cost */}
+          <Field label="Estimated cost" error={errors.estimatedMinor?.[0]}>
+            <MoneyInput
+              amount={estimatedAmount}
+              currency={currency}
+              currencies={CURRENCY_CODES}
+              onAmountChange={setEstimatedAmount}
+              onCurrencyChange={setCurrency}
+              disabled={isPending}
+              invalid={Boolean(errors.estimatedMinor)}
+              aria-label="Estimated cost amount"
+            />
+          </Field>
+
+          {/* Actual cost — only shown when an estimated amount is entered */}
+          {estimatedAmount.trim() && (
+            <>
+              <Field
+                label="Actual cost"
+                description="Leave blank if you haven't paid yet"
+                error={errors.actualMinor?.[0]}
+              >
+                <MoneyInput
+                  amount={actualAmount}
+                  currency={currency}
+                  currencies={CURRENCY_CODES}
+                  onAmountChange={setActualAmount}
+                  onCurrencyChange={setCurrency}
+                  disabled={isPending}
+                  invalid={Boolean(errors.actualMinor)}
+                  aria-label="Actual cost amount"
+                />
+              </Field>
+
+              <Field
+                label="Date paid"
+                description="Optional — when the cost was paid"
+                error={errors.paidAt?.[0]}
+              >
+                <Input
+                  type="date"
+                  value={paidAt}
+                  onChange={(e) => setPaidAt(e.target.value)}
+                  disabled={isPending}
+                />
+              </Field>
+            </>
+          )}
+        </>
+      )}
 
       <FormError>{errors._form?.[0]}</FormError>
 

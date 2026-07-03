@@ -40,13 +40,17 @@ vi.mock("@/server/actions/costs", () => ({
 // the real card only renders it in mode="scheduled" but the handler lives
 // in WishlistBoard. We stub the card to surface the action for testing.
 vi.mock("./item-card", () => ({
-  ItemCard: ({ item, onUnschedule, onSchedule }: {
+  ItemCard: ({ item, onUnschedule, onSchedule, onEdit }: {
     item: { id: string; title: string };
     onUnschedule?: (id: string) => void;
     onSchedule?: (item: { id: string; title: string }) => void;
+    onEdit?: (item: { id: string; title: string }) => void;
   }) => (
     <div>
       <span>{item.title}</span>
+      {onEdit && (
+        <button onClick={() => onEdit(item)}>Edit {item.title}</button>
+      )}
       {onSchedule && (
         <button onClick={() => onSchedule(item)}>Schedule {item.title}</button>
       )}
@@ -61,8 +65,15 @@ vi.mock("./ai-activity-suggestions", () => ({
   AiActivitySuggestions: () => null,
 }));
 
+// Capture props so tests can assert what the dialogs receive.
+const lastItemFormDialogProps: Record<string, unknown> = {};
+// Reset between tests — see beforeEach below.
+
 vi.mock("./item-form-dialog", () => ({
-  ItemFormDialog: () => null,
+  ItemFormDialog: (props: Record<string, unknown>) => {
+    Object.assign(lastItemFormDialogProps, props);
+    return null;
+  },
   AddItemButton: () => null,
 }));
 
@@ -129,6 +140,10 @@ function renderBoard(items: ItemCardItem[]) {
 beforeEach(() => {
   vi.clearAllMocks();
   dismissToast(); // reset the module-level toast store between tests
+  // Reset captured dialog props.
+  for (const key of Object.keys(lastItemFormDialogProps)) {
+    delete lastItemFormDialogProps[key];
+  }
 });
 
 afterEach(() => {
@@ -365,5 +380,68 @@ describe("WishlistBoard — placed idea marker", () => {
 
     expect(await screen.findByTestId("placed-marker-item-40")).toBeInTheDocument();
     expect(screen.queryByTestId("placed-marker-item-41")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fix round 1: caller wiring — homeCurrency + costs forwarded to ItemFormDialog
+// ---------------------------------------------------------------------------
+
+describe("WishlistBoard — homeCurrency + costs forwarded to edit dialog", () => {
+  it("forwards homeCurrency and costs to ItemFormDialog when editing an item", async () => {
+    const user = userEvent.setup();
+    const item = makeItem({ id: "item-50", date: null, startTime: null, endTime: null });
+    const costs = [
+      {
+        id: "cost-1",
+        estimatedMinor: 4200,
+        actualMinor: null,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: null,
+        ownerType: "ITEM" as const,
+        ownerId: "item-50",
+        label: null,
+        category: null,
+      },
+    ];
+    const costsByItemId = new Map([["item-50", costs]]);
+
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={[item]}
+        homeCurrency="JPY"
+        costsByItemId={costsByItemId}
+      />,
+    );
+
+    const editBtn = await screen.findByRole("button", { name: `Edit ${item.title}` });
+    await user.click(editBtn);
+
+    // ItemFormDialog mock captures props into lastItemFormDialogProps
+    expect(lastItemFormDialogProps.homeCurrency).toBe("JPY");
+    expect(lastItemFormDialogProps.costs).toEqual(costs);
+  });
+
+  it("forwards homeCurrency to ItemFormDialog when editing even without costsByItemId", async () => {
+    const user = userEvent.setup();
+    const item = makeItem({ id: "item-51", date: null, startTime: null, endTime: null });
+
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={[item]}
+        homeCurrency="GBP"
+      />,
+    );
+
+    const editBtn = await screen.findByRole("button", { name: `Edit ${item.title}` });
+    await user.click(editBtn);
+
+    expect(lastItemFormDialogProps.homeCurrency).toBe("GBP");
+    expect(lastItemFormDialogProps.costs).toBeUndefined();
   });
 });

@@ -13,6 +13,7 @@ import {
 
 import { AccommodationFormDialog } from "./accommodation-form-dialog";
 import type { AccommodationCardAccommodation } from "./accommodation-card";
+import type { CostRow } from "@/server/actions/costs";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -268,5 +269,144 @@ describe("AccommodationFormDialog", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Server error");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 11: cost fields render when no costs prop
+  // -------------------------------------------------------------------------
+  it("renders an estimated cost input when no costs are passed (add mode)", () => {
+    render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
+    expect(
+      screen.getByRole("textbox", { name: /estimated cost amount/i }),
+    ).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 12: actual cost and paidAt fields appear after entering estimated amount
+  // -------------------------------------------------------------------------
+  it("shows actual cost and date paid fields after an estimated amount is entered", async () => {
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    const estimatedInput = screen.getByRole("textbox", { name: /estimated cost amount/i });
+    await user.type(estimatedInput, "100");
+
+    expect(
+      screen.getByRole("textbox", { name: /actual cost amount/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/date paid/i)).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 13: cost fields hidden when >1 costs (CostEditor authoritative)
+  // -------------------------------------------------------------------------
+  it("hides the estimated cost field when >1 costs are passed (CostEditor authoritative)", () => {
+    const multipleCosts: CostRow[] = [
+      {
+        id: "c-1",
+        ownerType: "ACCOMMODATION",
+        ownerId: "acc-1",
+        estimatedMinor: 5000,
+        actualMinor: null,
+        currency: "AUD",
+        rateToHome: 1,
+        paidAt: null,
+        label: null,
+        category: null,
+      },
+      {
+        id: "c-2",
+        ownerType: "ACCOMMODATION",
+        ownerId: "acc-1",
+        estimatedMinor: 3000,
+        actualMinor: null,
+        currency: "AUD",
+        rateToHome: 1,
+        paidAt: null,
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <AccommodationFormDialog
+        {...baseProps}
+        accommodation={existingAccommodation}
+        costs={multipleCosts}
+        homeCurrency="AUD"
+      />,
+    );
+
+    expect(
+      screen.queryByRole("textbox", { name: /estimated cost amount/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14: single existing cost prefills the estimated field
+  // -------------------------------------------------------------------------
+  it("prefills estimated cost from a single existing cost in edit mode", () => {
+    const singleCost: CostRow[] = [
+      {
+        id: "c-1",
+        ownerType: "ACCOMMODATION",
+        ownerId: "acc-1",
+        estimatedMinor: 25000,
+        actualMinor: null,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: null,
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <AccommodationFormDialog
+        {...baseProps}
+        accommodation={existingAccommodation}
+        costs={singleCost}
+        homeCurrency="AUD"
+      />,
+    );
+
+    const estimatedInput = screen.getByRole("textbox", { name: /estimated cost amount/i });
+    // 25000 minor units in EUR = 250.00
+    expect(estimatedInput).toHaveValue("250.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 15: submitting with a cost passes estimatedMinor + currency to the action
+  // -------------------------------------------------------------------------
+  it("submitting with an estimated cost includes estimatedMinor and currency in the payload", async () => {
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    const nameInput = screen.getByPlaceholderText(/hilton garden inn/i);
+    await user.type(nameInput, "My Hotel");
+
+    const estimatedInput = screen.getByRole("textbox", { name: /estimated cost amount/i });
+    await user.type(estimatedInput, "150.00");
+
+    await user.click(
+      screen.getByRole("button", { name: /add accommodation/i }),
+    );
+
+    expect(createAccommodation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        estimatedMinor: 15000,
+        currency: "AUD",
+      }),
+      undefined,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 16: currency defaults to homeCurrency prop
+  // -------------------------------------------------------------------------
+  it("currency defaults to the homeCurrency prop when no existing cost", () => {
+    render(<AccommodationFormDialog {...baseProps} homeCurrency="GBP" />);
+    // The currency select should show GBP as the selected value
+    expect(screen.getByRole("combobox", { name: /currency/i })).toHaveTextContent("GBP");
   });
 });

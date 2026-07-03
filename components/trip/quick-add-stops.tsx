@@ -10,6 +10,13 @@ export interface QuickAddStopsProps {
   tripId: string;
   /** When set, new rough stops are added into this chapter. */
   chapterId?: string | null;
+  /** When set, new stops are created in the given fork (variant plan). Omit or null for the real plan. */
+  forkId?: string | null;
+  /**
+   * When set, new stops are inserted immediately after this stop (by id) rather
+   * than appended at the global bottom.  Pass null to append (default behaviour).
+   */
+  afterStopId?: string | null;
 }
 
 /**
@@ -17,7 +24,7 @@ export interface QuickAddStopsProps {
  * small nights estimate, and an Add button. Enter submits, the place input is
  * cleared and refocused after each add for fast repeated entry.
  */
-export function QuickAddStops({ tripId, chapterId }: QuickAddStopsProps) {
+export function QuickAddStops({ tripId, chapterId, forkId, afterStopId }: QuickAddStopsProps) {
   const [name, setName] = React.useState("");
   const [nights, setNights] = React.useState("2");
   const [isPending, startTransition] = React.useTransition();
@@ -37,7 +44,7 @@ export function QuickAddStops({ tripId, chapterId }: QuickAddStopsProps) {
         name: trimmed,
         nights: safeNights,
         ...(chapterId ? { chapterId } : {}),
-      });
+      }, forkId ?? undefined, afterStopId ?? null);
       // Only clear and refocus on success — on failure, preserve the typed value
       // so the user can correct it without retyping.
       if (result && "success" in result && !result.success) {

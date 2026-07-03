@@ -10,6 +10,9 @@ import { nextChapterColour } from "@/lib/chapter-colours";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
+import { reflowReorderedDates, type ReflowStop } from "@/lib/reorder";
+import { recomputeChapterSpans, type ReorderResult } from "@/server/actions/stops";
+import type { FlowConflict } from "@/lib/firm-up";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -160,29 +163,132 @@ export async function deleteChapter(chapterId: string): Promise<ChapterActionRes
 export async function reorderChapters(
   tripId: string,
   orderedChapterIds: string[],
-): Promise<ChapterActionResult> {
+  forkIdArg?: PlanId,
+): Promise<ReorderResult> {
   await requireTripAccess(tripId);
-  if (orderedChapterIds.length === 0) return { success: true };
+  if (orderedChapterIds.length === 0) return { success: true, changed: [], conflicts: [] };
 
   const chapters = await db.chapter.findMany({
     where: { id: { in: orderedChapterIds }, tripId },
-    select: { id: true, startDate: true },
+    select: { id: true, startDate: true, forkId: true },
   });
   if (chapters.length !== orderedChapterIds.length) {
     return { success: false, errors: { chapter: ["One or more chapters aren't part of this trip."] } };
   }
-  if (chapters.some((c) => c.startDate != null)) {
-    return { success: false, errors: { chapter: ["Only rough (date-less) chapters can be reordered."] } };
+
+  // Prefer the caller-supplied plan (the editor threads the active forkId); fall
+  // back to the plan derived from the chapters (all must belong to the same plan).
+  const forkId: PlanId = forkIdArg ?? chapters[0]?.forkId ?? null;
+
+  // Load all stops for the trip to compute the new order and reflow.
+  const allStops = await db.stop.findMany({
+    where: { tripId, ...planScope(forkId) },
+    orderBy: { sortOrder: "asc" },
+    select: {
+      id: true, sortOrder: true, chapterId: true,
+      arriveDate: true, departDate: true, nights: true, pinned: true,
+    },
+  });
+
+  // Resolve the reflow anchor.
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
+  const anchor =
+    trip?.startDate ??
+    allStops.reduce<string | null>(
+      (min, s) => (s.arriveDate && (min === null || s.arriveDate < min) ? s.arriveDate : min),
+      null,
+    );
+
+  // Build the new stop order: emit each chapter's stops in the requested chapter order,
+  // then any ungrouped stops (chapterId not in orderedChapterIds) at the end.
+  const chapterIdSet = new Set(orderedChapterIds);
+  const stopsByChapter = new Map<string, typeof allStops>();
+  const ungroupedStops: typeof allStops = [];
+
+  for (const stop of allStops) {
+    if (stop.chapterId != null && chapterIdSet.has(stop.chapterId)) {
+      if (!stopsByChapter.has(stop.chapterId)) stopsByChapter.set(stop.chapterId, []);
+      stopsByChapter.get(stop.chapterId)!.push(stop);
+    } else {
+      ungroupedStops.push(stop);
+    }
   }
 
-  await db.$transaction(
-    orderedChapterIds.map((id, idx) =>
-      db.chapter.update({ where: { id }, data: { sortOrder: idx } }),
-    ),
-  );
+  const orderedItems: { id: string; chapterId: string | null }[] = [];
+  for (const chId of orderedChapterIds) {
+    for (const stop of stopsByChapter.get(chId) ?? []) {
+      orderedItems.push({ id: stop.id, chapterId: stop.chapterId });
+    }
+  }
+  for (const stop of ungroupedStops) {
+    orderedItems.push({ id: stop.id, chapterId: stop.chapterId });
+  }
+
+  let changed: { id: string; arriveDate: string; departDate: string }[] = [];
+  let conflicts: FlowConflict[] = [];
+
+  const stopIds = orderedItems.map((i) => i.id);
+
+  await db.$transaction(async (tx) => {
+    // Lock the trip's stops FOR UPDATE (ADR 0007).
+    if (stopIds.length > 0) {
+      await tx.$queryRaw`
+        SELECT "id" FROM "Stop"
+        WHERE "id" = ANY(${stopIds})
+        FOR UPDATE
+      `;
+    }
+
+    // Write sortOrder for all stops in the new chapter order.
+    for (let idx = 0; idx < orderedItems.length; idx++) {
+      const it = orderedItems[idx];
+      await tx.stop.update({ where: { id: it.id }, data: { sortOrder: idx } });
+    }
+
+    // Write sortOrder for each chapter in the new requested order (ADR 0014:
+    // reorderChapters persists the canonical rough-Chapter order for empty Chapters).
+    for (let idx = 0; idx < orderedChapterIds.length; idx++) {
+      await tx.chapter.update({ where: { id: orderedChapterIds[idx] }, data: { sortOrder: idx } });
+    }
+
+    // Re-fetch the trip's stops from the LOCKED rows so we build the reflow input
+    // from post-lock data, not from the pre-tx allStops snapshot (closes a TOCTOU
+    // race where a concurrent writer could change a stop's dates/nights/pinned
+    // between the pre-tx read and the lock; mirrors the pattern in reorderStops).
+    const lockedStops = await tx.stop.findMany({
+      where: { tripId, ...planScope(forkId) },
+      orderBy: { sortOrder: "asc" },
+      select: {
+        id: true, sortOrder: true, chapterId: true,
+        arriveDate: true, departDate: true, nights: true, pinned: true,
+      },
+    });
+    const lockedById = new Map(lockedStops.map((s) => [s.id, s]));
+
+    // Reflow scheduled stop dates in the new order.
+    const reflowInput: ReflowStop[] = orderedItems.map((it) => {
+      const s = lockedById.get(it.id)!;
+      return { id: s.id, arriveDate: s.arriveDate, departDate: s.departDate, nights: s.nights, pinned: s.pinned };
+    });
+
+    const { results, conflicts: flowConflicts } = reflowReorderedDates(reflowInput, anchor);
+    conflicts = flowConflicts;
+
+    const changedResults = results.filter((r) => r.changed);
+    for (const r of changedResults) {
+      await tx.stop.update({
+        where: { id: r.id },
+        data: { arriveDate: r.arriveDate, departDate: r.departDate },
+      });
+    }
+    changed = changedResults.map((r) => ({ id: r.id, arriveDate: r.arriveDate, departDate: r.departDate }));
+
+    // Recompute chapter date-bands.
+    await recomputeChapterSpans(tx, tripId, forkId);
+  });
 
   revalidateChapterPaths(tripId);
-  return { success: true };
+  return { success: true, changed, conflicts };
 }
 
 export async function suggestChaptersFromCountries(tripId: string): Promise<ChapterActionResult> {

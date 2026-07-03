@@ -11,6 +11,8 @@ import {
   Pin,
   CalendarClock,
   Sparkles,
+  X,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -18,6 +20,9 @@ import { formatDateRange, nightsBetween, tzAbbrev } from "@/lib/dates";
 import { MapLink } from "./map-link";
 import { NoteThread, type NoteView } from "./note-thread";
 import { MoreActionsMenu, type CardActionItem } from "./card-actions";
+import { ItemFormDialog, type StopOption } from "./item-form-dialog";
+import type { ItemCardItem } from "./item-card";
+import type { CostRow } from "@/server/actions/costs";
 
 export interface StopCardStop {
   id: string;
@@ -39,6 +44,21 @@ export interface StopCardStop {
   lat?: number | null;
   lng?: number | null;
   sortOrder: number;
+}
+
+/** A minimal representation of a thing-to-do (plan-owned Item with date:null) */
+export interface ThingToDo {
+  id: string;
+  title: string;
+  category: string;
+  date?: string | null;
+  startTime?: string | null;
+  endTime?: string | null;
+  address?: string | null;
+  link?: string | null;
+  booking?: string | null;
+  notes?: string | null;
+  stopId?: string | null;
 }
 
 export interface StopCardProps {
@@ -65,7 +85,7 @@ export interface StopCardProps {
   isPending?: boolean;
   /** Notes attached to this stop */
   notes?: NoteView[];
-  /** Trip ID (required for notes) */
+  /** Trip ID (required for notes and things-to-do) */
   tripId?: string;
   /** Current user's ID (required for notes) */
   currentUserId?: string;
@@ -75,6 +95,17 @@ export interface StopCardProps {
    * stops — scheduled stops are date-ordered and not draggable.
    */
   dragHandle?: React.ReactNode;
+  // ── Things to do (ADR 0022) ──────────────────────────────────────────────
+  /** Plan-owned things to do attached to this stop (stopId set, date null). */
+  thingsToDo?: ThingToDo[];
+  /** Costs keyed by item id (for edit pre-fill). */
+  thingsToDoItemCosts?: Map<string, CostRow[]>;
+  /** All stops in the trip (for the stop picker in ItemFormDialog). */
+  stops?: StopOption[];
+  /** Active fork/plan id — threaded to createItem. */
+  forkId?: string | null;
+  /** Trip's home currency — passed to ItemFormDialog cost fields. */
+  homeCurrency?: string;
 }
 
 /**
@@ -103,8 +134,17 @@ export function StopCard({
   tripId,
   currentUserId,
   dragHandle,
+  thingsToDo,
+  thingsToDoItemCosts,
+  stops = [],
+  forkId,
+  homeCurrency,
 }: StopCardProps) {
   const isRough = !stop.arriveDate || !stop.departDate;
+
+  // Things-to-do dialog state (ADR 0022)
+  const [addThingOpen, setAddThingOpen] = React.useState(false);
+  const [editingThing, setEditingThing] = React.useState<ItemCardItem | null>(null);
 
   // Overflow menu items (rough-only reorder + scheduled-only actions).
   const overflowItems: CardActionItem[] = [];
@@ -164,9 +204,10 @@ export function StopCard({
         isPending && "opacity-60 pointer-events-none",
       )}
     >
-      {/* Top row: drag handle (rough only) + name + country + controls */}
+      {/* Top row: drag handle + name + country + controls. ADR 0021: dated
+          stops are draggable too, so the handle renders whenever it's provided. */}
       <div className="flex items-start justify-between gap-3">
-        {isRough && dragHandle}
+        {dragHandle}
         <div className="flex flex-col gap-0.5 min-w-0">
           <h3 className="font-display text-xl font-semibold leading-tight text-foreground truncate">
             {stop.name}
@@ -225,6 +266,21 @@ export function StopCard({
                 className={cn("size-4", stop.pinned && "fill-current")}
                 aria-hidden="true"
               />
+            </Button>
+          )}
+
+          {/* Clear dates — primary action for scheduled stops (bug #8) */}
+          {!isRough && onMakeRough && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 text-muted-foreground"
+              disabled={isPending}
+              onClick={() => onMakeRough(stop.id)}
+              aria-label={`Clear dates for ${stop.name}`}
+              title="Clear dates"
+            >
+              <X className="size-4" aria-hidden="true" />
             </Button>
           )}
 
@@ -307,6 +363,87 @@ export function StopCard({
         <p className="line-clamp-2 text-sm text-muted-foreground">
           {stop.notes}
         </p>
+      )}
+
+      {/* Things to do (ADR 0022) — shown when tripId is provided */}
+      {tripId && (
+        <>
+          {/* List of existing things to do */}
+          {thingsToDo && thingsToDo.length > 0 && (
+            <ul className="flex flex-col gap-1 border-t border-border/40 pt-2">
+              {thingsToDo.map((thing) => (
+                <li key={thing.id} className="flex items-center justify-between gap-2">
+                  <span className="truncate text-sm text-foreground">{thing.title}</span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-6 shrink-0 text-muted-foreground"
+                    disabled={isPending}
+                    onClick={() => {
+                      setEditingThing({
+                        id: thing.id,
+                        title: thing.title,
+                        category: thing.category,
+                        date: thing.date ?? null,
+                        startTime: thing.startTime ?? null,
+                        endTime: thing.endTime ?? null,
+                        address: thing.address ?? null,
+                        link: thing.link ?? null,
+                        booking: thing.booking ?? null,
+                        notes: thing.notes ?? null,
+                        stopId: thing.stopId ?? null,
+                      });
+                    }}
+                    aria-label={`Edit ${thing.title}`}
+                    title="Edit"
+                  >
+                    <Pencil className="size-3" aria-hidden="true" />
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {/* Add a thing to do button */}
+          <div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-muted-foreground hover:text-foreground"
+              disabled={isPending}
+              onClick={() => setAddThingOpen(true)}
+            >
+              <Plus className="size-3.5" aria-hidden="true" />
+              Add a thing to do
+            </Button>
+          </div>
+
+          {/* Create dialog */}
+          <ItemFormDialog
+            tripId={tripId}
+            stops={stops}
+            defaultUnscheduled={true}
+            open={addThingOpen}
+            onOpenChange={setAddThingOpen}
+            forkId={forkId}
+            defaultStopId={stop.id}
+            homeCurrency={homeCurrency}
+          />
+
+          {/* Edit dialog */}
+          {editingThing && (
+            <ItemFormDialog
+              tripId={tripId}
+              stops={stops}
+              item={editingThing}
+              open={editingThing !== null}
+              onOpenChange={(open) => { if (!open) setEditingThing(null); }}
+              forkId={forkId}
+              homeCurrency={homeCurrency}
+              costs={thingsToDoItemCosts?.get(editingThing.id)}
+            />
+          )}
+        </>
       )}
     </div>
   );

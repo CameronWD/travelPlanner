@@ -41,7 +41,8 @@ const {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
-        stop: { update: stopUpdateMock },
+        stop: { update: stopUpdateMock, create: stopCreateMock, findMany: stopFindManyMock },
+        chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
       });
     }
     // Array form (kept for any batch-transaction callers).
@@ -110,6 +111,7 @@ import {
   deleteStop,
   moveStop,
   reorderStops,
+  restoreStops,
   setStopDates,
   firmUpSegment,
   firmUpTrip,
@@ -119,7 +121,9 @@ import {
   setStopNotes,
   setStopNights,
   getTripProjection,
+  recomputeChapterSpans,
 } from "./stops";
+import { chapterSpan } from "@/lib/chapter-span";
 import { recordActivity } from "@/server/actions/activity";
 
 const VALID_INPUT = {
@@ -150,6 +154,10 @@ beforeEach(() => {
   chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: null });
   // Default: stop.findMany returns no rows (individual tests override as needed).
   stopFindManyMock.mockResolvedValue([]);
+  // Default: chapter.findMany returns no chapters (recomputeChapterSpans is a no-op).
+  chapterFindManyMock.mockResolvedValue([]);
+  // Default: chapter.update is a no-op.
+  chapterUpdateMock.mockResolvedValue({});
 });
 
 afterEach(() => {
@@ -424,6 +432,105 @@ describe("createStop", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "CREATED", entityType: "STOP", entityLabel: "Rome" }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createStop — afterStopId (insertion anchor)
+// ---------------------------------------------------------------------------
+
+describe("createStop with afterStopId", () => {
+  // The insert path uses db.$transaction + a SELECT ... FOR UPDATE raw query
+  // (mirroring moveStop/reorderStops — ADR 0007). queryRawMock stands in for
+  // tx.$queryRaw; stopUpdateMock and stopCreateMock are called via tx.stop.*.
+
+  it("inserts after the anchor stop and bumps later sibling sortOrders", async () => {
+    // Siblings: a(0), b(1), c(2). Anchor = "a". New stop should land at sortOrder=1; b→2, c→3.
+    // The FOR UPDATE lock returns the same sibling list from queryRawMock.
+    queryRawMock.mockResolvedValue([
+      { id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null },
+      { id: "b", sortOrder: 1, chapterId: null, chapterSortOrder: null },
+      { id: "c", sortOrder: 2, chapterId: null, chapterSortOrder: null },
+    ]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Rome" });
+    stopUpdateMock.mockResolvedValue({});
+
+    const result = await createStop("trip-1", { mode: "rough", name: "Rome", nights: 2 }, undefined, "a");
+
+    expect(result.success).toBe(true);
+    // The insert path must go through a transaction.
+    expect(transactionMock).toHaveBeenCalledOnce();
+    // FOR UPDATE lock must be issued.
+    expect(queryRawMock).toHaveBeenCalledOnce();
+    const sqlParts = queryRawMock.mock.calls[0][0] as string[];
+    expect(sqlParts.join(" ")).toContain("FOR UPDATE");
+    // New stop lands at sortOrder = 1 (right after anchor "a").
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ sortOrder: 1 }),
+    });
+    // Later siblings b and c are bumped.
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "b" }, data: { sortOrder: 2 } });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "c" }, data: { sortOrder: 3 } });
+  });
+
+  it("appends (no bumps) when afterStopId is null", async () => {
+    stopFindFirstMock.mockResolvedValue({ sortOrder: 4 });
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Rome" });
+
+    const result = await createStop("trip-1", { mode: "rough", name: "Rome", nights: 2 }, undefined, null);
+
+    expect(result.success).toBe(true);
+    // Append path does NOT use a transaction.
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ sortOrder: 5 }),
+    });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("inherits chapterId and sets chapterSortOrder just after anchor when anchor has chapterId", async () => {
+    // Anchor "anchor-1" is in chapter "ch-1" with chapterSortOrder=2.
+    queryRawMock.mockResolvedValue([
+      { id: "anchor-1", sortOrder: 0, chapterId: "ch-1", chapterSortOrder: 2 },
+      { id: "other-1", sortOrder: 1, chapterId: "ch-1", chapterSortOrder: 3 },
+    ]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Venice" });
+    stopUpdateMock.mockResolvedValue({});
+    // Chapter belongs to the right plan (validated before the tx for explicit chapterId).
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: null });
+
+    const result = await createStop(
+      "trip-1",
+      { mode: "rough", name: "Venice", nights: 1, chapterId: "ch-1" },
+      undefined,
+      "anchor-1",
+    );
+
+    expect(result.success).toBe(true);
+    expect(transactionMock).toHaveBeenCalledOnce();
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        chapterId: "ch-1",
+        chapterSortOrder: 3, // anchor's chapterSortOrder(2) + 1
+      }),
+    });
+  });
+
+  it("falls back to append when afterStopId is not found in siblings", async () => {
+    queryRawMock.mockResolvedValue([
+      { id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null },
+      { id: "b", sortOrder: 1, chapterId: null, chapterSortOrder: null },
+    ]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Rome" });
+
+    const result = await createStop("trip-1", { mode: "rough", name: "Rome", nights: 2 }, undefined, "nonexistent");
+
+    expect(result.success).toBe(true);
+    expect(transactionMock).toHaveBeenCalledOnce();
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ sortOrder: 2 }),
+    });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
   });
 });
 
@@ -1311,24 +1418,105 @@ describe("reorderStops", () => {
     expect(stopUpdateMock).not.toHaveBeenCalled();
   });
 
-  it("ignores chapterId for a DATED (scheduled) stop: only writes sortOrder", async () => {
-    // No target chapters to validate (scheduled stop's chapterId is ignored, not validated)
+  it("writes chapterId AND sortOrder for a DATED (scheduled) stop (ADR 0021: drag into chapter joins it)", async () => {
+    // ADR 0021: dated stops can now be dragged into a chapter; chapterId IS written.
     chapterFindManyMock.mockResolvedValue([]);
     // FOR UPDATE: stop "d" has arriveDate set → scheduled
     queryRawMock.mockResolvedValue([
       { id: "d", tripId: "t1", arriveDate: "2026-07-01" },
     ]);
     stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ startDate: null });
 
     const result = await reorderStops("t1", [
       { id: "d", chapterId: "some-chapter" },
     ]);
 
     expect(result.success).toBe(true);
-    // Must NOT write chapterId for a dated stop — only sortOrder
-    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "d" }, data: { sortOrder: 0 } });
-    expect(stopUpdateMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ chapterId: expect.anything() }) }),
+    // ADR 0021: dated stops now also get chapterId written
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "d" }, data: { sortOrder: 0, chapterId: "some-chapter" } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 10: restoreStops — verbatim revert of a drag (order + chapter + dates)
+// for the Undo toast (ADR 0021).
+// ---------------------------------------------------------------------------
+
+describe("Task 10: restoreStops — writes each entry verbatim inside the locked tx", () => {
+  it("writes sortOrder, chapterId, arriveDate and departDate for every entry", async () => {
+    // Derive tripId from the stops being restored (like reorderStops).
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", tripId: "t1", forkId: null },
+      { id: "b", tripId: "t1", forkId: null },
+    ]);
+    queryRawMock.mockResolvedValue([{ id: "a" }, { id: "b" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const result = await restoreStops([
+      { id: "a", sortOrder: 0, chapterId: null, arriveDate: "2026-07-01", departDate: "2026-07-04" },
+      { id: "b", sortOrder: 1, chapterId: "c1", arriveDate: null, departDate: null },
+    ]);
+
+    expect(result.success).toBe(true);
+    // Each entry is written verbatim — no reflow, no derivation.
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "a" },
+      data: { sortOrder: 0, chapterId: null, arriveDate: "2026-07-01", departDate: "2026-07-04" },
+    });
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "b" },
+      data: { sortOrder: 1, chapterId: "c1", arriveDate: null, departDate: null },
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/t1");
+  });
+
+  it("locks the stops FOR UPDATE and recomputes chapter spans inside the tx", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "a", tripId: "t1", forkId: null }]);
+    queryRawMock.mockResolvedValue([{ id: "a" }]);
+    stopUpdateMock.mockResolvedValue({});
+    // One chapter so recomputeChapterSpans performs a chapter.update.
+    chapterFindManyMock.mockResolvedValue([{ id: "ch-1" }]);
+    chapterUpdateMock.mockResolvedValue({});
+
+    const result = await restoreStops([
+      { id: "a", sortOrder: 0, chapterId: "ch-1", arriveDate: "2026-07-01", departDate: "2026-07-04" },
+    ]);
+
+    expect(result.success).toBe(true);
+    // All writes went through the transaction (interactive form).
+    expect(transactionMock).toHaveBeenCalled();
+    // FOR UPDATE lock was taken.
+    expect(queryRawMock).toHaveBeenCalled();
+    // recomputeChapterSpans ran (chapter.update fired for ch-1).
+    expect(chapterUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "ch-1" } }),
+    );
+  });
+
+  it("returns success with no updates for an empty entries list", async () => {
+    const result = await restoreStops([]);
+    expect(result.success).toBe(true);
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("scopes the chapter recompute to the FORK the stops belong to", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "fa", tripId: "t1", forkId: "fork-9" }]);
+    queryRawMock.mockResolvedValue([{ id: "fa" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const result = await restoreStops(
+      [{ id: "fa", sortOrder: 0, chapterId: null, arriveDate: null, departDate: null }],
+      "fork-9",
+    );
+
+    expect(result.success).toBe(true);
+    // recomputeChapterSpans (inside the tx) fetches chapters scoped to fork-9.
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "t1", forkId: "fork-9" }) }),
     );
   });
 });
@@ -1551,5 +1739,373 @@ describe("fork-silent: deleteStop in a fork does NOT record activity", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "DELETED", entityType: "STOP" }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 11: recomputeChapterSpans helper (self-healing chapter date-bands)
+// ---------------------------------------------------------------------------
+
+describe("recomputeChapterSpans: direct helper invocation", () => {
+  it("sets chapter startDate/endDate to span its dated stops", async () => {
+    // Two stops in chapter "ch-1"; one dated stop spans 2026-07-10 → 2026-07-15.
+    chapterFindManyMock.mockResolvedValue([{ id: "ch-1" }]);
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", chapterId: "ch-1", arriveDate: "2026-07-10", departDate: "2026-07-15" },
+      { id: "s2", chapterId: "ch-1", arriveDate: null, departDate: null },
+    ]);
+    chapterUpdateMock.mockResolvedValue({});
+
+    const fakeTx = {
+      chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
+      stop: { findMany: stopFindManyMock },
+    };
+    await recomputeChapterSpans(fakeTx as never, "trip-1", null);
+
+    expect(chapterUpdateMock).toHaveBeenCalledWith({
+      where: { id: "ch-1" },
+      data: { startDate: "2026-07-10", endDate: "2026-07-15" },
+    });
+  });
+
+  it("clears chapter dates to null when it has no dated stops", async () => {
+    chapterFindManyMock.mockResolvedValue([{ id: "ch-1" }]);
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", chapterId: "ch-1", arriveDate: null, departDate: null },
+    ]);
+    chapterUpdateMock.mockResolvedValue({});
+
+    const fakeTx = {
+      chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
+      stop: { findMany: stopFindManyMock },
+    };
+    await recomputeChapterSpans(fakeTx as never, "trip-1", null);
+
+    expect(chapterUpdateMock).toHaveBeenCalledWith({
+      where: { id: "ch-1" },
+      data: { startDate: null, endDate: null },
+    });
+  });
+
+  it("spans the MIN arriveDate and MAX departDate across multiple dated stops", async () => {
+    chapterFindManyMock.mockResolvedValue([{ id: "ch-1" }]);
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", chapterId: "ch-1", arriveDate: "2026-07-12", departDate: "2026-07-15" },
+      { id: "s2", chapterId: "ch-1", arriveDate: "2026-07-08", departDate: "2026-07-12" },
+    ]);
+    chapterUpdateMock.mockResolvedValue({});
+
+    const fakeTx = {
+      chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
+      stop: { findMany: stopFindManyMock },
+    };
+    await recomputeChapterSpans(fakeTx as never, "trip-1", null);
+
+    expect(chapterUpdateMock).toHaveBeenCalledWith({
+      where: { id: "ch-1" },
+      data: { startDate: "2026-07-08", endDate: "2026-07-15" },
+    });
+  });
+});
+
+describe("Task 11: updateStop (scheduled path) recomputes chapter band atomically", () => {
+  it("calls recomputeChapterSpans (chapter.update via tx) when dates change", async () => {
+    // Stop belongs to chapter "ch-it"; trip is "trip-1".
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: 2, pinned: false, forkId: null }) // requireStopAccess
+      .mockResolvedValueOnce({ id: "s1", name: "Rome", country: "Italy", arriveDate: null, departDate: null }); // before snapshot
+    stopUpdateMock.mockResolvedValue({ id: "s1", name: "Rome", country: "Italy", arriveDate: "2026-07-10", departDate: "2026-07-13" });
+    stopFindManyMock.mockResolvedValue([]); // no following stops
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: "2026-07-20" });
+    tripUpdateMock.mockResolvedValue({});
+
+    // Provide chapter findMany / update via the mock chain.
+    // transactionMock forwards chapter ops to chapterFindManyMock / chapterUpdateMock.
+    chapterFindManyMock.mockResolvedValue([{ id: "ch-it" }]);
+    // tx.stop.findMany is called once inside recomputeChapterSpans (no ripple path in updateStop).
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", chapterId: "ch-it", arriveDate: "2026-07-10", departDate: "2026-07-13" },
+    ]);
+
+    await updateStop("s1", {
+      mode: "scheduled",
+      name: "Rome",
+      country: "Italy",
+      timezone: "Europe/Rome",
+      arriveDate: "2026-07-10",
+      departDate: "2026-07-13",
+    });
+
+    expect(chapterUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ startDate: "2026-07-10", endDate: "2026-07-13" }) }),
+    );
+  });
+});
+
+describe("Task 11: makeStopRough clears chapter band when it is the last dated stop", () => {
+  it("sets chapter startDate/endDate to null when the last dated chapterId member is made rough", async () => {
+    // Stop "s1" is in chapter "ch-1"; it is the only dated stop for that chapter.
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-10", departDate: "2026-07-13", nights: null, pinned: false, forkId: null }) // requireStopAccess
+      .mockResolvedValueOnce({ name: "Rome", arriveDate: "2026-07-10", departDate: "2026-07-13", pinned: false, nights: null }); // before snapshot
+    stopUpdateMock.mockResolvedValue({});
+
+    // After clearing, no dated members remain for chapter "ch-1".
+    chapterFindManyMock.mockResolvedValue([{ id: "ch-1" }]);
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", chapterId: "ch-1", arriveDate: null, departDate: null }, // now rough
+    ]);
+    chapterUpdateMock.mockResolvedValue({});
+
+    await makeStopRough("s1");
+
+    expect(chapterUpdateMock).toHaveBeenCalledWith({
+      where: { id: "ch-1" },
+      data: { startDate: null, endDate: null },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fix round 1: chapterSpan pure helper
+// ---------------------------------------------------------------------------
+
+describe("chapterSpan", () => {
+  it("returns nulls for an empty array", () => {
+    expect(chapterSpan([])).toEqual({ startDate: null, endDate: null });
+  });
+
+  it("returns nulls when no stop has both dates", () => {
+    expect(
+      chapterSpan([
+        { arriveDate: "2026-07-01", departDate: null },
+        { arriveDate: null, departDate: "2026-07-05" },
+        { arriveDate: null, departDate: null },
+      ]),
+    ).toEqual({ startDate: null, endDate: null });
+  });
+
+  it("returns the single stop's dates when only one qualifies", () => {
+    expect(
+      chapterSpan([
+        { arriveDate: null, departDate: null },
+        { arriveDate: "2026-07-03", departDate: "2026-07-06" },
+      ]),
+    ).toEqual({ startDate: "2026-07-03", endDate: "2026-07-06" });
+  });
+
+  it("computes min arriveDate and max departDate over unordered stops", () => {
+    expect(
+      chapterSpan([
+        { arriveDate: "2026-07-10", departDate: "2026-07-13" },
+        { arriveDate: "2026-07-05", departDate: "2026-07-20" },
+        { arriveDate: "2026-07-08", departDate: "2026-07-15" },
+      ]),
+    ).toEqual({ startDate: "2026-07-05", endDate: "2026-07-20" });
+  });
+
+  it("ignores stops that are missing arriveDate or departDate", () => {
+    expect(
+      chapterSpan([
+        { arriveDate: "2026-07-01", departDate: null },      // missing departDate — ignored
+        { arriveDate: "2026-07-03", departDate: "2026-07-08" }, // valid
+        { arriveDate: null, departDate: "2026-07-15" },      // missing arriveDate — ignored
+      ]),
+    ).toEqual({ startDate: "2026-07-03", endDate: "2026-07-08" });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 9: reorderStops date reflow (ADR 0021)
+// ---------------------------------------------------------------------------
+
+describe("Task 9: reorderStops — reflows dates for scheduled stops and returns changed[]", () => {
+  it("returns changed[] with reflowed dates and persists them when a scheduled stop is reordered", async () => {
+    // Trip: startDate 2026-07-01 (used as anchor).
+    // Two scheduled stops: A arrives 2026-07-01, departs 2026-07-04 (3n); B arrives 2026-07-04, departs 2026-07-06 (2n).
+    // New order: B before A. Reflow from 2026-07-01:
+    //   B: arrive 2026-07-01, depart 2026-07-03 (changed)
+    //   A: arrive 2026-07-03, depart 2026-07-06 (changed)
+    chapterFindManyMock.mockResolvedValue([]);
+    queryRawMock.mockResolvedValue([
+      { id: "a", tripId: "t1", arriveDate: "2026-07-01" },
+      { id: "b", tripId: "t1", arriveDate: "2026-07-04" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    // trip.findUnique for anchor resolution
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
+    // tx.stop.findMany for reflow — returns stops in the REQUESTED new order
+    // (reflowReorderedDates needs arriveDate/departDate/pinned/nights on each stop)
+    stopFindManyMock.mockResolvedValue([
+      { id: "b", arriveDate: "2026-07-04", departDate: "2026-07-06", nights: null, pinned: false, sortOrder: 0 },
+      { id: "a", arriveDate: "2026-07-01", departDate: "2026-07-04", nights: null, pinned: false, sortOrder: 1 },
+    ]);
+    // chapter findMany for recomputeChapterSpans → no chapters
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const result = await reorderStops("t1", [
+      { id: "b", chapterId: null },
+      { id: "a", chapterId: null },
+    ]);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.changed).toBeDefined();
+      expect(result.changed!.length).toBeGreaterThan(0);
+      // B should be reflowed to arrive 2026-07-01
+      const bChanged = result.changed!.find((c) => c.id === "b");
+      expect(bChanged).toBeDefined();
+      expect(bChanged!.arriveDate).toBe("2026-07-01");
+      expect(bChanged!.departDate).toBe("2026-07-03");
+      // A should be reflowed to arrive 2026-07-03
+      const aChanged = result.changed!.find((c) => c.id === "a");
+      expect(aChanged).toBeDefined();
+      expect(aChanged!.arriveDate).toBe("2026-07-03");
+      expect(aChanged!.departDate).toBe("2026-07-06");
+    }
+    // Persists the reflowed dates
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "b" }, data: { arriveDate: "2026-07-01", departDate: "2026-07-03" } });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "a" }, data: { arriveDate: "2026-07-03", departDate: "2026-07-06" } });
+  });
+
+  it("does not persist dates for unchanged stops and they are NOT in changed[]", async () => {
+    // Only one scheduled stop: reorder is a no-op for dates (anchor = startDate = arriveDate).
+    chapterFindManyMock.mockResolvedValue([]);
+    queryRawMock.mockResolvedValue([
+      { id: "a", tripId: "t1", arriveDate: "2026-07-01" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", arriveDate: "2026-07-01", departDate: "2026-07-04", nights: null, pinned: false, sortOrder: 0 },
+    ]);
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const result = await reorderStops("t1", [{ id: "a", chapterId: null }]);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // Stop "a" dates are unchanged → not in changed[]
+      expect(result.changed).toBeDefined();
+      expect(result.changed!.some((c) => c.id === "a")).toBe(false);
+    }
+    // No date update calls — only sortOrder update
+    const dateUpdateCalls = stopUpdateMock.mock.calls.filter(
+      (c) => c[0].data.arriveDate !== undefined || c[0].data.departDate !== undefined,
+    );
+    expect(dateUpdateCalls).toHaveLength(0);
+  });
+
+  it("pinned stops are NOT in changed[] and their dates are not overwritten", async () => {
+    // Two scheduled stops: pinned P at 2026-07-05 (fixed), flexible F at 2026-07-01.
+    // New order: P first, F second. Reflow from anchor 2026-07-01:
+    //   P is pinned at 2026-07-05..2026-07-08 → stays fixed, NOT changed.
+    //   F lands BEFORE P: arrive 2026-07-01, depart 2026-07-05 → may change from original.
+    chapterFindManyMock.mockResolvedValue([]);
+    queryRawMock.mockResolvedValue([
+      { id: "p", tripId: "t1", arriveDate: "2026-07-05" },
+      { id: "f", tripId: "t1", arriveDate: "2026-07-01" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "p", arriveDate: "2026-07-05", departDate: "2026-07-08", nights: null, pinned: true,  sortOrder: 0 },
+      { id: "f", arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false, sortOrder: 1 },
+    ]);
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const result = await reorderStops("t1", [
+      { id: "p", chapterId: null },
+      { id: "f", chapterId: null },
+    ]);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      // Pinned stop must NOT appear in changed[]
+      expect(result.changed!.some((c) => c.id === "p")).toBe(false);
+    }
+    // Pinned stop's dates must NOT be overwritten
+    expect(stopUpdateMock).not.toHaveBeenCalledWith({ where: { id: "p" }, data: expect.objectContaining({ arriveDate: expect.anything() }) });
+  });
+
+  it("returns conflicts[] when a pin can't fit after flexible stops overrun it", async () => {
+    // Pinned stop at 2026-07-02 (just 1 day after anchor 2026-07-01), flexible stop needs 5 nights before it.
+    // Conflict: flexible stop can't fit before the pin.
+    chapterFindManyMock.mockResolvedValue([]);
+    queryRawMock.mockResolvedValue([
+      { id: "big", tripId: "t1", arriveDate: "2026-07-01" },
+      { id: "pin", tripId: "t1", arriveDate: "2026-07-02" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
+    stopFindManyMock.mockResolvedValue([
+      // big: 5-night stop, flexible, arriveDate not important for reflow (reflow uses nights from duration)
+      { id: "big", arriveDate: "2026-07-01", departDate: "2026-07-06", nights: null, pinned: false, sortOrder: 0 },
+      // pin: pinned at 2026-07-02 — can't fit 5 nights before it from 2026-07-01
+      { id: "pin", arriveDate: "2026-07-02", departDate: "2026-07-05", nights: null, pinned: true, sortOrder: 1 },
+    ]);
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const result = await reorderStops("t1", [
+      { id: "big", chapterId: null },
+      { id: "pin", chapterId: null },
+    ]);
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.conflicts).toBeDefined();
+      expect(result.conflicts!.length).toBeGreaterThan(0);
+    }
+    // Pin's dates must NOT be overwritten — the pin stays fixed even under conflict.
+    expect(stopUpdateMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "pin" }, data: expect.objectContaining({ arriveDate: expect.anything() }) }),
+    );
+  });
+
+  it("uses earliest arriveDate as anchor when trip.startDate is null", async () => {
+    // No trip.startDate; earliest arriveDate among scheduled stops = 2026-07-03.
+    chapterFindManyMock.mockResolvedValue([]);
+    queryRawMock.mockResolvedValue([
+      { id: "x", tripId: "t1", arriveDate: "2026-07-05" },
+      { id: "y", tripId: "t1", arriveDate: "2026-07-03" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ startDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "x", arriveDate: "2026-07-05", departDate: "2026-07-08", nights: null, pinned: false, sortOrder: 0 },
+      { id: "y", arriveDate: "2026-07-03", departDate: "2026-07-05", nights: null, pinned: false, sortOrder: 1 },
+    ]);
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const result = await reorderStops("t1", [
+      { id: "x", chapterId: null },
+      { id: "y", chapterId: null },
+    ]);
+
+    expect(result.success).toBe(true);
+    // anchor = 2026-07-03 (earliest arriveDate pre-reorder)
+    // new order: x(3n) then y(2n) → x arrive 2026-07-03, depart 2026-07-06; y arrive 2026-07-06, depart 2026-07-08
+    if (result.success) {
+      const xChanged = result.changed?.find((c) => c.id === "x");
+      expect(xChanged?.arriveDate).toBe("2026-07-03");
+    }
+  });
+
+  it("calls recomputeChapterSpans after persisting reflowed dates", async () => {
+    chapterFindManyMock.mockResolvedValue([{ id: "ch1" }]);
+    queryRawMock.mockResolvedValue([
+      { id: "s", tripId: "t1", arriveDate: "2026-07-01" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "s", chapterId: "ch1", arriveDate: "2026-07-01", departDate: "2026-07-04", nights: null, pinned: false, sortOrder: 0 },
+    ]);
+
+    await reorderStops("t1", [{ id: "s", chapterId: "ch1" }]);
+
+    // recomputeChapterSpans calls tx.chapter.findMany then tx.chapter.update
+    expect(chapterFindManyMock).toHaveBeenCalled();
+    expect(chapterUpdateMock).toHaveBeenCalled();
   });
 });

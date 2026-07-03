@@ -18,7 +18,26 @@ const {
   stopFindUniqueMock,
   stopFindManyMock,
   tripFindUniqueMock,
+  costFindManyMock,
+  costCreateMock,
+  costUpdateMock,
+  resolveRateForTripMock,
+  persistRateMock,
+  transactionMock,
 } = vi.hoisted(() => {
+  const costCreateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
+  const costUpdateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
+  const transactionMock = vi.fn(async (arg: unknown) => {
+    if (typeof arg === "function") {
+      return (arg as (tx: unknown) => unknown)({
+        cost: { create: costCreateMock, update: costUpdateMock },
+        exchangeRate: { upsert: vi.fn().mockResolvedValue({}) },
+      });
+    }
+    if (Array.isArray(arg)) return Promise.all(arg);
+    return arg;
+  });
+
   return {
     requireTripAccessMock: vi.fn().mockResolvedValue({
       user: { id: "user-1" },
@@ -33,7 +52,13 @@ const {
     itemDeleteMock: vi.fn(),
     stopFindUniqueMock: vi.fn(),
     stopFindManyMock: vi.fn().mockResolvedValue([]),
-    tripFindUniqueMock: vi.fn(),
+    tripFindUniqueMock: vi.fn().mockResolvedValue({ homeCurrency: "AUD" }),
+    costFindManyMock: vi.fn().mockResolvedValue([]),
+    costCreateMock,
+    costUpdateMock,
+    resolveRateForTripMock: vi.fn().mockResolvedValue({ rate: 0.6, persist: null }),
+    persistRateMock: vi.fn().mockResolvedValue(undefined),
+    transactionMock,
   };
 });
 
@@ -41,6 +66,10 @@ vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/lib/fx", () => ({
+  resolveRateForTrip: resolveRateForTripMock,
+  persistRate: persistRateMock,
+}));
 vi.mock("@/lib/db", () => ({
   db: {
     item: {
@@ -57,6 +86,12 @@ vi.mock("@/lib/db", () => ({
     trip: {
       findUnique: tripFindUniqueMock,
     },
+    cost: {
+      findMany: costFindManyMock,
+      create: costCreateMock,
+      update: costUpdateMock,
+    },
+    $transaction: transactionMock,
   },
 }));
 
@@ -152,6 +187,24 @@ describe("plan-scope: createItem with forkId", () => {
     );
     expect(itemCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ forkId: "fork-9", sortOrder: 4 }),
+    });
+  });
+
+  it("creates a plan-owned dateless stop thing-to-do (stopId set, date null, forkId carried) — ADR 0022", async () => {
+    // Stop belongs to the fork; item is attached to it with no date.
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: "fork-9" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "todo-1" });
+
+    const result = await createItem("trip-1", { ...VALID_INPUT, stopId: "stop-1" }, "fork-9");
+
+    expect(result.success).toBe(true);
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        forkId: "fork-9",
+        stopId: "stop-1",
+        date: null,
+      }),
     });
   });
 
@@ -924,5 +977,199 @@ describe("fork-silent: deleteItem in a fork does NOT record activity", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "DELETED", entityType: "ITEM" }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Inline cost: createItem with cost fields
+// ---------------------------------------------------------------------------
+
+describe("createItem: inline cost creation", () => {
+  it("creates a Cost with ownerType ITEM and the new item id when estimatedMinor+currency are provided", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-cost-1", title: "Visit the Museum" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.6, persist: null });
+
+    const result = await createItem("trip-1", {
+      ...VALID_INPUT,
+      estimatedMinor: 12000,
+      currency: "EUR",
+    });
+
+    expect(result.success).toBe(true);
+    expect(tripFindUniqueMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "trip-1" } }),
+    );
+    expect(resolveRateForTripMock).toHaveBeenCalledWith(
+      "trip-1",
+      "EUR",
+      "AUD",
+      expect.anything(),
+    );
+    expect(transactionMock).toHaveBeenCalled();
+    expect(costCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          ownerType: "ITEM",
+          ownerId: "item-cost-1",
+          estimatedMinor: 12000,
+          currency: "EUR",
+          rateToHome: 0.6,
+        }),
+      }),
+    );
+  });
+
+  it("does NOT create a Cost when no estimatedMinor is provided", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-no-cost", title: "Visit the Museum" });
+
+    await createItem("trip-1", VALID_INPUT);
+
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(costCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("snapshots rateToHome=1 when cost currency equals home currency", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-same-cur", title: "Visit the Museum" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+
+    await createItem("trip-1", {
+      ...VALID_INPUT,
+      estimatedMinor: 5000,
+      currency: "AUD",
+    });
+
+    expect(costCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ rateToHome: 1 }),
+      }),
+    );
+  });
+
+  it("persists the FX rate inside the transaction when resolveRateForTrip returns a persist descriptor", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-persist", title: "Visit the Museum" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({
+      rate: 0.55,
+      persist: { base: "USD", quote: "AUD", rate: 0.55 },
+    });
+
+    await createItem("trip-1", {
+      ...VALID_INPUT,
+      estimatedMinor: 8000,
+      currency: "USD",
+    });
+
+    expect(persistRateMock).toHaveBeenCalledWith(
+      expect.anything(), // the tx object
+      "trip-1",
+      { base: "USD", quote: "AUD", rate: 0.55 },
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Inline cost: updateItem with cost fields
+// ---------------------------------------------------------------------------
+
+describe("updateItem: inline cost update/create", () => {
+  it("creates a Cost when item has 0 existing costs and estimatedMinor is provided", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "iu-1", tripId: "trip-1", forkId: null }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "iu-1", title: "Visit the Museum", category: "SIGHTSEEING" }); // before snapshot
+    itemUpdateMock.mockResolvedValue({ id: "iu-1", title: "Visit the Museum", category: "SIGHTSEEING" });
+    costFindManyMock.mockResolvedValue([]); // 0 existing costs
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.6, persist: null });
+
+    const result = await updateItem("iu-1", {
+      ...VALID_INPUT,
+      estimatedMinor: 7500,
+      currency: "EUR",
+    });
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          ownerType: "ITEM",
+          ownerId: "iu-1",
+          estimatedMinor: 7500,
+          currency: "EUR",
+        }),
+      }),
+    );
+  });
+
+  it("updates the existing Cost when item has exactly 1 cost and estimatedMinor is provided", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "iu-2", tripId: "trip-1", forkId: null }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "iu-2", title: "Visit the Museum", category: "SIGHTSEEING" }); // before snapshot
+    itemUpdateMock.mockResolvedValue({ id: "iu-2", title: "Visit the Museum", category: "SIGHTSEEING" });
+    costFindManyMock.mockResolvedValue([
+      { id: "existing-cost-1", ownerType: "ITEM", ownerId: "iu-2" },
+    ]); // exactly 1 existing cost
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.65, persist: null });
+
+    const result = await updateItem("iu-2", {
+      ...VALID_INPUT,
+      estimatedMinor: 9900,
+      currency: "USD",
+    });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "existing-cost-1" },
+        data: expect.objectContaining({
+          estimatedMinor: 9900,
+          currency: "USD",
+          rateToHome: 0.65,
+        }),
+      }),
+    );
+    expect(costCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("does NOT touch any costs when item has >1 existing costs (CostEditor authoritative)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "iu-3", tripId: "trip-1", forkId: null }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "iu-3", title: "Visit the Museum", category: "SIGHTSEEING" }); // before snapshot
+    itemUpdateMock.mockResolvedValue({ id: "iu-3", title: "Visit the Museum", category: "SIGHTSEEING" });
+    costFindManyMock.mockResolvedValue([
+      { id: "c-a", ownerType: "ITEM", ownerId: "iu-3" },
+      { id: "c-b", ownerType: "ITEM", ownerId: "iu-3" },
+    ]); // >1 costs
+
+    const result = await updateItem("iu-3", {
+      ...VALID_INPUT,
+      estimatedMinor: 5000,
+      currency: "AUD",
+    });
+
+    expect(result.success).toBe(true);
+    expect(costCreateMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).not.toHaveBeenCalled();
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("does NOT create or update costs when estimatedMinor is absent (even with 0 existing costs)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "iu-4", tripId: "trip-1", forkId: null }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "iu-4", title: "Visit the Museum", category: "SIGHTSEEING" }); // before snapshot
+    itemUpdateMock.mockResolvedValue({ id: "iu-4", title: "Visit the Museum", category: "SIGHTSEEING" });
+    costFindManyMock.mockResolvedValue([]); // 0 existing costs
+
+    await updateItem("iu-4", VALID_INPUT);
+
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(costCreateMock).not.toHaveBeenCalled();
+    expect(costUpdateMock).not.toHaveBeenCalled();
   });
 });

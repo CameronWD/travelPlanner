@@ -46,7 +46,7 @@ export default async function TripPlanPage({
     : null;
   const activeForkId = activeFork ? activeFork.id : null;
 
-  const [trip, stops, transports, allCosts, chapters] = await Promise.all([
+  const [trip, stops, transports, allCosts, chapters, thingsToDoItems] = await Promise.all([
     db.trip.findUnique({
       where: { id: tripId },
       select: {
@@ -130,6 +130,26 @@ export default async function TripPlanPage({
       orderBy: [{ startDate: "asc" }, { sortOrder: "asc" }],
       select: { id: true, name: true, colour: true, startDate: true, endDate: true, sortOrder: true },
     }),
+    // Per-stop things to do: plan-owned items with stopId set and date null (ADR 0022)
+    db.item.findMany({
+      where: { tripId, ...planScope(activeForkId), stopId: { not: null }, date: null },
+      orderBy: { sortOrder: "asc" },
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        address: true,
+        link: true,
+        booking: true,
+        notes: true,
+        stopId: true,
+        lat: true,
+        lng: true,
+      },
+    }),
   ]);
 
   // Fetch stop notes
@@ -175,6 +195,40 @@ export default async function TripPlanPage({
     const existing = costsByOwnerId.get(cost.ownerId) ?? [];
     existing.push(cost);
     costsByOwnerId.set(cost.ownerId, existing);
+  }
+
+  // Fetch costs for things-to-do items (ADR 0022)
+  const thingsToDoItemIds = thingsToDoItems.map((i) => i.id);
+  const thingsToDoItemCostsRaw =
+    thingsToDoItemIds.length > 0
+      ? await db.cost.findMany({
+          where: {
+            tripId,
+            ...planScope(activeForkId),
+            ownerType: "ITEM",
+            ownerId: { in: thingsToDoItemIds },
+          },
+          orderBy: { createdAt: "asc" },
+          select: COST_SELECT,
+        })
+      : [];
+
+  // Group things-to-do costs by item id
+  const thingsToDoItemCostsById = new Map<string, typeof thingsToDoItemCostsRaw>();
+  for (const cost of thingsToDoItemCostsRaw) {
+    if (!cost.ownerId) continue;
+    const existing = thingsToDoItemCostsById.get(cost.ownerId) ?? [];
+    existing.push(cost);
+    thingsToDoItemCostsById.set(cost.ownerId, existing);
+  }
+
+  // Group things-to-do items by stopId
+  const thingsToDoByStopId = new Map<string, typeof thingsToDoItems>();
+  for (const item of thingsToDoItems) {
+    if (!item.stopId) continue;
+    const existing = thingsToDoByStopId.get(item.stopId) ?? [];
+    existing.push(item);
+    thingsToDoByStopId.set(item.stopId, existing);
   }
 
   // Build a coord lookup by stop id so transport leg estimates can fall back
@@ -261,6 +315,8 @@ export default async function TripPlanPage({
         notesByStopId={notesByStopId}
         currentUserId={user.id}
         chapters={chapters}
+        thingsToDoByStopId={thingsToDoByStopId}
+        thingsToDoItemCostsById={thingsToDoItemCostsById}
         initialStops={stops.map((stop) => ({
           ...stop,
           accommodations: stop.accommodations.map((acc) => ({

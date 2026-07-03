@@ -156,7 +156,7 @@ export default async function DayPage({
         },
       }),
       db.item.findMany({
-        where: { tripId, forkId: null, date: null, lat: { not: null }, lng: { not: null } },
+        where: { tripId, forkId: null, date: null, stopId: null, lat: { not: null }, lng: { not: null } },
         select: { id: true, title: true, category: true, lat: true, lng: true },
       }),
     ]);

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { moveStopInOrder, moveChapterBlocks } from "./reorder";
+import { moveStopInOrder, moveChapterBlocks, insertionOrder, reflowReorderedDates } from "./reorder";
 import { groupStopsByChapter } from "./chapters";
 import type { ChapterLike, StopLike } from "./chapters";
 
@@ -311,5 +311,168 @@ describe("moveChapterBlocks", () => {
       { id: "a1", chapterId: "cA" },
       { id: "b1", chapterId: "cB" },
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// insertionOrder
+// ---------------------------------------------------------------------------
+
+describe("insertionOrder", () => {
+  it("inserts after the anchor and bumps later siblings", () => {
+    const stops = [{ id: "a", sortOrder: 0 }, { id: "b", sortOrder: 1 }, { id: "c", sortOrder: 2 }];
+    const r = insertionOrder(stops, "a");
+    expect(r.sortOrder).toBe(1);
+    expect(r.renumber).toEqual([{ id: "b", sortOrder: 2 }, { id: "c", sortOrder: 3 }]);
+  });
+
+  it("appends when anchor is null", () => {
+    const stops = [{ id: "a", sortOrder: 0 }];
+    expect(insertionOrder(stops, null)).toEqual({ sortOrder: 1, renumber: [] });
+  });
+
+  it("appends when anchor is not found", () => {
+    const stops = [{ id: "a", sortOrder: 0 }, { id: "b", sortOrder: 1 }];
+    expect(insertionOrder(stops, "z")).toEqual({ sortOrder: 2, renumber: [] });
+  });
+
+  it("inserts at the start when anchor is the last with sortOrder 0 and no later siblings", () => {
+    const stops = [{ id: "a", sortOrder: 5 }];
+    const r = insertionOrder(stops, "a");
+    expect(r.sortOrder).toBe(6);
+    expect(r.renumber).toEqual([]);
+  });
+
+  it("appends when stops is empty", () => {
+    expect(insertionOrder([], null)).toEqual({ sortOrder: 0, renumber: [] });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reflowReorderedDates
+// ---------------------------------------------------------------------------
+
+describe("reflowReorderedDates", () => {
+  // Test 1: All-scheduled reorder — dates reflow contiguously from anchor,
+  // each stop's nights preserved; changed=true for stops whose dates moved.
+  it("reflows all-scheduled stops contiguously from the anchor, preserving nights", () => {
+    // Stop "a" was 2026-07-01→07-04 (3 nights), stop "b" was 2026-07-04→07-06 (2 nights).
+    // After reordering to [b, a] with anchor 2026-07-01:
+    //   b: arrive 2026-07-01, depart 2026-07-03 (2 nights) — moved, changed=true
+    //   a: arrive 2026-07-03, depart 2026-07-06 (3 nights) — moved, changed=true
+    const ordered = [
+      { id: "b", nights: 2, arriveDate: "2026-07-04", departDate: "2026-07-06", pinned: false },
+      { id: "a", nights: 3, arriveDate: "2026-07-01", departDate: "2026-07-04", pinned: false },
+    ];
+    const { results, conflicts } = reflowReorderedDates(ordered, "2026-07-01");
+
+    expect(conflicts).toHaveLength(0);
+    expect(results).toHaveLength(2);
+
+    const b = results.find((r) => r.id === "b")!;
+    const a = results.find((r) => r.id === "a")!;
+
+    // b flows first from anchor
+    expect(b.arriveDate).toBe("2026-07-01");
+    expect(b.departDate).toBe("2026-07-03");
+    expect(b.changed).toBe(true);
+
+    // a flows after b
+    expect(a.arriveDate).toBe("2026-07-03");
+    expect(a.departDate).toBe("2026-07-06");
+    expect(a.changed).toBe(true);
+  });
+
+  // Test 2: Pinned stop keeps exact dates; non-pinned flow around it;
+  // conflict when flexible stops can't fit before the pin.
+  it("pinned scheduled stop keeps its dates and others flow around it", () => {
+    // pin "a": fixed at 2026-07-01→07-04 (3 nights).
+    // "b": 2 nights, unscheduled position (was after a in old order).
+    // New order: [b, a]. anchor 2026-06-28.
+    // b should flow 2026-06-28→06-30 (2 nights), fitting before the pin.
+    // a stays pinned at 2026-07-01→07-04.
+    const ordered = [
+      { id: "b", nights: 2, arriveDate: "2026-07-04", departDate: "2026-07-06", pinned: false },
+      { id: "a", nights: 3, arriveDate: "2026-07-01", departDate: "2026-07-04", pinned: true },
+    ];
+    const { results, conflicts } = reflowReorderedDates(ordered, "2026-06-28");
+
+    expect(conflicts).toHaveLength(0);
+
+    const a = results.find((r) => r.id === "a")!;
+    const b = results.find((r) => r.id === "b")!;
+
+    // Pinned stop keeps exact dates.
+    expect(a.arriveDate).toBe("2026-07-01");
+    expect(a.departDate).toBe("2026-07-04");
+    expect(a.changed).toBe(false);
+
+    // b flows from anchor and fits before the pin.
+    expect(b.arriveDate).toBe("2026-06-28");
+    expect(b.departDate).toBe("2026-06-30");
+    expect(b.changed).toBe(true);
+  });
+
+  it("reports a conflict when flexible stops cannot fit before a pin", () => {
+    // pin "a": fixed at 2026-07-01→07-04.
+    // "b": 5 nights — from anchor 2026-06-28, b would end 2026-07-03, past pin arrive 2026-07-01.
+    const ordered = [
+      { id: "b", nights: 5, arriveDate: "2026-07-04", departDate: "2026-07-09", pinned: false },
+      { id: "a", nights: 3, arriveDate: "2026-07-01", departDate: "2026-07-04", pinned: true },
+    ];
+    const { results, conflicts } = reflowReorderedDates(ordered, "2026-06-28");
+
+    expect(conflicts.length).toBeGreaterThan(0);
+    expect(conflicts[0].stopId).toBe("a");
+
+    // Assert: pinned stop is still present in results with its fixed date unchanged.
+    const pinnedStop = results.find((r) => r.id === "a");
+    expect(pinnedStop).toBeDefined();
+    expect(pinnedStop?.arriveDate).toBe("2026-07-01");
+    expect(pinnedStop?.departDate).toBe("2026-07-04");
+  });
+
+  // Test 3: Mixed rough+scheduled — rough stops get no dates, do not consume
+  // calendar time, and scheduled stops flow as if rough ones weren't there.
+  it("rough stops are excluded from reflow and do not shift scheduled dates", () => {
+    // rough "r": no dates. scheduled "x": 2 nights. scheduled "y": 3 nights.
+    // Anchor 2026-07-01. Order: [r, x, y].
+    // x should flow from anchor: 2026-07-01→07-03.
+    // y follows x: 2026-07-03→07-06.
+    // r gets no dates.
+    const ordered = [
+      { id: "r", nights: 4, arriveDate: null, departDate: null, pinned: false },
+      { id: "x", nights: 2, arriveDate: "2026-07-05", departDate: "2026-07-07", pinned: false },
+      { id: "y", nights: 3, arriveDate: "2026-07-07", departDate: "2026-07-10", pinned: false },
+    ];
+    const { results, conflicts } = reflowReorderedDates(ordered, "2026-07-01");
+
+    expect(conflicts).toHaveLength(0);
+
+    // Only scheduled stops in results.
+    expect(results).toHaveLength(2);
+    expect(results.find((r) => r.id === "r")).toBeUndefined();
+
+    const x = results.find((r) => r.id === "x")!;
+    const y = results.find((r) => r.id === "y")!;
+
+    expect(x.arriveDate).toBe("2026-07-01");
+    expect(x.departDate).toBe("2026-07-03");
+    expect(x.changed).toBe(true);
+
+    expect(y.arriveDate).toBe("2026-07-03");
+    expect(y.departDate).toBe("2026-07-06");
+    expect(y.changed).toBe(true);
+  });
+
+  it("returns empty shape when anchorDate is null", () => {
+    const ordered = [
+      { id: "a", nights: 3, arriveDate: "2026-07-01", departDate: "2026-07-04", pinned: false },
+      { id: "b", nights: 2, arriveDate: "2026-07-04", departDate: "2026-07-06", pinned: false },
+    ];
+    const { results, conflicts } = reflowReorderedDates(ordered, null);
+
+    expect(results).toEqual([]);
+    expect(conflicts).toEqual([]);
   });
 });

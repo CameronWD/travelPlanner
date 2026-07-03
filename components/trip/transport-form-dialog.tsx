@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { MoneyInput } from "@/components/ui/money-input";
 import {
   Select,
   SelectContent,
@@ -25,7 +26,10 @@ import { TRANSPORT_MODE_LIST } from "@/lib/transport";
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
 import { createTransport, updateTransport } from "@/server/actions/transport";
+import { CURRENCIES } from "@/lib/currencies";
+import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import type { TransportCardTransport } from "./transport-card";
+import type { CostRow } from "@/server/actions/costs";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,6 +50,10 @@ interface FormErrors {
   arrAt?: string[];
   reference?: string[];
   notes?: string[];
+  estimatedMinor?: string[];
+  currency?: string[];
+  actualMinor?: string[];
+  paidAt?: string[];
   _form?: string[];
 }
 
@@ -63,6 +71,14 @@ export interface TransportFormDialogProps {
   onSaved?: () => void;
   /** Fork to create the transport in (null = real plan). */
   forkId?: string | null;
+  /** Trip's home currency — used as default for the cost currency picker. */
+  homeCurrency?: string;
+  /**
+   * Existing costs on the transport (edit mode only).
+   * When exactly one cost is present, the cost fields are pre-filled from it.
+   * When >1 costs are present, the cost fields are hidden (CostEditor is authoritative).
+   */
+  costs?: CostRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +95,8 @@ export function TransportFormDialog({
   onOpenChange,
   onSaved,
   forkId,
+  homeCurrency,
+  costs,
 }: TransportFormDialogProps) {
   const formKey = open ? `${transport?.id ?? "new"}-${String(open)}` : "closed";
 
@@ -100,6 +118,8 @@ export function TransportFormDialog({
           onClose={() => onOpenChange(false)}
           onSaved={onSaved}
           forkId={forkId}
+          homeCurrency={homeCurrency}
+          costs={costs}
         />
       </DialogContent>
     </Dialog>
@@ -188,6 +208,8 @@ interface TransportFormProps {
   onClose: () => void;
   onSaved?: () => void;
   forkId?: string | null;
+  homeCurrency?: string;
+  costs?: CostRow[];
 }
 
 /** Sentinel for "none selected" in stop selects */
@@ -208,6 +230,8 @@ function toDatetimeLocal(dt: Date | null | undefined): string {
   return `${y}-${mo}-${d}T${h}:${mi}`;
 }
 
+const CURRENCY_CODES = CURRENCIES.map((c) => c.code);
+
 function TransportForm({
   tripId,
   stops,
@@ -217,8 +241,17 @@ function TransportForm({
   onClose,
   onSaved,
   forkId,
+  homeCurrency,
+  costs,
 }: TransportFormProps) {
   const isEdit = Boolean(transport);
+
+  // Determine the single existing cost (if any) for prefill.
+  // When >1 costs exist the CostEditor is authoritative — hide the inline fields.
+  const singleCost = costs?.length === 1 ? costs[0] : null;
+  const hasMultipleCosts = (costs?.length ?? 0) > 1;
+
+  const defaultCurrency = homeCurrency ?? "AUD";
 
   const [mode, setMode] = React.useState<string>(transport?.mode ?? "FLIGHT");
   const [fromStopId, setFromStopId] = React.useState(
@@ -233,12 +266,36 @@ function TransportForm({
   const [arrAt, setArrAt] = React.useState(toDatetimeLocal(transport?.arrAt));
   const [reference, setReference] = React.useState(transport?.reference ?? "");
   const [notes, setNotes] = React.useState(transport?.notes ?? "");
+
+  // Inline cost fields
+  const [estimatedAmount, setEstimatedAmount] = React.useState(
+    singleCost ? formatMinor(singleCost.estimatedMinor, singleCost.currency) : "",
+  );
+  const [currency, setCurrency] = React.useState(
+    singleCost?.currency ?? defaultCurrency,
+  );
+  const [actualAmount, setActualAmount] = React.useState(
+    singleCost && singleCost.actualMinor !== null && singleCost.actualMinor !== undefined
+      ? formatMinor(singleCost.actualMinor, singleCost.currency)
+      : "",
+  );
+  const [paidAt, setPaidAt] = React.useState(
+    singleCost?.paidAt ? new Date(singleCost.paidAt).toISOString().slice(0, 10) : "",
+  );
+
   const [errors, setErrors] = React.useState<FormErrors>({});
   const [isPending, startTransition] = React.useTransition();
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setErrors({});
+
+    const estimatedMinor = estimatedAmount.trim()
+      ? (parseAmountToMinor(estimatedAmount, currency) ?? undefined)
+      : undefined;
+    const actualMinor = actualAmount.trim()
+      ? (parseAmountToMinor(actualAmount, currency) ?? undefined)
+      : undefined;
 
     // The action accepts TransportInput whose depAt/arrAt are Date | undefined
     // (after Zod coercion), but we pass raw strings from the form — Zod's
@@ -254,6 +311,12 @@ function TransportForm({
       arrAt: arrAt || undefined,
       reference: reference.trim() || undefined,
       notes: notes.trim() || undefined,
+      ...(estimatedMinor !== undefined && {
+        estimatedMinor,
+        currency,
+        actualMinor: actualMinor ?? null,
+        paidAt: paidAt || null,
+      }),
     };
 
     startTransition(async () => {
@@ -413,6 +476,60 @@ function TransportForm({
           disabled={isPending}
         />
       </Field>
+
+      {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
+      {!hasMultipleCosts && (
+        <>
+          {/* Estimated cost */}
+          <Field label="Estimated cost" error={errors.estimatedMinor?.[0]}>
+            <MoneyInput
+              amount={estimatedAmount}
+              currency={currency}
+              currencies={CURRENCY_CODES}
+              onAmountChange={setEstimatedAmount}
+              onCurrencyChange={setCurrency}
+              disabled={isPending}
+              invalid={Boolean(errors.estimatedMinor)}
+              aria-label="Estimated cost amount"
+            />
+          </Field>
+
+          {/* Actual cost — only shown when an estimated amount is entered */}
+          {estimatedAmount.trim() && (
+            <>
+              <Field
+                label="Actual cost"
+                description="Leave blank if you haven't paid yet"
+                error={errors.actualMinor?.[0]}
+              >
+                <MoneyInput
+                  amount={actualAmount}
+                  currency={currency}
+                  currencies={CURRENCY_CODES}
+                  onAmountChange={setActualAmount}
+                  onCurrencyChange={setCurrency}
+                  disabled={isPending}
+                  invalid={Boolean(errors.actualMinor)}
+                  aria-label="Actual cost amount"
+                />
+              </Field>
+
+              <Field
+                label="Date paid"
+                description="Optional — when the cost was paid"
+                error={errors.paidAt?.[0]}
+              >
+                <Input
+                  type="date"
+                  value={paidAt}
+                  onChange={(e) => setPaidAt(e.target.value)}
+                  disabled={isPending}
+                />
+              </Field>
+            </>
+          )}
+        </>
+      )}
 
       <FormError>{errors._form?.[0]}</FormError>
 

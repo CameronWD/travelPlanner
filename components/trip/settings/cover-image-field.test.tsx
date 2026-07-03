@@ -2,15 +2,21 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const refreshMock = vi.fn();
+const { refreshMock, setTripCoverMock, removeTripCoverMock, toastMock } = vi.hoisted(() => ({
+  refreshMock: vi.fn(),
+  setTripCoverMock: vi.fn(),
+  removeTripCoverMock: vi.fn(),
+  toastMock: vi.fn(),
+}));
+
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock }) }));
 
-const setTripCoverMock = vi.fn();
-const removeTripCoverMock = vi.fn();
 vi.mock("@/server/actions/cover", () => ({
   setTripCover: (...args: unknown[]) => setTripCoverMock(...args),
   removeTripCover: (...args: unknown[]) => removeTripCoverMock(...args),
 }));
+
+vi.mock("@/components/ui/use-toast", () => ({ toast: toastMock }));
 
 import { CoverImageField } from "./cover-image-field";
 
@@ -22,16 +28,16 @@ beforeEach(() => {
 
 describe("CoverImageField", () => {
   it("renders a file input", () => {
-    render(<CoverImageField tripId="t1" hasCover={false} />);
-    const input = document.querySelector('input[type="file"]');
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+    const input = container.querySelector('input[type="file"]');
     expect(input).not.toBeNull();
   });
 
   it("selecting a file calls setTripCover with FormData containing tripId and the file, then calls router.refresh()", async () => {
     const user = userEvent.setup();
-    render(<CoverImageField tripId="t1" hasCover={false} />);
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
 
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
     expect(fileInput).not.toBeNull();
 
     const file = new File(["img-data"], "photo.png", { type: "image/png" });
@@ -61,5 +67,19 @@ describe("CoverImageField", () => {
     // hasCover = false: Remove button absent
     rerender(<CoverImageField tripId="t1" hasCover={false} />);
     expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
+  });
+
+  it("shows a friendly error when the upload throws (e.g. body too large)", async () => {
+    const user = userEvent.setup();
+    setTripCoverMock.mockRejectedValueOnce(new Error("Body exceeded 1 MB limit"));
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).not.toBeNull();
+
+    const file = new File(["x".repeat(10)], "big.jpg", { type: "image/jpeg" });
+    await user.upload(fileInput, file);
+
+    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" })));
   });
 });

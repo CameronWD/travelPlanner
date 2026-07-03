@@ -5,6 +5,37 @@
  * in isolation and reused from itinerary-manager.tsx.
  */
 
+import { nightsBetween } from "./dates";
+import { flowDates } from "./firm-up";
+import type { FlowConflict, FlowResult } from "./firm-up";
+
+/**
+ * Compute the sortOrder for a new stop inserted after `afterStopId`, and the
+ * renumber list of sibling stops whose sortOrder must be bumped up by 1.
+ *
+ * When `afterStopId` is null or not found, the new stop is appended after all
+ * existing stops (no siblings are renumbered).
+ */
+export function insertionOrder(
+  stops: { id: string; sortOrder: number }[],
+  afterStopId: string | null,
+): { sortOrder: number; renumber: { id: string; sortOrder: number }[] } {
+  if (!afterStopId) {
+    const max = stops.reduce((m, s) => Math.max(m, s.sortOrder), -1);
+    return { sortOrder: max + 1, renumber: [] };
+  }
+  const anchor = stops.find((s) => s.id === afterStopId);
+  if (!anchor) {
+    const max = stops.reduce((m, s) => Math.max(m, s.sortOrder), -1);
+    return { sortOrder: max + 1, renumber: [] };
+  }
+  const newOrder = anchor.sortOrder + 1;
+  const renumber = stops
+    .filter((s) => s.sortOrder >= newOrder)
+    .map((s) => ({ id: s.id, sortOrder: s.sortOrder + 1 }));
+  return { sortOrder: newOrder, renumber };
+}
+
 import type { ChapterLike } from "./chapters";
 
 export interface StopSlim {
@@ -169,4 +200,95 @@ export function moveChapterBlocks(
   }
 
   return result as StopSlim[];
+}
+
+// ---------------------------------------------------------------------------
+// reflowReorderedDates (ADR 0021)
+// ---------------------------------------------------------------------------
+
+/**
+ * Input shape for reflowReorderedDates. Scheduled stops have non-null
+ * arriveDate/departDate; rough stops have null dates.
+ */
+export interface ReflowStop {
+  id: string;
+  nights: number | null;
+  arriveDate: string | null;
+  departDate: string | null;
+  pinned: boolean;
+}
+
+/**
+ * Result for a single scheduled stop after reflow.
+ */
+export interface ReflowResult {
+  id: string;
+  arriveDate: string;
+  departDate: string;
+  /** True when the recomputed dates differ from the stop's original dates. */
+  changed: boolean;
+}
+
+/**
+ * Given a list of stops in their NEW desired order (post-drag), reflow calendar
+ * dates for the SCHEDULED stops only, flowing contiguously from `anchorDate`.
+ *
+ * Rough stops (null arriveDate) are NOT dated and do NOT consume calendar time —
+ * they are filtered out before flowing. Only the scheduled stops appear in
+ * `results`, in the new order.
+ *
+ * Each scheduled stop's `nights` is derived from its current duration
+ * (nightsBetween(arriveDate, departDate)), so the stay length is preserved.
+ * Pinned scheduled stops keep their exact dates (flowDates handles this).
+ * If flexible stops can't fit before a pin, a conflict is reported.
+ *
+ * If `anchorDate` is null or empty, returns the empty shape (nothing can be
+ * dated without an anchor).
+ *
+ * Return shape: { results: ReflowResult[]; conflicts: FlowConflict[] }
+ *   - results: scheduled stops only, in new order, with recomputed dates.
+ *   - conflicts: passed through from flowDates for Task 9 to handle.
+ */
+export function reflowReorderedDates(
+  orderedStops: readonly ReflowStop[],
+  anchorDate: string | null,
+): { results: ReflowResult[]; conflicts: FlowConflict[] } {
+  // Guard: if no anchor, nothing can be dated.
+  if (!anchorDate) {
+    return { results: [], conflicts: [] };
+  }
+
+  // Filter to scheduled stops only (rough stops are untouched and excluded).
+  const scheduledStops = orderedStops.filter(
+    (s): s is ReflowStop & { arriveDate: string; departDate: string } =>
+      s.arriveDate !== null && s.departDate !== null,
+  );
+
+  if (scheduledStops.length === 0) {
+    return { results: [], conflicts: [] };
+  }
+
+  // Map to FlowStop, deriving nights from the current duration.
+  const flowStops = scheduledStops.map((s) => ({
+    id: s.id,
+    nights: nightsBetween(s.arriveDate, s.departDate),
+    pinned: s.pinned,
+    arriveDate: s.arriveDate,
+    departDate: s.departDate,
+  }));
+
+  const { results: flowResults, conflicts } = flowDates(flowStops, anchorDate);
+
+  // Map FlowResult → ReflowResult, resolving the changed flag against original dates.
+  const results: ReflowResult[] = flowResults.map((fr: FlowResult) => {
+    const original = scheduledStops.find((s) => s.id === fr.id)!;
+    return {
+      id: fr.id,
+      arriveDate: fr.arriveDate,
+      departDate: fr.departDate,
+      changed: fr.arriveDate !== original.arriveDate || fr.departDate !== original.departDate,
+    };
+  });
+
+  return { results, conflicts };
 }
