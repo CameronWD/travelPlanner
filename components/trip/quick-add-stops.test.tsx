@@ -15,7 +15,7 @@ describe("QuickAddStops", () => {
     const input = screen.getByPlaceholderText(/add a place/i);
     await userEvent.type(input, "Rome");
     await userEvent.click(screen.getByRole("button", { name: /add/i }));
-    expect(createStop).toHaveBeenCalledWith("trip-1", expect.objectContaining({ mode: "rough", name: "Rome", chapterId: "it" }), undefined);
+    expect(createStop).toHaveBeenCalledWith("trip-1", expect.objectContaining({ mode: "rough", name: "Rome", chapterId: "it" }), undefined, null);
     expect(input).toHaveValue("");
   });
 
@@ -34,7 +34,7 @@ describe("QuickAddStops", () => {
     const input = screen.getByPlaceholderText(/add a place/i);
     await userEvent.type(input, "Rome");
     await userEvent.click(screen.getByRole("button", { name: /add/i }));
-    expect(createStop).toHaveBeenCalledWith("t1", expect.objectContaining({ name: "Rome" }), "fork-1");
+    expect(createStop).toHaveBeenCalledWith("t1", expect.objectContaining({ name: "Rome" }), "fork-1", null);
   });
 
   it("passes undefined to createStop when forkId is null", async () => {
@@ -42,6 +42,19 @@ describe("QuickAddStops", () => {
     const input = screen.getByPlaceholderText(/add a place/i);
     await userEvent.type(input, "Berlin");
     await userEvent.click(screen.getByRole("button", { name: /add/i }));
-    expect(createStop).toHaveBeenCalledWith("t1", expect.objectContaining({ name: "Berlin" }), undefined);
+    expect(createStop).toHaveBeenCalledWith("t1", expect.objectContaining({ name: "Berlin" }), undefined, null);
+  });
+
+  it("forwards afterStopId as the 4th arg to createStop", async () => {
+    render(<QuickAddStops tripId="trip-1" chapterId="ch-1" afterStopId="stop-anchor" />);
+    const input = screen.getByPlaceholderText(/add a place/i);
+    await userEvent.type(input, "Florence");
+    await userEvent.click(screen.getByRole("button", { name: /add/i }));
+    expect(createStop).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ name: "Florence" }),
+      undefined,
+      "stop-anchor",
+    );
   });
 });

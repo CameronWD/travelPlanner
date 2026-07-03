@@ -5,6 +5,33 @@
  * in isolation and reused from itinerary-manager.tsx.
  */
 
+/**
+ * Compute the sortOrder for a new stop inserted after `afterStopId`, and the
+ * renumber list of sibling stops whose sortOrder must be bumped up by 1.
+ *
+ * When `afterStopId` is null or not found, the new stop is appended after all
+ * existing stops (no siblings are renumbered).
+ */
+export function insertionOrder(
+  stops: { id: string; sortOrder: number }[],
+  afterStopId: string | null,
+): { sortOrder: number; renumber: { id: string; sortOrder: number }[] } {
+  if (!afterStopId) {
+    const max = stops.reduce((m, s) => Math.max(m, s.sortOrder), -1);
+    return { sortOrder: max + 1, renumber: [] };
+  }
+  const anchor = stops.find((s) => s.id === afterStopId);
+  if (!anchor) {
+    const max = stops.reduce((m, s) => Math.max(m, s.sortOrder), -1);
+    return { sortOrder: max + 1, renumber: [] };
+  }
+  const newOrder = anchor.sortOrder + 1;
+  const renumber = stops
+    .filter((s) => s.sortOrder >= newOrder)
+    .map((s) => ({ id: s.id, sortOrder: s.sortOrder + 1 }));
+  return { sortOrder: newOrder, renumber };
+}
+
 import type { ChapterLike } from "./chapters";
 
 export interface StopSlim {

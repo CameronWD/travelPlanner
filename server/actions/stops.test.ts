@@ -428,6 +428,91 @@ describe("createStop", () => {
 });
 
 // ---------------------------------------------------------------------------
+// createStop — afterStopId (insertion anchor)
+// ---------------------------------------------------------------------------
+
+describe("createStop with afterStopId", () => {
+  it("inserts after the anchor stop and bumps later sibling sortOrders", async () => {
+    // Siblings: a(0), b(1), c(2). Anchor = "a". New stop should land at sortOrder=1; b→2, c→3.
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", sortOrder: 0 },
+      { id: "b", sortOrder: 1 },
+      { id: "c", sortOrder: 2 },
+    ]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Rome" });
+    stopUpdateMock.mockResolvedValue({});
+
+    const result = await createStop("trip-1", { mode: "rough", name: "Rome", nights: 2 }, undefined, "a");
+
+    expect(result.success).toBe(true);
+    // New stop lands at sortOrder = 1 (right after anchor "a")
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ sortOrder: 1 }),
+    });
+    // Later siblings b and c are bumped
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "b" }, data: { sortOrder: 2 } });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "c" }, data: { sortOrder: 3 } });
+  });
+
+  it("appends (no bumps) when afterStopId is null", async () => {
+    stopFindFirstMock.mockResolvedValue({ sortOrder: 4 });
+    stopFindManyMock.mockResolvedValue([]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Rome" });
+
+    const result = await createStop("trip-1", { mode: "rough", name: "Rome", nights: 2 }, undefined, null);
+
+    expect(result.success).toBe(true);
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ sortOrder: 5 }),
+    });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("inherits chapterId and sets chapterSortOrder just after anchor when anchor has chapterId", async () => {
+    // Anchor "anchor-1" is in chapter "ch-1" with chapterSortOrder=2.
+    stopFindManyMock.mockResolvedValue([
+      { id: "anchor-1", sortOrder: 0, chapterId: "ch-1", chapterSortOrder: 2 },
+      { id: "other-1", sortOrder: 1, chapterId: "ch-1", chapterSortOrder: 3 },
+    ]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Venice" });
+    stopUpdateMock.mockResolvedValue({});
+    // Chapter belongs to the right plan
+    chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: null });
+
+    const result = await createStop(
+      "trip-1",
+      { mode: "rough", name: "Venice", nights: 1, chapterId: "ch-1" },
+      undefined,
+      "anchor-1",
+    );
+
+    expect(result.success).toBe(true);
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        chapterId: "ch-1",
+        chapterSortOrder: 3, // anchor's chapterSortOrder(2) + 1
+      }),
+    });
+  });
+
+  it("falls back to append when afterStopId is not found in siblings", async () => {
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", sortOrder: 0 },
+      { id: "b", sortOrder: 1 },
+    ]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Rome" });
+
+    const result = await createStop("trip-1", { mode: "rough", name: "Rome", nights: 2 }, undefined, "nonexistent");
+
+    expect(result.success).toBe(true);
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ sortOrder: 2 }),
+    });
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // updateStop
 // ---------------------------------------------------------------------------
 

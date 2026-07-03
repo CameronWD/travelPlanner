@@ -1049,7 +1049,7 @@ export function ItineraryManager({
                     return renderStop(stop, idx, isFirst, isLast);
                   })}
                 </SortableContext>
-                <QuickAddStops tripId={tripId} chapterId={null} forkId={forkId ?? null} />
+                <QuickAddStops tripId={tripId} chapterId={null} forkId={forkId ?? null} afterStopId={stops.length > 0 ? stops[stops.length - 1].id : null} />
               </>
             ) : (
               // ── Chapters path: grouped rendering with seams ──
@@ -1133,7 +1133,12 @@ export function ItineraryManager({
                                         return renderStop(stop, globalIdx, isFirst, isLast);
                                       })}
                                     </SortableContext>
-                                    <QuickAddStops tripId={tripId} chapterId={group.chapter!.id} forkId={forkId ?? null} />
+                                    {(() => {
+                                      const sorted = sortGroupStops(group.stops);
+                                      return (
+                                        <QuickAddStops tripId={tripId} chapterId={group.chapter!.id} forkId={forkId ?? null} afterStopId={sorted.length > 0 ? sorted[sorted.length - 1].id : null} />
+                                      );
+                                    })()}
                                   </div>
                                 )}
                               </div>
@@ -1174,7 +1179,12 @@ export function ItineraryManager({
                                   const isLast = globalIdx === stops.length - 1;
                                   return renderStop(stop, globalIdx, isFirst, isLast);
                                 })}
-                                <QuickAddStops tripId={tripId} chapterId={group.chapter.id} forkId={forkId ?? null} />
+                                {(() => {
+                                  const sorted = sortGroupStops(group.stops);
+                                  return (
+                                    <QuickAddStops tripId={tripId} chapterId={group.chapter.id} forkId={forkId ?? null} afterStopId={sorted.length > 0 ? sorted[sorted.length - 1].id : null} />
+                                  );
+                                })()}
                               </div>
                             )}
                           </div>
@@ -1209,7 +1219,12 @@ export function ItineraryManager({
                               return renderStop(stop, globalIdx, isFirst, isLast);
                             })}
                           </SortableContext>
-                          <QuickAddStops tripId={tripId} chapterId={null} forkId={forkId ?? null} />
+                          {(() => {
+                            const sorted = sortGroupStops(group.stops);
+                            return (
+                              <QuickAddStops tripId={tripId} chapterId={null} forkId={forkId ?? null} afterStopId={sorted.length > 0 ? sorted[sorted.length - 1].id : null} />
+                            );
+                          })()}
                         </div>
                       )}
                     </React.Fragment>

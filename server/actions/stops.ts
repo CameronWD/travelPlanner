@@ -12,6 +12,7 @@ import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
+import { insertionOrder } from "@/lib/reorder";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -77,12 +78,16 @@ function validationErrors(error: { flatten(): { fieldErrors: Record<string, stri
  *
  * Handles both rough and scheduled modes.
  * For scheduled stops: if no lat/lng are provided, best-effort geocodes the name+country.
- * sortOrder is set to (max existing + 1).
+ * sortOrder is set to (max existing + 1) by default, or inserted after `afterStopId` when provided.
+ *
+ * @param afterStopId  Optional anchor: insert the new stop immediately after this stop.
+ *                     Pass null or omit to append at the end (unchanged default behaviour).
  */
 export async function createStop(
   tripId: string,
   input: StopInput,
   forkId?: PlanId,
+  afterStopId?: string | null,
 ): Promise<StopActionResult> {
   await requireTripAccess(tripId);
 
@@ -91,26 +96,60 @@ export async function createStop(
     return validationErrors(parsed.error);
   }
 
-  const maxStop = await db.stop.findFirst({
-    where: { tripId, ...planScope(forkId) },
-    orderBy: { sortOrder: "desc" },
-    select: { sortOrder: true },
-  });
-  const sortOrder = (maxStop?.sortOrder ?? -1) + 1;
+  // Determine sortOrder and which siblings need renumbering.
+  let sortOrder: number;
+  let renumber: { id: string; sortOrder: number }[] = [];
+  let anchorChapterId: string | null = null;
+  let anchorChapterSortOrder: number | null = null;
+
+  if (afterStopId) {
+    // Load all siblings for this plan so we can compute the insertion position.
+    const siblings = await db.stop.findMany({
+      where: { tripId, ...planScope(forkId) },
+      select: { id: true, sortOrder: true, chapterId: true, chapterSortOrder: true },
+    });
+    const result = insertionOrder(siblings, afterStopId);
+    sortOrder = result.sortOrder;
+    renumber = result.renumber;
+    // Inherit chapter placement from the anchor stop if it has one.
+    const anchor = siblings.find((s) => s.id === afterStopId);
+    if (anchor?.chapterId) {
+      anchorChapterId = anchor.chapterId;
+      anchorChapterSortOrder = (anchor.chapterSortOrder ?? 0) + 1;
+    }
+  } else {
+    const maxStop = await db.stop.findFirst({
+      where: { tripId, ...planScope(forkId) },
+      orderBy: { sortOrder: "desc" },
+      select: { sortOrder: true },
+    });
+    sortOrder = (maxStop?.sortOrder ?? -1) + 1;
+  }
+
+  // Apply renumber bumps before creating the new stop (so the slot is free).
+  for (const s of renumber) {
+    await db.stop.update({ where: { id: s.id }, data: { sortOrder: s.sortOrder } });
+  }
 
   if (parsed.data.mode === "rough") {
     const { name, country, nights, chapterId, notes } = parsed.data;
 
+    // Resolve effective chapterId: explicit input takes precedence; fall back to anchor's chapter.
+    const effectiveChapterId = chapterId ?? anchorChapterId ?? null;
+
     // Validate chapterId belongs to the same plan if provided
-    if (chapterId) {
+    if (effectiveChapterId) {
       const chapter = await db.chapter.findUnique({
-        where: { id: chapterId },
+        where: { id: effectiveChapterId },
         select: { forkId: true },
       });
       if (!chapter || chapter.forkId !== (forkId ?? null)) {
         return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
       }
     }
+
+    // Determine chapterSortOrder: use anchor-derived value when available, else 0.
+    const chapterSortOrder = anchorChapterSortOrder ?? 0;
 
     const created = await db.stop.create({
       data: {
@@ -119,7 +158,8 @@ export async function createStop(
         name,
         country: country ?? null,
         nights,
-        chapterId: chapterId ?? null,
+        chapterId: effectiveChapterId,
+        chapterSortOrder,
         arriveDate: null,
         departDate: null,
         timezone: null,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { moveStopInOrder, moveChapterBlocks } from "./reorder";
+import { moveStopInOrder, moveChapterBlocks, insertionOrder } from "./reorder";
 import { groupStopsByChapter } from "./chapters";
 import type { ChapterLike, StopLike } from "./chapters";
 
@@ -311,5 +311,39 @@ describe("moveChapterBlocks", () => {
       { id: "a1", chapterId: "cA" },
       { id: "b1", chapterId: "cB" },
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// insertionOrder
+// ---------------------------------------------------------------------------
+
+describe("insertionOrder", () => {
+  it("inserts after the anchor and bumps later siblings", () => {
+    const stops = [{ id: "a", sortOrder: 0 }, { id: "b", sortOrder: 1 }, { id: "c", sortOrder: 2 }];
+    const r = insertionOrder(stops, "a");
+    expect(r.sortOrder).toBe(1);
+    expect(r.renumber).toEqual([{ id: "b", sortOrder: 2 }, { id: "c", sortOrder: 3 }]);
+  });
+
+  it("appends when anchor is null", () => {
+    const stops = [{ id: "a", sortOrder: 0 }];
+    expect(insertionOrder(stops, null)).toEqual({ sortOrder: 1, renumber: [] });
+  });
+
+  it("appends when anchor is not found", () => {
+    const stops = [{ id: "a", sortOrder: 0 }, { id: "b", sortOrder: 1 }];
+    expect(insertionOrder(stops, "z")).toEqual({ sortOrder: 2, renumber: [] });
+  });
+
+  it("inserts at the start when anchor is the last with sortOrder 0 and no later siblings", () => {
+    const stops = [{ id: "a", sortOrder: 5 }];
+    const r = insertionOrder(stops, "a");
+    expect(r.sortOrder).toBe(6);
+    expect(r.renumber).toEqual([]);
+  });
+
+  it("appends when stops is empty", () => {
+    expect(insertionOrder([], null)).toEqual({ sortOrder: 0, renumber: [] });
   });
 });
