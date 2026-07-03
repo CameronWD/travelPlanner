@@ -163,6 +163,7 @@ export async function deleteChapter(chapterId: string): Promise<ChapterActionRes
 export async function reorderChapters(
   tripId: string,
   orderedChapterIds: string[],
+  forkIdArg?: PlanId,
 ): Promise<ReorderResult> {
   await requireTripAccess(tripId);
   if (orderedChapterIds.length === 0) return { success: true, changed: [], conflicts: [] };
@@ -175,8 +176,9 @@ export async function reorderChapters(
     return { success: false, errors: { chapter: ["One or more chapters aren't part of this trip."] } };
   }
 
-  // Derive plan from the chapters (all must belong to the same plan).
-  const forkId: PlanId = chapters[0]?.forkId ?? null;
+  // Prefer the caller-supplied plan (the editor threads the active forkId); fall
+  // back to the plan derived from the chapters (all must belong to the same plan).
+  const forkId: PlanId = forkIdArg ?? chapters[0]?.forkId ?? null;
 
   // Load all stops for the trip to compute the new order and reflow.
   const allStops = await db.stop.findMany({

@@ -165,9 +165,10 @@ export function StopCard({
         isPending && "opacity-60 pointer-events-none",
       )}
     >
-      {/* Top row: drag handle (rough only) + name + country + controls */}
+      {/* Top row: drag handle + name + country + controls. ADR 0021: dated
+          stops are draggable too, so the handle renders whenever it's provided. */}
       <div className="flex items-start justify-between gap-3">
-        {isRough && dragHandle}
+        {dragHandle}
         <div className="flex flex-col gap-0.5 min-w-0">
           <h3 className="font-display text-xl font-semibold leading-tight text-foreground truncate">
             {stop.name}

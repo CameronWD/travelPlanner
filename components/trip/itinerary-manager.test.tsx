@@ -23,7 +23,8 @@ vi.mock("@/server/actions/stops", () => ({
   createStop: vi.fn().mockResolvedValue({ success: true }),
   updateStop: vi.fn().mockResolvedValue({ success: true }),
   assignStopToChapter: vi.fn().mockResolvedValue({ success: true }),
-  reorderStops: vi.fn().mockResolvedValue({ success: true }),
+  reorderStops: vi.fn().mockResolvedValue({ success: true, changed: [], conflicts: [] }),
+  restoreStops: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 vi.mock("@/server/actions/transport", () => ({
@@ -66,7 +67,7 @@ import { createTransport } from "@/server/actions/transport";
 import { createAccommodation } from "@/server/actions/accommodation";
 import { createChapter, deleteChapter } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
-import { ItineraryManager, type ItineraryStop } from "./itinerary-manager";
+import { ItineraryManager, summariseReorder, type ItineraryStop } from "./itinerary-manager";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -457,7 +458,9 @@ describe("drag handle rendering", () => {
     expect(screen.getByLabelText(/reorder paris/i)).toBeInTheDocument();
   });
 
-  it("does NOT render a reorder handle for a scheduled (dated) stop", () => {
+  it("renders a reorder handle for a scheduled (dated) stop (ADR 0021)", () => {
+    // ADR 0021 reverses the old ADR 0014 rough-only rule: dated stops are
+    // draggable now, so they carry a reorder handle too.
     const datedStop = makeStop({
       id: "s-1",
       name: "Berlin",
@@ -469,11 +472,10 @@ describe("drag handle rendering", () => {
       <ItineraryManager {...baseProps} initialStops={[datedStop]} />,
     );
 
-    // No reorder handle for a dated stop
-    expect(screen.queryByLabelText(/reorder berlin/i)).toBeNull();
+    expect(screen.getByLabelText(/reorder berlin/i)).toBeInTheDocument();
   });
 
-  it("renders no reorder handles when all stops are dated", () => {
+  it("renders a reorder handle on every stop when all stops are dated (ADR 0021)", () => {
     const stops = [
       makeStop({ id: "s-1", name: "Rome", arriveDate: "2026-07-01", departDate: "2026-07-03" }),
       makeStop({ id: "s-2", name: "Milan", arriveDate: "2026-07-03", departDate: "2026-07-06" }),
@@ -483,7 +485,7 @@ describe("drag handle rendering", () => {
       <ItineraryManager {...baseProps} initialStops={stops} />,
     );
 
-    expect(screen.queryAllByLabelText(/reorder/i)).toHaveLength(0);
+    expect(screen.queryAllByLabelText(/reorder/i)).toHaveLength(2);
   });
 });
 
@@ -953,5 +955,113 @@ describe("empty chapter remove control", () => {
     await waitFor(() => {
       expect(deleteChapter).toHaveBeenCalledWith("ch-empty");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 10: draggable scheduled entities + Undo toast (ADR 0021)
+//
+// jsdom has no layout engine and dnd-kit pointer dragging can't be simulated
+// with real coordinates, so the RAW pointer gesture is left to manual
+// verification. Here we assert the wiring that makes a scheduled drag possible:
+//   - dated stops now carry a drag handle (SortableStop is applied to ALL stops)
+//   - dated chapter headers now carry a drag handle (SortableChapterHeader)
+//   - the pure toast-summary helper used on the scheduled drop path
+// ---------------------------------------------------------------------------
+
+describe("Task 10: scheduled entities are draggable (wiring)", () => {
+  it("renders a reorder drag handle on a DATED (scheduled) stop", () => {
+    const dated = makeStop({
+      id: "d-1",
+      name: "Venice",
+      arriveDate: "2026-08-01",
+      departDate: "2026-08-05",
+    });
+
+    render(<ItineraryManager {...baseProps} initialStops={[dated]} />);
+
+    // SortableStop provides an aria-label="Reorder {name}" grip button.
+    // Previously only rough stops got this; ADR 0021 gives it to dated stops too.
+    expect(
+      screen.getByRole("button", { name: "Reorder Venice" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders a reorder drag handle on a DATED chapter header", () => {
+    const datedChapter = {
+      id: "ch-dated",
+      name: "Italy",
+      colour: "rose" as const,
+      startDate: "2026-08-01",
+      endDate: "2026-08-10",
+      sortOrder: 0,
+    };
+    const dated = makeStop({
+      id: "d-1",
+      name: "Venice",
+      arriveDate: "2026-08-01",
+      departDate: "2026-08-05",
+      chapterId: "ch-dated",
+    });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[dated]}
+        chapters={[datedChapter]}
+      />,
+    );
+
+    // A populated dated chapter now gets a "Reorder chapter" handle in its header.
+    expect(
+      screen.getByRole("button", { name: "Reorder chapter" }),
+    ).toBeInTheDocument();
+  });
+
+  it("still renders a reorder drag handle on a ROUGH stop (unchanged)", () => {
+    const rough = makeStop({ id: "r-1", name: "Paris", arriveDate: null, departDate: null });
+    render(<ItineraryManager {...baseProps} initialStops={[rough]} />);
+    expect(
+      screen.getByRole("button", { name: "Reorder Paris" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("Task 10: summariseReorder (Undo toast copy)", () => {
+  it("names the moved entity and the count of shifted stops (plural)", () => {
+    const { title, description } = summariseReorder(
+      "Florence",
+      [
+        { id: "a", arriveDate: "2026-07-10", departDate: "2026-07-13" },
+        { id: "b", arriveDate: "2026-07-13", departDate: "2026-07-15" },
+      ],
+      [],
+    );
+    expect(title).toBe("Moved Florence; 2 stops had dates shifted");
+    expect(description).toBeUndefined();
+  });
+
+  it("uses the singular 'stop' for a single shifted date", () => {
+    const { title } = summariseReorder(
+      "Rome",
+      [{ id: "a", arriveDate: "2026-07-10", departDate: "2026-07-13" }],
+      [],
+    );
+    expect(title).toBe("Moved Rome; 1 stop had dates shifted");
+  });
+
+  it("omits the shift clause when nothing shifted", () => {
+    const { title } = summariseReorder("Rome", [], []);
+    expect(title).toBe("Moved Rome");
+  });
+
+  it("adds a pinned-conflict note to the description when a pin no longer fits", () => {
+    const { description } = summariseReorder(
+      "Rome",
+      [{ id: "a", arriveDate: "2026-07-10", departDate: "2026-07-13" }],
+      [{ stopId: "p", message: "pin can't fit" }],
+    );
+    expect(description).toMatch(/pinned stop no longer fits/i);
+    expect(description).toMatch(/flags/i);
   });
 });

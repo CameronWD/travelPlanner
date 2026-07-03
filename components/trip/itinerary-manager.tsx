@@ -31,9 +31,11 @@ import {
   firmUpTrip,
   setStopDates,
   reorderStops,
+  restoreStops,
 } from "@/server/actions/stops";
 import { reorderChapters, deleteChapter } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
+import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestNextStopDates, formatDateRange, formatLongDate } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
@@ -233,6 +235,29 @@ function EmptyRoughDroppable({ chapterId }: { chapterId: string }) {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Build the Undo-toast copy for a scheduled reorder (ADR 0021). Pure so it can
+ * be unit-tested without simulating a drag gesture.
+ *
+ * @returns `title` ("Moved {name}; {n} stop(s) had dates shifted") and an
+ *          optional `description` note when a pin no longer fits.
+ */
+export function summariseReorder(
+  movedName: string,
+  changed: { id: string; arriveDate: string; departDate: string }[] | undefined,
+  conflicts: { stopId: string; message: string }[] | undefined,
+): { title: string; description?: string } {
+  const n = changed?.length ?? 0;
+  const shifted = n > 0 ? `; ${n} stop${n === 1 ? "" : "s"} had dates shifted` : "";
+  const hasConflict = (conflicts?.length ?? 0) > 0;
+  return {
+    title: `Moved ${movedName}${shifted}`,
+    description: hasConflict
+      ? "Heads up — a pinned stop no longer fits (see Flags)."
+      : undefined,
+  };
+}
 
 /**
  * Enrich a transport with stop names and timezones for display.
@@ -721,7 +746,9 @@ export function ItineraryManager({
     const overId = over.id as string;
 
     const activeStop = localStops.find((s) => s.id === activeId);
-    if (!activeStop || activeStop.arriveDate !== null) return; // only rough stops move
+    if (!activeStop) return;
+    // ADR 0021: scheduled stops now move too; only rough stops are barred from
+    // dated chapters (guarded below). Rough AND scheduled stops move freely here.
 
     // Determine the target container (chapterId or null for ungrouped).
     // The over element is either a stop (use its chapterId) or a droppable container id.
@@ -736,9 +763,10 @@ export function ItineraryManager({
       targetChapterId = overId === "ungrouped" ? null : overId;
     }
 
-    // Don't move into a dated chapter.
+    // A ROUGH stop can't move into a DATED chapter (the server rejects it too);
+    // a DATED stop CAN join a dated chapter (ADR 0021).
     const targetChapter = targetChapterId ? localChapters.find((c) => c.id === targetChapterId) : null;
-    if (targetChapter && targetChapter.startDate !== null) return;
+    if (activeStop.arriveDate === null && targetChapter && targetChapter.startDate !== null) return;
 
     // If the container hasn't changed, nothing to do here (onDragEnd handles reorder within container).
     if (activeStop.chapterId === targetChapterId) return;
@@ -764,7 +792,12 @@ export function ItineraryManager({
       const overId = over.id as string;
 
       const activeStop = localStops.find((s) => s.id === activeId);
-      if (!activeStop || activeStop.arriveDate !== null) return;
+      if (!activeStop) return;
+      const activeIsScheduled = activeStop.arriveDate !== null;
+      // A scheduled stop dropped on itself is a no-op (the full-list reinsert
+      // below would otherwise spuriously append it). The rough path is left
+      // exactly as before (moveStopInOrder yields the same order for a self-drop).
+      if (activeIsScheduled && activeId === overId) return;
 
       // Determine target container (chapterId or null for ungrouped).
       const overStop = localStops.find((s) => s.id === overId);
@@ -772,26 +805,55 @@ export function ItineraryManager({
         ? overStop.chapterId
         : overId === "ungrouped" ? null : overId;
 
-      // Check not dropping into a dated chapter.
+      // A ROUGH stop can't drop into a DATED chapter (server rejects it too);
+      // a SCHEDULED stop can join any chapter (ADR 0021).
       const targetChapter = targetChapterId ? localChapters.find((c) => c.id === targetChapterId) : null;
-      if (targetChapter && targetChapter.startDate !== null) return;
+      if (!activeIsScheduled && targetChapter && targetChapter.startDate !== null) return;
 
-      // Compute the target index within the destination chapter block.
-      // When dropping onto a stop, use that stop's position within the block;
-      // when dropping onto the container itself, append at the end.
-      const containerStops = localStops.filter(
-        (s) => s.arriveDate === null && s.chapterId === targetChapterId,
-      );
-      let targetIndex = containerStops.length; // default: append at end
-      if (overStop && overStop.arriveDate === null && overStop.chapterId === targetChapterId) {
-        const overIdx = containerStops.findIndex((s) => s.id === overId);
-        if (overIdx !== -1) targetIndex = overIdx;
+      // Snapshot the pre-drag state of EVERY stop (order + chapter + dates) so a
+      // scheduled reorder can be fully reverted by Undo (ADR 0021). Cheap enough
+      // to always capture; only used on the scheduled path below.
+      const preDragSnapshot = localStops.map((s) => ({
+        id: s.id,
+        sortOrder: s.sortOrder,
+        chapterId: s.chapterId,
+        arriveDate: s.arriveDate,
+        departDate: s.departDate,
+      }));
+
+      // Compute the authoritative new order.
+      let ordered: { id: string; chapterId: string | null }[];
+      if (activeIsScheduled) {
+        // moveStopInOrder pins dated stops in place, so it can't move a scheduled
+        // active stop. Reorder the FULL list directly: pull the active stop out,
+        // reinsert it at the drop target, and stamp its new chapter membership.
+        const working = localStops.map((s) => ({ id: s.id, chapterId: s.chapterId }));
+        const fromIdx = working.findIndex((s) => s.id === activeId);
+        working.splice(fromIdx, 1);
+        let insertAt = overStop ? working.findIndex((s) => s.id === overId) : -1;
+        if (insertAt === -1) {
+          // Dropped on a container (or the over stop vanished) — append to the
+          // end of the target chapter's block, else the end of the list.
+          const lastInTarget = [...working]
+            .map((s, i) => ({ s, i }))
+            .filter(({ s }) => s.chapterId === targetChapterId)
+            .pop();
+          insertAt = lastInTarget ? lastInTarget.i + 1 : working.length;
+        }
+        working.splice(insertAt, 0, { id: activeId, chapterId: targetChapterId });
+        ordered = working;
+      } else {
+        // Rough active stop — unchanged behaviour (dates never move; reorder only).
+        const containerStops = localStops.filter(
+          (s) => s.arriveDate === null && s.chapterId === targetChapterId,
+        );
+        let targetIndex = containerStops.length; // default: append at end
+        if (overStop && overStop.arriveDate === null && overStop.chapterId === targetChapterId) {
+          const overIdx = containerStops.findIndex((s) => s.id === overId);
+          if (overIdx !== -1) targetIndex = overIdx;
+        }
+        ordered = moveStopInOrder(localStops, activeId, targetChapterId, targetIndex);
       }
-
-      // Use the pure helper to compute the authoritative new order.
-      // This handles both within-container reorders and cross-container moves,
-      // always keeping each chapter's block contiguous.
-      const ordered = moveStopInOrder(localStops, activeId, targetChapterId, targetIndex);
 
       // Apply the new chapterId assignments back to localStops (preserve all
       // ItineraryStop fields, only update id/chapterId from the ordered result).
@@ -804,44 +866,105 @@ export function ItineraryManager({
 
       // Persist: use the authoritative ordered list.
       const items = ordered;
-      const result = await reorderStops(tripId, items);
+      const result = await reorderStops(tripId, items, forkId ?? null);
       if (!result.success) {
         const firstError = result.errors
           ? Object.values(result.errors).flat()[0]
           : "Failed to reorder stops.";
         toast({ variant: "destructive", title: firstError ?? "Failed to reorder stops." });
         setLocalStops(initialStops); // revert
+        return;
+      }
+
+      // ADR 0021: a scheduled reorder reflows calendar dates server-side. Apply
+      // the returned `changed` dates into local state so the UI updates at once,
+      // then offer a one-tap Undo that reverts order + chapter + dates verbatim.
+      if (activeIsScheduled) {
+        applyReorderResult(activeStop.name, result.changed, result.conflicts, preDragSnapshot);
       }
     } else if (activeType === "chapter") {
       const activeId = active.id as string;
       const overId = over.id as string;
       if (activeId === overId) return;
 
-      const roughChapters = localChapters.filter((c) => c.startDate === null);
-      const oldIndex = roughChapters.findIndex((c) => c.id === activeId);
-      const newIndex = roughChapters.findIndex((c) => c.id === overId);
+      const activeChapter = localChapters.find((c) => c.id === activeId);
+      if (!activeChapter) return;
+      const activeChapterDated = activeChapter.startDate !== null;
+
+      // Snapshot pre-drag state for a scheduled-chapter Undo (order + chapter + dates).
+      const preDragSnapshot = localStops.map((s) => ({
+        id: s.id,
+        sortOrder: s.sortOrder,
+        chapterId: s.chapterId,
+        arriveDate: s.arriveDate,
+        departDate: s.departDate,
+      }));
+
+      if (!activeChapterDated) {
+        // ── Rough chapter drag — unchanged behaviour (no dates move) ──
+        const roughChapters = localChapters.filter((c) => c.startDate === null);
+        const oldIndex = roughChapters.findIndex((c) => c.id === activeId);
+        const newIndex = roughChapters.findIndex((c) => c.id === overId);
+        if (oldIndex === -1 || newIndex === -1) return;
+
+        const reorderedRough = arrayMove(roughChapters, oldIndex, newIndex);
+        const datedChapters = localChapters.filter((c) => c.startDate !== null);
+        const newLocalChapters = [...datedChapters, ...reorderedRough];
+        setLocalChapters(newLocalChapters);
+
+        // Use the pure helper to permute rough-chapter blocks while keeping
+        // dated stops and ungrouped stops at their original positions.
+        const roughChapterIds = reorderedRough.map((c) => c.id);
+        const ordered = moveChapterBlocks(localStops, localChapters, roughChapterIds);
+
+        // Rebuild full ItineraryStop list from the ordered slim result.
+        const chapterIdById = new Map(ordered.map((s) => [s.id, s.chapterId]));
+        const reorderedStops = ordered.map((slim) => {
+          const full = localStops.find((s) => s.id === slim.id)!;
+          return { ...full, chapterId: chapterIdById.get(full.id) ?? full.chapterId };
+        });
+        setLocalStops(reorderedStops);
+
+        // Persist chapters.
+        const chapterResult = await reorderChapters(tripId, roughChapterIds, forkId ?? null);
+        if (!chapterResult.success) {
+          const firstError = chapterResult.errors
+            ? Object.values(chapterResult.errors).flat()[0]
+            : "Failed to reorder chapters.";
+          toast({ variant: "destructive", title: firstError ?? "Failed to reorder chapters." });
+          setLocalChapters(chapters);
+          setLocalStops(initialStops);
+          return;
+        }
+
+        // Persist stop order.
+        const stopItems = reorderedStops.map((s) => ({ id: s.id, chapterId: s.chapterId }));
+        const stopResult = await reorderStops(tripId, stopItems, forkId ?? null);
+        if (!stopResult.success) {
+          const firstError = stopResult.errors
+            ? Object.values(stopResult.errors).flat()[0]
+            : "Failed to reorder stops.";
+          toast({ variant: "destructive", title: firstError ?? "Failed to reorder stops." });
+          setLocalChapters(chapters);
+          setLocalStops(initialStops);
+        }
+        return;
+      }
+
+      // ── Dated chapter drag (ADR 0021) — reorder ALL chapters and let the
+      // server rebuild the stop order + reflow the dates. ──
+      const oldIndex = localChapters.findIndex((c) => c.id === activeId);
+      const newIndex = localChapters.findIndex((c) => c.id === overId);
       if (oldIndex === -1 || newIndex === -1) return;
 
-      const reorderedRough = arrayMove(roughChapters, oldIndex, newIndex);
-      const datedChapters = localChapters.filter((c) => c.startDate !== null);
-      const newLocalChapters = [...datedChapters, ...reorderedRough];
+      const newLocalChapters = arrayMove(localChapters, oldIndex, newIndex);
       setLocalChapters(newLocalChapters);
 
-      // Use the pure helper to permute rough-chapter blocks while keeping
-      // dated stops and ungrouped stops at their original positions.
-      const roughChapterIds = reorderedRough.map((c) => c.id);
-      const ordered = moveChapterBlocks(localStops, localChapters, roughChapterIds);
-
-      // Rebuild full ItineraryStop list from the ordered slim result.
-      const chapterIdById = new Map(ordered.map((s) => [s.id, s.chapterId]));
-      const reorderedStops = ordered.map((slim) => {
-        const full = localStops.find((s) => s.id === slim.id)!;
-        return { ...full, chapterId: chapterIdById.get(full.id) ?? full.chapterId };
-      });
-      setLocalStops(reorderedStops);
-
-      // Persist chapters.
-      const chapterResult = await reorderChapters(tripId, roughChapterIds);
+      // reorderChapters emits each chapter's stops in the requested chapter order,
+      // writes stop + chapter sortOrder, reflows scheduled dates and returns the
+      // reflow payload — so a single call fully persists a dated-chapter move.
+      const orderedChapterIds = newLocalChapters.map((c) => c.id);
+      const chapterResult = await reorderChapters(tripId, orderedChapterIds, forkId ?? null);
       if (!chapterResult.success) {
         const firstError = chapterResult.errors
           ? Object.values(chapterResult.errors).flat()[0]
@@ -852,18 +975,56 @@ export function ItineraryManager({
         return;
       }
 
-      // Persist stop order.
-      const stopItems = reorderedStops.map((s) => ({ id: s.id, chapterId: s.chapterId }));
-      const stopResult = await reorderStops(tripId, stopItems);
-      if (!stopResult.success) {
-        const firstError = stopResult.errors
-          ? Object.values(stopResult.errors).flat()[0]
-          : "Failed to reorder stops.";
-        toast({ variant: "destructive", title: firstError ?? "Failed to reorder stops." });
-        setLocalChapters(chapters);
-        setLocalStops(initialStops);
-      }
+      applyReorderResult(activeChapter.name, chapterResult.changed, chapterResult.conflicts, preDragSnapshot);
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // applyReorderResult — shared post-reorder handling for a SCHEDULED drag:
+  // apply the server's reflowed `changed` dates into local state so the UI
+  // updates immediately, then raise an Undo toast that reverts the whole drag
+  // (order + chapter + dates) via restoreStops (ADR 0021).
+  // ---------------------------------------------------------------------------
+  function applyReorderResult(
+    movedName: string,
+    changed: { id: string; arriveDate: string; departDate: string }[] | undefined,
+    conflicts: { stopId: string; message: string }[] | undefined,
+    preDragSnapshot: { id: string; sortOrder: number; chapterId: string | null; arriveDate: string | null; departDate: string | null }[],
+  ) {
+    const changes = changed ?? [];
+    if (changes.length > 0) {
+      const byId = new Map(changes.map((c) => [c.id, c]));
+      setLocalStops((prev) =>
+        prev.map((s) => {
+          const c = byId.get(s.id);
+          return c ? { ...s, arriveDate: c.arriveDate, departDate: c.departDate } : s;
+        }),
+      );
+    }
+
+    const { title, description } = summariseReorder(movedName, changes, conflicts);
+
+    toastWithUndo({
+      title,
+      description,
+      onUndo: () => {
+        // Optimistically revert local state, then persist the verbatim snapshot.
+        const byId = new Map(preDragSnapshot.map((e) => [e.id, e]));
+        setLocalStops((prev) =>
+          prev
+            .map((s) => {
+              const e = byId.get(s.id);
+              return e ? { ...s, chapterId: e.chapterId, arriveDate: e.arriveDate, departDate: e.departDate, sortOrder: e.sortOrder } : s;
+            })
+            .sort((a, b) => a.sortOrder - b.sortOrder),
+        );
+        void restoreStops(preDragSnapshot, forkId ?? null).then((res) => {
+          if (!res.success) {
+            toast({ variant: "destructive", title: "Couldn't undo the move." });
+          }
+        });
+      },
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -872,7 +1033,6 @@ export function ItineraryManager({
 
   function renderStop(stop: ItineraryStop, globalIdx: number, isFirst: boolean, isLast: boolean) {
     const nextStop = isLast ? null : stops[globalIdx + 1];
-    const isRough = stop.arriveDate === null;
 
     // When chapters exist, filter out between-legs transports from inline render.
     const legTransports = nextStop
@@ -904,14 +1064,11 @@ export function ItineraryManager({
 
     return (
       <React.Fragment key={stop.id}>
-        {/* Stop card — rough stops get a sortable wrapper with a drag handle */}
-        {isRough ? (
-          <SortableStop stop={stop} chapterId={stop.chapterId}>
-            {(dragHandle) => stopCard(dragHandle)}
-          </SortableStop>
-        ) : (
-          stopCard()
-        )}
+        {/* Stop card — ALL stops get a sortable wrapper with a drag handle now
+            that scheduled stops are draggable too (ADR 0021). */}
+        <SortableStop stop={stop} chapterId={stop.chapterId}>
+          {(dragHandle) => stopCard(dragHandle)}
+        </SortableStop>
 
         {/* Accommodations under this stop (dated stops only) */}
         {stop.arriveDate && stop.departDate && stop.accommodations.length > 0 && (
@@ -1026,12 +1183,13 @@ export function ItineraryManager({
   // Main render
   // ---------------------------------------------------------------------------
 
-  // IDs of rough chapters that are actually RENDERED with a drag handle inside
-  // the chapter-level SortableContext. Only populated (non-empty) rough chapters
-  // get a drag handle; empty rough chapters remain non-reorderable for now —
-  // they render in sortOrder and are still droppable via EmptyRoughDroppable.
-  const populatedRoughChapterIds = groups
-    .filter((g) => g.chapter !== null && g.chapter.startDate === null && g.stops.length > 0)
+  // IDs of chapters that are RENDERED with a drag handle inside the chapter-level
+  // SortableContext. ADR 0021: both rough AND dated populated chapters are now
+  // draggable. Only populated (non-empty) chapters get a handle; empty chapters
+  // remain non-reorderable (they render in sortOrder, still droppable via
+  // EmptyRoughDroppable).
+  const populatedChapterIds = groups
+    .filter((g) => g.chapter !== null && g.stops.length > 0)
     .map((g) => g.chapter!.id);
 
   return (
@@ -1063,7 +1221,7 @@ export function ItineraryManager({
                   </div>
                 )}
                 <SortableContext
-                  items={stops.filter((s) => s.arriveDate === null).map((s) => s.id)}
+                  items={stops.map((s) => s.id)}
                   strategy={verticalListSortingStrategy}
                 >
                   {stops.map((stop, idx) => {
@@ -1076,19 +1234,18 @@ export function ItineraryManager({
               </>
             ) : (
               // ── Chapters path: grouped rendering with seams ──
-              // Wrap rough chapter groups in a SortableContext for chapter-level drag.
-              // Only populated rough chapters (those rendered with a drag handle) are
-              // included; empty chapters remain non-reorderable via EmptyRoughDroppable.
-              <SortableContext items={populatedRoughChapterIds} strategy={verticalListSortingStrategy}>
+              // Wrap chapter groups in a SortableContext for chapter-level drag.
+              // ADR 0021: both rough and dated populated chapters are draggable;
+              // empty chapters remain non-reorderable via EmptyRoughDroppable.
+              <SortableContext items={populatedChapterIds} strategy={verticalListSortingStrategy}>
                 {groups.map((group, groupIdx) => {
                   const isFirstGroup = groupIdx === 0;
                   const prevGroup = isFirstGroup ? null : groups[groupIdx - 1];
                   const groupKey = group.chapter?.id ?? "ungrouped";
                   const isCollapsed = collapsedGroups.has(groupKey);
                   const isRoughChapter = group.chapter ? group.chapter.startDate === null : false;
-                  const roughStopIds = sortGroupStops(group.stops)
-                    .filter((s) => s.arriveDate === null)
-                    .map((s) => s.id);
+                  // ADR 0021: ALL stops in a group are draggable now (rough + dated).
+                  const groupStopIds = sortGroupStops(group.stops).map((s) => s.id);
 
                   return (
                     <React.Fragment key={groupKey + "-" + groupIdx}>
@@ -1148,7 +1305,7 @@ export function ItineraryManager({
                                 {/* Group body — stops SortableContext */}
                                 {!isCollapsed && (
                                   <div className="flex flex-col gap-3 p-3">
-                                    <SortableContext items={roughStopIds} strategy={verticalListSortingStrategy}>
+                                    <SortableContext items={groupStopIds} strategy={verticalListSortingStrategy}>
                                       {sortGroupStops(group.stops).map((stop) => {
                                         const globalIdx = stops.indexOf(stop);
                                         const isFirst = globalIdx === 0;
@@ -1168,49 +1325,58 @@ export function ItineraryManager({
                             )}
                           </SortableChapterHeader>
                         ) : (
-                          // Dated chapter: static, no drag
-                          <div
-                            className="rounded-xl border border-border/60 overflow-hidden"
-                            style={{ borderLeftWidth: 4, borderLeftColor: chapterColourSwatch(group.chapter.colour) }}
-                          >
-                            {/* Collapsible header */}
-                            <button
-                              type="button"
-                              aria-expanded={!isCollapsed}
-                              aria-label={`${group.chapter.name} chapter, ${isCollapsed ? "expand" : "collapse"}`}
-                              onClick={() => toggleGroup(groupKey)}
-                              className="w-full flex items-center gap-3 px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
-                            >
-                              <ChapterChip
-                                name={group.chapter.name}
-                                colour={group.chapter.colour}
-                              />
-                              <span className="text-xs text-muted-foreground flex-1">
-                                {formatDateRange(group.chapter.startDate!, group.chapter.endDate!)}
-                              </span>
-                              <span className="text-sm text-muted-foreground select-none" aria-hidden="true">
-                                {isCollapsed ? "▸" : "▾"}
-                              </span>
-                            </button>
+                          // Dated chapter: now sortable too (ADR 0021) — sortable
+                          // header + a SortableContext over its (dated) stops.
+                          <SortableChapterHeader chapterId={group.chapter.id}>
+                            {(dragHandle, setNodeRef, style) => (
+                              <div
+                                ref={setNodeRef}
+                                style={{ ...style, borderLeftWidth: 4, borderLeftColor: chapterColourSwatch(group.chapter!.colour) }}
+                                className="rounded-xl border border-border/60 overflow-hidden"
+                              >
+                                {/* Collapsible header */}
+                                <button
+                                  type="button"
+                                  aria-expanded={!isCollapsed}
+                                  aria-label={`${group.chapter!.name} chapter, ${isCollapsed ? "expand" : "collapse"}`}
+                                  onClick={() => toggleGroup(groupKey)}
+                                  className="w-full flex items-center gap-3 px-4 py-3 bg-muted/40 hover:bg-muted/60 transition-colors text-left"
+                                >
+                                  {dragHandle}
+                                  <ChapterChip
+                                    name={group.chapter!.name}
+                                    colour={group.chapter!.colour}
+                                  />
+                                  <span className="text-xs text-muted-foreground flex-1">
+                                    {formatDateRange(group.chapter!.startDate!, group.chapter!.endDate!)}
+                                  </span>
+                                  <span className="text-sm text-muted-foreground select-none" aria-hidden="true">
+                                    {isCollapsed ? "▸" : "▾"}
+                                  </span>
+                                </button>
 
-                            {/* Group body — no SortableContext (dated stops are static) */}
-                            {!isCollapsed && (
-                              <div className="flex flex-col gap-3 p-3">
-                                {sortGroupStops(group.stops).map((stop) => {
-                                  const globalIdx = stops.indexOf(stop);
-                                  const isFirst = globalIdx === 0;
-                                  const isLast = globalIdx === stops.length - 1;
-                                  return renderStop(stop, globalIdx, isFirst, isLast);
-                                })}
-                                {(() => {
-                                  const sorted = sortGroupStops(group.stops);
-                                  return (
-                                    <QuickAddStops tripId={tripId} chapterId={group.chapter.id} forkId={forkId ?? null} afterStopId={sorted.length > 0 ? sorted[sorted.length - 1].id : null} />
-                                  );
-                                })()}
+                                {/* Group body — stops SortableContext (dated stops draggable) */}
+                                {!isCollapsed && (
+                                  <div className="flex flex-col gap-3 p-3">
+                                    <SortableContext items={groupStopIds} strategy={verticalListSortingStrategy}>
+                                      {sortGroupStops(group.stops).map((stop) => {
+                                        const globalIdx = stops.indexOf(stop);
+                                        const isFirst = globalIdx === 0;
+                                        const isLast = globalIdx === stops.length - 1;
+                                        return renderStop(stop, globalIdx, isFirst, isLast);
+                                      })}
+                                    </SortableContext>
+                                    {(() => {
+                                      const sorted = sortGroupStops(group.stops);
+                                      return (
+                                        <QuickAddStops tripId={tripId} chapterId={group.chapter!.id} forkId={forkId ?? null} afterStopId={sorted.length > 0 ? sorted[sorted.length - 1].id : null} />
+                                      );
+                                    })()}
+                                  </div>
+                                )}
                               </div>
                             )}
-                          </div>
+                          </SortableChapterHeader>
                         )
                       ) : (
                         // Ungrouped stops — no chapter header, or subtle label
@@ -1234,7 +1400,7 @@ export function ItineraryManager({
                               </Button>
                             )}
                           </div>
-                          <SortableContext items={roughStopIds} strategy={verticalListSortingStrategy}>
+                          <SortableContext items={groupStopIds} strategy={verticalListSortingStrategy}>
                             {sortGroupStops(group.stops).map((stop) => {
                               const globalIdx = stops.indexOf(stop);
                               const isFirst = globalIdx === 0;

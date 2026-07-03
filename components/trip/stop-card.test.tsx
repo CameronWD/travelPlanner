@@ -43,7 +43,9 @@ it("renders a drag handle for a rough stop when dragHandle is provided", () => {
   expect(screen.getByTestId("dh")).toBeInTheDocument();
 });
 
-it("does NOT render a drag handle for a scheduled stop even when dragHandle is provided", () => {
+it("renders a drag handle for a scheduled stop when dragHandle is provided (ADR 0021)", () => {
+  // ADR 0021 reverses the ADR 0014 rough-only rule: scheduled stops are
+  // draggable now, so the handle renders whenever it is provided.
   render(
     <StopCard
       stop={scheduledStop}
@@ -54,7 +56,7 @@ it("does NOT render a drag handle for a scheduled stop even when dragHandle is p
       dragHandle={<button data-testid="dh" />}
     />,
   );
-  expect(screen.queryByTestId("dh")).not.toBeInTheDocument();
+  expect(screen.getByTestId("dh")).toBeInTheDocument();
 });
 
 it("does not render inline Move-up/Move-down buttons for a rough stop (retired)", () => {

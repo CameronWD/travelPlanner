@@ -111,6 +111,7 @@ import {
   deleteStop,
   moveStop,
   reorderStops,
+  restoreStops,
   setStopDates,
   firmUpSegment,
   firmUpTrip,
@@ -1434,6 +1435,89 @@ describe("reorderStops", () => {
     expect(result.success).toBe(true);
     // ADR 0021: dated stops now also get chapterId written
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "d" }, data: { sortOrder: 0, chapterId: "some-chapter" } });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 10: restoreStops — verbatim revert of a drag (order + chapter + dates)
+// for the Undo toast (ADR 0021).
+// ---------------------------------------------------------------------------
+
+describe("Task 10: restoreStops — writes each entry verbatim inside the locked tx", () => {
+  it("writes sortOrder, chapterId, arriveDate and departDate for every entry", async () => {
+    // Derive tripId from the stops being restored (like reorderStops).
+    stopFindManyMock.mockResolvedValue([
+      { id: "a", tripId: "t1", forkId: null },
+      { id: "b", tripId: "t1", forkId: null },
+    ]);
+    queryRawMock.mockResolvedValue([{ id: "a" }, { id: "b" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const result = await restoreStops([
+      { id: "a", sortOrder: 0, chapterId: null, arriveDate: "2026-07-01", departDate: "2026-07-04" },
+      { id: "b", sortOrder: 1, chapterId: "c1", arriveDate: null, departDate: null },
+    ]);
+
+    expect(result.success).toBe(true);
+    // Each entry is written verbatim — no reflow, no derivation.
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "a" },
+      data: { sortOrder: 0, chapterId: null, arriveDate: "2026-07-01", departDate: "2026-07-04" },
+    });
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "b" },
+      data: { sortOrder: 1, chapterId: "c1", arriveDate: null, departDate: null },
+    });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/t1");
+  });
+
+  it("locks the stops FOR UPDATE and recomputes chapter spans inside the tx", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "a", tripId: "t1", forkId: null }]);
+    queryRawMock.mockResolvedValue([{ id: "a" }]);
+    stopUpdateMock.mockResolvedValue({});
+    // One chapter so recomputeChapterSpans performs a chapter.update.
+    chapterFindManyMock.mockResolvedValue([{ id: "ch-1" }]);
+    chapterUpdateMock.mockResolvedValue({});
+
+    const result = await restoreStops([
+      { id: "a", sortOrder: 0, chapterId: "ch-1", arriveDate: "2026-07-01", departDate: "2026-07-04" },
+    ]);
+
+    expect(result.success).toBe(true);
+    // All writes went through the transaction (interactive form).
+    expect(transactionMock).toHaveBeenCalled();
+    // FOR UPDATE lock was taken.
+    expect(queryRawMock).toHaveBeenCalled();
+    // recomputeChapterSpans ran (chapter.update fired for ch-1).
+    expect(chapterUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "ch-1" } }),
+    );
+  });
+
+  it("returns success with no updates for an empty entries list", async () => {
+    const result = await restoreStops([]);
+    expect(result.success).toBe(true);
+    expect(stopUpdateMock).not.toHaveBeenCalled();
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("scopes the chapter recompute to the FORK the stops belong to", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "fa", tripId: "t1", forkId: "fork-9" }]);
+    queryRawMock.mockResolvedValue([{ id: "fa" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const result = await restoreStops(
+      [{ id: "fa", sortOrder: 0, chapterId: null, arriveDate: null, departDate: null }],
+      "fork-9",
+    );
+
+    expect(result.success).toBe(true);
+    // recomputeChapterSpans (inside the tx) fetches chapters scoped to fork-9.
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ tripId: "t1", forkId: "fork-9" }) }),
+    );
   });
 });
 

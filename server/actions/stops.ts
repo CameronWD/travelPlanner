@@ -1064,6 +1064,7 @@ export async function assignStopToChapter(stopId: string, chapterId: string | nu
 export async function reorderStops(
   tripId: string,
   items: { id: string; chapterId: string | null }[],
+  forkId?: PlanId,
 ): Promise<ReorderResult> {
   await requireTripAccess(tripId);
   if (items.length === 0) return { success: true, changed: [], conflicts: [] };
@@ -1084,7 +1085,9 @@ export async function reorderStops(
       errors: { id: ["Stops in a reorder must all belong to the same plan."] },
     };
   }
-  const reorderForkId: PlanId = reorderStopRows[0]?.forkId ?? null;
+  // Prefer the caller-supplied plan (the editor threads the active forkId); fall
+  // back to the plan derived from the stops themselves.
+  const reorderForkId: PlanId = forkId ?? reorderStopRows[0]?.forkId ?? null;
   const preKnownArriveDate = new Map(reorderStopRows.map((s) => [s.id, s.arriveDate]));
 
   // Pre-validate: rough stops cannot enter a DATED chapter (R1).
@@ -1200,6 +1203,78 @@ export async function reorderStops(
   revalidatePath(`/trips/${tripId}`);
   revalidatePath(`/trips/${tripId}/plan`);
   return { success: true, changed, conflicts };
+}
+
+/**
+ * Restore stops to an explicit pre-drag snapshot (the Undo of a scheduled
+ * reorder — ADR 0021). Unlike reorderStops this performs NO reflow: it writes
+ * each entry's sortOrder, chapterId, arriveDate and departDate VERBATIM so a
+ * drag is reverted exactly — order, chapter membership AND dates. Runs inside a
+ * FOR UPDATE-locked transaction (ADR 0007) and recomputes chapter spans so the
+ * date-bands track the restored dates.
+ *
+ * @param entries  Snapshot captured before the drag: every affected stop's
+ *                 id + sortOrder + chapterId + arrive/departDate.
+ * @param forkId   Plan being edited. Defaults to the plan the stops belong to.
+ */
+export async function restoreStops(
+  entries: { id: string; sortOrder: number; chapterId: string | null; arriveDate: string | null; departDate: string | null }[],
+  forkId?: PlanId,
+): Promise<StopActionResult> {
+  if (entries.length === 0) return { success: true };
+
+  const ids = entries.map((e) => e.id);
+
+  // Resolve the trip + plan from the stops being restored (mirrors reorderStops).
+  // All entries belong to one trip/plan; a mixed-plan payload is rejected.
+  const rows = await db.stop.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, tripId: true, forkId: true },
+  });
+  if (rows.length === 0) {
+    return { success: false, errors: { id: ["No matching stops to restore."] } };
+  }
+  const tripIds = new Set(rows.map((r) => r.tripId));
+  if (tripIds.size > 1) {
+    return { success: false, errors: { id: ["Stops in a restore must all belong to the same trip."] } };
+  }
+  const tripId = rows[0].tripId;
+  await requireTripAccess(tripId);
+
+  const planForkIds = new Set(rows.map((r) => r.forkId));
+  if (planForkIds.size > 1) {
+    return { success: false, errors: { id: ["Stops in a restore must all belong to the same plan."] } };
+  }
+  const restoreForkId: PlanId = forkId ?? rows[0].forkId ?? null;
+
+  await db.$transaction(async (tx) => {
+    // Lock the rows FOR UPDATE to serialise with concurrent reorders (ADR 0007).
+    await tx.$queryRaw`
+      SELECT "id" FROM "Stop"
+      WHERE "id" = ANY(${ids})
+      FOR UPDATE
+    `;
+
+    // Write every snapshotted field verbatim — no reflow, no derivation.
+    for (const e of entries) {
+      await tx.stop.update({
+        where: { id: e.id },
+        data: {
+          sortOrder: e.sortOrder,
+          chapterId: e.chapterId,
+          arriveDate: e.arriveDate,
+          departDate: e.departDate,
+        },
+      });
+    }
+
+    // Bring chapter date-bands back in sync with the restored dates.
+    await recomputeChapterSpans(tx, tripId, restoreForkId);
+  });
+
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/trips/${tripId}/plan`);
+  return { success: true };
 }
 
 /**
