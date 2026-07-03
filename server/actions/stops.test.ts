@@ -41,7 +41,7 @@ const {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
-        stop: { update: stopUpdateMock },
+        stop: { update: stopUpdateMock, create: stopCreateMock },
       });
     }
     // Array form (kept for any batch-transaction callers).
@@ -432,12 +432,17 @@ describe("createStop", () => {
 // ---------------------------------------------------------------------------
 
 describe("createStop with afterStopId", () => {
+  // The insert path uses db.$transaction + a SELECT ... FOR UPDATE raw query
+  // (mirroring moveStop/reorderStops — ADR 0007). queryRawMock stands in for
+  // tx.$queryRaw; stopUpdateMock and stopCreateMock are called via tx.stop.*.
+
   it("inserts after the anchor stop and bumps later sibling sortOrders", async () => {
     // Siblings: a(0), b(1), c(2). Anchor = "a". New stop should land at sortOrder=1; b→2, c→3.
-    stopFindManyMock.mockResolvedValue([
-      { id: "a", sortOrder: 0 },
-      { id: "b", sortOrder: 1 },
-      { id: "c", sortOrder: 2 },
+    // The FOR UPDATE lock returns the same sibling list from queryRawMock.
+    queryRawMock.mockResolvedValue([
+      { id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null },
+      { id: "b", sortOrder: 1, chapterId: null, chapterSortOrder: null },
+      { id: "c", sortOrder: 2, chapterId: null, chapterSortOrder: null },
     ]);
     stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Rome" });
     stopUpdateMock.mockResolvedValue({});
@@ -445,23 +450,30 @@ describe("createStop with afterStopId", () => {
     const result = await createStop("trip-1", { mode: "rough", name: "Rome", nights: 2 }, undefined, "a");
 
     expect(result.success).toBe(true);
-    // New stop lands at sortOrder = 1 (right after anchor "a")
+    // The insert path must go through a transaction.
+    expect(transactionMock).toHaveBeenCalledOnce();
+    // FOR UPDATE lock must be issued.
+    expect(queryRawMock).toHaveBeenCalledOnce();
+    const sqlParts = queryRawMock.mock.calls[0][0] as string[];
+    expect(sqlParts.join(" ")).toContain("FOR UPDATE");
+    // New stop lands at sortOrder = 1 (right after anchor "a").
     expect(stopCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ sortOrder: 1 }),
     });
-    // Later siblings b and c are bumped
+    // Later siblings b and c are bumped.
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "b" }, data: { sortOrder: 2 } });
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "c" }, data: { sortOrder: 3 } });
   });
 
   it("appends (no bumps) when afterStopId is null", async () => {
     stopFindFirstMock.mockResolvedValue({ sortOrder: 4 });
-    stopFindManyMock.mockResolvedValue([]);
     stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Rome" });
 
     const result = await createStop("trip-1", { mode: "rough", name: "Rome", nights: 2 }, undefined, null);
 
     expect(result.success).toBe(true);
+    // Append path does NOT use a transaction.
+    expect(transactionMock).not.toHaveBeenCalled();
     expect(stopCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ sortOrder: 5 }),
     });
@@ -470,13 +482,13 @@ describe("createStop with afterStopId", () => {
 
   it("inherits chapterId and sets chapterSortOrder just after anchor when anchor has chapterId", async () => {
     // Anchor "anchor-1" is in chapter "ch-1" with chapterSortOrder=2.
-    stopFindManyMock.mockResolvedValue([
+    queryRawMock.mockResolvedValue([
       { id: "anchor-1", sortOrder: 0, chapterId: "ch-1", chapterSortOrder: 2 },
       { id: "other-1", sortOrder: 1, chapterId: "ch-1", chapterSortOrder: 3 },
     ]);
     stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Venice" });
     stopUpdateMock.mockResolvedValue({});
-    // Chapter belongs to the right plan
+    // Chapter belongs to the right plan (validated before the tx for explicit chapterId).
     chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: null });
 
     const result = await createStop(
@@ -487,6 +499,7 @@ describe("createStop with afterStopId", () => {
     );
 
     expect(result.success).toBe(true);
+    expect(transactionMock).toHaveBeenCalledOnce();
     expect(stopCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({
         chapterId: "ch-1",
@@ -496,15 +509,16 @@ describe("createStop with afterStopId", () => {
   });
 
   it("falls back to append when afterStopId is not found in siblings", async () => {
-    stopFindManyMock.mockResolvedValue([
-      { id: "a", sortOrder: 0 },
-      { id: "b", sortOrder: 1 },
+    queryRawMock.mockResolvedValue([
+      { id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null },
+      { id: "b", sortOrder: 1, chapterId: null, chapterSortOrder: null },
     ]);
     stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Rome" });
 
     const result = await createStop("trip-1", { mode: "rough", name: "Rome", nights: 2 }, undefined, "nonexistent");
 
     expect(result.success).toBe(true);
+    expect(transactionMock).toHaveBeenCalledOnce();
     expect(stopCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ sortOrder: 2 }),
     });

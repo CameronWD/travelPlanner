@@ -96,60 +96,170 @@ export async function createStop(
     return validationErrors(parsed.error);
   }
 
-  // Determine sortOrder and which siblings need renumbering.
-  let sortOrder: number;
-  let renumber: { id: string; sortOrder: number }[] = [];
-  let anchorChapterId: string | null = null;
-  let anchorChapterSortOrder: number | null = null;
-
   if (afterStopId) {
-    // Load all siblings for this plan so we can compute the insertion position.
-    const siblings = await db.stop.findMany({
-      where: { tripId, ...planScope(forkId) },
-      select: { id: true, sortOrder: true, chapterId: true, chapterSortOrder: true },
-    });
-    const result = insertionOrder(siblings, afterStopId);
-    sortOrder = result.sortOrder;
-    renumber = result.renumber;
-    // Inherit chapter placement from the anchor stop if it has one.
-    const anchor = siblings.find((s) => s.id === afterStopId);
-    if (anchor?.chapterId) {
-      anchorChapterId = anchor.chapterId;
-      anchorChapterSortOrder = (anchor.chapterSortOrder ?? 0) + 1;
+    // -----------------------------------------------------------------------
+    // INSERT PATH — locked transaction (ADR 0007)
+    //
+    // Two concurrent inserts after the same anchor would read the same snapshot
+    // and produce duplicate sortOrder values unless serialised. We lock the
+    // trip's stops FOR UPDATE before computing the insertion position, then
+    // renumber siblings and create the new stop inside the same transaction —
+    // mirroring the pattern used by moveStop and reorderStops.
+    // -----------------------------------------------------------------------
+
+    // For scheduled stops, geocode outside the transaction (network call; must
+    // not hold a DB lock while waiting for an external service).
+    let lat: number | undefined;
+    let lng: number | undefined;
+    if (parsed.data.mode === "scheduled") {
+      const { name, country } = parsed.data;
+      ({ lat, lng } = parsed.data);
+      if (lat === undefined || lng === undefined) {
+        const coords = await geocodePlace([name, country].filter(Boolean).join(", "));
+        if (coords) {
+          lat = coords.lat;
+          lng = coords.lng;
+        }
+      }
     }
-  } else {
-    const maxStop = await db.stop.findFirst({
-      where: { tripId, ...planScope(forkId) },
-      orderBy: { sortOrder: "desc" },
-      select: { sortOrder: true },
+
+    // Chapter membership validation for rough stops is a pure read that doesn't
+    // race with stop inserts, so it can run before the transaction.
+    let effectiveChapterId: string | null = null;
+    if (parsed.data.mode === "rough") {
+      // We can't yet resolve the anchor's chapterId (that's inside the tx), so
+      // we validate any explicitly supplied chapterId here; anchor-inherited
+      // chapterId is validated inline inside the transaction instead.
+      const explicitChapterId = parsed.data.chapterId ?? null;
+      if (explicitChapterId) {
+        const chapter = await db.chapter.findUnique({
+          where: { id: explicitChapterId },
+          select: { forkId: true },
+        });
+        if (!chapter || chapter.forkId !== (forkId ?? null)) {
+          return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
+        }
+        effectiveChapterId = explicitChapterId;
+      }
+    }
+
+    const created = await db.$transaction(async (tx) => {
+      // Lock the trip's stops FOR UPDATE to serialise concurrent inserts (ADR 0007).
+      // Prisma can't express SELECT ... FOR UPDATE on findMany, so use raw SQL.
+      const siblings = await tx.$queryRaw<Array<{ id: string; sortOrder: number; chapterId: string | null; chapterSortOrder: number | null }>>`
+        SELECT "id", "sortOrder", "chapterId", "chapterSortOrder"
+        FROM "Stop"
+        WHERE "tripId" = ${tripId}
+          AND "forkId" ${forkId ? Prisma.sql`= ${forkId}` : Prisma.sql`IS NULL`}
+        ORDER BY "sortOrder" ASC
+        FOR UPDATE
+      `;
+
+      const result = insertionOrder(siblings, afterStopId);
+      const { sortOrder, renumber } = result;
+
+      // Inherit chapter placement from the anchor stop if it has one.
+      const anchor = siblings.find((s) => s.id === afterStopId);
+      let anchorChapterId: string | null = null;
+      let anchorChapterSortOrder: number | null = null;
+      if (anchor?.chapterId) {
+        anchorChapterId = anchor.chapterId;
+        anchorChapterSortOrder = (anchor.chapterSortOrder ?? 0) + 1;
+      }
+
+      // Bump later siblings to open the slot.
+      for (const s of renumber) {
+        await tx.stop.update({ where: { id: s.id }, data: { sortOrder: s.sortOrder } });
+      }
+
+      if (parsed.data.mode === "rough") {
+        const { name, country, nights, notes } = parsed.data;
+
+        // If no explicit chapterId was supplied, fall back to the anchor's chapter.
+        // (Explicit chapterId was already validated above; anchor-inherited needs no
+        // extra validation — it belongs to the same trip by construction.)
+        const resolvedChapterId = effectiveChapterId ?? anchorChapterId ?? null;
+        const chapterSortOrder = anchorChapterSortOrder ?? 0;
+
+        return tx.stop.create({
+          data: {
+            tripId,
+            forkId: forkId ?? null,
+            name,
+            country: country ?? null,
+            nights,
+            chapterId: resolvedChapterId,
+            chapterSortOrder,
+            arriveDate: null,
+            departDate: null,
+            timezone: null,
+            lat: null,
+            lng: null,
+            notes: notes ?? null,
+            pinned: false,
+            sortOrder,
+          },
+        });
+      }
+
+      // scheduled
+      const { name, country, timezone, arriveDate, departDate, notes } = parsed.data;
+      // FIX 2 (scheduled + afterStopId): inherit anchor's chapter placement so
+      // the scheduled stop lands in the same chapter as the anchor, matching
+      // the rough-stop path's behaviour.
+      const resolvedChapterId = anchorChapterId ?? null;
+      const chapterSortOrder = anchorChapterSortOrder ?? 0;
+
+      return tx.stop.create({
+        data: {
+          tripId,
+          forkId: forkId ?? null,
+          name,
+          country: country ?? null,
+          timezone,
+          arriveDate,
+          departDate,
+          lat: lat ?? null,
+          lng: lng ?? null,
+          notes: notes ?? null,
+          chapterId: resolvedChapterId,
+          chapterSortOrder,
+          pinned: false,
+          sortOrder,
+        },
+      });
     });
-    sortOrder = (maxStop?.sortOrder ?? -1) + 1;
+
+    await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "STOP", entityId: created.id, entityLabel: entityLabel("STOP", created as unknown as Record<string, unknown>) });
+    revalidatePath(`/trips/${tripId}`);
+    return { success: true };
   }
 
-  // Apply renumber bumps before creating the new stop (so the slot is free).
-  for (const s of renumber) {
-    await db.stop.update({ where: { id: s.id }, data: { sortOrder: s.sortOrder } });
-  }
+  // -------------------------------------------------------------------------
+  // APPEND PATH — no transaction needed (a racing plain append only yields
+  // consecutive orders, no collision).
+  // -------------------------------------------------------------------------
+
+  const maxStop = await db.stop.findFirst({
+    where: { tripId, ...planScope(forkId) },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  const sortOrder = (maxStop?.sortOrder ?? -1) + 1;
 
   if (parsed.data.mode === "rough") {
     const { name, country, nights, chapterId, notes } = parsed.data;
 
-    // Resolve effective chapterId: explicit input takes precedence; fall back to anchor's chapter.
-    const effectiveChapterId = chapterId ?? anchorChapterId ?? null;
-
     // Validate chapterId belongs to the same plan if provided
-    if (effectiveChapterId) {
+    if (chapterId) {
       const chapter = await db.chapter.findUnique({
-        where: { id: effectiveChapterId },
+        where: { id: chapterId },
         select: { forkId: true },
       });
       if (!chapter || chapter.forkId !== (forkId ?? null)) {
         return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
       }
     }
-
-    // Determine chapterSortOrder: use anchor-derived value when available, else 0.
-    const chapterSortOrder = anchorChapterSortOrder ?? 0;
 
     const created = await db.stop.create({
       data: {
@@ -158,8 +268,8 @@ export async function createStop(
         name,
         country: country ?? null,
         nights,
-        chapterId: effectiveChapterId,
-        chapterSortOrder,
+        chapterId: chapterId ?? null,
+        chapterSortOrder: 0,
         arriveDate: null,
         departDate: null,
         timezone: null,
@@ -175,7 +285,7 @@ export async function createStop(
     return { success: true };
   }
 
-  // scheduled
+  // scheduled (append)
   const { name, country, timezone, arriveDate, departDate, notes } = parsed.data;
   let { lat, lng } = parsed.data;
 
