@@ -122,6 +122,7 @@ import {
   getTripProjection,
   recomputeChapterSpans,
 } from "./stops";
+import { chapterSpan } from "@/lib/chapter-span";
 import { recordActivity } from "@/server/actions/activity";
 
 const VALID_INPUT = {
@@ -1780,5 +1781,54 @@ describe("Task 11: makeStopRough clears chapter band when it is the last dated s
       where: { id: "ch-1" },
       data: { startDate: null, endDate: null },
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Fix round 1: chapterSpan pure helper
+// ---------------------------------------------------------------------------
+
+describe("chapterSpan", () => {
+  it("returns nulls for an empty array", () => {
+    expect(chapterSpan([])).toEqual({ startDate: null, endDate: null });
+  });
+
+  it("returns nulls when no stop has both dates", () => {
+    expect(
+      chapterSpan([
+        { arriveDate: "2026-07-01", departDate: null },
+        { arriveDate: null, departDate: "2026-07-05" },
+        { arriveDate: null, departDate: null },
+      ]),
+    ).toEqual({ startDate: null, endDate: null });
+  });
+
+  it("returns the single stop's dates when only one qualifies", () => {
+    expect(
+      chapterSpan([
+        { arriveDate: null, departDate: null },
+        { arriveDate: "2026-07-03", departDate: "2026-07-06" },
+      ]),
+    ).toEqual({ startDate: "2026-07-03", endDate: "2026-07-06" });
+  });
+
+  it("computes min arriveDate and max departDate over unordered stops", () => {
+    expect(
+      chapterSpan([
+        { arriveDate: "2026-07-10", departDate: "2026-07-13" },
+        { arriveDate: "2026-07-05", departDate: "2026-07-20" },
+        { arriveDate: "2026-07-08", departDate: "2026-07-15" },
+      ]),
+    ).toEqual({ startDate: "2026-07-05", endDate: "2026-07-20" });
+  });
+
+  it("ignores stops that are missing arriveDate or departDate", () => {
+    expect(
+      chapterSpan([
+        { arriveDate: "2026-07-01", departDate: null },      // missing departDate — ignored
+        { arriveDate: "2026-07-03", departDate: "2026-07-08" }, // valid
+        { arriveDate: null, departDate: "2026-07-15" },      // missing arriveDate — ignored
+      ]),
+    ).toEqual({ startDate: "2026-07-03", endDate: "2026-07-08" });
   });
 });

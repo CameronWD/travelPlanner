@@ -13,6 +13,7 @@ import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder } from "@/lib/reorder";
+import { chapterSpan } from "@/lib/chapter-span";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -76,7 +77,7 @@ function validationErrors(error: { flatten(): { fieldErrors: Record<string, stri
 /**
  * Recompute every chapter's startDate/endDate in the given plan so it spans
  * the stops whose explicit `chapterId` === that chapter AND that are dated
- * (non-null arriveDate).
+ * (non-null arriveDate AND departDate).
  *
  * If a chapter has NO dated `chapterId`-members its dates are cleared to null,
  * reverting it to "rough" (fixes the "last stop made rough leaves chapter
@@ -103,28 +104,12 @@ export async function recomputeChapterSpans(
   ]);
 
   for (const chapter of chapters) {
-    const datedMembers = stops.filter(
-      (s) => s.chapterId === chapter.id && s.arriveDate != null && s.departDate != null,
-    );
-
-    if (datedMembers.length === 0) {
-      await tx.chapter.update({
-        where: { id: chapter.id },
-        data: { startDate: null, endDate: null },
-      });
-      continue;
-    }
-
-    let start = datedMembers[0].arriveDate!;
-    let end = datedMembers[0].departDate!;
-    for (const s of datedMembers) {
-      if (s.arriveDate! < start) start = s.arriveDate!;
-      if (s.departDate! > end) end = s.departDate!;
-    }
+    const members = stops.filter((s) => s.chapterId === chapter.id);
+    const { startDate, endDate } = chapterSpan(members);
 
     await tx.chapter.update({
       where: { id: chapter.id },
-      data: { startDate: start, endDate: end },
+      data: { startDate, endDate },
     });
   }
 }
@@ -737,8 +722,14 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   }
 
   if (chapterId) {
-    const start = results[0].arriveDate;
-    const end = results[results.length - 1].departDate;
+    // Build the full set of dated stops in this chapter: stops that were already
+    // dated (excluded from `segment`) plus `results` (just dated by flowDates).
+    // Using chapterSpan's min/max is strictly more correct than positional
+    // results[0]/results[last] — it handles pinned stops interleaved with fresh ones.
+    const alreadyDated = stops.filter(
+      (s) => (s.chapterId ?? null) === (chapterId ?? null) && s.arriveDate != null,
+    );
+    const { startDate: start, endDate: end } = chapterSpan([...alreadyDated, ...results]);
     const beforeCh = await db.chapter.findUnique({
       where: { id: chapterId },
       select: { name: true, startDate: true, endDate: true },
