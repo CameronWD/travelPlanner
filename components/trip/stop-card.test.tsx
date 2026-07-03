@@ -126,3 +126,65 @@ it("scheduled stop overflow menu does NOT include Move up or Move down", async (
   expect(screen.queryByRole("menuitem", { name: "Move up" })).not.toBeInTheDocument();
   expect(screen.queryByRole("menuitem", { name: "Move down" })).not.toBeInTheDocument();
 });
+
+// Task 11: "Clear dates" primary action on scheduled stops
+
+it("renders a visible 'Clear dates' button on a scheduled stop when onMakeRough is provided", () => {
+  render(
+    <StopCard
+      stop={scheduledStop}
+      isFirst={false}
+      isLast={false}
+      onMakeRough={() => {}}
+    />,
+  );
+  expect(
+    screen.getByRole("button", { name: `Clear dates for ${scheduledStop.name}` }),
+  ).toBeInTheDocument();
+});
+
+it("does NOT render a 'Clear dates' button on a rough stop", () => {
+  render(
+    <StopCard
+      stop={roughStop}
+      isFirst={false}
+      isLast={false}
+      onMakeRough={() => {}}
+    />,
+  );
+  expect(
+    screen.queryByRole("button", { name: /clear dates/i }),
+  ).not.toBeInTheDocument();
+});
+
+it("'Clear dates' button calls onMakeRough with the stop id", async () => {
+  const user = userEvent.setup();
+  const onMakeRough = vi.fn();
+  render(
+    <StopCard
+      stop={scheduledStop}
+      isFirst={false}
+      isLast={false}
+      onMakeRough={onMakeRough}
+    />,
+  );
+  await user.click(screen.getByRole("button", { name: `Clear dates for ${scheduledStop.name}` }));
+  expect(onMakeRough).toHaveBeenCalledOnce();
+  expect(onMakeRough).toHaveBeenCalledWith(scheduledStop.id);
+});
+
+it("overflow 'Make rough' entry is still present alongside 'Clear dates'", async () => {
+  const user = userEvent.setup();
+  render(
+    <StopCard
+      stop={scheduledStop}
+      isFirst={false}
+      isLast={false}
+      onMakeRough={() => {}}
+      onAdjustDates={() => {}}
+    />,
+  );
+  const triggers = screen.getAllByRole("button", { name: `More actions for ${scheduledStop.name}` });
+  await user.click(triggers[0]);
+  expect(await screen.findByRole("menuitem", { name: "Make rough" })).toBeInTheDocument();
+});

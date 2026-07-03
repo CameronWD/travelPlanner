@@ -70,6 +70,66 @@ function validationErrors(error: { flatten(): { fieldErrors: Record<string, stri
 }
 
 // ---------------------------------------------------------------------------
+// recomputeChapterSpans — self-healing chapter date-bands (ADR 0021)
+// ---------------------------------------------------------------------------
+
+/**
+ * Recompute every chapter's startDate/endDate in the given plan so it spans
+ * the stops whose explicit `chapterId` === that chapter AND that are dated
+ * (non-null arriveDate).
+ *
+ * If a chapter has NO dated `chapterId`-members its dates are cleared to null,
+ * reverting it to "rough" (fixes the "last stop made rough leaves chapter
+ * stranded" case in #8).
+ *
+ * Called inside the SAME `$transaction` as the mutating stop action so the
+ * stop mutation + chapter span update are atomic. Exported so Task 9 can
+ * import it from the same module.
+ */
+export async function recomputeChapterSpans(
+  tx: Prisma.TransactionClient,
+  tripId: string,
+  forkId: PlanId,
+): Promise<void> {
+  const [chapters, stops] = await Promise.all([
+    tx.chapter.findMany({
+      where: { tripId, ...planScope(forkId) },
+      select: { id: true },
+    }),
+    tx.stop.findMany({
+      where: { tripId, ...planScope(forkId) },
+      select: { id: true, chapterId: true, arriveDate: true, departDate: true },
+    }),
+  ]);
+
+  for (const chapter of chapters) {
+    const datedMembers = stops.filter(
+      (s) => s.chapterId === chapter.id && s.arriveDate != null && s.departDate != null,
+    );
+
+    if (datedMembers.length === 0) {
+      await tx.chapter.update({
+        where: { id: chapter.id },
+        data: { startDate: null, endDate: null },
+      });
+      continue;
+    }
+
+    let start = datedMembers[0].arriveDate!;
+    let end = datedMembers[0].departDate!;
+    for (const s of datedMembers) {
+      if (s.arriveDate! < start) start = s.arriveDate!;
+      if (s.departDate! > end) end = s.departDate!;
+    }
+
+    await tx.chapter.update({
+      where: { id: chapter.id },
+      data: { startDate: start, endDate: end },
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
 
@@ -381,18 +441,24 @@ export async function updateStop(
     }
   }
 
-  const updated = await db.stop.update({
-    where: { id: stopId },
-    data: {
-      name,
-      country: country ?? null,
-      timezone,
-      arriveDate,
-      departDate,
-      lat: lat ?? null,
-      lng: lng ?? null,
-      notes: notes ?? null,
-    },
+  // Wrap the stop mutation + chapter span recompute in a single transaction so
+  // the chapter band always stays in sync with its dated members (bug #3).
+  const updated = await db.$transaction(async (tx) => {
+    const result = await tx.stop.update({
+      where: { id: stopId },
+      data: {
+        name,
+        country: country ?? null,
+        timezone,
+        arriveDate,
+        departDate,
+        lat: lat ?? null,
+        lng: lng ?? null,
+        notes: notes ?? null,
+      },
+    });
+    await recomputeChapterSpans(tx, stop.tripId, stop.forkId);
+    return result;
   });
 
   await recordPlanActivity(stop.forkId, {
@@ -870,9 +936,16 @@ export async function makeStopRough(stopId: string): Promise<StopActionResult> {
     select: { name: true, arriveDate: true, departDate: true, pinned: true, nights: true },
   });
 
-  await db.stop.update({
-    where: { id: stopId },
-    data: { arriveDate: null, departDate: null, timezone: null, pinned: false, nights },
+  // Wrap the stop mutation + chapter span recompute in a single transaction so
+  // clearing a stop's dates also updates (or reverts to null) its chapter's band
+  // (fixes the "chapter left stranded with dates after last dated stop removed"
+  // case described in #3/#8 and ADR 0021).
+  await db.$transaction(async (tx) => {
+    await tx.stop.update({
+      where: { id: stopId },
+      data: { arriveDate: null, departDate: null, timezone: null, pinned: false, nights },
+    });
+    await recomputeChapterSpans(tx, stop.tripId, stop.forkId);
   });
 
   await recordPlanActivity(stop.forkId, {

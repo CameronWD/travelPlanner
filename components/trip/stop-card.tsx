@@ -11,6 +11,7 @@ import {
   Pin,
   CalendarClock,
   Sparkles,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -225,6 +226,21 @@ export function StopCard({
                 className={cn("size-4", stop.pinned && "fill-current")}
                 aria-hidden="true"
               />
+            </Button>
+          )}
+
+          {/* Clear dates — primary action for scheduled stops (bug #8) */}
+          {!isRough && onMakeRough && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 text-muted-foreground"
+              disabled={isPending}
+              onClick={() => onMakeRough(stop.id)}
+              aria-label={`Clear dates for ${stop.name}`}
+              title="Clear dates"
+            >
+              <X className="size-4" aria-hidden="true" />
             </Button>
           )}
 
