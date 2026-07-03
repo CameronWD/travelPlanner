@@ -23,3 +23,6 @@ dev.db
 .uploads/
 .verify/
 .env*
+
+# subagent-driven-development scratch (briefs, reports, diffs, ledger)
+.superpowers/
