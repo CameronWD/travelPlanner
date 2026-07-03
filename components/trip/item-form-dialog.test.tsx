@@ -8,7 +8,7 @@ vi.mock("@/server/actions/items", () => ({
 }));
 import { createItem, updateItem } from "@/server/actions/items";
 
-import { ItemFormDialog } from "./item-form-dialog";
+import { ItemFormDialog, AddItemButton, EditItemButton } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
 
 // ---------------------------------------------------------------------------
@@ -368,5 +368,119 @@ describe("ItemFormDialog", () => {
     );
 
     expect(screen.queryByLabelText(/estimated cost amount/i)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AddItemButton — homeCurrency forwarding
+// ---------------------------------------------------------------------------
+
+describe("AddItemButton — homeCurrency forwarding", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("renders the Estimated cost field inside the dialog when homeCurrency is passed", async () => {
+    const user = userEvent.setup();
+    render(
+      <AddItemButton
+        tripId="trip-1"
+        stops={[]}
+        homeCurrency="EUR"
+      />,
+    );
+
+    // Open the dialog
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+
+    // homeCurrency="EUR" should make the cost field appear
+    expect(screen.getByLabelText(/estimated cost amount/i)).toBeInTheDocument();
+  });
+
+  it("defaults the currency picker to AUD when homeCurrency is omitted", async () => {
+    const user = userEvent.setup();
+    render(
+      <AddItemButton
+        tripId="trip-1"
+        stops={[]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+
+    // Cost field always renders; without homeCurrency the fallback is "AUD"
+    expect(screen.getByRole("combobox", { name: /currency/i })).toHaveTextContent("AUD");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EditItemButton — homeCurrency + costs forwarding
+// ---------------------------------------------------------------------------
+
+describe("EditItemButton — homeCurrency + costs forwarding", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("renders the Estimated cost field when homeCurrency is passed", async () => {
+    const user = userEvent.setup();
+    render(
+      <EditItemButton
+        tripId="trip-1"
+        stops={[]}
+        item={existingItem}
+        homeCurrency="USD"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /edit museum visit/i }));
+
+    expect(screen.getByLabelText(/estimated cost amount/i)).toBeInTheDocument();
+  });
+
+  it("defaults the currency picker to homeCurrency when no costs are given", async () => {
+    const user = userEvent.setup();
+    render(
+      <EditItemButton
+        tripId="trip-1"
+        stops={[]}
+        item={existingItem}
+        homeCurrency="GBP"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /edit museum visit/i }));
+
+    // The currency select trigger should display the home currency
+    expect(screen.getByRole("combobox", { name: /currency/i })).toHaveTextContent("GBP");
+  });
+
+  it("prefills estimated amount from single cost when costs are forwarded", async () => {
+    const user = userEvent.setup();
+    const costs = [
+      {
+        id: "cost-1",
+        estimatedMinor: 5500,
+        actualMinor: null,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: null,
+        ownerType: "ITEM" as const,
+        ownerId: "item-99",
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <EditItemButton
+        tripId="trip-1"
+        stops={[]}
+        item={existingItem}
+        homeCurrency="AUD"
+        costs={costs}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /edit museum visit/i }));
+
+    // 5500 minor EUR = 55.00
+    expect(screen.getByLabelText(/estimated cost amount/i)).toHaveValue("55.00");
   });
 });

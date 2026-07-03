@@ -235,6 +235,7 @@ export function WishlistBoard({
             stops={stopOptions}
             tripStartDate={tripStartDateValue}
             defaultUnscheduled={true}
+            homeCurrency={homeCurrency}
           />
         </div>
       </div>
@@ -419,6 +420,8 @@ export function WishlistBoard({
           onOpenChange={(open) => {
             if (!open) setEditingItem(null);
           }}
+          homeCurrency={homeCurrency}
+          costs={costsByItemId?.get(editingItem.id)}
         />
       )}
 

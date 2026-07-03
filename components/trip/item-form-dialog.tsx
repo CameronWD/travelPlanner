@@ -176,6 +176,7 @@ export function AddItemButton({
   tripStartDate,
   defaultUnscheduled = true,
   label = "Add Item",
+  homeCurrency,
 }: {
   tripId: string;
   stops: StopOption[];
@@ -183,6 +184,7 @@ export function AddItemButton({
   defaultUnscheduled?: boolean;
   /** Button label. Defaults to "Add Item". */
   label?: string;
+  homeCurrency?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   return (
@@ -198,6 +200,7 @@ export function AddItemButton({
         defaultUnscheduled={defaultUnscheduled}
         open={open}
         onOpenChange={setOpen}
+        homeCurrency={homeCurrency}
       />
     </>
   );
@@ -207,10 +210,14 @@ export function EditItemButton({
   tripId,
   stops,
   item,
+  homeCurrency,
+  costs,
 }: {
   tripId: string;
   stops: StopOption[];
   item: ItemCardItem;
+  homeCurrency?: string;
+  costs?: CostRow[];
 }) {
   const [open, setOpen] = React.useState(false);
   return (
@@ -231,6 +238,8 @@ export function EditItemButton({
         item={item}
         open={open}
         onOpenChange={setOpen}
+        homeCurrency={homeCurrency}
+        costs={costs}
       />
     </>
   );
