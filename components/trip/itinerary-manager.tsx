@@ -131,6 +131,27 @@ interface ItineraryManagerProps {
   currentUserId?: string;
   /** Fork being edited (null = real plan). Threaded to all create actions. */
   forkId?: string | null;
+  /**
+   * Plan-owned things to do keyed by stopId (ADR 0022).
+   * Passed down to each StopCard so the per-stop list renders inline.
+   */
+  thingsToDoByStopId?: Map<string, Array<{
+    id: string;
+    title: string;
+    category: string;
+    date?: string | null;
+    startTime?: string | null;
+    endTime?: string | null;
+    address?: string | null;
+    link?: string | null;
+    booking?: string | null;
+    notes?: string | null;
+    stopId?: string | null;
+  }>>;
+  /**
+   * Costs keyed by item id for things-to-do edit pre-fill (ADR 0022).
+   */
+  thingsToDoItemCostsById?: Map<string, CostRow[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -293,6 +314,8 @@ export function ItineraryManager({
   notesByStopId,
   currentUserId,
   forkId,
+  thingsToDoByStopId,
+  thingsToDoItemCostsById,
 }: ItineraryManagerProps) {
   const { confirm, dialog } = useConfirm();
 
@@ -1059,6 +1082,11 @@ export function ItineraryManager({
         tripId={tripId}
         currentUserId={currentUserId}
         dragHandle={dragHandle}
+        thingsToDo={thingsToDoByStopId?.get(stop.id)}
+        thingsToDoItemCosts={thingsToDoItemCostsById}
+        stops={stopOptions}
+        forkId={forkId}
+        homeCurrency={homeCurrency}
       />
     );
 

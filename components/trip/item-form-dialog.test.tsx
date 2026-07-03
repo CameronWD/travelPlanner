@@ -64,6 +64,7 @@ describe("ItemFormDialog", () => {
     expect(createItem).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({ title: "" }),
+      undefined,
     );
 
     // Server-returned field error is rendered
@@ -92,6 +93,7 @@ describe("ItemFormDialog", () => {
         startTime: undefined,
         endTime: undefined,
       }),
+      undefined,
     );
     expect(createItem).toHaveBeenCalledTimes(1);
   });
@@ -120,6 +122,7 @@ describe("ItemFormDialog", () => {
         date: "2026-07-10",
         startTime: "19:00",
       }),
+      undefined,
     );
   });
 
@@ -274,6 +277,7 @@ describe("ItemFormDialog", () => {
         estimatedMinor: 12050,
         currency: "AUD",
       }),
+      undefined,
     );
   });
 
@@ -292,6 +296,7 @@ describe("ItemFormDialog", () => {
     expect(createItem).toHaveBeenCalledWith(
       "trip-1",
       expect.not.objectContaining({ estimatedMinor: expect.anything() }),
+      undefined,
     );
   });
 

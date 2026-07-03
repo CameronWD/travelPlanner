@@ -79,6 +79,16 @@ export interface ItemFormDialogProps {
    * When >1 costs are present, the cost fields are hidden (CostEditor is authoritative).
    */
   costs?: CostRow[];
+  /**
+   * Fork (plan variant) id to scope the new item to. When null/undefined the item
+   * is created on the real plan. Passed through to createItem as the third argument.
+   */
+  forkId?: string | null;
+  /**
+   * Pre-select this stop in the Stop dropdown (for "Add a thing to do" under a stop).
+   * Only applied on create (ignored in edit mode where the item's own stopId wins).
+   */
+  defaultStopId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +148,8 @@ export function ItemFormDialog({
   onSaved,
   homeCurrency,
   costs,
+  forkId,
+  defaultStopId,
 }: ItemFormDialogProps) {
   const formKey = open ? `${item?.id ?? "new"}-${String(open)}` : "closed";
 
@@ -160,6 +172,8 @@ export function ItemFormDialog({
           onSaved={onSaved}
           homeCurrency={homeCurrency}
           costs={costs}
+          forkId={forkId}
+          defaultStopId={item ? undefined : defaultStopId}
         />
       </DialogContent>
     </Dialog>
@@ -261,6 +275,10 @@ interface ItemFormProps {
   onSaved?: () => void;
   homeCurrency?: string;
   costs?: CostRow[];
+  /** Fork id — threaded to createItem so the item is plan-owned. */
+  forkId?: string | null;
+  /** Pre-select this stop on create (ignored in edit mode). */
+  defaultStopId?: string | null;
 }
 
 function ItemForm({
@@ -273,6 +291,8 @@ function ItemForm({
   onSaved,
   homeCurrency,
   costs,
+  forkId,
+  defaultStopId,
 }: ItemFormProps) {
   const isEdit = Boolean(item);
 
@@ -287,7 +307,7 @@ function ItemForm({
   const [category, setCategory] = React.useState<Category>(
     (item?.category as Category) ?? "SIGHTSEEING",
   );
-  const [stopId, setStopId] = React.useState(item?.stopId ?? "");
+  const [stopId, setStopId] = React.useState(item?.stopId ?? defaultStopId ?? "");
   const [date, setDate] = React.useState(
     item?.date ?? (defaultUnscheduled ? "" : (tripStartDate ?? "")),
   );
@@ -355,7 +375,7 @@ function ItemForm({
       const result =
         isEdit && item
           ? await updateItem(item.id, input)
-          : await createItem(tripId, input);
+          : await createItem(tripId, input, forkId ?? undefined);
 
       if (!result.success) {
         setErrors(result.errors as FormErrors);

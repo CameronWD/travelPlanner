@@ -62,6 +62,7 @@ function revalidateItemPaths(tripId: string) {
   revalidatePath(`/trips/${tripId}`);
   revalidatePath(`/trips/${tripId}/wishlist`);
   revalidatePath(`/trips/${tripId}/calendar`);
+  revalidatePath(`/trips/${tripId}/plan`);
 }
 
 // ---------------------------------------------------------------------------

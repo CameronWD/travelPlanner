@@ -57,6 +57,12 @@ vi.mock("@/server/actions/chapters", () => ({
   deleteChapter: vi.fn().mockResolvedValue({ success: true }),
 }));
 
+// StopCard now imports ItemFormDialog which calls createItem/updateItem.
+vi.mock("@/server/actions/items", () => ({
+  createItem: vi.fn().mockResolvedValue({ success: true }),
+  updateItem: vi.fn().mockResolvedValue({ success: true }),
+}));
+
 vi.mock("@/components/ui/use-toast", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/components/ui/use-toast")>();
   return { ...mod, toast: vi.fn() };

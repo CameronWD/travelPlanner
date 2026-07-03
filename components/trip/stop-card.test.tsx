@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { it, expect, vi } from "vitest";
+import { it, expect, vi, describe } from "vitest";
 import userEvent from "@testing-library/user-event";
 
 // StopCard transitively imports the notes server action (via NoteThread),
@@ -8,6 +8,14 @@ vi.mock("@/server/actions/notes", () => ({
   addNote: vi.fn(),
   deleteNote: vi.fn(),
 }));
+
+// ItemFormDialog calls createItem — stub it so StopCard tests don't hit the
+// real server action.
+vi.mock("@/server/actions/items", () => ({
+  createItem: vi.fn().mockResolvedValue({ success: true }),
+  updateItem: vi.fn().mockResolvedValue({ success: true }),
+}));
+import { createItem } from "@/server/actions/items";
 
 import { StopCard } from "./stop-card";
 
@@ -189,4 +197,133 @@ it("overflow 'Make rough' entry is still present alongside 'Clear dates'", async
   const triggers = screen.getAllByRole("button", { name: `More actions for ${scheduledStop.name}` });
   await user.click(triggers[0]);
   expect(await screen.findByRole("menuitem", { name: "Make rough" })).toBeInTheDocument();
+});
+
+// ---------------------------------------------------------------------------
+// Task 15: "Add a thing to do" under each stop (ADR 0022)
+// ---------------------------------------------------------------------------
+
+// stops fixture whose id matches roughStop.id so the pre-select test works
+const stopsForRough = [{ id: "a", name: "Rome" }];
+
+describe("Task 15 — things to do under a stop", () => {
+  it("renders existing things-to-do items under the stop card", () => {
+    const thingsToDo = [
+      { id: "ttd-1", title: "Visit the Colosseum", category: "SIGHTSEEING", date: null, stopId: "a" },
+      { id: "ttd-2", title: "Try pasta", category: "FOOD", date: null, stopId: "a" },
+    ];
+    render(
+      <StopCard
+        stop={roughStop}
+        isFirst={false}
+        isLast={false}
+        tripId="trip-1"
+        stops={stopsForRough}
+        thingsToDo={thingsToDo}
+        forkId={null}
+        homeCurrency="AUD"
+      />,
+    );
+    expect(screen.getByText("Visit the Colosseum")).toBeInTheDocument();
+    expect(screen.getByText("Try pasta")).toBeInTheDocument();
+  });
+
+  it("renders an 'Add a thing to do' button (not 'Activity') under the stop card", () => {
+    render(
+      <StopCard
+        stop={roughStop}
+        isFirst={false}
+        isLast={false}
+        tripId="trip-1"
+        stops={stopsForRough}
+        thingsToDo={[]}
+        forkId={null}
+        homeCurrency="AUD"
+      />,
+    );
+    expect(screen.getByRole("button", { name: /add a thing to do/i })).toBeInTheDocument();
+    // Must NOT say "Activity"
+    expect(screen.queryByRole("button", { name: /activity/i })).not.toBeInTheDocument();
+  });
+
+  it("the label is exactly 'Add a thing to do', never 'Activity'", () => {
+    render(
+      <StopCard
+        stop={roughStop}
+        isFirst={false}
+        isLast={false}
+        tripId="trip-1"
+        stops={stopsForRough}
+        thingsToDo={[]}
+        forkId={null}
+      />,
+    );
+    const btn = screen.getByRole("button", { name: /add a thing to do/i });
+    expect(btn.textContent).toContain("Add a thing to do");
+    expect(btn.textContent).not.toMatch(/activity/i);
+  });
+
+  it("clicking 'Add a thing to do' opens the ItemFormDialog with the stop pre-selected", async () => {
+    const user = userEvent.setup();
+    render(
+      <StopCard
+        stop={roughStop}
+        isFirst={false}
+        isLast={false}
+        tripId="trip-1"
+        stops={stopsForRough}
+        thingsToDo={[]}
+        forkId="fork-1"
+        homeCurrency="AUD"
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /add a thing to do/i }));
+    // Dialog should open — its title is "Add Item"
+    expect(await screen.findByRole("heading", { name: /add item/i })).toBeInTheDocument();
+  });
+
+  it("submitting the dialog calls createItem with the stop's id, date null, and forkId", async () => {
+    const user = userEvent.setup();
+    (createItem as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true });
+
+    render(
+      <StopCard
+        stop={roughStop}
+        isFirst={false}
+        isLast={false}
+        tripId="trip-1"
+        stops={stopsForRough}
+        thingsToDo={[]}
+        forkId="fork-1"
+        homeCurrency="AUD"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /add a thing to do/i }));
+    const titleInput = await screen.findByPlaceholderText(/visit the night market/i);
+    await user.type(titleInput, "Street art tour");
+
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+
+    // roughStop.id === "a" which is the defaultStopId passed to ItemFormDialog
+    expect(createItem).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({
+        stopId: "a",
+        date: undefined,
+      }),
+      "fork-1",
+    );
+  });
+
+  it("does NOT render the 'Add a thing to do' button when tripId is not provided", () => {
+    render(
+      <StopCard
+        stop={roughStop}
+        isFirst={false}
+        isLast={false}
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /add a thing to do/i })).not.toBeInTheDocument();
+  });
 });
