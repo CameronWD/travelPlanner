@@ -27,6 +27,7 @@ import {
   type ReminderItem,
 } from "@/components/trip/reminders-card";
 import { ChapterChip } from "@/components/trip/chapter-chip";
+import { WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
 
 export async function PhaseTravelling({ tripId }: { tripId: string }) {
   const trip = await db.trip.findUnique({
@@ -167,7 +168,12 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       },
     }),
     db.item.findMany({
-      where: { tripId, date: null, lat: { not: null }, lng: { not: null } },
+      where: {
+        tripId,
+        ...WISHLIST_IDEA_WHERE, // stopId: null, date: null — exclude plan-owned things-to-do (ADR 0022)
+        lat: { not: null },
+        lng: { not: null },
+      },
       select: { id: true, title: true, category: true, lat: true, lng: true },
     }),
   ]);
