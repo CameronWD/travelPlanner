@@ -407,20 +407,64 @@ describe("createFork", () => {
       expect(accommodationFindManyMock).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
       );
-      // Items: PLACEMENTS only — wishlist ideas (date null) are never copied.
+      // Items: PLAN PLACEMENTS only (ADR 0022: Stop OR date) — trip-wide
+      // wishlist ideas (no stop, no date) are never copied.
       expect(itemFindManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null, date: { not: null } }) }),
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tripId: "trip-1",
+            forkId: null,
+            OR: [{ stopId: { not: null } }, { date: { not: null } }],
+          }),
+        }),
       );
       expect(costFindManyMock).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ tripId: "trip-1", forkId: null }) }),
       );
     });
 
-    it("loads items with date: { not: null } so wishlist ideas are excluded", async () => {
+    it("loads items via the plan-placement predicate so wishlist ideas are excluded but dateless stop things-to-do are copied", async () => {
       await createFork("trip-1", "Plan B");
 
       const itemCall = itemFindManyMock.mock.calls[0][0];
-      expect(itemCall.where.date).toEqual({ not: null });
+      // ADR 0022: placement = Stop OR date (not the old date-only filter).
+      expect(itemCall.where.OR).toEqual([{ stopId: { not: null } }, { date: { not: null } }]);
+    });
+
+    it("copies a dateless stop-attached thing-to-do into the fork (ADR 0022)", async () => {
+      // A plan placement with a Stop but NO date — must be copied into the fork.
+      stopFindManyMock.mockResolvedValue([
+        {
+          id: "stop-src", chapterId: null, name: "Kyoto", country: "JP",
+          lat: null, lng: null, timezone: null, arriveDate: null, departDate: null,
+          nights: null, pinned: false, sortOrder: 0, chapterSortOrder: 0, notes: null,
+        },
+      ]);
+      stopCreateMock.mockResolvedValue({ id: "stop-new" });
+
+      itemFindManyMock.mockResolvedValue([
+        {
+          id: "todo-1", stopId: "stop-src", date: null, startTime: null, endTime: null,
+          title: "Visit Fushimi Inari", category: "SIGHTSEEING",
+          address: null, link: null, booking: null, notes: null,
+          lat: null, lng: null, sortOrder: 0, sourceItemId: null,
+        },
+      ]);
+      itemCreateMock.mockResolvedValue({ id: "todo-new" });
+
+      await createFork("trip-1", "Plan B");
+
+      // The dateless thing-to-do is created in the fork, remapped onto the new stop.
+      expect(itemCreateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            forkId: "fork-new",
+            stopId: "stop-new",
+            date: null,
+            title: "Visit Fushimi Inari",
+          }),
+        }),
+      );
     });
 
     it("does NOT copy a cost whose owner (a wishlist idea) was not copied", async () => {
@@ -1326,8 +1370,15 @@ describe("promoteFork", () => {
       expect(chapterDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
       expect(transportDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
       expect(accommodationDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
-      // Items: PLACEMENTS only (date not null) — wishlist ideas (date null) survive.
-      expect(itemDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null, date: { not: null } } });
+      // Items: PLAN PLACEMENTS only (ADR 0022: Stop OR date) — trip-wide
+      // wishlist ideas (no stop, no date) survive.
+      expect(itemDeleteManyMock).toHaveBeenCalledWith({
+        where: {
+          tripId: "trip-1",
+          forkId: null,
+          OR: [{ stopId: { not: null } }, { date: { not: null } }],
+        },
+      });
       // Costs: everything EXCEPT ITEM costs owned by surviving ideas.
       expect(costDeleteManyMock).toHaveBeenCalledWith({
         where: {
@@ -1338,16 +1389,34 @@ describe("promoteFork", () => {
       });
     });
 
-    it("does NOT delete real-plan wishlist ideas (date null) — only placements", async () => {
+    it("does NOT delete real-plan wishlist ideas (no stop, no date) — only plan placements", async () => {
       await promoteFork("fork-9");
 
-      // The item deleteMany must be scoped to placements (date not null), so a
-      // date-null idea is never targeted for deletion.
+      // The item deleteMany must be scoped to plan placements (Stop OR date), so
+      // a both-null idea is never targeted for deletion. ADR 0022.
       expect(itemDeleteManyMock).toHaveBeenCalledWith({
-        where: { tripId: "trip-1", forkId: null, date: { not: null } },
+        where: {
+          tripId: "trip-1",
+          forkId: null,
+          OR: [{ stopId: { not: null } }, { date: { not: null } }],
+        },
       });
       // It must NOT be the old unscoped shape that would nuke ideas too.
       expect(itemDeleteManyMock).not.toHaveBeenCalledWith({ where: { tripId: "trip-1", forkId: null } });
+    });
+
+    it("deletes a dateless stop-attached thing-to-do (stopId set, date null) as a plan placement", async () => {
+      // ADR 0022: a dateless stop placement is a plan placement, so the delete
+      // predicate must reach it via the `stopId: { not: null }` OR branch. We
+      // assert the predicate shape (mock db can't evaluate row matching), which
+      // includes the stopId branch that captures a date-null stop placement.
+      await promoteFork("fork-9");
+
+      const deleteCall = itemDeleteManyMock.mock.calls.find(
+        (c) => c[0]?.where?.forkId === null && Array.isArray(c[0]?.where?.OR),
+      );
+      expect(deleteCall).toBeDefined();
+      expect(deleteCall![0].where.OR).toContainEqual({ stopId: { not: null } });
     });
 
     it("preserves ITEM costs owned by surviving wishlist ideas", async () => {
@@ -1356,9 +1425,10 @@ describe("promoteFork", () => {
 
       await promoteFork("fork-9");
 
-      // The ideas are gathered from real-plan, date-null items.
+      // ADR 0022: ideas are gathered from real-plan items that are BOTH stopId
+      // null AND date null — a dateless stop placement is NOT an idea.
       expect(itemFindManyMock).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { tripId: "trip-1", forkId: null, date: null } }),
+        expect.objectContaining({ where: { tripId: "trip-1", forkId: null, stopId: null, date: null } }),
       );
       // Cost deleteMany excludes ITEM costs owned by those surviving ideas.
       expect(costDeleteManyMock).toHaveBeenCalledWith({
@@ -1368,6 +1438,17 @@ describe("promoteFork", () => {
           NOT: { ownerType: "ITEM", ownerId: { in: ["idea-1", "idea-2"] } },
         },
       });
+    });
+
+    it("gathers surviving ideas by the WISHLIST-IDEA predicate, NOT by date alone (a dateless stop placement must not be treated as a surviving idea)", async () => {
+      await promoteFork("fork-9");
+
+      // The idea-gather must use the both-null predicate. The OLD shape
+      // (date: null only) would wrongly count a dateless stop placement as a
+      // surviving idea and preserve its cost. Assert it is NOT used.
+      expect(itemFindManyMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({ where: { tripId: "trip-1", forkId: null, date: null } }),
+      );
     });
 
     it("retags promoted fork rows to forkId: null for each entity (step 2)", async () => {

@@ -155,6 +155,24 @@ describe("plan-scope: createItem with forkId", () => {
     });
   });
 
+  it("creates a plan-owned dateless stop thing-to-do (stopId set, date null, forkId carried) — ADR 0022", async () => {
+    // Stop belongs to the fork; item is attached to it with no date.
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: "fork-9" });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "todo-1" });
+
+    const result = await createItem("trip-1", { ...VALID_INPUT, stopId: "stop-1" }, "fork-9");
+
+    expect(result.success).toBe(true);
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        forkId: "fork-9",
+        stopId: "stop-1",
+        date: null,
+      }),
+    });
+  });
+
   it("writes forkId: null on create when no forkId is passed (real plan)", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-1" });
