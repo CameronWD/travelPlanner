@@ -301,4 +301,125 @@ describe("TransportFormDialog", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Server error");
   });
+
+  // -------------------------------------------------------------------------
+  // Case 11: Estimated cost field is rendered
+  // -------------------------------------------------------------------------
+  it("renders an Estimated cost field", () => {
+    render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
+    expect(screen.getByLabelText(/estimated cost amount/i)).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 12: filling estimated amount sends it in the payload
+  // -------------------------------------------------------------------------
+  it("submitting with an estimated amount sends estimatedMinor and currency in the payload", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    const amountInput = screen.getByLabelText(/estimated cost amount/i);
+    await user.type(amountInput, "120.50");
+
+    await user.click(screen.getByRole("button", { name: /add transport/i }));
+
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({
+        estimatedMinor: 12050,
+        currency: "AUD",
+      }),
+      undefined,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 13: no estimatedMinor when amount field is empty
+  // -------------------------------------------------------------------------
+  it("does NOT include estimatedMinor in the payload when the amount field is empty", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    await user.click(screen.getByRole("button", { name: /add transport/i }));
+
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.not.objectContaining({ estimatedMinor: expect.anything() }),
+      undefined,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14: edit mode prefills cost fields from single existing cost
+  // -------------------------------------------------------------------------
+  it("in edit mode, prefills the estimated amount from the single existing cost", () => {
+    const costs = [
+      {
+        id: "cost-1",
+        estimatedMinor: 9900,
+        actualMinor: null,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: null,
+        ownerType: "TRANSPORT",
+        ownerId: "transport-99",
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={existingTransport}
+        homeCurrency="AUD"
+        costs={costs}
+      />,
+    );
+
+    // 9900 minor EUR = 99.00
+    expect(screen.getByLabelText(/estimated cost amount/i)).toHaveValue("99.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 15: >1 costs — cost fields are hidden (CostEditor authoritative)
+  // -------------------------------------------------------------------------
+  it("hides the inline cost field when the transport has more than one existing cost", () => {
+    const costs = [
+      {
+        id: "cost-1",
+        estimatedMinor: 5000,
+        actualMinor: null,
+        currency: "AUD",
+        rateToHome: 1,
+        paidAt: null,
+        ownerType: "TRANSPORT",
+        ownerId: "transport-99",
+        label: null,
+        category: null,
+      },
+      {
+        id: "cost-2",
+        estimatedMinor: 3000,
+        actualMinor: null,
+        currency: "AUD",
+        rateToHome: 1,
+        paidAt: null,
+        ownerType: "TRANSPORT",
+        ownerId: "transport-99",
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={existingTransport}
+        homeCurrency="AUD"
+        costs={costs}
+      />,
+    );
+
+    expect(screen.queryByLabelText(/estimated cost amount/i)).not.toBeInTheDocument();
+  });
 });

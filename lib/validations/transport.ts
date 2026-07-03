@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { TRANSPORT_MODES } from "@/lib/enums";
+import { CURRENCY_CODES } from "@/lib/currencies";
 
 /**
  * Accept a datetime-local string ("2026-07-01T08:00") or a full ISO string
@@ -22,6 +23,11 @@ const isoDatetime = z.preprocess((val) => {
  *
  * All fields are intentionally lenient — a transport may be partially filled
  * while a trip is being planned.
+ *
+ * The optional cost fields (estimatedMinor, currency, actualMinor, paidAt)
+ * let callers capture a single transport-owned Cost in one step, without
+ * requiring a separate CostEditor interaction. All cost fields are optional —
+ * a transport with no cost still validates.
  */
 export const transportSchema = z.object({
   mode: z.enum(TRANSPORT_MODES),
@@ -45,6 +51,42 @@ export const transportSchema = z.object({
   reference: z.string().trim().optional(),
   /** Free-form notes. */
   notes: z.string().trim().optional(),
+
+  // --- Inline cost fields (all optional) ---
+
+  /** Estimated cost in minor units (e.g. cents). Integer. */
+  estimatedMinor: z
+    .number()
+    .int("Estimated amount must be a whole number in minor units")
+    .min(0, "Estimated amount must be 0 or greater")
+    .max(2_147_483_647, "Amount is too large")
+    .optional(),
+
+  /** ISO 4217 currency code. Required when estimatedMinor is set. */
+  currency: z
+    .string()
+    .length(3, "Currency must be a 3-letter ISO 4217 code")
+    .toUpperCase()
+    .refine((c) => CURRENCY_CODES.includes(c), {
+      message: "Unsupported currency code",
+    })
+    .optional(),
+
+  /** Actual cost in minor units. Optional. */
+  actualMinor: z
+    .number()
+    .int("Actual amount must be a whole number in minor units")
+    .min(0, "Actual amount must be 0 or greater")
+    .max(2_147_483_647, "Amount is too large")
+    .nullable()
+    .optional(),
+
+  /** ISO date string for when the cost was paid. Optional. */
+  paidAt: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD")
+    .nullable()
+    .optional(),
 });
 
 export type TransportInput = z.infer<typeof transportSchema>;

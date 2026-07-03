@@ -302,6 +302,8 @@ export function ItineraryManager({
   // ── Transport dialog state ──
   const [editingTransport, setEditingTransport] =
     React.useState<TransportCardTransport | null>(null);
+  const [editingTransportCosts, setEditingTransportCosts] =
+    React.useState<CostRow[] | undefined>(undefined);
   const [addTransportDefaults, setAddTransportDefaults] = React.useState<{
     fromStopId?: string;
     toStopId?: string;
@@ -955,7 +957,7 @@ export function ItineraryManager({
                 key={t.id}
                 transport={enrichTransport(t, stops)}
                 isPending={pendingId === t.id}
-                onEdit={(tr) => setEditingTransport(tr)}
+                onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
                 onDelete={handleDeleteTransport}
                 costs={t.costs}
                 tripId={tripId}
@@ -1006,7 +1008,7 @@ export function ItineraryManager({
             key={t.id}
             transport={enrichTransport(t, stops)}
             isPending={pendingId === t.id}
-            onEdit={(tr) => setEditingTransport(tr)}
+            onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
             onDelete={handleDeleteTransport}
             costs={t.costs}
             tripId={tripId}
@@ -1366,7 +1368,7 @@ export function ItineraryManager({
                   key={t.id}
                   transport={enrichTransport(t, stops)}
                   isPending={pendingId === t.id}
-                  onEdit={(tr) => setEditingTransport(tr)}
+                  onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
                   onDelete={handleDeleteTransport}
                   costs={t.costs}
                   tripId={tripId}
@@ -1480,6 +1482,7 @@ export function ItineraryManager({
             if (!open) setAddTransportDefaults(null);
           }}
           forkId={forkId ?? null}
+          homeCurrency={homeCurrency}
         />
       )}
 
@@ -1491,9 +1494,11 @@ export function ItineraryManager({
           transport={editingTransport}
           open={Boolean(editingTransport)}
           onOpenChange={(open) => {
-            if (!open) setEditingTransport(null);
+            if (!open) { setEditingTransport(null); setEditingTransportCosts(undefined); }
           }}
           forkId={forkId ?? null}
+          homeCurrency={homeCurrency}
+          costs={editingTransportCosts}
         />
       )}
 
