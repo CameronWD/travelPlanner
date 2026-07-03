@@ -86,7 +86,7 @@ export default async function CalendarPage({
       },
     }),
     db.item.findMany({
-      where: { tripId, forkId: null, date: null },
+      where: { tripId, forkId: null, date: null, stopId: null },
       orderBy: { sortOrder: "asc" },
       select: { id: true, title: true, category: true, stopId: true },
     }),

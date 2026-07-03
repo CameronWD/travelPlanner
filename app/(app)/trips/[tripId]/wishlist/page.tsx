@@ -47,7 +47,7 @@ export default async function WishlistPage({
         },
       },
       items: {
-        where: { forkId: null, date: null }, // UNSCHEDULED items only
+        where: { forkId: null, date: null, stopId: null }, // Wishlist ideas only (ADR 0022)
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
