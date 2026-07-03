@@ -312,6 +312,8 @@ export function ItineraryManager({
   // ── Accommodation dialog state ──
   const [editingAccommodation, setEditingAccommodation] =
     React.useState<AccommodationCardAccommodation | null>(null);
+  const [editingAccommodationCosts, setEditingAccommodationCosts] =
+    React.useState<CostRow[] | undefined>(undefined);
   const [editingAccStop, setEditingAccStop] =
     React.useState<ItineraryStop | null>(null);
   const [addAccommodationStop, setAddAccommodationStop] =
@@ -922,6 +924,7 @@ export function ItineraryManager({
                 isPending={pendingId === acc.id}
                 onEdit={(a) => {
                   setEditingAccommodation(a);
+                  setEditingAccommodationCosts(acc.costs);
                   setEditingAccStop(stop);
                 }}
                 onDelete={handleDeleteAccommodation}
@@ -1515,6 +1518,7 @@ export function ItineraryManager({
             if (!open) setAddAccommodationStop(null);
           }}
           forkId={forkId ?? null}
+          homeCurrency={homeCurrency}
         />
       )}
 
@@ -1531,10 +1535,13 @@ export function ItineraryManager({
           onOpenChange={(open) => {
             if (!open) {
               setEditingAccommodation(null);
+              setEditingAccommodationCosts(undefined);
               setEditingAccStop(null);
             }
           }}
           forkId={forkId ?? null}
+          homeCurrency={homeCurrency}
+          costs={editingAccommodationCosts}
         />
       )}
 
