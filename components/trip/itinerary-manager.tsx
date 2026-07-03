@@ -1194,6 +1194,23 @@ export function ItineraryManager({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* ── Prominent firm-up toolbar: visible at the top whenever rough stops exist ── */}
+      {hasContent && stops.some((s) => s.arriveDate === null) && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 dark:border-amber-800 dark:bg-amber-950/30">
+          <CalendarClock className="size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+          <p className="flex-1 text-sm text-amber-800 dark:text-amber-300">
+            Some stops don&apos;t have dates yet.
+          </p>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handleFirmUpTrip}
+            loading={pendingId === "firm-up-trip"}
+          >
+            Set dates for all stops
+          </Button>
+        </div>
+      )}
       {hasContent ? (
         <DndContext
           sensors={sensors}

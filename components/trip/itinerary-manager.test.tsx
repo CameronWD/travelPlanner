@@ -261,12 +261,13 @@ describe("reorder controls", () => {
 describe("firm-up (Set dates)", () => {
   it("calls firmUpSegment with tripId and chapterId=null for ungrouped rough stops", async () => {
     const user = userEvent.setup();
-    // A rough stop (no dates) triggers the "Set dates" button
+    // A rough stop (no dates) triggers the per-segment "Set dates" button
     const stop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
     render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    await user.click(screen.getByRole("button", { name: /set dates/i }));
+    // Use exact match to distinguish from the prominent "Set dates for all stops" button
+    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
     // Confirm the dialog
     await user.click(await screen.findByRole("button", { name: /date stops/i }));
 
@@ -287,7 +288,8 @@ describe("firm-up (Set dates)", () => {
 
     render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    await user.click(screen.getByRole("button", { name: /set dates/i }));
+    // Use exact match to distinguish from the prominent "Set dates for all stops" button
+    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
     // Confirm the dialog
     await user.click(await screen.findByRole("button", { name: /date stops/i }));
 
@@ -314,7 +316,8 @@ describe("firm-up (Set dates)", () => {
 
     render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    await user.click(screen.getByRole("button", { name: /set dates/i }));
+    // Use exact match to distinguish from the prominent "Set dates for all stops" button
+    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
     // Confirm the dialog
     await user.click(await screen.findByRole("button", { name: /date stops/i }));
 
@@ -347,7 +350,8 @@ describe("optimistic pending state", () => {
 
     render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    const setDatesBtn = screen.getByRole("button", { name: /set dates/i });
+    // Use exact match to target the per-segment "Set dates" (not "Set dates for all stops")
+    const setDatesBtn = screen.getByRole("button", { name: /^set dates$/i });
     expect(setDatesBtn).not.toBeDisabled();
 
     await user.click(setDatesBtn);
@@ -356,14 +360,14 @@ describe("optimistic pending state", () => {
 
     // While in-flight, button should be disabled
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /set dates/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /^set dates$/i })).toBeDisabled();
     });
 
     // Resolve and check it's re-enabled
     resolveAction({ success: true });
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /set dates/i })).not.toBeDisabled();
+      expect(screen.getByRole("button", { name: /^set dates$/i })).not.toBeDisabled();
     });
   });
 
@@ -634,8 +638,8 @@ describe("per-chapter firm-up confirm dialog", () => {
       />,
     );
 
-    // The chapter header has a "Set dates" button
-    await user.click(screen.getByRole("button", { name: /set dates/i }));
+    // The chapter header has a "Set dates" button (exact match, not the prominent "Set dates for all stops")
+    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
 
     // Dialog should appear with rough count
     expect(await screen.findByText(/1 rough stop/i)).toBeInTheDocument();
@@ -659,7 +663,8 @@ describe("per-chapter firm-up confirm dialog", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /set dates/i }));
+    // Use exact match to target the per-chapter "Set dates" (not "Set dates for all stops")
+    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
 
     // Not called yet
     expect(firmUpSegment).not.toHaveBeenCalled();
@@ -690,7 +695,8 @@ describe("per-chapter firm-up confirm dialog", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /set dates/i }));
+    // Use exact match to target the per-chapter "Set dates" (not "Set dates for all stops")
+    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
 
     const cancelBtn = await screen.findByRole("button", { name: /cancel/i });
     await user.click(cancelBtn);
@@ -718,7 +724,8 @@ describe("fork-aware firmUpSegment", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /set dates/i }));
+    // Use exact match to target the per-segment "Set dates" (not "Set dates for all stops")
+    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
     await user.click(await screen.findByRole("button", { name: /date stops/i }));
 
     await waitFor(() => {
@@ -1063,5 +1070,82 @@ describe("Task 10: summariseReorder (Undo toast copy)", () => {
     );
     expect(description).toMatch(/pinned stop no longer fits/i);
     expect(description).toMatch(/flags/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 12: Prominent whole-trip firm-up control at the top of the plan editor
+// ---------------------------------------------------------------------------
+
+describe("Task 12: prominent firm-up control at top of plan editor", () => {
+  it("renders a prominent 'Set dates for all stops' button at the top when rough stops exist", () => {
+    const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[roughStop]} />,
+    );
+
+    // The prominent button must be present in the DOM
+    expect(
+      screen.getByRole("button", { name: /set dates for all stops/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("does NOT render the prominent 'Set dates for all stops' button when all stops are dated", () => {
+    const datedStop = makeStop({
+      id: "s-1",
+      name: "Paris",
+      arriveDate: "2026-08-01",
+      departDate: "2026-08-05",
+    });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[datedStop]} />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: /set dates for all stops/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("fires firmUpTrip after the confirm dialog is accepted via the prominent button", async () => {
+    const user = userEvent.setup();
+    const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[roughStop]}
+        tripStartDate="2026-08-01"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /set dates for all stops/i }));
+
+    // Not called yet — confirm dialog gates the action
+    expect(firmUpTrip).not.toHaveBeenCalled();
+
+    const confirmBtn = await screen.findByRole("button", { name: /date stops/i });
+    await user.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(firmUpTrip).toHaveBeenCalledWith(TRIP_ID, undefined, undefined);
+    });
+  });
+
+  it("does NOT fire firmUpTrip when the prominent button confirm dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[roughStop]} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /set dates for all stops/i }));
+
+    const cancelBtn = await screen.findByRole("button", { name: /cancel/i });
+    await user.click(cancelBtn);
+
+    expect(firmUpTrip).not.toHaveBeenCalled();
   });
 });
