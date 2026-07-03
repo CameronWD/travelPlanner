@@ -242,14 +242,22 @@ export interface ReflowResult {
  * Pinned scheduled stops keep their exact dates (flowDates handles this).
  * If flexible stops can't fit before a pin, a conflict is reported.
  *
+ * If `anchorDate` is null or empty, returns the empty shape (nothing can be
+ * dated without an anchor).
+ *
  * Return shape: { results: ReflowResult[]; conflicts: FlowConflict[] }
  *   - results: scheduled stops only, in new order, with recomputed dates.
  *   - conflicts: passed through from flowDates for Task 9 to handle.
  */
 export function reflowReorderedDates(
   orderedStops: readonly ReflowStop[],
-  anchorDate: string,
+  anchorDate: string | null,
 ): { results: ReflowResult[]; conflicts: FlowConflict[] } {
+  // Guard: if no anchor, nothing can be dated.
+  if (!anchorDate) {
+    return { results: [], conflicts: [] };
+  }
+
   // Filter to scheduled stops only (rough stops are untouched and excluded).
   const scheduledStops = orderedStops.filter(
     (s): s is ReflowStop & { arriveDate: string; departDate: string } =>

@@ -420,10 +420,16 @@ describe("reflowReorderedDates", () => {
       { id: "b", nights: 5, arriveDate: "2026-07-04", departDate: "2026-07-09", pinned: false },
       { id: "a", nights: 3, arriveDate: "2026-07-01", departDate: "2026-07-04", pinned: true },
     ];
-    const { conflicts } = reflowReorderedDates(ordered, "2026-06-28");
+    const { results, conflicts } = reflowReorderedDates(ordered, "2026-06-28");
 
     expect(conflicts.length).toBeGreaterThan(0);
     expect(conflicts[0].stopId).toBe("a");
+
+    // Assert: pinned stop is still present in results with its fixed date unchanged.
+    const pinnedStop = results.find((r) => r.id === "a");
+    expect(pinnedStop).toBeDefined();
+    expect(pinnedStop?.arriveDate).toBe("2026-07-01");
+    expect(pinnedStop?.departDate).toBe("2026-07-04");
   });
 
   // Test 3: Mixed rough+scheduled — rough stops get no dates, do not consume
@@ -457,5 +463,16 @@ describe("reflowReorderedDates", () => {
     expect(y.arriveDate).toBe("2026-07-03");
     expect(y.departDate).toBe("2026-07-06");
     expect(y.changed).toBe(true);
+  });
+
+  it("returns empty shape when anchorDate is null", () => {
+    const ordered = [
+      { id: "a", nights: 3, arriveDate: "2026-07-01", departDate: "2026-07-04", pinned: false },
+      { id: "b", nights: 2, arriveDate: "2026-07-04", departDate: "2026-07-06", pinned: false },
+    ];
+    const { results, conflicts } = reflowReorderedDates(ordered, null);
+
+    expect(results).toEqual([]);
+    expect(conflicts).toEqual([]);
   });
 });
