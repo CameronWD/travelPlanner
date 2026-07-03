@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, BookOpen, CalendarClock, GripVertical, MapPin } from "lucide-react";
+import { Plus, BookOpen, CalendarClock, GripVertical, MapPin, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StopCard, type StopCardStop } from "./stop-card";
@@ -32,7 +32,7 @@ import {
   setStopDates,
   reorderStops,
 } from "@/server/actions/stops";
-import { reorderChapters } from "@/server/actions/chapters";
+import { reorderChapters, deleteChapter } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { suggestNextStopDates, formatDateRange, formatLongDate } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
@@ -511,6 +511,24 @@ export function ItineraryManager({
       } else if (r.conflicts?.length) {
         toast({ title: "Heads up — some stops run past a pinned date; the pins were kept." });
       }
+    } finally {
+      setPendingId(null);
+    }
+  }
+
+  // ── Chapter handlers ──
+  async function handleDeleteChapter(chapterId: string) {
+    const chapter = localChapters.find((c) => c.id === chapterId);
+    const confirmed = await confirm({
+      title: `Remove "${chapter?.name ?? "this chapter"}"?`,
+      description: "The chapter will be removed. Any stops it contains will become ungrouped.",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    setPendingId(`delete-chapter-${chapterId}`);
+    try {
+      await deleteChapter(chapterId);
     } finally {
       setPendingId(null);
     }
@@ -1286,6 +1304,19 @@ export function ItineraryManager({
                             Set dates
                           </Button>
                         )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          aria-label={`Remove ${chapter.name} chapter`}
+                          disabled={pendingId === `delete-chapter-${chapter.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteChapter(chapter.id);
+                          }}
+                        >
+                          <Trash2 className="size-3.5" aria-hidden="true" />
+                        </Button>
                         <span
                           className="text-sm text-muted-foreground select-none"
                           aria-hidden="true"

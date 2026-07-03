@@ -53,6 +53,7 @@ vi.mock("@/server/actions/chapters", () => ({
   createChapter: vi.fn().mockResolvedValue({ success: true }),
   updateChapter: vi.fn().mockResolvedValue({ success: true }),
   reorderChapters: vi.fn().mockResolvedValue({ success: true }),
+  deleteChapter: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 vi.mock("@/components/ui/use-toast", async (importOriginal) => {
@@ -63,7 +64,7 @@ vi.mock("@/components/ui/use-toast", async (importOriginal) => {
 import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop } from "@/server/actions/stops";
 import { createTransport } from "@/server/actions/transport";
 import { createAccommodation } from "@/server/actions/accommodation";
-import { createChapter } from "@/server/actions/chapters";
+import { createChapter, deleteChapter } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { ItineraryManager, type ItineraryStop } from "./itinerary-manager";
 
@@ -882,6 +883,75 @@ describe("fork-aware createAccommodation", () => {
         expect.objectContaining({ stopId: "s-dated", name: "Hotel Berlin" }),
         FORK_ID,
       );
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 12. Delete/remove chapter — empty chapter card
+// ---------------------------------------------------------------------------
+
+describe("empty chapter remove control", () => {
+  const emptyChapter = {
+    id: "ch-empty",
+    name: "Asia",
+    colour: "rose" as const,
+    startDate: null,
+    endDate: null,
+    sortOrder: 0,
+  };
+
+  it("renders a 'Remove Asia chapter' button on an empty chapter card", () => {
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[]}
+        chapters={[emptyChapter]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Remove Asia chapter" }),
+    ).toBeInTheDocument();
+  });
+
+  it("does NOT call deleteChapter when the confirm dialog is cancelled", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[]}
+        chapters={[emptyChapter]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove Asia chapter" }));
+
+    const cancelBtn = await screen.findByRole("button", { name: "Cancel" });
+    await user.click(cancelBtn);
+
+    expect(deleteChapter).not.toHaveBeenCalled();
+  });
+
+  it("calls deleteChapter with the chapter id when confirmed", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[]}
+        chapters={[emptyChapter]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove Asia chapter" }));
+
+    const removeBtn = await screen.findByRole("button", { name: "Remove" });
+    await user.click(removeBtn);
+
+    await waitFor(() => {
+      expect(deleteChapter).toHaveBeenCalledWith("ch-empty");
     });
   });
 });
