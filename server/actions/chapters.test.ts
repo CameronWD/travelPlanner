@@ -3,22 +3,43 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const {
   requireTripAccessMock, revalidatePathMock,
   chapterFindUniqueMock, chapterFindManyMock, chapterCountMock, chapterCreateMock, chapterCreateManyMock, chapterUpdateMock, chapterDeleteMock,
-  stopFindManyMock, stopFindUniqueMock, stopUpdateMock, dbTransactionMock,
-} = vi.hoisted(() => ({
-  requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: { role: "owner" } }),
-  revalidatePathMock: vi.fn(),
-  chapterFindUniqueMock: vi.fn(),
-  chapterFindManyMock: vi.fn().mockResolvedValue([]),
-  chapterCountMock: vi.fn().mockResolvedValue(0),
-  chapterCreateMock: vi.fn().mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" }),
-  chapterCreateManyMock: vi.fn().mockResolvedValue({ count: 0 }),
-  chapterUpdateMock: vi.fn().mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" }),
-  chapterDeleteMock: vi.fn().mockResolvedValue({ id: "c1" }),
-  stopFindManyMock: vi.fn().mockResolvedValue([]),
-  stopFindUniqueMock: vi.fn(),
-  stopUpdateMock: vi.fn(),
-  dbTransactionMock: vi.fn(),
-}));
+  stopFindManyMock, stopFindUniqueMock, stopUpdateMock, tripFindUniqueMock, queryRawMock, dbTransactionMock,
+} = vi.hoisted(() => {
+  const queryRawMock = vi.fn();
+  const stopFindManyMock = vi.fn().mockResolvedValue([]);
+  const stopUpdateMock = vi.fn();
+  const chapterFindManyMock = vi.fn().mockResolvedValue([]);
+  const chapterUpdateMock = vi.fn().mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
+  const tripFindUniqueMock = vi.fn();
+  const dbTransactionMock = vi.fn(async (arg: unknown) => {
+    if (typeof arg === "function") {
+      return (arg as (tx: unknown) => unknown)({
+        $queryRaw: queryRawMock,
+        stop: { findMany: stopFindManyMock, update: stopUpdateMock },
+        chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
+      });
+    }
+    if (Array.isArray(arg)) return Promise.all(arg);
+    return arg;
+  });
+  return {
+    requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: { role: "owner" } }),
+    revalidatePathMock: vi.fn(),
+    chapterFindUniqueMock: vi.fn(),
+    chapterFindManyMock,
+    chapterCountMock: vi.fn().mockResolvedValue(0),
+    chapterCreateMock: vi.fn().mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" }),
+    chapterCreateManyMock: vi.fn().mockResolvedValue({ count: 0 }),
+    chapterUpdateMock,
+    chapterDeleteMock: vi.fn().mockResolvedValue({ id: "c1" }),
+    stopFindManyMock,
+    stopFindUniqueMock: vi.fn(),
+    stopUpdateMock,
+    tripFindUniqueMock,
+    queryRawMock,
+    dbTransactionMock,
+  };
+});
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
@@ -26,6 +47,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     chapter: { findUnique: chapterFindUniqueMock, findMany: chapterFindManyMock, count: chapterCountMock, create: chapterCreateMock, createMany: chapterCreateManyMock, update: chapterUpdateMock, delete: chapterDeleteMock },
     stop: { findMany: stopFindManyMock, findUnique: stopFindUniqueMock, update: stopUpdateMock },
+    trip: { findUnique: tripFindUniqueMock },
     $transaction: dbTransactionMock,
   },
 }));
@@ -44,7 +66,20 @@ afterEach(() => {
   chapterCountMock.mockResolvedValue(0);
   chapterCreateMock.mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
   chapterUpdateMock.mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
-  dbTransactionMock.mockResolvedValue(undefined);
+  stopFindManyMock.mockResolvedValue([]);
+  stopUpdateMock.mockReset();
+  // Restore dbTransactionMock to the callback-aware default.
+  dbTransactionMock.mockImplementation(async (arg: unknown) => {
+    if (typeof arg === "function") {
+      return (arg as (tx: unknown) => unknown)({
+        $queryRaw: queryRawMock,
+        stop: { findMany: stopFindManyMock, update: stopUpdateMock },
+        chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
+      });
+    }
+    if (Array.isArray(arg)) return Promise.all(arg);
+    return arg;
+  });
 });
 
 describe("plan-scope: createChapter overlap + sortOrder", () => {
@@ -299,53 +334,98 @@ describe("suggestChaptersFromCountries", () => {
 });
 
 describe("reorderChapters", () => {
-  it("happy path: sets sortOrder=index for each rough chapter and returns success", async () => {
+  it("happy path (rough chapters): moves stop blocks and returns success", async () => {
+    // Two rough chapters, no stops, no anchor → reflow is no-op.
     chapterFindManyMock.mockResolvedValue([
-      { id: "c1", startDate: null },
-      { id: "c2", startDate: null },
+      { id: "c1", startDate: null, forkId: null },
+      { id: "c2", startDate: null, forkId: null },
     ]);
-    // $transaction receives an array of promises; simulate resolving them.
-    dbTransactionMock.mockResolvedValue(undefined);
+    stopFindManyMock.mockResolvedValue([]);
+    tripFindUniqueMock.mockResolvedValue({ startDate: null });
+    queryRawMock.mockResolvedValue([]);
 
     const r = await reorderChapters("t1", ["c2", "c1"]);
     expect(r.success).toBe(true);
-    // findMany used to validate ownership + rough constraint.
-    expect(chapterFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ id: { in: ["c2", "c1"] }, tripId: "t1" }) }),
-    );
-    // $transaction called with an array of two updates.
-    expect(dbTransactionMock).toHaveBeenCalledOnce();
-    const txArg = dbTransactionMock.mock.calls[0][0] as unknown[];
-    expect(txArg).toHaveLength(2);
-    // Each element is the promise returned by chapter.update (chapterUpdateMock).
-    expect(chapterUpdateMock).toHaveBeenCalledTimes(2);
-    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "c2" }, data: { sortOrder: 0 } });
-    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "c1" }, data: { sortOrder: 1 } });
     expect(revalidatePathMock).toHaveBeenCalled();
   });
 
   it("rejects a chapter from another trip (count mismatch) — returns error, no updates", async () => {
     // Only 1 chapter found but 2 ids supplied → mismatch → reject.
-    chapterFindManyMock.mockResolvedValue([{ id: "c1", startDate: null }]);
+    chapterFindManyMock.mockResolvedValue([{ id: "c1", startDate: null, forkId: null }]);
 
     const r = await reorderChapters("t1", ["c1", "c-other"]);
     expect(r.success).toBe(false);
     if (!r.success) expect(r.errors.chapter?.[0]).toMatch(/trip/i);
-    expect(chapterUpdateMock).not.toHaveBeenCalled();
+    expect(stopUpdateMock).not.toHaveBeenCalled();
     expect(dbTransactionMock).not.toHaveBeenCalled();
   });
+});
 
-  it("rejects reordering a dated chapter — returns error, no updates", async () => {
+// ---------------------------------------------------------------------------
+// Task 9: reorderChapters — dated chapters now reorderable (ADR 0021)
+// ---------------------------------------------------------------------------
+
+describe("Task 9: reorderChapters — dated chapters can be reordered and reflowed", () => {
+  it("allows dated chapters to be reordered and reflows stop dates", async () => {
+    // Two dated chapters: ch-A (stops a1, a2) and ch-B (stops b1).
+    // New order: ch-B before ch-A.
+    // Trip startDate = 2026-07-01 (anchor).
+    // a1: arrive 2026-07-01, depart 2026-07-04 (3n); a2: arrive 2026-07-04, depart 2026-07-06 (2n).
+    // b1: arrive 2026-07-06, depart 2026-07-09 (3n).
+    // After reorder (ch-B first): b1 gets arrive 2026-07-01, depart 2026-07-04;
+    //   a1 gets arrive 2026-07-04, depart 2026-07-07; a2 gets arrive 2026-07-07, depart 2026-07-09.
     chapterFindManyMock.mockResolvedValue([
-      { id: "c1", startDate: "2026-07-01" }, // dated!
-      { id: "c2", startDate: null },
+      { id: "ch-A", startDate: "2026-07-01", forkId: null },
+      { id: "ch-B", startDate: "2026-07-06", forkId: null },
     ]);
+    stopFindManyMock.mockResolvedValue([
+      { id: "a1", sortOrder: 0, chapterId: "ch-A", arriveDate: "2026-07-01", departDate: "2026-07-04", nights: null, pinned: false },
+      { id: "a2", sortOrder: 1, chapterId: "ch-A", arriveDate: "2026-07-04", departDate: "2026-07-06", nights: null, pinned: false },
+      { id: "b1", sortOrder: 2, chapterId: "ch-B", arriveDate: "2026-07-06", departDate: "2026-07-09", nights: null, pinned: false },
+    ]);
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
+    queryRawMock.mockResolvedValue([
+      { id: "a1", tripId: "t1", arriveDate: "2026-07-01" },
+      { id: "a2", tripId: "t1", arriveDate: "2026-07-04" },
+      { id: "b1", tripId: "t1", arriveDate: "2026-07-06" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
 
-    const r = await reorderChapters("t1", ["c1", "c2"]);
-    expect(r.success).toBe(false);
-    if (!r.success) expect(r.errors.chapter?.[0]).toMatch(/rough|date/i);
-    expect(chapterUpdateMock).not.toHaveBeenCalled();
-    expect(dbTransactionMock).not.toHaveBeenCalled();
+    const r = await reorderChapters("t1", ["ch-B", "ch-A"]);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.changed).toBeDefined();
+      // b1 should be reflowed to arrive 2026-07-01
+      const b1 = r.changed!.find((c) => c.id === "b1");
+      expect(b1).toBeDefined();
+      expect(b1!.arriveDate).toBe("2026-07-01");
+      expect(b1!.departDate).toBe("2026-07-04");
+    }
+    // Persists the reflowed dates for b1
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "b1" }, data: { arriveDate: "2026-07-01", departDate: "2026-07-04" } });
+  });
+
+  it("returns { success, changed, conflicts } shape for dated chapter reorder", async () => {
+    chapterFindManyMock.mockResolvedValue([
+      { id: "ch-X", startDate: "2026-07-01", forkId: null },
+    ]);
+    stopFindManyMock.mockResolvedValue([
+      { id: "x1", sortOrder: 0, chapterId: "ch-X", arriveDate: "2026-07-01", departDate: "2026-07-03", nights: null, pinned: false },
+    ]);
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
+    queryRawMock.mockResolvedValue([
+      { id: "x1", tripId: "t1", arriveDate: "2026-07-01" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+
+    const r = await reorderChapters("t1", ["ch-X"]);
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r).toHaveProperty("changed");
+      expect(r).toHaveProperty("conflicts");
+      expect(Array.isArray(r.changed)).toBe(true);
+      expect(Array.isArray(r.conflicts)).toBe(true);
+    }
   });
 });
 

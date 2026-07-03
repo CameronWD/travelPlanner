@@ -12,7 +12,7 @@ import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
-import { insertionOrder } from "@/lib/reorder";
+import { insertionOrder, reflowReorderedDates, type ReflowStop } from "@/lib/reorder";
 import { chapterSpan } from "@/lib/chapter-span";
 
 // ---------------------------------------------------------------------------
@@ -21,6 +21,18 @@ import { chapterSpan } from "@/lib/chapter-span";
 
 export type StopActionResult =
   | { success: true; conflicts?: FlowConflict[] }
+  | { success: false; errors: Record<string, string[]> };
+
+/** Richer result returned by reorderStops (and reorderChapters) — includes
+ *  the reflow payload so Task 10 can build the "X stops shifted" undo toast. */
+export type ReorderResult =
+  | {
+      success: true;
+      /** Stops whose arrive/departDate changed as a result of the reflow. */
+      changed: { id: string; arriveDate: string; departDate: string }[];
+      /** Pin-infeasibility conflicts (the pin stays fixed; caller may show a warning). */
+      conflicts: FlowConflict[];
+    }
   | { success: false; errors: Record<string, string[]> };
 
 // ---------------------------------------------------------------------------
@@ -1043,23 +1055,19 @@ export async function assignStopToChapter(stopId: string, chapterId: string | nu
 
 /**
  * Reorder stops to an explicit new order (drag-and-drop). Rewrites global
- * sortOrder = index for the given stops, and reassigns a ROUGH stop's chapterId.
- * Dated stops keep date-band chapter membership (chapterId ignored for them).
+ * sortOrder = index and chapterId for every stop (rough or scheduled).
+ * After the positional writes, reflows calendar dates for scheduled stops from
+ * the trip anchor and persists any changes. Returns the reflow payload so
+ * Task 10 can build the "X stops shifted" undo toast (ADR 0021).
  * Locked FOR UPDATE to serialise with moveStop/other reorders (cf. ADR 0007).
  */
 export async function reorderStops(
   tripId: string,
   items: { id: string; chapterId: string | null }[],
-): Promise<StopActionResult> {
+): Promise<ReorderResult> {
   await requireTripAccess(tripId);
-  if (items.length === 0) return { success: true };
+  if (items.length === 0) return { success: true, changed: [], conflicts: [] };
 
-  // Pre-validate: reject any target chapter that is DATED (has a startDate).
-  // We fetch all unique chapterIds from the items list; if any resolved chapter
-  // carries a startDate the move is illegal — rough stops can never enter a
-  // dated chapter (R1). We don't error on chapters that aren't found here;
-  // that case is either irrelevant (dated stop whose chapterId will be ignored)
-  // or caught by the DB foreign-key constraint on write.
   // Derive the plan (forkId) from the stops being reordered. They all belong to
   // a single plan; reject a mixed-plan payload. Chapters are then validated
   // within that plan only (I3) — closing a cross-plan write vector where a
@@ -1067,7 +1075,7 @@ export async function reorderStops(
   const reorderIds = items.map((i) => i.id);
   const reorderStopRows = await db.stop.findMany({
     where: { id: { in: reorderIds }, tripId },
-    select: { id: true, forkId: true },
+    select: { id: true, forkId: true, arriveDate: true },
   });
   const planForkIds = new Set(reorderStopRows.map((s) => s.forkId));
   if (planForkIds.size > 1) {
@@ -1077,24 +1085,42 @@ export async function reorderStops(
     };
   }
   const reorderForkId: PlanId = reorderStopRows[0]?.forkId ?? null;
+  const preKnownArriveDate = new Map(reorderStopRows.map((s) => [s.id, s.arriveDate]));
 
+  // Pre-validate: rough stops cannot enter a DATED chapter (R1).
+  // Dated stops may enter any chapter (ADR 0021).
+  // We do this check outside the tx using the pre-fetched stop arriveDates.
   const targetChapterIds = [...new Set(items.map((i) => i.chapterId).filter((c): c is string => c != null))];
+  const chapterStartDates = new Map<string, string | null>();
   if (targetChapterIds.length > 0) {
     const chapters = await db.chapter.findMany({
       where: { id: { in: targetChapterIds }, tripId, ...planScope(reorderForkId) },
       select: { id: true, startDate: true },
     });
     for (const ch of chapters) {
-      if (ch.startDate != null) {
-        return {
-          success: false,
-          errors: { chapterId: ["Can't move a rough stop into a dated chapter."] },
-        };
-      }
+      chapterStartDates.set(ch.id, ch.startDate);
     }
   }
 
+  // Enforce rough-into-dated-chapter rule before opening the tx.
+  for (const it of items) {
+    if (it.chapterId == null) continue;
+    const isRough = (preKnownArriveDate.get(it.id) ?? null) == null;
+    if (isRough && chapterStartDates.has(it.chapterId) && chapterStartDates.get(it.chapterId) != null) {
+      return { success: false, errors: { chapterId: ["Can't move a rough stop into a dated chapter."] } };
+    }
+  }
+
+  // Resolve the reflow anchor (trip.startDate, else earliest scheduled arriveDate).
+  // We need this BEFORE the transaction for the reflow computation, but the
+  // actual stop order comes from inside the tx. We'll re-read it inside the tx
+  // for correctness; this pre-read is just for the anchor.
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
+
   const ids = items.map((i) => i.id);
+
+  let changed: { id: string; arriveDate: string; departDate: string }[] = [];
+  let conflicts: FlowConflict[] = [];
 
   try {
     await db.$transaction(async (tx) => {
@@ -1114,15 +1140,55 @@ export async function reorderStops(
         if (!r || r.tripId !== tripId) throw new Error("STOP_NOT_IN_TRIP");
       }
 
-      // Write sortOrder for every stop; write chapterId only for rough stops.
+      // Write sortOrder + chapterId for ALL stops (both rough and scheduled — ADR 0021).
       for (let idx = 0; idx < items.length; idx++) {
         const it = items[idx];
-        const isRough = byId.get(it.id)!.arriveDate == null;
         await tx.stop.update({
           where: { id: it.id },
-          data: isRough ? { sortOrder: idx, chapterId: it.chapterId } : { sortOrder: idx },
+          data: { sortOrder: idx, chapterId: it.chapterId },
         });
       }
+
+      // Reflow scheduled stop dates in the new order.
+      // Load all stops in the trip in the NEW order (sortOrder just written above)
+      // plus their date/pin fields needed by reflowReorderedDates.
+      const orderedStops = await tx.stop.findMany({
+        where: { tripId, ...planScope(reorderForkId) },
+        orderBy: { sortOrder: "asc" },
+        select: { id: true, arriveDate: true, departDate: true, nights: true, pinned: true, sortOrder: true },
+      });
+
+      // Anchor: trip.startDate if set, else earliest arriveDate among scheduled stops pre-reorder.
+      const anchor =
+        trip?.startDate ??
+        rows.reduce<string | null>(
+          (min, r) => (r.arriveDate && (min === null || r.arriveDate < min) ? r.arriveDate : min),
+          null,
+        );
+
+      const reflowInput: ReflowStop[] = orderedStops.map((s) => ({
+        id: s.id,
+        arriveDate: s.arriveDate,
+        departDate: s.departDate,
+        nights: s.nights,
+        pinned: s.pinned,
+      }));
+
+      const { results, conflicts: flowConflicts } = reflowReorderedDates(reflowInput, anchor);
+      conflicts = flowConflicts;
+
+      // Persist only the changed stops.
+      const changedResults = results.filter((r) => r.changed);
+      for (const r of changedResults) {
+        await tx.stop.update({
+          where: { id: r.id },
+          data: { arriveDate: r.arriveDate, departDate: r.departDate },
+        });
+      }
+      changed = changedResults.map((r) => ({ id: r.id, arriveDate: r.arriveDate, departDate: r.departDate }));
+
+      // Recompute chapter date-bands to stay in sync with the new stop dates.
+      await recomputeChapterSpans(tx, tripId, reorderForkId);
     });
   } catch (e) {
     if (e instanceof Error && e.message === "STOP_NOT_IN_TRIP") {
@@ -1133,7 +1199,7 @@ export async function reorderStops(
 
   revalidatePath(`/trips/${tripId}`);
   revalidatePath(`/trips/${tripId}/plan`);
-  return { success: true };
+  return { success: true, changed, conflicts };
 }
 
 /**
