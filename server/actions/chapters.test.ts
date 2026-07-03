@@ -359,6 +359,26 @@ describe("reorderChapters", () => {
     expect(stopUpdateMock).not.toHaveBeenCalled();
     expect(dbTransactionMock).not.toHaveBeenCalled();
   });
+
+  it("FIX B: writes sortOrder for each chapter in the new requested order", async () => {
+    // Three rough chapters reordered: c3 → c1 → c2.
+    // Expected: c3 gets sortOrder 0, c1 gets sortOrder 1, c2 gets sortOrder 2.
+    chapterFindManyMock.mockResolvedValue([
+      { id: "c1", startDate: null, forkId: null },
+      { id: "c2", startDate: null, forkId: null },
+      { id: "c3", startDate: null, forkId: null },
+    ]);
+    stopFindManyMock.mockResolvedValue([]);
+    tripFindUniqueMock.mockResolvedValue({ startDate: null });
+    queryRawMock.mockResolvedValue([]);
+
+    const r = await reorderChapters("t1", ["c3", "c1", "c2"]);
+    expect(r.success).toBe(true);
+    // Each chapter must receive its new sortOrder via tx.chapter.update.
+    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "c3" }, data: { sortOrder: 0 } });
+    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "c1" }, data: { sortOrder: 1 } });
+    expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "c2" }, data: { sortOrder: 2 } });
+  });
 });
 
 // ---------------------------------------------------------------------------

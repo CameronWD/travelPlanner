@@ -243,9 +243,29 @@ export async function reorderChapters(
       await tx.stop.update({ where: { id: it.id }, data: { sortOrder: idx } });
     }
 
+    // Write sortOrder for each chapter in the new requested order (ADR 0014:
+    // reorderChapters persists the canonical rough-Chapter order for empty Chapters).
+    for (let idx = 0; idx < orderedChapterIds.length; idx++) {
+      await tx.chapter.update({ where: { id: orderedChapterIds[idx] }, data: { sortOrder: idx } });
+    }
+
+    // Re-fetch the trip's stops from the LOCKED rows so we build the reflow input
+    // from post-lock data, not from the pre-tx allStops snapshot (closes a TOCTOU
+    // race where a concurrent writer could change a stop's dates/nights/pinned
+    // between the pre-tx read and the lock; mirrors the pattern in reorderStops).
+    const lockedStops = await tx.stop.findMany({
+      where: { tripId, ...planScope(forkId) },
+      orderBy: { sortOrder: "asc" },
+      select: {
+        id: true, sortOrder: true, chapterId: true,
+        arriveDate: true, departDate: true, nights: true, pinned: true,
+      },
+    });
+    const lockedById = new Map(lockedStops.map((s) => [s.id, s]));
+
     // Reflow scheduled stop dates in the new order.
     const reflowInput: ReflowStop[] = orderedItems.map((it) => {
-      const s = allStops.find((x) => x.id === it.id)!;
+      const s = lockedById.get(it.id)!;
       return { id: s.id, arriveDate: s.arriveDate, departDate: s.departDate, nights: s.nights, pinned: s.pinned };
     });
 

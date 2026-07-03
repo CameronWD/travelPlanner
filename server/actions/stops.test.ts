@@ -1972,6 +1972,10 @@ describe("Task 9: reorderStops — reflows dates for scheduled stops and returns
       expect(result.conflicts).toBeDefined();
       expect(result.conflicts!.length).toBeGreaterThan(0);
     }
+    // Pin's dates must NOT be overwritten — the pin stays fixed even under conflict.
+    expect(stopUpdateMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "pin" }, data: expect.objectContaining({ arriveDate: expect.anything() }) }),
+    );
   });
 
   it("uses earliest arriveDate as anchor when trip.startDate is null", async () => {
