@@ -196,6 +196,24 @@ describe("CommandPalette", () => {
     });
   });
 
+  describe("Global Globe command", () => {
+    it("offers a global Globe command that navigates to /globe", async () => {
+      const user = userEvent.setup();
+      const onOpenChange = vi.fn();
+      renderPalette({ onOpenChange });
+      expect(await screen.findByText("Globe")).toBeInTheDocument();
+
+      await user.click(screen.getByText("Globe"));
+      expect(mockPush).toHaveBeenCalledWith("/globe");
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it("Globe command is available even when tripId is null", async () => {
+      renderPalette({ tripId: null });
+      expect(await screen.findByText("Globe")).toBeInTheDocument();
+    });
+  });
+
   describe("Switch trip", () => {
     it("shows other trips from listMyTrips under Go to", async () => {
       mockListMyTrips.mockResolvedValue([

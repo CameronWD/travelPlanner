@@ -100,6 +100,14 @@ export default async function AppLayout({
           {/* Right-hand controls */}
           <div className="flex items-center gap-1">
             {!discreet && <CommandPaletteTrigger />}
+            {!discreet && (
+              <Link
+                href="/globe"
+                className="rounded-md px-2 py-1 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
+              >
+                Globe
+              </Link>
+            )}
             <ThemeToggle />
 
             {/* Traveller avatar dropdown */}
