@@ -50,6 +50,7 @@ export function GlobeView({ markers, members }: GlobeViewProps) {
       <MarkerList markers={filtered} onSelect={openEdit} />
 
       <MarkerForm
+        key={editing ? `edit-${editing.id}` : prefill ? `drop-${prefill.lat},${prefill.lng}` : "add"}
         open={formOpen}
         onOpenChange={setFormOpen}
         marker={editing}

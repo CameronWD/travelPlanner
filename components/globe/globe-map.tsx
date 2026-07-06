@@ -54,8 +54,12 @@ export function GlobeMap({ markers, onSelect, onMapClick }: GlobeMapProps) {
   // Keep latest callbacks without re-initialising the map.
   const onSelectRef = useRef(onSelect);
   const onMapClickRef = useRef(onMapClick);
-  onSelectRef.current = onSelect;
-  onMapClickRef.current = onMapClick;
+  // Update refs in an effect so they're never mutated during render
+  // (react-hooks/no-ref-access-during-render compliance).
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+    onMapClickRef.current = onMapClick;
+  });
 
   const located = markers.filter(
     (m): m is MarkerView & { lat: number; lng: number } => m.lat != null && m.lng != null,

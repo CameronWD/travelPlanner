@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { CATEGORIES, type Category } from "@/lib/categories";
 import {
   createMarker,
@@ -48,57 +48,43 @@ interface ResolvedPlace {
 
 export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: MarkerFormProps) {
   const isEdit = !!marker;
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<Category>("SIGHTSEEING");
-  const [note, setNote] = useState("");
-  const [link, setLink] = useState("");
-  const [timing, setTiming] = useState("");
-  const [place, setPlace] = useState<ResolvedPlace | null>(null);
-  const [query, setQuery] = useState("");
+
+  // State seeds directly from props so the parent can remount this component
+  // (via a changing `key`) whenever the target marker / prefill changes — no
+  // synchronous setState inside an effect body (react-hooks/set-state-in-effect).
+  const [title, setTitle] = useState(marker?.title ?? "");
+  const [category, setCategory] = useState<Category>((marker?.category as Category) ?? "SIGHTSEEING");
+  const [note, setNote] = useState(marker?.note ?? "");
+  const [link, setLink] = useState(marker?.link ?? "");
+  const [timing, setTiming] = useState(marker?.timing ?? "");
+  const [place, setPlace] = useState<ResolvedPlace | null>(
+    marker
+      ? { lat: marker.lat, lng: marker.lng, city: marker.city, country: marker.country, countryCode: marker.countryCode }
+      : prefill
+        ? { lat: prefill.lat, lng: prefill.lng, city: null, country: null, countryCode: null }
+        : null,
+  );
+  const [query, setQuery] = useState(marker?.title ?? "");
   const [candidates, setCandidates] = useState<GeoCandidate[]>([]);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [pending, startTransition] = useTransition();
 
-  // Reset the form each time the dialog opens, seeding from marker/prefill.
+  // If dropped via map click (prefill present, not editing), resolve the place
+  // name in the background. State updates happen only inside the async IIFE —
+  // never synchronously in the effect body (react-hooks/set-state-in-effect).
+  const geocodedRef = useRef(false);
   useEffect(() => {
-    if (!open) return;
-    setErrors({});
-    setCandidates([]);
-    if (marker) {
-      setTitle(marker.title);
-      setCategory(marker.category as Category);
-      setNote(marker.note ?? "");
-      setLink(marker.link ?? "");
-      setTiming(marker.timing ?? "");
-      setPlace({
-        lat: marker.lat,
-        lng: marker.lng,
-        city: marker.city,
-        country: marker.country,
-        countryCode: marker.countryCode,
-      });
-      setQuery(marker.title);
-    } else {
-      setTitle("");
-      setCategory("SIGHTSEEING");
-      setNote("");
-      setLink("");
-      setTiming("");
-      setQuery("");
-      setPlace(prefill ? { lat: prefill.lat, lng: prefill.lng, city: null, country: null, countryCode: null } : null);
-      // If dropped via map click, resolve the place name in the background.
-      if (prefill) {
-        void import("@/server/actions/globe").then(({ reverseGeocodeAction }) =>
-          reverseGeocodeAction(prefill.lat, prefill.lng).then((c) => {
-            if (!c) return;
-            setTitle((t) => t || c.name.split(",")[0]);
-            setQuery((q) => q || c.name);
-            setPlace({ lat: c.lat, lng: c.lng, city: c.city, country: c.country, countryCode: c.countryCode });
-          }),
-        );
-      }
-    }
-  }, [open, marker, prefill]);
+    if (!prefill || marker || geocodedRef.current) return;
+    geocodedRef.current = true;
+    void (async () => {
+      const { reverseGeocodeAction } = await import("@/server/actions/globe");
+      const c = await reverseGeocodeAction(prefill.lat, prefill.lng);
+      if (!c) return;
+      setTitle((t) => t || c.name.split(",")[0]);
+      setQuery((q) => q || c.name);
+      setPlace({ lat: c.lat, lng: c.lng, city: c.city, country: c.country, countryCode: c.countryCode });
+    })();
+  }, [prefill, marker]);
 
   const runSearch = () => {
     const q = query.trim();
