@@ -232,6 +232,7 @@ function CommandPaletteInner({ onOpenChange, tripId }: CommandPaletteInnerProps)
 
   interface DoCmd { label: string; onActivate: () => void }
   const allDoCmds: DoCmd[] = [
+    { label: "Globe", onActivate: () => go("/globe") },
     { label: "New trip", onActivate: () => go("/trips/new") },
     ...(tripId
       ? [

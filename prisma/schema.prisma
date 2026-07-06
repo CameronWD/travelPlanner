@@ -46,6 +46,9 @@ model User {
   pushSubscriptions  PushSubscription[]
   journalEntries     JournalEntry[]
   activities         Activity[]
+  globeMembership    GlobeMember?
+  globesCreated      Globe[]       @relation("GlobeCreatedBy")
+  markersCreated     Marker[]      @relation("MarkerCreatedBy")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -556,4 +559,84 @@ model Activity {
   actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([tripId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// The Globe — a single shared, cross-trip collection of places to visit.
+// Account-level aggregate, decoupled from Trip (see ADR 0023). Rendered as a
+// flat Leaflet map (see ADR 0024).
+// ---------------------------------------------------------------------------
+
+model Globe {
+  id          String @id @default(cuid())
+  createdById String
+
+  createdBy User          @relation("GlobeCreatedBy", fields: [createdById], references: [id])
+  members   GlobeMember[]
+  markers   Marker[]
+  invites   GlobeInvite[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdById])
+}
+
+model GlobeMember {
+  id      String @id @default(cuid())
+  globeId String
+  userId  String
+  role    String // lib/enums.ts MEMBER_ROLES: "owner" | "member"
+
+  globe Globe @relation(fields: [globeId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  // A user belongs to at most one Globe (ADR 0023) — enforced globally, not
+  // just per-globe, so a userId appears in exactly one GlobeMember row.
+  @@unique([userId])
+  @@index([globeId])
+}
+
+model GlobeInvite {
+  id         String    @id @default(cuid())
+  globeId    String
+  email      String
+  token      String    @unique
+  role       String    @default("member")
+  acceptedAt DateTime?
+
+  globe Globe @relation(fields: [globeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([globeId, email])
+  @@index([globeId])
+  @@index([email])
+}
+
+model Marker {
+  id          String  @id @default(cuid())
+  globeId     String
+  title       String
+  category    String // lib/categories.ts CATEGORY_VALUES
+  note        String?
+  link        String?
+  timing      String? // rough free-text "when" (e.g. "late Sept") — never a scheduled date
+  lat         Float?
+  lng         Float?
+  city        String? // auto-derived town/city
+  country     String? // auto-derived country name
+  countryCode String? // auto-derived ISO 3166-1 alpha-2 (lowercase, from Nominatim)
+  createdById String
+
+  globe     Globe @relation(fields: [globeId], references: [id], onDelete: Cascade)
+  createdBy User  @relation("MarkerCreatedBy", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([globeId])
+  @@index([createdById])
 }

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { geocodePlace } from "./geocode";
+import { geocodePlace, searchPlaces, reverseGeocode } from "./geocode";
 
 // Mock global fetch so we never hit the network.
 const fetchMock = vi.fn();
@@ -87,5 +87,83 @@ describe("geocodePlace", () => {
     const [url] = fetchMock.mock.calls[0];
     // URLSearchParams encodes spaces as '+', decode that too
     expect(decodeURIComponent((url as string).replace(/\+/g, " "))).toContain("London, UK");
+  });
+});
+
+describe("searchPlaces", () => {
+  it("maps candidates with derived city/country/countryCode", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => [
+        {
+          display_name: "Tokyo Tower, Minato, Tokyo, Japan",
+          lat: "35.6586",
+          lon: "139.7454",
+          address: { city: "Tokyo", country: "Japan", country_code: "jp" },
+        },
+      ],
+    });
+
+    const results = await searchPlaces("Tokyo Tower");
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({
+      name: "Tokyo Tower, Minato, Tokyo, Japan",
+      city: "Tokyo",
+      country: "Japan",
+      countryCode: "jp",
+    });
+    expect(results[0].lat).toBeCloseTo(35.6586);
+    expect(results[0].lng).toBeCloseTo(139.7454);
+  });
+
+  it("falls back through town/village when city is absent", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => [
+        {
+          display_name: "Hallstatt, Austria",
+          lat: "47.56",
+          lon: "13.64",
+          address: { village: "Hallstatt", country: "Austria", country_code: "at" },
+        },
+      ],
+    });
+    const results = await searchPlaces("Hallstatt");
+    expect(results[0].city).toBe("Hallstatt");
+  });
+
+  it("returns [] on empty result, non-ok, or network error", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => [] });
+    expect(await searchPlaces("nowhere")).toEqual([]);
+
+    fetchMock.mockResolvedValue({ ok: false, status: 429, json: async () => [] });
+    expect(await searchPlaces("paris")).toEqual([]);
+
+    fetchMock.mockRejectedValue(new Error("network"));
+    expect(await searchPlaces("paris")).toEqual([]);
+  });
+});
+
+describe("reverseGeocode", () => {
+  it("maps a reverse hit to a GeoCandidate", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        display_name: "Eiffel Tower, Paris, France",
+        lat: "48.8584",
+        lon: "2.2945",
+        address: { city: "Paris", country: "France", country_code: "fr" },
+      }),
+    });
+    const result = await reverseGeocode(48.8584, 2.2945);
+    expect(result).toMatchObject({ name: "Eiffel Tower, Paris, France", city: "Paris", countryCode: "fr" });
+  });
+
+  it("returns null on error / no address", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({}) });
+    expect(await reverseGeocode(0, 0)).toBeNull();
+
+    fetchMock.mockRejectedValue(new Error("network"));
+    expect(await reverseGeocode(0, 0)).toBeNull();
   });
 });

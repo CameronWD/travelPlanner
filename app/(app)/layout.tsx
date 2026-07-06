@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { acceptPendingInvitesForUser } from "@/lib/invites";
+import { acceptPendingGlobeInvitesForUser } from "@/lib/globe-invites";
 import { getDiscreetState } from "@/lib/discreet-server";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -68,6 +69,7 @@ export default async function AppLayout({
   // best-effort (see ADR 0017).
   if (email) {
     await acceptPendingInvitesForUser(session.user.id, email);
+    await acceptPendingGlobeInvitesForUser(session.user.id, email);
   }
 
   const { discreet, label } = await getDiscreetState();
@@ -98,6 +100,14 @@ export default async function AppLayout({
           {/* Right-hand controls */}
           <div className="flex items-center gap-1">
             {!discreet && <CommandPaletteTrigger />}
+            {!discreet && (
+              <Link
+                href="/globe"
+                className="rounded-md px-2 py-1 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
+              >
+                Globe
+              </Link>
+            )}
             <ThemeToggle />
 
             {/* Traveller avatar dropdown */}
