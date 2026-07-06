@@ -1,6 +1,20 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 
+/**
+ * True for a Prisma unique-constraint violation (P2002). Checked structurally
+ * (by `code`) rather than via `instanceof` so it stays driver-adapter-agnostic
+ * and trivially mockable in tests.
+ */
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "P2002"
+  );
+}
+
 /** Return the id of the Globe this user belongs to, or null. */
 export async function getUserGlobe(userId: string): Promise<{ id: string } | null> {
   const membership = await db.globeMember.findUnique({
@@ -31,6 +45,9 @@ export async function getOrCreateUserGlobe(userId: string): Promise<{ id: string
     });
     return { id: globe.id };
   } catch (err) {
+    // Only treat a Prisma unique-constraint violation (P2002) as a recoverable
+    // create-race. Any other error is rethrown immediately.
+    if (!isUniqueConstraintError(err)) throw err;
     // Lost a create race — the other request made the membership. Re-read.
     const now = await getUserGlobe(userId);
     if (now) return now;

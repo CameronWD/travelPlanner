@@ -53,4 +53,22 @@ describe("getOrCreateUserGlobe", () => {
       }),
     );
   });
+
+  it("recovers from a P2002 create race by re-reading the globe", async () => {
+    // First findUnique (initial check) returns null; second (re-read) returns the race winner's globe.
+    dbm.globeMember.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ globeId: "gRace" });
+    dbm.globe.create.mockRejectedValue({ code: "P2002" });
+    const res = await getOrCreateUserGlobe("u1");
+    expect(res).toEqual({ id: "gRace" });
+  });
+
+  it("rethrows non-P2002 errors without re-reading", async () => {
+    dbm.globeMember.findUnique.mockResolvedValue(null);
+    dbm.globe.create.mockRejectedValue(new Error("boom"));
+    await expect(getOrCreateUserGlobe("u1")).rejects.toThrow("boom");
+    // findUnique should only have been called once (the initial check — not a re-read)
+    expect(dbm.globeMember.findUnique).toHaveBeenCalledTimes(1);
+  });
 });
