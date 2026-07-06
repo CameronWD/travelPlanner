@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { acceptPendingInvitesForUser } from "@/lib/invites";
+import { acceptPendingGlobeInvitesForUser } from "@/lib/globe-invites";
 import { getDiscreetState } from "@/lib/discreet-server";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -68,6 +69,7 @@ export default async function AppLayout({
   // best-effort (see ADR 0017).
   if (email) {
     await acceptPendingInvitesForUser(session.user.id, email);
+    await acceptPendingGlobeInvitesForUser(session.user.id, email);
   }
 
   const { discreet, label } = await getDiscreetState();
