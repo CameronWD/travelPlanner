@@ -205,6 +205,7 @@ model Stop {
   forkId           String?
   name             String
   country          String?
+  countryCode      String? // auto-derived ISO 3166-1 alpha-2 (lowercase, from Nominatim); null while un-derived
   lat              Float?
   lng              Float?
   timezone         String? // IANA — null while rough
@@ -327,15 +328,17 @@ model Item {
   link      String?
   booking   String?
   notes     String?
-  sortOrder    Int     @default(0)
-  sourceItemId String?
+  sortOrder      Int     @default(0)
+  sourceItemId   String?
+  sourceMarkerId String?
 
-  trip        Trip   @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  fork        Fork?  @relation(fields: [forkId], references: [id], onDelete: Cascade)
-  stop        Stop?  @relation(fields: [stopId], references: [id], onDelete: SetNull)
-  sourceItem  Item?  @relation("ItemPlacedFrom", fields: [sourceItemId], references: [id], onDelete: SetNull)
-  placements  Item[] @relation("ItemPlacedFrom")
-  votes       Vote[]
+  trip         Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fork         Fork?   @relation(fields: [forkId], references: [id], onDelete: Cascade)
+  stop         Stop?   @relation(fields: [stopId], references: [id], onDelete: SetNull)
+  sourceItem   Item?   @relation("ItemPlacedFrom", fields: [sourceItemId], references: [id], onDelete: SetNull)
+  placements   Item[]  @relation("ItemPlacedFrom")
+  sourceMarker Marker? @relation("ItemFromMarker", fields: [sourceMarkerId], references: [id], onDelete: SetNull)
+  votes        Vote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -344,6 +347,7 @@ model Item {
   @@index([forkId])
   @@index([stopId])
   @@index([sourceItemId])
+  @@index([sourceMarkerId])
 }
 
 model Cost {
@@ -631,8 +635,9 @@ model Marker {
   countryCode String? // auto-derived ISO 3166-1 alpha-2 (lowercase, from Nominatim)
   createdById String
 
-  globe     Globe @relation(fields: [globeId], references: [id], onDelete: Cascade)
-  createdBy User  @relation("MarkerCreatedBy", fields: [createdById], references: [id])
+  globe          Globe  @relation(fields: [globeId], references: [id], onDelete: Cascade)
+  createdBy      User   @relation("MarkerCreatedBy", fields: [createdById], references: [id])
+  wishlistCopies Item[] @relation("ItemFromMarker")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
