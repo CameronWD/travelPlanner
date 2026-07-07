@@ -24,6 +24,8 @@ const {
   resolveRateForTripMock,
   persistRateMock,
   transactionMock,
+  markerFindUniqueMock,
+  getUserGlobeMock,
 } = vi.hoisted(() => {
   const costCreateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
   const costUpdateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
@@ -59,12 +61,15 @@ const {
     resolveRateForTripMock: vi.fn().mockResolvedValue({ rate: 0.6, persist: null }),
     persistRateMock: vi.fn().mockResolvedValue(undefined),
     transactionMock,
+    markerFindUniqueMock: vi.fn(),
+    getUserGlobeMock: vi.fn(),
   };
 });
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
+vi.mock("@/lib/globe", () => ({ getUserGlobe: getUserGlobeMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/fx", () => ({
   resolveRateForTrip: resolveRateForTripMock,
@@ -91,6 +96,9 @@ vi.mock("@/lib/db", () => ({
       create: costCreateMock,
       update: costUpdateMock,
     },
+    marker: {
+      findUnique: markerFindUniqueMock,
+    },
     $transaction: transactionMock,
   },
 }));
@@ -102,6 +110,7 @@ import {
   scheduleItem,
   unscheduleItem,
   rescheduleItem,
+  addMarkerToWishlist,
 } from "./items";
 import { recordActivity } from "@/server/actions/activity";
 
@@ -116,6 +125,7 @@ beforeEach(() => {
     user: { id: "user-1" },
     membership: { role: "owner" },
   });
+  getUserGlobeMock.mockResolvedValue({ id: "g1" });
 });
 
 afterEach(() => {
@@ -1171,5 +1181,89 @@ describe("updateItem: inline cost update/create", () => {
     expect(transactionMock).not.toHaveBeenCalled();
     expect(costCreateMock).not.toHaveBeenCalled();
     expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// addMarkerToWishlist
+// ---------------------------------------------------------------------------
+
+const MARKER = {
+  id: "m1",
+  globeId: "g1",
+  title: "Tokyo Tower",
+  category: "SIGHTSEEING",
+  note: null,
+  link: null,
+  timing: "late Sept",
+  lat: 35.6586,
+  lng: 139.7454,
+  city: "Tokyo",
+  country: "Japan",
+  countryCode: "jp",
+};
+
+describe("addMarkerToWishlist", () => {
+  it("returns an error and creates nothing when the marker is not on the user's globe", async () => {
+    markerFindUniqueMock.mockResolvedValue({ ...MARKER, globeId: "other" });
+    const res = await addMarkerToWishlist("m1", "t1");
+    expect(res.success).toBe(false);
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("returns an error when the user has no globe", async () => {
+    getUserGlobeMock.mockResolvedValueOnce(null);
+    markerFindUniqueMock.mockResolvedValue(MARKER);
+    const res = await addMarkerToWishlist("m1", "t1");
+    expect(res.success).toBe(false);
+    expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("creates an unscheduled wishlist item from the marker with provenance", async () => {
+    markerFindUniqueMock.mockResolvedValue(MARKER);
+    itemFindFirstMock
+      .mockResolvedValueOnce(null) // dedupe check: none exists
+      .mockResolvedValueOnce({ sortOrder: 4 }); // max sortOrder
+    itemCreateMock.mockResolvedValue({ id: "i1", title: "Tokyo Tower" });
+
+    const res = await addMarkerToWishlist("m1", "t1");
+
+    expect(res.success).toBe(true);
+    expect(itemCreateMock).toHaveBeenCalledTimes(1);
+    const data = itemCreateMock.mock.calls[0][0].data;
+    expect(data).toMatchObject({
+      tripId: "t1",
+      forkId: null,
+      stopId: null,
+      date: null,
+      sourceMarkerId: "m1",
+      title: "Tokyo Tower",
+      category: "SIGHTSEEING",
+      lat: 35.6586,
+      lng: 139.7454,
+      address: "Tokyo, Japan",
+      notes: "(when: late Sept)",
+      sortOrder: 5,
+    });
+  });
+
+  it("logs the same CREATED/ITEM activity as a manual add", async () => {
+    markerFindUniqueMock.mockResolvedValue(MARKER);
+    itemFindFirstMock.mockResolvedValueOnce(null).mockResolvedValueOnce({ sortOrder: 0 });
+    itemCreateMock.mockResolvedValue({ id: "i1", title: "Tokyo Tower" });
+
+    await addMarkerToWishlist("m1", "t1");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ tripId: "t1", verb: "CREATED", entityType: "ITEM", entityId: "i1" }),
+    );
+  });
+
+  it("is idempotent — does not duplicate when the marker is already in the wishlist", async () => {
+    markerFindUniqueMock.mockResolvedValue(MARKER);
+    itemFindFirstMock.mockResolvedValueOnce({ id: "existing" }); // dedupe hit
+    const res = await addMarkerToWishlist("m1", "t1");
+    expect(res.success).toBe(true);
+    expect(itemCreateMock).not.toHaveBeenCalled();
   });
 });

@@ -12,6 +12,9 @@ import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
+import { getUserGlobe } from "@/lib/globe";
+import { markerToWishlistItemData } from "@/lib/marker-to-item";
+import type { MarkerView } from "@/components/globe/types";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -175,6 +178,83 @@ export async function createItem(
   }
 
   await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "ITEM", entityId: created.id, entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>) });
+  revalidateItemPaths(tripId);
+  return { success: true };
+}
+
+/**
+ * Seed a Trip's Wishlist from a Globe Marker (ADR 0025).
+ *
+ * - Verifies the caller has access to the trip AND that the Marker lives on the
+ *   caller's own Globe (a user is in at most one).
+ * - Idempotent: if an unscheduled wishlist Item in this trip already points at
+ *   this Marker, returns success without creating a duplicate.
+ * - Otherwise copies the Marker into a new wishlist idea (forkId/stopId/date all
+ *   null), records provenance via sourceMarkerId, and logs the same activity as
+ *   a manual wishlist add.
+ */
+export async function addMarkerToWishlist(
+  markerId: string,
+  tripId: string,
+): Promise<ItemActionResult> {
+  const { user } = await requireTripAccess(tripId);
+
+  const globe = await getUserGlobe(user.id);
+  if (!globe) {
+    return { success: false, errors: { marker: ["You are not part of a Globe."] } };
+  }
+
+  const marker = await db.marker.findUnique({
+    where: { id: markerId },
+    select: {
+      id: true, globeId: true, title: true, category: true, note: true, link: true,
+      timing: true, lat: true, lng: true, city: true, country: true, countryCode: true,
+    },
+  });
+  if (!marker || marker.globeId !== globe.id) {
+    return { success: false, errors: { marker: ["Marker not found on your Globe."] } };
+  }
+
+  // Idempotency: already pulled into this trip's wishlist?
+  const existing = await db.item.findFirst({
+    where: { tripId, forkId: null, stopId: null, date: null, sourceMarkerId: markerId },
+    select: { id: true },
+  });
+  if (existing) return { success: true };
+
+  const maxItem = await db.item.findFirst({
+    where: { tripId, ...planScope(null) },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  const sortOrder = (maxItem?.sortOrder ?? -1) + 1;
+
+  const seed = markerToWishlistItemData(marker as unknown as MarkerView);
+  const created = await db.item.create({
+    data: {
+      tripId,
+      forkId: null,
+      stopId: null,
+      date: null,
+      sourceMarkerId: markerId,
+      title: seed.title,
+      category: seed.category,
+      lat: seed.lat,
+      lng: seed.lng,
+      address: seed.address,
+      link: seed.link,
+      notes: seed.notes,
+      sortOrder,
+    },
+  });
+
+  await recordPlanActivity(null, {
+    tripId,
+    verb: "CREATED",
+    entityType: "ITEM",
+    entityId: created.id,
+    entityLabel: entityLabel("ITEM", created as unknown as Record<string, unknown>),
+  });
   revalidateItemPaths(tripId);
   return { success: true };
 }
