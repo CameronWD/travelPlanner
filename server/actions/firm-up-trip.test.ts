@@ -21,7 +21,7 @@ const {
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn() }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodeMock }));
+vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodeMock, geocodePlaceDetailed: geocodeMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     trip: { findUnique: tripFindUniqueMock, update: tripUpdateMock },

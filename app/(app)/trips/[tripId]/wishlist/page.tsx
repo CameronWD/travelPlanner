@@ -5,6 +5,9 @@ import { isAiConfigured } from "@/lib/ai";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { getDiscreetState } from "@/lib/discreet-server";
+import { getUserGlobe } from "@/lib/globe";
+import { suggestMarkersForTrip } from "@/lib/globe-suggestions";
+import type { MarkerView } from "@/components/globe/types";
 import type { ItemCardItem } from "@/components/trip/item-card";
 import type { CostRow } from "@/server/actions/costs";
 import type { NoteView } from "@/components/trip/note-thread";
@@ -44,6 +47,10 @@ export default async function WishlistPage({
           name: true,
           arriveDate: true,
           departDate: true,
+          country: true,
+          countryCode: true,
+          lat: true,
+          lng: true,
         },
       },
       items: {
@@ -63,6 +70,7 @@ export default async function WishlistPage({
           stopId: true,
           lat: true,
           lng: true,
+          sourceMarkerId: true,
           stop: {
             select: { name: true },
           },
@@ -74,6 +82,30 @@ export default async function WishlistPage({
   if (!trip) {
     notFound();
   }
+
+  const globe = await getUserGlobe(user.id);
+  const globeMarkers: MarkerView[] = globe
+    ? await db.marker.findMany({
+        where: { globeId: globe.id },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true, title: true, category: true, note: true, link: true, timing: true,
+          lat: true, lng: true, city: true, country: true, countryCode: true,
+        },
+      })
+    : [];
+
+  // Markers already pulled into THIS trip's wishlist (dedupe scope = unscheduled ideas,
+  // which is exactly what trip.items already filters to).
+  const addedMarkerIds = trip.items
+    .map((i) => i.sourceMarkerId)
+    .filter((id): id is string => id !== null);
+
+  const suggestedMarkers = suggestMarkersForTrip({
+    markers: globeMarkers,
+    stops: trip.stops.map((s) => ({ countryCode: s.countryCode, lat: s.lat, lng: s.lng })),
+    addedMarkerIds,
+  });
 
   const itemIds = trip.items.map((i) => i.id);
 
@@ -236,6 +268,10 @@ export default async function WishlistPage({
         aiConfigured={isAiConfigured()}
         activeForkId={activeForkId}
         placedIdeaIds={placedIdeaIds}
+        hasGlobe={globe !== null}
+        globeMarkers={globeMarkers}
+        addedMarkerIds={addedMarkerIds}
+        suggestedMarkers={suggestedMarkers}
       />
     </div>
   );

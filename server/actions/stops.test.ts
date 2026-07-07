@@ -15,6 +15,7 @@ const {
   requireTripAccessMock,
   revalidatePathMock,
   geocodePlaceMock,
+  geocodePlaceDetailedMock,
   stopFindFirstMock,
   stopFindUniqueMock,
   stopFindManyMock,
@@ -62,6 +63,7 @@ const {
     }),
     revalidatePathMock: vi.fn(),
     geocodePlaceMock: vi.fn().mockResolvedValue(null),
+    geocodePlaceDetailedMock: vi.fn().mockResolvedValue({ lat: 1, lng: 2, city: "Tokyo", country: "Japan", countryCode: "jp", name: "Tokyo" }),
     stopFindFirstMock,
     stopFindUniqueMock,
     stopFindManyMock,
@@ -80,7 +82,7 @@ const {
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
+vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock, geocodePlaceDetailed: geocodePlaceDetailedMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -340,16 +342,29 @@ describe("createStop", () => {
     });
   });
 
-  it("calls geocodePlace when lat/lng are not provided", async () => {
+  it("calls geocodePlaceDetailed when lat/lng are not provided", async () => {
     stopFindFirstMock.mockResolvedValue(null);
     stopCreateMock.mockResolvedValue({ id: "stop-1" });
-    geocodePlaceMock.mockResolvedValue({ lat: 51.5074, lng: -0.1278 });
+    geocodePlaceDetailedMock.mockResolvedValue({ lat: 51.5074, lng: -0.1278, city: "London", country: "United Kingdom", countryCode: "gb", name: "London, UK" });
 
     await createStop("trip-1", VALID_INPUT);
 
-    expect(geocodePlaceMock).toHaveBeenCalledOnce();
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledOnce();
     expect(stopCreateMock).toHaveBeenCalledWith({
-      data: expect.objectContaining({ lat: 51.5074, lng: -0.1278 }),
+      data: expect.objectContaining({ lat: 51.5074, lng: -0.1278, countryCode: "gb" }),
+    });
+  });
+
+  it("stores derived countryCode from geocodePlaceDetailed result", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1" });
+    geocodePlaceDetailedMock.mockResolvedValue({ lat: 35.6762, lng: 139.6503, city: "Tokyo", country: "Japan", countryCode: "jp", name: "Tokyo, Japan" });
+
+    await createStop("trip-1", VALID_INPUT);
+
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledOnce();
+    expect(stopCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ countryCode: "jp" }),
     });
   });
 
@@ -359,7 +374,7 @@ describe("createStop", () => {
 
     await createStop("trip-1", { ...VALID_INPUT, lat: 10, lng: 20 });
 
-    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
     expect(stopCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ lat: 10, lng: 20 }),
     });
@@ -409,7 +424,7 @@ describe("createStop", () => {
         sortOrder: 2,
       }),
     });
-    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
   });
 
   it("records CREATED activity for a scheduled stop", async () => {
@@ -608,7 +623,7 @@ describe("updateStop", () => {
         timezone: null,
       }),
     });
-    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
   });
 
   it("preserves notes and chapter when updating a rough stop", async () => {
@@ -951,7 +966,7 @@ describe("firmUpSegment", () => {
       { id: "rome", sortOrder: 1, chapterId: "it", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
       { id: "venice", sortOrder: 2, chapterId: "it", nights: 2, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Venice", country: "Italy" },
     ]);
-    geocodePlaceMock.mockResolvedValue(null);
+    geocodePlaceDetailedMock.mockResolvedValue(null);
     stopUpdateMock.mockResolvedValue({});
     tripUpdateMock.mockResolvedValue({});
     chapterUpdateMock.mockResolvedValue({});
@@ -988,7 +1003,7 @@ describe("firmUpSegment", () => {
       { id: "rome", sortOrder: 0, chapterId: "chap-it", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
       { id: "venice", sortOrder: 1, chapterId: "chap-it", nights: 2, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Venice", country: "Italy" },
     ]);
-    geocodePlaceMock.mockResolvedValue(null);
+    geocodePlaceDetailedMock.mockResolvedValue(null);
     stopUpdateMock.mockResolvedValue({});
     tripUpdateMock.mockResolvedValue({});
     // chapter before findUnique → { name:"Italy", startDate:null, endDate:null }
@@ -1010,7 +1025,7 @@ describe("firmUpSegment", () => {
       { id: "s1", sortOrder: 0, chapterId: null, nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
       { id: "s2", sortOrder: 1, chapterId: null, nights: 2, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Venice", country: "Italy" },
     ]);
-    geocodePlaceMock.mockResolvedValue(null);
+    geocodePlaceDetailedMock.mockResolvedValue(null);
     stopUpdateMock.mockResolvedValue({});
     tripUpdateMock.mockResolvedValue({});
 
