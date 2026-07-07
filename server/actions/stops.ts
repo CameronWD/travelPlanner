@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
-import { geocodePlace } from "@/lib/geocode";
+import { geocodePlaceDetailed } from "@/lib/geocode";
 import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowStop, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
 import { recordPlanActivity } from "@/lib/activity-guard";
@@ -168,14 +168,16 @@ export async function createStop(
     // not hold a DB lock while waiting for an external service).
     let lat: number | undefined;
     let lng: number | undefined;
+    let derivedCountryCode: string | null = null;
     if (parsed.data.mode === "scheduled") {
       const { name, country } = parsed.data;
       ({ lat, lng } = parsed.data);
       if (lat === undefined || lng === undefined) {
-        const coords = await geocodePlace([name, country].filter(Boolean).join(", "));
+        const coords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
         if (coords) {
           lat = coords.lat;
           lng = coords.lng;
+          derivedCountryCode = coords.countryCode ?? null;
         }
       }
     }
@@ -278,6 +280,7 @@ export async function createStop(
           departDate,
           lat: lat ?? null,
           lng: lng ?? null,
+          countryCode: derivedCountryCode,
           notes: notes ?? null,
           chapterId: resolvedChapterId,
           chapterSortOrder,
@@ -347,11 +350,13 @@ export async function createStop(
   let { lat, lng } = parsed.data;
 
   // Best-effort geocode if coords are missing
+  let appendCountryCode: string | null = null;
   if (lat === undefined || lng === undefined) {
-    const coords = await geocodePlace([name, country].filter(Boolean).join(", "));
+    const coords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
     if (coords) {
       lat = coords.lat;
       lng = coords.lng;
+      appendCountryCode = coords.countryCode ?? null;
     }
   }
 
@@ -366,6 +371,7 @@ export async function createStop(
       departDate,
       lat: lat ?? null,
       lng: lng ?? null,
+      countryCode: appendCountryCode,
       notes: notes ?? null,
       pinned: false,
       sortOrder,
@@ -429,12 +435,14 @@ export async function updateStop(
   let { lat, lng } = parsed.data;
 
   // Best-effort geocode if coords are missing on update too
+  let updateCountryCode: string | null = null;
   if (lat === undefined || lng === undefined) {
     const query = [name, country].filter(Boolean).join(", ");
-    const coords = await geocodePlace(query);
+    const coords = await geocodePlaceDetailed(query);
     if (coords) {
       lat = coords.lat;
       lng = coords.lng;
+      updateCountryCode = coords.countryCode ?? null;
     }
   }
 
@@ -451,6 +459,7 @@ export async function updateStop(
         departDate,
         lat: lat ?? null,
         lng: lng ?? null,
+        countryCode: updateCountryCode,
         notes: notes ?? null,
       },
     });
@@ -707,7 +716,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   const segById = Object.fromEntries(segment.map((s) => [s.id, s]));
   for (const r of results) {
     const s = segById[r.id];
-    const coords = await geocodePlace([s.name, s.country].filter(Boolean).join(", "));
+    const coords = await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
     const timezone = s.timezone ?? tripTz;
     await db.stop.update({
       where: { id: r.id },
@@ -715,7 +724,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
         arriveDate: r.arriveDate,
         departDate: r.departDate,
         timezone,
-        ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
+        ...(coords ? { lat: coords.lat, lng: coords.lng, countryCode: coords.countryCode ?? null } : {}),
       },
     });
   }
@@ -824,14 +833,14 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
   const stopById = Object.fromEntries(stops.map((s) => [s.id, s]));
   for (const r of results) {
     const s = stopById[r.id];
-    const coords = await geocodePlace([s.name, s.country].filter(Boolean).join(", "));
+    const coords = await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
     await db.stop.update({
       where: { id: r.id },
       data: {
         arriveDate: r.arriveDate,
         departDate: r.departDate,
         timezone: s.timezone ?? tripTz,
-        ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
+        ...(coords ? { lat: coords.lat, lng: coords.lng, countryCode: coords.countryCode ?? null } : {}),
       },
     });
   }

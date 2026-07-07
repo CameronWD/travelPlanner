@@ -145,6 +145,18 @@ async function fetchJson(url: string): Promise<unknown | null> {
 }
 
 /**
+ * Geocode a free-text place query, returning the single best-matching
+ * `GeoCandidate` (with countryCode) or `null`. Use this in stop-write paths
+ * where you need to persist `countryCode` alongside `lat`/`lng`.
+ *
+ * Never throws; returns null on any failure or empty result.
+ */
+export async function geocodePlaceDetailed(query: string): Promise<GeoCandidate | null> {
+  const [first] = await searchPlaces(query, 1);
+  return first ?? null;
+}
+
+/**
  * Forward-search a free-text place query, returning up to `limit` candidates
  * with derived city/country. Never throws; returns [] on any failure.
  */
