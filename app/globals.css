@@ -4,6 +4,21 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ---------------------------------------------------------------------------
+   Leaflet stacking-context containment
+   Leaflet assigns high z-index values to its internal panes (200–700) and
+   controls (1000). Without a stacking context on the map root, those values
+   leak into the page's root context and paint ABOVE our modal layer (dialog
+   overlay/content are z-50), so an open dialog appears *behind* the map.
+   `isolation: isolate` gives every map its own stacking context: the internal
+   layering is preserved, but the whole map now sits at the container's level
+   in the page (~0), safely below the z-50 dialogs. Applies to all maps
+   (globe, wishlist, route, day) via Leaflet's shared .leaflet-container class.
+--------------------------------------------------------------------------- */
+.leaflet-container {
+  isolation: isolate;
+}
+
+/* ---------------------------------------------------------------------------
    Design tokens — warm & playful
    Light + dark, expressed as HSL channels so utilities can apply opacity
    (e.g. bg-success/10). Consumed via the @theme inline mapping below.
