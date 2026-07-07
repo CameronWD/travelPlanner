@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Heart, MapPin } from "lucide-react";
+import { Check, Globe2, Heart, MapPin } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ItemCard, type ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
@@ -19,6 +19,9 @@ import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { WishlistMapLoader } from "./wishlist-map-loader";
+import type { MarkerView } from "@/components/globe/types";
+import { AddFromGlobeDialog } from "./add-from-globe-dialog";
+import { GlobeSuggestionsStrip } from "./globe-suggestions-strip";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,6 +55,14 @@ export interface WishlistBoardProps {
   activeForkId?: string | null;
   /** Idea ids that already have a scheduled copy in the active plan. */
   placedIdeaIds?: string[];
+  /** Whether the viewing user belongs to a Globe (controls the "Add from Globe" affordance). */
+  hasGlobe?: boolean;
+  /** All Markers on the viewer's Globe (for the browser dialog). */
+  globeMarkers?: MarkerView[];
+  /** Marker ids already pulled into this trip's wishlist. */
+  addedMarkerIds?: string[];
+  /** Country-matched, proximity-ranked, added-excluded suggestions (WS-B). */
+  suggestedMarkers?: MarkerView[];
 }
 
 // ---------------------------------------------------------------------------
@@ -71,6 +82,10 @@ export function WishlistBoard({
   aiConfigured = false,
   activeForkId,
   placedIdeaIds,
+  hasGlobe = false,
+  globeMarkers = [],
+  addedMarkerIds = [],
+  suggestedMarkers = [],
 }: WishlistBoardProps) {
   const placedSet = React.useMemo(
     () => new Set(placedIdeaIds ?? []),
@@ -89,6 +104,17 @@ export function WishlistBoard({
   const [editingItem, setEditingItem] = React.useState<ItemCardItem | null>(null);
   const [schedulingItem, setSchedulingItem] = React.useState<ItemCardItem | null>(null);
   const [pendingId, setPendingId] = React.useState<string | null>(null);
+  const [globeDialogOpen, setGlobeDialogOpen] = React.useState(false);
+  const [globeDialogFilterIds, setGlobeDialogFilterIds] = React.useState<string[] | null>(null);
+
+  function openGlobeBrowser() {
+    setGlobeDialogFilterIds(null);
+    setGlobeDialogOpen(true);
+  }
+  function openGlobeSuggestionsOverflow() {
+    setGlobeDialogFilterIds(suggestedMarkers.map((m) => m.id));
+    setGlobeDialogOpen(true);
+  }
 
   // ── Handlers ──
   async function handleDelete(itemId: string) {
@@ -230,6 +256,15 @@ export function WishlistBoard({
             <SegmentedItem value="list">List</SegmentedItem>
             <SegmentedItem value="map">Map</SegmentedItem>
           </Segmented>
+          {hasGlobe && (
+            <button
+              type="button"
+              onClick={openGlobeBrowser}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+            >
+              <Globe2 className="size-4" aria-hidden="true" /> Add from Globe
+            </button>
+          )}
           <AddItemButton
             tripId={tripId}
             stops={stopOptions}
@@ -239,6 +274,15 @@ export function WishlistBoard({
           />
         </div>
       </div>
+
+      {hasGlobe && (
+        <GlobeSuggestionsStrip
+          tripId={tripId}
+          suggestions={suggestedMarkers}
+          addedMarkerIds={addedMarkerIds}
+          onSeeMore={openGlobeSuggestionsOverflow}
+        />
+      )}
 
       {/* Empty state — only in list view */}
       {view === "list" && isEmpty && (
@@ -437,6 +481,17 @@ export function WishlistBoard({
             if (!open) setSchedulingItem(null);
           }}
           onSaved={() => setSchedulingItem(null)}
+        />
+      )}
+
+      {hasGlobe && (
+        <AddFromGlobeDialog
+          tripId={tripId}
+          markers={globeMarkers}
+          addedMarkerIds={addedMarkerIds}
+          filterToIds={globeDialogFilterIds ?? undefined}
+          open={globeDialogOpen}
+          onOpenChange={setGlobeDialogOpen}
         />
       )}
 

@@ -17,6 +17,7 @@ vi.mock("@/server/actions/items", () => ({
   deleteItem: vi.fn().mockResolvedValue({ success: true }),
   unscheduleItem: vi.fn().mockResolvedValue({ success: true }),
   scheduleItem: vi.fn().mockResolvedValue({ success: true }),
+  addMarkerToWishlist: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 vi.mock("@/server/actions/votes", () => ({
@@ -88,6 +89,7 @@ vi.mock("./schedule-item-dialog", () => ({
 }));
 
 import { unscheduleItem, scheduleItem } from "@/server/actions/items";
+import type { MarkerView } from "@/components/globe/types";
 import { Toaster } from "@/components/ui/toaster";
 import { dismissToast } from "@/components/ui/use-toast";
 import { WishlistBoard } from "./wishlist-board";
@@ -443,5 +445,37 @@ describe("WishlistBoard — homeCurrency + costs forwarded to edit dialog", () =
 
     expect(lastItemFormDialogProps.homeCurrency).toBe("GBP");
     expect(lastItemFormDialogProps.costs).toBeUndefined();
+  });
+});
+
+describe("WishlistBoard — Globe suggestions strip", () => {
+  it("renders the 'Suggested from your Globe' heading when hasGlobe and suggestedMarkers are provided", async () => {
+    const oneMarker: MarkerView = {
+      id: "m1",
+      title: "Senso-ji Temple",
+      category: "SIGHTSEEING",
+      note: null,
+      link: null,
+      timing: null,
+      lat: 35.71,
+      lng: 139.79,
+      city: "Tokyo",
+      country: "Japan",
+      countryCode: "jp",
+    };
+
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={[]}
+        hasGlobe={true}
+        globeMarkers={[oneMarker]}
+        addedMarkerIds={[]}
+        suggestedMarkers={[oneMarker]}
+      />,
+    );
+
+    expect(await screen.findByRole("heading", { name: /suggested from your globe/i })).toBeInTheDocument();
   });
 });
