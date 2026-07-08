@@ -9,12 +9,25 @@
  */
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
-// Nominatim's usage policy asks for a contact in the User-Agent. Configure a
-// real contact via NOMINATIM_CONTACT in production; the default avoids baking a
-// personal email into the source.
-const NOMINATIM_CONTACT =
-  process.env.NOMINATIM_CONTACT ?? "contact@example.com";
-const USER_AGENT = `TripPlanner/1.0 (${NOMINATIM_CONTACT})`;
+// Nominatim's usage policy requires a REAL contact (email or the app's public
+// URL) in the User-Agent, and it blocklists placeholder contacts such as
+// "example.com" with HTTP 403. We therefore never send a placeholder: if
+// NOMINATIM_CONTACT is unset we warn and omit the contact entirely. Configure
+// NOMINATIM_CONTACT in every environment where geocoding must work.
+const NOMINATIM_CONTACT = process.env.NOMINATIM_CONTACT?.trim() || null;
+
+if (!NOMINATIM_CONTACT) {
+  console.warn(
+    "[geocode] NOMINATIM_CONTACT is not set. OpenStreetMap Nominatim requires a " +
+      "real contact (email or app URL) in the User-Agent and blocks placeholder " +
+      "contacts with HTTP 403. Location search and geocoding will likely fail " +
+      "until NOMINATIM_CONTACT is configured.",
+  );
+}
+
+const USER_AGENT = NOMINATIM_CONTACT
+  ? `TripPlanner/1.0 (${NOMINATIM_CONTACT})`
+  : "TripPlanner/1.0";
 const TIMEOUT_MS = 5_000;
 
 export interface LatLng {
@@ -157,23 +170,61 @@ export async function geocodePlaceDetailed(query: string): Promise<GeoCandidate 
 }
 
 /**
- * Forward-search a free-text place query, returning up to `limit` candidates
- * with derived city/country. Never throws; returns [] on any failure.
+ * Result of a place search that distinguishes a genuine empty result
+ * ("no matches") from a transport/HTTP/parse failure ("search unavailable").
+ * Use this in interactive search UIs; use `searchPlaces` for best-effort paths.
  */
-export async function searchPlaces(query: string, limit = 5): Promise<GeoCandidate[]> {
+export type PlaceSearchOutcome =
+  | { status: "ok"; candidates: GeoCandidate[] }
+  | { status: "error" };
+
+/**
+ * Forward-search a free-text place query, returning an outcome that
+ * distinguishes "no matches" (status "ok", empty candidates) from a request
+ * failure (status "error"). Never throws.
+ */
+export async function searchPlacesWithStatus(
+  query: string,
+  limit = 5,
+): Promise<PlaceSearchOutcome> {
   const trimmed = query.trim();
-  if (!trimmed) return [];
+  if (!trimmed) return { status: "ok", candidates: [] };
+
   const url = new URL(NOMINATIM_URL);
   url.searchParams.set("format", "json");
   url.searchParams.set("addressdetails", "1");
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("q", trimmed);
 
-  const data = await fetchJson(url.toString());
-  if (!Array.isArray(data)) return [];
-  return (data as NominatimDetailedResult[])
-    .map(toCandidate)
-    .filter((c): c is GeoCandidate => c !== null);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    const res = await fetch(url.toString(), {
+      signal: controller.signal,
+      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
+    });
+    if (!res.ok) return { status: "error" };
+    const data = await res.json();
+    if (!Array.isArray(data)) return { status: "error" };
+    const candidates = (data as NominatimDetailedResult[])
+      .map(toCandidate)
+      .filter((c): c is GeoCandidate => c !== null);
+    return { status: "ok", candidates };
+  } catch {
+    return { status: "error" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Best-effort forward search. Returns up to `limit` candidates, or [] on any
+ * failure OR empty result. Kept for callers that don't need error-vs-empty
+ * (e.g. geocodePlaceDetailed, background stop/accommodation geocoding).
+ */
+export async function searchPlaces(query: string, limit = 5): Promise<GeoCandidate[]> {
+  const outcome = await searchPlacesWithStatus(query, limit);
+  return outcome.status === "ok" ? outcome.candidates : [];
 }
 
 /**

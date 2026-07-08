@@ -7,11 +7,11 @@ vi.mock("@/server/actions/globe", () => ({
   createMarker: vi.fn().mockResolvedValue({ success: true }),
   updateMarker: vi.fn().mockResolvedValue({ success: true }),
   deleteMarker: vi.fn().mockResolvedValue({ success: true }),
-  searchPlacesAction: vi.fn().mockResolvedValue([]),
+  searchPlacesAction: vi.fn().mockResolvedValue({ status: "ok", candidates: [] }),
   reverseGeocodeAction: vi.fn().mockResolvedValue(null),
 }));
 
-import { createMarker, deleteMarker } from "@/server/actions/globe";
+import { createMarker, deleteMarker, searchPlacesAction } from "@/server/actions/globe";
 import { MarkerForm } from "./marker-form";
 import type { MarkerView } from "./types";
 
@@ -91,5 +91,63 @@ describe("MarkerForm — edit mode", () => {
   it("does NOT render a Delete button in add mode", () => {
     render(<MarkerForm {...baseProps} />);
     expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("MarkerForm — place search feedback", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("shows an 'unavailable' message when the search request errors", async () => {
+    const user = userEvent.setup();
+    vi.mocked(searchPlacesAction).mockResolvedValue({ status: "error" });
+    render(<MarkerForm {...baseProps} />);
+
+    await user.type(screen.getByLabelText("Place search"), "Tokyo");
+    await user.click(screen.getByRole("button", { name: /^search$/i }));
+
+    expect(await screen.findByText(/temporarily unavailable/i)).toBeInTheDocument();
+  });
+
+  it("shows a 'no matches' message when the search succeeds with zero results", async () => {
+    const user = userEvent.setup();
+    vi.mocked(searchPlacesAction).mockResolvedValue({ status: "ok", candidates: [] });
+    render(<MarkerForm {...baseProps} />);
+
+    await user.type(screen.getByLabelText("Place search"), "zzzz");
+    await user.click(screen.getByRole("button", { name: /^search$/i }));
+
+    expect(await screen.findByText(/no matching places/i)).toBeInTheDocument();
+  });
+
+  it("lists candidates and selecting one fills the title", async () => {
+    const user = userEvent.setup();
+    vi.mocked(searchPlacesAction).mockResolvedValue({
+      status: "ok",
+      candidates: [
+        { name: "Kyoto, Japan", lat: 35.01, lng: 135.76, city: "Kyoto", country: "Japan", countryCode: "jp" },
+      ],
+    });
+    render(<MarkerForm {...baseProps} />);
+
+    await user.type(screen.getByLabelText("Place search"), "Kyoto");
+    await user.click(screen.getByRole("button", { name: /^search$/i }));
+    await user.click(await screen.findByRole("button", { name: /kyoto, japan/i }));
+
+    // Title input (placeholder "e.g. Tokyo Tower") is now populated.
+    expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("Kyoto");
+  });
+
+  it("clears the 'no matches' message once the user edits the query again", async () => {
+    const user = userEvent.setup();
+    vi.mocked(searchPlacesAction).mockResolvedValue({ status: "ok", candidates: [] });
+    render(<MarkerForm {...baseProps} />);
+
+    const search = screen.getByLabelText("Place search");
+    await user.type(search, "zzzz");
+    await user.click(screen.getByRole("button", { name: /^search$/i }));
+    expect(await screen.findByText(/no matching places/i)).toBeInTheDocument();
+
+    await user.type(search, "x"); // editing the query should clear the message
+    expect(screen.queryByText(/no matching places/i)).not.toBeInTheDocument();
   });
 });

@@ -66,6 +66,8 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
   );
   const [query, setQuery] = useState(marker?.title ?? "");
   const [candidates, setCandidates] = useState<GeoCandidate[]>([]);
+  const [searched, setSearched] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
   const [errors, setErrors] = useState<Record<string, string[]>>({});
   const [pending, startTransition] = useTransition();
 
@@ -90,7 +92,15 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
     const q = query.trim();
     if (!q) return;
     startTransition(async () => {
-      setCandidates(await searchPlacesAction(q));
+      const res = await searchPlacesAction(q);
+      setSearched(true);
+      if (res.status === "error") {
+        setSearchFailed(true);
+        setCandidates([]);
+      } else {
+        setSearchFailed(false);
+        setCandidates(res.candidates);
+      }
     });
   };
 
@@ -98,6 +108,8 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
     setTitle((t) => t || c.name.split(",")[0]);
     setPlace({ lat: c.lat, lng: c.lng, city: c.city, country: c.country, countryCode: c.countryCode });
     setCandidates([]);
+    setSearched(false);
+    setSearchFailed(false);
   };
 
   const submit = () => {
@@ -153,7 +165,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
             <div className="flex gap-2">
               <Input
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => { setQuery(e.target.value); setSearched(false); setSearchFailed(false); }}
                 onKeyDown={(e) => e.key === "Enter" && runSearch()}
                 placeholder="Search for a place…"
                 disabled={pending}
@@ -171,7 +183,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
 
             {/* Candidate list */}
             {candidates.length > 0 && (
-              <ul className="flex flex-col gap-1 rounded-lg border border-border bg-card p-1">
+              <ul className="flex flex-col gap-1 rounded-lg border border-border bg-card p-1 max-h-48 overflow-y-auto">
                 {candidates.map((c, i) => (
                   <li key={i}>
                     <button
@@ -184,6 +196,17 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
                   </li>
                 ))}
               </ul>
+            )}
+
+            {searchFailed && (
+              <p className="text-xs text-destructive">
+                Place search is temporarily unavailable. Please try again in a moment.
+              </p>
+            )}
+            {searched && !searchFailed && candidates.length === 0 && (
+              <p className="text-xs text-muted-foreground">
+                No matching places found. Try a more specific search.
+              </p>
             )}
 
             {/* Resolved location caption */}

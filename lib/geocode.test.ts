@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { geocodePlace, searchPlaces, reverseGeocode } from "./geocode";
+import { geocodePlace, searchPlaces, searchPlacesWithStatus, reverseGeocode } from "./geocode";
 
 // Mock global fetch so we never hit the network.
 const fetchMock = vi.fn();
@@ -165,5 +165,56 @@ describe("reverseGeocode", () => {
 
     fetchMock.mockRejectedValue(new Error("network"));
     expect(await reverseGeocode(0, 0)).toBeNull();
+  });
+});
+
+describe("searchPlacesWithStatus", () => {
+  it("returns status 'ok' with candidates on a successful response", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => [
+        {
+          display_name: "Tokyo Tower, Minato, Tokyo, Japan",
+          lat: "35.6586",
+          lon: "139.7454",
+          address: { city: "Tokyo", country: "Japan", country_code: "jp" },
+        },
+      ],
+    });
+    const res = await searchPlacesWithStatus("Tokyo Tower");
+    expect(res.status).toBe("ok");
+    if (res.status === "ok") expect(res.candidates).toHaveLength(1);
+  });
+
+  it("returns status 'ok' with an empty array when there are no matches", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => [] });
+    const res = await searchPlacesWithStatus("nowhere-xyz");
+    expect(res).toEqual({ status: "ok", candidates: [] });
+  });
+
+  it("returns status 'error' when the HTTP response is not ok (e.g. 403)", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 403, json: async () => ({}) });
+    const res = await searchPlacesWithStatus("paris");
+    expect(res).toEqual({ status: "error" });
+  });
+
+  it("returns status 'error' when fetch throws", async () => {
+    fetchMock.mockRejectedValue(new Error("network"));
+    const res = await searchPlacesWithStatus("paris");
+    expect(res).toEqual({ status: "error" });
+  });
+
+  it("returns status 'error' when the JSON is not an array", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => ({ error: "x" }) });
+    const res = await searchPlacesWithStatus("paris");
+    expect(res).toEqual({ status: "error" });
+  });
+
+  it("never sends the blocklisted example.com contact in the User-Agent", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => [] });
+    await searchPlacesWithStatus("paris");
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.headers["User-Agent"]).toMatch(/TripPlanner/);
+    expect(options.headers["User-Agent"]).not.toContain("example.com");
   });
 });

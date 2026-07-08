@@ -7,7 +7,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireGlobeAccess } from "@/lib/globe";
 import { markerSchema, type MarkerInput } from "@/lib/validations/marker";
-import { searchPlaces, reverseGeocode, type GeoCandidate } from "@/lib/geocode";
+import { searchPlacesWithStatus, reverseGeocode, type GeoCandidate, type PlaceSearchOutcome } from "@/lib/geocode";
 
 export type GlobeActionResult =
   | { success: true }
@@ -68,9 +68,9 @@ function markerData(parsed: {
 
 // --- Geocoding proxies (server-side so Nominatim gets our User-Agent) --------
 
-export async function searchPlacesAction(query: string): Promise<GeoCandidate[]> {
+export async function searchPlacesAction(query: string): Promise<PlaceSearchOutcome> {
   await requireGlobeAccess(); // access-gate; also lazily creates the globe
-  return searchPlaces(query);
+  return searchPlacesWithStatus(query);
 }
 
 export async function reverseGeocodeAction(
