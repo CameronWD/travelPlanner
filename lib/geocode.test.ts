@@ -183,7 +183,7 @@ describe("searchPlacesWithStatus", () => {
     });
     const res = await searchPlacesWithStatus("Tokyo Tower");
     expect(res.status).toBe("ok");
-    expect(res.status === "ok" && res.candidates).toHaveLength(1);
+    if (res.status === "ok") expect(res.candidates).toHaveLength(1);
   });
 
   it("returns status 'ok' with an empty array when there are no matches", async () => {
