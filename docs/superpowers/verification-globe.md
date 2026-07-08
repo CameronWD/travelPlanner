@@ -180,7 +180,7 @@ The `DialogContent` primitive itself is well-constructed: `max-h-[90dvh]` on mob
 
 ## Outstanding items (for the user)
 
-1. **Set `NOMINATIM_CONTACT` for real, everywhere geocoding must work** — local `.env.local` **and** the Vercel project env. This branch does **not** set it (by request) and only documents it in `.env.example`. Until it's set, location search *and* all background geocoding (trip stops, accommodation, transport) stay 403-blocked. This is the single most important follow-up.
+1. **Set `NOMINATIM_CONTACT` in Vercel** — a real contact is now set in local `.env.local` and **verified working** (live Nominatim request returned HTTP 200 with the app's exact User-Agent, vs 403 for the old placeholder). The remaining step is to add the same `NOMINATIM_CONTACT` env var in the **Vercel** project settings and redeploy — otherwise production location search *and* all background geocoding (trip stops, accommodation, transport) stay 403-blocked. `.env.example` documents the variable for other environments.
 2. **Run this checklist in a real browser** — it could not be executed in the sandbox (no browser/DB). The audit above is code-level; these fixes are high-confidence but unverified against pixels.
 3. **Invite/reconciliation flow** needs a *second* account to fully verify (invite a partner to the Globe, accept by email match). A single dev-login user can't exercise the accept side.
 4. **Merge/deploy** are held pending your go-ahead per the working guardrails — nothing on this branch has been merged or shipped.
