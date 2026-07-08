@@ -4,13 +4,14 @@ import { useServerAction } from "./use-server-action";
 
 describe("useServerAction", () => {
   it("routes a failure result into errors and calls onError", async () => {
-    const action = vi.fn(async () => ({ success: false as const, errors: { name: ["Required"] } }));
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const action = vi.fn(async (id: string) => ({ success: false as const, errors: { name: ["Required"] } }));
     const onError = vi.fn();
     const { result } = renderHook(() => useServerAction(action, { onError }));
 
-    act(() => result.current.run());
+    act(() => result.current.run("someId"));
     await waitFor(() => expect(result.current.errors.name).toEqual(["Required"]));
-    expect(onError).toHaveBeenCalledWith({ name: ["Required"] });
+    expect(onError).toHaveBeenCalledWith({ name: ["Required"] }, "someId");
     expect(result.current.isPending).toBe(false);
   });
 
