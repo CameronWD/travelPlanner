@@ -136,4 +136,18 @@ describe("MarkerForm — place search feedback", () => {
     // Title input (placeholder "e.g. Tokyo Tower") is now populated.
     expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("Kyoto");
   });
+
+  it("clears the 'no matches' message once the user edits the query again", async () => {
+    const user = userEvent.setup();
+    vi.mocked(searchPlacesAction).mockResolvedValue({ status: "ok", candidates: [] });
+    render(<MarkerForm {...baseProps} />);
+
+    const search = screen.getByLabelText("Place search");
+    await user.type(search, "zzzz");
+    await user.click(screen.getByRole("button", { name: /^search$/i }));
+    expect(await screen.findByText(/no matching places/i)).toBeInTheDocument();
+
+    await user.type(search, "x"); // editing the query should clear the message
+    expect(screen.queryByText(/no matching places/i)).not.toBeInTheDocument();
+  });
 });

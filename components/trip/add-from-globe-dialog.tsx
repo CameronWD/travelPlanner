@@ -113,44 +113,44 @@ export function AddFromGlobeDialog({
             />
 
             <div className="max-h-64 overflow-y-auto">
-            <ul className="flex flex-col gap-2">
-              {visibleMarkers.map((marker) => {
-                const isAdded = addedSet.has(marker.id);
-                return (
-                  <li
-                    key={marker.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {marker.title}
-                      </p>
-                      {(marker.city ?? marker.country) && (
-                        <p className="text-xs text-muted-foreground">
-                          {[marker.city, marker.country].filter(Boolean).join(", ")}
+              <ul className="flex flex-col gap-2">
+                {visibleMarkers.map((marker) => {
+                  const isAdded = addedSet.has(marker.id);
+                  return (
+                    <li
+                      key={marker.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {marker.title}
                         </p>
-                      )}
-                    </div>
+                        {(marker.city ?? marker.country) && (
+                          <p className="text-xs text-muted-foreground">
+                            {[marker.city, marker.country].filter(Boolean).join(", ")}
+                          </p>
+                        )}
+                      </div>
 
-                    {isAdded ? (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
-                        <Check className="size-3" aria-hidden="true" />
-                        Added
-                      </span>
-                    ) : (
-                      <button
-                        type="button"
-                        aria-label={`Add ${marker.title}`}
-                        onClick={() => handleAdd(marker)}
-                        className="shrink-0 rounded-md border border-border bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                      >
-                        Add
-                      </button>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+                      {isAdded ? (
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                          <Check className="size-3" aria-hidden="true" />
+                          Added
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          aria-label={`Add ${marker.title}`}
+                          onClick={() => handleAdd(marker)}
+                          className="shrink-0 rounded-md border border-border bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                        >
+                          Add
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
             </div>
           </div>
         )}
