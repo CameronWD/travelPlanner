@@ -117,4 +117,70 @@ The `DialogContent` primitive itself is well-constructed: `max-h-[90dvh]` on mob
 
 ---
 
-*A manual browser verification checklist (Task 5) will be appended to this document once the sandbox has access to a running instance.*
+## Fixes applied (branch `fix/globe-search-and-mobile-ui`)
+
+| Item | Change | Commit |
+|------|--------|--------|
+| Location search 403 | `lib/geocode.ts` no longer sends the blocklisted `contact@example.com`; warns when `NOMINATIM_CONTACT` is unset; adds `searchPlacesWithStatus` (error vs. empty) | `dd8e765` |
+| Search UI feedback + copy | Globe place search now shows "temporarily unavailable" vs. "no matching places"; header points at **Add marker** for place search; on-page box relabelled "Filter your markers…" | `b23311d` |
+| F1 | AddFromGlobe marker list wrapped in a `max-h-64 overflow-y-auto` scroller so filters stay visible | `a18eacd` |
+| F2 | Globe/Wishlist maps use responsive heights (`h-56 sm:h-[440px]` / `h-52 sm:h-[360px]`) instead of fixed inline px | `a18eacd` |
+| F3 | Marker-filters native `<select>`s get `min-w-0` | `a18eacd` |
+| F4 | Wishlist board action row gets `flex-wrap` | `a18eacd` |
+| F5 | Marker-form candidate list gets `max-h-48 overflow-y-auto` | `a18eacd` |
+
+---
+
+## Manual Browser Verification Checklist
+
+> The sandbox that produced this branch has **no browser, Postgres, or Docker**, so the live drive could not run here. Run this checklist locally to confirm the fixes. It should take ~10 minutes.
+
+### Setup (local)
+
+1. Start Postgres and make sure the schema is applied:
+   - `docker compose up -d`
+   - `npx prisma migrate deploy` (this branch adds **no** migration — this just ensures your DB is current)
+2. Seed demo data (gives you a trip with stops so suggestions/nearby have something to show): `npm run db:seed:demo`
+3. Set the two env values this checklist needs (in your `.env.local`, your choice — the repo intentionally ships none):
+   - `ALLOW_DEV_LOGIN="true"` — enables the passwordless traveller sign-in
+   - `NOMINATIM_CONTACT="you@your-real-domain.com"` — **a real email or your app's URL.** Placeholder/`example.com` values are 403-blocked by Nominatim (this was the original bug).
+4. `npm run dev`, open the app, sign in via dev-login.
+5. Test at **two widths**: a phone (~375 px — DevTools device toolbar, "iPhone SE"/"iPhone 12") **and** desktop.
+
+### A. Location search (the original bug)
+
+- [ ] Globe → **Add marker** → type a city (e.g. "Kyoto") in **"Search for a place…"** → **Search** → a list of real candidates appears. *(This is the core fix — it was returning nothing before.)*
+- [ ] Pick a candidate → Title auto-fills, a "City, Country" caption shows, the candidate list closes.
+- [ ] Search a nonsense string (e.g. "zzzzzzzz") → **"No matching places found."** (not silence).
+- [ ] Force the failure path: temporarily set `NOMINATIM_CONTACT=""`, restart dev, search → **"Place search is temporarily unavailable."** Then restore your real contact. *(Confirms failures are no longer silent.)*
+- [ ] The on-page **"Filter your markers…"** box filters existing markers only, and the header sentence points you to **Add marker** for adding a place (no longer misleading).
+
+### B. Globe marker flow (mobile + desktop)
+
+- [ ] Add / edit / delete a marker each work and the map updates.
+- [ ] **Tap the map** to drop a pin → dialog opens pre-filled with a reverse-geocoded place name.
+- [ ] Category / country filters and the grouped marker list behave.
+- [ ] **[F2]** On the phone, the map does **not** eat the whole screen — the filter row + list are reachable without endless scrolling.
+- [ ] **[F5]** A search returning many results keeps the candidate list to a scrollable box; the Title/Save stay reachable.
+- [ ] Category `Select` dropdown and any toast render **above** the open dialog (not behind the map).
+
+### C. Trip Wishlist surfaces (mobile + desktop)
+
+- [ ] Open a seeded trip → **Wishlist**. The "Suggested from Globe" strip shows markers matching the trip's countries; "Add" copies one into the wishlist; "+N more" opens the browser.
+- [ ] **Add from Globe** dialog: browse markers, one-tap add shows "✓ Added".
+- [ ] **[F1]** In the Add-from-Globe dialog on a phone, scroll the marker list — the **search/category/country filters stay pinned in view** (don't scroll away).
+- [ ] **[F4]** On a narrow phone, the Wishlist header buttons (view toggle, "Add from Globe", "Add item") wrap to a second line instead of overflowing/overlapping the title.
+- [ ] **[F3]** On a very narrow phone (~320 px), the filter row's dropdowns compress/wrap without spilling off-screen.
+
+### D. Cross-check no regressions
+
+- [ ] Trip route map, Day map, and Summary map still render at sensible heights on both widths (F2 only touched globe + wishlist maps, but eyeball these).
+
+---
+
+## Outstanding items (for the user)
+
+1. **Set `NOMINATIM_CONTACT` for real, everywhere geocoding must work** — local `.env.local` **and** the Vercel project env. This branch does **not** set it (by request) and only documents it in `.env.example`. Until it's set, location search *and* all background geocoding (trip stops, accommodation, transport) stay 403-blocked. This is the single most important follow-up.
+2. **Run this checklist in a real browser** — it could not be executed in the sandbox (no browser/DB). The audit above is code-level; these fixes are high-confidence but unverified against pixels.
+3. **Invite/reconciliation flow** needs a *second* account to fully verify (invite a partner to the Globe, accept by email match). A single dev-login user can't exercise the accept side.
+4. **Merge/deploy** are held pending your go-ahead per the working guardrails — nothing on this branch has been merged or shipped.
