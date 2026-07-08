@@ -36,7 +36,8 @@ export function GlobeView({ markers, members }: GlobeViewProps) {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          Everywhere you want to go. Tap the map to drop a marker, or search to add one.
+          Everywhere you want to go. Tap the map to drop a pin, or use{" "}
+          <span className="font-medium text-foreground">Add marker</span> to search for a place.
         </p>
         <div className="flex items-center gap-2">
           <GlobeInviteButton members={members} />

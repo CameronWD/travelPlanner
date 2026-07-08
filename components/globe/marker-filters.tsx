@@ -15,7 +15,7 @@ export function MarkerFilters({ filter, countries, onChange }: MarkerFiltersProp
     <div className="flex flex-wrap items-center gap-2">
       <Input
         type="search"
-        placeholder="Search markers…"
+        placeholder="Filter your markers…"
         value={filter.query}
         onChange={(e) => onChange({ ...filter, query: e.target.value })}
         className="h-9 min-w-0 flex-1 basis-40 text-sm"
