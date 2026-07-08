@@ -183,7 +183,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
 
             {/* Candidate list */}
             {candidates.length > 0 && (
-              <ul className="flex flex-col gap-1 rounded-lg border border-border bg-card p-1">
+              <ul className="flex flex-col gap-1 rounded-lg border border-border bg-card p-1 max-h-48 overflow-y-auto">
                 {candidates.map((c, i) => (
                   <li key={i}>
                     <button

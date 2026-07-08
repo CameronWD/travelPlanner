@@ -25,7 +25,7 @@ export function MarkerFilters({ filter, countries, onChange }: MarkerFiltersProp
         onChange={(e) =>
           onChange({ ...filter, category: e.target.value || null })
         }
-        className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="h-9 min-w-0 rounded-md border border-input bg-background px-2 text-sm text-foreground shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <option value="">All categories</option>
         {CATEGORIES.map((cat) => (
@@ -39,7 +39,7 @@ export function MarkerFilters({ filter, countries, onChange }: MarkerFiltersProp
         onChange={(e) =>
           onChange({ ...filter, country: e.target.value || null })
         }
-        className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="h-9 min-w-0 rounded-md border border-input bg-background px-2 text-sm text-foreground shadow-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
       >
         <option value="">All countries</option>
         {countries.map((c) => (

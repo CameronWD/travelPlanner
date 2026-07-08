@@ -246,7 +246,7 @@ export function WishlistBoard({
             Items you&apos;re not sure about yet — collect them here and schedule later.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Segmented
             type="single"
             value={view}

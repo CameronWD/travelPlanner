@@ -141,8 +141,7 @@ export function GlobeMap({ markers, onSelect, onMapClick }: GlobeMapProps) {
   return (
     <div
       ref={mapRef}
-      style={{ height: 440 }}
-      className="w-full rounded-2xl overflow-hidden border border-border shadow-sm"
+      className="w-full h-56 sm:h-[440px] rounded-2xl overflow-hidden border border-border shadow-sm"
       aria-label="Globe map"
     />
   );

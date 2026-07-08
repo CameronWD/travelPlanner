@@ -112,6 +112,7 @@ export function AddFromGlobeDialog({
               onChange={setFilter}
             />
 
+            <div className="max-h-64 overflow-y-auto">
             <ul className="flex flex-col gap-2">
               {visibleMarkers.map((marker) => {
                 const isAdded = addedSet.has(marker.id);
@@ -150,6 +151,7 @@ export function AddFromGlobeDialog({
                 );
               })}
             </ul>
+            </div>
           </div>
         )}
       </DialogContent>
