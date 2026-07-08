@@ -13,14 +13,13 @@ import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
+import { type ActionResult, validationResult } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
-export type AccommodationActionResult =
-  | { success: true }
-  | { success: false; errors: Record<string, string[]> };
+export type AccommodationActionResult = ActionResult;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -46,15 +45,6 @@ async function requireAccommodationAccess(accommodationId: string): Promise<{
   return acc;
 }
 
-function validationErrors(
-  error: { flatten(): { fieldErrors: Record<string, string[] | undefined> } },
-): AccommodationActionResult {
-  const fieldErrors: Record<string, string[]> = {};
-  for (const [key, msgs] of Object.entries(error.flatten().fieldErrors)) {
-    fieldErrors[key] = msgs ?? [];
-  }
-  return { success: false, errors: fieldErrors };
-}
 
 // ---------------------------------------------------------------------------
 // Actions
@@ -71,7 +61,7 @@ export async function createAccommodation(
 ): Promise<AccommodationActionResult> {
   const parsed = accommodationSchema.safeParse(input);
   if (!parsed.success) {
-    return validationErrors(parsed.error);
+    return validationResult(parsed.error);
   }
 
   const data = parsed.data;
@@ -167,7 +157,7 @@ export async function updateAccommodation(
 
   const parsed = accommodationSchema.safeParse(input);
   if (!parsed.success) {
-    return validationErrors(parsed.error);
+    return validationResult(parsed.error);
   }
 
   const data = parsed.data;

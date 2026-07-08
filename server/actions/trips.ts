@@ -12,10 +12,9 @@ import {
   type CreateTripInput,
   type TripInput,
 } from "@/lib/validations/trip";
+import { type ActionResult, validationResult } from "@/lib/action-result";
 
-export type CreateTripResult =
-  | { success: true; tripId: string }
-  | { success: false; errors: Record<string, string[]> };
+export type CreateTripResult = ActionResult<{ tripId: string }>;
 
 /**
  * Server action: validate input, create a Trip and an owner TripMember for the
@@ -34,13 +33,7 @@ export async function createTrip(
 
   const parsed = createTripSchema.safeParse(input);
   if (!parsed.success) {
-    const fieldErrors: Record<string, string[]> = {};
-    for (const [key, msgs] of Object.entries(
-      parsed.error.flatten().fieldErrors,
-    )) {
-      fieldErrors[key] = msgs ?? [];
-    }
-    return { success: false, errors: fieldErrors };
+    return validationResult(parsed.error);
   }
 
   const { name, startDate, endDate, homeCurrency } = parsed.data;
@@ -95,9 +88,7 @@ export async function createTrip(
 // updateTrip
 // ---------------------------------------------------------------------------
 
-export type UpdateTripResult =
-  | { success: true }
-  | { success: false; errors: Record<string, string[]> };
+export type UpdateTripResult = ActionResult;
 
 /**
  * Update a trip's name, dates, and home currency.
@@ -114,13 +105,7 @@ export async function updateTrip(
 
   const parsed = tripSchema.safeParse(input);
   if (!parsed.success) {
-    const fieldErrors: Record<string, string[]> = {};
-    for (const [key, msgs] of Object.entries(
-      parsed.error.flatten().fieldErrors,
-    )) {
-      fieldErrors[key] = msgs ?? [];
-    }
-    return { success: false, errors: fieldErrors };
+    return validationResult(parsed.error);
   }
 
   const { name, startDate, endDate, hardEndDate, homeCurrency } = parsed.data;

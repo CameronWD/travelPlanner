@@ -4,14 +4,13 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { saveJournalEntrySchema } from "@/lib/validations/journal";
+import { type ActionResult, validationResult } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
-export type JournalActionResult =
-  | { success: true }
-  | { success: false; errors: Record<string, string[]> };
+export type JournalActionResult = ActionResult;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -43,13 +42,7 @@ export async function saveJournalEntry(
 
   const parsed = saveJournalEntrySchema.safeParse({ date, body });
   if (!parsed.success) {
-    const fieldErrors: Record<string, string[]> = {};
-    for (const [key, msgs] of Object.entries(
-      parsed.error.flatten().fieldErrors,
-    )) {
-      fieldErrors[key] = msgs ?? [];
-    }
-    return { success: false, errors: fieldErrors };
+    return validationResult(parsed.error);
   }
 
   const { date: validDate, body: trimmedBody } = parsed.data;
