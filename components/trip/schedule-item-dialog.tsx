@@ -7,14 +7,12 @@ import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
 import { scheduleItem } from "@/server/actions/items";
+import { FormDialog } from "@/components/ui/form-dialog";
+import { useEntityForm } from "@/components/ui/use-entity-form";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,28 +50,25 @@ export function ScheduleItemDialog({
   onOpenChange,
   onSaved,
 }: ScheduleItemDialogProps) {
-  const formKey = open ? `schedule-${itemId}-${String(open)}` : "closed";
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Schedule item</DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground">
-          Pick a date for{" "}
-          <span className="font-medium text-foreground">{itemTitle}</span>.
-        </p>
-        <ScheduleForm
-          key={formKey}
-          itemId={itemId}
-          defaultDate={defaultDate}
-          forkId={forkId}
-          onClose={() => onOpenChange(false)}
-          onSaved={onSaved}
-        />
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Schedule item"
+      recordId={itemId}
+    >
+      <p className="text-sm text-muted-foreground">
+        Pick a date for{" "}
+        <span className="font-medium text-foreground">{itemTitle}</span>.
+      </p>
+      <ScheduleForm
+        itemId={itemId}
+        defaultDate={defaultDate}
+        forkId={forkId}
+        onClose={() => onOpenChange(false)}
+        onSaved={onSaved}
+      />
+    </FormDialog>
   );
 }
 
@@ -99,22 +94,15 @@ function ScheduleForm({
   const [date, setDate] = React.useState(defaultDate ?? "");
   const [startTime, setStartTime] = React.useState("");
   const [endTime, setEndTime] = React.useState("");
-  const [errors, setErrors] = React.useState<FormErrors>({});
-  const [isPending, startTransition] = React.useTransition();
 
   const timesDisabled = !date;
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setErrors({});
-
-    if (!date) {
-      setErrors({ date: ["Please pick a date"] });
-      return;
-    }
-
-    startTransition(async () => {
-      const result = await scheduleItem(
+  const { errors, isPending, onSubmit } = useEntityForm({
+    submit: () => {
+      if (!date) {
+        return Promise.resolve({ success: false as const, errors: { date: ["Please pick a date"] } });
+      }
+      return scheduleItem(
         itemId,
         {
           date,
@@ -123,18 +111,13 @@ function ScheduleForm({
         },
         forkId ?? undefined,
       );
-
-      if (!result.success) {
-        setErrors(result.errors as FormErrors);
-        return;
-      }
-      onClose();
-      onSaved?.();
-    });
-  }
+    },
+    onClose,
+    onSaved,
+  });
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
       <DateField
         label="Date"
         required
@@ -146,7 +129,7 @@ function ScheduleForm({
             setEndTime("");
           }
         }}
-        error={errors.date?.[0]}
+        error={(errors as FormErrors).date?.[0]}
         disabled={isPending}
         autoFocus
       />
@@ -154,7 +137,7 @@ function ScheduleForm({
       <div className="grid grid-cols-2 gap-3">
         <Field
           label="Start time"
-          error={errors.startTime?.[0]}
+          error={(errors as FormErrors).startTime?.[0]}
           description={timesDisabled ? "Set a date first" : undefined}
         >
           <Input
@@ -166,7 +149,7 @@ function ScheduleForm({
         </Field>
         <Field
           label="End time"
-          error={errors.endTime?.[0]}
+          error={(errors as FormErrors).endTime?.[0]}
           description={timesDisabled ? "Set a date first" : !startTime ? "Set a start time first" : undefined}
         >
           <Input
@@ -178,7 +161,7 @@ function ScheduleForm({
         </Field>
       </div>
 
-      <FormError>{errors._form?.[0]}</FormError>
+      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>
