@@ -82,8 +82,9 @@ function ThreadBody({
   const now = new Date();
 
   const { requestDelete, isPending: deleteIsPending, dialog } = useDeleteWithConfirm({
-    action: async (noteId: string, _excerpt: string) => deleteNote(noteId),
-    buildConfirm: (_noteId: string, excerpt: string) => {
+    action: async (noteId: string) => deleteNote(noteId),
+    buildConfirm: (noteId: string) => {
+      const excerpt = notes.find((n) => n.id === noteId)?.body ?? "";
       const title = excerpt
         ? `Delete "${excerpt.length > 60 ? excerpt.slice(0, 60) + "…" : excerpt}"?`
         : "Delete this note?";
@@ -153,7 +154,7 @@ function ThreadBody({
                 variant="ghost"
                 size="icon"
                 disabled={isPending || deleteIsPending}
-                onClick={() => requestDelete(note.id, note.body)}
+                onClick={() => requestDelete(note.id)}
                 aria-label="Delete note"
                 className={cn(
                   "size-5 shrink-0 self-start text-muted-foreground/40 hover:text-destructive",

@@ -19,11 +19,14 @@ export function useDeleteWithConfirm<TArgs extends unknown[]>(opts: {
 
   React.useLayoutEffect(() => {
     optsRef.current = opts;
-  }, [opts]);
-
-  const { run, isPending } = useServerAction(opts.action, {
-    onSuccess: (_result, ...args) => optsRef.current.onDeleted?.(...args),
   });
+
+  const { run, isPending } = useServerAction(
+    ((...args: TArgs) => optsRef.current.action(...args)) as (...args: TArgs) => Promise<ActionResult>,
+    {
+      onSuccess: (_result, ...args) => optsRef.current.onDeleted?.(...args),
+    },
+  );
 
   const requestDelete = React.useCallback(
     async (...args: TArgs) => {

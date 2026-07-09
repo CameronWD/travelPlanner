@@ -40,13 +40,11 @@ export function StopsManager({ tripId, initialStops }: StopsManagerProps) {
         destructive: true,
       };
     },
-    onDeleted: () => setDeletingId(null),
   });
 
   async function handleDelete(stopId: string) {
     setDeletingId(stopId);
     await requestDelete(stopId);
-    // Clear whether cancelled or completed (onDeleted handles the success case too)
     setDeletingId(null);
   }
 

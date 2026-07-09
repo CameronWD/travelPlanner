@@ -404,7 +404,7 @@ function ChecklistRow({
   const [editOpen, setEditOpen] = React.useState(false);
   const { requestDelete, isPending: deleteIsPending, dialog: confirmDialog } = useDeleteWithConfirm({
     action: deleteChecklistItem,
-    buildConfirm: (_id: string) => ({
+    buildConfirm: () => ({
       title: `Delete "${item.text}"?`,
       description: "This item will be permanently removed from the checklist.",
       confirmLabel: "Delete",
