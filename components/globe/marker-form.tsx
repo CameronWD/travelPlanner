@@ -8,6 +8,7 @@ import {
   deleteMarker,
   searchPlacesAction,
 } from "@/server/actions/globe";
+import { useServerAction } from "@/components/ui/use-server-action";
 import type { GeoCandidate } from "@/lib/geocode";
 import type { MarkerView } from "@/components/globe/types";
 import { Button } from "@/components/ui/button";
@@ -68,8 +69,48 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
   const [candidates, setCandidates] = useState<GeoCandidate[]>([]);
   const [searched, setSearched] = useState(false);
   const [searchFailed, setSearchFailed] = useState(false);
-  const [errors, setErrors] = useState<Record<string, string[]>>({});
-  const [pending, startTransition] = useTransition();
+
+  // Search flow — stays on its own useTransition (PlaceSearchOutcome is not ActionResult-shaped)
+  const [searchPending, startSearchTransition] = useTransition();
+
+  // Save flow — create or update
+  const save = useServerAction(
+    () => {
+      const input = {
+        title,
+        category,
+        note,
+        link,
+        timing,
+        lat: place?.lat ?? undefined,
+        lng: place?.lng ?? undefined,
+        city: place?.city ?? undefined,
+        country: place?.country ?? undefined,
+        countryCode: place?.countryCode ?? undefined,
+      };
+      return isEdit ? updateMarker(marker!.id, input) : createMarker(input);
+    },
+    {
+      onSuccess: () => {
+        onOpenChange(false);
+        onSaved();
+      },
+    },
+  );
+
+  // Delete flow
+  const del = useServerAction(
+    () => deleteMarker(marker!.id),
+    {
+      onSuccess: () => {
+        onOpenChange(false);
+        onSaved();
+      },
+    },
+  );
+
+  // Combined busy flag — disables every control during any async operation
+  const busy = searchPending || save.isPending || del.isPending;
 
   // If dropped via map click (prefill present, not editing), resolve the place
   // name in the background. State updates happen only inside the async IIFE —
@@ -91,7 +132,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
   const runSearch = () => {
     const q = query.trim();
     if (!q) return;
-    startTransition(async () => {
+    startSearchTransition(async () => {
       const res = await searchPlacesAction(q);
       setSearched(true);
       if (res.status === "error") {
@@ -112,45 +153,12 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
     setSearchFailed(false);
   };
 
-  const submit = () => {
-    const input = {
-      title,
-      category,
-      note,
-      link,
-      timing,
-      lat: place?.lat ?? undefined,
-      lng: place?.lng ?? undefined,
-      city: place?.city ?? undefined,
-      country: place?.country ?? undefined,
-      countryCode: place?.countryCode ?? undefined,
-    };
-    startTransition(async () => {
-      const res = isEdit ? await updateMarker(marker!.id, input) : await createMarker(input);
-      if (res.success) {
-        onOpenChange(false);
-        onSaved();
-      } else {
-        setErrors(res.errors);
-      }
-    });
-  };
-
-  const remove = () => {
-    if (!marker) return;
-    startTransition(async () => {
-      const res = await deleteMarker(marker.id);
-      if (res.success) {
-        onOpenChange(false);
-        onSaved();
-      }
-    });
-  };
-
   // Resolved location caption: "Tokyo, Japan"
   const locationCaption = place?.city && place?.country
     ? `${place.city}, ${place.country}`
     : place?.country ?? null;
+
+  const errors = save.errors;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -168,14 +176,14 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
                 onChange={(e) => { setQuery(e.target.value); setSearched(false); setSearchFailed(false); }}
                 onKeyDown={(e) => e.key === "Enter" && runSearch()}
                 placeholder="Search for a place…"
-                disabled={pending}
+                disabled={busy}
                 aria-label="Place search"
               />
               <Button
                 type="button"
                 variant="outline"
                 onClick={runSearch}
-                disabled={pending}
+                disabled={busy}
               >
                 Search
               </Button>
@@ -221,13 +229,13 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g. Tokyo Tower"
-              disabled={pending}
+              disabled={busy}
             />
           </Field>
 
           {/* Category */}
           <Field label="Category" error={errors.category?.join(", ")}>
-            <Select value={category} onValueChange={(v) => setCategory(v as Category)} disabled={pending}>
+            <Select value={category} onValueChange={(v) => setCategory(v as Category)} disabled={busy}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>
@@ -247,7 +255,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
               value={timing}
               onChange={(e) => setTiming(e.target.value)}
               placeholder="e.g. Spring, evenings, weekends…"
-              disabled={pending}
+              disabled={busy}
             />
           </Field>
 
@@ -258,7 +266,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
               value={link}
               onChange={(e) => setLink(e.target.value)}
               placeholder="https://…"
-              disabled={pending}
+              disabled={busy}
             />
           </Field>
 
@@ -268,7 +276,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder="Anything worth noting…"
-              disabled={pending}
+              disabled={busy}
             />
           </Field>
 
@@ -278,24 +286,24 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
               <Button
                 type="button"
                 variant="destructive"
-                onClick={remove}
-                disabled={pending}
+                onClick={() => del.run()}
+                disabled={busy}
                 className="sm:mr-auto"
               >
                 Delete
               </Button>
             )}
             <DialogClose asChild>
-              <Button type="button" variant="outline" disabled={pending}>
+              <Button type="button" variant="outline" disabled={busy}>
                 Cancel
               </Button>
             </DialogClose>
             <Button
               type="button"
               variant="primary"
-              onClick={submit}
-              loading={pending}
-              disabled={pending}
+              onClick={() => save.run()}
+              loading={save.isPending}
+              disabled={busy}
             >
               Save
             </Button>
