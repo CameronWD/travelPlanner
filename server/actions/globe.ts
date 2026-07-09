@@ -8,26 +8,9 @@ import { db } from "@/lib/db";
 import { requireGlobeAccess } from "@/lib/globe";
 import { markerSchema, type MarkerInput } from "@/lib/validations/marker";
 import { searchPlacesWithStatus, reverseGeocode, type GeoCandidate, type PlaceSearchOutcome } from "@/lib/geocode";
+import { type ActionResult, validationResult } from "@/lib/action-result";
 
-export type GlobeActionResult =
-  | { success: true }
-  | { success: false; errors: Record<string, string[]> };
-
-function validationErrors(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  error: z.ZodError<any>,
-): GlobeActionResult {
-  const flat = error.flatten();
-  const fieldErrors: Record<string, string[]> = {};
-  for (const [k, v] of Object.entries(flat.fieldErrors as Record<string, string[] | undefined>)) {
-    fieldErrors[k] = v ?? [];
-  }
-  // Surface form-level errors (e.g. from a string schema) under "_" key.
-  if (flat.formErrors.length > 0) {
-    fieldErrors["_"] = flat.formErrors;
-  }
-  return { success: false, errors: fieldErrors };
-}
+export type GlobeActionResult = ActionResult;
 
 /** Verify a marker exists and belongs to the current user's globe. */
 async function requireMarkerOnGlobe(markerId: string, globeId: string) {
@@ -86,7 +69,7 @@ export async function reverseGeocodeAction(
 export async function createMarker(input: MarkerInput): Promise<GlobeActionResult> {
   const { user, globe } = await requireGlobeAccess();
   const parsed = markerSchema.safeParse(input);
-  if (!parsed.success) return validationErrors(parsed.error);
+  if (!parsed.success) return validationResult(parsed.error);
 
   await db.marker.create({
     data: { ...markerData(parsed.data), globeId: globe.id, createdById: user.id },
@@ -102,7 +85,7 @@ export async function updateMarker(
   const { globe } = await requireGlobeAccess();
   await requireMarkerOnGlobe(markerId, globe.id);
   const parsed = markerSchema.safeParse(input);
-  if (!parsed.success) return validationErrors(parsed.error);
+  if (!parsed.success) return validationResult(parsed.error);
 
   await db.marker.update({ where: { id: markerId }, data: markerData(parsed.data) });
   revalidatePath("/globe");
@@ -124,7 +107,7 @@ const inviteEmailSchema = z.string().trim().toLowerCase().email("Enter a valid e
 export async function inviteToGlobe(email: string): Promise<GlobeActionResult> {
   const { globe } = await requireGlobeAccess();
   const parsed = inviteEmailSchema.safeParse(email);
-  if (!parsed.success) return validationErrors(parsed.error);
+  if (!parsed.success) return validationResult(parsed.error);
 
   try {
     await db.globeInvite.create({
