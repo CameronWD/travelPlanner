@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { Pencil, Plus, Trash2, Wand2 } from "lucide-react";
+import { Plus, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { RowActions } from "@/components/ui/row-actions";
 import { ChapterChip } from "@/components/trip/chapter-chip";
 import { ChapterFormDialog, type ChapterFormDialogChapter } from "./chapter-form-dialog";
 import { deleteChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
@@ -99,30 +100,13 @@ export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
                 </div>
 
                 {/* Right: edit + delete */}
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8"
-                    disabled={isPending}
-                    onClick={() => setEditingChapter(chapter)}
-                    aria-label={`Edit ${chapter.name}`}
-                    title="Edit chapter"
-                  >
-                    <Pencil className="size-4" aria-hidden="true" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="size-8 text-destructive hover:text-destructive"
-                    disabled={isPending}
-                    onClick={() => handleDelete(chapter)}
-                    aria-label={`Delete ${chapter.name}`}
-                    title="Delete chapter"
-                  >
-                    <Trash2 className="size-4" aria-hidden="true" />
-                  </Button>
-                </div>
+                <RowActions
+                  onEdit={() => setEditingChapter(chapter)}
+                  onDelete={() => handleDelete(chapter)}
+                  editLabel={`Edit ${chapter.name}`}
+                  deleteLabel={`Delete ${chapter.name}`}
+                  disabled={isPending}
+                />
               </div>
             );
           })}
