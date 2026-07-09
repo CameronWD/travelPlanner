@@ -10,14 +10,13 @@ import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
+import { type ActionResult, validationResult } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
-export type TransportActionResult =
-  | { success: true }
-  | { success: false; errors: Record<string, string[]> };
+export type TransportActionResult = ActionResult;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -41,16 +40,6 @@ async function requireTransportAccess(transportId: string): Promise<{
   }
   await requireTripAccess(transport.tripId);
   return transport;
-}
-
-function validationErrors(
-  error: { flatten(): { fieldErrors: Record<string, string[] | undefined> } },
-): TransportActionResult {
-  const fieldErrors: Record<string, string[]> = {};
-  for (const [key, msgs] of Object.entries(error.flatten().fieldErrors)) {
-    fieldErrors[key] = msgs ?? [];
-  }
-  return { success: false, errors: fieldErrors };
 }
 
 /**
@@ -104,7 +93,7 @@ export async function createTransport(
 
   const parsed = transportSchema.safeParse(input);
   if (!parsed.success) {
-    return validationErrors(parsed.error);
+    return validationResult(parsed.error);
   }
 
   const data = parsed.data;
@@ -214,7 +203,7 @@ export async function updateTransport(
 
   const parsed = transportSchema.safeParse(input);
   if (!parsed.success) {
-    return validationErrors(parsed.error);
+    return validationResult(parsed.error);
   }
 
   const data = parsed.data;

@@ -7,7 +7,7 @@ import { StopCard, type StopCardStop } from "./stop-card";
 import { StopFormDialog } from "./stop-form-dialog";
 import { deleteStop, moveStop } from "@/server/actions/stops";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
 
 interface StopsManagerProps {
   tripId: string;
@@ -22,28 +22,29 @@ interface StopsManagerProps {
  * rely on revalidatePath to refresh the page data.
  */
 export function StopsManager({ tripId, initialStops }: StopsManagerProps) {
-  const { confirm, dialog } = useConfirm();
   const [editingStop, setEditingStop] = React.useState<StopCardStop | null>(
     null,
   );
   const [addOpen, setAddOpen] = React.useState(false);
   const [pendingId, setPendingId] = React.useState<string | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
-  async function handleDelete(stopId: string) {
-    const stop = initialStops.find((s) => s.id === stopId);
-    const confirmed = await confirm({
-      title: `Delete "${stop?.name ?? "this stop"}"?`,
-      description: "This can't be undone.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (!confirmed) return;
-    setPendingId(stopId);
-    try {
-      await deleteStop(stopId);
-    } finally {
-      setPendingId(null);
-    }
+  const { requestDelete, isPending: deleteIsPending, dialog } = useDeleteWithConfirm({
+    action: deleteStop,
+    buildConfirm: (stopId: string) => {
+      const stop = initialStops.find((s) => s.id === stopId);
+      return {
+        title: `Delete "${stop?.name ?? "this stop"}"?`,
+        description: "This can't be undone.",
+        confirmLabel: "Delete",
+        destructive: true,
+      };
+    },
+  });
+
+  function handleDelete(stopId: string) {
+    setDeletingId(stopId);
+    requestDelete(stopId);
   }
 
   async function handleMove(stopId: string, direction: "up" | "down") {
@@ -69,7 +70,7 @@ export function StopsManager({ tripId, initialStops }: StopsManagerProps) {
                   stop={stop}
                   isFirst={idx === 0}
                   isLast={idx === initialStops.length - 1}
-                  isPending={pendingId === stop.id}
+                  isPending={pendingId === stop.id || (deletingId === stop.id && deleteIsPending)}
                   onEdit={(s) => setEditingStop(s)}
                   onMoveUp={(id) => handleMove(id, "up")}
                   onMoveDown={(id) => handleMove(id, "down")}

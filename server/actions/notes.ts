@@ -7,14 +7,13 @@ import { requireTripAccess } from "@/lib/guards";
 import { addNoteSchema, type AddNoteInput } from "@/lib/validations/note";
 import { recordActivity } from "@/server/actions/activity";
 import { entityLabel } from "@/lib/activity";
+import { type ActionResult, validationResult } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
-export type NoteActionResult =
-  | { success: true }
-  | { success: false; errors: Record<string, string[]> };
+export type NoteActionResult = ActionResult;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -64,13 +63,7 @@ export async function addNote(
 
   const parsed = addNoteSchema.safeParse(input);
   if (!parsed.success) {
-    const fieldErrors: Record<string, string[]> = {};
-    for (const [key, msgs] of Object.entries(
-      parsed.error.flatten().fieldErrors,
-    )) {
-      fieldErrors[key] = msgs ?? [];
-    }
-    return { success: false, errors: fieldErrors };
+    return validationResult(parsed.error);
   }
 
   const { targetType, targetId, body } = parsed.data;

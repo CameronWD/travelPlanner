@@ -14,14 +14,13 @@ import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, reflowReorderedDates, type ReflowStop } from "@/lib/reorder";
 import { chapterSpan } from "@/lib/chapter-span";
+import { type ActionResult, validationResult } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
-export type StopActionResult =
-  | { success: true; conflicts?: FlowConflict[] }
-  | { success: false; errors: Record<string, string[]> };
+export type StopActionResult = ActionResult<{ conflicts?: FlowConflict[] }>;
 
 /** Richer result returned by reorderStops (and reorderChapters) — includes
  *  the reflow payload so Task 10 can build the "X stops shifted" undo toast. */
@@ -72,14 +71,6 @@ async function requireStopAccess(stopId: string): Promise<{
   // Also verify the user is a member of the trip
   await requireTripAccess(stop.tripId);
   return stop;
-}
-
-function validationErrors(error: { flatten(): { fieldErrors: Record<string, string[] | undefined> } }): StopActionResult {
-  const fieldErrors: Record<string, string[]> = {};
-  for (const [key, msgs] of Object.entries(error.flatten().fieldErrors)) {
-    fieldErrors[key] = msgs ?? [];
-  }
-  return { success: false, errors: fieldErrors };
 }
 
 // ---------------------------------------------------------------------------
@@ -150,7 +141,7 @@ export async function createStop(
 
   const parsed = stopSchema.safeParse(input);
   if (!parsed.success) {
-    return validationErrors(parsed.error);
+    return validationResult(parsed.error);
   }
 
   if (afterStopId) {
@@ -398,7 +389,7 @@ export async function updateStop(
 
   const parsed = stopSchema.safeParse(input);
   if (!parsed.success) {
-    return validationErrors(parsed.error);
+    return validationResult(parsed.error);
   }
 
   const before = await db.stop.findUnique({ where: { id: stopId } });

@@ -15,10 +15,6 @@ import {
 } from "@/components/ui/select";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
@@ -27,6 +23,8 @@ import { FormError } from "@/components/ui/form-error";
 import { createStop, updateStop } from "@/server/actions/stops";
 import type { StopInput } from "@/lib/validations/stop";
 import type { StopCardStop } from "./stop-card";
+import { FormDialog } from "@/components/ui/form-dialog";
+import { useEntityForm } from "@/components/ui/use-entity-form";
 
 const NO_CHAPTER = "__none__";
 
@@ -69,8 +67,9 @@ export interface StopFormDialogProps {
  * dates) and "scheduled" (the full date/timezone form). New stops default to
  * rough; editing defaults to the stop's current mode.
  *
- * Uses a `key` on the inner form to reset all controlled state whenever the
- * dialog opens or the target stop changes — avoids setState-in-effect lint errors.
+ * Uses `FormDialog` which keys the inner form to reset all controlled state
+ * whenever the dialog opens or the target stop changes — avoids setState-in-effect
+ * lint errors.
  */
 export function StopFormDialog({
   tripId,
@@ -85,33 +84,26 @@ export function StopFormDialog({
   defaultDepartDate,
   forkId,
 }: StopFormDialogProps) {
-  // The key causes React to remount the form component whenever the dialog
-  // opens or the stop changes, giving us fresh initial state for free.
-  const formKey = open ? `${stop?.id ?? "new"}-${String(open)}` : "closed";
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {stop ? `Edit ${stop.name}` : "Add a stop"}
-          </DialogTitle>
-        </DialogHeader>
-        <StopForm
-          key={formKey}
-          tripId={tripId}
-          stop={stop}
-          chapters={chapters}
-          onClose={() => onOpenChange(false)}
-          onSaved={onSaved}
-          tripStartDate={tripStartDate}
-          tripEndDate={tripEndDate}
-          defaultArriveDate={defaultArriveDate}
-          defaultDepartDate={defaultDepartDate}
-          forkId={forkId}
-        />
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={stop ? `Edit ${stop.name}` : "Add a stop"}
+      recordId={stop?.id ?? null}
+    >
+      <StopForm
+        tripId={tripId}
+        stop={stop}
+        chapters={chapters}
+        onClose={() => onOpenChange(false)}
+        onSaved={onSaved}
+        tripStartDate={tripStartDate}
+        tripEndDate={tripEndDate}
+        defaultArriveDate={defaultArriveDate}
+        defaultDepartDate={defaultDepartDate}
+        forkId={forkId}
+      />
+    </FormDialog>
   );
 }
 
@@ -153,7 +145,8 @@ function StopForm({
   const [mode, setMode] = React.useState<Mode>(initialMode);
 
   // State is initialised once from props when the component mounts.
-  // The parent uses `key` to force a remount when the dialog re-opens.
+  // The parent uses FormDialog which keys the inner form to force a remount
+  // when the dialog re-opens.
   const [name, setName] = React.useState(stop?.name ?? "");
   const [country, setCountry] = React.useState(stop?.country ?? "");
   const [timezone, setTimezone] = React.useState(
@@ -174,8 +167,38 @@ function StopForm({
     stop?.departDate ?? defaultDepartDate ?? "",
   );
   const [notes, setNotes] = React.useState(stop?.notes ?? "");
-  const [errors, setErrors] = React.useState<FormErrors>({});
-  const [isPending, startTransition] = React.useTransition();
+
+  const { errors, isPending, onSubmit } = useEntityForm<Record<never, never>>({
+    submit: () => {
+      let input: StopInput;
+      if (mode === "rough") {
+        const parsedNights = Number.parseInt(nights, 10);
+        input = {
+          mode: "rough",
+          name,
+          country: country.trim() || undefined,
+          nights: Number.isFinite(parsedNights) ? parsedNights : 0,
+          notes: notes.trim() || undefined,
+          ...(chapterId !== NO_CHAPTER ? { chapterId } : {}),
+        };
+      } else {
+        input = {
+          mode: "scheduled",
+          name,
+          country: country.trim() || undefined,
+          timezone,
+          arriveDate,
+          departDate,
+          notes: notes.trim() || undefined,
+        };
+      }
+      return isEdit && stop
+        ? updateStop(stop.id, input)
+        : createStop(tripId, input, forkId ?? undefined);
+    },
+    onClose,
+    onSaved,
+  });
 
   // Auto-guess timezone when the user types a country
   function handleCountryChange(value: string) {
@@ -186,51 +209,8 @@ function StopForm({
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setErrors({});
-
-    let input: StopInput;
-    if (mode === "rough") {
-      const parsedNights = Number.parseInt(nights, 10);
-      input = {
-        mode: "rough",
-        name,
-        country: country.trim() || undefined,
-        nights: Number.isFinite(parsedNights) ? parsedNights : 0,
-        notes: notes.trim() || undefined,
-        ...(chapterId !== NO_CHAPTER ? { chapterId } : {}),
-      };
-    } else {
-      input = {
-        mode: "scheduled",
-        name,
-        country: country.trim() || undefined,
-        timezone,
-        arriveDate,
-        departDate,
-        notes: notes.trim() || undefined,
-      };
-    }
-
-    startTransition(async () => {
-      const result =
-        isEdit && stop
-          ? await updateStop(stop.id, input)
-          : await createStop(tripId, input, forkId ?? undefined);
-
-      if (!result.success) {
-        setErrors(result.errors as FormErrors);
-        return;
-      }
-
-      onClose();
-      onSaved?.();
-    });
-  }
-
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
       {/* Mode toggle */}
       <Segmented
         type="single"
@@ -246,7 +226,7 @@ function StopForm({
       </Segmented>
 
       {/* Name */}
-      <Field label="Place name" required error={errors.name?.[0]}>
+      <Field label="Place name" required error={(errors as FormErrors).name?.[0]}>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -257,7 +237,7 @@ function StopForm({
       </Field>
 
       {/* Country */}
-      <Field label="Country" error={errors.country?.[0]}>
+      <Field label="Country" error={(errors as FormErrors).country?.[0]}>
         <Input
           value={country}
           onChange={(e) => handleCountryChange(e.target.value)}
@@ -269,7 +249,7 @@ function StopForm({
       {mode === "rough" ? (
         <>
           {/* Nights */}
-          <Field label="Nights (rough)" error={errors.nights?.[0]}>
+          <Field label="Nights (rough)" error={(errors as FormErrors).nights?.[0]}>
             <Input
               type="number"
               min={0}
@@ -280,7 +260,7 @@ function StopForm({
           </Field>
 
           {/* Chapter */}
-          <Field label="Chapter" error={errors.chapterId?.[0]}>
+          <Field label="Chapter" error={(errors as FormErrors).chapterId?.[0]}>
             <Select
               value={chapterId}
               onValueChange={setChapterId}
@@ -303,7 +283,7 @@ function StopForm({
       ) : (
         <>
           {/* Timezone */}
-          <Field label="Timezone" required error={errors.timezone?.[0]}>
+          <Field label="Timezone" required error={(errors as FormErrors).timezone?.[0]}>
             <Select
               value={timezone}
               onValueChange={setTimezone}
@@ -331,7 +311,7 @@ function StopForm({
               onChange={(e) => setArriveDate(e.target.value)}
               min={tripStartDate}
               max={tripEndDate}
-              error={errors.arriveDate?.[0]}
+              error={(errors as FormErrors).arriveDate?.[0]}
               disabled={isPending}
             />
             <DateField
@@ -341,7 +321,7 @@ function StopForm({
               onChange={(e) => setDepartDate(e.target.value)}
               min={arriveDate || tripStartDate}
               max={tripEndDate}
-              error={errors.departDate?.[0]}
+              error={(errors as FormErrors).departDate?.[0]}
               disabled={isPending}
             />
           </div>
@@ -349,7 +329,7 @@ function StopForm({
       )}
 
       {/* Notes */}
-      <Field label="Notes" error={errors.notes?.[0]}>
+      <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -359,7 +339,7 @@ function StopForm({
       </Field>
 
       {/* Form-level error */}
-      <FormError>{errors._form?.[0]}</FormError>
+      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>

@@ -45,7 +45,7 @@ import type { ChecklistKind } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { motion, useReducedMotion } from "motion/react";
 import { SPRING_POP } from "@/lib/motion";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -402,26 +402,21 @@ function ChecklistRow({
   const reduce = useReducedMotion();
   const [pending, startTransition] = useTransition();
   const [editOpen, setEditOpen] = React.useState(false);
-  const { confirm, dialog: confirmDialog } = useConfirm();
+  const { requestDelete, isPending: deleteIsPending, dialog: confirmDialog } = useDeleteWithConfirm({
+    action: deleteChecklistItem,
+    buildConfirm: () => ({
+      title: `Delete "${item.text}"?`,
+      description: "This item will be permanently removed from the checklist.",
+      confirmLabel: "Delete",
+      destructive: true,
+    }),
+  });
 
   const status = dueDateStatus(item.dueDate, item.done);
 
   function toggle() {
     startTransition(async () => {
       await toggleChecklistItem(item.id, !item.done);
-    });
-  }
-
-  async function remove() {
-    const confirmed = await confirm({
-      title: `Delete "${item.text}"?`,
-      description: "This item will be permanently removed from the checklist.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (!confirmed) return;
-    startTransition(async () => {
-      await deleteChecklistItem(item.id);
     });
   }
 
@@ -448,7 +443,7 @@ function ChecklistRow({
         className={cn(
           "group flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors",
           "hover:bg-muted/40",
-          pending && "opacity-60",
+          (pending || deleteIsPending) && "opacity-60",
         )}
       >
         {/* Checkbox */}
@@ -561,8 +556,8 @@ function ChecklistRow({
           </button>
           <button
             type="button"
-            onClick={remove}
-            disabled={pending}
+            onClick={() => requestDelete(item.id)}
+            disabled={pending || deleteIsPending}
             aria-label="Delete item"
             className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-30"
           >

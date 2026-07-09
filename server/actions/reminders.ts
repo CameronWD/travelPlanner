@@ -5,14 +5,13 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { reminderSchema, type ReminderInput } from "@/lib/validations/reminder";
+import { type ActionResult, validationResult } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
-export type ReminderActionResult =
-  | { success: true; id?: string }
-  | { success: false; errors: Record<string, string[]> };
+export type ReminderActionResult = ActionResult<{ id?: string }>;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -58,13 +57,7 @@ export async function addReminder(
 
   const parsed = reminderSchema.safeParse(input);
   if (!parsed.success) {
-    const fieldErrors: Record<string, string[]> = {};
-    for (const [key, msgs] of Object.entries(
-      parsed.error.flatten().fieldErrors,
-    )) {
-      fieldErrors[key] = msgs ?? [];
-    }
-    return { success: false, errors: fieldErrors };
+    return validationResult(parsed.error);
   }
 
   const { title, fireAt, targetType, targetId } = parsed.data;
@@ -97,13 +90,7 @@ export async function updateReminder(
 
   const parsed = reminderSchema.safeParse(input);
   if (!parsed.success) {
-    const fieldErrors: Record<string, string[]> = {};
-    for (const [key, msgs] of Object.entries(
-      parsed.error.flatten().fieldErrors,
-    )) {
-      fieldErrors[key] = msgs ?? [];
-    }
-    return { success: false, errors: fieldErrors };
+    return validationResult(parsed.error);
   }
 
   const { title, fireAt, targetType, targetId } = parsed.data;

@@ -13,26 +13,17 @@ import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
 import { reflowReorderedDates, type ReflowStop } from "@/lib/reorder";
 import { recomputeChapterSpans, type ReorderResult } from "@/server/actions/stops";
 import type { FlowConflict } from "@/lib/firm-up";
+import { type ActionResult, validationResult } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
-export type ChapterActionResult =
-  | { success: true }
-  | { success: false; errors: Record<string, string[]> };
+export type ChapterActionResult = ActionResult;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
-
-function validationErrors(error: { flatten(): { fieldErrors: Record<string, string[] | undefined> } }): ChapterActionResult {
-  const fieldErrors: Record<string, string[]> = {};
-  for (const [k, msgs] of Object.entries(error.flatten().fieldErrors)) {
-    fieldErrors[k] = msgs ?? [];
-  }
-  return { success: false, errors: fieldErrors };
-}
 
 function revalidateChapterPaths(tripId: string) {
   for (const p of ["", "/budget", "/summary", "/today", "/settings", "/calendar", "/plan"]) {
@@ -92,7 +83,7 @@ export async function createChapter(
   await requireTripAccess(tripId);
 
   const parsed = chapterSchema.safeParse(input);
-  if (!parsed.success) return validationErrors(parsed.error);
+  if (!parsed.success) return validationResult(parsed.error);
 
   if (await firstOverlap(tripId, parsed.data, undefined, forkId)) {
     return { success: false, errors: { startDate: ["Chapters cannot overlap another chapter's dates"] } };
@@ -131,7 +122,7 @@ export async function updateChapter(
   const chapter = await requireChapterAccess(chapterId);
 
   const parsed = chapterSchema.safeParse(input);
-  if (!parsed.success) return validationErrors(parsed.error);
+  if (!parsed.success) return validationResult(parsed.error);
 
   if (await firstOverlap(chapter.tripId, parsed.data, chapterId)) {
     return { success: false, errors: { startDate: ["Chapters cannot overlap another chapter's dates"] } };

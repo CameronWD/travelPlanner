@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { MoneyInput } from "@/components/ui/money-input";
 import {
   Select,
   SelectContent,
@@ -15,10 +14,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
@@ -26,10 +21,12 @@ import { TRANSPORT_MODE_LIST } from "@/lib/transport";
 import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
 import { createTransport, updateTransport } from "@/server/actions/transport";
-import { CURRENCIES } from "@/lib/currencies";
-import { formatMinor, parseAmountToMinor } from "@/lib/money";
+import { parseAmountToMinor, formatMinor } from "@/lib/money";
 import type { TransportCardTransport } from "./transport-card";
 import type { CostRow } from "@/server/actions/costs";
+import { FormDialog } from "@/components/ui/form-dialog";
+import { useEntityForm } from "@/components/ui/use-entity-form";
+import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -98,31 +95,26 @@ export function TransportFormDialog({
   homeCurrency,
   costs,
 }: TransportFormDialogProps) {
-  const formKey = open ? `${transport?.id ?? "new"}-${String(open)}` : "closed";
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {transport ? "Edit transport" : "Add transport"}
-          </DialogTitle>
-        </DialogHeader>
-        <TransportForm
-          key={formKey}
-          tripId={tripId}
-          stops={stops}
-          transport={transport}
-          defaultFromStopId={defaultFromStopId}
-          defaultToStopId={defaultToStopId}
-          onClose={() => onOpenChange(false)}
-          onSaved={onSaved}
-          forkId={forkId}
-          homeCurrency={homeCurrency}
-          costs={costs}
-        />
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={transport ? "Edit transport" : "Add transport"}
+      recordId={transport?.id ?? null}
+    >
+      <TransportForm
+        tripId={tripId}
+        stops={stops}
+        transport={transport}
+        defaultFromStopId={defaultFromStopId}
+        defaultToStopId={defaultToStopId}
+        onClose={() => onOpenChange(false)}
+        onSaved={onSaved}
+        forkId={forkId}
+        homeCurrency={homeCurrency}
+        costs={costs}
+      />
+    </FormDialog>
   );
 }
 
@@ -230,8 +222,6 @@ function toDatetimeLocal(dt: Date | null | undefined): string {
   return `${y}-${mo}-${d}T${h}:${mi}`;
 }
 
-const CURRENCY_CODES = CURRENCIES.map((c) => c.code);
-
 function TransportForm({
   tripId,
   stops,
@@ -283,61 +273,49 @@ function TransportForm({
     singleCost?.paidAt ? new Date(singleCost.paidAt).toISOString().slice(0, 10) : "",
   );
 
-  const [errors, setErrors] = React.useState<FormErrors>({});
-  const [isPending, startTransition] = React.useTransition();
+  const { errors, isPending, onSubmit } = useEntityForm({
+    submit: () => {
+      const estimatedMinor = estimatedAmount.trim()
+        ? (parseAmountToMinor(estimatedAmount, currency) ?? undefined)
+        : undefined;
+      const actualMinor = actualAmount.trim()
+        ? (parseAmountToMinor(actualAmount, currency) ?? undefined)
+        : undefined;
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setErrors({});
+      // The action accepts TransportInput whose depAt/arrAt are Date | undefined
+      // (after Zod coercion), but we pass raw strings from the form — Zod's
+      // preprocess in transportSchema handles the coercion server-side.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const input: any = {
+        mode: mode as import("@/lib/enums").TransportMode,
+        fromStopId: fromStopId === NONE ? undefined : fromStopId,
+        toStopId: toStopId === NONE ? undefined : toStopId,
+        depPlace: depPlace.trim() || undefined,
+        arrPlace: arrPlace.trim() || undefined,
+        depAt: depAt || undefined,
+        arrAt: arrAt || undefined,
+        reference: reference.trim() || undefined,
+        notes: notes.trim() || undefined,
+        ...(estimatedMinor !== undefined && {
+          estimatedMinor,
+          currency,
+          actualMinor: actualMinor ?? null,
+          paidAt: paidAt || null,
+        }),
+      };
 
-    const estimatedMinor = estimatedAmount.trim()
-      ? (parseAmountToMinor(estimatedAmount, currency) ?? undefined)
-      : undefined;
-    const actualMinor = actualAmount.trim()
-      ? (parseAmountToMinor(actualAmount, currency) ?? undefined)
-      : undefined;
-
-    // The action accepts TransportInput whose depAt/arrAt are Date | undefined
-    // (after Zod coercion), but we pass raw strings from the form — Zod's
-    // preprocess in transportSchema handles the coercion server-side.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const input: any = {
-      mode: mode as import("@/lib/enums").TransportMode,
-      fromStopId: fromStopId === NONE ? undefined : fromStopId,
-      toStopId: toStopId === NONE ? undefined : toStopId,
-      depPlace: depPlace.trim() || undefined,
-      arrPlace: arrPlace.trim() || undefined,
-      depAt: depAt || undefined,
-      arrAt: arrAt || undefined,
-      reference: reference.trim() || undefined,
-      notes: notes.trim() || undefined,
-      ...(estimatedMinor !== undefined && {
-        estimatedMinor,
-        currency,
-        actualMinor: actualMinor ?? null,
-        paidAt: paidAt || null,
-      }),
-    };
-
-    startTransition(async () => {
-      const result =
-        isEdit && transport
-          ? await updateTransport(transport.id, input)
-          : await createTransport(tripId, input, forkId ?? undefined);
-
-      if (!result.success) {
-        setErrors(result.errors as FormErrors);
-        return;
-      }
-      onClose();
-      onSaved?.();
-    });
-  }
+      return isEdit && transport
+        ? updateTransport(transport.id, input)
+        : createTransport(tripId, input, forkId ?? undefined);
+    },
+    onClose,
+    onSaved,
+  });
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
       {/* Mode */}
-      <Field label="Mode" required error={errors.mode?.[0]}>
+      <Field label="Mode" required error={(errors as FormErrors).mode?.[0]}>
         <Select
           value={mode}
           onValueChange={setMode}
@@ -364,7 +342,7 @@ function TransportForm({
 
       {/* Stop selects */}
       <div className="grid grid-cols-2 gap-3">
-        <Field label="From stop" error={errors.fromStopId?.[0]}>
+        <Field label="From stop" error={(errors as FormErrors).fromStopId?.[0]}>
           <Select
             value={fromStopId}
             onValueChange={setFromStopId}
@@ -384,7 +362,7 @@ function TransportForm({
           </Select>
         </Field>
 
-        <Field label="To stop" error={errors.toStopId?.[0]}>
+        <Field label="To stop" error={(errors as FormErrors).toStopId?.[0]}>
           <Select
             value={toStopId}
             onValueChange={setToStopId}
@@ -407,7 +385,7 @@ function TransportForm({
 
       {/* Place names */}
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Departure place" error={errors.depPlace?.[0]}>
+        <Field label="Departure place" error={(errors as FormErrors).depPlace?.[0]}>
           <Input
             value={depPlace}
             onChange={(e) => setDepPlace(e.target.value)}
@@ -416,7 +394,7 @@ function TransportForm({
             disabled={isPending}
           />
         </Field>
-        <Field label="Arrival place" error={errors.arrPlace?.[0]}>
+        <Field label="Arrival place" error={(errors as FormErrors).arrPlace?.[0]}>
           <Input
             value={arrPlace}
             onChange={(e) => setArrPlace(e.target.value)}
@@ -428,7 +406,7 @@ function TransportForm({
 
       {/* Times */}
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Departure time" error={errors.depAt?.[0]}>
+        <Field label="Departure time" error={(errors as FormErrors).depAt?.[0]}>
           <Input
             type="datetime-local"
             value={depAt}
@@ -436,7 +414,7 @@ function TransportForm({
             disabled={isPending}
           />
         </Field>
-        <Field label="Arrival time" error={errors.arrAt?.[0]}>
+        <Field label="Arrival time" error={(errors as FormErrors).arrAt?.[0]}>
           <Input
             type="datetime-local"
             value={arrAt}
@@ -458,7 +436,7 @@ function TransportForm({
       )}
 
       {/* Reference */}
-      <Field label="Booking reference / number" error={errors.reference?.[0]}>
+      <Field label="Booking reference / number" error={(errors as FormErrors).reference?.[0]}>
         <Input
           value={reference}
           onChange={(e) => setReference(e.target.value)}
@@ -468,7 +446,7 @@ function TransportForm({
       </Field>
 
       {/* Notes */}
-      <Field label="Notes" error={errors.notes?.[0]}>
+      <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -478,60 +456,21 @@ function TransportForm({
       </Field>
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
-      {!hasMultipleCosts && (
-        <>
-          {/* Estimated cost */}
-          <Field label="Estimated cost" error={errors.estimatedMinor?.[0]}>
-            <MoneyInput
-              amount={estimatedAmount}
-              currency={currency}
-              currencies={CURRENCY_CODES}
-              onAmountChange={setEstimatedAmount}
-              onCurrencyChange={setCurrency}
-              disabled={isPending}
-              invalid={Boolean(errors.estimatedMinor)}
-              aria-label="Estimated cost amount"
-            />
-          </Field>
+      <InlineCostFields
+        hasMultipleCosts={hasMultipleCosts}
+        estimatedAmount={estimatedAmount}
+        onEstimatedChange={setEstimatedAmount}
+        currency={currency}
+        onCurrencyChange={setCurrency}
+        actualAmount={actualAmount}
+        onActualChange={setActualAmount}
+        paidAt={paidAt}
+        onPaidAtChange={setPaidAt}
+        errors={errors}
+        disabled={isPending}
+      />
 
-          {/* Actual cost — only shown when an estimated amount is entered */}
-          {estimatedAmount.trim() && (
-            <>
-              <Field
-                label="Actual cost"
-                description="Leave blank if you haven't paid yet"
-                error={errors.actualMinor?.[0]}
-              >
-                <MoneyInput
-                  amount={actualAmount}
-                  currency={currency}
-                  currencies={CURRENCY_CODES}
-                  onAmountChange={setActualAmount}
-                  onCurrencyChange={setCurrency}
-                  disabled={isPending}
-                  invalid={Boolean(errors.actualMinor)}
-                  aria-label="Actual cost amount"
-                />
-              </Field>
-
-              <Field
-                label="Date paid"
-                description="Optional — when the cost was paid"
-                error={errors.paidAt?.[0]}
-              >
-                <Input
-                  type="date"
-                  value={paidAt}
-                  onChange={(e) => setPaidAt(e.target.value)}
-                  disabled={isPending}
-                />
-              </Field>
-            </>
-          )}
-        </>
-      )}
-
-      <FormError>{errors._form?.[0]}</FormError>
+      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>

@@ -1,7 +1,7 @@
 import * as React from "react";
-import { Pencil, Trash2, ArrowRight, Clock, StickyNote } from "lucide-react";
+import { ArrowRight, Clock, StickyNote } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Button } from "@/components/ui/button";
+import { RowActions } from "@/components/ui/row-actions";
 import { TRANSPORT_MODE_META, durationMinutes, formatDuration } from "@/lib/transport";
 import type { TransportMode } from "@/lib/enums";
 import { transportTimeDisplay, shortDate, dayDeltaSuffix } from "@/lib/time-display";
@@ -109,30 +109,13 @@ export function TransportCard({
         </div>
 
         {/* Controls */}
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            disabled={isPending}
-            onClick={() => onEdit?.(t)}
-            aria-label="Edit transport"
-            title="Edit"
-          >
-            <Pencil className="size-4" aria-hidden="true" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            disabled={isPending}
-            onClick={() => onDelete?.(t.id)}
-            aria-label="Delete transport"
-            title="Delete"
-          >
-            <Trash2 className="size-4" aria-hidden="true" />
-          </Button>
-        </div>
+        <RowActions
+          onEdit={onEdit ? () => onEdit(t) : undefined}
+          onDelete={onDelete ? () => onDelete(t.id) : undefined}
+          editLabel="Edit transport"
+          deleteLabel="Delete transport"
+          disabled={isPending}
+        />
       </div>
 
       {/* Times row */}

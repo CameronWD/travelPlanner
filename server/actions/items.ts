@@ -15,14 +15,13 @@ import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { getUserGlobe } from "@/lib/globe";
 import { markerToWishlistItemData } from "@/lib/marker-to-item";
 import type { MarkerView } from "@/components/globe/types";
+import { type ActionResult, validationResult } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
-export type ItemActionResult =
-  | { success: true }
-  | { success: false; errors: Record<string, string[]> };
+export type ItemActionResult = ActionResult;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -46,16 +45,6 @@ async function requireItemAccess(itemId: string): Promise<{
   }
   await requireTripAccess(item.tripId);
   return item;
-}
-
-function validationErrors(
-  error: { flatten(): { fieldErrors: Record<string, string[] | undefined> } },
-): ItemActionResult {
-  const fieldErrors: Record<string, string[]> = {};
-  for (const [key, msgs] of Object.entries(error.flatten().fieldErrors)) {
-    fieldErrors[key] = msgs ?? [];
-  }
-  return { success: false, errors: fieldErrors };
 }
 
 /**
@@ -88,7 +77,7 @@ export async function createItem(
 
   const parsed = itemSchema.safeParse(input);
   if (!parsed.success) {
-    return validationErrors(parsed.error);
+    return validationResult(parsed.error);
   }
 
   const data = parsed.data;
@@ -273,7 +262,7 @@ export async function updateItem(
 
   const parsed = itemSchema.safeParse(input);
   if (!parsed.success) {
-    return validationErrors(parsed.error);
+    return validationResult(parsed.error);
   }
 
   const data = parsed.data;
@@ -462,12 +451,12 @@ export async function scheduleItem(
   itemId: string,
   input: ScheduleItemInput,
   forkId?: PlanId,
-): Promise<ItemActionResult & { placedItemId?: string }> {
+): Promise<ActionResult<{ placedItemId?: string }>> {
   const accessItem = await requireItemAccess(itemId);
 
   const parsed = scheduleDateSchema.safeParse(input);
   if (!parsed.success) {
-    return validationErrors(parsed.error);
+    return validationResult(parsed.error);
   }
 
   const { date, startTime, endTime } = parsed.data;

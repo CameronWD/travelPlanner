@@ -12,14 +12,13 @@ import {
   type ChecklistItemUpdateInput,
 } from "@/lib/validations/checklist";
 import { mergeTemplateTexts } from "@/lib/checklists";
+import { type ActionResult, validationResult } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
-export type ChecklistActionResult =
-  | { success: true }
-  | { success: false; errors: Record<string, string[]> };
+export type ChecklistActionResult = ActionResult;
 
 export type TemplateListItem = {
   id: string;
@@ -51,16 +50,6 @@ async function requireChecklistItemAccess(itemId: string): Promise<{
   return item;
 }
 
-function validationErrors(
-  error: { flatten(): { fieldErrors: Record<string, string[] | undefined> } },
-): ChecklistActionResult {
-  const fieldErrors: Record<string, string[]> = {};
-  for (const [key, msgs] of Object.entries(error.flatten().fieldErrors)) {
-    fieldErrors[key] = msgs ?? [];
-  }
-  return { success: false, errors: fieldErrors };
-}
-
 function revalidateChecklistPaths(tripId: string) {
   revalidatePath(`/trips/${tripId}/checklists`);
 }
@@ -85,7 +74,7 @@ export async function addChecklistItem(
 
   const parsed = checklistItemSchema.safeParse(input);
   if (!parsed.success) {
-    return validationErrors(parsed.error);
+    return validationResult(parsed.error);
   }
 
   const data = parsed.data;
@@ -144,7 +133,7 @@ export async function updateChecklistItem(
 
   const parsed = checklistItemUpdateSchema.safeParse(input);
   if (!parsed.success) {
-    return validationErrors(parsed.error);
+    return validationResult(parsed.error);
   }
 
   const data = parsed.data;

@@ -85,7 +85,7 @@ Recent features, newest first — each has a plan in `docs/superpowers/plans/`:
 ## 8. Outstanding / future notes
 
 - **Drive estimates "Option B"** — swap the offline `estimateDriveMinutes` for a real routing/distance-matrix API. Deliberately parked behind that seam; recorded in **ADR-0011**.
-- **`useInlineEdit` hook** — the three discreet editable cells (Text/Number/Date) share a skeleton; extract a shared hook **only if** a 4th editable column appears (otherwise the duplication is fine).
+- **Shared UI primitives & extract-when-it-hurts rule** — see **`COMPONENTS.md`** (repo root) for the catalog of shared primitives (`useServerAction`, `useEntityForm`, `<FormDialog>`, `<RowActions>`, `<SectionHeader>`, `createMapLoader`, `useDeleteWithConfirm`, `<InlineCostFields>`), the tuned rule-of-three, and the full list of patterns deliberately left duplicated. `COMPONENTS.md` is the source of truth; do not add new shared primitives without reading it first.
 - Discreet mode intentionally gives day/settings/summary pages only the **muted CSS skin** (not full spreadsheet rebuilds) — by design, not a gap.
 
 ## 9. Gotchas

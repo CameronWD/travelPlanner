@@ -10,14 +10,13 @@ import type { Cost } from "@prisma/client";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
+import { type ActionResult, validationResult } from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
-export type CostActionResult =
-  | { success: true; cost?: Pick<Cost, "id"> }
-  | { success: false; errors: Record<string, string[]> };
+export type CostActionResult = ActionResult<{ cost?: Pick<Cost, "id"> }>;
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -41,16 +40,6 @@ async function requireCostAccess(costId: string): Promise<{
   }
   await requireTripAccess(cost.tripId);
   return cost;
-}
-
-function validationErrors(
-  error: { flatten(): { fieldErrors: Record<string, string[] | undefined> } },
-): CostActionResult {
-  const fieldErrors: Record<string, string[]> = {};
-  for (const [key, msgs] of Object.entries(error.flatten().fieldErrors)) {
-    fieldErrors[key] = msgs ?? [];
-  }
-  return { success: false, errors: fieldErrors };
 }
 
 /**
@@ -133,7 +122,7 @@ export async function createCost(
 
   const parsed = costSchema.safeParse(input);
   if (!parsed.success) {
-    return validationErrors(parsed.error);
+    return validationResult(parsed.error);
   }
 
   const data = parsed.data;
@@ -203,7 +192,7 @@ export async function updateCost(
 
   const parsed = costSchema.safeParse(input);
   if (!parsed.success) {
-    return validationErrors(parsed.error);
+    return validationResult(parsed.error);
   }
 
   const data = parsed.data;

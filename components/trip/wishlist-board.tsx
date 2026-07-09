@@ -16,6 +16,7 @@ import type { VoteView } from "./vote-control";
 import { sortItemsByVotes } from "@/lib/votes";
 import { AiActivitySuggestions } from "./ai-activity-suggestions";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
+import { SectionHeader } from "@/components/ui/section-header";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { WishlistMapLoader } from "./wishlist-map-loader";
@@ -347,17 +348,11 @@ export function WishlistBoard({
             const stopItems = grouped.get(stop.id) ?? [];
             return (
               <section key={stop.id} className="flex flex-col gap-3">
-                <div className="flex items-center gap-2">
-                  <MapPin className="size-4 text-muted-foreground" aria-hidden="true" />
-                  <h3 className="font-display text-base font-semibold text-foreground">
-                    {stop.name}
-                  </h3>
-                  {stopItems.length > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      ({stopItems.length})
-                    </span>
-                  )}
-                </div>
+                <SectionHeader
+                  icon={<MapPin className="size-4 text-muted-foreground" aria-hidden="true" />}
+                  title={stop.name}
+                  count={stopItems.length > 0 ? stopItems.length : undefined}
+                />
                 <AiActivitySuggestions
                   tripId={tripId}
                   stopId={stop.id}
@@ -405,15 +400,11 @@ export function WishlistBoard({
           {/* Anywhere / no stop group */}
           {anywhereItems.length > 0 && (
             <section className="flex flex-col gap-3">
-              <div className="flex items-center gap-2">
-                <Heart className="size-4 text-muted-foreground" aria-hidden="true" />
-                <h3 className="font-display text-base font-semibold text-foreground">
-                  Anywhere
-                </h3>
-                <span className="text-xs text-muted-foreground">
-                  ({anywhereItems.length})
-                </span>
-              </div>
+              <SectionHeader
+                icon={<Heart className="size-4 text-muted-foreground" aria-hidden="true" />}
+                title="Anywhere"
+                count={anywhereItems.length}
+              />
               <AnimatedList className="flex flex-col gap-2">
                 {anywhereItems.map((item) => (
                   <AnimatedItem key={item.id}>

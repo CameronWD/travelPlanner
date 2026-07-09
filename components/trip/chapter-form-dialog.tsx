@@ -6,10 +6,6 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/ui/date-field";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
@@ -17,6 +13,8 @@ import { CHAPTER_COLOURS, type ChapterColour } from "@/lib/chapter-colours";
 import { FormError } from "@/components/ui/form-error";
 import { createChapter, updateChapter } from "@/server/actions/chapters";
 import { cn } from "@/lib/cn";
+import { FormDialog } from "@/components/ui/form-dialog";
+import { useEntityForm } from "@/components/ui/use-entity-form";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,8 +57,9 @@ export interface ChapterFormDialogProps {
 /**
  * Dialog with a form for creating or editing a Chapter.
  *
- * Uses a `key` on the inner form to reset all controlled state whenever the
- * dialog opens or the target chapter changes — avoids setState-in-effect lint errors.
+ * Uses `FormDialog` which keys the inner form to reset all controlled state
+ * whenever the dialog opens or the target chapter changes — avoids
+ * setState-in-effect lint errors.
  */
 export function ChapterFormDialog({
   tripId,
@@ -73,31 +72,24 @@ export function ChapterFormDialog({
   originStopId,
   forkId,
 }: ChapterFormDialogProps) {
-  // The key causes React to remount the form component whenever the dialog
-  // opens or the chapter changes, giving us fresh initial state for free.
-  const formKey = open ? `${chapter?.id ?? "new"}-${String(open)}` : "closed";
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {chapter ? `Edit ${chapter.name}` : "Add a chapter"}
-          </DialogTitle>
-        </DialogHeader>
-        <ChapterForm
-          key={formKey}
-          tripId={tripId}
-          chapter={chapter}
-          onClose={() => onOpenChange(false)}
-          onSaved={onSaved}
-          defaultStart={defaultStart}
-          defaultEnd={defaultEnd}
-          originStopId={originStopId}
-          forkId={forkId}
-        />
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={chapter ? `Edit ${chapter.name}` : "Add a chapter"}
+      recordId={chapter?.id ?? null}
+    >
+      <ChapterForm
+        tripId={tripId}
+        chapter={chapter}
+        onClose={() => onOpenChange(false)}
+        onSaved={onSaved}
+        defaultStart={defaultStart}
+        defaultEnd={defaultEnd}
+        originStopId={originStopId}
+        forkId={forkId}
+      />
+    </FormDialog>
   );
 }
 
@@ -129,7 +121,8 @@ function ChapterForm({
   const isEdit = Boolean(chapter);
 
   // State is initialised once from props when the component mounts.
-  // The parent uses `key` to force a remount when the dialog re-opens.
+  // The parent uses FormDialog which keys the inner form to force a remount
+  // when the dialog re-opens.
   const [name, setName] = React.useState(chapter?.name ?? "");
   const [colour, setColour] = React.useState<ChapterColour>(
     (chapter?.colour as ChapterColour) ?? CHAPTER_COLOURS[0].value,
@@ -144,37 +137,25 @@ function ChapterForm({
   const [setDatesNow, setSetDatesNow] = React.useState(
     isEdit ? chapter?.startDate != null : false,
   );
-  const [errors, setErrors] = React.useState<FormErrors>({});
-  const [isPending, startTransition] = React.useTransition();
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setErrors({});
+  const { errors, isPending, onSubmit } = useEntityForm({
+    submit: () => {
+      const input = setDatesNow
+        ? { name, colour, startDate, endDate }
+        : { name, colour };
 
-    const input = setDatesNow
-      ? { name, colour, startDate, endDate }
-      : { name, colour };
-
-    startTransition(async () => {
-      const result =
-        isEdit && chapter
-          ? await updateChapter(chapter.id, input)
-          : await createChapter(tripId, input, originStopId, forkId ?? undefined);
-
-      if (!result.success) {
-        setErrors(result.errors as FormErrors);
-        return;
-      }
-
-      onClose();
-      onSaved?.();
-    });
-  }
+      return isEdit && chapter
+        ? updateChapter(chapter.id, input)
+        : createChapter(tripId, input, originStopId, forkId ?? undefined);
+    },
+    onClose,
+    onSaved,
+  });
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
       {/* Name */}
-      <Field label="Chapter name" required error={errors.name?.[0]}>
+      <Field label="Chapter name" required error={(errors as FormErrors).name?.[0]}>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -185,7 +166,7 @@ function ChapterForm({
       </Field>
 
       {/* Colour */}
-      <Field label="Colour" required error={errors.colour?.[0]}>
+      <Field label="Colour" required error={(errors as FormErrors).colour?.[0]}>
         <div className="flex flex-wrap gap-2">
           {CHAPTER_COLOURS.map((c) => (
             <button
@@ -229,7 +210,7 @@ function ChapterForm({
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
             max={endDate || undefined}
-            error={errors.startDate?.[0]}
+            error={(errors as FormErrors).startDate?.[0]}
             disabled={isPending}
           />
           <DateField
@@ -238,14 +219,14 @@ function ChapterForm({
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
             min={startDate || undefined}
-            error={errors.endDate?.[0]}
+            error={(errors as FormErrors).endDate?.[0]}
             disabled={isPending}
           />
         </div>
       )}
 
       {/* Form-level error */}
-      <FormError>{errors._form?.[0]}</FormError>
+      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>
