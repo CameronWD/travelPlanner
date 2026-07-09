@@ -29,6 +29,11 @@ const USER_AGENT = NOMINATIM_CONTACT
   ? `TripPlanner/1.0 (${NOMINATIM_CONTACT})`
   : "TripPlanner/1.0";
 const TIMEOUT_MS = 5_000;
+// The app is English-only. Ask Nominatim for English place names so search
+// results and derived city/country are not returned in the local language
+// (e.g. "Tokyo Tower", not "東京タワー"). Falls back to the local name only
+// when no English name exists in OpenStreetMap.
+const ACCEPT_LANGUAGE = "en";
 
 export interface LatLng {
   lat: number;
@@ -55,6 +60,7 @@ export async function geocodePlace(query: string): Promise<LatLng | null> {
     url.searchParams.set("format", "json");
     url.searchParams.set("limit", "1");
     url.searchParams.set("q", query);
+    url.searchParams.set("accept-language", ACCEPT_LANGUAGE);
 
     const res = await fetch(url.toString(), {
       signal: controller.signal,
@@ -195,6 +201,7 @@ export async function searchPlacesWithStatus(
   url.searchParams.set("addressdetails", "1");
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("q", trimmed);
+  url.searchParams.set("accept-language", ACCEPT_LANGUAGE);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -237,6 +244,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<GeoCandi
   url.searchParams.set("addressdetails", "1");
   url.searchParams.set("lat", String(lat));
   url.searchParams.set("lon", String(lng));
+  url.searchParams.set("accept-language", ACCEPT_LANGUAGE);
 
   const data = await fetchJson(url.toString());
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
