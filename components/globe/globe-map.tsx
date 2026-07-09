@@ -9,7 +9,7 @@
  * Client-only; loaded via GlobeMapLoader (ssr:false). See ADR 0024.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import type { MarkerView } from "@/components/globe/types";
 
@@ -61,6 +61,12 @@ export function GlobeMap({ markers, onSelect, onMapClick }: GlobeMapProps) {
     onMapClickRef.current = onMapClick;
   });
 
+  // Flips true once the async Leaflet map exists, so the pin-plotting effect
+  // below re-runs and actually plots on first load (it otherwise runs once,
+  // before the async map is created, and — for a server-loaded Globe whose
+  // marker set is stable — never runs again). See plan 2026-07-09.
+  const [ready, setReady] = useState(false);
+
   const located = markers.filter(
     (m): m is MarkerView & { lat: number; lng: number } => m.lat != null && m.lng != null,
   );
@@ -100,6 +106,7 @@ export function GlobeMap({ markers, onSelect, onMapClick }: GlobeMapProps) {
       } else {
         map.setView([20, 0], 2); // whole-world view
       }
+      setReady(true);
     });
 
     return () => {
@@ -107,6 +114,7 @@ export function GlobeMap({ markers, onSelect, onMapClick }: GlobeMapProps) {
         leafletMapRef.current.remove();
         leafletMapRef.current = null;
       }
+      setReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -114,7 +122,7 @@ export function GlobeMap({ markers, onSelect, onMapClick }: GlobeMapProps) {
   // Re-render markers whenever the located set changes.
   useEffect(() => {
     const map = leafletMapRef.current;
-    if (!map) return;
+    if (!map || !ready) return;
     import("leaflet").then((leaflet) => {
       const L = leaflet.default ?? leaflet;
       // Clear existing markers (layer group kept on the map instance).
@@ -136,7 +144,7 @@ export function GlobeMap({ markers, onSelect, onMapClick }: GlobeMapProps) {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [located.map((m) => `${m.id}:${m.lat},${m.lng}:${m.category}`).join("|")]);
+  }, [ready, located.map((m) => `${m.id}:${m.lat},${m.lng}:${m.category}`).join("|")]);
 
   return (
     <div
