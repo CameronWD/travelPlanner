@@ -88,6 +88,18 @@ describe("geocodePlace", () => {
     // URLSearchParams encodes spaces as '+', decode that too
     expect(decodeURIComponent((url as string).replace(/\+/g, " "))).toContain("London, UK");
   });
+
+  it("requests English place names via accept-language=en", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => [{ lat: "35.6586", lon: "139.7454" }],
+    });
+
+    await geocodePlace("Tokyo Tower");
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url as string).toContain("accept-language=en");
+  });
 });
 
 describe("searchPlaces", () => {
@@ -166,6 +178,18 @@ describe("reverseGeocode", () => {
     fetchMock.mockRejectedValue(new Error("network"));
     expect(await reverseGeocode(0, 0)).toBeNull();
   });
+
+  it("requests English place names via accept-language=en", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({ lat: "48.8584", lon: "2.2945", address: {} }),
+    });
+
+    await reverseGeocode(48.8584, 2.2945);
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url as string).toContain("accept-language=en");
+  });
 });
 
 describe("searchPlacesWithStatus", () => {
@@ -216,5 +240,14 @@ describe("searchPlacesWithStatus", () => {
     const [, options] = fetchMock.mock.calls[0];
     expect(options.headers["User-Agent"]).toMatch(/TripPlanner/);
     expect(options.headers["User-Agent"]).not.toContain("example.com");
+  });
+
+  it("requests English place names via accept-language=en", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => [] });
+
+    await searchPlacesWithStatus("Tokyo Tower");
+
+    const [url] = fetchMock.mock.calls[0];
+    expect(url as string).toContain("accept-language=en");
   });
 });
