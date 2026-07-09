@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { geocodePlace, searchPlaces, searchPlacesWithStatus, reverseGeocode } from "./geocode";
+import { geocodePlace, searchPlaces, searchPlacesWithStatus, reverseGeocode, _resetGeocodeCacheForTests } from "./geocode";
 
 // Mock global fetch so we never hit the network.
 const fetchMock = vi.fn();
@@ -7,6 +7,7 @@ vi.stubGlobal("fetch", fetchMock);
 
 afterEach(() => {
   vi.clearAllMocks();
+  _resetGeocodeCacheForTests();
 });
 
 describe("geocodePlace", () => {
@@ -249,5 +250,51 @@ describe("searchPlacesWithStatus", () => {
 
     const [url] = fetchMock.mock.calls[0];
     expect(url as string).toContain("accept-language=en");
+  });
+});
+
+describe("response caching", () => {
+  it("serves a repeated identical query from cache (one fetch)", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => [
+        { lat: "48.8566", lon: "2.3522", display_name: "Paris, France", address: {} },
+      ],
+    });
+
+    const first = await searchPlaces("cache-hit-paris");
+    const second = await searchPlaces("cache-hit-paris");
+
+    expect(first).toHaveLength(1);
+    expect(second).toHaveLength(1);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not cache a failed request (a later identical query retries)", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 503, json: async () => ({}) });
+    const first = await searchPlacesWithStatus("retry-me");
+
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => [
+        { lat: "1", lon: "2", display_name: "Somewhere", address: {} },
+      ],
+    });
+    const second = await searchPlacesWithStatus("retry-me");
+
+    expect(first.status).toBe("error");
+    expect(second.status).toBe("ok");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("caches a genuine empty result (no repeat fetch for a no-match query)", async () => {
+    fetchMock.mockResolvedValue({ ok: true, json: async () => [] });
+
+    const first = await searchPlacesWithStatus("nowhere-xyz");
+    const second = await searchPlacesWithStatus("nowhere-xyz");
+
+    expect(first).toEqual({ status: "ok", candidates: [] });
+    expect(second).toEqual({ status: "ok", candidates: [] });
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 });

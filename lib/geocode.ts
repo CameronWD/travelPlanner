@@ -5,7 +5,8 @@
  * - Never throws; always returns null on any error or empty result.
  * - Uses an AbortController timeout so it doesn't block actions indefinitely.
  * - Sets a descriptive User-Agent header (required by Nominatim's usage policy).
- * - Never called in tests — the consumer mocks `fetch`.
+ * - Memoises successful responses in-process by URL (Nominatim asks callers to
+ *   cache and not repeat identical queries). Failures are never cached.
  */
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
@@ -52,42 +53,21 @@ interface NominatimResult {
  * results, the network request fails, or any other error occurs.
  */
 export async function geocodePlace(query: string): Promise<LatLng | null> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const url = new URL(NOMINATIM_URL);
+  url.searchParams.set("format", "json");
+  url.searchParams.set("limit", "1");
+  url.searchParams.set("q", query);
+  url.searchParams.set("accept-language", ACCEPT_LANGUAGE);
 
-  try {
-    const url = new URL(NOMINATIM_URL);
-    url.searchParams.set("format", "json");
-    url.searchParams.set("limit", "1");
-    url.searchParams.set("q", query);
-    url.searchParams.set("accept-language", ACCEPT_LANGUAGE);
+  const data = await cachedFetchJson(url.toString());
+  if (!Array.isArray(data) || data.length === 0) return null;
 
-    const res = await fetch(url.toString(), {
-      signal: controller.signal,
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "application/json",
-      },
-    });
+  const { lat, lon } = data[0] as NominatimResult;
+  const latNum = parseFloat(lat);
+  const lngNum = parseFloat(lon);
+  if (isNaN(latNum) || isNaN(lngNum)) return null;
 
-    if (!res.ok) return null;
-
-    const data = (await res.json()) as NominatimResult[];
-    if (!Array.isArray(data) || data.length === 0) return null;
-
-    const { lat, lon } = data[0];
-    const latNum = parseFloat(lat);
-    const lngNum = parseFloat(lon);
-
-    if (isNaN(latNum) || isNaN(lngNum)) return null;
-
-    return { lat: latNum, lng: lngNum };
-  } catch {
-    // Network error, abort, JSON parse error, etc. — all return null.
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
+  return { lat: latNum, lng: lngNum };
 }
 
 const NOMINATIM_REVERSE_URL = "https://nominatim.openstreetmap.org/reverse";
@@ -146,7 +126,28 @@ function toCandidate(r: NominatimDetailedResult): GeoCandidate | null {
   };
 }
 
-async function fetchJson(url: string): Promise<unknown | null> {
+// In-memory memo of successful Nominatim responses, keyed by request URL.
+// Nominatim's usage policy asks callers to cache and not repeat identical
+// queries. Geocoding results are stable, so entries live for the life of the
+// server instance with no eviction — two-user volume makes growth a non-issue
+// (mirrors the in-memory cache in lib/weather.ts). Only successful responses
+// are stored; failures (network error, timeout, non-2xx, unparseable body) are
+// never cached, so a transient outage never sticks and the next call retries.
+const responseCache = new Map<string, unknown>();
+
+/** Test-only seam: clear the in-memory response cache between cases. */
+export function _resetGeocodeCacheForTests(): void {
+  responseCache.clear();
+}
+
+/**
+ * Fetch and parse JSON from a Nominatim URL, memoising successful responses by
+ * URL. Returns the parsed body on success (HTTP 2xx + valid JSON), or null on
+ * any failure (which is NOT cached). Never throws.
+ */
+async function cachedFetchJson(url: string): Promise<unknown | null> {
+  if (responseCache.has(url)) return responseCache.get(url) ?? null;
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
@@ -155,7 +156,9 @@ async function fetchJson(url: string): Promise<unknown | null> {
       headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
     });
     if (!res.ok) return null;
-    return await res.json();
+    const data = await res.json();
+    responseCache.set(url, data);
+    return data;
   } catch {
     return null;
   } finally {
@@ -203,25 +206,12 @@ export async function searchPlacesWithStatus(
   url.searchParams.set("q", trimmed);
   url.searchParams.set("accept-language", ACCEPT_LANGUAGE);
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url.toString(), {
-      signal: controller.signal,
-      headers: { "User-Agent": USER_AGENT, Accept: "application/json" },
-    });
-    if (!res.ok) return { status: "error" };
-    const data = await res.json();
-    if (!Array.isArray(data)) return { status: "error" };
-    const candidates = (data as NominatimDetailedResult[])
-      .map(toCandidate)
-      .filter((c): c is GeoCandidate => c !== null);
-    return { status: "ok", candidates };
-  } catch {
-    return { status: "error" };
-  } finally {
-    clearTimeout(timer);
-  }
+  const data = await cachedFetchJson(url.toString());
+  if (!Array.isArray(data)) return { status: "error" };
+  const candidates = (data as NominatimDetailedResult[])
+    .map(toCandidate)
+    .filter((c): c is GeoCandidate => c !== null);
+  return { status: "ok", candidates };
 }
 
 /**
@@ -246,7 +236,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<GeoCandi
   url.searchParams.set("lon", String(lng));
   url.searchParams.set("accept-language", ACCEPT_LANGUAGE);
 
-  const data = await fetchJson(url.toString());
+  const data = await cachedFetchJson(url.toString());
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   const result = data as NominatimDetailedResult;
   if (!result.lat || !result.lon) return null;
