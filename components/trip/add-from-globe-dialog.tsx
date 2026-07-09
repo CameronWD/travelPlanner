@@ -14,6 +14,7 @@ import type { MarkerFilter } from "@/lib/globe-list";
 import type { MarkerView } from "@/components/globe/types";
 import { addMarkerToWishlist } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
+import { useServerAction } from "@/components/ui/use-server-action";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,20 +79,29 @@ export function AddFromGlobeDialog({
     [scopedMarkers],
   );
 
-  async function handleAdd(marker: MarkerView) {
-    const result = await addMarkerToWishlist(marker.id, tripId);
-    if (result.success) {
-      setLocallyAdded((prev) => new Set([...prev, marker.id]));
-      toast({ title: `Added "${marker.title}" to Wishlist`, variant: "success" });
-    } else {
-      const firstError = Object.values(result.errors ?? {})[0]?.[0];
+  // Stable ref to markers so onSuccess can look up the title without
+  // being listed as a dependency (markers changes identity on every render).
+  const markersRef = React.useRef(markers);
+  React.useLayoutEffect(() => {
+    markersRef.current = markers;
+  }, [markers]);
+
+  const { run: addMarker, isPending } = useServerAction(addMarkerToWishlist, {
+    onSuccess: (_result, markerId) => {
+      setLocallyAdded((prev) => new Set([...prev, markerId]));
+      const marker = markersRef.current.find((m) => m.id === markerId);
+      toast({
+        title: `Added "${marker?.title ?? markerId}" to Wishlist`,
+        variant: "success",
+      });
+    },
+    onError: (errors) =>
       toast({
         title: "Couldn't add marker",
-        description: firstError,
+        description: errors._?.[0] ?? Object.values(errors)[0]?.[0],
         variant: "destructive",
-      });
-    }
-  }
+      }),
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -141,8 +151,9 @@ export function AddFromGlobeDialog({
                         <button
                           type="button"
                           aria-label={`Add ${marker.title}`}
-                          onClick={() => handleAdd(marker)}
-                          className="shrink-0 rounded-md border border-border bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                          onClick={() => addMarker(marker.id, tripId)}
+                          disabled={isPending}
+                          className="shrink-0 rounded-md border border-border bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                         >
                           Add
                         </button>
