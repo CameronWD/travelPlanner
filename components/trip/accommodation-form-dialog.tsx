@@ -7,12 +7,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
-import { MoneyInput } from "@/components/ui/money-input";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
@@ -23,10 +18,12 @@ import {
   createAccommodation,
   updateAccommodation,
 } from "@/server/actions/accommodation";
-import { CURRENCIES } from "@/lib/currencies";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import type { AccommodationCardAccommodation } from "./accommodation-card";
 import type { CostRow } from "@/server/actions/costs";
+import { FormDialog } from "@/components/ui/form-dialog";
+import { useEntityForm } from "@/components/ui/use-entity-form";
+import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,31 +81,24 @@ export function AccommodationFormDialog({
   homeCurrency,
   costs,
 }: AccommodationFormDialogProps) {
-  const formKey = open
-    ? `${accommodation?.id ?? "new"}-${String(open)}`
-    : "closed";
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {accommodation ? `Edit ${accommodation.name}` : "Add accommodation"}
-          </DialogTitle>
-        </DialogHeader>
-        <AccommodationForm
-          key={formKey}
-          stopId={stopId}
-          stopDateRange={stopDateRange}
-          accommodation={accommodation}
-          onClose={() => onOpenChange(false)}
-          onSaved={onSaved}
-          forkId={forkId}
-          homeCurrency={homeCurrency}
-          costs={costs}
-        />
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={accommodation ? `Edit ${accommodation.name}` : "Add accommodation"}
+      recordId={accommodation?.id ?? null}
+    >
+      <AccommodationForm
+        stopId={stopId}
+        stopDateRange={stopDateRange}
+        accommodation={accommodation}
+        onClose={() => onOpenChange(false)}
+        onSaved={onSaved}
+        forkId={forkId}
+        homeCurrency={homeCurrency}
+        costs={costs}
+      />
+    </FormDialog>
   );
 }
 
@@ -188,8 +178,6 @@ interface AccommodationFormProps {
   costs?: CostRow[];
 }
 
-const CURRENCY_CODES = CURRENCIES.map((c) => c.code);
-
 function AccommodationForm({
   stopId,
   stopDateRange,
@@ -238,9 +226,6 @@ function AccommodationForm({
     singleCost?.paidAt ? new Date(singleCost.paidAt).toISOString().slice(0, 10) : "",
   );
 
-  const [errors, setErrors] = React.useState<FormErrors>({});
-  const [isPending, startTransition] = React.useTransition();
-
   // Soft warnings (reactive, non-blocking)
   const dateWarnings: string[] = [];
   if (checkIn && checkOut) {
@@ -255,53 +240,44 @@ function AccommodationForm({
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setErrors({});
+  const { errors, isPending, onSubmit } = useEntityForm({
+    submit: () => {
+      const estimatedMinor = estimatedAmount.trim()
+        ? (parseAmountToMinor(estimatedAmount, currency) ?? undefined)
+        : undefined;
+      const actualMinor = actualAmount.trim()
+        ? (parseAmountToMinor(actualAmount, currency) ?? undefined)
+        : undefined;
 
-    const estimatedMinor = estimatedAmount.trim()
-      ? (parseAmountToMinor(estimatedAmount, currency) ?? undefined)
-      : undefined;
-    const actualMinor = actualAmount.trim()
-      ? (parseAmountToMinor(actualAmount, currency) ?? undefined)
-      : undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const input: any = {
+        stopId,
+        name,
+        address: address.trim() || undefined,
+        checkIn,
+        checkOut,
+        confirmation: confirmation.trim() || undefined,
+        notes: notes.trim() || undefined,
+        ...(estimatedMinor !== undefined && {
+          estimatedMinor,
+          currency,
+          actualMinor: actualMinor ?? null,
+          paidAt: paidAt || null,
+        }),
+      };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const input: any = {
-      stopId,
-      name,
-      address: address.trim() || undefined,
-      checkIn,
-      checkOut,
-      confirmation: confirmation.trim() || undefined,
-      notes: notes.trim() || undefined,
-      ...(estimatedMinor !== undefined && {
-        estimatedMinor,
-        currency,
-        actualMinor: actualMinor ?? null,
-        paidAt: paidAt || null,
-      }),
-    };
-
-    startTransition(async () => {
-      const result =
-        isEdit && accommodation
-          ? await updateAccommodation(accommodation.id, input)
-          : await createAccommodation(input, forkId ?? undefined);
-
-      if (!result.success) {
-        setErrors(result.errors as FormErrors);
-        return;
-      }
-      onClose();
-      onSaved?.();
-    });
-  }
+      return isEdit && accommodation
+        ? updateAccommodation(accommodation.id, input)
+        : createAccommodation(input, forkId ?? undefined);
+    },
+    onClose,
+    onSaved,
+  });
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
       {/* Name */}
-      <Field label="Accommodation name" required error={errors.name?.[0]}>
+      <Field label="Accommodation name" required error={(errors as FormErrors).name?.[0]}>
         <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -312,7 +288,7 @@ function AccommodationForm({
       </Field>
 
       {/* Address */}
-      <Field label="Address" error={errors.address?.[0]}>
+      <Field label="Address" error={(errors as FormErrors).address?.[0]}>
         <Input
           value={address}
           onChange={(e) => setAddress(e.target.value)}
@@ -328,7 +304,7 @@ function AccommodationForm({
           required
           value={checkIn}
           onChange={(e) => setCheckIn(e.target.value)}
-          error={errors.checkIn?.[0]}
+          error={(errors as FormErrors).checkIn?.[0]}
           disabled={isPending}
         />
         <DateField
@@ -337,7 +313,7 @@ function AccommodationForm({
           value={checkOut}
           onChange={(e) => setCheckOut(e.target.value)}
           min={checkIn}
-          error={errors.checkOut?.[0]}
+          error={(errors as FormErrors).checkOut?.[0]}
           disabled={isPending}
         />
       </div>
@@ -359,7 +335,7 @@ function AccommodationForm({
       )}
 
       {/* Confirmation */}
-      <Field label="Booking confirmation" error={errors.confirmation?.[0]}>
+      <Field label="Booking confirmation" error={(errors as FormErrors).confirmation?.[0]}>
         <Input
           value={confirmation}
           onChange={(e) => setConfirmation(e.target.value)}
@@ -369,7 +345,7 @@ function AccommodationForm({
       </Field>
 
       {/* Notes */}
-      <Field label="Notes" error={errors.notes?.[0]}>
+      <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -379,60 +355,21 @@ function AccommodationForm({
       </Field>
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
-      {!hasMultipleCosts && (
-        <>
-          {/* Estimated cost */}
-          <Field label="Estimated cost" error={errors.estimatedMinor?.[0]}>
-            <MoneyInput
-              amount={estimatedAmount}
-              currency={currency}
-              currencies={CURRENCY_CODES}
-              onAmountChange={setEstimatedAmount}
-              onCurrencyChange={setCurrency}
-              disabled={isPending}
-              invalid={Boolean(errors.estimatedMinor)}
-              aria-label="Estimated cost amount"
-            />
-          </Field>
+      <InlineCostFields
+        hasMultipleCosts={hasMultipleCosts}
+        estimatedAmount={estimatedAmount}
+        onEstimatedChange={setEstimatedAmount}
+        currency={currency}
+        onCurrencyChange={setCurrency}
+        actualAmount={actualAmount}
+        onActualChange={setActualAmount}
+        paidAt={paidAt}
+        onPaidAtChange={setPaidAt}
+        errors={errors}
+        disabled={isPending}
+      />
 
-          {/* Actual cost — only shown when an estimated amount is entered */}
-          {estimatedAmount.trim() && (
-            <>
-              <Field
-                label="Actual cost"
-                description="Leave blank if you haven't paid yet"
-                error={errors.actualMinor?.[0]}
-              >
-                <MoneyInput
-                  amount={actualAmount}
-                  currency={currency}
-                  currencies={CURRENCY_CODES}
-                  onAmountChange={setActualAmount}
-                  onCurrencyChange={setCurrency}
-                  disabled={isPending}
-                  invalid={Boolean(errors.actualMinor)}
-                  aria-label="Actual cost amount"
-                />
-              </Field>
-
-              <Field
-                label="Date paid"
-                description="Optional — when the cost was paid"
-                error={errors.paidAt?.[0]}
-              >
-                <Input
-                  type="date"
-                  value={paidAt}
-                  onChange={(e) => setPaidAt(e.target.value)}
-                  disabled={isPending}
-                />
-              </Field>
-            </>
-          )}
-        </>
-      )}
-
-      <FormError>{errors._form?.[0]}</FormError>
+      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>
