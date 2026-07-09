@@ -15,7 +15,7 @@ import { relativeTime } from "@/lib/relative-time";
 import { addNote, deleteNote } from "@/server/actions/notes";
 import type { TargetType } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
-import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -80,7 +80,21 @@ function ThreadBody({
   const [error, setError] = React.useState<string | null>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const now = new Date();
-  const { confirm, dialog } = useConfirm();
+
+  const { requestDelete, isPending: deleteIsPending, dialog } = useDeleteWithConfirm({
+    action: async (noteId: string, _excerpt: string) => deleteNote(noteId),
+    buildConfirm: (_noteId: string, excerpt: string) => {
+      const title = excerpt
+        ? `Delete "${excerpt.length > 60 ? excerpt.slice(0, 60) + "…" : excerpt}"?`
+        : "Delete this note?";
+      return {
+        title,
+        description: "This note will be permanently removed.",
+        confirmLabel: "Delete",
+        destructive: true,
+      };
+    },
+  });
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -95,22 +109,6 @@ function ThreadBody({
       } else {
         setError(result.errors.body?.[0] ?? "Failed to add note.");
       }
-    });
-  }
-
-  async function handleDelete(noteId: string, excerpt: string) {
-    const title = excerpt
-      ? `Delete "${excerpt.length > 60 ? excerpt.slice(0, 60) + "…" : excerpt}"?`
-      : "Delete this note?";
-    const confirmed = await confirm({
-      title,
-      description: "This note will be permanently removed.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (!confirmed) return;
-    startTransition(async () => {
-      await deleteNote(noteId);
     });
   }
 
@@ -154,8 +152,8 @@ function ThreadBody({
               <Button
                 variant="ghost"
                 size="icon"
-                disabled={isPending}
-                onClick={() => handleDelete(note.id, note.body)}
+                disabled={isPending || deleteIsPending}
+                onClick={() => requestDelete(note.id, note.body)}
                 aria-label="Delete note"
                 className={cn(
                   "size-5 shrink-0 self-start text-muted-foreground/40 hover:text-destructive",
