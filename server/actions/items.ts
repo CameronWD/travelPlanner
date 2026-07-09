@@ -47,7 +47,6 @@ async function requireItemAccess(itemId: string): Promise<{
   return item;
 }
 
-
 /**
  * Revalidate all relevant trip pages after mutating an item.
  */

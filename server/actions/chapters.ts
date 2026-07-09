@@ -25,7 +25,6 @@ export type ChapterActionResult = ActionResult;
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-
 function revalidateChapterPaths(tripId: string) {
   for (const p of ["", "/budget", "/summary", "/today", "/settings", "/calendar", "/plan"]) {
     revalidatePath(`/trips/${tripId}${p}`);

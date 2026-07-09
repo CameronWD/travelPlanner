@@ -42,7 +42,6 @@ async function requireCostAccess(costId: string): Promise<{
   return cost;
 }
 
-
 /**
  * Verify an owner entity (transport / accommodation / item) exists and belongs
  * to the given tripId. Returns an error result if the check fails, null if ok.

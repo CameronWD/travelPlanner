@@ -292,10 +292,10 @@ preserve-scope. Requires a deliberate decision before implementation.
   form-level (non-field) errors. Callers must treat `errors["_"]` as possibly absent.
 - `<SectionHeader count={0}>` renders the string `"(0)"`. Pass `count={undefined}`
   or omit the prop to suppress the count entirely.
-- `<FormDialog>` key string is `"${recordId}-open"` (vs the old per-dialog
-  `"${id}-${open}"` which embedded the literal "true"). Functionally equivalent
-  remount behaviour; only snapshot tests asserting the exact key string would be
-  affected (none exist).
+- `<FormDialog>` key string is `` `${recordId ?? "new"}-open` `` (when open) /
+  `"closed"` (when closed) (vs the old per-dialog `"${id}-${open}"` which embedded
+  the literal "true"). Functionally equivalent remount behaviour; only snapshot tests
+  asserting the exact key string would be affected (none exist).
 - `scheduleItem` success branch: the original `XActionResult` alias carried
   `placedItemId?` on both branches (an intersection accident). The generic correctly
   places it on the success branch only — callers under a `success === true` guard

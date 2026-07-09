@@ -42,7 +42,6 @@ async function requireTransportAccess(transportId: string): Promise<{
   return transport;
 }
 
-
 /**
  * If fromStopId or toStopId are provided, verify they belong to `tripId` and the same plan.
  * Returns an error result if validation fails, null if ok.

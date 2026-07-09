@@ -45,7 +45,6 @@ async function requireAccommodationAccess(accommodationId: string): Promise<{
   return acc;
 }
 
-
 // ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------

@@ -29,7 +29,7 @@ export function StopsManager({ tripId, initialStops }: StopsManagerProps) {
   const [pendingId, setPendingId] = React.useState<string | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
 
-  const { requestDelete, dialog } = useDeleteWithConfirm({
+  const { requestDelete, isPending: deleteIsPending, dialog } = useDeleteWithConfirm({
     action: deleteStop,
     buildConfirm: (stopId: string) => {
       const stop = initialStops.find((s) => s.id === stopId);
@@ -42,10 +42,9 @@ export function StopsManager({ tripId, initialStops }: StopsManagerProps) {
     },
   });
 
-  async function handleDelete(stopId: string) {
+  function handleDelete(stopId: string) {
     setDeletingId(stopId);
-    await requestDelete(stopId);
-    setDeletingId(null);
+    requestDelete(stopId);
   }
 
   async function handleMove(stopId: string, direction: "up" | "down") {
@@ -71,7 +70,7 @@ export function StopsManager({ tripId, initialStops }: StopsManagerProps) {
                   stop={stop}
                   isFirst={idx === 0}
                   isLast={idx === initialStops.length - 1}
-                  isPending={pendingId === stop.id || deletingId === stop.id}
+                  isPending={pendingId === stop.id || (deletingId === stop.id && deleteIsPending)}
                   onEdit={(s) => setEditingStop(s)}
                   onMoveUp={(id) => handleMove(id, "up")}
                   onMoveDown={(id) => handleMove(id, "down")}

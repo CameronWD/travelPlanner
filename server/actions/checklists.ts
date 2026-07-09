@@ -50,7 +50,6 @@ async function requireChecklistItemAccess(itemId: string): Promise<{
   return item;
 }
 
-
 function revalidateChecklistPaths(tripId: string) {
   revalidatePath(`/trips/${tripId}/checklists`);
 }

@@ -73,7 +73,6 @@ async function requireStopAccess(stopId: string): Promise<{
   return stop;
 }
 
-
 // ---------------------------------------------------------------------------
 // recomputeChapterSpans — self-healing chapter date-bands (ADR 0021)
 // ---------------------------------------------------------------------------
