@@ -7,7 +7,6 @@ import { Field, useFieldControl } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { DateField } from "@/components/ui/date-field";
-import { MoneyInput } from "@/components/ui/money-input";
 import {
   Select,
   SelectContent,
@@ -16,21 +15,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
 import { CATEGORIES, type Category } from "@/lib/categories";
-import { CURRENCIES } from "@/lib/currencies";
 import { CategoryPill } from "./category-pill";
 import { FormError } from "@/components/ui/form-error";
 import { createItem, updateItem } from "@/server/actions/items";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
+import { FormDialog } from "@/components/ui/form-dialog";
+import { useEntityForm } from "@/components/ui/use-entity-form";
+import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -151,32 +148,27 @@ export function ItemFormDialog({
   forkId,
   defaultStopId,
 }: ItemFormDialogProps) {
-  const formKey = open ? `${item?.id ?? "new"}-${String(open)}` : "closed";
-
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>
-            {item ? "Edit Item" : "Add Item"}
-          </DialogTitle>
-        </DialogHeader>
-        <ItemForm
-          key={formKey}
-          tripId={tripId}
-          stops={stops}
-          tripStartDate={tripStartDate}
-          item={item}
-          defaultUnscheduled={defaultUnscheduled}
-          onClose={() => onOpenChange(false)}
-          onSaved={onSaved}
-          homeCurrency={homeCurrency}
-          costs={costs}
-          forkId={forkId}
-          defaultStopId={item ? undefined : defaultStopId}
-        />
-      </DialogContent>
-    </Dialog>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={item ? "Edit Item" : "Add Item"}
+      recordId={item?.id ?? null}
+    >
+      <ItemForm
+        tripId={tripId}
+        stops={stops}
+        tripStartDate={tripStartDate}
+        item={item}
+        defaultUnscheduled={defaultUnscheduled}
+        onClose={() => onOpenChange(false)}
+        onSaved={onSaved}
+        homeCurrency={homeCurrency}
+        costs={costs}
+        forkId={forkId}
+        defaultStopId={item ? undefined : defaultStopId}
+      />
+    </FormDialog>
   );
 }
 
@@ -263,8 +255,6 @@ export function EditItemButton({
 // Inner form
 // ---------------------------------------------------------------------------
 
-const CURRENCY_CODES = CURRENCIES.map((c) => c.code);
-
 interface ItemFormProps {
   tripId: string;
   stops: StopOption[];
@@ -334,62 +324,50 @@ function ItemForm({
     singleCost?.paidAt ? new Date(singleCost.paidAt).toISOString().slice(0, 10) : "",
   );
 
-  const [errors, setErrors] = React.useState<FormErrors>({});
-  const [isPending, startTransition] = React.useTransition();
-
   // Disable time inputs when no date is set
   const timesDisabled = !date;
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setErrors({});
+  const { errors, isPending, onSubmit } = useEntityForm({
+    submit: () => {
+      const estimatedMinor = estimatedAmount.trim()
+        ? (parseAmountToMinor(estimatedAmount, currency) ?? undefined)
+        : undefined;
+      const actualMinor = actualAmount.trim()
+        ? (parseAmountToMinor(actualAmount, currency) ?? undefined)
+        : undefined;
 
-    const estimatedMinor = estimatedAmount.trim()
-      ? (parseAmountToMinor(estimatedAmount, currency) ?? undefined)
-      : undefined;
-    const actualMinor = actualAmount.trim()
-      ? (parseAmountToMinor(actualAmount, currency) ?? undefined)
-      : undefined;
+      const input = {
+        title,
+        category,
+        stopId: stopId || undefined,
+        date: date || undefined,
+        // Clear times if no date (defensive belt-and-braces, schema also drops them)
+        startTime: date && startTime ? startTime : undefined,
+        endTime: date && endTime ? endTime : undefined,
+        address: address.trim() || undefined,
+        link: link.trim() || undefined,
+        booking: booking.trim() || undefined,
+        notes: notes.trim() || undefined,
+        ...(estimatedMinor !== undefined && {
+          estimatedMinor,
+          currency,
+          actualMinor: actualMinor ?? null,
+          paidAt: paidAt || null,
+        }),
+      };
 
-    const input = {
-      title,
-      category,
-      stopId: stopId || undefined,
-      date: date || undefined,
-      // Clear times if no date (defensive belt-and-braces, schema also drops them)
-      startTime: date && startTime ? startTime : undefined,
-      endTime: date && endTime ? endTime : undefined,
-      address: address.trim() || undefined,
-      link: link.trim() || undefined,
-      booking: booking.trim() || undefined,
-      notes: notes.trim() || undefined,
-      ...(estimatedMinor !== undefined && {
-        estimatedMinor,
-        currency,
-        actualMinor: actualMinor ?? null,
-        paidAt: paidAt || null,
-      }),
-    };
-
-    startTransition(async () => {
-      const result =
-        isEdit && item
-          ? await updateItem(item.id, input)
-          : await createItem(tripId, input, forkId ?? undefined);
-
-      if (!result.success) {
-        setErrors(result.errors as FormErrors);
-        return;
-      }
-      onClose();
-      onSaved?.();
-    });
-  }
+      return isEdit && item
+        ? updateItem(item.id, input)
+        : createItem(tripId, input, forkId ?? undefined);
+    },
+    onClose,
+    onSaved,
+  });
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4">
       {/* Title */}
-      <Field label="Title" required error={errors.title?.[0]}>
+      <Field label="Title" required error={(errors as FormErrors).title?.[0]}>
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -400,7 +378,7 @@ function ItemForm({
       </Field>
 
       {/* Category */}
-      <Field label="Category" error={errors.category?.[0]}>
+      <Field label="Category" error={(errors as FormErrors).category?.[0]}>
         <CategoryGroup
           category={category}
           onSelect={setCategory}
@@ -410,7 +388,7 @@ function ItemForm({
 
       {/* Stop (optional) */}
       {stops.length > 0 && (
-        <Field label="Stop" error={errors.stopId?.[0]}>
+        <Field label="Stop" error={(errors as FormErrors).stopId?.[0]}>
           <Select
             value={stopId}
             onValueChange={(v) => setStopId(v === "__none__" ? "" : v)}
@@ -444,7 +422,7 @@ function ItemForm({
           }
         }}
         description="Leave blank to keep this as an unscheduled item"
-        error={errors.date?.[0]}
+        error={(errors as FormErrors).date?.[0]}
         disabled={isPending}
       />
 
@@ -452,7 +430,7 @@ function ItemForm({
       <div className="grid grid-cols-2 gap-3">
         <Field
           label="Start time"
-          error={errors.startTime?.[0]}
+          error={(errors as FormErrors).startTime?.[0]}
           description={timesDisabled ? "Set a date first" : undefined}
         >
           <Input
@@ -464,7 +442,7 @@ function ItemForm({
         </Field>
         <Field
           label="End time"
-          error={errors.endTime?.[0]}
+          error={(errors as FormErrors).endTime?.[0]}
           description={timesDisabled ? "Set a date first" : !startTime ? "Set a start time first" : undefined}
         >
           <Input
@@ -477,7 +455,7 @@ function ItemForm({
       </div>
 
       {/* Address */}
-      <Field label="Address" error={errors.address?.[0]}>
+      <Field label="Address" error={(errors as FormErrors).address?.[0]}>
         <Input
           value={address}
           onChange={(e) => setAddress(e.target.value)}
@@ -487,7 +465,7 @@ function ItemForm({
       </Field>
 
       {/* Link */}
-      <Field label="Link" error={errors.link?.[0]}>
+      <Field label="Link" error={(errors as FormErrors).link?.[0]}>
         <Input
           type="url"
           value={link}
@@ -498,7 +476,7 @@ function ItemForm({
       </Field>
 
       {/* Booking reference */}
-      <Field label="Booking reference" error={errors.booking?.[0]}>
+      <Field label="Booking reference" error={(errors as FormErrors).booking?.[0]}>
         <Input
           value={booking}
           onChange={(e) => setBooking(e.target.value)}
@@ -508,7 +486,7 @@ function ItemForm({
       </Field>
 
       {/* Notes */}
-      <Field label="Notes" error={errors.notes?.[0]}>
+      <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -518,60 +496,21 @@ function ItemForm({
       </Field>
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
-      {!hasMultipleCosts && (
-        <>
-          {/* Estimated cost */}
-          <Field label="Estimated cost" error={errors.estimatedMinor?.[0]}>
-            <MoneyInput
-              amount={estimatedAmount}
-              currency={currency}
-              currencies={CURRENCY_CODES}
-              onAmountChange={setEstimatedAmount}
-              onCurrencyChange={setCurrency}
-              disabled={isPending}
-              invalid={Boolean(errors.estimatedMinor)}
-              aria-label="Estimated cost amount"
-            />
-          </Field>
+      <InlineCostFields
+        hasMultipleCosts={hasMultipleCosts}
+        estimatedAmount={estimatedAmount}
+        onEstimatedChange={setEstimatedAmount}
+        currency={currency}
+        onCurrencyChange={setCurrency}
+        actualAmount={actualAmount}
+        onActualChange={setActualAmount}
+        paidAt={paidAt}
+        onPaidAtChange={setPaidAt}
+        errors={errors}
+        disabled={isPending}
+      />
 
-          {/* Actual cost — only shown when an estimated amount is entered */}
-          {estimatedAmount.trim() && (
-            <>
-              <Field
-                label="Actual cost"
-                description="Leave blank if you haven't paid yet"
-                error={errors.actualMinor?.[0]}
-              >
-                <MoneyInput
-                  amount={actualAmount}
-                  currency={currency}
-                  currencies={CURRENCY_CODES}
-                  onAmountChange={setActualAmount}
-                  onCurrencyChange={setCurrency}
-                  disabled={isPending}
-                  invalid={Boolean(errors.actualMinor)}
-                  aria-label="Actual cost amount"
-                />
-              </Field>
-
-              <Field
-                label="Date paid"
-                description="Optional — when the cost was paid"
-                error={errors.paidAt?.[0]}
-              >
-                <Input
-                  type="date"
-                  value={paidAt}
-                  onChange={(e) => setPaidAt(e.target.value)}
-                  disabled={isPending}
-                />
-              </Field>
-            </>
-          )}
-        </>
-      )}
-
-      <FormError>{errors._form?.[0]}</FormError>
+      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
 
       <DialogFooter>
         <DialogClose asChild>
