@@ -11,7 +11,12 @@ vi.mock("@/server/actions/globe", () => ({
   reverseGeocodeAction: vi.fn().mockResolvedValue(null),
 }));
 
+vi.mock("@/components/ui/use-toast", () => ({
+  toast: vi.fn(),
+}));
+
 import { createMarker, deleteMarker, searchPlacesAction } from "@/server/actions/globe";
+import { toast } from "@/components/ui/use-toast";
 import { MarkerForm } from "./marker-form";
 import type { MarkerView } from "./types";
 
@@ -63,6 +68,25 @@ describe("MarkerForm — add mode", () => {
         expect.objectContaining({
           title: "Shibuya Crossing",
           category: "SIGHTSEEING",
+        }),
+      );
+    });
+  });
+
+  it("fires a success toast with title 'Marker added' after create", async () => {
+    const user = userEvent.setup();
+    render(<MarkerForm {...baseProps} />);
+
+    const titleInput = screen.getByPlaceholderText(/tokyo tower/i);
+    await user.type(titleInput, "Shibuya Crossing");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Marker added",
+          description: "Shibuya Crossing",
+          variant: "success",
         }),
       );
     });

@@ -30,6 +30,7 @@ import {
   DialogFooter,
   DialogClose,
 } from "@/components/ui/dialog";
+import { toast } from "@/components/ui/use-toast";
 
 export interface MarkerFormProps {
   open: boolean;
@@ -69,6 +70,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
   const [candidates, setCandidates] = useState<GeoCandidate[]>([]);
   const [searched, setSearched] = useState(false);
   const [searchFailed, setSearchFailed] = useState(false);
+  const [resolvingPlace, setResolvingPlace] = useState(false);
 
   // Search flow — stays on its own useTransition (PlaceSearchOutcome is not ActionResult-shaped)
   const [searchPending, startSearchTransition] = useTransition();
@@ -92,6 +94,11 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
     },
     {
       onSuccess: () => {
+        toast({
+          title: isEdit ? "Marker updated" : "Marker added",
+          description: title,
+          variant: "success",
+        });
         onOpenChange(false);
         onSaved();
       },
@@ -103,6 +110,11 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
     () => deleteMarker(marker!.id),
     {
       onSuccess: () => {
+        toast({
+          title: "Marker removed",
+          description: marker?.title,
+          variant: "success",
+        });
         onOpenChange(false);
         onSaved();
       },
@@ -119,9 +131,11 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
   useEffect(() => {
     if (!prefill || marker || geocodedRef.current) return;
     geocodedRef.current = true;
+    setResolvingPlace(true);
     void (async () => {
       const { reverseGeocodeAction } = await import("@/server/actions/globe");
       const c = await reverseGeocodeAction(prefill.lat, prefill.lng);
+      setResolvingPlace(false);
       if (!c) return;
       setTitle((t) => t || c.name.split(",")[0]);
       setQuery((q) => q || c.name);
@@ -183,6 +197,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
                 type="button"
                 variant="outline"
                 onClick={runSearch}
+                loading={searchPending}
                 disabled={busy}
               >
                 Search
@@ -215,6 +230,11 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
               <p className="text-xs text-muted-foreground">
                 No matching places found. Try a more specific search.
               </p>
+            )}
+
+            {/* Pin-drop geocode hint — shown while background reverse-geocode is resolving */}
+            {resolvingPlace && !locationCaption && (
+              <p className="text-xs text-muted-foreground">Finding this place…</p>
             )}
 
             {/* Resolved location caption */}
@@ -287,6 +307,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
                 type="button"
                 variant="destructive"
                 onClick={() => del.run()}
+                loading={del.isPending}
                 disabled={busy}
                 className="sm:mr-auto"
               >
