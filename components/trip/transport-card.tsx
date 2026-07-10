@@ -78,7 +78,7 @@ export function TransportCard({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
+        "flex flex-col gap-2.5 rounded-xl border border-border bg-card px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
         isPending && "opacity-60 pointer-events-none",
       )}
     >

@@ -245,7 +245,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
 
       {/* ── Route map ── */}
       {mapStops.length > 0 && (
-        <section className="rounded-2xl border border-border bg-card p-2 shadow-soft">
+        <section className="overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-soft">
           <RouteMap stops={mapStops} height={280} />
         </section>
       )}

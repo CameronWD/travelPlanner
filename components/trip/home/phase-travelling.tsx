@@ -439,7 +439,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         {/* Day map (collapsed toggle) */}
         <DayMapPanel tripId={tripId} model={dayMapModel} />
 
-        <div className="rounded-xl border border-border bg-card px-4 py-4">
+        <div className="rounded-xl border border-border bg-card p-5">
           {dayPlan ? (
             <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} />
           ) : (

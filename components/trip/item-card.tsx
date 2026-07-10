@@ -96,7 +96,7 @@ export function ItemCard({
   return (
     <div
       className={cn(
-        "group flex flex-col gap-2 rounded-xl border border-border/60 bg-card px-4 py-3 transition-shadow hover:shadow-soft",
+        "group flex flex-col gap-2.5 rounded-xl border border-border/60 bg-card px-4 py-3 shadow-soft transition-shadow hover:shadow-soft",
         isPending && "pointer-events-none opacity-60",
       )}
     >
