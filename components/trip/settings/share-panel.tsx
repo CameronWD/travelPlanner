@@ -55,7 +55,7 @@ export function SharePanel({ tripId, initialToken }: SharePanelProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
         A public link lets anyone view the itinerary — stops, transport, and
         activities. Budget, notes, and files are not shared.

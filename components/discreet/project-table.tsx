@@ -64,7 +64,7 @@ export function ProjectTable({ projects }: { projects: ProjectRow[] }) {
                       aria-label={`Actions for ${p.name}`}
                       className={cn(
                         "flex size-6 items-center justify-center rounded text-muted-foreground",
-                        "hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                        "hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
                         "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity",
                       )}
                     >

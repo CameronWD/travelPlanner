@@ -78,7 +78,7 @@ export function TransportCard({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 rounded-xl border border-border bg-card/60 px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
+        "flex flex-col gap-2.5 rounded-xl border border-border bg-card px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
         isPending && "opacity-60 pointer-events-none",
       )}
     >
@@ -112,8 +112,8 @@ export function TransportCard({
         <RowActions
           onEdit={onEdit ? () => onEdit(t) : undefined}
           onDelete={onDelete ? () => onDelete(t.id) : undefined}
-          editLabel="Edit transport"
-          deleteLabel="Delete transport"
+          editLabel="Edit Transport"
+          deleteLabel="Delete Transport"
           disabled={isPending}
         />
       </div>

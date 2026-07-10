@@ -150,7 +150,7 @@ function DeleteTemplateDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete template</DialogTitle>
+          <DialogTitle>Delete Template</DialogTitle>
         </DialogHeader>
         <p className="text-sm text-muted-foreground">
           Are you sure you want to delete{" "}
@@ -227,9 +227,10 @@ export function PackingTemplatesBar({
                 variant="outline"
                 size="sm"
                 loading={applyPending}
+                disabled={applyPending}
               >
                 <FolderOpen className="size-4" aria-hidden="true" />
-                Apply template
+                Apply Template
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-56">
@@ -249,7 +250,7 @@ export function PackingTemplatesBar({
                   <button
                     type="button"
                     onClick={() => setDeleteTarget(t)}
-                    aria-label={`Delete template ${t.name}`}
+                    aria-label={`Delete Template ${t.name}`}
                     className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                   >
                     <Trash2 className="size-3.5" aria-hidden="true" />

@@ -49,7 +49,7 @@ describe("NearbyWishlist", () => {
     // Initially collapsed — items not visible
     expect(screen.queryByText("Senso-ji Temple")).not.toBeInTheDocument();
 
-    const toggleButton = screen.getByRole("button", { name: /Nearby from your Wishlist/ });
+    const toggleButton = screen.getByRole("button", { name: /nearby wishlist items/i });
     await user.click(toggleButton);
 
     expect(toggleButton).toHaveAttribute("aria-expanded", "true");
@@ -63,7 +63,7 @@ describe("NearbyWishlist", () => {
       <NearbyWishlist tripId="trip-1" date="2026-07-01" items={nonEmptyItems} />,
     );
 
-    const toggleButton = screen.getByRole("button", { name: /Nearby from your Wishlist/ });
+    const toggleButton = screen.getByRole("button", { name: /nearby wishlist items/i });
     await user.click(toggleButton);
     expect(screen.getByText("Senso-ji Temple")).toBeInTheDocument();
 

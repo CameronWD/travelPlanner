@@ -149,7 +149,7 @@ export function FlagList({ flags, tripBasePath }: FlagListProps) {
 
   if (flags.length === 0) {
     return (
-      <div className="flex items-center gap-3 rounded-2xl border border-green-200 bg-green-50 px-5 py-4 dark:border-green-800/50 dark:bg-green-950/20">
+      <div className="flex items-center gap-3 rounded-2xl border border-green-200 bg-green-50 px-4 py-3 dark:border-green-800/50 dark:bg-green-950/20">
         <CheckCircle2
           className="size-5 shrink-0 text-green-600 dark:text-green-400"
           aria-hidden="true"

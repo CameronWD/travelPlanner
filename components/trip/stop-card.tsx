@@ -292,7 +292,7 @@ export function StopCard({
             disabled={isPending}
             onClick={() => onEdit?.(stop)}
             aria-label={`Edit ${stop.name}`}
-            title="Edit stop"
+            title="Edit Stop"
           >
             <Pencil className="size-4" aria-hidden="true" />
           </Button>
@@ -316,7 +316,7 @@ export function StopCard({
             disabled={isPending}
             onClick={() => onDelete?.(stop.id)}
             aria-label={`Delete ${stop.name}`}
-            title="Delete stop"
+            title="Delete Stop"
           >
             <Trash2 className="size-4" aria-hidden="true" />
           </Button>
@@ -377,7 +377,7 @@ export function StopCard({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-6 shrink-0 text-muted-foreground"
+                    className="size-8 shrink-0 text-muted-foreground"
                     disabled={isPending}
                     onClick={() => {
                       setEditingThing({
@@ -397,7 +397,7 @@ export function StopCard({
                     aria-label={`Edit ${thing.title}`}
                     title="Edit"
                   >
-                    <Pencil className="size-3" aria-hidden="true" />
+                    <Pencil className="size-4" aria-hidden="true" />
                   </Button>
                 </li>
               ))}
@@ -414,7 +414,7 @@ export function StopCard({
               onClick={() => setAddThingOpen(true)}
             >
               <Plus className="size-3.5" aria-hidden="true" />
-              Add a thing to do
+              Add Thing to Do
             </Button>
           </div>
 

@@ -60,7 +60,7 @@ export function InlineCostFields({
         <>
           <Field
             label="Actual cost"
-            description="Leave blank if you haven't paid yet"
+            description="Leave blank if you haven't paid yet."
             error={errors.actualMinor?.[0]}
           >
             <MoneyInput
@@ -77,7 +77,7 @@ export function InlineCostFields({
 
           <Field
             label="Date paid"
-            description="Optional — when the cost was paid"
+            description="Optional — when the cost was paid."
             error={errors.paidAt?.[0]}
           >
             <Input

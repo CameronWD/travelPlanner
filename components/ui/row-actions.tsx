@@ -29,7 +29,7 @@ export function RowActions({
         <Button
           variant="ghost"
           size="icon"
-          className="size-8"
+          className="relative size-8 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
           onClick={onEdit}
           disabled={disabled}
           aria-label={editLabel}
@@ -42,7 +42,7 @@ export function RowActions({
         <Button
           variant="ghost"
           size="icon"
-          className="size-8 text-destructive hover:bg-destructive/10"
+          className="relative size-8 text-destructive hover:bg-destructive/10 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
           onClick={onDelete}
           disabled={disabled}
           aria-label={deleteLabel}

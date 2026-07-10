@@ -204,7 +204,7 @@ function OtherCostDialog({
           {/* Actual */}
           <Field
             label="Actual cost"
-            description="Leave blank until paid"
+            description="Leave blank if you haven't paid yet."
             error={errors.actualMinor?.[0]}
           >
             <MoneyInput
@@ -222,7 +222,7 @@ function OtherCostDialog({
           {/* Paid date */}
           <Field
             label="Date paid"
-            description="Optional — when this was paid"
+            description="Optional — when the cost was paid."
             error={errors.paidAt?.[0]}
           >
             <Input
@@ -246,8 +246,8 @@ function OtherCostDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" size="md" disabled={submitting}>
-              {submitting ? "Saving…" : "Save"}
+            <Button type="submit" variant="primary" size="md" disabled={submitting} loading={submitting}>
+              Save
             </Button>
           </DialogFooter>
         </form>
@@ -339,13 +339,13 @@ export function OtherCostEditor({
         }}
       >
         <Plus className="size-4" aria-hidden="true" />
-        Add cost
+        Add Cost
       </Button>
 
       {costs.length === 0 ? (
         <EmptyState
           icon={ReceiptText}
-          title="No other costs yet"
+          title="No other costs yet."
           description="Add trip-wide costs like insurance, visas, eSIMs, and spending money here."
           className="py-8"
         />
@@ -398,7 +398,7 @@ export function OtherCostEditor({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-7"
+                  className="size-8"
                   onClick={() => {
                     setErrors({});
                     setEditingCost(cost);
@@ -406,17 +406,17 @@ export function OtherCostEditor({
                   aria-label={`Edit ${cost.label ?? "cost"}`}
                   title="Edit"
                 >
-                  <Pencil className="size-3.5" aria-hidden="true" />
+                  <Pencil className="size-4" aria-hidden="true" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => handleDelete(cost.id)}
                   aria-label={`Delete ${cost.label ?? "cost"}`}
                   title="Delete"
                 >
-                  <X className="size-3.5" aria-hidden="true" />
+                  <X className="size-4" aria-hidden="true" />
                 </Button>
               </div>
             </AnimatedItem>
@@ -428,7 +428,7 @@ export function OtherCostEditor({
         key={addOpen ? "add-open" : "add-closed"}
         open={addOpen}
         onOpenChange={(open) => { if (!open) setAddOpen(false); }}
-        title="Add other cost"
+        title="Add Other Cost"
         onSubmit={handleAddSubmit}
         initialState={defaultFormState(baseCurrency)}
         submitting={submitting}
@@ -441,7 +441,7 @@ export function OtherCostEditor({
           key={editingCost.id}
           open={Boolean(editingCost)}
           onOpenChange={(open) => { if (!open) setEditingCost(null); }}
-          title="Edit cost"
+          title="Edit Cost"
           onSubmit={handleEditSubmit}
           initialState={costToFormState(editingCost)}
           submitting={submitting}

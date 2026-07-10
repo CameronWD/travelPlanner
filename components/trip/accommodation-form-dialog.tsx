@@ -85,7 +85,7 @@ export function AccommodationFormDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={accommodation ? `Edit ${accommodation.name}` : "Add accommodation"}
+      title={accommodation ? `Edit ${accommodation.name}` : "Add Accommodation"}
       recordId={accommodation?.id ?? null}
     >
       <AccommodationForm
@@ -118,7 +118,7 @@ export function AddAccommodationButton({
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
         <Plus className="size-4" aria-hidden="true" />
-        Add accommodation
+        Add Accommodation
       </Button>
       <AccommodationFormDialog
         stopId={stopId}
@@ -148,7 +148,7 @@ export function EditAccommodationButton({
         className="size-8"
         onClick={() => setOpen(true)}
         aria-label={`Edit ${accommodation.name}`}
-        title="Edit accommodation"
+        title="Edit Accommodation"
       >
         <Pencil className="size-4" aria-hidden="true" />
       </Button>
@@ -378,7 +378,7 @@ function AccommodationForm({
           </Button>
         </DialogClose>
         <Button type="submit" variant="primary" loading={isPending}>
-          {isEdit ? "Save changes" : "Add accommodation"}
+          {isEdit ? "Save changes" : "Add Accommodation"}
         </Button>
       </DialogFooter>
     </form>

@@ -62,7 +62,7 @@ export function Timeline({ day, variant = "agenda", itemDirections }: TimelinePr
   if (!hasAnything) {
     return (
       <p className="py-2 text-sm text-muted-foreground italic">
-        Nothing planned
+        Nothing planned.
       </p>
     );
   }

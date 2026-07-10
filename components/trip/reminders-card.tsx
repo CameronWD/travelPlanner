@@ -102,11 +102,12 @@ function AddReminderForm({
       <Button
         variant="ghost"
         size="sm"
+        aria-label="Add Reminder"
         className="gap-2 self-start text-muted-foreground hover:text-foreground"
         onClick={() => setOpen(true)}
       >
         <Plus className="size-4" aria-hidden="true" />
-        Add reminder
+        Add Reminder
       </Button>
     );
   }
@@ -178,7 +179,7 @@ function ReminderRow({ reminder }: { reminder: ReminderItem }) {
       <Button
         variant="ghost"
         size="icon"
-        className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
+        className="size-8 shrink-0 text-destructive hover:bg-destructive/10"
         aria-label={`Delete reminder: ${reminder.title}`}
         onClick={handleDelete}
         loading={isPending}

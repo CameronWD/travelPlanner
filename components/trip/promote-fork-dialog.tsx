@@ -5,6 +5,7 @@ import { useTransition } from "react";
 import { GitMerge, AlertTriangle } from "lucide-react";
 import { getPromotionPreview, promoteFork } from "@/server/actions/forks";
 import type { PromotionPreview } from "@/server/actions/forks";
+import { formatMoney } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,11 +30,10 @@ function formatDelta(value: number, unit: string): string {
   return `${sign}${value} ${unit}`;
 }
 
-function formatBudgetDelta(minor: number | null, currency: string): string | null {
+export function formatBudgetDelta(minor: number | null, currency: string): string | null {
   if (minor === null || minor === 0) return null;
-  const sign = minor > 0 ? "+" : "";
-  const major = (minor / 100).toFixed(2);
-  return `${sign}${currency}${major}`;
+  const sign = minor > 0 ? "+" : "-";
+  return `${sign}${formatMoney(Math.abs(minor), currency)}`;
 }
 
 function DeltaSummary({

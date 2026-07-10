@@ -122,7 +122,7 @@ export function MonthGrid({
 
               {day?.stop ? (
                 <div className="flex flex-1 flex-col items-center justify-center px-0.5 text-center">
-                  <span className="line-clamp-2 text-[13px] font-semibold leading-tight text-foreground">
+                  <span className="line-clamp-2 min-w-0 text-[13px] font-semibold leading-tight text-foreground">
                     {day.stop.name}
                   </span>
                   {day.stop.country && (

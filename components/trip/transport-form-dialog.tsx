@@ -99,7 +99,7 @@ export function TransportFormDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={transport ? "Edit transport" : "Add transport"}
+      title={transport ? "Edit Transport" : "Add Transport"}
       recordId={transport?.id ?? null}
     >
       <TransportForm
@@ -127,7 +127,7 @@ export function AddTransportButton({
   stops,
   defaultFromStopId,
   defaultToStopId,
-  label = "Add transport",
+  label = "Add Transport",
 }: {
   tripId: string;
   stops: StopOption[];
@@ -171,8 +171,8 @@ export function EditTransportButton({
         size="icon"
         className="size-8"
         onClick={() => setOpen(true)}
-        aria-label="Edit transport"
-        title="Edit transport"
+        aria-label="Edit Transport"
+        title="Edit Transport"
       >
         <Pencil className="size-4" aria-hidden="true" />
       </Button>
@@ -479,7 +479,7 @@ function TransportForm({
           </Button>
         </DialogClose>
         <Button type="submit" variant="primary" loading={isPending}>
-          {isEdit ? "Save changes" : "Add transport"}
+          {isEdit ? "Save changes" : "Add Transport"}
         </Button>
       </DialogFooter>
     </form>

@@ -1,8 +1,8 @@
 import * as React from "react";
-import { MapPin, Pencil, Trash2, Calendar, Hash, StickyNote, AlertTriangle } from "lucide-react";
+import { MapPin, Calendar, Hash, StickyNote, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { RowActions } from "@/components/ui/row-actions";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { accommodationDateWarnings } from "@/lib/validations/accommodation";
 import { CostEditor } from "./cost-editor";
@@ -69,7 +69,7 @@ export function AccommodationCard({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2.5 rounded-xl border border-border/60 bg-muted/30 px-4 py-3 transition-shadow hover:shadow-soft",
+        "flex flex-col gap-2.5 rounded-xl border border-border/60 bg-card px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
         isPending && "opacity-60 pointer-events-none",
       )}
     >
@@ -88,30 +88,13 @@ export function AccommodationCard({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-9"
-            disabled={isPending}
-            onClick={() => onEdit?.(a)}
-            aria-label={`Edit ${a.name}`}
-            title="Edit"
-          >
-            <Pencil className="size-4" aria-hidden="true" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-9 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            disabled={isPending}
-            onClick={() => onDelete?.(a.id)}
-            aria-label={`Delete ${a.name}`}
-            title="Delete"
-          >
-            <Trash2 className="size-4" aria-hidden="true" />
-          </Button>
-        </div>
+        <RowActions
+          onEdit={onEdit ? () => onEdit(a) : undefined}
+          onDelete={onDelete ? () => onDelete(a.id) : undefined}
+          editLabel={`Edit ${a.name}`}
+          deleteLabel={`Delete ${a.name}`}
+          disabled={isPending}
+        />
       </div>
 
       {/* Dates + nights */}

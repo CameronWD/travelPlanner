@@ -294,7 +294,7 @@ export async function PhasePlanning({
     mapStops.length > 0 ? (
       <section
         key="route"
-        className="rounded-2xl border border-border bg-card p-2 shadow-soft"
+        className="overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-soft"
       >
         <RouteMap stops={mapStops} height={280} />
       </section>

@@ -36,7 +36,7 @@ export function MarkerList({ markers, onSelect }: MarkerListProps) {
                 <button
                   type="button"
                   onClick={() => onSelect(mk.id)}
-                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-muted/50"
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 >
                   <span
                     aria-hidden

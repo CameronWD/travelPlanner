@@ -52,7 +52,7 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
             key={item.href}
             href={item.href}
             className={cn(
-              "flex flex-1 flex-col items-center gap-0.5 py-2 text-xs",
+              "flex flex-1 flex-col items-center gap-0.5 py-3 text-xs",
               active ? "text-primary" : "text-muted-foreground",
             )}
             aria-current={active ? "page" : undefined}
@@ -73,7 +73,7 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
             return (
               <button
                 className={cn(
-                  "flex flex-1 flex-col items-center gap-0.5 py-2 text-xs",
+                  "flex flex-1 flex-col items-center gap-0.5 py-3 text-xs",
                   moreActive ? "text-primary" : "text-muted-foreground",
                 )}
                 aria-label="More navigation"

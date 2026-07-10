@@ -96,7 +96,7 @@ export function ItemCard({
   return (
     <div
       className={cn(
-        "group flex flex-col gap-2 rounded-xl border border-border/60 bg-card px-4 py-3 transition-shadow hover:shadow-soft",
+        "group flex flex-col gap-2.5 rounded-xl border border-border/60 bg-card px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
         isPending && "pointer-events-none opacity-60",
       )}
     >
@@ -154,13 +154,13 @@ export function ItemCard({
             <Button
               variant="ghost"
               size="icon"
-              className="size-7"
+              className="size-8"
               disabled={isPending}
               onClick={() => onEdit(item)}
               aria-label={`Edit ${item.title}`}
               title="Edit"
             >
-              <Pencil className="size-3.5" aria-hidden="true" />
+              <Pencil className="size-4" aria-hidden="true" />
             </Button>
           )}
 
@@ -180,13 +180,13 @@ export function ItemCard({
             <Button
               variant="ghost"
               size="icon"
-              className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
               disabled={isPending}
               onClick={() => onDelete(item.id)}
               aria-label={`Delete ${item.title}`}
               title="Delete"
             >
-              <Trash2 className="size-3.5" aria-hidden="true" />
+              <Trash2 className="size-4" aria-hidden="true" />
             </Button>
           )}
         </div>

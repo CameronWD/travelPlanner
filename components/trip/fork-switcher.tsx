@@ -112,8 +112,8 @@ function RenameDialogForm({
             Cancel
           </Button>
         </DialogClose>
-        <Button variant="primary" type="submit" disabled={isPending || !name.trim()}>
-          {isPending ? "Saving…" : "Save"}
+        <Button variant="primary" type="submit" disabled={isPending || !name.trim()} loading={isPending}>
+          Save
         </Button>
       </DialogFooter>
     </form>
@@ -180,7 +180,7 @@ function CreateVariantForm({
       </div>
       <DialogFooter>
         <DialogClose asChild><Button variant="outline" type="button">Cancel</Button></DialogClose>
-        <Button variant="primary" type="submit" disabled={isPending}>{isPending ? "Creating…" : "Create"}</Button>
+        <Button variant="primary" type="submit" disabled={isPending} loading={isPending}>Create</Button>
       </DialogFooter>
     </form>
   );
@@ -340,37 +340,43 @@ export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
                 onClick={(e) => e.stopPropagation()}
                 onKeyDown={(e) => e.stopPropagation()}
               >
-                <button
+                <Button
                   type="button"
-                  className="rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
                   aria-label={`Rename ${fork.name}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     setRenameTarget(fork);
                   }}
                 >
-                  <Pencil className="size-3.5" aria-hidden="true" />
-                </button>
-                <button
+                  <Pencil className="size-4" aria-hidden="true" />
+                </Button>
+                <Button
                   type="button"
-                  className="rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:opacity-30"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
                   aria-label={`Duplicate ${fork.name}`}
                   disabled={atCap}
                   onClick={(e) => { e.stopPropagation(); setCreateTarget({ mode: "duplicate", source: fork }); }}
                 >
-                  <Copy className="size-3.5" aria-hidden="true" />
-                </button>
-                <button
+                  <Copy className="size-4" aria-hidden="true" />
+                </Button>
+                <Button
                   type="button"
-                  className="rounded p-0.5 text-muted-foreground hover:text-destructive focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-destructive hover:bg-destructive/10"
                   aria-label={`Discard ${fork.name}`}
                   onClick={(e) => {
                     e.stopPropagation();
                     setDiscardTarget(fork);
                   }}
                 >
-                  <Trash2 className="size-3.5" aria-hidden="true" />
-                </button>
+                  <Trash2 className="size-4" aria-hidden="true" />
+                </Button>
               </span>
             </DropdownMenuItem>
           ))}

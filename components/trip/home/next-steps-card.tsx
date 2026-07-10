@@ -26,7 +26,7 @@ export function NextStepsCard({ steps, seeAllHref }: NextStepsCardProps) {
             <li key={step.id}>
               <Link
                 href={step.href}
-                className="flex items-center gap-2 rounded-xl px-2 py-2 text-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex items-center gap-2 rounded-xl px-2 py-2 text-sm transition-colors hover:bg-muted/50 focus-visible:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 {step.severity === "warning" ? (
                   <AlertTriangle className="size-4 shrink-0 text-amber-500" aria-hidden="true" />

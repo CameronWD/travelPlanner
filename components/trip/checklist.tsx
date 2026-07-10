@@ -364,7 +364,7 @@ function EditItemDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit item</DialogTitle>
+          <DialogTitle>Edit Item</DialogTitle>
         </DialogHeader>
         {/* key forces remount on every open → state always fresh */}
         <EditItemForm
@@ -527,42 +527,50 @@ function ChecklistRow({
             "opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
           )}
         >
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8"
             onClick={() => move("up")}
             disabled={pending || isFirst}
             aria-label="Move up"
-            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
           >
             <ChevronUp className="size-4" aria-hidden="true" />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8"
             onClick={() => move("down")}
             disabled={pending || isLast}
             aria-label="Move down"
-            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
           >
             <ChevronDown className="size-4" aria-hidden="true" />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8"
             onClick={() => setEditOpen(true)}
             disabled={pending}
-            aria-label="Edit item"
-            className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
+            aria-label="Edit Item"
           >
             <Pencil className="size-4" aria-hidden="true" />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
+            className="size-8 text-destructive hover:bg-destructive/10"
             onClick={() => requestDelete(item.id)}
             disabled={pending || deleteIsPending}
-            aria-label="Delete item"
-            className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:pointer-events-none disabled:opacity-30"
+            aria-label="Delete Item"
           >
             <Trash2 className="size-4" aria-hidden="true" />
-          </button>
+          </Button>
         </div>
       </AnimatedItem>
     </>
@@ -622,7 +630,7 @@ export function Checklist({
       <div className="flex flex-col gap-4">
         <EmptyState
           icon={CheckSquare}
-          title={kind === "PRETRIP" ? "No pre-trip tasks yet" : "Packing list is empty"}
+          title={kind === "PRETRIP" ? "No pre-trip tasks yet." : "No packing items yet."}
           description={
             kind === "PRETRIP"
               ? "Add tasks like booking confirmations, paperwork, and anything to sort before you leave."

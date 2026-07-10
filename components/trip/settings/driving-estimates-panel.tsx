@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { updateDrivingSettings } from "@/server/actions/driving-settings";
+import { Field } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
 
 export interface DrivingEstimatesPanelProps {
   tripId: string;
@@ -54,47 +56,40 @@ export function DrivingEstimatesPanel({
   };
 
   return (
-    <div className="space-y-4">
-      <div className="space-y-1.5">
-        <label className="block text-sm font-medium text-foreground" htmlFor="winding-factor">
-          Road winding factor
-        </label>
-        <input
-          id="winding-factor"
+    <div className="space-y-5">
+      <Field
+        id="winding-factor"
+        label="Road winding factor"
+        description="Multiplies straight-line distance to estimate actual road distance (1.0 = straight, 3.0 = very winding)."
+      >
+        <Input
           type="number"
+          inputMode="decimal"
           min={1}
           max={3}
           step={0.1}
           value={windingStr}
           disabled={isPending}
           onChange={handleWindingChange}
-          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
         />
-        <p className="text-xs text-muted-foreground">
-          Multiplies straight-line distance to estimate actual road distance (1.0 = straight, 3.0 =
-          very winding).
-        </p>
-      </div>
+      </Field>
 
-      <div className="space-y-1.5">
-        <label className="block text-sm font-medium text-foreground" htmlFor="avg-speed">
-          Average speed (km/h)
-        </label>
-        <input
-          id="avg-speed"
+      <Field
+        id="avg-speed"
+        label="Average speed (km/h)"
+        description="Assumed average speed for estimating drive time between stops."
+      >
+        <Input
           type="number"
+          inputMode="numeric"
           min={20}
           max={150}
           step={5}
           value={speedStr}
           disabled={isPending}
           onChange={handleSpeedChange}
-          className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
         />
-        <p className="text-xs text-muted-foreground">
-          Assumed average speed for estimating drive time between stops.
-        </p>
-      </div>
+      </Field>
 
       <p className="text-xs text-muted-foreground">
         These are rough offline estimates used to flag long driving days — not real ETAs or

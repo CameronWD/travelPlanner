@@ -16,7 +16,35 @@ import {
   promoteFork,
 } from "@/server/actions/forks";
 import type { PromotionPreview } from "@/server/actions/forks";
-import { PromoteForkDialog } from "./promote-fork-dialog";
+import { PromoteForkDialog, formatBudgetDelta } from "./promote-fork-dialog";
+import { formatMoney } from "@/lib/money";
+
+// ---------------------------------------------------------------------------
+// Unit tests for formatBudgetDelta (pure helper, no render needed)
+// ---------------------------------------------------------------------------
+
+describe("formatBudgetDelta", () => {
+  it("formats budget delta via formatMoney — routes correctly for AUD/JPY", () => {
+    // Positive AUD — should prepend "+" then formatMoney's symbol+amount
+    expect(formatBudgetDelta(123456, "AUD")).toBe(`+${formatMoney(123456, "AUD")}`);
+    // Negative JPY — 0-decimal, should prepend "-" and use abs value (1000 minor = ¥1,000)
+    expect(formatBudgetDelta(-1000, "JPY")).toBe(`-${formatMoney(1000, "JPY")}`);
+    // Zero returns null
+    expect(formatBudgetDelta(0, "AUD")).toBeNull();
+  });
+
+  it("returns null for null input", () => {
+    expect(formatBudgetDelta(null, "AUD")).toBeNull();
+  });
+
+  it("uses correct 0-decimal minor units for JPY (no division by 100)", () => {
+    // JPY 1000 minor = ¥1,000 (not ¥10.00 which the old /100 bug would produce)
+    const result = formatBudgetDelta(1000, "JPY");
+    expect(result).toBe(`+${formatMoney(1000, "JPY")}`);
+    // Confirm it doesn't match the old buggy /100 output
+    expect(result).not.toContain("10.00");
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Fixtures

@@ -75,7 +75,7 @@ export function InvitePanel({ tripId, members, pendingInvites }: InvitePanelProp
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Current members */}
       <div>
         <h4 className="mb-3 text-sm font-medium text-muted-foreground">
@@ -127,15 +127,17 @@ export function InvitePanel({ tripId, members, pendingInvites }: InvitePanelProp
                   {invite.email}
                 </span>
                 <Badge variant="warning">Pending</Badge>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
                   onClick={() => handleCancel(invite.id)}
                   disabled={cancelPending}
-                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
                   aria-label={`Cancel invite for ${invite.email}`}
                 >
                   <X className="size-4" aria-hidden="true" />
-                </button>
+                </Button>
               </li>
             ))}
           </ul>
@@ -149,7 +151,7 @@ export function InvitePanel({ tripId, members, pendingInvites }: InvitePanelProp
           No email is sent. An Invite is created here, and access activates automatically the
           next time that person signs in with the matching email address.
         </p>
-        <form onSubmit={handleInvite} noValidate className="flex gap-2">
+        <form onSubmit={handleInvite} noValidate className="flex items-end gap-2">
           <Field
             label="Email address"
             error={inviteError}
@@ -164,17 +166,15 @@ export function InvitePanel({ tripId, members, pendingInvites }: InvitePanelProp
               disabled={invitePending}
             />
           </Field>
-          <div className="mt-7">
-            <Button
-              type="submit"
-              size="md"
-              loading={invitePending}
-              disabled={!emailValue.trim()}
-            >
-              <UserPlus className="size-4" aria-hidden="true" />
-              Invite
-            </Button>
-          </div>
+          <Button
+            type="submit"
+            size="md"
+            loading={invitePending}
+            disabled={!emailValue.trim()}
+          >
+            <UserPlus className="size-4" aria-hidden="true" />
+            Invite
+          </Button>
         </form>
         {inviteSuccess && (
           <p role="status" className="mt-2 text-sm text-success">

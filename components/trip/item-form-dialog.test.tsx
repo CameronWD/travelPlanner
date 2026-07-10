@@ -133,7 +133,7 @@ describe("ItemFormDialog", () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} item={existingItem} />);
 
-    // Dialog title should say "Edit Item"
+    // Dialog title should say "Edit Item" (already Title Case)
     expect(screen.getByRole("heading", { name: /edit item/i })).toBeInTheDocument();
 
     // Clear and replace the title

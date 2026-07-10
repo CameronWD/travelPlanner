@@ -14,8 +14,12 @@ const badgeVariants = cva(
         accent: "border-transparent bg-accent text-accent-foreground",
         success:
           "border-transparent bg-success/15 text-success dark:bg-success/20",
+        // Warning: pale amber bg with darkened text for WCAG AA in light mode.
+        // `text-warning` (mid-orange, ~52% L) on `bg-warning/15` (~97% L) fails AA;
+        // `warning-foreground` is near-black which gives sufficient contrast.
+        // DEFERRED: human visual verification recommended before shipping.
         warning:
-          "border-transparent bg-warning/15 text-warning dark:bg-warning/25",
+          "border-transparent bg-warning/15 text-warning-foreground/80 dark:bg-warning/25 dark:text-warning",
         destructive:
           "border-transparent bg-destructive text-destructive-foreground",
         muted: "border-transparent bg-muted text-muted-foreground",

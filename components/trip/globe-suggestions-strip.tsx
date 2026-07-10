@@ -42,7 +42,7 @@ export function GlobeSuggestionsStrip({
       const result = await addMarkerToWishlist(marker.id, tripId);
       if (result.success) {
         setJustAdded((prev) => new Set(prev).add(marker.id));
-        toast({ title: "Added to Wishlist", description: marker.title });
+        toast({ title: "Added to Wishlist", description: marker.title, variant: "success" });
       } else {
         const firstError = Object.values(result.errors)[0]?.[0];
         toast({ variant: "destructive", title: "Couldn't add", description: firstError });

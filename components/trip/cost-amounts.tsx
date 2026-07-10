@@ -19,17 +19,17 @@ export function CostAmounts({
   return (
     <div
       className={
-        "flex shrink-0 items-center gap-2 sm:gap-4 tabular-nums text-sm text-right" +
+        "flex shrink-0 items-center gap-2 sm:gap-4 tabular-nums text-sm" +
         (className ? ` ${className}` : "")
       }
     >
-      <span aria-label="Estimated" className="min-w-[4rem] sm:min-w-[5rem] text-right">
+      <span aria-label="Estimated" className="text-right whitespace-nowrap">
         {formatMoney(estimatedMinor, currency)}
       </span>
       <span
         aria-label="Spent"
         className={
-          "min-w-[4rem] sm:min-w-[5rem] text-right" +
+          "text-right whitespace-nowrap" +
           (actualMinor > 0
             ? " text-emerald-600 dark:text-emerald-400"
             : " text-muted-foreground")

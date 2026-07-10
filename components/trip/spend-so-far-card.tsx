@@ -1,6 +1,7 @@
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { SpendSoFar } from "@/lib/spend-so-far";
 
 interface SpendSoFarCardProps {
@@ -12,8 +13,17 @@ interface SpendSoFarCardProps {
 export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSoFarCardProps) {
   const { estimatedTotalMinor, paidSoFarMinor, varianceMinor, estimatedRemainingMinor, tripElapsedPct } = spend;
 
-  // Render nothing when there's no spend data at all
-  if (estimatedTotalMinor === 0 && paidSoFarMinor === 0) return null;
+  // Render a placeholder when there's no spend data at all
+  const noData = estimatedTotalMinor === 0 && paidSoFarMinor === 0;
+  if (noData) {
+    return compact ? null : (
+      <EmptyState
+        icon={Wallet}
+        title="No spend data yet."
+        description="Add costs to your stops and items to track your budget here."
+      />
+    );
+  }
 
   if (compact) {
     const paid = formatMoney(paidSoFarMinor, homeCurrency);
@@ -57,7 +67,7 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
                 <div className="flex items-center gap-1 text-sm">
                   {isOver ? (
                     <TrendingUp
-                      className="size-3.5 text-rose-600 dark:text-rose-400"
+                      className="size-3.5 text-over"
                       aria-hidden="true"
                     />
                   ) : (
@@ -69,7 +79,7 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
                   <span
                     className={
                       isOver
-                        ? "text-rose-700 dark:text-rose-400"
+                        ? "text-over"
                         : "text-emerald-700 dark:text-emerald-400"
                     }
                   >

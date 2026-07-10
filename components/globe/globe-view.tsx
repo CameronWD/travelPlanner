@@ -41,7 +41,7 @@ export function GlobeView({ markers, members }: GlobeViewProps) {
         </p>
         <div className="flex items-center gap-2">
           <GlobeInviteButton members={members} />
-          <Button onClick={openAdd}>Add marker</Button>
+          <Button onClick={openAdd}>Add Marker</Button>
         </div>
       </div>
 

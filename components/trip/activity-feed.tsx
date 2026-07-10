@@ -29,7 +29,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
     return (
       <EmptyState
         icon={Activity}
-        title="No activity yet"
+        title="No activity yet."
         description="Changes to your Trip — Stops, transport, costs, and notes — will appear here."
       />
     );
@@ -110,6 +110,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
                     <li
                       key={change.field}
                       className="text-xs text-muted-foreground"
+                      aria-label={`${change.label}: changed from ${change.from || "empty"} to ${change.to || "empty"}`}
                     >
                       <span className="font-medium text-foreground/70">
                         {change.label}:

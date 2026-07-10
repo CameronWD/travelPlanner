@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { MessageCircle, Trash2, Send } from "lucide-react";
-import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -120,7 +119,7 @@ function ThreadBody({
       {notes.length > 0 ? (
         <AnimatedList as="ul" role="list" className="flex flex-col gap-2.5">
           {notes.map((note) => (
-            <AnimatedItem key={note.id} as="li" className="group flex gap-2">
+            <AnimatedItem key={note.id} as="li" className="flex gap-2">
               <Avatar className="mt-0.5 size-6 shrink-0">
                 {note.author.image && (
                   <AvatarImage
@@ -155,13 +154,10 @@ function ThreadBody({
                 size="icon"
                 disabled={isPending || deleteIsPending}
                 onClick={() => requestDelete(note.id)}
-                aria-label="Delete note"
-                className={cn(
-                  "size-5 shrink-0 self-start text-muted-foreground/40 hover:text-destructive",
-                  "opacity-0 transition-opacity group-hover:opacity-100",
-                )}
+                aria-label="Delete Note"
+                className="size-8 shrink-0 self-start text-destructive hover:bg-destructive/10"
               >
-                <Trash2 className="size-3" aria-hidden="true" />
+                <Trash2 className="size-4" aria-hidden="true" />
               </Button>
             </AnimatedItem>
           ))}
