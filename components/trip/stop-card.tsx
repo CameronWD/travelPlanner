@@ -377,7 +377,7 @@ export function StopCard({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-6 shrink-0 text-muted-foreground"
+                    className="size-8 shrink-0 text-muted-foreground"
                     disabled={isPending}
                     onClick={() => {
                       setEditingThing({
@@ -397,7 +397,7 @@ export function StopCard({
                     aria-label={`Edit ${thing.title}`}
                     title="Edit"
                   >
-                    <Pencil className="size-3" aria-hidden="true" />
+                    <Pencil className="size-4" aria-hidden="true" />
                   </Button>
                 </li>
               ))}

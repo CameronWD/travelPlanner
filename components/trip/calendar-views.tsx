@@ -220,18 +220,20 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems 
                         >
                           <span className={cn("size-2 shrink-0 rounded-full", categoryDotClass(w.category))} />
                           <span className="truncate flex-1">{w.title}</span>
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="size-8 shrink-0"
                             aria-label={`Schedule ${w.title}`}
                             title="Schedule this item"
-                            className="shrink-0 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded"
                             onClick={(e) => {
                               e.stopPropagation();
                               setSchedulingItem(w);
                             }}
                           >
-                            <CalendarCheck className="size-3.5" aria-hidden="true" />
-                          </button>
+                            <CalendarCheck className="size-4" aria-hidden="true" />
+                          </Button>
                         </li>
                       ))}
                     </ul>

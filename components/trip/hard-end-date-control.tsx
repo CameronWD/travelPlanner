@@ -37,17 +37,18 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate }: HardEndDa
 
   if (!editing) {
     return hardEndDate ? (
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="sm"
         onClick={() => { setValue(hardEndDate ?? ""); setEditing(true); }}
         aria-label={`Edit hard end date (${hardEndDate})`}
-        className="inline-flex items-center gap-1 font-medium text-foreground underline-offset-2 hover:underline"
       >
         {hardEndDate}
-        <Pencil className="size-3 text-muted-foreground" aria-hidden="true" />
-      </button>
+        <Pencil className="size-3.5 text-muted-foreground" aria-hidden="true" />
+      </Button>
     ) : (
-      <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setValue(hardEndDate ?? ""); setEditing(true); }}>
+      <Button variant="ghost" size="sm" onClick={() => { setValue(hardEndDate ?? ""); setEditing(true); }}>
         <CalendarClock className="size-3.5" aria-hidden="true" />
         Set hard end date
       </Button>

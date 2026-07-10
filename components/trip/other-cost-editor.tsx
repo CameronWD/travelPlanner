@@ -398,7 +398,7 @@ export function OtherCostEditor({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-7"
+                  className="size-8"
                   onClick={() => {
                     setErrors({});
                     setEditingCost(cost);
@@ -406,17 +406,17 @@ export function OtherCostEditor({
                   aria-label={`Edit ${cost.label ?? "cost"}`}
                   title="Edit"
                 >
-                  <Pencil className="size-3.5" aria-hidden="true" />
+                  <Pencil className="size-4" aria-hidden="true" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-7 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => handleDelete(cost.id)}
                   aria-label={`Delete ${cost.label ?? "cost"}`}
                   title="Delete"
                 >
-                  <X className="size-3.5" aria-hidden="true" />
+                  <X className="size-4" aria-hidden="true" />
                 </Button>
               </div>
             </AnimatedItem>

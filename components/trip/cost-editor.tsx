@@ -335,7 +335,7 @@ export function CostEditor({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-6"
+                  className="size-8"
                   onClick={() => {
                     setErrors({});
                     setEditingCost(cost);
@@ -343,17 +343,17 @@ export function CostEditor({
                   aria-label="Edit cost"
                   title="Edit"
                 >
-                  <Pencil className="size-3" aria-hidden="true" />
+                  <Pencil className="size-4" aria-hidden="true" />
                 </Button>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-6 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => handleDelete(cost.id)}
                   aria-label="Delete cost"
                   title="Delete"
                 >
-                  <X className="size-3" aria-hidden="true" />
+                  <X className="size-4" aria-hidden="true" />
                 </Button>
               </div>
             </AnimatedItem>

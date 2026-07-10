@@ -23,10 +23,11 @@ describe("MoreActionsMenu", () => {
     expect(onMoveUp).toHaveBeenCalledOnce();
   });
 
-  it("renders a 44px-minimum touch target for the overflow trigger", () => {
+  it("renders a size-8 trigger with a coarse-pointer touch expander", () => {
     render(<MoreActionsMenu label="More" items={[{ key: "a", label: "A", onSelect: () => {} }]} />);
     const trigger = screen.getByRole("button", { name: "More" });
-    expect(trigger.className).toContain("size-11");
+    expect(trigger.className).toContain("size-8");
+    expect(trigger.className).toContain("pointer-coarse:after:absolute");
   });
 
   it("disables items flagged disabled", async () => {
