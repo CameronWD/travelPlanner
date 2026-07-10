@@ -171,6 +171,7 @@ export function AttachmentList({
                 <Button
                   variant="ghost"
                   size="icon"
+                  className="size-8 text-destructive hover:bg-destructive/10"
                   aria-label={`Delete ${att.filename}`}
                   disabled={isPending && deletingId === att.id}
                   onClick={() => handleDelete(att.id, att.filename)}

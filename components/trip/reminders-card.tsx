@@ -178,7 +178,7 @@ function ReminderRow({ reminder }: { reminder: ReminderItem }) {
       <Button
         variant="ghost"
         size="icon"
-        className="size-8 shrink-0 text-muted-foreground hover:text-destructive"
+        className="size-8 shrink-0 text-destructive hover:bg-destructive/10"
         aria-label={`Delete reminder: ${reminder.title}`}
         onClick={handleDelete}
         loading={isPending}
