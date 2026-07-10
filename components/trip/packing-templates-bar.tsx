@@ -230,7 +230,7 @@ export function PackingTemplatesBar({
                 disabled={applyPending}
               >
                 <FolderOpen className="size-4" aria-hidden="true" />
-                Apply template
+                Apply Template
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-56">

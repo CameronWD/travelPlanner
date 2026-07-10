@@ -69,7 +69,7 @@ export function AccommodationCard({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2.5 rounded-xl border border-border/60 bg-card px-4 py-3 shadow-soft transition-shadow hover:shadow-soft",
+        "flex flex-col gap-2.5 rounded-xl border border-border/60 bg-card px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
         isPending && "opacity-60 pointer-events-none",
       )}
     >

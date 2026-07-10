@@ -345,7 +345,7 @@ export function OtherCostEditor({
       {costs.length === 0 ? (
         <EmptyState
           icon={ReceiptText}
-          title="No other costs yet"
+          title="No other costs yet."
           description="Add trip-wide costs like insurance, visas, eSIMs, and spending money here."
           className="py-8"
         />

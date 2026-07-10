@@ -228,7 +228,7 @@ describe("Task 15 — things to do under a stop", () => {
     expect(screen.getByText("Try pasta")).toBeInTheDocument();
   });
 
-  it("renders an 'Add a thing to do' button (not 'Activity') under the stop card", () => {
+  it("renders an 'Add Thing to Do' button (not 'Activity') under the stop card", () => {
     render(
       <StopCard
         stop={roughStop}
@@ -241,12 +241,12 @@ describe("Task 15 — things to do under a stop", () => {
         homeCurrency="AUD"
       />,
     );
-    expect(screen.getByRole("button", { name: /add a thing to do/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add thing to do/i })).toBeInTheDocument();
     // Must NOT say "Activity"
     expect(screen.queryByRole("button", { name: /activity/i })).not.toBeInTheDocument();
   });
 
-  it("the label is exactly 'Add a thing to do', never 'Activity'", () => {
+  it("the label is exactly 'Add Thing to Do', never 'Activity'", () => {
     render(
       <StopCard
         stop={roughStop}
@@ -258,12 +258,12 @@ describe("Task 15 — things to do under a stop", () => {
         forkId={null}
       />,
     );
-    const btn = screen.getByRole("button", { name: /add a thing to do/i });
-    expect(btn.textContent).toContain("Add a thing to do");
+    const btn = screen.getByRole("button", { name: /add thing to do/i });
+    expect(btn.textContent).toContain("Add Thing to Do");
     expect(btn.textContent).not.toMatch(/activity/i);
   });
 
-  it("clicking 'Add a thing to do' opens the ItemFormDialog with the stop pre-selected", async () => {
+  it("clicking 'Add Thing to Do' opens the ItemFormDialog with the stop pre-selected", async () => {
     const user = userEvent.setup();
     render(
       <StopCard
@@ -277,7 +277,7 @@ describe("Task 15 — things to do under a stop", () => {
         homeCurrency="AUD"
       />,
     );
-    await user.click(screen.getByRole("button", { name: /add a thing to do/i }));
+    await user.click(screen.getByRole("button", { name: /add thing to do/i }));
     // Dialog should open — its title is "Add Item"
     expect(await screen.findByRole("heading", { name: /add item/i })).toBeInTheDocument();
   });
@@ -299,7 +299,7 @@ describe("Task 15 — things to do under a stop", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /add a thing to do/i }));
+    await user.click(screen.getByRole("button", { name: /add thing to do/i }));
     const titleInput = await screen.findByPlaceholderText(/visit the night market/i);
     await user.type(titleInput, "Street art tour");
 
@@ -316,7 +316,7 @@ describe("Task 15 — things to do under a stop", () => {
     );
   });
 
-  it("does NOT render the 'Add a thing to do' button when tripId is not provided", () => {
+  it("does NOT render the 'Add Thing to Do' button when tripId is not provided", () => {
     render(
       <StopCard
         stop={roughStop}
@@ -324,6 +324,6 @@ describe("Task 15 — things to do under a stop", () => {
         isLast={false}
       />,
     );
-    expect(screen.queryByRole("button", { name: /add a thing to do/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add thing to do/i })).not.toBeInTheDocument();
   });
 });

@@ -414,7 +414,7 @@ export function StopCard({
               onClick={() => setAddThingOpen(true)}
             >
               <Plus className="size-3.5" aria-hidden="true" />
-              Add a thing to do
+              Add Thing to Do
             </Button>
           </div>
 

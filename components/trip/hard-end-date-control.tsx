@@ -43,6 +43,7 @@ export function HardEndDateControl({ tripId, hardEndDate, startDate }: HardEndDa
         size="sm"
         onClick={() => { setValue(hardEndDate ?? ""); setEditing(true); }}
         aria-label={`Edit hard end date (${hardEndDate})`}
+        className="hover:underline underline-offset-2"
       >
         {hardEndDate}
         <Pencil className="size-3.5 text-muted-foreground" aria-hidden="true" />

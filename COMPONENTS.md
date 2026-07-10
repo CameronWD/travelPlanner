@@ -271,7 +271,7 @@ All trip-surface cards use this shell:
 | Token | Colour | Use |
 |---|---|---|
 | `text-success` / `bg-success` | Green | Under-estimate / positive delta |
-| `text-over` / `bg-over` | Rose (`--over: 350 78% 50%`) | Over-estimate / negative delta |
+| `text-over` / `bg-over` | Rose (light `--over: 350 78% 50%`, dark `--over: 350 80% 62%`) | Over-estimate / negative delta |
 | `text-warning` / `bg-warning` | Amber | Warning / caution state |
 
 Use `text-over` (not `text-destructive`) when displaying an over-budget amount — `destructive`
