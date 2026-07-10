@@ -153,6 +153,40 @@ describe("StopSpreadsheet (inline nights editing)", () => {
   });
 });
 
+describe("StopSpreadsheet (keyboard activation)", () => {
+  it("activates notes cell editing on Enter key", async () => {
+    vi.mocked(setStopNotes).mockResolvedValue({ success: true });
+    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+    const cell = screen.getByText("arrive pm").closest("td")!;
+    fireEvent.keyDown(cell, { key: "Enter" });
+    expect(screen.getByDisplayValue("arrive pm")).toBeInTheDocument();
+  });
+
+  it("activates notes cell editing on Space key", async () => {
+    vi.mocked(setStopNotes).mockResolvedValue({ success: true });
+    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+    const cell = screen.getByText("arrive pm").closest("td")!;
+    fireEvent.keyDown(cell, { key: " " });
+    expect(screen.getByDisplayValue("arrive pm")).toBeInTheDocument();
+  });
+
+  it("activates nights cell editing on Enter key", async () => {
+    vi.mocked(setStopNights).mockResolvedValue({ success: true });
+    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+    const cell = screen.getByText("7").closest("td")!;
+    fireEvent.keyDown(cell, { key: "Enter" });
+    expect(screen.getByDisplayValue("7")).toBeInTheDocument();
+  });
+
+  it("activates date cell editing on Enter key", async () => {
+    vi.mocked(setStopDates).mockResolvedValue({ success: true });
+    render(<StopSpreadsheet tripId="t1" rows={rows} homeCurrency="AUD" />);
+    const cell = screen.getByText(formatLongDate("2026-07-15")).closest("td")!;
+    fireEvent.keyDown(cell, { key: "Enter" });
+    expect(screen.getByDisplayValue("2026-07-15")).toBeInTheDocument();
+  });
+});
+
 describe("StopSpreadsheet (inline dates editing)", () => {
   it("edits a scheduled stop's depart date via setStopDates", async () => {
     vi.mocked(setStopDates).mockResolvedValue({ success: true });

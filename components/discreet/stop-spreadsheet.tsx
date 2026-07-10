@@ -61,9 +61,11 @@ function EditableDateCell({ value, scheduled, onSave, className }: { value: stri
   }
   return (
     <td
-      className={`${className} cursor-text${invalid ? " ring-1 ring-destructive" : ""}`}
+      className={`${className} cursor-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1${invalid ? " ring-1 ring-destructive" : ""}`}
       aria-invalid={invalid ? "true" : undefined}
+      tabIndex={0}
       onClick={startEditing}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); startEditing(); } }}
     >
       {formatLongDate(value)}
     </td>
@@ -125,9 +127,11 @@ function EditableTextCell({ value, onSave, className }: { value: string | null; 
   }
   return (
     <td
-      className={`${className} cursor-text${invalid ? " ring-1 ring-destructive" : ""}`}
+      className={`${className} cursor-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1${invalid ? " ring-1 ring-destructive" : ""}`}
       aria-invalid={invalid ? "true" : undefined}
+      tabIndex={0}
       onClick={startEditing}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); startEditing(); } }}
     >
       {value ?? "—"}
     </td>
@@ -181,9 +185,11 @@ function EditableNumberCell({ value, onSave, className }: { value: number; onSav
   }
   return (
     <td
-      className={`${className} cursor-text${invalid ? " ring-1 ring-destructive" : ""}`}
+      className={`${className} cursor-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1${invalid ? " ring-1 ring-destructive" : ""}`}
       aria-invalid={invalid ? "true" : undefined}
+      tabIndex={0}
       onClick={startEditing}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); startEditing(); } }}
     >
       {value}
     </td>
