@@ -20,7 +20,7 @@
 - **Colour standard:** over-estimate / negative money uses a new dedicated **`over`** (rose) semantic token (Task 1), kept distinct from `destructive` (delete/danger) and `success`/`emerald` (paid). Route all money display through `lib/money.ts` (`formatMoney`, `decimalsFor`) — never hand-roll `/100` + `toFixed`.
 - **Fix depth:** hand-rolled interactive controls are re-routed through `Button`/`Input`/`Field` (which already carry the canonical `focus-visible:ring-2 ring-ring ring-offset-2 ring-offset-background`), not patched class-by-class, so focus/disabled/aria can't drift again.
 - **`CONTEXT.md` is NOT touched** — this pass introduces implementation, not domain language. Docs land in `COMPONENTS.md` + a new ADR (Task 20).
-- **Don't fix blind.** For low-confidence visual findings (contrast, overflow, truncation) reproduce in the running app (`npm run dev`) before and after. Test one file: `npx vitest run <path>`. Full suite: `npm test`. Lint: `npm run lint`. Build: `npm run build`.
+- **Sandbox verification reality (OVERRIDES the per-step `npm run dev` / `npm run build` instructions in every task below).** This environment has **no browser, no Postgres, no Docker — the app cannot boot and `next build` fails.** Automated gates are: type-check `npx tsc --noEmit` (exit 0), lint the touched files `npx eslint <files>` (0 errors), and tests `npx vitest run <path>` (green; full suite `npm test`). **Do NOT run `npm run dev` or `npm run build`.** Visual/interaction changes that have no automated test are verified by the three gates + review here, and their *visual* correctness is deferred to a **human browser pass** on this branch before merge — flag every such change in the report. Never fabricate a visual confirmation you could not perform.
 
 ---
 
