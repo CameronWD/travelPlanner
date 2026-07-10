@@ -82,10 +82,14 @@ describe("StopSpreadsheet (inline revert feedback)", () => {
     const input = screen.getByDisplayValue("arrive pm");
     fireEvent.change(input, { target: { value: "bad value" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    // After rejection: cell should revert and the td should carry aria-invalid="true"
-    await waitFor(() => expect(screen.getByText("arrive pm")).toBeInTheDocument());
-    const cell = screen.getByText("arrive pm").closest("td");
-    expect(cell).toHaveAttribute("aria-invalid", "true");
+    // After rejection the cell reverts (parent state) and is marked invalid (child
+    // cell state). Those are two independent state updates landing in separate
+    // microtask continuations, so React may commit them in different renders under
+    // scheduler load. Poll for the invalid mark rather than assuming it shares the
+    // revert's commit — getByText also asserts the value reverted to "arrive pm".
+    await waitFor(() =>
+      expect(screen.getByText("arrive pm").closest("td")).toHaveAttribute("aria-invalid", "true"),
+    );
   });
 
   it("clears aria-invalid after ~3 seconds", async () => {
@@ -123,9 +127,13 @@ describe("StopSpreadsheet (inline revert feedback)", () => {
     const input = screen.getByDisplayValue("7");
     fireEvent.change(input, { target: { value: "99" } });
     fireEvent.keyDown(input, { key: "Enter" });
-    await waitFor(() => expect(screen.getByText("7")).toBeInTheDocument());
-    const cell = screen.getByText("7").closest("td");
-    expect(cell).toHaveAttribute("aria-invalid", "true");
+    // Revert (parent state) and invalid-marking (child cell state) commit in
+    // separate microtask continuations, so poll for the invalid mark rather than
+    // waiting only for the revert and asserting synchronously. getByText also
+    // asserts the value reverted to "7".
+    await waitFor(() =>
+      expect(screen.getByText("7").closest("td")).toHaveAttribute("aria-invalid", "true"),
+    );
   });
 });
 
