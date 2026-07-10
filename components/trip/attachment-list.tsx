@@ -37,7 +37,10 @@ export interface AttachmentListProps {
   targetType: TargetType;
   targetId?: string;
   attachments: AttachmentView[];
-  /** If true, show a more compact layout (e.g. in a card sidebar). */
+  /**
+   * If true, show a denser layout: smaller text, tighter row padding, and no
+   * file-size label. Useful in sidebar or grouped-file contexts.
+   */
   compact?: boolean;
 }
 
@@ -135,7 +138,7 @@ export function AttachmentList({
               as="li"
               className={cn(
                 "flex items-center gap-3 px-4",
-                compact ? "py-2.5" : "py-3",
+                compact ? "py-2" : "py-3",
               )}
             >
               {/* Icon */}
@@ -143,16 +146,19 @@ export function AttachmentList({
 
               {/* Name + meta */}
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-foreground">
+                <p className={cn("truncate font-medium text-foreground", compact ? "text-xs" : "text-sm")}>
                   {att.filename}
                 </p>
                 <div className="mt-0.5 flex items-center gap-2">
                   <Badge variant="outline" className="text-xs">
                     {mimeLabel(att.mime)}
                   </Badge>
-                  <span className="text-xs text-muted-foreground">
-                    {formatBytes(att.size)}
-                  </span>
+                  {/* In compact mode the size label is suppressed for a denser row */}
+                  {!compact && (
+                    <span className="text-xs text-muted-foreground">
+                      {formatBytes(att.size)}
+                    </span>
+                  )}
                 </div>
               </div>
 

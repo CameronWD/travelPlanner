@@ -102,6 +102,7 @@ function AddReminderForm({
       <Button
         variant="ghost"
         size="sm"
+        aria-label="Add reminder"
         className="gap-2 self-start text-muted-foreground hover:text-foreground"
         onClick={() => setOpen(true)}
       >

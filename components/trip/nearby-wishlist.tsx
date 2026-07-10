@@ -39,6 +39,7 @@ export function NearbyWishlist({
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
+          aria-label={open ? "Collapse nearby wishlist items" : "Expand nearby wishlist items"}
           className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
         >
           {open ? (

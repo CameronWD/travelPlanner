@@ -110,6 +110,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
                     <li
                       key={change.field}
                       className="text-xs text-muted-foreground"
+                      aria-label={`${change.label}: changed from ${change.from || "empty"} to ${change.to || "empty"}`}
                     >
                       <span className="font-medium text-foreground/70">
                         {change.label}:

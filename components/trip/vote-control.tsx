@@ -167,10 +167,13 @@ export function VoteControl({
           <span
             className={cn(
               "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs sm:text-[10px] font-medium",
+              // Theme-aware level chips — use semantic tokens so both light and dark
+              // modes are covered without raw palette classes.
+              // MUST → warning (amber/orange family); KEEN → accent (teal); MEH → muted
               vote.level === "MUST" &&
-                "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
+                "bg-warning/15 text-warning dark:bg-warning/20 dark:text-warning",
               vote.level === "KEEN" &&
-                "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                "bg-accent/15 text-accent dark:bg-accent/20 dark:text-accent",
               vote.level === "MEH" &&
                 "bg-muted text-muted-foreground",
             )}

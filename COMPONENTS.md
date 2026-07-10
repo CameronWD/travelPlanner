@@ -192,8 +192,10 @@ Omit `onEdit` or `onDelete` to hide that button.
 />
 ```
 
-> **Note:** existing card sites not migrated to `<RowActions>` use `size-6`, `size-7`,
-> or `size-9` icon buttons — see [Deliberately left duplicated](#deliberately-left-duplicated).
+> **Icon-button standard (resolved):** all icon buttons are now `size-8` via
+> `<Button size="icon" className="size-8">` or `<RowActions>`. `<RowActions>` also
+> adds a coarse-pointer 44 px touch expander so the tap target meets WCAG 2.5.5 on
+> touch screens. See ADR 0029 for the full record.
 
 ---
 
@@ -233,6 +235,47 @@ rather than incidental divergence. Document the non-extraction here.
 `<RowActions>` and `<SectionHeader>` are explicitly **below** the numeric rule-of-three
 (2 usages each) but were extracted as forward-templates because both are pure plumbing.
 A future reviewer may choose to inline them if a third usage does not materialise.
+
+---
+
+## Finalized UI conventions
+
+These conventions were established during the `refactor/ui-refinement-consistency-pass`
+branch and are now the project standard. See **ADR 0029** for the authoritative record.
+
+### Icon-button size standard
+
+All icon buttons: `size-8` (`2rem / 32 px`). Use `<Button size="icon" className="size-8">`
+for standalone icon buttons; use `<RowActions>` for the standard edit/delete pair.
+`<RowActions>` attaches a `@media (pointer: coarse)` pseudo-element that expands the
+touch target to 44 px to meet WCAG 2.5.5.
+
+### Copy voice
+
+| Context | Rule | Example |
+|---|---|---|
+| Action labels & dialog titles | **Title Case** | "Add Stop", "Edit Transport", "Delete Reminder" |
+| Empty-state / help text | Sentence case + period | "No stops yet. Add one to get started." |
+
+### Card treatment (single standard)
+
+All trip-surface cards use this shell:
+- Background: `bg-card` (opaque)
+- Shape: `rounded-xl`
+- Shadow: `shadow-soft`
+- Padding: `px-4 py-3`
+- Inner gap: `gap-2.5`
+
+### Money tokens
+
+| Token | Colour | Use |
+|---|---|---|
+| `text-success` / `bg-success` | Green | Under-estimate / positive delta |
+| `text-over` / `bg-over` | Rose (`--over: 350 78% 50%`) | Over-estimate / negative delta |
+| `text-warning` / `bg-warning` | Amber | Warning / caution state |
+
+Use `text-over` (not `text-destructive`) when displaying an over-budget amount — `destructive`
+is reserved for errors and destructive actions.
 
 ---
 
@@ -278,13 +321,12 @@ These patterns were assessed and intentionally **not** unified. They are not gap
 - `chapters-manager` — chapter deletion needs error display (`conflicts` result) that the hook's interface cannot carry
 - `wishlist-board`, `itinerary-manager` — deletion uses an undo-toast pattern, not a confirm dialog
 
-### Open visual-consistency follow-up (for the user — design decision required)
+### ~~Open visual-consistency follow-up~~ RESOLVED (ADR 0029)
 
-Card edit/delete icon buttons use inconsistent sizes across the codebase
-(`size-6`, `size-7`, `size-8`, `size-9`). Normalising to `size-8` everywhere
-and adopting `<RowActions>` at the skipped sites above would improve visual
-consistency, but is a **design change** that was out of this refactor's
-preserve-scope. Requires a deliberate decision before implementation.
+Icon buttons are now normalised to `size-8` everywhere via
+`<Button size="icon" className="size-8">` / `<RowActions>`. `<RowActions>` adds
+a coarse-pointer 44 px touch expander. See **ADR 0029** for the full decision
+record. This follow-up is closed.
 
 ### Minor technical notes
 
