@@ -322,7 +322,7 @@ export function CostEditor({
             <AnimatedItem
               key={cost.id}
               className={cn(
-                "flex items-center justify-between gap-2 rounded-md px-2 py-1 bg-muted/40",
+                "flex items-center justify-between gap-2 rounded-lg px-3 py-2 bg-muted/40 border border-border/50",
                 pendingDeleteId === cost.id && "opacity-50 pointer-events-none",
               )}
             >
@@ -364,15 +364,15 @@ export function CostEditor({
 
       {/* Add cost button */}
       <Button
-        variant="ghost"
+        variant="outline"
         size="sm"
-        className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground self-start"
+        className="gap-1.5 self-start"
         onClick={() => {
           setErrors({});
           setAddOpen(true);
         }}
       >
-        <Plus className="size-3" aria-hidden="true" />
+        <Plus className="size-4" aria-hidden="true" />
         Add Cost
       </Button>
 

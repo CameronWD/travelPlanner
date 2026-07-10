@@ -75,7 +75,7 @@ export function InvitePanel({ tripId, members, pendingInvites }: InvitePanelProp
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Current members */}
       <div>
         <h4 className="mb-3 text-sm font-medium text-muted-foreground">

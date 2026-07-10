@@ -56,7 +56,7 @@ export function DrivingEstimatesPanel({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <Field
         id="winding-factor"
         label="Road winding factor"
