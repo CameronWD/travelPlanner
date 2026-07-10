@@ -228,7 +228,7 @@ function DeltaBadge({ text }: { text: string }) {
       className={[
         "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
         isNegative
-          ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+          ? "bg-over/10 text-over"
           : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
       ].join(" ")}
     >
@@ -342,7 +342,7 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
         );
       case "budget":
         return (
-          <span className="font-mono text-sm text-foreground">
+          <span className="font-mono text-sm text-foreground text-right block">
             {m.budgetHomeMinor !== null
               ? formatMoney(m.budgetHomeMinor, trip.homeCurrency)
               : "—"}
@@ -363,23 +363,23 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
           </div>
         );
       case "stops":
-        return <span className="font-mono text-sm text-foreground">{m.stopCount}</span>;
+        return <span className="font-mono text-sm text-foreground text-right block">{m.stopCount}</span>;
       case "nights":
-        return <span className="font-mono text-sm text-foreground">{m.nightTotal}</span>;
+        return <span className="font-mono text-sm text-foreground text-right block">{m.nightTotal}</span>;
       case "transit":
         return (
-          <span className="font-mono text-sm text-foreground">
+          <span className="font-mono text-sm text-foreground text-right block">
             {formatMinutes(m.transitMinutes)}
           </span>
         );
       case "driving":
         return (
-          <span className="font-mono text-sm text-foreground">
+          <span className="font-mono text-sm text-foreground text-right block">
             {formatMinutes(m.drivingMinutes)}
           </span>
         );
       case "flights":
-        return <span className="font-mono text-sm text-foreground">{m.flightCount}</span>;
+        return <span className="font-mono text-sm text-foreground text-right block">{m.flightCount}</span>;
     }
   }
 
@@ -506,7 +506,7 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
                 >
                   <div className="flex flex-col gap-2 min-w-0">
                     <div className="flex items-center justify-between gap-1 min-w-0">
-                      <span className="text-sm font-semibold text-foreground truncate">{plan.name}</span>
+                      <span className="text-sm font-semibold text-foreground min-w-0 truncate">{plan.name}</span>
                       <ReorderArrows
                         planName={plan.name}
                         isFirst={forkIndex === 0}

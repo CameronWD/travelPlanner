@@ -57,7 +57,7 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
                 <div className="flex items-center gap-1 text-sm">
                   {isOver ? (
                     <TrendingUp
-                      className="size-3.5 text-rose-600 dark:text-rose-400"
+                      className="size-3.5 text-over"
                       aria-hidden="true"
                     />
                   ) : (
@@ -69,7 +69,7 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
                   <span
                     className={
                       isOver
-                        ? "text-rose-700 dark:text-rose-400"
+                        ? "text-over"
                         : "text-emerald-700 dark:text-emerald-400"
                     }
                   >

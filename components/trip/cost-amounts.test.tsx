@@ -36,10 +36,11 @@ describe("CostAmounts", () => {
     expect(container.firstElementChild?.className).toContain("shrink-0");
   });
 
-  it("estimated span has responsive min-w classes for mobile (4rem) and desktop (sm:5rem)", () => {
+  it("estimated span uses whitespace-nowrap (flexible width for all decimal counts)", () => {
     render(<CostAmounts estimatedMinor={1000} actualMinor={0} currency="AUD" />);
     const estimated = screen.getByLabelText(/estimated/i);
-    expect(estimated.className).toContain("min-w-[4rem]");
-    expect(estimated.className).toContain("sm:min-w-[5rem]");
+    // Flexible layout: no hardcoded min-w that assumes 2 decimals
+    expect(estimated.className).toContain("whitespace-nowrap");
+    expect(estimated.className).not.toContain("min-w-[4rem]");
   });
 });
