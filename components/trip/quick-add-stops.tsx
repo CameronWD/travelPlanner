@@ -57,7 +57,7 @@ export function QuickAddStops({ tripId, chapterId, forkId, afterStopId }: QuickA
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-center gap-2">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <Input
         ref={inputRef}
         value={name}
@@ -67,19 +67,21 @@ export function QuickAddStops({ tripId, chapterId, forkId, afterStopId }: QuickA
         disabled={isPending}
         className="flex-1"
       />
-      <Input
-        type="number"
-        min={0}
-        value={nights}
-        onChange={(e) => setNights(e.target.value)}
-        aria-label="Nights"
-        disabled={isPending}
-        className="w-20"
-      />
-      <Button type="submit" variant="outline" size="md" loading={isPending}>
-        <Plus className="size-4" aria-hidden="true" />
-        Add
-      </Button>
+      <div className="flex items-center gap-2">
+        <Input
+          type="number"
+          min={0}
+          value={nights}
+          onChange={(e) => setNights(e.target.value)}
+          aria-label="Nights"
+          disabled={isPending}
+          className="w-full sm:w-20"
+        />
+        <Button type="submit" variant="outline" size="md" loading={isPending}>
+          <Plus className="size-4" aria-hidden="true" />
+          Add
+        </Button>
+      </div>
     </form>
   );
 }

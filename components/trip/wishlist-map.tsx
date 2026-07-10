@@ -13,6 +13,8 @@
  */
 
 import { useEffect, useRef } from "react";
+import { MapPin } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // Leaflet CSS imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
@@ -165,7 +167,15 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
     items.map((p) => `${p.id}:${p.lat},${p.lng}`).join("|"),
   ]);
 
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        icon={MapPin}
+        title="No map locations yet."
+        description="Add places with coordinates to see them on the map."
+      />
+    );
+  }
 
   return (
     <div

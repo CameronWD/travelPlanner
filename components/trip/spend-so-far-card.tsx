@@ -1,6 +1,7 @@
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { SpendSoFar } from "@/lib/spend-so-far";
 
 interface SpendSoFarCardProps {
@@ -12,8 +13,16 @@ interface SpendSoFarCardProps {
 export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSoFarCardProps) {
   const { estimatedTotalMinor, paidSoFarMinor, varianceMinor, estimatedRemainingMinor, tripElapsedPct } = spend;
 
-  // Render nothing when there's no spend data at all
-  if (estimatedTotalMinor === 0 && paidSoFarMinor === 0) return null;
+  // Render a placeholder when there's no spend data at all
+  if (estimatedTotalMinor === 0 && paidSoFarMinor === 0) {
+    return (
+      <EmptyState
+        icon={Wallet}
+        title="No spend data yet."
+        description="Add costs to your stops and items to track your budget here."
+      />
+    );
+  }
 
   if (compact) {
     const paid = formatMoney(paidSoFarMinor, homeCurrency);

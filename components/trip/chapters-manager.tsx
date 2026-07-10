@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Wand2 } from "lucide-react";
+import { BookOpen, Plus, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RowActions } from "@/components/ui/row-actions";
 import { ChapterChip } from "@/components/trip/chapter-chip";
@@ -10,6 +10,7 @@ import { deleteChapter, suggestChaptersFromCountries } from "@/server/actions/ch
 import { formatDateRange } from "@/lib/dates";
 import { cn } from "@/lib/cn";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -112,10 +113,17 @@ export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
           })}
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground">
-          No chapters yet. Chapters are optional — use them to group stops into
-          named segments of your trip.
-        </p>
+        <EmptyState
+          icon={BookOpen}
+          title="No chapters yet."
+          description="Chapters are optional — use them to group stops into named segments of your trip."
+          action={
+            <Button variant="outline" size="md" onClick={() => setAddOpen(true)}>
+              <Plus className="size-4" aria-hidden="true" />
+              Add Chapter
+            </Button>
+          }
+        />
       )}
 
       {/* Actions row */}
