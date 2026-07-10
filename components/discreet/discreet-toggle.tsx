@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff } from "lucide-react";
 import { DISCREET_COOKIE, DISCREET_LABEL_COOKIE, DEFAULT_DISCREET_LABEL } from "@/lib/discreet";
+import { Button } from "@/components/ui/button";
 
 const YEAR = 60 * 60 * 24 * 365;
 
@@ -32,11 +33,18 @@ export function DiscreetToggle({ discreet, label }: { discreet: boolean; label: 
 
   return (
     <div className="flex flex-col gap-2 px-2 py-1.5">
-      <button type="button" onClick={toggle} className="flex items-center gap-2 text-sm text-foreground" aria-pressed={discreet}>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={toggle}
+        className="flex w-full items-center gap-2 px-0 text-sm text-foreground"
+        aria-pressed={discreet}
+      >
         {discreet ? <EyeOff className="size-4" aria-hidden /> : <Eye className="size-4" aria-hidden />}
         Discreet mode
         <span className="ml-auto text-xs text-muted-foreground">{discreet ? "On" : "Off"}</span>
-      </button>
+      </Button>
       {discreet && (
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Display name
