@@ -55,6 +55,8 @@
   --warning-foreground: 24 14% 15%;
   --destructive: 2 75% 55%;
   --destructive-foreground: 0 0% 100%;
+  --over: 350 78% 50%;
+  --over-foreground: 0 0% 100%;
 
   --radius: 1rem;
 
@@ -97,6 +99,8 @@
   --warning-foreground: 24 14% 10%;
   --destructive: 2 72% 58%;
   --destructive-foreground: 0 0% 100%;
+  --over: 350 80% 62%;
+  --over-foreground: 24 14% 10%;
 
   /* Deeper shadows on dark surfaces */
   --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.30),
@@ -140,6 +144,8 @@
   --color-warning-foreground: hsl(var(--warning-foreground));
   --color-destructive: hsl(var(--destructive));
   --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-over: hsl(var(--over));
+  --color-over-foreground: hsl(var(--over-foreground));
 
   /* Fonts (provided by next/font in app/layout.tsx) */
   --font-sans: var(--font-sans-google), ui-sans-serif, system-ui, sans-serif;
