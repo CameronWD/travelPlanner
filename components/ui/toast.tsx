@@ -113,7 +113,7 @@ const ToastClose = React.forwardRef<
     className={cn(
       // p-3.5 (14px each side) + 16px icon = 44px total; meets the 44px touch target.
       "shrink-0 rounded-md p-3.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       className,
     )}
     {...props}
