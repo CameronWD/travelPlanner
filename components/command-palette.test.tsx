@@ -112,11 +112,11 @@ describe("CommandPalette", () => {
       expect(document.documentElement.classList.contains("dark")).toBe(true);
     });
 
-    it("renders 'New trip', 'Add item', 'Add stop' commands when tripId is set", async () => {
+    it("renders 'New trip', 'Add Item', 'Add Stop' commands when tripId is set", async () => {
       renderPalette();
       expect(await screen.findByText("New trip")).toBeInTheDocument();
-      expect(screen.getByText("Add item")).toBeInTheDocument();
-      expect(screen.getByText("Add stop")).toBeInTheDocument();
+      expect(screen.getByText("Add Item")).toBeInTheDocument();
+      expect(screen.getByText("Add Stop")).toBeInTheDocument();
     });
 
     it("filters Do commands by query", async () => {

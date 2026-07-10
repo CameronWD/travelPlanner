@@ -88,7 +88,7 @@ export function StopFormDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={stop ? `Edit ${stop.name}` : "Add a stop"}
+      title={stop ? `Edit ${stop.name}` : "Add Stop"}
       recordId={stop?.id ?? null}
     >
       <StopForm
@@ -348,7 +348,7 @@ function StopForm({
           </Button>
         </DialogClose>
         <Button type="submit" variant="primary" loading={isPending}>
-          {isEdit ? "Save changes" : "Add stop"}
+          {isEdit ? "Save changes" : "Add Stop"}
         </Button>
       </DialogFooter>
     </form>

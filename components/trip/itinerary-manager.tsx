@@ -1132,7 +1132,7 @@ export function ItineraryManager({
               onClick={() => setAddAccommodationStop(stop)}
             >
               <Plus className="size-3.5" aria-hidden="true" />
-              Add accommodation
+              Add Accommodation
             </Button>
           </div>
         )}
@@ -1167,7 +1167,7 @@ export function ItineraryManager({
                 }
               >
                 <Plus className="size-3.5" aria-hidden="true" />
-                Add transport to {nextStop!.name}
+                Add Transport to {nextStop!.name}
               </Button>
             </div>
           </div>
@@ -1601,7 +1601,7 @@ export function ItineraryManager({
               onClick={() => setAddTransportDefaults({})}
             >
               <Plus className="size-3.5" aria-hidden="true" />
-              Add transport (other)
+              Add Transport (Other)
             </Button>
 
             <div className="flex items-center gap-2">
@@ -1622,7 +1622,7 @@ export function ItineraryManager({
                 onClick={handleNewChapter}
               >
                 <BookOpen className="size-4" aria-hidden="true" />
-                New chapter
+                New Chapter
               </Button>
               <Button
                 variant="outline"
@@ -1630,7 +1630,7 @@ export function ItineraryManager({
                 onClick={() => setAddStopOpen(true)}
               >
                 <Plus className="size-4" aria-hidden="true" />
-                Add stop
+                Add Stop
               </Button>
             </div>
           </div>
@@ -1646,7 +1646,7 @@ export function ItineraryManager({
               <QuickAddStops tripId={tripId} chapterId={null} forkId={forkId ?? null} />
               <Button variant="outline" size="md" onClick={handleNewChapter}>
                 <BookOpen className="size-4" aria-hidden="true" />
-                New chapter
+                New Chapter
               </Button>
             </div>
           }

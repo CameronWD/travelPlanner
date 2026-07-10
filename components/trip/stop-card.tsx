@@ -292,7 +292,7 @@ export function StopCard({
             disabled={isPending}
             onClick={() => onEdit?.(stop)}
             aria-label={`Edit ${stop.name}`}
-            title="Edit stop"
+            title="Edit Stop"
           >
             <Pencil className="size-4" aria-hidden="true" />
           </Button>

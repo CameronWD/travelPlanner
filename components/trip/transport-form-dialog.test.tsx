@@ -129,7 +129,7 @@ describe("TransportFormDialog", () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} transport={existingTransport} />);
 
-    // Dialog title should say "Edit transport"
+    // Dialog title should say "Edit Transport"
     expect(
       screen.getByRole("heading", { name: /edit transport/i }),
     ).toBeInTheDocument();

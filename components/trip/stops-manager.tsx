@@ -88,7 +88,7 @@ export function StopsManager({ tripId, initialStops }: StopsManagerProps) {
               onClick={() => setAddOpen(true)}
             >
               <Plus className="size-4" aria-hidden="true" />
-              Add stop
+              Add Stop
             </Button>
           </div>
         </>

@@ -84,7 +84,7 @@ const lastScheduleDialogProps: { forkId?: string | null } = {};
 vi.mock("./schedule-item-dialog", () => ({
   ScheduleItemDialog: ({ open, itemTitle, forkId }: { open: boolean; itemTitle: string; forkId?: string | null }) => {
     lastScheduleDialogProps.forkId = forkId;
-    return open ? <div role="dialog" aria-label="Schedule item"><h2>Schedule item</h2><p>{itemTitle}</p></div> : null;
+    return open ? <div role="dialog" aria-label="Schedule Item"><h2>Schedule Item</h2><p>{itemTitle}</p></div> : null;
   },
 }));
 
@@ -267,8 +267,8 @@ describe("WishlistBoard — Schedule button", () => {
     const scheduleBtn = await screen.findByRole("button", { name: `Schedule ${item.title}` });
     await user.click(scheduleBtn);
 
-    expect(await screen.findByRole("dialog", { name: "Schedule item" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Schedule item" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Schedule Item" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Schedule Item" })).toBeInTheDocument();
   });
 });
 
@@ -312,7 +312,7 @@ describe("WishlistBoard — activeForkId threading to ScheduleItemDialog", () =>
     const scheduleBtn = await screen.findByRole("button", { name: `Schedule ${item.title}` });
     await user.click(scheduleBtn);
 
-    await screen.findByRole("dialog", { name: "Schedule item" });
+    await screen.findByRole("dialog", { name: "Schedule Item" });
     expect(lastScheduleDialogProps.forkId).toBe("fork-abc");
   });
 
@@ -330,7 +330,7 @@ describe("WishlistBoard — activeForkId threading to ScheduleItemDialog", () =>
     const scheduleBtn = await screen.findByRole("button", { name: `Schedule ${item.title}` });
     await user.click(scheduleBtn);
 
-    await screen.findByRole("dialog", { name: "Schedule item" });
+    await screen.findByRole("dialog", { name: "Schedule Item" });
     // activeForkId not passed → undefined
     expect(lastScheduleDialogProps.forkId).toBeUndefined();
   });

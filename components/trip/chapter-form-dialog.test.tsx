@@ -42,7 +42,7 @@ describe("ChapterFormDialog", () => {
   it("renders in add mode with the correct heading", () => {
     render(<ChapterFormDialog {...baseProps} />);
     expect(
-      screen.getByRole("heading", { name: /add a chapter/i }),
+      screen.getByRole("heading", { name: /add chapter/i }),
     ).toBeInTheDocument();
   });
 

@@ -76,7 +76,7 @@ export function ChapterFormDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title={chapter ? `Edit ${chapter.name}` : "Add a chapter"}
+      title={chapter ? `Edit ${chapter.name}` : "Add Chapter"}
       recordId={chapter?.id ?? null}
     >
       <ChapterForm
@@ -235,7 +235,7 @@ function ChapterForm({
           </Button>
         </DialogClose>
         <Button type="submit" variant="primary" loading={isPending}>
-          {isEdit ? "Save changes" : "Add chapter"}
+          {isEdit ? "Save changes" : "Add Chapter"}
         </Button>
       </DialogFooter>
     </form>

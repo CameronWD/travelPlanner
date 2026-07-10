@@ -126,7 +126,7 @@ export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
           onClick={() => setAddOpen(true)}
         >
           <Plus className="size-4" aria-hidden="true" />
-          Add chapter
+          Add Chapter
         </Button>
         <Button
           variant="ghost"

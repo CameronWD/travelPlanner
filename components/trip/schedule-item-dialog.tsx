@@ -54,7 +54,7 @@ export function ScheduleItemDialog({
     <FormDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Schedule item"
+      title="Schedule Item"
       recordId={itemId}
     >
       <p className="text-sm text-muted-foreground">

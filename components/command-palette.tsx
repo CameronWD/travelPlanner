@@ -236,8 +236,8 @@ function CommandPaletteInner({ onOpenChange, tripId }: CommandPaletteInnerProps)
     { label: "New trip", onActivate: () => go("/trips/new") },
     ...(tripId
       ? [
-          { label: "Add item", onActivate: () => go(`/trips/${tripId}/wishlist`) },
-          { label: "Add stop", onActivate: () => go(`/trips/${tripId}/plan`) },
+          { label: "Add Item", onActivate: () => go(`/trips/${tripId}/wishlist`) },
+          { label: "Add Stop", onActivate: () => go(`/trips/${tripId}/plan`) },
         ]
       : []),
     {
