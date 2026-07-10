@@ -18,4 +18,10 @@ describe("RowActions", () => {
     expect(onEdit).toHaveBeenCalled();
     expect(onDelete).toHaveBeenCalled();
   });
+  it("expands the tap target on coarse pointers", () => {
+    render(<RowActions onEdit={() => {}} onDelete={() => {}} />);
+    for (const btn of screen.getAllByRole("button")) {
+      expect(btn.className).toContain("pointer-coarse:after:-inset-1.5");
+    }
+  });
 });
