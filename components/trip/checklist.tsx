@@ -630,7 +630,7 @@ export function Checklist({
       <div className="flex flex-col gap-4">
         <EmptyState
           icon={CheckSquare}
-          title={kind === "PRETRIP" ? "No pre-trip tasks yet" : "Packing list is empty"}
+          title={kind === "PRETRIP" ? "No pre-trip tasks yet." : "No packing items yet."}
           description={
             kind === "PRETRIP"
               ? "Add tasks like booking confirmations, paperwork, and anything to sort before you leave."

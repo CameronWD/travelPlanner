@@ -289,7 +289,7 @@ export function WishlistBoard({
       {view === "list" && isEmpty && (
         <EmptyState
           icon={Heart}
-          title="No Items yet"
+          title="No items yet."
           description="Collect activities, sights, and restaurants you'd love to do — schedule them to a Stop when you're ready."
         />
       )}

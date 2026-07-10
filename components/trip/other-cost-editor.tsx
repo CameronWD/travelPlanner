@@ -204,7 +204,7 @@ function OtherCostDialog({
           {/* Actual */}
           <Field
             label="Actual cost"
-            description="Leave blank until paid"
+            description="Leave blank if you haven't paid yet."
             error={errors.actualMinor?.[0]}
           >
             <MoneyInput
@@ -222,7 +222,7 @@ function OtherCostDialog({
           {/* Paid date */}
           <Field
             label="Date paid"
-            description="Optional — when this was paid"
+            description="Optional — when the cost was paid."
             error={errors.paidAt?.[0]}
           >
             <Input

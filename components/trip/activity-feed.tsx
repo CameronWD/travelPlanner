@@ -29,7 +29,7 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
     return (
       <EmptyState
         icon={Activity}
-        title="No activity yet"
+        title="No activity yet."
         description="Changes to your Trip — Stops, transport, costs, and notes — will appear here."
       />
     );
