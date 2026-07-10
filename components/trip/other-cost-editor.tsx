@@ -246,8 +246,8 @@ function OtherCostDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" size="md" disabled={submitting}>
-              {submitting ? "Saving…" : "Save"}
+            <Button type="submit" variant="primary" size="md" disabled={submitting} loading={submitting}>
+              Save
             </Button>
           </DialogFooter>
         </form>

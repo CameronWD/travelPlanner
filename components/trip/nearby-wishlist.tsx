@@ -9,7 +9,7 @@
  * - Footer: "See full wishlist" link.
  */
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { MapPin, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -27,6 +27,8 @@ export function NearbyWishlist({
   items: NearbyResult[];
 }) {
   const [open, setOpen] = useState(false);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
   if (items.length === 0) return null;
 
@@ -78,22 +80,30 @@ export function NearbyWishlist({
                   <button
                     type="button"
                     aria-label={`Add ${item.title} to today`}
-                    className="shrink-0 rounded-md border border-border bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                    onClick={async () => {
-                      const result = await scheduleItem(item.id, { date });
-                      if (result.success) {
-                        toast({
-                          title: "Added to today",
-                          description: `${item.title} has been added to ${date}.`,
-                        });
-                      } else {
-                        const firstError = Object.values(result.errors)[0]?.[0];
-                        toast({
-                          variant: "destructive",
-                          title: "Couldn't add item",
-                          description: firstError,
-                        });
-                      }
+                    disabled={pendingId === item.id}
+                    className="shrink-0 rounded-md border border-border bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    onClick={() => {
+                      setPendingId(item.id);
+                      startTransition(async () => {
+                        try {
+                          const result = await scheduleItem(item.id, { date });
+                          if (result.success) {
+                            toast({
+                              title: "Added to today",
+                              description: `${item.title} has been added to ${date}.`,
+                            });
+                          } else {
+                            const firstError = Object.values(result.errors)[0]?.[0];
+                            toast({
+                              variant: "destructive",
+                              title: "Couldn't add item",
+                              description: firstError,
+                            });
+                          }
+                        } finally {
+                          setPendingId(null);
+                        }
+                      });
                     }}
                   >
                     Add to today

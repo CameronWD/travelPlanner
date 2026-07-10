@@ -227,6 +227,7 @@ export function PackingTemplatesBar({
                 variant="outline"
                 size="sm"
                 loading={applyPending}
+                disabled={applyPending}
               >
                 <FolderOpen className="size-4" aria-hidden="true" />
                 Apply template

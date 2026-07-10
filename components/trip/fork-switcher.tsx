@@ -112,8 +112,8 @@ function RenameDialogForm({
             Cancel
           </Button>
         </DialogClose>
-        <Button variant="primary" type="submit" disabled={isPending || !name.trim()}>
-          {isPending ? "Saving…" : "Save"}
+        <Button variant="primary" type="submit" disabled={isPending || !name.trim()} loading={isPending}>
+          Save
         </Button>
       </DialogFooter>
     </form>
@@ -180,7 +180,7 @@ function CreateVariantForm({
       </div>
       <DialogFooter>
         <DialogClose asChild><Button variant="outline" type="button">Cancel</Button></DialogClose>
-        <Button variant="primary" type="submit" disabled={isPending}>{isPending ? "Creating…" : "Create"}</Button>
+        <Button variant="primary" type="submit" disabled={isPending} loading={isPending}>Create</Button>
       </DialogFooter>
     </form>
   );

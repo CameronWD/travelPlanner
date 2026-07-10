@@ -91,7 +91,8 @@ export function AddFromGlobeDialog({
       setLocallyAdded((prev) => new Set([...prev, markerId]));
       const marker = markersRef.current.find((m) => m.id === markerId);
       toast({
-        title: `Added "${marker?.title ?? markerId}" to Wishlist`,
+        title: "Added to Wishlist",
+        description: marker?.title ?? markerId,
         variant: "success",
       });
     },

@@ -197,8 +197,9 @@ function CostDialogForm({
               variant="primary"
               size="md"
               disabled={submitting}
+              loading={submitting}
             >
-              {submitting ? "Saving…" : "Save"}
+              Save
             </Button>
           </DialogFooter>
         </form>
