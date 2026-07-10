@@ -160,7 +160,9 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
   };
 
   const chooseCandidate = (c: GeoCandidate) => {
-    setTitle((t) => t || c.name.split(",")[0]);
+    // Always adopt the picked result's name — picking a place is an explicit
+    // choice, so it overwrites any prior title (including an earlier pick).
+    setTitle(c.name.split(",")[0]);
     setPlace({ lat: c.lat, lng: c.lng, city: c.city, country: c.country, countryCode: c.countryCode });
     setCandidates([]);
     setSearched(false);

@@ -22,14 +22,18 @@ export function GlobeView({ markers, members }: GlobeViewProps) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<MarkerView | null>(null);
   const [prefill, setPrefill] = useState<{ lat: number; lng: number } | null>(null);
+  // Bumped on every open so the form's `key` changes and MarkerForm remounts
+  // fresh — otherwise reopening "Add" (a constant key) reuses the prior
+  // instance's state and carries the last marker's fields over.
+  const [openSeq, setOpenSeq] = useState(0);
 
   const filtered = useMemo(() => filterMarkers(markers, filter), [markers, filter]);
   const countries = useMemo(() => distinctCountries(markers), [markers]);
   const byId = useMemo(() => new Map(markers.map((m) => [m.id, m])), [markers]);
 
-  const openAdd = () => { setEditing(null); setPrefill(null); setFormOpen(true); };
-  const openEdit = (id: string) => { setEditing(byId.get(id) ?? null); setPrefill(null); setFormOpen(true); };
-  const openDrop = (lat: number, lng: number) => { setEditing(null); setPrefill({ lat, lng }); setFormOpen(true); };
+  const openAdd = () => { setEditing(null); setPrefill(null); setOpenSeq((n) => n + 1); setFormOpen(true); };
+  const openEdit = (id: string) => { setEditing(byId.get(id) ?? null); setPrefill(null); setOpenSeq((n) => n + 1); setFormOpen(true); };
+  const openDrop = (lat: number, lng: number) => { setEditing(null); setPrefill({ lat, lng }); setOpenSeq((n) => n + 1); setFormOpen(true); };
   const onSaved = () => router.refresh();
 
   return (
@@ -51,7 +55,7 @@ export function GlobeView({ markers, members }: GlobeViewProps) {
       <MarkerList markers={filtered} onSelect={openEdit} />
 
       <MarkerForm
-        key={editing ? `edit-${editing.id}` : prefill ? `drop-${prefill.lat},${prefill.lng}` : "add"}
+        key={`${openSeq}-${editing ? `edit-${editing.id}` : prefill ? `drop-${prefill.lat},${prefill.lng}` : "add"}`}
         open={formOpen}
         onOpenChange={setFormOpen}
         marker={editing}

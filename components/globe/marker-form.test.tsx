@@ -161,6 +161,32 @@ describe("MarkerForm — place search feedback", () => {
     expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("Kyoto");
   });
 
+  it("overwrites the title when a different candidate is selected", async () => {
+    const user = userEvent.setup();
+    vi.mocked(searchPlacesAction).mockResolvedValue({
+      status: "ok",
+      candidates: [{ name: "Kyoto, Japan", lat: 35.01, lng: 135.76, city: "Kyoto", country: "Japan", countryCode: "jp" }],
+    });
+    render(<MarkerForm {...baseProps} />);
+
+    const search = screen.getByLabelText("Place search");
+    await user.type(search, "Kyoto");
+    await user.click(screen.getByRole("button", { name: /^search$/i }));
+    await user.click(await screen.findByRole("button", { name: /kyoto, japan/i }));
+    expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("Kyoto");
+
+    // Change your mind: search again and pick a different place.
+    vi.mocked(searchPlacesAction).mockResolvedValue({
+      status: "ok",
+      candidates: [{ name: "Osaka, Japan", lat: 34.69, lng: 135.5, city: "Osaka", country: "Japan", countryCode: "jp" }],
+    });
+    await user.clear(search);
+    await user.type(search, "Osaka");
+    await user.click(screen.getByRole("button", { name: /^search$/i }));
+    await user.click(await screen.findByRole("button", { name: /osaka, japan/i }));
+    expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("Osaka");
+  });
+
   it("clears the 'no matches' message once the user edits the query again", async () => {
     const user = userEvent.setup();
     vi.mocked(searchPlacesAction).mockResolvedValue({ status: "ok", candidates: [] });
