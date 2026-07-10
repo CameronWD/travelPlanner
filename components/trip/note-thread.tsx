@@ -154,7 +154,7 @@ function ThreadBody({
                 size="icon"
                 disabled={isPending || deleteIsPending}
                 onClick={() => requestDelete(note.id)}
-                aria-label="Delete note"
+                aria-label="Delete Note"
                 className="size-8 shrink-0 self-start text-destructive hover:bg-destructive/10"
               >
                 <Trash2 className="size-4" aria-hidden="true" />

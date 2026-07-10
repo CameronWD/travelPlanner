@@ -112,8 +112,8 @@ export function TransportCard({
         <RowActions
           onEdit={onEdit ? () => onEdit(t) : undefined}
           onDelete={onDelete ? () => onDelete(t.id) : undefined}
-          editLabel="Edit transport"
-          deleteLabel="Delete transport"
+          editLabel="Edit Transport"
+          deleteLabel="Delete Transport"
           disabled={isPending}
         />
       </div>

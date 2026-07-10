@@ -316,7 +316,7 @@ export function StopCard({
             disabled={isPending}
             onClick={() => onDelete?.(stop.id)}
             aria-label={`Delete ${stop.name}`}
-            title="Delete stop"
+            title="Delete Stop"
           >
             <Trash2 className="size-4" aria-hidden="true" />
           </Button>

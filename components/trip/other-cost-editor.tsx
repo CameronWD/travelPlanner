@@ -339,7 +339,7 @@ export function OtherCostEditor({
         }}
       >
         <Plus className="size-4" aria-hidden="true" />
-        Add cost
+        Add Cost
       </Button>
 
       {costs.length === 0 ? (
@@ -428,7 +428,7 @@ export function OtherCostEditor({
         key={addOpen ? "add-open" : "add-closed"}
         open={addOpen}
         onOpenChange={(open) => { if (!open) setAddOpen(false); }}
-        title="Add other cost"
+        title="Add Other Cost"
         onSubmit={handleAddSubmit}
         initialState={defaultFormState(baseCurrency)}
         submitting={submitting}
@@ -441,7 +441,7 @@ export function OtherCostEditor({
           key={editingCost.id}
           open={Boolean(editingCost)}
           onOpenChange={(open) => { if (!open) setEditingCost(null); }}
-          title="Edit cost"
+          title="Edit Cost"
           onSubmit={handleEditSubmit}
           initialState={costToFormState(editingCost)}
           submitting={submitting}

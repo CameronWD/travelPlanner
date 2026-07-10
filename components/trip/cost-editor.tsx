@@ -340,7 +340,7 @@ export function CostEditor({
                     setErrors({});
                     setEditingCost(cost);
                   }}
-                  aria-label="Edit cost"
+                  aria-label="Edit Cost"
                   title="Edit"
                 >
                   <Pencil className="size-4" aria-hidden="true" />
@@ -350,7 +350,7 @@ export function CostEditor({
                   size="icon"
                   className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => handleDelete(cost.id)}
-                  aria-label="Delete cost"
+                  aria-label="Delete Cost"
                   title="Delete"
                 >
                   <X className="size-4" aria-hidden="true" />
@@ -372,7 +372,7 @@ export function CostEditor({
         }}
       >
         <Plus className="size-3" aria-hidden="true" />
-        Add cost
+        Add Cost
       </Button>
 
       {/* Add dialog — key={addOpen} forces a fresh mount each open */}
@@ -382,7 +382,7 @@ export function CostEditor({
         onOpenChange={(open) => {
           if (!open) setAddOpen(false);
         }}
-        title="Add cost"
+        title="Add Cost"
         onSubmit={handleAddSubmit}
         initialState={defaultFormState(baseCurrency)}
         submitting={submitting}
@@ -398,7 +398,7 @@ export function CostEditor({
           onOpenChange={(open) => {
             if (!open) setEditingCost(null);
           }}
-          title="Edit cost"
+          title="Edit Cost"
           onSubmit={handleEditSubmit}
           initialState={costToFormState(editingCost)}
           submitting={submitting}

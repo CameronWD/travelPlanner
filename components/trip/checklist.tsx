@@ -364,7 +364,7 @@ function EditItemDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit item</DialogTitle>
+          <DialogTitle>Edit Item</DialogTitle>
         </DialogHeader>
         {/* key forces remount on every open → state always fresh */}
         <EditItemForm
@@ -556,7 +556,7 @@ function ChecklistRow({
             className="size-8"
             onClick={() => setEditOpen(true)}
             disabled={pending}
-            aria-label="Edit item"
+            aria-label="Edit Item"
           >
             <Pencil className="size-4" aria-hidden="true" />
           </Button>
@@ -567,7 +567,7 @@ function ChecklistRow({
             className="size-8 text-destructive hover:bg-destructive/10"
             onClick={() => requestDelete(item.id)}
             disabled={pending || deleteIsPending}
-            aria-label="Delete item"
+            aria-label="Delete Item"
           >
             <Trash2 className="size-4" aria-hidden="true" />
           </Button>
