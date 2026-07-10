@@ -32,7 +32,7 @@ export async function PhaseSketching({ tripId, tripName }: PhaseSketchingProps) 
     return (
       <EmptyState
         icon={Compass}
-        title="Let's shape this trip"
+        title="Let's shape this trip."
         description="Add a place or a chapter to start sketching. Set dates whenever you're ready."
         action={
           <Button asChild>

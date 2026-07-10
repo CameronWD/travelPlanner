@@ -41,7 +41,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
     return (
       <EmptyState
         icon={CalendarDays}
-        title="No dates yet"
+        title="No dates yet."
         description="Set your trip's start date to see a day-by-day view of today."
       />
     );
