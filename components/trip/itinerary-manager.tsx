@@ -129,6 +129,10 @@ interface ItineraryManagerProps {
   tripEndDate?: string;
   /** Map of stopId → notes for that stop */
   notesByStopId?: Map<string, NoteView[]>;
+  /** Map of transportId → notes for that transport */
+  notesByTransportId?: Map<string, NoteView[]>;
+  /** Map of accommodationId → notes for that accommodation */
+  notesByAccommodationId?: Map<string, NoteView[]>;
   /** Current authenticated user's ID */
   currentUserId?: string;
   /** Fork being edited (null = real plan). Threaded to all create actions. */
@@ -319,6 +323,8 @@ export function ItineraryManager({
   tripStartDate,
   tripEndDate,
   notesByStopId,
+  notesByTransportId,
+  notesByAccommodationId,
   currentUserId,
   forkId,
   thingsToDoByStopId,
@@ -1124,6 +1130,8 @@ export function ItineraryManager({
                 costs={acc.costs}
                 tripId={tripId}
                 homeCurrency={homeCurrency}
+                notes={notesByAccommodationId?.get(acc.id) ?? []}
+                currentUserId={currentUserId}
               />
             ))}
           </div>
@@ -1159,6 +1167,8 @@ export function ItineraryManager({
                 tripId={tripId}
                 homeCurrency={homeCurrency}
                 homeBaseName={homeBaseName}
+                notes={notesByTransportId?.get(t.id) ?? []}
+                currentUserId={currentUserId}
               />
             ))}
 
@@ -1211,6 +1221,8 @@ export function ItineraryManager({
             tripId={tripId}
             homeCurrency={homeCurrency}
             homeBaseName={homeBaseName}
+            notes={notesByTransportId?.get(t.id) ?? []}
+            currentUserId={currentUserId}
           />
         ))}
       </div>

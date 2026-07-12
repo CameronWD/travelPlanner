@@ -12,6 +12,10 @@ vi.mock("@/server/actions/transport", () => ({
   createTransport: vi.fn(),
   updateTransport: vi.fn(),
 }));
+vi.mock("@/server/actions/notes", () => ({
+  addNote: vi.fn(),
+  deleteNote: vi.fn(),
+}));
 
 import { TransportCard } from "./transport-card";
 
@@ -76,5 +80,30 @@ describe("TransportCard home-base labels", () => {
     );
     expect(screen.getByText(/Sydney/)).toBeInTheDocument();
     expect(screen.getByText(/Paris/)).toBeInTheDocument();
+  });
+});
+
+describe("TransportCard NoteThread", () => {
+  it("renders a note thread trigger for a transport", () => {
+    render(
+      <TransportCard
+        transport={{ id: "tr1", mode: "FLIGHT" as const, sortOrder: 0 }}
+        tripId="t1"
+        currentUserId="u1"
+        notes={[]}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /note/i })).toBeInTheDocument();
+  });
+
+  it("does not render note thread trigger when notes prop is absent", () => {
+    render(
+      <TransportCard
+        transport={{ id: "tr1", mode: "FLIGHT" as const, sortOrder: 0 }}
+        tripId="t1"
+        currentUserId="u1"
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /note/i })).not.toBeInTheDocument();
   });
 });

@@ -7,6 +7,7 @@ import type { TransportMode } from "@/lib/enums";
 import { transportTimeDisplay, shortDate, dayDeltaSuffix } from "@/lib/time-display";
 import { CostEditor } from "./cost-editor";
 import type { CostRow } from "@/server/actions/costs";
+import { NoteThread, type NoteView } from "./note-thread";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,6 +52,10 @@ interface TransportCardProps {
   homeCurrency?: string;
   /** Trip's home base name — displayed for home-flagged endpoints */
   homeBaseName?: string | null;
+  /** Notes attached to this transport */
+  notes?: NoteView[];
+  /** Current authenticated user's ID (required for notes) */
+  currentUserId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,6 +71,8 @@ export function TransportCard({
   tripId,
   homeCurrency,
   homeBaseName,
+  notes,
+  currentUserId,
 }: TransportCardProps) {
   const meta = TRANSPORT_MODE_META[t.mode];
   const Icon = meta.icon;
@@ -114,13 +121,24 @@ export function TransportCard({
         </div>
 
         {/* Controls */}
-        <RowActions
-          onEdit={onEdit ? () => onEdit(t) : undefined}
-          onDelete={onDelete ? () => onDelete(t.id) : undefined}
-          editLabel="Edit Transport"
-          deleteLabel="Delete Transport"
-          disabled={isPending}
-        />
+        <div className="flex shrink-0 items-center gap-1">
+          {notes !== undefined && tripId && currentUserId && (
+            <NoteThread
+              tripId={tripId}
+              targetType="TRANSPORT"
+              targetId={t.id}
+              notes={notes}
+              currentUserId={currentUserId}
+            />
+          )}
+          <RowActions
+            onEdit={onEdit ? () => onEdit(t) : undefined}
+            onDelete={onDelete ? () => onDelete(t.id) : undefined}
+            editLabel="Edit Transport"
+            deleteLabel="Delete Transport"
+            disabled={isPending}
+          />
+        </div>
       </div>
 
       {/* Times row */}

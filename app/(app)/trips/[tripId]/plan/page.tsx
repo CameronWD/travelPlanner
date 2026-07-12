@@ -153,40 +153,50 @@ export default async function TripPlanPage({
     }),
   ]);
 
-  // Fetch stop notes
-  const stopIds = stops.map((s) => s.id);
-  const stopNotes =
-    stopIds.length > 0
-      ? await db.note.findMany({
-          where: {
-            tripId,
-            targetType: "STOP",
-            targetId: { in: stopIds },
-          },
-          orderBy: { createdAt: "asc" },
-          select: {
-            id: true,
-            body: true,
-            createdAt: true,
-            targetId: true,
-            author: {
-              select: { id: true, name: true, image: true },
-            },
-          },
-        })
-      : [];
+  // Fetch notes for stops, transports, and accommodations in one query
+  const allNotes = await db.note.findMany({
+    where: {
+      tripId,
+      targetType: { in: ["STOP", "TRANSPORT", "ACCOMMODATION"] },
+    },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      body: true,
+      createdAt: true,
+      targetId: true,
+      targetType: true,
+      author: {
+        select: { id: true, name: true, image: true },
+      },
+    },
+  });
 
-  // Group stop notes by stopId
+  // Group notes by targetType then targetId
   const notesByStopId = new Map<string, NoteView[]>();
-  for (const note of stopNotes) {
-    const existing = notesByStopId.get(note.targetId) ?? [];
-    existing.push({
+  const notesByTransportId = new Map<string, NoteView[]>();
+  const notesByAccommodationId = new Map<string, NoteView[]>();
+
+  for (const note of allNotes) {
+    const noteView: NoteView = {
       id: note.id,
       body: note.body,
       createdAt: note.createdAt,
       author: note.author,
-    });
-    notesByStopId.set(note.targetId, existing);
+    };
+    if (note.targetType === "STOP") {
+      const existing = notesByStopId.get(note.targetId) ?? [];
+      existing.push(noteView);
+      notesByStopId.set(note.targetId, existing);
+    } else if (note.targetType === "TRANSPORT") {
+      const existing = notesByTransportId.get(note.targetId) ?? [];
+      existing.push(noteView);
+      notesByTransportId.set(note.targetId, existing);
+    } else if (note.targetType === "ACCOMMODATION") {
+      const existing = notesByAccommodationId.get(note.targetId) ?? [];
+      existing.push(noteView);
+      notesByAccommodationId.set(note.targetId, existing);
+    }
   }
 
   // Group costs by ownerId for quick lookup
@@ -315,6 +325,8 @@ export default async function TripPlanPage({
         tripStartDate={tripStartDate}
         tripEndDate={tripEndDate}
         notesByStopId={notesByStopId}
+        notesByTransportId={notesByTransportId}
+        notesByAccommodationId={notesByAccommodationId}
         currentUserId={user.id}
         chapters={chapters}
         thingsToDoByStopId={thingsToDoByStopId}
