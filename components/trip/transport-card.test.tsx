@@ -7,6 +7,11 @@ vi.mock("@/server/actions/costs", () => ({
   updateCost: vi.fn(),
   deleteCost: vi.fn(),
 }));
+vi.mock("@/server/actions/transport", () => ({
+  deleteTransport: vi.fn(),
+  createTransport: vi.fn(),
+  updateTransport: vi.fn(),
+}));
 
 import { TransportCard } from "./transport-card";
 
@@ -51,5 +56,25 @@ describe("TransportCard drive estimate", () => {
       />,
     );
     expect(screen.queryByText(/≈/)).not.toBeInTheDocument();
+  });
+});
+
+describe("TransportCard home-base labels", () => {
+  it("shows the home base name for a home departure and stop name for arrival", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "tr1",
+          mode: "FLIGHT" as const,
+          depIsHome: true,
+          toStopId: "s1",
+          toStopName: "Paris",
+          sortOrder: 0,
+        }}
+        homeBaseName="Sydney"
+      />,
+    );
+    expect(screen.getByText(/Sydney/)).toBeInTheDocument();
+    expect(screen.getByText(/Paris/)).toBeInTheDocument();
   });
 });

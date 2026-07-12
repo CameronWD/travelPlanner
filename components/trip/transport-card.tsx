@@ -49,6 +49,8 @@ interface TransportCardProps {
   tripId?: string;
   /** Trip's home currency */
   homeCurrency?: string;
+  /** Trip's home base name — displayed for home-flagged endpoints */
+  homeBaseName?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,12 +65,13 @@ export function TransportCard({
   costs,
   tripId,
   homeCurrency,
+  homeBaseName,
 }: TransportCardProps) {
   const meta = TRANSPORT_MODE_META[t.mode];
   const Icon = meta.icon;
 
-  const fromLabel = t.fromStopName ?? t.depPlace ?? null;
-  const toLabel = t.toStopName ?? t.arrPlace ?? null;
+  const fromLabel = t.depIsHome ? (homeBaseName ?? "Home") : (t.fromStopName ?? t.depPlace ?? null);
+  const toLabel = t.arrIsHome ? (homeBaseName ?? "Home") : (t.toStopName ?? t.arrPlace ?? null);
 
   const td = transportTimeDisplay({
     depAt: t.depAt, arrAt: t.arrAt, fromTimezone: t.fromStopTimezone, toTimezone: t.toStopTimezone,

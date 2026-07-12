@@ -90,6 +90,8 @@ export interface ItineraryTransport {
   mode: TransportMode;
   fromStopId?: string | null;
   toStopId?: string | null;
+  depIsHome?: boolean | null;
+  arrIsHome?: boolean | null;
   depPlace?: string | null;
   arrPlace?: string | null;
   depAt?: Date | null;
@@ -1156,6 +1158,7 @@ export function ItineraryManager({
                 costs={t.costs}
                 tripId={tripId}
                 homeCurrency={homeCurrency}
+                homeBaseName={homeBaseName}
               />
             ))}
 
@@ -1207,6 +1210,7 @@ export function ItineraryManager({
             costs={t.costs}
             tripId={tripId}
             homeCurrency={homeCurrency}
+            homeBaseName={homeBaseName}
           />
         ))}
       </div>
@@ -1593,6 +1597,7 @@ export function ItineraryManager({
                   costs={t.costs}
                   tripId={tripId}
                   homeCurrency={homeCurrency}
+                  homeBaseName={homeBaseName}
                 />
               ))}
             </div>
