@@ -15,6 +15,7 @@ import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, reflowReorderedDates, type ReflowStop } from "@/lib/reorder";
 import { chapterSpan } from "@/lib/chapter-span";
 import { type ActionResult, validationResult } from "@/lib/action-result";
+import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -478,9 +479,24 @@ export async function updateStop(
 export async function deleteStop(stopId: string): Promise<StopActionResult> {
   const stop = await requireStopAccess(stopId);
 
+  // Collect accommodation ids BEFORE deleting the stop. The DB cascades
+  // Accommodation rows when a Stop is deleted, which would orphan their
+  // attachments and notes — we clean those up ourselves below.
+  const cascadedAccommodations = await db.accommodation.findMany({
+    where: { stopId },
+    select: { id: true },
+  });
+
   const doomed = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
   await db.stop.delete({ where: { id: stopId } });
   await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
+
+  // Clean up the stop's own attachments/notes.
+  await cleanupTargetSideData(stop.tripId, "STOP", stopId);
+  // Clean up attachments/notes for accommodations that were cascade-deleted.
+  for (const acc of cascadedAccommodations) {
+    await cleanupTargetSideData(stop.tripId, "ACCOMMODATION", acc.id);
+  }
 
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };

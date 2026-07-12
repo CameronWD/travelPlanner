@@ -14,6 +14,7 @@ import { entityLabel, describeChanges } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { type ActionResult, validationResult } from "@/lib/action-result";
+import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -279,6 +280,8 @@ export async function deleteAccommodation(
   const doomed = await db.accommodation.findUnique({ where: { id: accommodationId }, select: { name: true } });
   await db.accommodation.delete({ where: { id: accommodationId } });
   await recordPlanActivity(acc.forkId, { tripId: acc.tripId, verb: "DELETED", entityType: "ACCOMMODATION", entityId: accommodationId, entityLabel: doomed?.name ?? "" });
+
+  await cleanupTargetSideData(acc.tripId, "ACCOMMODATION", accommodationId);
 
   revalidatePath(`/trips/${acc.tripId}`);
   return { success: true };
