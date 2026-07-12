@@ -23,6 +23,14 @@ export interface NudgeInput {
   hasPackingList: boolean;
   hasPretripList: boolean;
   unbookedTransportCount: number;
+  // Home base
+  hasHomeBase: boolean;
+  hasOutboundLeg: boolean;
+  hasReturnLeg: boolean;
+  roundTrip: boolean;
+  homeName: string | null;
+  firstStopName: string | null;
+  lastStopName: string | null;
 }
 
 export interface BuildNextStepsInput {
@@ -103,6 +111,27 @@ export function buildNextSteps({
   push(nudges.unbookedTransportCount > 0, "nudge-unbooked-transport", `${nudges.unbookedTransportCount} transport leg${nudges.unbookedTransportCount === 1 ? "" : "s"} have no times yet.`, `${tripBasePath}/plan`, isFinalPrep ? 9 : 20);
   push(!nudges.hasPackingList, "nudge-packing", "Start your packing list.", `${tripBasePath}/checklists`, isFinalPrep ? 6 : 26);
   push(!nudges.hasPretripList, "nudge-pretrip", "Add pre-trip to-dos (visas, insurance, eSIM).", `${tripBasePath}/checklists`, isFinalPrep ? 8 : 28);
+  push(
+    !nudges.hasHomeBase,
+    "nudge-set-home-base",
+    "Set your home base to plan your outbound and return flights.",
+    `${tripBasePath}/settings`,
+    12,
+  );
+  push(
+    nudges.hasHomeBase && !!nudges.firstStopName && !nudges.hasOutboundLeg,
+    "nudge-add-outbound-flight",
+    `Add your outbound flight from ${nudges.homeName} to ${nudges.firstStopName}.`,
+    `${tripBasePath}/plan`,
+    13,
+  );
+  push(
+    nudges.hasHomeBase && nudges.roundTrip && !!nudges.lastStopName && !nudges.hasReturnLeg,
+    "nudge-add-return-flight",
+    `Add your flight home from ${nudges.lastStopName} to ${nudges.homeName}.`,
+    `${tripBasePath}/plan`,
+    14,
+  );
 
   candidates.sort((a, b) => (a.priority !== b.priority ? a.priority - b.priority : a.id.localeCompare(b.id)));
 

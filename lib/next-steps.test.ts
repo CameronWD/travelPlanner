@@ -2,13 +2,25 @@ import { describe, expect, it } from "vitest";
 import { buildNextSteps, type NudgeInput } from "./next-steps";
 import type { Flag } from "@/lib/flags";
 
-const NO_NUDGES: NudgeInput = {
-  hasDates: true,
-  undatedChapterCount: 0,
-  hasPackingList: true,
-  hasPretripList: true,
-  unbookedTransportCount: 0,
-};
+function makeNudges(overrides: Partial<NudgeInput> = {}): NudgeInput {
+  return {
+    hasDates: true,
+    undatedChapterCount: 0,
+    hasPackingList: true,
+    hasPretripList: true,
+    unbookedTransportCount: 0,
+    hasHomeBase: true,
+    hasOutboundLeg: true,
+    hasReturnLeg: true,
+    roundTrip: false,
+    homeName: null,
+    firstStopName: null,
+    lastStopName: null,
+    ...overrides,
+  };
+}
+
+const NO_NUDGES: NudgeInput = makeNudges();
 
 const warn = (id: string): Flag => ({ id, severity: "warning", message: `warn ${id}`, targetType: "STOP", targetId: id });
 const info = (id: string): Flag => ({ id, severity: "info", message: `info ${id}`, targetType: "DAY", date: "2026-07-01" });
@@ -34,7 +46,7 @@ describe("buildNextSteps", () => {
     const steps = buildNextSteps({
       flags: [],
       phase: "planning",
-      nudges: { hasDates: true, undatedChapterCount: 2, hasPackingList: false, hasPretripList: false, unbookedTransportCount: 3 },
+      nudges: makeNudges({ hasDates: true, undatedChapterCount: 2, hasPackingList: false, hasPretripList: false, unbookedTransportCount: 3 }),
       tripBasePath: "/trips/t",
     });
     const titles = steps.map((s) => s.title);
@@ -47,7 +59,7 @@ describe("buildNextSteps", () => {
     const steps = buildNextSteps({
       flags: [info("empty-day")],
       phase: "final-prep",
-      nudges: { hasDates: true, undatedChapterCount: 0, hasPackingList: false, hasPretripList: false, unbookedTransportCount: 0 },
+      nudges: makeNudges({ hasDates: true, undatedChapterCount: 0, hasPackingList: false, hasPretripList: false, unbookedTransportCount: 0 }),
       tripBasePath: "/trips/t",
     });
     expect(steps[0].title).toMatch(/packing/i);
@@ -59,7 +71,7 @@ describe("buildNextSteps", () => {
     const steps = buildNextSteps({
       flags: [],
       phase: "sketching",
-      nudges: { hasDates: false, undatedChapterCount: 0, hasPackingList: false, hasPretripList: false, unbookedTransportCount: 0 },
+      nudges: makeNudges({ hasDates: false, undatedChapterCount: 0, hasPackingList: false, hasPretripList: false, unbookedTransportCount: 0 }),
       tripBasePath: "/trips/t",
     });
     expect(steps[0].title).toMatch(/set your trip dates/i);
@@ -69,5 +81,20 @@ describe("buildNextSteps", () => {
     const flags = [warn("a"), warn("b"), warn("c"), warn("d"), warn("e")];
     expect(buildNextSteps({ flags, phase: "planning", nudges: NO_NUDGES, tripBasePath: "/trips/t" })).toHaveLength(4);
     expect(buildNextSteps({ flags, phase: "planning", nudges: NO_NUDGES, tripBasePath: "/trips/t", limit: 2 })).toHaveLength(2);
+  });
+
+  it("nudges to set a home base, then to add outbound/return legs", () => {
+    const base = { flags: [], phase: "planning" as const, tripBasePath: "/trips/t1", limit: 10 };
+    const noHome = buildNextSteps({ ...base, nudges: makeNudges({ hasHomeBase: false }) });
+    expect(noHome.map((s) => s.id)).toContain("nudge-set-home-base");
+
+    const withHome = buildNextSteps({ ...base, nudges: makeNudges({
+      hasHomeBase: true, homeName: "Sydney", firstStopName: "Paris", lastStopName: "Rome",
+      hasOutboundLeg: false, hasReturnLeg: false, roundTrip: true,
+    }) });
+    const ids = withHome.map((s) => s.id);
+    expect(ids).toContain("nudge-add-outbound-flight");
+    expect(ids).toContain("nudge-add-return-flight");
+    expect(withHome.find((s) => s.id === "nudge-add-outbound-flight")!.title).toContain("Paris");
   });
 });
