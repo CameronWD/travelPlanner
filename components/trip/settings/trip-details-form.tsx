@@ -149,8 +149,8 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"
+            id="roundTrip"
             name="roundTrip"
-            aria-label="Round trip"
             defaultChecked={defaultValues.roundTrip ?? true}
             disabled={isPending}
           />

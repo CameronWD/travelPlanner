@@ -45,7 +45,7 @@ describe("TripDetailsForm", () => {
       />,
     );
     await userEvent.type(screen.getByLabelText(/home base/i), "Sydney");
-    await userEvent.click(screen.getByLabelText(/round trip/i)); // toggle off
+    await userEvent.click(screen.getByRole("checkbox", { name: /nudge me to book a flight home/i })); // toggle off
     await userEvent.click(screen.getByRole("button", { name: /save/i }));
     await waitFor(() =>
       expect(updateMock).toHaveBeenCalledWith("t1", expect.objectContaining({ homeName: "Sydney", roundTrip: false }))
