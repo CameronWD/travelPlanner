@@ -40,6 +40,8 @@ export default async function SettingsPage({
       hardEndDate: true,
       coverImageKey: true,
       homeCurrency: true,
+      homeName: true,
+      roundTrip: true,
       drivingWindingFactor: true,
       drivingAvgSpeedKph: true,
       members: {
@@ -98,6 +100,8 @@ export default async function SettingsPage({
               endDate: trip.endDate ?? "",
               hardEndDate: trip.hardEndDate ?? "",
               homeCurrency: trip.homeCurrency,
+              homeName: trip.homeName,
+              roundTrip: trip.roundTrip,
             }}
           />
           <div className="mt-6">
