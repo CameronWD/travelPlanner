@@ -1,0 +1,10 @@
+-- AlterTable
+ALTER TABLE "Trip" ADD COLUMN     "homeName" TEXT;
+ALTER TABLE "Trip" ADD COLUMN     "homeLat" DOUBLE PRECISION;
+ALTER TABLE "Trip" ADD COLUMN     "homeLng" DOUBLE PRECISION;
+ALTER TABLE "Trip" ADD COLUMN     "homeCountryCode" TEXT;
+ALTER TABLE "Trip" ADD COLUMN     "roundTrip" BOOLEAN NOT NULL DEFAULT true;
+
+-- AlterTable
+ALTER TABLE "Transport" ADD COLUMN     "depIsHome" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "Transport" ADD COLUMN     "arrIsHome" BOOLEAN NOT NULL DEFAULT false;

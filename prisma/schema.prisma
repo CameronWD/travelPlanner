@@ -106,6 +106,15 @@ model Trip {
   coverImageKey String? // storage key of the uploaded cover photo; null = use the route-render/monogram fallback
   homeCurrency String // ISO 4217, e.g. "AUD"
 
+  // Home base — the trip's origin (see ADR 0030). Not a Stop; never feeds the
+  // date engine. Auto-geocoded on save like a Stop. roundTrip drives the
+  // return-leg nudge/flag.
+  homeName        String?
+  homeLat         Float?
+  homeLng         Float?
+  homeCountryCode String?
+  roundTrip       Boolean @default(true)
+
   // Per-trip driving-estimate settings (used by drive-time hints + the
   // "long driving day" flag). Defaults suit mixed/winding roads.
   drivingWindingFactor Float @default(1.5)
@@ -270,6 +279,8 @@ model Transport {
   depLng     Float?
   arrLat     Float?
   arrLng     Float?
+  depIsHome  Boolean @default(false) // departs the trip's Home base (see ADR 0030)
+  arrIsHome  Boolean @default(false) // arrives the trip's Home base
   reference  String?
   notes      String?
   sortOrder  Int       @default(0)
