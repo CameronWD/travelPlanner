@@ -152,6 +152,11 @@ interface ItineraryManagerProps {
    * Costs keyed by item id for things-to-do edit pre-fill (ADR 0022).
    */
   thingsToDoItemCostsById?: Map<string, CostRow[]>;
+  /**
+   * The trip's home base name — passed to TransportFormDialog so the picker
+   * can offer "🏠 Home" as a departure/arrival option.
+   */
+  homeBaseName?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -316,6 +321,7 @@ export function ItineraryManager({
   forkId,
   thingsToDoByStopId,
   thingsToDoItemCostsById,
+  homeBaseName,
 }: ItineraryManagerProps) {
   const { confirm, dialog } = useConfirm();
 
@@ -1697,6 +1703,7 @@ export function ItineraryManager({
           }}
           forkId={forkId ?? null}
           homeCurrency={homeCurrency}
+          homeBaseName={homeBaseName}
         />
       )}
 
@@ -1713,6 +1720,7 @@ export function ItineraryManager({
           forkId={forkId ?? null}
           homeCurrency={homeCurrency}
           costs={editingTransportCosts}
+          homeBaseName={homeBaseName}
         />
       )}
 

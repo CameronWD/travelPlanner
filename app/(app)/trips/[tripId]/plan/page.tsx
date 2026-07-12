@@ -51,6 +51,7 @@ export default async function TripPlanPage({
       where: { id: tripId },
       select: {
         homeCurrency: true,
+        homeName: true,
         startDate: true,
         endDate: true,
         hardEndDate: true,
@@ -309,6 +310,7 @@ export default async function TripPlanPage({
       <ItineraryManager
         tripId={tripId}
         homeCurrency={trip?.homeCurrency}
+        homeBaseName={trip?.homeName}
         forkId={activeForkId}
         tripStartDate={tripStartDate}
         tripEndDate={tripEndDate}

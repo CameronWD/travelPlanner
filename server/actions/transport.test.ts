@@ -811,3 +811,115 @@ describe("updateTransport: inline cost update/create", () => {
     expect(costUpdateMock).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Home base endpoint: createTransport
+// ---------------------------------------------------------------------------
+
+describe("createTransport: home base departure", () => {
+  it("persists depIsHome=true and skips geocoding depPlace, nulls fromStopId/depPlace/depLat/depLng", async () => {
+    requireTripAccessMock.mockResolvedValue({ tripId: "t1", userId: "u1" });
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "tr1", mode: "FLIGHT" });
+    // depIsHome clears fromStopId, so no stop FK validation for dep side.
+    // toStopId "s1" must pass validation.
+    stopFindManyMock.mockResolvedValue([{ id: "s1", tripId: "t1", forkId: null }]);
+
+    const result = await createTransport("t1", { mode: "FLIGHT", depIsHome: true, toStopId: "s1" });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(transportCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          depIsHome: true,
+          fromStopId: null,
+          depPlace: null,
+          depLat: null,
+          depLng: null,
+        }),
+      }),
+    );
+  });
+
+  it("persists arrIsHome=true and skips geocoding arrPlace, nulls toStopId/arrPlace/arrLat/arrLng", async () => {
+    requireTripAccessMock.mockResolvedValue({ tripId: "t1", userId: "u1" });
+    transportFindFirstMock.mockResolvedValue(null);
+    transportCreateMock.mockResolvedValue({ id: "tr2", mode: "FLIGHT" });
+    // arrIsHome clears toStopId, so no stop FK validation for arr side.
+    // fromStopId "s1" must pass validation.
+    stopFindManyMock.mockResolvedValue([{ id: "s1", tripId: "t1", forkId: null }]);
+
+    const result = await createTransport("t1", { mode: "FLIGHT", fromStopId: "s1", arrIsHome: true, arrPlace: "should be ignored" });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(transportCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          arrIsHome: true,
+          toStopId: null,
+          arrPlace: null,
+          arrLat: null,
+          arrLng: null,
+        }),
+      }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Home base endpoint: updateTransport
+// ---------------------------------------------------------------------------
+
+describe("updateTransport: home base departure", () => {
+  it("persists depIsHome=true and skips geocoding depPlace, nulls fromStopId/depPlace/depLat/depLng", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tr1", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "tr1", mode: "FLIGHT" }); // before snapshot
+    transportUpdateMock.mockResolvedValue({ id: "tr1", mode: "FLIGHT" });
+    // depIsHome clears fromStopId; toStopId "s1" must pass FK validation.
+    stopFindManyMock.mockResolvedValue([{ id: "s1", tripId: "trip-1", forkId: null }]);
+
+    const result = await updateTransport("tr1", { mode: "FLIGHT", depIsHome: true, toStopId: "s1" });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(transportUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          depIsHome: true,
+          fromStopId: null,
+          depPlace: null,
+          depLat: null,
+          depLng: null,
+        }),
+      }),
+    );
+  });
+
+  it("persists arrIsHome=true and skips geocoding arrPlace, nulls toStopId/arrPlace/arrLat/arrLng", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tr2", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "tr2", mode: "FLIGHT" }); // before snapshot
+    transportUpdateMock.mockResolvedValue({ id: "tr2", mode: "FLIGHT" });
+    // arrIsHome clears toStopId; fromStopId "s1" must pass FK validation.
+    stopFindManyMock.mockResolvedValue([{ id: "s1", tripId: "trip-1", forkId: null }]);
+
+    const result = await updateTransport("tr2", { mode: "FLIGHT", fromStopId: "s1", arrIsHome: true, arrPlace: "should be ignored" });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(transportUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          arrIsHome: true,
+          toStopId: null,
+          arrPlace: null,
+          arrLat: null,
+          arrLng: null,
+        }),
+      }),
+    );
+  });
+});

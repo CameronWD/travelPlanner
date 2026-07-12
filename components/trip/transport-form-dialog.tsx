@@ -76,6 +76,11 @@ export interface TransportFormDialogProps {
    * When >1 costs are present, the cost fields are hidden (CostEditor is authoritative).
    */
   costs?: CostRow[];
+  /**
+   * The trip's home base name. When set, a "🏠 {homeBaseName}" option is
+   * rendered in the From and To stop selects.
+   */
+  homeBaseName?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +99,7 @@ export function TransportFormDialog({
   forkId,
   homeCurrency,
   costs,
+  homeBaseName,
 }: TransportFormDialogProps) {
   return (
     <FormDialog
@@ -113,6 +119,7 @@ export function TransportFormDialog({
         forkId={forkId}
         homeCurrency={homeCurrency}
         costs={costs}
+        homeBaseName={homeBaseName}
       />
     </FormDialog>
   );
@@ -202,10 +209,13 @@ interface TransportFormProps {
   forkId?: string | null;
   homeCurrency?: string;
   costs?: CostRow[];
+  homeBaseName?: string | null;
 }
 
 /** Sentinel for "none selected" in stop selects */
 const NONE = "__none__";
+/** Sentinel for "trip's Home base" in stop selects */
+const HOME = "__home__";
 
 /**
  * Format a Date to datetime-local input value (YYYY-MM-DDTHH:mm).
@@ -233,6 +243,7 @@ function TransportForm({
   forkId,
   homeCurrency,
   costs,
+  homeBaseName,
 }: TransportFormProps) {
   const isEdit = Boolean(transport);
 
@@ -245,10 +256,10 @@ function TransportForm({
 
   const [mode, setMode] = React.useState<string>(transport?.mode ?? "FLIGHT");
   const [fromStopId, setFromStopId] = React.useState(
-    transport?.fromStopId ?? defaultFromStopId ?? NONE,
+    transport?.depIsHome ? HOME : (transport?.fromStopId ?? defaultFromStopId ?? NONE),
   );
   const [toStopId, setToStopId] = React.useState(
-    transport?.toStopId ?? defaultToStopId ?? NONE,
+    transport?.arrIsHome ? HOME : (transport?.toStopId ?? defaultToStopId ?? NONE),
   );
   const [depPlace, setDepPlace] = React.useState(transport?.depPlace ?? "");
   const [arrPlace, setArrPlace] = React.useState(transport?.arrPlace ?? "");
@@ -288,8 +299,10 @@ function TransportForm({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const input: any = {
         mode: mode as import("@/lib/enums").TransportMode,
-        fromStopId: fromStopId === NONE ? undefined : fromStopId,
-        toStopId: toStopId === NONE ? undefined : toStopId,
+        fromStopId: fromStopId === NONE || fromStopId === HOME ? undefined : fromStopId,
+        depIsHome: fromStopId === HOME,
+        toStopId: toStopId === NONE || toStopId === HOME ? undefined : toStopId,
+        arrIsHome: toStopId === HOME,
         depPlace: depPlace.trim() || undefined,
         arrPlace: arrPlace.trim() || undefined,
         depAt: depAt || undefined,
@@ -353,6 +366,9 @@ function TransportForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={NONE}>— none —</SelectItem>
+              {homeBaseName ? (
+                <SelectItem value={HOME}>🏠 {homeBaseName}</SelectItem>
+              ) : null}
               {stops.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.name}
@@ -373,6 +389,9 @@ function TransportForm({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value={NONE}>— none —</SelectItem>
+              {homeBaseName ? (
+                <SelectItem value={HOME}>🏠 {homeBaseName}</SelectItem>
+              ) : null}
               {stops.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.name}

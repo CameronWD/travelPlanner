@@ -17,6 +17,8 @@ export interface TransportCardTransport {
   mode: TransportMode;
   fromStopId?: string | null;
   toStopId?: string | null;
+  depIsHome?: boolean | null;
+  arrIsHome?: boolean | null;
   depPlace?: string | null;
   arrPlace?: string | null;
   depAt?: Date | null;
