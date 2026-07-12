@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { targetTypeSchema } from "@/lib/enums";
+import { recordActivity } from "@/server/actions/activity";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -125,6 +126,15 @@ export async function uploadAttachment(
     data: { url: publicUrl, storageKey },
   });
 
+  await recordActivity({
+    tripId,
+    verb: "CREATED",
+    entityType: "ATTACHMENT",
+    entityId: attachment.id,
+    entityLabel: file.name,
+    changes: { excerpt: file.name },
+  });
+
   revalidatePath(`/trips/${tripId}/files`);
   return { success: true, id: attachment.id };
 }
@@ -150,6 +160,15 @@ export async function deleteAttachment(
   }
 
   await db.attachment.delete({ where: { id } });
+
+  await recordActivity({
+    tripId: attachment.tripId,
+    verb: "DELETED",
+    entityType: "ATTACHMENT",
+    entityId: id,
+    entityLabel: attachment.filename,
+    changes: { excerpt: attachment.filename },
+  });
 
   revalidatePath(`/trips/${attachment.tripId}/files`);
   return { success: true };
