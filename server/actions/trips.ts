@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { requireUser, requireTripAccess } from "@/lib/guards";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
+import { geocodePlaceDetailed } from "@/lib/geocode";
 import {
   createTripSchema,
   tripSchema,
@@ -108,7 +109,31 @@ export async function updateTrip(
     return validationResult(parsed.error);
   }
 
-  const { name, startDate, endDate, hardEndDate, homeCurrency } = parsed.data;
+  const { name, startDate, endDate, hardEndDate, homeCurrency, homeName: rawHomeName, roundTrip } = parsed.data;
+
+  // Home base: geocode when name changes; clear coords when name is removed;
+  // leave coords untouched when name is the same as before.
+  const nextHomeName = rawHomeName && rawHomeName.trim() !== "" ? rawHomeName.trim() : null;
+
+  const before = await db.trip.findUnique({ where: { id: tripId }, select: { homeName: true } });
+
+  const nameChanged = nextHomeName !== null && nextHomeName !== before?.homeName;
+  const nameCleared = nextHomeName === null;
+
+  let coordFields: { homeLat: number | null; homeLng: number | null; homeCountryCode: string | null } | null = null;
+
+  if (nameCleared) {
+    // Explicitly clear the coords.
+    coordFields = { homeLat: null, homeLng: null, homeCountryCode: null };
+  } else if (nameChanged) {
+    // Geocode the new name.
+    const geo = await geocodePlaceDetailed(nextHomeName!);
+    coordFields = geo
+      ? { homeLat: geo.lat, homeLng: geo.lng, homeCountryCode: geo.countryCode }
+      : { homeLat: null, homeLng: null, homeCountryCode: null };
+  }
+  // If name is unchanged (nextHomeName === before?.homeName), coordFields stays null
+  // and the coord fields are intentionally omitted from the update object.
 
   await db.trip.update({
     where: { id: tripId },
@@ -118,6 +143,9 @@ export async function updateTrip(
       endDate: endDate ?? null,
       hardEndDate: hardEndDate ?? null,
       homeCurrency,
+      homeName: nextHomeName,
+      ...(coordFields !== null ? coordFields : {}),
+      ...(roundTrip !== undefined ? { roundTrip } : {}),
     },
   });
 
