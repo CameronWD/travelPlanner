@@ -14,6 +14,7 @@ import { formatMoney } from "@/lib/money";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
 import { detectFlags } from "@/lib/flags";
+import { tripHomeBase } from "@/lib/home-base";
 import { getTripProjection } from "@/server/actions/stops";
 import { groupStopsByChapter, chapterForStop } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
@@ -100,6 +101,11 @@ export default async function SummaryPage({
       homeCurrency: true,
       drivingWindingFactor: true,
       drivingAvgSpeedKph: true,
+      homeName: true,
+      homeLat: true,
+      homeLng: true,
+      homeCountryCode: true,
+      roundTrip: true,
     },
   });
   if (!trip) notFound();
@@ -205,6 +211,8 @@ export default async function SummaryPage({
           depAt: true,
           arrAt: true,
           sortOrder: true,
+          depIsHome: true,
+          arrIsHome: true,
         },
       }),
       db.accommodation.findMany({
@@ -304,6 +312,8 @@ export default async function SummaryPage({
     hardEndDate: projection.hardEndDate,
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
+    home: tripHomeBase(trip),
+    roundTrip: trip.roundTrip ?? undefined,
   });
 
   // ---------------------------------------------------------------------------
