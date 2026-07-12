@@ -15,6 +15,7 @@ import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
 import { detectFlags } from "@/lib/flags";
 import { tripHomeBase } from "@/lib/home-base";
+import { homeMapPoint } from "@/lib/route-map";
 import { getTripProjection } from "@/server/actions/stops";
 import { groupStopsByChapter, chapterForStop } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
@@ -475,7 +476,7 @@ export default async function SummaryPage({
       <section aria-labelledby="map-heading">
         <SectionHeading id="map-heading" icon={MapPin} title="Route" />
         {/* RouteMap is client-only via dynamic import */}
-        <RouteMap stops={mapStops} height={380} />
+        <RouteMap stops={mapStops} height={380} home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} />
       </section>
 
       {/* ── Stops overview ── */}

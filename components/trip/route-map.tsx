@@ -17,6 +17,7 @@
 import { useEffect, useRef } from "react";
 import { MapPin } from "lucide-react";
 import { formatDateRange } from "@/lib/dates";
+import type { HomeMapPoint } from "@/lib/route-map";
 
 // Leaflet CSS is imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
@@ -38,6 +39,10 @@ export interface RouteMapProps {
   stops: RouteMapStop[];
   /** Height of the map container in px. Defaults to 360. */
   height?: number;
+  /** Optional home base point to render as a bookend pin. */
+  home?: HomeMapPoint | null;
+  /** When true and home is set, also draw a return leg from last stop → home. */
+  showReturn?: boolean;
 }
 
 /**
@@ -98,7 +103,7 @@ function MapFallback({ stops }: { stops: RouteMapStop[] }) {
 // Map component
 // ---------------------------------------------------------------------------
 
-export function RouteMap({ stops, height = 360 }: RouteMapProps) {
+export function RouteMap({ stops, height = 360, home = null, showReturn = false }: RouteMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   // Keep a ref to the Leaflet map instance to clean up on unmount
   // and avoid double-init in React strict mode.
@@ -208,8 +213,64 @@ export function RouteMap({ stops, height = 360 }: RouteMapProps) {
         }
       }
 
-      // Fit bounds to all markers
-      const bounds = lf.latLngBounds(latlngs);
+      // Home base marker + bookend polylines
+      // VISUAL: these changes (home marker, outbound/return dashed polylines)
+      // require human browser verification — they cannot be asserted in tests.
+      const allLatLngs: [number, number][] = [...latlngs];
+      if (home) {
+        const homeLatLng: [number, number] = [home.lat, home.lng];
+        allLatLngs.push(homeLatLng);
+
+        // Distinct home marker — house glyph in a white circle with a coloured border
+        const homeIcon = lf.divIcon({
+          html: `<div style="
+            width:32px;height:32px;
+            border-radius:50%;
+            background:#fff;
+            color:#374151;
+            display:flex;align-items:center;justify-content:center;
+            font-size:18px;
+            border:2px solid #374151;
+            box-shadow:0 2px 6px rgba(0,0,0,0.35);
+          ">🏠</div>`,
+          className: "",
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+          popupAnchor: [0, -18],
+        });
+
+        lf.marker(homeLatLng, { icon: homeIcon })
+          .addTo(mapInstance)
+          .bindPopup(
+            `<div style="min-width:min(120px,80vw);max-width:min(200px,90vw);line-height:1.4">
+              <strong style="font-size:14px">${escapeHtml(home.name)}</strong><br/>
+              <span style="font-size:12px;color:#666">Home base</span>
+            </div>`,
+          );
+
+        // Outbound leg: home → first stop
+        if (coordStops.length >= 1) {
+          lf.polyline([homeLatLng, latlngs[0]], {
+            color: "#374151",
+            weight: 2,
+            opacity: 0.5,
+            dashArray: "8 5",
+          }).addTo(mapInstance);
+        }
+
+        // Return leg: last stop → home (only when showReturn)
+        if (showReturn && coordStops.length >= 1) {
+          lf.polyline([latlngs[latlngs.length - 1], homeLatLng], {
+            color: "#374151",
+            weight: 2,
+            opacity: 0.5,
+            dashArray: "8 5",
+          }).addTo(mapInstance);
+        }
+      }
+
+      // Fit bounds to all markers (including home if present)
+      const bounds = lf.latLngBounds(allLatLngs);
       mapInstance.fitBounds(bounds, { padding: [40, 40] });
     });
 
@@ -223,7 +284,7 @@ export function RouteMap({ stops, height = 360 }: RouteMapProps) {
   // changes; we depend on a derived signature string rather than the `stops`
   // array identity, which exhaustive-deps can't verify — hence the disable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasEnoughCoords, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.chapterColour ?? ""}:${s.chapterName ?? ""}`).join("|")]);
+  }, [hasEnoughCoords, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.chapterColour ?? ""}:${s.chapterName ?? ""}`).join("|"), home?.lat, home?.lng, home?.name, showReturn]);
 
   if (!hasEnoughCoords) {
     return <MapFallback stops={stops} />;
