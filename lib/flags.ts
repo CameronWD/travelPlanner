@@ -99,6 +99,18 @@ export interface DetectFlagsInput {
   home?: HomeBase | null;
   /** Whether the trip is a round trip (return leg back to home expected). */
   roundTrip?: boolean;
+  /**
+   * First stop by sortOrder across ALL stops (dated + rough).
+   * When provided, flagMissingHomeConnection uses this instead of deriving
+   * first/last from its `stops` param — ensuring alignment with phase-planning
+   * nudges which also use all stops.
+   */
+  homeFirstStop?: { id: string; name: string } | null;
+  /**
+   * Last stop by sortOrder across ALL stops (dated + rough).
+   * See homeFirstStop above.
+   */
+  homeLastStop?: { id: string; name: string } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -769,11 +781,24 @@ export function flagMissingHomeConnection(
   transports: Pick<FlagTransport, "depIsHome" | "arrIsHome" | "fromStopId" | "toStopId">[],
   home: HomeBase | null,
   roundTrip: boolean,
+  overrides?: {
+    firstStop?: { id: string; name: string } | null;
+    lastStop?: { id: string; name: string } | null;
+  },
 ): Flag[] {
   if (!home || stops.length === 0) return [];
-  const sorted = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
-  const first = sorted[0];
-  const last = sorted[sorted.length - 1];
+  // Use caller-supplied first/last (all stops by sortOrder) when provided;
+  // fall back to deriving from the supplied stops array.
+  let first: { id: string; name: string };
+  let last: { id: string; name: string };
+  if (overrides?.firstStop && overrides?.lastStop) {
+    first = overrides.firstStop;
+    last = overrides.lastStop;
+  } else {
+    const sorted = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
+    first = sorted[0];
+    last = sorted[sorted.length - 1];
+  }
   const flags: Flag[] = [];
   if (!hasOutboundLeg(transports, first.id)) {
     flags.push({
@@ -856,6 +881,8 @@ export function detectFlags({
   drivingAvgSpeedKph,
   home,
   roundTrip,
+  homeFirstStop,
+  homeLastStop,
 }: DetectFlagsInput): Flag[] {
   return [
     ...flagStopsWithoutAccommodation(stops, accommodations),
@@ -878,7 +905,10 @@ export function detectFlags({
     ...flagHardEndDate(projectedEnd, hardEndDate),
     ...flagMissingConnections(stops, transports),
     ...flagAccommodationCoverageGaps(stops, accommodations),
-    ...flagMissingHomeConnection(stops, transports, home ?? null, roundTrip ?? true),
+    ...flagMissingHomeConnection(stops, transports, home ?? null, roundTrip ?? true, {
+      firstStop: homeFirstStop ?? null,
+      lastStop: homeLastStop ?? null,
+    }),
     ...flagReturnLegAfterHardEnd(transports, hardEndDate),
   ];
 }

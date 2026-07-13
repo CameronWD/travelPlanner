@@ -301,6 +301,17 @@ export default async function SummaryPage({
   // Detect flags
   // ---------------------------------------------------------------------------
   const projection = await getTripProjection(tripId);
+
+  // For the home-connection flag we need first/last stop by sortOrder across
+  // ALL stops (dated + rough), matching how phase-planning derives first/last
+  // for the outbound/return nudges. Build a merged, sorted list here.
+  const allStopsSorted = [
+    ...stops.map((s) => ({ id: s.id, name: s.name, sortOrder: s.sortOrder ?? 0 })),
+    ...roughStops.map((s) => ({ id: s.id, name: s.name, sortOrder: s.sortOrder ?? 0 })),
+  ].sort((a, b) => a.sortOrder - b.sortOrder);
+  const homeFirstStop = allStopsSorted[0] ?? null;
+  const homeLastStop = allStopsSorted[allStopsSorted.length - 1] ?? null;
+
   const flags = detectFlags({
     stops: stops as FlagStop[],
     transports: transports as FlagTransport[],
@@ -315,6 +326,8 @@ export default async function SummaryPage({
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
     home: tripHomeBase(trip),
     roundTrip: trip.roundTrip ?? undefined,
+    homeFirstStop,
+    homeLastStop,
   });
 
   // ---------------------------------------------------------------------------

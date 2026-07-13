@@ -181,7 +181,7 @@ export function ItemCard({
           )}
 
           {/* Attachment popover */}
-          {attachments !== undefined && tripId && (
+          {mode === "wishlist" && attachments !== undefined && tripId && (
             <AttachmentPopover
               tripId={tripId}
               targetType="ITEM"

@@ -426,6 +426,38 @@ describe("updateTrip", () => {
       data: expect.not.objectContaining({ homeCountryCode: expect.anything() }),
     }));
   });
+
+  it("homeName key absent (undefined) → home base left unchanged (no geocode, homeName + coords omitted from update)", async () => {
+    // tripFindUnique must NOT be called either — we skip the lookup entirely.
+    tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+    // Do NOT include the homeName key in the input object at all.
+    const inputWithoutHomeName: Parameters<typeof updateTrip>[1] = {
+      name: "T",
+      homeCurrency: "AUD",
+      // homeName intentionally absent
+    };
+
+    const result = await updateTrip("t1", inputWithoutHomeName);
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    // No DB lookup for current homeName when key is absent
+    expect(tripFindUniqueMock).not.toHaveBeenCalled();
+    // homeName + coord fields must NOT appear in the update payload
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ homeName: expect.anything() }),
+    }));
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ homeLat: expect.anything() }),
+    }));
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ homeLng: expect.anything() }),
+    }));
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ homeCountryCode: expect.anything() }),
+    }));
+  });
 });
 
 // ---------------------------------------------------------------------------
