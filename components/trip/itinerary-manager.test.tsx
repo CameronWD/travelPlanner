@@ -1233,6 +1233,21 @@ describe("home base bookends", () => {
     expect(screen.queryByText(/Other transport/i)).not.toBeInTheDocument();
   });
 
+  it("renders the return leg as a bookend (not in the 'Other transport' box)", () => {
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop({ id: "s1", name: "Paris" })]}
+        initialTransports={[makeTransport({ id: "ret", arrIsHome: true, fromStopId: "s1" })]}
+        homeBaseName="Sydney"
+        roundTrip={true}
+      />,
+    );
+    // The return leg exists → no "add return" prompt, and no "Other transport" section.
+    expect(screen.queryByRole("button", { name: /add transport home to Sydney/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Other transport/i)).not.toBeInTheDocument();
+  });
+
   it("renders a bottom Home base card + return prompt on a round trip", () => {
     render(
       <ItineraryManager

@@ -1113,7 +1113,7 @@ export function ItineraryManager({
     // When chapters exist, filter out between-legs transports from inline render.
     const legTransports = nextStop
       ? (transportByPair.get(`${stop.id}-${nextStop.id}`) ?? []).filter(
-          (t) => !betweenLegsIds.has(t.id),
+          (t) => !betweenLegsIds.has(t.id) && !bookendLegIds.has(t.id),
         )
       : [];
 
@@ -1267,7 +1267,7 @@ export function ItineraryManager({
   ) {
     const seamKey = `${lastStopOfPrevGroup.id}-${firstStopOfNextGroup.id}`;
     const seamTransports = (transportByPair.get(seamKey) ?? []).filter((t) =>
-      betweenLegsIds.has(t.id),
+      betweenLegsIds.has(t.id) && !bookendLegIds.has(t.id),
     );
     if (seamTransports.length === 0) return null;
     return (
