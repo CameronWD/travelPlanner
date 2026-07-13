@@ -44,6 +44,10 @@ async function requireAttachmentAccess(id: string) {
   if (!attachment) {
     notFound();
   }
+  if (!attachment.tripId) {
+    // Globe-owned attachments are not managed through trip-scoped actions.
+    notFound();
+  }
   await requireTripAccess(attachment.tripId);
   return attachment;
 }
@@ -161,8 +165,12 @@ export async function deleteAttachment(
 
   await db.attachment.delete({ where: { id } });
 
+  // tripId is guaranteed non-null by requireAttachmentAccess (it throws notFound
+  // for globe-owned attachments where tripId is null).
+  const tripId = attachment.tripId!;
+
   await recordActivity({
-    tripId: attachment.tripId,
+    tripId,
     verb: "DELETED",
     entityType: "ATTACHMENT",
     entityId: id,
@@ -170,6 +178,6 @@ export async function deleteAttachment(
     changes: { excerpt: attachment.filename },
   });
 
-  revalidatePath(`/trips/${attachment.tripId}/files`);
+  revalidatePath(`/trips/${tripId}/files`);
   return { success: true };
 }

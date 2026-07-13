@@ -51,6 +51,10 @@ export async function GET(
   // 2. Access check — user must be a trip member.
   // requireTripAccess redirects/throws notFound if the check fails; those
   // propagate naturally through the Next.js route handler.
+  // Globe-owned attachments (tripId === null) are not yet served via this route.
+  if (!attachment.tripId) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
   await requireTripAccess(attachment.tripId);
 
   // 3. Validate we have a storage key.
