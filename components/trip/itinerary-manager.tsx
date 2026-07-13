@@ -47,6 +47,7 @@ import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { CostRow } from "@/server/actions/costs";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { NoteView } from "./note-thread";
+import type { AttachmentView } from "./attachment-list";
 import {
   DndContext,
   closestCenter,
@@ -133,6 +134,12 @@ interface ItineraryManagerProps {
   notesByTransportId?: Map<string, NoteView[]>;
   /** Map of accommodationId → notes for that accommodation */
   notesByAccommodationId?: Map<string, NoteView[]>;
+  /** Map of stopId → attachments for that stop */
+  attachmentsByStopId?: Map<string, AttachmentView[]>;
+  /** Map of transportId → attachments for that transport */
+  attachmentsByTransportId?: Map<string, AttachmentView[]>;
+  /** Map of accommodationId → attachments for that accommodation */
+  attachmentsByAccommodationId?: Map<string, AttachmentView[]>;
   /** Current authenticated user's ID */
   currentUserId?: string;
   /** Fork being edited (null = real plan). Threaded to all create actions. */
@@ -325,6 +332,9 @@ export function ItineraryManager({
   notesByStopId,
   notesByTransportId,
   notesByAccommodationId,
+  attachmentsByStopId,
+  attachmentsByTransportId,
+  attachmentsByAccommodationId,
   currentUserId,
   forkId,
   thingsToDoByStopId,
@@ -1093,6 +1103,7 @@ export function ItineraryManager({
         onMakeRough={handleMakeRough}
         onAdjustDates={handleAdjustDates}
         notes={notesByStopId?.get(stop.id) ?? []}
+        attachments={attachmentsByStopId?.get(stop.id) ?? []}
         tripId={tripId}
         currentUserId={currentUserId}
         dragHandle={dragHandle}
@@ -1131,6 +1142,7 @@ export function ItineraryManager({
                 tripId={tripId}
                 homeCurrency={homeCurrency}
                 notes={notesByAccommodationId?.get(acc.id) ?? []}
+                attachments={attachmentsByAccommodationId?.get(acc.id) ?? []}
                 currentUserId={currentUserId}
               />
             ))}
@@ -1168,6 +1180,7 @@ export function ItineraryManager({
                 homeCurrency={homeCurrency}
                 homeBaseName={homeBaseName}
                 notes={notesByTransportId?.get(t.id) ?? []}
+                attachments={attachmentsByTransportId?.get(t.id) ?? []}
                 currentUserId={currentUserId}
               />
             ))}
@@ -1222,6 +1235,7 @@ export function ItineraryManager({
             homeCurrency={homeCurrency}
             homeBaseName={homeBaseName}
             notes={notesByTransportId?.get(t.id) ?? []}
+            attachments={attachmentsByTransportId?.get(t.id) ?? []}
             currentUserId={currentUserId}
           />
         ))}
@@ -1610,6 +1624,9 @@ export function ItineraryManager({
                   tripId={tripId}
                   homeCurrency={homeCurrency}
                   homeBaseName={homeBaseName}
+                  notes={notesByTransportId?.get(t.id) ?? []}
+                  attachments={attachmentsByTransportId?.get(t.id) ?? []}
+                  currentUserId={currentUserId}
                 />
               ))}
             </div>

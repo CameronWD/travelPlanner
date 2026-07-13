@@ -44,6 +44,11 @@ vi.mock("@/server/actions/notes", () => ({
   deleteNote: vi.fn().mockResolvedValue({ success: true }),
 }));
 
+vi.mock("@/server/actions/attachments", () => ({
+  uploadAttachment: vi.fn().mockResolvedValue({ success: true }),
+  deleteAttachment: vi.fn().mockResolvedValue({ success: true }),
+}));
+
 vi.mock("@/server/actions/costs", () => ({
   createCost: vi.fn().mockResolvedValue({ success: true }),
   updateCost: vi.fn().mockResolvedValue({ success: true }),

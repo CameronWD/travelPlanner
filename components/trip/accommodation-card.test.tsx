@@ -11,6 +11,10 @@ vi.mock("@/server/actions/notes", () => ({
   addNote: vi.fn(),
   deleteNote: vi.fn(),
 }));
+vi.mock("@/server/actions/attachments", () => ({
+  uploadAttachment: vi.fn(),
+  deleteAttachment: vi.fn(),
+}));
 
 import { AccommodationCard } from "./accommodation-card";
 

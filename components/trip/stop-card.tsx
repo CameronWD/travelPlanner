@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { formatDateRange, nightsBetween, tzAbbrev } from "@/lib/dates";
 import { MapLink } from "./map-link";
 import { NoteThread, type NoteView } from "./note-thread";
+import { AttachmentPopover } from "./attachment-popover";
+import type { AttachmentView } from "./attachment-list";
 import { MoreActionsMenu, type CardActionItem } from "./card-actions";
 import { ItemFormDialog, type StopOption } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
@@ -89,6 +91,8 @@ export interface StopCardProps {
   tripId?: string;
   /** Current user's ID (required for notes) */
   currentUserId?: string;
+  /** Attachments for this stop */
+  attachments?: AttachmentView[];
   /**
    * Optional drag handle element supplied by the parent (e.g. dnd-kit's
    * draggable button). Rendered at the left of the top row ONLY for rough
@@ -139,6 +143,7 @@ export function StopCard({
   stops = [],
   forkId,
   homeCurrency,
+  attachments,
 }: StopCardProps) {
   const isRough = !stop.arriveDate || !stop.departDate;
 
@@ -305,6 +310,16 @@ export function StopCard({
               targetId={stop.id}
               notes={notes}
               currentUserId={currentUserId}
+            />
+          )}
+
+          {/* Attachment popover */}
+          {attachments !== undefined && tripId && (
+            <AttachmentPopover
+              tripId={tripId}
+              targetType="STOP"
+              targetId={stop.id}
+              attachments={attachments}
             />
           )}
 

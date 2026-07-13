@@ -8,6 +8,8 @@ import { transportTimeDisplay, shortDate, dayDeltaSuffix } from "@/lib/time-disp
 import { CostEditor } from "./cost-editor";
 import type { CostRow } from "@/server/actions/costs";
 import { NoteThread, type NoteView } from "./note-thread";
+import { AttachmentPopover } from "./attachment-popover";
+import type { AttachmentView } from "./attachment-list";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -56,6 +58,8 @@ interface TransportCardProps {
   notes?: NoteView[];
   /** Current authenticated user's ID (required for notes) */
   currentUserId?: string;
+  /** Attachments for this transport */
+  attachments?: AttachmentView[];
 }
 
 // ---------------------------------------------------------------------------
@@ -73,6 +77,7 @@ export function TransportCard({
   homeBaseName,
   notes,
   currentUserId,
+  attachments,
 }: TransportCardProps) {
   const meta = TRANSPORT_MODE_META[t.mode];
   const Icon = meta.icon;
@@ -122,6 +127,14 @@ export function TransportCard({
 
         {/* Controls */}
         <div className="flex shrink-0 items-center gap-1">
+          {attachments !== undefined && tripId && (
+            <AttachmentPopover
+              tripId={tripId}
+              targetType="TRANSPORT"
+              targetId={t.id}
+              attachments={attachments}
+            />
+          )}
           {notes !== undefined && tripId && currentUserId && (
             <NoteThread
               tripId={tripId}

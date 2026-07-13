@@ -7,6 +7,7 @@ import { getDiscreetState } from "@/lib/discreet-server";
 import { buildStopSheetRows } from "@/lib/discreet";
 import type { TransportMode } from "@/lib/enums";
 import type { NoteView } from "@/components/trip/note-thread";
+import type { AttachmentView } from "@/components/trip/attachment-list";
 import { haversineKm, estimateDriveMinutes, estimateRoadKm } from "@/lib/geo";
 import { convertMinor } from "@/lib/money";
 import { DEFAULT_HOME_CURRENCY } from "@/lib/currencies";
@@ -152,6 +153,58 @@ export default async function TripPlanPage({
       },
     }),
   ]);
+
+  // Fetch all attachments for this trip's entities in one query
+  const allAttachments = await db.attachment.findMany({
+    where: {
+      tripId,
+      targetType: { in: ["STOP", "TRANSPORT", "ACCOMMODATION"] },
+      targetId: { not: null },
+    },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true,
+      filename: true,
+      mime: true,
+      size: true,
+      url: true,
+      uploadedById: true,
+      createdAt: true,
+      targetId: true,
+      targetType: true,
+    },
+  });
+
+  // Group attachments by targetId for quick lookup
+  const attachmentsByStopId = new Map<string, AttachmentView[]>();
+  const attachmentsByTransportId = new Map<string, AttachmentView[]>();
+  const attachmentsByAccommodationId = new Map<string, AttachmentView[]>();
+
+  for (const att of allAttachments) {
+    if (!att.targetId) continue;
+    const attView: AttachmentView = {
+      id: att.id,
+      filename: att.filename,
+      mime: att.mime,
+      size: att.size,
+      url: att.url,
+      uploadedById: att.uploadedById,
+      createdAt: att.createdAt,
+    };
+    if (att.targetType === "STOP") {
+      const existing = attachmentsByStopId.get(att.targetId) ?? [];
+      existing.push(attView);
+      attachmentsByStopId.set(att.targetId, existing);
+    } else if (att.targetType === "TRANSPORT") {
+      const existing = attachmentsByTransportId.get(att.targetId) ?? [];
+      existing.push(attView);
+      attachmentsByTransportId.set(att.targetId, existing);
+    } else if (att.targetType === "ACCOMMODATION") {
+      const existing = attachmentsByAccommodationId.get(att.targetId) ?? [];
+      existing.push(attView);
+      attachmentsByAccommodationId.set(att.targetId, existing);
+    }
+  }
 
   // Fetch notes for stops, transports, and accommodations in one query
   const allNotes = await db.note.findMany({
@@ -327,6 +380,9 @@ export default async function TripPlanPage({
         notesByStopId={notesByStopId}
         notesByTransportId={notesByTransportId}
         notesByAccommodationId={notesByAccommodationId}
+        attachmentsByStopId={attachmentsByStopId}
+        attachmentsByTransportId={attachmentsByTransportId}
+        attachmentsByAccommodationId={attachmentsByAccommodationId}
         currentUserId={user.id}
         chapters={chapters}
         thingsToDoByStopId={thingsToDoByStopId}
