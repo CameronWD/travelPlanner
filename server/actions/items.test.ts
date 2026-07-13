@@ -103,6 +103,10 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+vi.mock("@/server/actions/target-cleanup", () => ({
+  cleanupTargetSideData: vi.fn().mockResolvedValue(undefined),
+}));
+
 import {
   createItem,
   updateItem,

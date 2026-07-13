@@ -6,6 +6,10 @@ vi.mock("@/server/actions/items", () => ({
   createItem: vi.fn().mockResolvedValue({ success: true }),
   updateItem: vi.fn().mockResolvedValue({ success: true }),
 }));
+vi.mock("@/server/actions/attachments", () => ({
+  uploadAttachment: vi.fn(),
+  deleteAttachment: vi.fn(),
+}));
 import { createItem, updateItem } from "@/server/actions/items";
 
 import { ItemFormDialog, AddItemButton, EditItemButton } from "./item-form-dialog";

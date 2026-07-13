@@ -19,6 +19,7 @@ const {
   attachmentDeleteMock,
   storageSaveMock,
   storageDeleteMock,
+  recordActivityMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "user-1" },
@@ -34,9 +35,11 @@ const {
   attachmentDeleteMock: vi.fn(),
   storageSaveMock: vi.fn(),
   storageDeleteMock: vi.fn(),
+  recordActivityMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("@/lib/db", () => ({
@@ -238,6 +241,19 @@ describe("uploadAttachment", () => {
       }),
     );
   });
+
+  it("logs a CREATED attachment activity", async () => {
+    const fd = makeFormData({ file: new File(["hello"], "boarding.pdf", { type: "application/pdf" }) });
+    await uploadAttachment(fd);
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tripId: TRIP_ID,
+        verb: "CREATED",
+        entityType: "ATTACHMENT",
+        changes: { excerpt: "boarding.pdf" },
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -305,5 +321,19 @@ describe("deleteAttachment", () => {
     const result = await deleteAttachment(ATTACHMENT_ID);
     expect(storageDeleteMock).not.toHaveBeenCalled();
     expect(result).toEqual({ success: true });
+  });
+
+  it("logs a DELETED attachment activity", async () => {
+    const row = makeAttachmentRow({ filename: "boarding.pdf" });
+    attachmentFindUniqueMock.mockResolvedValue(row);
+    await deleteAttachment(ATTACHMENT_ID);
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tripId: TRIP_ID,
+        verb: "DELETED",
+        entityType: "ATTACHMENT",
+        changes: { excerpt: "boarding.pdf" },
+      }),
+    );
   });
 });

@@ -8,6 +8,9 @@ import { accommodationDateWarnings } from "@/lib/validations/accommodation";
 import { CostEditor } from "./cost-editor";
 import { MapLink } from "./map-link";
 import type { CostRow } from "@/server/actions/costs";
+import { NoteThread, type NoteView } from "./note-thread";
+import { AttachmentPopover } from "./attachment-popover";
+import type { AttachmentView } from "./attachment-list";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -43,6 +46,12 @@ interface AccommodationCardProps {
   tripId?: string;
   /** Trip's home currency */
   homeCurrency?: string;
+  /** Notes attached to this accommodation */
+  notes?: NoteView[];
+  /** Current authenticated user's ID (required for notes) */
+  currentUserId?: string;
+  /** Attachments for this accommodation */
+  attachments?: AttachmentView[];
 }
 
 // ---------------------------------------------------------------------------
@@ -58,6 +67,9 @@ export function AccommodationCard({
   costs,
   tripId,
   homeCurrency,
+  notes,
+  currentUserId,
+  attachments,
 }: AccommodationCardProps) {
   const nights = nightsBetween(a.checkIn, a.checkOut);
   const dateRange = formatDateRange(a.checkIn, a.checkOut);
@@ -88,13 +100,32 @@ export function AccommodationCard({
           )}
         </div>
 
-        <RowActions
-          onEdit={onEdit ? () => onEdit(a) : undefined}
-          onDelete={onDelete ? () => onDelete(a.id) : undefined}
-          editLabel={`Edit ${a.name}`}
-          deleteLabel={`Delete ${a.name}`}
-          disabled={isPending}
-        />
+        <div className="flex shrink-0 items-center gap-1">
+          {attachments !== undefined && tripId && (
+            <AttachmentPopover
+              tripId={tripId}
+              targetType="ACCOMMODATION"
+              targetId={a.id}
+              attachments={attachments}
+            />
+          )}
+          {notes !== undefined && tripId && currentUserId && (
+            <NoteThread
+              tripId={tripId}
+              targetType="ACCOMMODATION"
+              targetId={a.id}
+              notes={notes}
+              currentUserId={currentUserId}
+            />
+          )}
+          <RowActions
+            onEdit={onEdit ? () => onEdit(a) : undefined}
+            onDelete={onDelete ? () => onDelete(a.id) : undefined}
+            editLabel={`Edit ${a.name}`}
+            deleteLabel={`Delete ${a.name}`}
+            disabled={isPending}
+          />
+        </div>
       </div>
 
       {/* Dates + nights */}

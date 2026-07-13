@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { formatDateRange, nightsBetween, tzAbbrev } from "@/lib/dates";
 import { MapLink } from "./map-link";
 import { NoteThread, type NoteView } from "./note-thread";
+import { AttachmentPopover } from "./attachment-popover";
+import type { AttachmentView } from "./attachment-list";
 import { MoreActionsMenu, type CardActionItem } from "./card-actions";
 import { ItemFormDialog, type StopOption } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
@@ -89,6 +91,8 @@ export interface StopCardProps {
   tripId?: string;
   /** Current user's ID (required for notes) */
   currentUserId?: string;
+  /** Attachments for this stop */
+  attachments?: AttachmentView[];
   /**
    * Optional drag handle element supplied by the parent (e.g. dnd-kit's
    * draggable button). Rendered at the left of the top row ONLY for rough
@@ -100,6 +104,8 @@ export interface StopCardProps {
   thingsToDo?: ThingToDo[];
   /** Costs keyed by item id (for edit pre-fill). */
   thingsToDoItemCosts?: Map<string, CostRow[]>;
+  /** Attachments keyed by item id (for edit pre-fill). */
+  thingsToDoItemAttachments?: Map<string, AttachmentView[]>;
   /** All stops in the trip (for the stop picker in ItemFormDialog). */
   stops?: StopOption[];
   /** Active fork/plan id — threaded to createItem. */
@@ -136,9 +142,11 @@ export function StopCard({
   dragHandle,
   thingsToDo,
   thingsToDoItemCosts,
+  thingsToDoItemAttachments,
   stops = [],
   forkId,
   homeCurrency,
+  attachments,
 }: StopCardProps) {
   const isRough = !stop.arriveDate || !stop.departDate;
 
@@ -308,6 +316,16 @@ export function StopCard({
             />
           )}
 
+          {/* Attachment popover */}
+          {attachments !== undefined && tripId && (
+            <AttachmentPopover
+              tripId={tripId}
+              targetType="STOP"
+              targetId={stop.id}
+              attachments={attachments}
+            />
+          )}
+
           {/* Delete */}
           <Button
             variant="ghost"
@@ -441,6 +459,7 @@ export function StopCard({
               forkId={forkId}
               homeCurrency={homeCurrency}
               costs={thingsToDoItemCosts?.get(editingThing.id)}
+              attachments={thingsToDoItemAttachments?.get(editingThing.id) ?? []}
             />
           )}
         </>

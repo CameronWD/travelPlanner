@@ -6,6 +6,10 @@ vi.mock("@/server/actions/accommodation", () => ({
   createAccommodation: vi.fn().mockResolvedValue({ success: true }),
   updateAccommodation: vi.fn().mockResolvedValue({ success: true }),
 }));
+vi.mock("@/server/actions/attachments", () => ({
+  uploadAttachment: vi.fn(),
+  deleteAttachment: vi.fn(),
+}));
 import {
   createAccommodation,
   updateAccommodation,

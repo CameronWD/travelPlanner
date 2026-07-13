@@ -15,6 +15,8 @@ import {
   flagTightConnections,
   flagMissingConnections,
   flagAccommodationCoverageGaps,
+  flagMissingHomeConnection,
+  flagReturnLegAfterHardEnd,
   SPREAD_DAY_THRESHOLD_KM,
   LONG_DRIVE_DAY_THRESHOLD_MIN,
   TIGHT_CONNECTION_BUFFER_MIN,
@@ -839,6 +841,102 @@ describe("flagMissingConnections", () => {
   it("does not flag when a transport links them (either direction)", () => {
     const t = makeTransport({ id: "t1", fromStopId: "london", toStopId: "paris" });
     expect(flagMissingConnections([LONDON, PARIS], [t])).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Rule 15: Missing home connections
+// ---------------------------------------------------------------------------
+
+const home = { name: "Sydney", lat: -33.8, lng: 151.2, countryCode: "au" };
+const homelessStops = [
+  { id: "s1", name: "Paris", sortOrder: 0 },
+  { id: "s2", name: "Rome", sortOrder: 1 },
+];
+
+describe("flagMissingHomeConnection", () => {
+  it("flags a missing outbound and (round trip) return leg", () => {
+    const flags = flagMissingHomeConnection(homelessStops, [], home, true);
+    expect(flags.map((f) => f.id)).toEqual(["missing-home-outbound", "missing-home-return"]);
+    expect(flags[0].message).toContain("Sydney");
+    expect(flags[0].message).toContain("Paris");
+  });
+  it("omits the return flag when not a round trip", () => {
+    const flags = flagMissingHomeConnection(homelessStops, [], home, false);
+    expect(flags.map((f) => f.id)).toEqual(["missing-home-outbound"]);
+  });
+  it("is silent when both legs exist", () => {
+    const transports = [
+      { depIsHome: true, toStopId: "s1", arrIsHome: false, fromStopId: null },
+      { arrIsHome: true, fromStopId: "s2", depIsHome: false, toStopId: null },
+    ];
+    expect(flagMissingHomeConnection(homelessStops, transports, home, true)).toEqual([]);
+  });
+  it("is silent with no home base or no stops", () => {
+    expect(flagMissingHomeConnection(homelessStops, [], null, true)).toEqual([]);
+    expect(flagMissingHomeConnection([], [], home, true)).toEqual([]);
+  });
+  it("uses override first/last stop when provided, ignoring the stops array order", () => {
+    // The stops array has Paris (sortOrder 0) as first and Rome (sortOrder 1) as last.
+    // We override with a rough stop that is actually the global first/last —
+    // simulating a trip where a rough stop precedes/follows the dated stops.
+    const roughFirst = { id: "rough-first", name: "Zurich" };
+    const roughLast = { id: "rough-last", name: "Amsterdam" };
+    const flags = flagMissingHomeConnection(
+      homelessStops, // dated stops only: Paris, Rome
+      [],
+      home,
+      true,
+      { firstStop: roughFirst, lastStop: roughLast },
+    );
+    expect(flags.map((f) => f.id)).toEqual(["missing-home-outbound", "missing-home-return"]);
+    expect(flags[0].message).toContain("Zurich");
+    expect(flags[1].message).toContain("Amsterdam");
+  });
+  it("detectFlags passes homeFirstStop/homeLastStop through to flagMissingHomeConnection", () => {
+    // A trip with one dated stop (Paris) but homeFirstStop/homeLastStop pointing
+    // to a rough stop (Zurich / Amsterdam). The flag messages must name the overrides.
+    const datedStop: FlagStop = makeStop({
+      id: "paris",
+      name: "Paris",
+      arriveDate: "2026-07-06",
+      departDate: "2026-07-10",
+      sortOrder: 1, // sortOrder 1 — NOT the global first
+    });
+    const flags = detectFlags({
+      stops: [datedStop],
+      transports: [],
+      accommodations: [makeAccom({ id: "a1", stopId: "paris", checkIn: "2026-07-06", checkOut: "2026-07-10" })],
+      items: [
+        makeItem({ id: "i1", date: "2026-07-06" }),
+        makeItem({ id: "i2", date: "2026-07-07" }),
+        makeItem({ id: "i3", date: "2026-07-08" }),
+        makeItem({ id: "i4", date: "2026-07-09" }),
+      ],
+      tripStart: "2026-07-06",
+      tripEnd: "2026-07-10",
+      home,
+      roundTrip: true,
+      homeFirstStop: { id: "rough-1", name: "Zurich" },
+      homeLastStop: { id: "rough-2", name: "Amsterdam" },
+    });
+    const outbound = flags.find((f) => f.id === "missing-home-outbound");
+    const ret = flags.find((f) => f.id === "missing-home-return");
+    expect(outbound?.message).toContain("Zurich");
+    expect(ret?.message).toContain("Amsterdam");
+  });
+});
+
+describe("flagReturnLegAfterHardEnd", () => {
+  it("warns when the return leg lands after the hard end date", () => {
+    const transports = [{ arrIsHome: true, fromStopId: "s2", arrAt: new Date("2026-07-13T06:00:00Z") }];
+    const flags = flagReturnLegAfterHardEnd(transports, "2026-07-12");
+    expect(flags).toHaveLength(1);
+    expect(flags[0]).toMatchObject({ id: "return-after-hard-end", severity: "warning" });
+  });
+  it("is silent when the return lands on/before the hard end date", () => {
+    const transports = [{ arrIsHome: true, fromStopId: "s2", arrAt: new Date("2026-07-12T06:00:00Z") }];
+    expect(flagReturnLegAfterHardEnd(transports, "2026-07-12")).toEqual([]);
   });
 });
 

@@ -47,6 +47,7 @@ import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { CostRow } from "@/server/actions/costs";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { NoteView } from "./note-thread";
+import type { AttachmentView } from "./attachment-list";
 import {
   DndContext,
   closestCenter,
@@ -90,6 +91,8 @@ export interface ItineraryTransport {
   mode: TransportMode;
   fromStopId?: string | null;
   toStopId?: string | null;
+  depIsHome?: boolean | null;
+  arrIsHome?: boolean | null;
   depPlace?: string | null;
   arrPlace?: string | null;
   depAt?: Date | null;
@@ -127,6 +130,18 @@ interface ItineraryManagerProps {
   tripEndDate?: string;
   /** Map of stopId → notes for that stop */
   notesByStopId?: Map<string, NoteView[]>;
+  /** Map of transportId → notes for that transport */
+  notesByTransportId?: Map<string, NoteView[]>;
+  /** Map of accommodationId → notes for that accommodation */
+  notesByAccommodationId?: Map<string, NoteView[]>;
+  /** Map of stopId → attachments for that stop */
+  attachmentsByStopId?: Map<string, AttachmentView[]>;
+  /** Map of transportId → attachments for that transport */
+  attachmentsByTransportId?: Map<string, AttachmentView[]>;
+  /** Map of accommodationId → attachments for that accommodation */
+  attachmentsByAccommodationId?: Map<string, AttachmentView[]>;
+  /** Map of itemId → attachments for that item */
+  attachmentsByItemId?: Map<string, AttachmentView[]>;
   /** Current authenticated user's ID */
   currentUserId?: string;
   /** Fork being edited (null = real plan). Threaded to all create actions. */
@@ -152,6 +167,11 @@ interface ItineraryManagerProps {
    * Costs keyed by item id for things-to-do edit pre-fill (ADR 0022).
    */
   thingsToDoItemCostsById?: Map<string, CostRow[]>;
+  /**
+   * The trip's home base name — passed to TransportFormDialog so the picker
+   * can offer "🏠 Home" as a departure/arrival option.
+   */
+  homeBaseName?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -312,10 +332,17 @@ export function ItineraryManager({
   tripStartDate,
   tripEndDate,
   notesByStopId,
+  notesByTransportId,
+  notesByAccommodationId,
+  attachmentsByStopId,
+  attachmentsByTransportId,
+  attachmentsByAccommodationId,
+  attachmentsByItemId,
   currentUserId,
   forkId,
   thingsToDoByStopId,
   thingsToDoItemCostsById,
+  homeBaseName,
 }: ItineraryManagerProps) {
   const { confirm, dialog } = useConfirm();
 
@@ -1079,11 +1106,13 @@ export function ItineraryManager({
         onMakeRough={handleMakeRough}
         onAdjustDates={handleAdjustDates}
         notes={notesByStopId?.get(stop.id) ?? []}
+        attachments={attachmentsByStopId?.get(stop.id) ?? []}
         tripId={tripId}
         currentUserId={currentUserId}
         dragHandle={dragHandle}
         thingsToDo={thingsToDoByStopId?.get(stop.id)}
         thingsToDoItemCosts={thingsToDoItemCostsById}
+        thingsToDoItemAttachments={attachmentsByItemId}
         stops={stopOptions}
         forkId={forkId}
         homeCurrency={homeCurrency}
@@ -1116,6 +1145,9 @@ export function ItineraryManager({
                 costs={acc.costs}
                 tripId={tripId}
                 homeCurrency={homeCurrency}
+                notes={notesByAccommodationId?.get(acc.id) ?? []}
+                attachments={attachmentsByAccommodationId?.get(acc.id) ?? []}
+                currentUserId={currentUserId}
               />
             ))}
           </div>
@@ -1150,6 +1182,10 @@ export function ItineraryManager({
                 costs={t.costs}
                 tripId={tripId}
                 homeCurrency={homeCurrency}
+                homeBaseName={homeBaseName}
+                notes={notesByTransportId?.get(t.id) ?? []}
+                attachments={attachmentsByTransportId?.get(t.id) ?? []}
+                currentUserId={currentUserId}
               />
             ))}
 
@@ -1201,6 +1237,10 @@ export function ItineraryManager({
             costs={t.costs}
             tripId={tripId}
             homeCurrency={homeCurrency}
+            homeBaseName={homeBaseName}
+            notes={notesByTransportId?.get(t.id) ?? []}
+            attachments={attachmentsByTransportId?.get(t.id) ?? []}
+            currentUserId={currentUserId}
           />
         ))}
       </div>
@@ -1587,6 +1627,10 @@ export function ItineraryManager({
                   costs={t.costs}
                   tripId={tripId}
                   homeCurrency={homeCurrency}
+                  homeBaseName={homeBaseName}
+                  notes={notesByTransportId?.get(t.id) ?? []}
+                  attachments={attachmentsByTransportId?.get(t.id) ?? []}
+                  currentUserId={currentUserId}
                 />
               ))}
             </div>
@@ -1681,6 +1725,7 @@ export function ItineraryManager({
           tripEndDate={tripEndDate}
           chapters={chapters.map((c) => ({ id: c.id, name: c.name }))}
           forkId={forkId ?? null}
+          attachments={attachmentsByStopId?.get(editingStop.id) ?? []}
         />
       )}
 
@@ -1697,6 +1742,7 @@ export function ItineraryManager({
           }}
           forkId={forkId ?? null}
           homeCurrency={homeCurrency}
+          homeBaseName={homeBaseName}
         />
       )}
 
@@ -1713,6 +1759,8 @@ export function ItineraryManager({
           forkId={forkId ?? null}
           homeCurrency={homeCurrency}
           costs={editingTransportCosts}
+          homeBaseName={homeBaseName}
+          attachments={attachmentsByTransportId?.get(editingTransport.id) ?? []}
         />
       )}
 
@@ -1736,6 +1784,7 @@ export function ItineraryManager({
       {/* Edit accommodation */}
       {editingAccommodation && editingAccStop && (
         <AccommodationFormDialog
+          tripId={tripId}
           stopId={editingAccStop.id}
           stopDateRange={{
             arriveDate: editingAccStop.arriveDate ?? "",
@@ -1753,6 +1802,7 @@ export function ItineraryManager({
           forkId={forkId ?? null}
           homeCurrency={homeCurrency}
           costs={editingAccommodationCosts}
+          attachments={attachmentsByAccommodationId?.get(editingAccommodation.id) ?? []}
         />
       )}
 

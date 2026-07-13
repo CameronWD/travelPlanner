@@ -11,6 +11,7 @@ import { nightsBetween, isDateWithin, addDays, daysBetween } from "@/lib/dates";
 import { HARD_END_APPROACHING_NIGHTS } from "@/lib/firm-up"; // threshold lives alongside computeProjectedEnd
 import { instantToZonedDateISO } from "@/lib/tz";
 import { haversineKm, estimateDriveMinutes, type LatLng } from "@/lib/geo";
+import { hasOutboundLeg, hasReturnLeg, type HomeBase } from "@/lib/home-base";
 
 // ---------------------------------------------------------------------------
 // Flag shape
@@ -57,6 +58,8 @@ export interface FlagTransport {
   depAt?: Date | string | null;
   arrAt?: Date | string | null;
   mode: string;
+  depIsHome?: boolean | null;
+  arrIsHome?: boolean | null;
 }
 
 export interface FlagAccommodation {
@@ -92,6 +95,22 @@ export interface DetectFlagsInput {
   /** Per-trip drive-estimate config; defaults suit mixed/winding roads. */
   drivingWindingFactor?: number;
   drivingAvgSpeedKph?: number;
+  /** Home base for detecting missing home-connection legs. */
+  home?: HomeBase | null;
+  /** Whether the trip is a round trip (return leg back to home expected). */
+  roundTrip?: boolean;
+  /**
+   * First stop by sortOrder across ALL stops (dated + rough).
+   * When provided, flagMissingHomeConnection uses this instead of deriving
+   * first/last from its `stops` param — ensuring alignment with phase-planning
+   * nudges which also use all stops.
+   */
+  homeFirstStop?: { id: string; name: string } | null;
+  /**
+   * Last stop by sortOrder across ALL stops (dated + rough).
+   * See homeFirstStop above.
+   */
+  homeLastStop?: { id: string; name: string } | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -750,6 +769,83 @@ export function flagMissingConnections(stops: FlagStop[], transports: FlagTransp
 }
 
 // ---------------------------------------------------------------------------
+// Rule 15: Missing home connection (info)
+//
+// Checks whether the trip has a transport leg departing from the home base
+// to the first stop (outbound) and, for round trips, one arriving back home
+// from the last stop. Silent when no home base is set or no stops exist.
+// ---------------------------------------------------------------------------
+
+export function flagMissingHomeConnection(
+  stops: { id: string; name: string; sortOrder: number }[],
+  transports: Pick<FlagTransport, "depIsHome" | "arrIsHome" | "fromStopId" | "toStopId">[],
+  home: HomeBase | null,
+  roundTrip: boolean,
+  overrides?: {
+    firstStop?: { id: string; name: string } | null;
+    lastStop?: { id: string; name: string } | null;
+  },
+): Flag[] {
+  if (!home || stops.length === 0) return [];
+  // Use caller-supplied first/last (all stops by sortOrder) when provided;
+  // fall back to deriving from the supplied stops array.
+  let first: { id: string; name: string };
+  let last: { id: string; name: string };
+  if (overrides?.firstStop && overrides?.lastStop) {
+    first = overrides.firstStop;
+    last = overrides.lastStop;
+  } else {
+    const sorted = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
+    first = sorted[0];
+    last = sorted[sorted.length - 1];
+  }
+  const flags: Flag[] = [];
+  if (!hasOutboundLeg(transports, first.id)) {
+    flags.push({
+      id: "missing-home-outbound",
+      severity: "info",
+      message: `No transport booked from ${home.name} to ${first.name}.`,
+      targetType: "TRANSPORT",
+    });
+  }
+  if (roundTrip && !hasReturnLeg(transports, last.id)) {
+    flags.push({
+      id: "missing-home-return",
+      severity: "info",
+      message: `No transport booked from ${last.name} back to ${home.name}.`,
+      targetType: "TRANSPORT",
+    });
+  }
+  return flags;
+}
+
+// ---------------------------------------------------------------------------
+// Rule 16: Return leg after hard end date (warning)
+//
+// If a transport arriving home (arrIsHome=true) has an arrAt timestamp after
+// the trip's hard end date, warn the traveller.
+// ---------------------------------------------------------------------------
+
+export function flagReturnLegAfterHardEnd(
+  transports: Pick<FlagTransport, "arrIsHome" | "fromStopId" | "arrAt">[],
+  hardEndDate: string | null | undefined,
+): Flag[] {
+  if (!hardEndDate) return [];
+  const ret = transports.find((t) => t.arrIsHome && t.arrAt);
+  if (!ret || !ret.arrAt) return [];
+  const landISO = new Date(ret.arrAt).toISOString().slice(0, 10);
+  if (landISO <= hardEndDate) return [];
+  return [
+    {
+      id: "return-after-hard-end",
+      severity: "warning",
+      message: `Your return flight lands (${landISO}) after your hard end date (${hardEndDate}).`,
+      targetType: "TRIP",
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
 // Main: detectFlags
 // ---------------------------------------------------------------------------
 
@@ -783,6 +879,10 @@ export function detectFlags({
   hardEndDate,
   drivingWindingFactor,
   drivingAvgSpeedKph,
+  home,
+  roundTrip,
+  homeFirstStop,
+  homeLastStop,
 }: DetectFlagsInput): Flag[] {
   return [
     ...flagStopsWithoutAccommodation(stops, accommodations),
@@ -805,5 +905,10 @@ export function detectFlags({
     ...flagHardEndDate(projectedEnd, hardEndDate),
     ...flagMissingConnections(stops, transports),
     ...flagAccommodationCoverageGaps(stops, accommodations),
+    ...flagMissingHomeConnection(stops, transports, home ?? null, roundTrip ?? true, {
+      firstStop: homeFirstStop ?? null,
+      lastStop: homeLastStop ?? null,
+    }),
+    ...flagReturnLegAfterHardEnd(transports, hardEndDate),
   ];
 }

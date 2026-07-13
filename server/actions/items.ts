@@ -16,6 +16,7 @@ import { getUserGlobe } from "@/lib/globe";
 import { markerToWishlistItemData } from "@/lib/marker-to-item";
 import type { MarkerView } from "@/components/globe/types";
 import { type ActionResult, validationResult } from "@/lib/action-result";
+import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -388,6 +389,8 @@ export async function deleteItem(itemId: string): Promise<ItemActionResult> {
   const doomed = await db.item.findUnique({ where: { id: itemId }, select: { title: true } });
   await db.item.delete({ where: { id: itemId } });
   await recordPlanActivity(item.forkId, { tripId: item.tripId, verb: "DELETED", entityType: "ITEM", entityId: itemId, entityLabel: doomed?.title ?? "" });
+
+  await cleanupTargetSideData(item.tripId, "ITEM", itemId);
 
   revalidateItemPaths(item.tripId);
   return { success: true };

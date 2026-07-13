@@ -14,6 +14,8 @@ import { formatMoney } from "@/lib/money";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
 import { detectFlags } from "@/lib/flags";
+import { tripHomeBase } from "@/lib/home-base";
+import { homeMapPoint } from "@/lib/route-map";
 import { getTripProjection } from "@/server/actions/stops";
 import { groupStopsByChapter, chapterForStop } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
@@ -100,6 +102,11 @@ export default async function SummaryPage({
       homeCurrency: true,
       drivingWindingFactor: true,
       drivingAvgSpeedKph: true,
+      homeName: true,
+      homeLat: true,
+      homeLng: true,
+      homeCountryCode: true,
+      roundTrip: true,
     },
   });
   if (!trip) notFound();
@@ -205,6 +212,8 @@ export default async function SummaryPage({
           depAt: true,
           arrAt: true,
           sortOrder: true,
+          depIsHome: true,
+          arrIsHome: true,
         },
       }),
       db.accommodation.findMany({
@@ -292,6 +301,17 @@ export default async function SummaryPage({
   // Detect flags
   // ---------------------------------------------------------------------------
   const projection = await getTripProjection(tripId);
+
+  // For the home-connection flag we need first/last stop by sortOrder across
+  // ALL stops (dated + rough), matching how phase-planning derives first/last
+  // for the outbound/return nudges. Build a merged, sorted list here.
+  const allStopsSorted = [
+    ...stops.map((s) => ({ id: s.id, name: s.name, sortOrder: s.sortOrder ?? 0 })),
+    ...roughStops.map((s) => ({ id: s.id, name: s.name, sortOrder: s.sortOrder ?? 0 })),
+  ].sort((a, b) => a.sortOrder - b.sortOrder);
+  const homeFirstStop = allStopsSorted[0] ?? null;
+  const homeLastStop = allStopsSorted[allStopsSorted.length - 1] ?? null;
+
   const flags = detectFlags({
     stops: stops as FlagStop[],
     transports: transports as FlagTransport[],
@@ -304,6 +324,10 @@ export default async function SummaryPage({
     hardEndDate: projection.hardEndDate,
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
+    home: tripHomeBase(trip),
+    roundTrip: trip.roundTrip ?? undefined,
+    homeFirstStop,
+    homeLastStop,
   });
 
   // ---------------------------------------------------------------------------
@@ -465,7 +489,7 @@ export default async function SummaryPage({
       <section aria-labelledby="map-heading">
         <SectionHeading id="map-heading" icon={MapPin} title="Route" />
         {/* RouteMap is client-only via dynamic import */}
-        <RouteMap stops={mapStops} height={380} />
+        <RouteMap stops={mapStops} height={380} home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} />
       </section>
 
       {/* ── Stops overview ── */}

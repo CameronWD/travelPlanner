@@ -22,6 +22,8 @@ import { MapLink } from "./map-link";
 import type { CostRow } from "@/server/actions/costs";
 import { NoteThread, type NoteView } from "./note-thread";
 import { VoteControl, type VoteView } from "./vote-control";
+import { AttachmentPopover } from "./attachment-popover";
+import type { AttachmentView } from "./attachment-list";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,6 +67,8 @@ export interface ItemCardProps {
   votes?: VoteView[];
   /** Current user's ID — required for notes & votes */
   currentUserId?: string;
+  /** Attachments for this item */
+  attachments?: AttachmentView[];
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +89,7 @@ export function ItemCard({
   notes,
   votes,
   currentUserId,
+  attachments,
 }: ItemCardProps) {
   const hasTime = Boolean(item.startTime);
   const timeLabel = hasTime
@@ -172,6 +177,16 @@ export function ItemCard({
               targetId={item.id}
               notes={notes}
               currentUserId={currentUserId}
+            />
+          )}
+
+          {/* Attachment popover */}
+          {mode === "wishlist" && attachments !== undefined && tripId && (
+            <AttachmentPopover
+              tripId={tripId}
+              targetType="ITEM"
+              targetId={item.id}
+              attachments={attachments}
             />
           )}
 

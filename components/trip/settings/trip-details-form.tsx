@@ -25,6 +25,8 @@ interface TripDetailsFormProps {
     endDate: string;
     hardEndDate: string;
     homeCurrency: string;
+    homeName?: string | null;
+    roundTrip?: boolean;
   };
 }
 
@@ -54,6 +56,8 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
       endDate: data.get("endDate") as string,
       hardEndDate: data.get("hardEndDate") as string,
       homeCurrency: data.get("homeCurrency") as string,
+      homeName: data.get("homeName") as string,
+      roundTrip: data.get("roundTrip") === "on",
     };
 
     startTransition(async () => {
@@ -126,6 +130,32 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
             ))}
           </SelectContent>
         </Select>
+      </Field>
+
+      <Field
+        label="Home base"
+        error={fieldError("homeName")}
+        description="Where this trip departs from and returns to. Leave blank if you'd rather not set one."
+      >
+        <Input
+          name="homeName"
+          defaultValue={defaultValues.homeName ?? ""}
+          placeholder="e.g. Sydney"
+          disabled={isPending}
+        />
+      </Field>
+
+      <Field label="Round trip">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            id="roundTrip"
+            name="roundTrip"
+            defaultChecked={defaultValues.roundTrip ?? true}
+            disabled={isPending}
+          />
+          Nudge me to book a flight home from the last stop.
+        </label>
       </Field>
 
       <div className="flex items-center gap-3">

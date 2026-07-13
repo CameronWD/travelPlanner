@@ -37,6 +37,11 @@ export const transportSchema = z.object({
   /** Stop this transport arrives at. */
   toStopId: z.string().trim().min(1).optional().or(z.literal("")),
 
+  /** Whether this transport departs from the trip's Home base. */
+  depIsHome: z.boolean().optional(),
+  /** Whether this transport arrives at the trip's Home base. */
+  arrIsHome: z.boolean().optional(),
+
   /** Free-text departure place name. */
   depPlace: z.string().trim().optional(),
   /** Free-text arrival place name. */

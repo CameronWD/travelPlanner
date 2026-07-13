@@ -16,6 +16,7 @@ import {
   type BudgetTransport,
 } from "@/lib/budget";
 import { buildNextSteps } from "@/lib/next-steps";
+import { tripHomeBase, hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
 import { getTripProjection } from "@/server/actions/stops";
 import { chapterForStop } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
@@ -48,6 +49,11 @@ interface PhasePlanningProps {
     homeCurrency: string;
     drivingWindingFactor: number;
     drivingAvgSpeedKph: number;
+    homeName: string | null;
+    homeLat: number | null;
+    homeLng: number | null;
+    homeCountryCode: string | null;
+    roundTrip: boolean;
   };
   today: string;
   phase: TripPhase; // "planning" | "final-prep"
@@ -70,6 +76,7 @@ export async function PhasePlanning({
   const [
     datedStopsRaw,
     roughStops,
+    allStopsRaw,
     transports,
     accommodations,
     items,
@@ -96,6 +103,11 @@ export async function PhasePlanning({
       },
     }),
     db.stop.count({ where: { tripId, arriveDate: null } }),
+    db.stop.findMany({
+      where: { tripId },
+      orderBy: { sortOrder: "asc" },
+      select: { id: true, name: true, sortOrder: true },
+    }),
     db.transport.findMany({
       where: { tripId },
       orderBy: { sortOrder: "asc" },
@@ -106,6 +118,8 @@ export async function PhasePlanning({
         toStopId: true,
         depAt: true,
         arrAt: true,
+        depIsHome: true,
+        arrIsHome: true,
       },
     }),
     db.accommodation.findMany({
@@ -222,6 +236,11 @@ export async function PhasePlanning({
   // ---------------------------------------------------------------------------
   // Build next steps
   // ---------------------------------------------------------------------------
+  const sortedStops = allStopsRaw; // already ordered by sortOrder asc
+  const home = tripHomeBase(trip);
+  const firstStop = sortedStops[0] ?? null;
+  const lastStop = sortedStops[sortedStops.length - 1] ?? null;
+
   const steps = buildNextSteps({
     flags,
     phase,
@@ -231,6 +250,13 @@ export async function PhasePlanning({
       hasPackingList: packingCount > 0,
       hasPretripList: pretripCount > 0,
       unbookedTransportCount: transports.filter((t) => !t.depAt).length,
+      hasHomeBase: !!home,
+      hasOutboundLeg: hasOutboundLeg(transports, firstStop?.id ?? null),
+      hasReturnLeg: hasReturnLeg(transports, lastStop?.id ?? null),
+      roundTrip: trip.roundTrip,
+      homeName: home?.name ?? null,
+      firstStopName: firstStop?.name ?? null,
+      lastStopName: lastStop?.name ?? null,
     },
     tripBasePath: base,
   });

@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { requireUser, requireTripAccess } from "@/lib/guards";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
+import { geocodePlaceDetailed } from "@/lib/geocode";
 import {
   createTripSchema,
   tripSchema,
@@ -108,7 +109,50 @@ export async function updateTrip(
     return validationResult(parsed.error);
   }
 
-  const { name, startDate, endDate, hardEndDate, homeCurrency } = parsed.data;
+  const { name, startDate, endDate, hardEndDate, homeCurrency, homeName: rawHomeName, roundTrip } = parsed.data;
+
+  // Home base update logic:
+  //   - key absent (undefined)  → leave homeName + coords completely unchanged
+  //   - explicit ""             → clear homeName + coords to null
+  //   - non-empty, same as before → only update homeName, leave coords untouched
+  //   - non-empty, changed      → geocode + set coords
+
+  // homeNameUpdate is the value we'll write to the DB, or the sentinel
+  // SKIP_HOME_UPDATE when the key was absent.
+  const SKIP_HOME_UPDATE = Symbol("SKIP_HOME_UPDATE");
+
+  let homeUpdate: typeof SKIP_HOME_UPDATE | {
+    homeName: string | null;
+    coordFields: { homeLat: number | null; homeLng: number | null; homeCountryCode: string | null } | null;
+  };
+
+  if (rawHomeName === undefined) {
+    // Key absent — do not touch the home base at all.
+    homeUpdate = SKIP_HOME_UPDATE;
+  } else {
+    const nextHomeName = rawHomeName.trim() !== "" ? rawHomeName.trim() : null;
+
+    const before = await db.trip.findUnique({ where: { id: tripId }, select: { homeName: true } });
+
+    const nameChanged = nextHomeName !== null && nextHomeName !== before?.homeName;
+    const nameCleared = nextHomeName === null;
+
+    let coordFields: { homeLat: number | null; homeLng: number | null; homeCountryCode: string | null } | null = null;
+
+    if (nameCleared) {
+      // Explicitly clear the coords.
+      coordFields = { homeLat: null, homeLng: null, homeCountryCode: null };
+    } else if (nameChanged) {
+      // Geocode the new name.
+      const geo = await geocodePlaceDetailed(nextHomeName!);
+      coordFields = geo
+        ? { homeLat: geo.lat, homeLng: geo.lng, homeCountryCode: geo.countryCode }
+        : { homeLat: null, homeLng: null, homeCountryCode: null };
+    }
+    // If name unchanged, coordFields stays null → coord fields omitted from update.
+
+    homeUpdate = { homeName: nextHomeName, coordFields };
+  }
 
   await db.trip.update({
     where: { id: tripId },
@@ -118,6 +162,13 @@ export async function updateTrip(
       endDate: endDate ?? null,
       hardEndDate: hardEndDate ?? null,
       homeCurrency,
+      ...(homeUpdate !== SKIP_HOME_UPDATE
+        ? {
+            homeName: homeUpdate.homeName,
+            ...(homeUpdate.coordFields !== null ? homeUpdate.coordFields : {}),
+          }
+        : {}),
+      ...(roundTrip !== undefined ? { roundTrip } : {}),
     },
   });
 

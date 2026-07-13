@@ -25,6 +25,7 @@ import type { StopInput } from "@/lib/validations/stop";
 import type { StopCardStop } from "./stop-card";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
+import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
 const NO_CHAPTER = "__none__";
 
@@ -58,6 +59,8 @@ export interface StopFormDialogProps {
   defaultDepartDate?: string;
   /** Fork to create the stop in (null = real plan). */
   forkId?: string | null;
+  /** Existing attachments for this stop (edit mode only). */
+  attachments?: AttachmentView[];
 }
 
 /**
@@ -83,6 +86,7 @@ export function StopFormDialog({
   defaultArriveDate,
   defaultDepartDate,
   forkId,
+  attachments,
 }: StopFormDialogProps) {
   return (
     <FormDialog
@@ -102,6 +106,7 @@ export function StopFormDialog({
         defaultArriveDate={defaultArriveDate}
         defaultDepartDate={defaultDepartDate}
         forkId={forkId}
+        attachments={attachments}
       />
     </FormDialog>
   );
@@ -124,6 +129,7 @@ interface StopFormProps {
   defaultArriveDate?: string;
   defaultDepartDate?: string;
   forkId?: string | null;
+  attachments?: AttachmentView[];
 }
 
 function StopForm({
@@ -137,6 +143,7 @@ function StopForm({
   defaultArriveDate,
   defaultDepartDate,
   forkId,
+  attachments,
 }: StopFormProps) {
   const isEdit = Boolean(stop);
 
@@ -336,6 +343,23 @@ function StopForm({
           placeholder="Any notes about this stop…"
           disabled={isPending}
         />
+      </Field>
+
+      {/* Attachments */}
+      <Field label="Attachments">
+        {stop?.id ? (
+          <AttachmentList
+            tripId={tripId}
+            targetType="STOP"
+            targetId={stop.id}
+            attachments={attachments ?? []}
+            compact
+          />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Save this stop first, then reopen it to attach files.
+          </p>
+        )}
       </Field>
 
       {/* Form-level error */}

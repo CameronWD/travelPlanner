@@ -7,6 +7,9 @@ import type { TransportMode } from "@/lib/enums";
 import { transportTimeDisplay, shortDate, dayDeltaSuffix } from "@/lib/time-display";
 import { CostEditor } from "./cost-editor";
 import type { CostRow } from "@/server/actions/costs";
+import { NoteThread, type NoteView } from "./note-thread";
+import { AttachmentPopover } from "./attachment-popover";
+import type { AttachmentView } from "./attachment-list";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -17,6 +20,8 @@ export interface TransportCardTransport {
   mode: TransportMode;
   fromStopId?: string | null;
   toStopId?: string | null;
+  depIsHome?: boolean | null;
+  arrIsHome?: boolean | null;
   depPlace?: string | null;
   arrPlace?: string | null;
   depAt?: Date | null;
@@ -47,6 +52,14 @@ interface TransportCardProps {
   tripId?: string;
   /** Trip's home currency */
   homeCurrency?: string;
+  /** Trip's home base name — displayed for home-flagged endpoints */
+  homeBaseName?: string | null;
+  /** Notes attached to this transport */
+  notes?: NoteView[];
+  /** Current authenticated user's ID (required for notes) */
+  currentUserId?: string;
+  /** Attachments for this transport */
+  attachments?: AttachmentView[];
 }
 
 // ---------------------------------------------------------------------------
@@ -61,12 +74,16 @@ export function TransportCard({
   costs,
   tripId,
   homeCurrency,
+  homeBaseName,
+  notes,
+  currentUserId,
+  attachments,
 }: TransportCardProps) {
   const meta = TRANSPORT_MODE_META[t.mode];
   const Icon = meta.icon;
 
-  const fromLabel = t.fromStopName ?? t.depPlace ?? null;
-  const toLabel = t.toStopName ?? t.arrPlace ?? null;
+  const fromLabel = t.depIsHome ? (homeBaseName ?? "Home") : (t.fromStopName ?? t.depPlace ?? null);
+  const toLabel = t.arrIsHome ? (homeBaseName ?? "Home") : (t.toStopName ?? t.arrPlace ?? null);
 
   const td = transportTimeDisplay({
     depAt: t.depAt, arrAt: t.arrAt, fromTimezone: t.fromStopTimezone, toTimezone: t.toStopTimezone,
@@ -109,13 +126,32 @@ export function TransportCard({
         </div>
 
         {/* Controls */}
-        <RowActions
-          onEdit={onEdit ? () => onEdit(t) : undefined}
-          onDelete={onDelete ? () => onDelete(t.id) : undefined}
-          editLabel="Edit Transport"
-          deleteLabel="Delete Transport"
-          disabled={isPending}
-        />
+        <div className="flex shrink-0 items-center gap-1">
+          {attachments !== undefined && tripId && (
+            <AttachmentPopover
+              tripId={tripId}
+              targetType="TRANSPORT"
+              targetId={t.id}
+              attachments={attachments}
+            />
+          )}
+          {notes !== undefined && tripId && currentUserId && (
+            <NoteThread
+              tripId={tripId}
+              targetType="TRANSPORT"
+              targetId={t.id}
+              notes={notes}
+              currentUserId={currentUserId}
+            />
+          )}
+          <RowActions
+            onEdit={onEdit ? () => onEdit(t) : undefined}
+            onDelete={onDelete ? () => onDelete(t.id) : undefined}
+            editLabel="Edit Transport"
+            deleteLabel="Delete Transport"
+            disabled={isPending}
+          />
+        </div>
       </div>
 
       {/* Times row */}

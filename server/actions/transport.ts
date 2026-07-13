@@ -11,6 +11,7 @@ import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { type ActionResult, validationResult } from "@/lib/action-result";
+import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -98,9 +99,16 @@ export async function createTransport(
 
   const data = parsed.data;
 
-  // Normalise empty stop IDs to null
-  const fromStopId = data.fromStopId || null;
-  const toStopId = data.toStopId || null;
+  // Normalise home-base flags: a home endpoint owns no stop and no free-text
+  // place. Its coordinates resolve from the trip at read time.
+  const depIsHome = data.depIsHome ?? false;
+  const arrIsHome = data.arrIsHome ?? false;
+  const depPlace = depIsHome ? null : (data.depPlace || null);
+  const arrPlace = arrIsHome ? null : (data.arrPlace || null);
+
+  // Normalise empty stop IDs to null (also cleared when home flag is set)
+  const fromStopId = depIsHome ? null : (data.fromStopId || null);
+  const toStopId = arrIsHome ? null : (data.toStopId || null);
 
   // Validate stop ownership (same plan)
   const stopError = await validateStopBelongsToTrip(tripId, [fromStopId, toStopId], forkId);
@@ -114,19 +122,20 @@ export async function createTransport(
   });
   const sortOrder = (maxTransport?.sortOrder ?? -1) + 1;
 
-  // Best-effort geocode for departure and arrival places
+  // Best-effort geocode for departure and arrival places.
+  // Home endpoints are not geocoded — coords resolve from the trip at read time.
   let depLat: number | null = null;
   let depLng: number | null = null;
-  if (data.depPlace) {
-    const coords = await geocodePlace(data.depPlace);
+  if (depPlace) {
+    const coords = await geocodePlace(depPlace);
     depLat = coords?.lat ?? null;
     depLng = coords?.lng ?? null;
   }
 
   let arrLat: number | null = null;
   let arrLng: number | null = null;
-  if (data.arrPlace) {
-    const coords = await geocodePlace(data.arrPlace);
+  if (arrPlace) {
+    const coords = await geocodePlace(arrPlace);
     arrLat = coords?.lat ?? null;
     arrLng = coords?.lng ?? null;
   }
@@ -136,11 +145,13 @@ export async function createTransport(
       tripId,
       forkId: forkId ?? null,
       mode: data.mode,
+      depIsHome,
+      arrIsHome,
       fromStopId,
       toStopId,
-      depPlace: data.depPlace ?? null,
+      depPlace,
       depAt: data.depAt ?? null,
-      arrPlace: data.arrPlace ?? null,
+      arrPlace,
       arrAt: data.arrAt ?? null,
       reference: data.reference ?? null,
       notes: data.notes ?? null,
@@ -208,8 +219,16 @@ export async function updateTransport(
 
   const data = parsed.data;
 
-  const fromStopId = data.fromStopId || null;
-  const toStopId = data.toStopId || null;
+  // Normalise home-base flags: a home endpoint owns no stop and no free-text
+  // place. Its coordinates resolve from the trip at read time.
+  const depIsHome = data.depIsHome ?? false;
+  const arrIsHome = data.arrIsHome ?? false;
+  const depPlace = depIsHome ? null : (data.depPlace || null);
+  const arrPlace = arrIsHome ? null : (data.arrPlace || null);
+
+  // Normalise empty stop IDs to null (also cleared when home flag is set)
+  const fromStopId = depIsHome ? null : (data.fromStopId || null);
+  const toStopId = arrIsHome ? null : (data.toStopId || null);
 
   const stopError = await validateStopBelongsToTrip(
     transport.tripId,
@@ -220,19 +239,20 @@ export async function updateTransport(
 
   const before = await db.transport.findUnique({ where: { id: transportId } });
 
-  // Best-effort geocode for departure and arrival places
+  // Best-effort geocode for departure and arrival places.
+  // Home endpoints are not geocoded — coords resolve from the trip at read time.
   let depLat: number | null = null;
   let depLng: number | null = null;
-  if (data.depPlace) {
-    const coords = await geocodePlace(data.depPlace);
+  if (depPlace) {
+    const coords = await geocodePlace(depPlace);
     depLat = coords?.lat ?? null;
     depLng = coords?.lng ?? null;
   }
 
   let arrLat: number | null = null;
   let arrLng: number | null = null;
-  if (data.arrPlace) {
-    const coords = await geocodePlace(data.arrPlace);
+  if (arrPlace) {
+    const coords = await geocodePlace(arrPlace);
     arrLat = coords?.lat ?? null;
     arrLng = coords?.lng ?? null;
   }
@@ -241,11 +261,13 @@ export async function updateTransport(
     where: { id: transportId },
     data: {
       mode: data.mode,
+      depIsHome,
+      arrIsHome,
       fromStopId,
       toStopId,
-      depPlace: data.depPlace ?? null,
+      depPlace,
       depAt: data.depAt ?? null,
-      arrPlace: data.arrPlace ?? null,
+      arrPlace,
       arrAt: data.arrAt ?? null,
       reference: data.reference ?? null,
       notes: data.notes ?? null,
@@ -336,6 +358,8 @@ export async function deleteTransport(
   const doomed = await db.transport.findUnique({ where: { id: transportId } });
   await db.transport.delete({ where: { id: transportId } });
   await recordPlanActivity(transport.forkId, { tripId: transport.tripId, verb: "DELETED", entityType: "TRANSPORT", entityId: transportId, entityLabel: entityLabel("TRANSPORT", (doomed ?? {}) as unknown as Record<string, unknown>) });
+
+  await cleanupTargetSideData(transport.tripId, "TRANSPORT", transportId);
 
   revalidatePath(`/trips/${transport.tripId}`);
   return { success: true };

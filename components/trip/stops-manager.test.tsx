@@ -20,6 +20,11 @@ vi.mock("@/server/actions/notes", () => ({
   deleteNote: vi.fn().mockResolvedValue({ success: true }),
 }));
 
+vi.mock("@/server/actions/attachments", () => ({
+  uploadAttachment: vi.fn().mockResolvedValue({ success: true }),
+  deleteAttachment: vi.fn().mockResolvedValue({ success: true }),
+}));
+
 vi.mock("@/server/actions/items", () => ({
   createItem: vi.fn().mockResolvedValue({ success: true }),
   updateItem: vi.fn().mockResolvedValue({ success: true }),

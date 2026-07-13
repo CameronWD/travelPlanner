@@ -29,6 +29,8 @@ const {
   chapterUpdateMock,
   chapterFindUniqueMock,
   chapterFindManyMock,
+  accommodationFindManyMock,
+  cleanupTargetSideDataMock,
 } = vi.hoisted(() => {
   const stopFindFirstMock = vi.fn();
   const stopFindUniqueMock = vi.fn();
@@ -37,6 +39,8 @@ const {
   const stopUpdateMock = vi.fn();
   const stopDeleteMock = vi.fn();
   const queryRawMock = vi.fn();
+  const accommodationFindManyMock = vi.fn();
+  const cleanupTargetSideDataMock = vi.fn();
   const transactionMock = vi.fn(async (arg: unknown) => {
     // Interactive form: invoke the callback with a tx client.
     if (typeof arg === "function") {
@@ -77,6 +81,8 @@ const {
     chapterUpdateMock,
     chapterFindUniqueMock,
     chapterFindManyMock,
+    accommodationFindManyMock,
+    cleanupTargetSideDataMock,
   };
 });
 
@@ -103,8 +109,15 @@ vi.mock("@/lib/db", () => ({
       findUnique: chapterFindUniqueMock,
       findMany: chapterFindManyMock,
     },
+    accommodation: {
+      findMany: accommodationFindManyMock,
+    },
     $transaction: transactionMock,
   },
+}));
+
+vi.mock("@/server/actions/target-cleanup", () => ({
+  cleanupTargetSideData: cleanupTargetSideDataMock,
 }));
 
 import {
@@ -127,6 +140,7 @@ import {
 } from "./stops";
 import { chapterSpan } from "@/lib/chapter-span";
 import { recordActivity } from "@/server/actions/activity";
+import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
 
 const VALID_INPUT = {
   mode: "scheduled" as const,
@@ -160,6 +174,10 @@ beforeEach(() => {
   chapterFindManyMock.mockResolvedValue([]);
   // Default: chapter.update is a no-op.
   chapterUpdateMock.mockResolvedValue({});
+  // Default: accommodation.findMany returns no rows (most tests don't exercise cascade cleanup).
+  accommodationFindManyMock.mockResolvedValue([]);
+  // Default: cleanupTargetSideData is a no-op.
+  cleanupTargetSideDataMock.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -2122,5 +2140,70 @@ describe("Task 9: reorderStops — reflows dates for scheduled stops and returns
     // recomputeChapterSpans calls tx.chapter.findMany then tx.chapter.update
     expect(chapterFindManyMock).toHaveBeenCalled();
     expect(chapterUpdateMock).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deleteStop: cascade accommodation side-data cleanup
+// ---------------------------------------------------------------------------
+
+describe("deleteStop: cleans up its own and cascade-deleted accommodations' side-data", () => {
+  it("calls cleanupTargetSideData for the stop itself", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null })
+      .mockResolvedValueOnce({ name: "Tokyo" });
+    stopDeleteMock.mockResolvedValue({});
+    accommodationFindManyMock.mockResolvedValue([]);
+
+    await deleteStop("stop-1");
+
+    expect(cleanupTargetSideData).toHaveBeenCalledWith("trip-1", "STOP", "stop-1");
+  });
+
+  it("calls cleanupTargetSideData for each cascade-deleted accommodation", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "stop-2", tripId: "trip-2", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null })
+      .mockResolvedValueOnce({ name: "Paris" });
+    stopDeleteMock.mockResolvedValue({});
+    accommodationFindManyMock.mockResolvedValue([
+      { id: "acc-a" },
+      { id: "acc-b" },
+    ]);
+
+    await deleteStop("stop-2");
+
+    expect(cleanupTargetSideData).toHaveBeenCalledWith("trip-2", "STOP", "stop-2");
+    expect(cleanupTargetSideData).toHaveBeenCalledWith("trip-2", "ACCOMMODATION", "acc-a");
+    expect(cleanupTargetSideData).toHaveBeenCalledWith("trip-2", "ACCOMMODATION", "acc-b");
+    expect(cleanupTargetSideData).toHaveBeenCalledTimes(3);
+  });
+
+  it("queries accommodations by stopId before deleting the stop", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "stop-3", tripId: "trip-3", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null })
+      .mockResolvedValueOnce({ name: "Rome" });
+    stopDeleteMock.mockResolvedValue({});
+    accommodationFindManyMock.mockResolvedValue([{ id: "acc-c" }]);
+
+    await deleteStop("stop-3");
+
+    expect(accommodationFindManyMock).toHaveBeenCalledWith({
+      where: { stopId: "stop-3" },
+      select: { id: true },
+    });
+    expect(cleanupTargetSideData).toHaveBeenCalledWith("trip-3", "ACCOMMODATION", "acc-c");
+  });
+
+  it("does not call cleanupTargetSideData for ACCOMMODATION when stop has none", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "stop-4", tripId: "trip-4", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null })
+      .mockResolvedValueOnce({ name: "Berlin" });
+    stopDeleteMock.mockResolvedValue({});
+    accommodationFindManyMock.mockResolvedValue([]);
+
+    await deleteStop("stop-4");
+
+    expect(cleanupTargetSideData).toHaveBeenCalledTimes(1); // only the STOP itself
+    expect(cleanupTargetSideData).toHaveBeenCalledWith("trip-4", "STOP", "stop-4");
   });
 });

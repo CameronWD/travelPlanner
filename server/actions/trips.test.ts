@@ -29,6 +29,7 @@ const {
   attachmentFindManyMock,
   storageDeleteMock,
   storageSaveMock,
+  geocodePlaceDetailedMock,
 } = vi.hoisted(() => {
   const tripCreateMock = vi.fn();
   const tripUpdateMock = vi.fn();
@@ -83,12 +84,16 @@ const {
     attachmentFindManyMock,
     storageDeleteMock,
     storageSaveMock,
+    geocodePlaceDetailedMock: vi.fn(),
   };
 });
 
 vi.mock("@/lib/guards", () => ({
   requireUser: requireUserMock,
   requireTripAccess: requireTripAccessMock,
+}));
+vi.mock("@/lib/geocode", () => ({
+  geocodePlaceDetailed: geocodePlaceDetailedMock,
 }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -369,6 +374,89 @@ describe("updateTrip", () => {
       expect(result.errors.homeCurrency).toBeDefined();
     }
     expect(tripUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("geocodes homeName and stores coords on update", async () => {
+    geocodePlaceDetailedMock.mockResolvedValueOnce({
+      name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au",
+    });
+    tripFindUniqueMock.mockResolvedValueOnce({ homeName: null });
+    tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+    const result = await updateTrip("t1", {
+      name: "Europe 2026", homeCurrency: "AUD", homeName: "Sydney", roundTrip: false,
+    });
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledWith("Sydney");
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        homeName: "Sydney", homeLat: -33.86, homeLng: 151.2, homeCountryCode: "au", roundTrip: false,
+      }),
+    }));
+  });
+
+  it("clears home coords when homeName is emptied", async () => {
+    tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Sydney" });
+    tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+    await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "" });
+
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ homeName: null, homeLat: null, homeLng: null, homeCountryCode: null }),
+    }));
+  });
+
+  it("name unchanged → coords untouched (not geocoded, coord fields omitted)", async () => {
+    tripFindUniqueMock.mockResolvedValueOnce({ homeName: "Sydney" });
+    tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+    await updateTrip("t1", { name: "T", homeCurrency: "AUD", homeName: "Sydney" });
+
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    // coord fields must NOT be present in the update data
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ homeLat: expect.anything() }),
+    }));
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ homeLng: expect.anything() }),
+    }));
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ homeCountryCode: expect.anything() }),
+    }));
+  });
+
+  it("homeName key absent (undefined) → home base left unchanged (no geocode, homeName + coords omitted from update)", async () => {
+    // tripFindUnique must NOT be called either — we skip the lookup entirely.
+    tripUpdateMock.mockResolvedValue({ id: "t1" });
+
+    // Do NOT include the homeName key in the input object at all.
+    const inputWithoutHomeName: Parameters<typeof updateTrip>[1] = {
+      name: "T",
+      homeCurrency: "AUD",
+      // homeName intentionally absent
+    };
+
+    const result = await updateTrip("t1", inputWithoutHomeName);
+
+    expect(result.success).toBe(true);
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    // No DB lookup for current homeName when key is absent
+    expect(tripFindUniqueMock).not.toHaveBeenCalled();
+    // homeName + coord fields must NOT appear in the update payload
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ homeName: expect.anything() }),
+    }));
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ homeLat: expect.anything() }),
+    }));
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ homeLng: expect.anything() }),
+    }));
+    expect(tripUpdateMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.not.objectContaining({ homeCountryCode: expect.anything() }),
+    }));
   });
 });
 

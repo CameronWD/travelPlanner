@@ -6,6 +6,10 @@ vi.mock("@/server/actions/transport", () => ({
   createTransport: vi.fn().mockResolvedValue({ success: true }),
   updateTransport: vi.fn().mockResolvedValue({ success: true }),
 }));
+vi.mock("@/server/actions/attachments", () => ({
+  uploadAttachment: vi.fn().mockResolvedValue({ success: true }),
+  deleteAttachment: vi.fn().mockResolvedValue({ success: true }),
+}));
 import { createTransport, updateTransport } from "@/server/actions/transport";
 
 import { TransportFormDialog } from "./transport-form-dialog";
@@ -421,5 +425,97 @@ describe("TransportFormDialog", () => {
     );
 
     expect(screen.queryByLabelText(/estimated cost amount/i)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Home base option in stop selects
+// ---------------------------------------------------------------------------
+
+describe("TransportFormDialog: homeBaseName", () => {
+  // -------------------------------------------------------------------------
+  // Case 16: Home option appears in both selects when homeBaseName is set
+  // -------------------------------------------------------------------------
+  it("renders a Home option in both From and To stop selects when homeBaseName is provided", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} homeBaseName="Sydney" />);
+
+    // Open the From stop select and look for the Home option
+    const fromTrigger = screen.getAllByRole("combobox")[1]; // second combobox = From stop
+    await user.click(fromTrigger);
+    // Both selects include the option; we expect at least one visible instance.
+    expect((await screen.findAllByText(/🏠 Sydney/)).length).toBeGreaterThanOrEqual(1);
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 17: Home option NOT shown when homeBaseName is absent
+  // -------------------------------------------------------------------------
+  it("does not render a Home option when homeBaseName is not provided", () => {
+    render(<TransportFormDialog {...baseProps} />);
+    expect(screen.queryByText(/🏠/)).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 16b: Attachments — edit mode shows upload control, create shows hint
+  // -------------------------------------------------------------------------
+  it("shows attachments upload control when editing and a save-first hint when creating", () => {
+    const { rerender } = render(
+      <TransportFormDialog
+        open
+        tripId="t1"
+        transport={{ id: "tr1", mode: "FLIGHT", sortOrder: 0 }}
+        attachments={[]}
+        stops={[]}
+        onOpenChange={() => {}}
+      />,
+    );
+    // Edit mode: upload control should be visible
+    expect(screen.getByText(/add file/i)).toBeInTheDocument();
+
+    rerender(
+      <TransportFormDialog
+        open
+        tripId="t1"
+        transport={undefined}
+        attachments={[]}
+        stops={[]}
+        onOpenChange={() => {}}
+      />,
+    );
+    // Create mode: save-first hint
+    expect(screen.getByText(/save.*first|save the/i)).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 18: Selecting Home in From stop submits depIsHome=true
+  // -------------------------------------------------------------------------
+  it("submitting with Home selected as From stop sends depIsHome=true and fromStopId=undefined", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} homeBaseName="Sydney" />);
+
+    // Open the From stop select
+    const fromTrigger = screen.getAllByRole("combobox")[1];
+    await user.click(fromTrigger);
+
+    // Select the Home option — find the span inside the Radix dropdown listbox
+    // (not the hidden native <option>s which have pointer-events:none).
+    const homeOptions = await screen.findAllByText(/🏠 Sydney/);
+    const clickable = homeOptions.find(
+      (el) => el.tagName.toLowerCase() === "span",
+    );
+    if (!clickable) throw new Error("Home option span not found");
+    await user.click(clickable);
+
+    // Submit the form
+    await user.click(screen.getByRole("button", { name: /add transport/i }));
+
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({
+        depIsHome: true,
+        fromStopId: undefined,
+      }),
+      undefined,
+    );
   });
 });

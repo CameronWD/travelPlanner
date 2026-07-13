@@ -24,6 +24,7 @@ import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
+import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -45,6 +46,8 @@ interface FormErrors {
 }
 
 export interface AccommodationFormDialogProps {
+  /** The trip this accommodation belongs to (needed for AttachmentList). */
+  tripId?: string;
   /** The stop this accommodation belongs to. */
   stopId: string;
   /** Stop date range for defaulting and warning display. */
@@ -64,6 +67,8 @@ export interface AccommodationFormDialogProps {
    * When >1 costs are present, the cost fields are hidden (CostEditor is authoritative).
    */
   costs?: CostRow[];
+  /** Existing attachments for this accommodation (edit mode only). */
+  attachments?: AttachmentView[];
 }
 
 // ---------------------------------------------------------------------------
@@ -71,6 +76,7 @@ export interface AccommodationFormDialogProps {
 // ---------------------------------------------------------------------------
 
 export function AccommodationFormDialog({
+  tripId,
   stopId,
   stopDateRange,
   accommodation,
@@ -80,6 +86,7 @@ export function AccommodationFormDialog({
   forkId,
   homeCurrency,
   costs,
+  attachments,
 }: AccommodationFormDialogProps) {
   return (
     <FormDialog
@@ -89,6 +96,7 @@ export function AccommodationFormDialog({
       recordId={accommodation?.id ?? null}
     >
       <AccommodationForm
+        tripId={tripId}
         stopId={stopId}
         stopDateRange={stopDateRange}
         accommodation={accommodation}
@@ -97,6 +105,7 @@ export function AccommodationFormDialog({
         forkId={forkId}
         homeCurrency={homeCurrency}
         costs={costs}
+        attachments={attachments}
       />
     </FormDialog>
   );
@@ -168,6 +177,7 @@ export function EditAccommodationButton({
 // ---------------------------------------------------------------------------
 
 interface AccommodationFormProps {
+  tripId?: string;
   stopId: string;
   stopDateRange: { arriveDate: string; departDate: string };
   accommodation?: AccommodationCardAccommodation | null;
@@ -176,9 +186,11 @@ interface AccommodationFormProps {
   forkId?: string | null;
   homeCurrency?: string;
   costs?: CostRow[];
+  attachments?: AttachmentView[];
 }
 
 function AccommodationForm({
+  tripId,
   stopId,
   stopDateRange,
   accommodation,
@@ -187,6 +199,7 @@ function AccommodationForm({
   forkId,
   homeCurrency,
   costs,
+  attachments,
 }: AccommodationFormProps) {
   const isEdit = Boolean(accommodation);
 
@@ -352,6 +365,23 @@ function AccommodationForm({
           placeholder="Any notes about this stay…"
           disabled={isPending}
         />
+      </Field>
+
+      {/* Attachments */}
+      <Field label="Attachments">
+        {accommodation?.id && tripId ? (
+          <AttachmentList
+            tripId={tripId}
+            targetType="ACCOMMODATION"
+            targetId={accommodation.id}
+            attachments={attachments ?? []}
+            compact
+          />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Save this accommodation first, then reopen it to attach files.
+          </p>
+        )}
       </Field>
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}

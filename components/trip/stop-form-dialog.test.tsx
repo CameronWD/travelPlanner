@@ -6,6 +6,10 @@ vi.mock("@/server/actions/stops", () => ({
   createStop: vi.fn().mockResolvedValue({ success: true }),
   updateStop: vi.fn().mockResolvedValue({ success: true }),
 }));
+vi.mock("@/server/actions/attachments", () => ({
+  uploadAttachment: vi.fn(),
+  deleteAttachment: vi.fn(),
+}));
 import { createStop } from "@/server/actions/stops";
 
 import { StopFormDialog } from "./stop-form-dialog";
