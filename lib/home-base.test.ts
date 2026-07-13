@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tripHomeBase, resolveEndpoint, hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
+import { tripHomeBase, resolveEndpoint, hasOutboundLeg, hasReturnLeg, findOutboundLeg, findReturnLeg } from "@/lib/home-base";
 
 describe("tripHomeBase", () => {
   it("returns null when no homeName", () => {
@@ -40,5 +40,23 @@ describe("leg presence", () => {
   it("detects a return leg last->home", () => {
     expect(hasReturnLeg([{ arrIsHome: true, fromStopId: "s9" }], "s9")).toBe(true);
     expect(hasReturnLeg([{ arrIsHome: true, fromStopId: "s1" }], "s9")).toBe(false);
+  });
+});
+
+describe("findOutboundLeg / findReturnLeg", () => {
+  it("returns the outbound leg departing home to the first stop", () => {
+    const legs = [
+      { id: "t1", depIsHome: true, toStopId: "s1" },
+      { id: "t2", depIsHome: false, toStopId: "s1" },
+    ];
+    expect(findOutboundLeg(legs, "s1")?.id).toBe("t1");
+    expect(findOutboundLeg(legs, "s2")).toBeNull();
+    expect(findOutboundLeg(legs, null)).toBeNull();
+  });
+  it("returns the return leg arriving home from the last stop", () => {
+    const legs = [{ id: "t9", arrIsHome: true, fromStopId: "s9" }];
+    expect(findReturnLeg(legs, "s9")?.id).toBe("t9");
+    expect(findReturnLeg(legs, "s1")).toBeNull();
+    expect(findReturnLeg(legs, null)).toBeNull();
   });
 });
