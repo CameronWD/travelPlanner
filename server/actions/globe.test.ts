@@ -1,7 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const {
+  requireGlobeAccessMock,
+  markerFindUniqueMock,
+  attachmentFindManyMock,
+  attachmentDeleteManyMock,
+  storageDeleteMock,
+} = vi.hoisted(() => ({
+  requireGlobeAccessMock: vi.fn(async () => ({ user: { id: "u1" }, globe: { id: "g1" } })),
+  markerFindUniqueMock: vi.fn(),
+  attachmentFindManyMock: vi.fn(),
+  attachmentDeleteManyMock: vi.fn(),
+  storageDeleteMock: vi.fn(),
+}));
+
 vi.mock("@/lib/globe", () => ({
-  requireGlobeAccess: vi.fn(async () => ({ user: { id: "u1" }, globe: { id: "g1" } })),
+  requireGlobeAccess: requireGlobeAccessMock,
 }));
 vi.mock("@/lib/guards", () => ({ requireUser: vi.fn(async () => ({ id: "u1" })) }));
 vi.mock("@/lib/geocode", () => ({
@@ -11,17 +25,41 @@ vi.mock("@/lib/geocode", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("@/lib/db", () => ({
   db: {
-    marker: { create: vi.fn(), update: vi.fn(), findUnique: vi.fn(), delete: vi.fn() },
+    marker: {
+      create: vi.fn(),
+      update: vi.fn(),
+      findUnique: markerFindUniqueMock,
+      delete: vi.fn(),
+    },
+    attachment: {
+      findMany: attachmentFindManyMock,
+      deleteMany: attachmentDeleteManyMock,
+    },
     globeInvite: { create: vi.fn() },
   },
 }));
+vi.mock("@/lib/storage", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/storage")>();
+  return {
+    ...real,
+    getStorage: vi.fn(() => ({
+      delete: storageDeleteMock,
+    })),
+  };
+});
 
 import { db } from "@/lib/db";
 import { createMarker, updateMarker, deleteMarker, inviteToGlobe } from "./globe";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const dbm = db as any;
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  requireGlobeAccessMock.mockResolvedValue({ user: { id: "u1" }, globe: { id: "g1" } });
+  attachmentFindManyMock.mockResolvedValue([]);
+  attachmentDeleteManyMock.mockResolvedValue({ count: 0 });
+  storageDeleteMock.mockResolvedValue(undefined);
+});
 
 describe("createMarker", () => {
   it("rejects an invalid marker without touching the db", async () => {
@@ -73,6 +111,15 @@ describe("deleteMarker", () => {
     const res = await deleteMarker("m1");
     expect(res.success).toBe(true);
     expect(dbm.marker.delete).toHaveBeenCalledWith({ where: { id: "m1" } });
+  });
+
+  it("deletes a marker's attachments (rows + blobs) on delete", async () => {
+    requireGlobeAccessMock.mockResolvedValue({ user: { id: "u1" }, globe: { id: "g1" } });
+    markerFindUniqueMock.mockResolvedValue({ id: "m1", globeId: "g1" });
+    attachmentFindManyMock.mockResolvedValue([{ id: "a1", storageKey: "globes/g1/a1-tickets.pdf" }]);
+    await deleteMarker("m1");
+    expect(storageDeleteMock).toHaveBeenCalledWith("globes/g1/a1-tickets.pdf");
+    expect(attachmentDeleteManyMock).toHaveBeenCalledWith({ where: { globeId: "g1", targetType: "MARKER", targetId: "m1" } });
   });
 });
 
