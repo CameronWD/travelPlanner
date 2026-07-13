@@ -1199,7 +1199,7 @@ export async function seedAiTrip() {
         uploadedById: you.id,
       },
     });
-    const key = generateKey(trip.id, created.id, at.filename);
+    const key = generateKey({ trip: trip.id }, created.id, at.filename);
     await storage.save(key, Buffer.from(at.body), "text/plain");
     await db.attachment.update({
       where: { id: created.id },

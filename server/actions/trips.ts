@@ -69,7 +69,7 @@ export async function createTrip(
       try {
         const bytes = Buffer.from(await coverFile.arrayBuffer());
         const ext = coverFile.type === "image/png" ? "png" : coverFile.type === "image/webp" ? "webp" : coverFile.type === "image/gif" ? "gif" : "jpg";
-        const key = generateKey(trip.id, crypto.randomUUID(), `cover.${ext}`);
+        const key = generateKey({ trip: trip.id }, crypto.randomUUID(), `cover.${ext}`);
         await getStorage().save(key, bytes, coverFile.type);
         await db.trip.update({ where: { id: trip.id }, data: { coverImageKey: key } });
       } catch {

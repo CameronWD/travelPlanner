@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { requireGlobeAccess } from "@/lib/globe";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { targetTypeSchema } from "@/lib/enums";
 import { recordActivity } from "@/server/actions/activity";
@@ -21,7 +22,8 @@ export type AttachmentActionResult =
 // ---------------------------------------------------------------------------
 
 /**
- * Locate an attachment and verify the current user has access to its trip.
+ * Locate an attachment and verify the current user has access to it.
+ * Branches on globe-scoped (globeId set) vs trip-scoped (tripId set).
  * Returns the attachment or throws notFound().
  */
 async function requireAttachmentAccess(id: string) {
@@ -30,6 +32,7 @@ async function requireAttachmentAccess(id: string) {
     select: {
       id: true,
       tripId: true,
+      globeId: true,
       storageKey: true,
       filename: true,
       mime: true,
@@ -44,11 +47,14 @@ async function requireAttachmentAccess(id: string) {
   if (!attachment) {
     notFound();
   }
-  if (!attachment.tripId) {
-    // Globe-owned attachments are not managed through trip-scoped actions.
-    notFound();
+  if (attachment.globeId) {
+    const { globe } = await requireGlobeAccess();
+    if (globe.id !== attachment.globeId) {
+      notFound();
+    }
+  } else {
+    await requireTripAccess(attachment.tripId!);
   }
-  await requireTripAccess(attachment.tripId);
   return attachment;
 }
 
@@ -57,28 +63,28 @@ async function requireAttachmentAccess(id: string) {
 // ---------------------------------------------------------------------------
 
 /**
- * Upload a file and attach it to a trip (or a specific entity within a trip).
+ * Upload a file and attach it to a trip or globe entity.
  *
  * FormData fields:
- *   - file        File  (required)
- *   - tripId      string (required)
+ *   - file        File   (required)
+ *   - tripId      string (required for trip-scoped uploads)
+ *   - globeId     string (required for globe-scoped uploads; mutually exclusive with tripId)
  *   - targetType  TargetType (required)
  *   - targetId    string (optional)
  *
- * Access-checked: the current user must be a member of the trip.
+ * Access-checked: the current user must be a member of the trip (trip path) or
+ * own the globe (globe path).
  * Validates: MIME type + file size before writing to storage.
  */
 export async function uploadAttachment(
   formData: FormData,
 ): Promise<AttachmentActionResult> {
   const tripId = formData.get("tripId");
+  const globeId = formData.get("globeId");
   const targetTypeRaw = formData.get("targetType");
   const targetId = formData.get("targetId");
   const file = formData.get("file");
 
-  if (typeof tripId !== "string" || !tripId) {
-    return { success: false, error: "Missing tripId." };
-  }
   if (!(file instanceof File)) {
     return { success: false, error: "No file provided." };
   }
@@ -90,9 +96,6 @@ export async function uploadAttachment(
   }
   const targetType = parsedTargetType.data;
 
-  // Access check — must be a trip member.
-  const { user } = await requireTripAccess(tripId);
-
   // Validate the upload (mime + size)
   const validation = validateUpload({ mime: file.type, size: file.size });
   if (!validation.ok) {
@@ -102,6 +105,51 @@ export async function uploadAttachment(
   // Read file bytes from the FormData File object.
   const arrayBuffer = await file.arrayBuffer();
   const bytes = Buffer.from(arrayBuffer);
+
+  // ---------------------------------------------------------------------------
+  // Globe-scoped path
+  // ---------------------------------------------------------------------------
+  if (typeof globeId === "string" && globeId) {
+    const { user, globe } = await requireGlobeAccess();
+    if (globe.id !== globeId) {
+      return { success: false, error: "Globe access denied." };
+    }
+
+    const attachment = await db.attachment.create({
+      data: {
+        globeId,
+        targetType,
+        targetId: typeof targetId === "string" && targetId ? targetId : null,
+        filename: file.name,
+        mime: file.type,
+        size: file.size,
+        url: "",
+        uploadedById: user.id,
+      },
+    });
+
+    const storageKey = generateKey({ globe: globeId }, attachment.id, file.name);
+    await getStorage().save(storageKey, bytes, file.type);
+
+    const publicUrl = `/api/attachments/${attachment.id}`;
+    await db.attachment.update({
+      where: { id: attachment.id },
+      data: { url: publicUrl, storageKey },
+    });
+
+    revalidatePath("/globe");
+    return { success: true, id: attachment.id };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Trip-scoped path
+  // ---------------------------------------------------------------------------
+  if (typeof tripId !== "string" || !tripId) {
+    return { success: false, error: "Missing tripId." };
+  }
+
+  // Access check — must be a trip member.
+  const { user } = await requireTripAccess(tripId);
 
   // Create the Attachment row first (we need the id for the storage key).
   const attachment = await db.attachment.create({
@@ -118,7 +166,7 @@ export async function uploadAttachment(
   });
 
   // Compute a deterministic, collision-resistant storage key.
-  const storageKey = generateKey(tripId, attachment.id, file.name);
+  const storageKey = generateKey({ trip: tripId }, attachment.id, file.name);
 
   // Persist the file bytes.
   await getStorage().save(storageKey, bytes, file.type);
@@ -146,7 +194,7 @@ export async function uploadAttachment(
 /**
  * Delete an attachment (blob + database row).
  *
- * Access-checked: the current user must be a member of the attachment's trip.
+ * Access-checked: requireAttachmentAccess branches on globe vs trip scope.
  * Storage errors are swallowed so a missing blob never blocks row cleanup.
  */
 export async function deleteAttachment(
@@ -165,19 +213,21 @@ export async function deleteAttachment(
 
   await db.attachment.delete({ where: { id } });
 
-  // tripId is guaranteed non-null by requireAttachmentAccess (it throws notFound
-  // for globe-owned attachments where tripId is null).
-  const tripId = attachment.tripId!;
+  if (attachment.globeId) {
+    // Globe-scoped: no trip activity log; revalidate the globe page.
+    revalidatePath("/globe");
+  } else {
+    const tripId = attachment.tripId!;
+    await recordActivity({
+      tripId,
+      verb: "DELETED",
+      entityType: "ATTACHMENT",
+      entityId: id,
+      entityLabel: attachment.filename,
+      changes: { excerpt: attachment.filename },
+    });
+    revalidatePath(`/trips/${tripId}/files`);
+  }
 
-  await recordActivity({
-    tripId,
-    verb: "DELETED",
-    entityType: "ATTACHMENT",
-    entityId: id,
-    entityLabel: attachment.filename,
-    changes: { excerpt: attachment.filename },
-  });
-
-  revalidatePath(`/trips/${tripId}/files`);
   return { success: true };
 }

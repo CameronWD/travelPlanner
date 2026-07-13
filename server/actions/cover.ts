@@ -43,7 +43,7 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
   const bytes = Buffer.from(await file.arrayBuffer());
   const storage = getStorage();
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : file.type === "image/gif" ? "gif" : "jpg";
-  const key = generateKey(tripId, crypto.randomUUID(), `cover.${ext}`);
+  const key = generateKey({ trip: tripId }, crypto.randomUUID(), `cover.${ext}`);
   await storage.save(key, bytes, file.type);
 
   // Best-effort cleanup of the previous cover blob.
