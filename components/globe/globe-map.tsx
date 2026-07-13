@@ -182,10 +182,10 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
         const container: HTMLElement | undefined = e.popup.getElement();
         if (!container) return;
         container.querySelectorAll<HTMLButtonElement>("[data-edit]").forEach((btn) => {
-          btn.addEventListener("click", () => onEditRef.current(btn.dataset.edit!));
+          btn.addEventListener("click", () => onEditRef.current(btn.dataset.edit!), { once: true });
         });
         container.querySelectorAll<HTMLButtonElement>("[data-delete]").forEach((btn) => {
-          btn.addEventListener("click", () => onDeleteRef.current(btn.dataset.delete!));
+          btn.addEventListener("click", () => onDeleteRef.current(btn.dataset.delete!), { once: true });
         });
       });
     });
