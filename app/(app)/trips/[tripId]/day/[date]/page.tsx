@@ -59,7 +59,7 @@ export default async function DayPage({
         ? trip.endDate
         : date;
 
-  const [stops, items, transports, accommodations, journalEntry, journalPhotos, wishlistLocated] =
+  const [stops, items, transports, accommodations, journalEntry, journalPhotos, wishlistLocated, allAttachments] =
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops don't appear on a dated day view.
@@ -159,6 +159,20 @@ export default async function DayPage({
         where: { tripId, forkId: null, date: null, stopId: null, lat: { not: null }, lng: { not: null } },
         select: { id: true, title: true, category: true, lat: true, lng: true },
       }),
+      db.attachment.findMany({
+        where: { tripId },
+        orderBy: { createdAt: "asc" },
+        select: {
+          id: true,
+          filename: true,
+          mime: true,
+          size: true,
+          url: true,
+          uploadedById: true,
+          createdAt: true,
+          targetId: true,
+        },
+      }),
     ]);
 
   const itinerary = buildItinerary({
@@ -223,6 +237,19 @@ export default async function DayPage({
   }
 
   const stopOptions = stops.map((s) => ({ id: s.id, name: s.name }));
+
+  // ── Attachments by target id ───────────────────────────────────────────────
+  // Group all trip attachments into a flat map keyed by targetId.
+  // Entity ids are globally-unique cuids, so one flat map covers all entity types.
+  const attachmentsByTarget = allAttachments.reduce<Record<string, typeof allAttachments>>(
+    (acc, att) => {
+      if (att.targetId) {
+        (acc[att.targetId] ??= []).push(att);
+      }
+      return acc;
+    },
+    {},
+  );
 
   // ── Day-map model ──────────────────────────────────────────────────────────
   // Items for this specific date (with coords)
@@ -396,7 +423,7 @@ export default async function DayPage({
 
       {/* Detailed timeline */}
       <div className="rounded-xl border border-border bg-card px-4 py-4">
-        <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} />
+        <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} />
       </div>
 
       {/* Quick add */}

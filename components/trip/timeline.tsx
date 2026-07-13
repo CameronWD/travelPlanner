@@ -20,6 +20,8 @@ import type {
 } from "@/lib/itinerary";
 import type { Category } from "@/lib/categories";
 import type { TransportMode } from "@/lib/enums";
+import { AttachmentLinks } from "@/components/trip/attachment-links";
+import type { AttachmentView } from "@/components/trip/attachment-list";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -44,13 +46,19 @@ export interface TimelineProps {
    * rendered for that item.
    */
   itemDirections?: Record<string, ItemDirections>;
+  /**
+   * Optional attachments keyed by entity id (transport, accommodation, item).
+   * When present, each row renders its associated attachments as paperclip links.
+   * Absent in the agenda variant — the prop is optional so calendar stays unaffected.
+   */
+  attachmentsByTarget?: Record<string, AttachmentView[]>;
 }
 
 // ---------------------------------------------------------------------------
 // Timeline component
 // ---------------------------------------------------------------------------
 
-export function Timeline({ day, variant = "agenda", itemDirections }: TimelineProps) {
+export function Timeline({ day, variant = "agenda", itemDirections, attachmentsByTarget }: TimelineProps) {
   const isDay = variant === "day";
 
   const hasAnything =
@@ -73,13 +81,13 @@ export function Timeline({ day, variant = "agenda", itemDirections }: TimelinePr
       {day.accommodationEntries
         .filter((e) => e.kind === "accommodation-checkin")
         .map((e) => (
-          <AccomCheckinRow key={`ci-${e.accommodation.id}`} entry={e} isDay={isDay} />
+          <AccomCheckinRow key={`ci-${e.accommodation.id}`} entry={e} isDay={isDay} attachments={attachmentsByTarget?.[e.accommodation.id] ?? []} />
         ))}
 
       {/* Timed entries: transport departures/arrivals interleaved with timed items */}
       {/* We render them in two groups — transport first for departure context, then timed items */}
       {day.transportEntries.map((e) => (
-        <TransportRow key={`tr-${e.transport.id}-${e.kind}`} entry={e} isDay={isDay} />
+        <TransportRow key={`tr-${e.transport.id}-${e.kind}`} entry={e} isDay={isDay} attachments={attachmentsByTarget?.[e.transport.id] ?? []} />
       ))}
 
       {day.timedItems.map((e) => (
@@ -88,6 +96,7 @@ export function Timeline({ day, variant = "agenda", itemDirections }: TimelinePr
           entry={e}
           isDay={isDay}
           directions={itemDirections?.[e.item.id]}
+          attachments={attachmentsByTarget?.[e.item.id] ?? []}
         />
       ))}
 
@@ -95,7 +104,7 @@ export function Timeline({ day, variant = "agenda", itemDirections }: TimelinePr
       {day.accommodationEntries
         .filter((e) => e.kind === "accommodation-checkout")
         .map((e) => (
-          <AccomCheckoutRow key={`co-${e.accommodation.id}`} entry={e} isDay={isDay} />
+          <AccomCheckoutRow key={`co-${e.accommodation.id}`} entry={e} isDay={isDay} attachments={attachmentsByTarget?.[e.accommodation.id] ?? []} />
         ))}
 
       {/* Untimed items */}
@@ -110,6 +119,7 @@ export function Timeline({ day, variant = "agenda", itemDirections }: TimelinePr
               entry={e}
               isDay={isDay}
               directions={itemDirections?.[e.item.id]}
+              attachments={attachmentsByTarget?.[e.item.id] ?? []}
             />
           ))}
         </div>
@@ -168,9 +178,11 @@ function TimeGutter({
 function TransportRow({
   entry,
   isDay,
+  attachments,
 }: {
   entry: TransportDepartureEntry | TransportArrivalEntry;
   isDay: boolean;
+  attachments: AttachmentView[];
 }) {
   const t = entry.transport;
   const meta = TRANSPORT_MODE_META[t.mode as TransportMode];
@@ -258,6 +270,7 @@ function TransportRow({
             Arrives {depEntry.arrivalDateISO}
           </p>
         )}
+        <AttachmentLinks attachments={attachments} />
       </div>
     </div>
   );
@@ -267,10 +280,12 @@ function TimedItemRow({
   entry,
   isDay,
   directions,
+  attachments,
 }: {
   entry: ItemEntry;
   isDay: boolean;
   directions?: ItemDirections;
+  attachments: AttachmentView[];
 }) {
   const { item } = entry;
   const timeLabel = item.endTime
@@ -307,6 +322,7 @@ function TimedItemRow({
         {!isDay && (
           <CategoryPill category={item.category as Category} size="sm" />
         )}
+        <AttachmentLinks attachments={attachments} />
       </div>
     </div>
   );
@@ -316,10 +332,12 @@ function UntimedItemRow({
   entry,
   isDay,
   directions,
+  attachments,
 }: {
   entry: ItemEntry;
   isDay: boolean;
   directions?: ItemDirections;
+  attachments: AttachmentView[];
 }) {
   const { item } = entry;
   return (
@@ -335,6 +353,7 @@ function UntimedItemRow({
         {isDay && item.address && (
           <p className="mt-0.5 text-xs text-muted-foreground">{item.address}</p>
         )}
+        <AttachmentLinks attachments={attachments} />
       </div>
     </div>
   );
@@ -343,9 +362,11 @@ function UntimedItemRow({
 function AccomCheckinRow({
   entry,
   isDay,
+  attachments,
 }: {
   entry: AccommodationCheckinEntry;
   isDay: boolean;
+  attachments: AttachmentView[];
 }) {
   const { accommodation: a } = entry;
   return (
@@ -370,6 +391,7 @@ function AccomCheckinRow({
             {a.confirmation}
           </p>
         )}
+        <AttachmentLinks attachments={attachments} />
       </div>
     </div>
   );
@@ -378,9 +400,11 @@ function AccomCheckinRow({
 function AccomCheckoutRow({
   entry,
   isDay,
+  attachments,
 }: {
   entry: AccommodationCheckoutEntry;
   isDay: boolean;
+  attachments: AttachmentView[];
 }) {
   const { accommodation: a } = entry;
   return (
@@ -399,6 +423,7 @@ function AccomCheckoutRow({
         <span className="block truncate text-sm font-medium text-foreground" title={`Check-out — ${a.name}`}>
           Check-out — {a.name}
         </span>
+        <AttachmentLinks attachments={attachments} />
       </div>
     </div>
   );

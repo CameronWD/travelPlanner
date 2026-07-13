@@ -26,6 +26,7 @@ import {
   RemindersCard,
   type ReminderItem,
 } from "@/components/trip/reminders-card";
+import { AttachmentLinks } from "@/components/trip/attachment-links";
 import { ChapterChip } from "@/components/trip/chapter-chip";
 import { WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
 
@@ -58,7 +59,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
   const isWithinTrip = today >= startDate && today <= endDate;
 
   // Fetch all itinerary data (plus costs + reminders + chapters + located wishlist candidates)
-  const [stops, items, transports, accommodations, costs, reminders, chapters, wishlistLocated] = await Promise.all([
+  const [stops, items, transports, accommodations, costs, reminders, chapters, wishlistLocated, allAttachments] = await Promise.all([
     db.stop.findMany({
       // Rough (date-less) stops don't appear on a dated "today" view.
       where: { tripId, arriveDate: { not: null } },
@@ -176,6 +177,20 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       },
       select: { id: true, title: true, category: true, lat: true, lng: true },
     }),
+    db.attachment.findMany({
+      where: { tripId },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        filename: true,
+        mime: true,
+        size: true,
+        url: true,
+        uploadedById: true,
+        createdAt: true,
+        targetId: true,
+      },
+    }),
   ]);
 
   const currentChapter = chapterForDate(effectiveDate, chapters);
@@ -232,6 +247,17 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
   });
 
   const dayPlan = pickDayPlan(itinerary, effectiveDate);
+
+  // ── Attachments by target id ───────────────────────────────────────────────
+  const attachmentsByTarget = allAttachments.reduce<Record<string, typeof allAttachments>>(
+    (acc, att) => {
+      if (att.targetId) {
+        (acc[att.targetId] ??= []).push(att);
+      }
+      return acc;
+    },
+    {},
+  );
 
   // Find tonight's accommodation (checkIn <= effectiveDate < checkOut)
   const tonightAccom = accommodations.find(
@@ -441,7 +467,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
 
         <div className="rounded-xl border border-border bg-card p-5">
           {dayPlan ? (
-            <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} />
+            <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} />
           ) : (
             <p className="py-2 text-sm text-muted-foreground italic">
               Nothing planned for this day.
@@ -483,6 +509,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
                   className="mt-0.5 text-xs text-muted-foreground/60 hover:text-primary"
                 />
               )}
+              <AttachmentLinks attachments={attachmentsByTarget[tonightAccom.id] ?? []} />
             </div>
           </div>
         </section>
