@@ -6,7 +6,7 @@ vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn().mockResolvedValue({ success: true }),
   deleteAttachment: vi.fn().mockResolvedValue({ success: true }),
 }));
-import { deleteAttachment } from "@/server/actions/attachments";
+import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
 
 import { AttachmentList } from "./attachment-list";
 import type { AttachmentView } from "./attachment-list";
@@ -45,6 +45,36 @@ describe("AttachmentList", () => {
     );
     expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
     expect(screen.getByText("hotel-voucher.jpg")).toBeInTheDocument();
+  });
+
+  it("uploads a globe-scoped attachment with globeId and no tripId", async () => {
+    const user = userEvent.setup();
+    render(
+      <AttachmentList globeId="g1" targetType="MARKER" targetId="m1" attachments={[]} />,
+    );
+    await user.upload(
+      screen.getByLabelText(/add file/i),
+      new File(["x"], "tickets.pdf", { type: "application/pdf" }),
+    );
+    expect(uploadAttachment).toHaveBeenCalledTimes(1);
+    const fd = vi.mocked(uploadAttachment).mock.calls[0][0] as FormData;
+    expect(fd.get("globeId")).toBe("g1");
+    expect(fd.get("tripId")).toBeNull();
+    expect(fd.get("targetType")).toBe("MARKER");
+    expect(fd.get("targetId")).toBe("m1");
+  });
+
+  it("uploads a trip-scoped attachment with tripId and no globeId", async () => {
+    const user = userEvent.setup();
+    render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />);
+    await user.upload(
+      screen.getByLabelText(/add file/i),
+      new File(["x"], "insurance.pdf", { type: "application/pdf" }),
+    );
+    expect(uploadAttachment).toHaveBeenCalledTimes(1);
+    const fd = vi.mocked(uploadAttachment).mock.calls[0][0] as FormData;
+    expect(fd.get("tripId")).toBe("trip-1");
+    expect(fd.get("globeId")).toBeNull();
   });
 
   it("delete shows a confirmation dialog naming the file and fires only after confirming", async () => {

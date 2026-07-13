@@ -7,7 +7,8 @@ import { AttachmentList, type AttachmentView } from "@/components/trip/attachmen
 import type { TargetType } from "@/lib/enums";
 
 export function AttachmentPopover(props: {
-  tripId: string;
+  tripId?: string;
+  globeId?: string;
   targetType: TargetType;
   targetId: string;
   attachments: AttachmentView[];
@@ -34,6 +35,7 @@ export function AttachmentPopover(props: {
       <PopoverContent align="end" className="w-80">
         <AttachmentList
           tripId={props.tripId}
+          globeId={props.globeId}
           targetType={props.targetType}
           targetId={props.targetId}
           attachments={props.attachments}
