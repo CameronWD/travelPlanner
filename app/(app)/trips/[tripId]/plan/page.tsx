@@ -158,7 +158,7 @@ export default async function TripPlanPage({
   const allAttachments = await db.attachment.findMany({
     where: {
       tripId,
-      targetType: { in: ["STOP", "TRANSPORT", "ACCOMMODATION"] },
+      targetType: { in: ["STOP", "TRANSPORT", "ACCOMMODATION", "ITEM"] },
       targetId: { not: null },
     },
     orderBy: { createdAt: "asc" },
@@ -179,6 +179,7 @@ export default async function TripPlanPage({
   const attachmentsByStopId = new Map<string, AttachmentView[]>();
   const attachmentsByTransportId = new Map<string, AttachmentView[]>();
   const attachmentsByAccommodationId = new Map<string, AttachmentView[]>();
+  const attachmentsByItemId = new Map<string, AttachmentView[]>();
 
   for (const att of allAttachments) {
     if (!att.targetId) continue;
@@ -203,6 +204,10 @@ export default async function TripPlanPage({
       const existing = attachmentsByAccommodationId.get(att.targetId) ?? [];
       existing.push(attView);
       attachmentsByAccommodationId.set(att.targetId, existing);
+    } else if (att.targetType === "ITEM") {
+      const existing = attachmentsByItemId.get(att.targetId) ?? [];
+      existing.push(attView);
+      attachmentsByItemId.set(att.targetId, existing);
     }
   }
 
@@ -383,6 +388,7 @@ export default async function TripPlanPage({
         attachmentsByStopId={attachmentsByStopId}
         attachmentsByTransportId={attachmentsByTransportId}
         attachmentsByAccommodationId={attachmentsByAccommodationId}
+        attachmentsByItemId={attachmentsByItemId}
         currentUserId={user.id}
         chapters={chapters}
         thingsToDoByStopId={thingsToDoByStopId}

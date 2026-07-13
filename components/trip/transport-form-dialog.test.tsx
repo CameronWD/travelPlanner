@@ -6,6 +6,10 @@ vi.mock("@/server/actions/transport", () => ({
   createTransport: vi.fn().mockResolvedValue({ success: true }),
   updateTransport: vi.fn().mockResolvedValue({ success: true }),
 }));
+vi.mock("@/server/actions/attachments", () => ({
+  uploadAttachment: vi.fn().mockResolvedValue({ success: true }),
+  deleteAttachment: vi.fn().mockResolvedValue({ success: true }),
+}));
 import { createTransport, updateTransport } from "@/server/actions/transport";
 
 import { TransportFormDialog } from "./transport-form-dialog";
@@ -449,6 +453,37 @@ describe("TransportFormDialog: homeBaseName", () => {
   it("does not render a Home option when homeBaseName is not provided", () => {
     render(<TransportFormDialog {...baseProps} />);
     expect(screen.queryByText(/🏠/)).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 16b: Attachments — edit mode shows upload control, create shows hint
+  // -------------------------------------------------------------------------
+  it("shows attachments upload control when editing and a save-first hint when creating", () => {
+    const { rerender } = render(
+      <TransportFormDialog
+        open
+        tripId="t1"
+        transport={{ id: "tr1", mode: "FLIGHT", sortOrder: 0 }}
+        attachments={[]}
+        stops={[]}
+        onOpenChange={() => {}}
+      />,
+    );
+    // Edit mode: upload control should be visible
+    expect(screen.getByText(/add file/i)).toBeInTheDocument();
+
+    rerender(
+      <TransportFormDialog
+        open
+        tripId="t1"
+        transport={undefined}
+        attachments={[]}
+        stops={[]}
+        onOpenChange={() => {}}
+      />,
+    );
+    // Create mode: save-first hint
+    expect(screen.getByText(/save.*first|save the/i)).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------

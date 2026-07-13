@@ -28,6 +28,7 @@ import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
+import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -86,6 +87,8 @@ export interface ItemFormDialogProps {
    * Only applied on create (ignored in edit mode where the item's own stopId wins).
    */
   defaultStopId?: string | null;
+  /** Existing attachments for this item (edit mode only). */
+  attachments?: AttachmentView[];
 }
 
 // ---------------------------------------------------------------------------
@@ -147,6 +150,7 @@ export function ItemFormDialog({
   costs,
   forkId,
   defaultStopId,
+  attachments,
 }: ItemFormDialogProps) {
   return (
     <FormDialog
@@ -167,6 +171,7 @@ export function ItemFormDialog({
         costs={costs}
         forkId={forkId}
         defaultStopId={item ? undefined : defaultStopId}
+        attachments={attachments}
       />
     </FormDialog>
   );
@@ -269,6 +274,7 @@ interface ItemFormProps {
   forkId?: string | null;
   /** Pre-select this stop on create (ignored in edit mode). */
   defaultStopId?: string | null;
+  attachments?: AttachmentView[];
 }
 
 function ItemForm({
@@ -283,6 +289,7 @@ function ItemForm({
   costs,
   forkId,
   defaultStopId,
+  attachments,
 }: ItemFormProps) {
   const isEdit = Boolean(item);
 
@@ -493,6 +500,23 @@ function ItemForm({
           placeholder="Anything else worth knowing…"
           disabled={isPending}
         />
+      </Field>
+
+      {/* Attachments */}
+      <Field label="Attachments">
+        {item?.id ? (
+          <AttachmentList
+            tripId={tripId}
+            targetType="ITEM"
+            targetId={item.id}
+            attachments={attachments ?? []}
+            compact
+          />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Save this item first, then reopen it to attach files.
+          </p>
+        )}
       </Field>
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}

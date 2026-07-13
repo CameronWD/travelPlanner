@@ -27,6 +27,7 @@ import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
+import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,6 +82,8 @@ export interface TransportFormDialogProps {
    * rendered in the From and To stop selects.
    */
   homeBaseName?: string | null;
+  /** Existing attachments for this transport (edit mode only). */
+  attachments?: AttachmentView[];
 }
 
 // ---------------------------------------------------------------------------
@@ -100,6 +103,7 @@ export function TransportFormDialog({
   homeCurrency,
   costs,
   homeBaseName,
+  attachments,
 }: TransportFormDialogProps) {
   return (
     <FormDialog
@@ -120,6 +124,7 @@ export function TransportFormDialog({
         homeCurrency={homeCurrency}
         costs={costs}
         homeBaseName={homeBaseName}
+        attachments={attachments}
       />
     </FormDialog>
   );
@@ -210,6 +215,7 @@ interface TransportFormProps {
   homeCurrency?: string;
   costs?: CostRow[];
   homeBaseName?: string | null;
+  attachments?: AttachmentView[];
 }
 
 /** Sentinel for "none selected" in stop selects */
@@ -244,6 +250,7 @@ function TransportForm({
   homeCurrency,
   costs,
   homeBaseName,
+  attachments,
 }: TransportFormProps) {
   const isEdit = Boolean(transport);
 
@@ -472,6 +479,23 @@ function TransportForm({
           placeholder="Any notes about this leg…"
           disabled={isPending}
         />
+      </Field>
+
+      {/* Attachments */}
+      <Field label="Attachments">
+        {transport?.id ? (
+          <AttachmentList
+            tripId={tripId}
+            targetType="TRANSPORT"
+            targetId={transport.id}
+            attachments={attachments ?? []}
+            compact
+          />
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Save this transport first, then reopen it to attach files.
+          </p>
+        )}
       </Field>
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}

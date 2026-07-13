@@ -104,6 +104,8 @@ export interface StopCardProps {
   thingsToDo?: ThingToDo[];
   /** Costs keyed by item id (for edit pre-fill). */
   thingsToDoItemCosts?: Map<string, CostRow[]>;
+  /** Attachments keyed by item id (for edit pre-fill). */
+  thingsToDoItemAttachments?: Map<string, AttachmentView[]>;
   /** All stops in the trip (for the stop picker in ItemFormDialog). */
   stops?: StopOption[];
   /** Active fork/plan id — threaded to createItem. */
@@ -140,6 +142,7 @@ export function StopCard({
   dragHandle,
   thingsToDo,
   thingsToDoItemCosts,
+  thingsToDoItemAttachments,
   stops = [],
   forkId,
   homeCurrency,
@@ -456,6 +459,7 @@ export function StopCard({
               forkId={forkId}
               homeCurrency={homeCurrency}
               costs={thingsToDoItemCosts?.get(editingThing.id)}
+              attachments={thingsToDoItemAttachments?.get(editingThing.id) ?? []}
             />
           )}
         </>

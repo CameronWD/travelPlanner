@@ -140,6 +140,8 @@ interface ItineraryManagerProps {
   attachmentsByTransportId?: Map<string, AttachmentView[]>;
   /** Map of accommodationId → attachments for that accommodation */
   attachmentsByAccommodationId?: Map<string, AttachmentView[]>;
+  /** Map of itemId → attachments for that item */
+  attachmentsByItemId?: Map<string, AttachmentView[]>;
   /** Current authenticated user's ID */
   currentUserId?: string;
   /** Fork being edited (null = real plan). Threaded to all create actions. */
@@ -335,6 +337,7 @@ export function ItineraryManager({
   attachmentsByStopId,
   attachmentsByTransportId,
   attachmentsByAccommodationId,
+  attachmentsByItemId,
   currentUserId,
   forkId,
   thingsToDoByStopId,
@@ -1109,6 +1112,7 @@ export function ItineraryManager({
         dragHandle={dragHandle}
         thingsToDo={thingsToDoByStopId?.get(stop.id)}
         thingsToDoItemCosts={thingsToDoItemCostsById}
+        thingsToDoItemAttachments={attachmentsByItemId}
         stops={stopOptions}
         forkId={forkId}
         homeCurrency={homeCurrency}
@@ -1721,6 +1725,7 @@ export function ItineraryManager({
           tripEndDate={tripEndDate}
           chapters={chapters.map((c) => ({ id: c.id, name: c.name }))}
           forkId={forkId ?? null}
+          attachments={attachmentsByStopId?.get(editingStop.id) ?? []}
         />
       )}
 
@@ -1755,6 +1760,7 @@ export function ItineraryManager({
           homeCurrency={homeCurrency}
           costs={editingTransportCosts}
           homeBaseName={homeBaseName}
+          attachments={attachmentsByTransportId?.get(editingTransport.id) ?? []}
         />
       )}
 
@@ -1778,6 +1784,7 @@ export function ItineraryManager({
       {/* Edit accommodation */}
       {editingAccommodation && editingAccStop && (
         <AccommodationFormDialog
+          tripId={tripId}
           stopId={editingAccStop.id}
           stopDateRange={{
             arriveDate: editingAccStop.arriveDate ?? "",
@@ -1795,6 +1802,7 @@ export function ItineraryManager({
           forkId={forkId ?? null}
           homeCurrency={homeCurrency}
           costs={editingAccommodationCosts}
+          attachments={attachmentsByAccommodationId?.get(editingAccommodation.id) ?? []}
         />
       )}
 
