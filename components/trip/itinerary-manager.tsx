@@ -13,6 +13,9 @@ import { AccommodationCard, type AccommodationCardAccommodation } from "./accomm
 import { AccommodationFormDialog } from "./accommodation-form-dialog";
 import { ChapterFormDialog } from "./chapter-form-dialog";
 import { ChapterChip } from "./chapter-chip";
+import { HomeBaseCard } from "./home-base-card";
+import { HOME_ENDPOINT } from "./transport-form-dialog";
+import { findOutboundLeg, findReturnLeg } from "@/lib/home-base";
 import { DateField } from "@/components/ui/date-field";
 import {
   Dialog,
@@ -172,6 +175,10 @@ interface ItineraryManagerProps {
    * can offer "🏠 Home" as a departure/arrival option.
    */
   homeBaseName?: string | null;
+  /** The trip's home-base country code — shown as a chip on the bookend card. */
+  homeCountryCode?: string | null;
+  /** Whether the trip returns to its Home base — drives the bottom bookend. */
+  roundTrip?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -343,6 +350,8 @@ export function ItineraryManager({
   thingsToDoByStopId,
   thingsToDoItemCostsById,
   homeBaseName,
+  homeCountryCode,
+  roundTrip,
 }: ItineraryManagerProps) {
   const { confirm, dialog } = useConfirm();
 
@@ -709,6 +718,22 @@ export function ItineraryManager({
     return map;
   }, [stops]);
 
+  // ── Home base bookends (see ADR 0032) ──
+  // The Home base frames the plan: its card is pinned above the first stop
+  // (with the outbound leg) and, on a round trip, below the last (with the
+  // return leg). Home legs render here, NOT in the "Other transport" box.
+  const hasHomeBase = Boolean(homeBaseName);
+  const firstStop = stops.length > 0 ? stops[0] : null;
+  const lastStop = stops.length > 0 ? stops[stops.length - 1] : null;
+  const outboundLeg = findOutboundLeg(initialTransports, firstStop?.id ?? null);
+  const returnLeg = findReturnLeg(initialTransports, lastStop?.id ?? null);
+  const bookendLegIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    if (outboundLeg) ids.add(outboundLeg.id);
+    if (returnLeg) ids.add(returnLeg.id);
+    return ids;
+  }, [outboundLeg, returnLeg]);
+
   /**
    * Transports that link consecutive stops[i] → stops[i+1].
    * Returns a map of `${fromId}-${toId}` → transport[].
@@ -742,7 +767,8 @@ export function ItineraryManager({
     return ids;
   }, [initialTransports, localChapters, stopsById, hasChapters]);
 
-  /** Transports that DON'T link a consecutive pair (orphaned or partial) */
+  /** Transports that DON'T link a consecutive pair (orphaned or partial),
+   *  excluding the home bookend legs which render in the frame instead. */
   const otherTransports = React.useMemo(() => {
     const consecutivePairKeys = new Set<string>();
     for (let i = 0; i < stops.length - 1; i++) {
@@ -750,11 +776,12 @@ export function ItineraryManager({
     }
 
     return initialTransports.filter((t) => {
+      if (bookendLegIds.has(t.id)) return false; // rendered as a home bookend
       if (!t.fromStopId || !t.toStopId) return true; // null endpoint → other
       const key = `${t.fromStopId}-${t.toStopId}`;
       return !consecutivePairKeys.has(key); // non-consecutive → other
     });
-  }, [initialTransports, stops]);
+  }, [initialTransports, stops, bookendLegIds]);
 
   const hasStops = stops.length > 0;
   // Show the planning UI when there are stops OR chapters. A freshly created
@@ -1212,6 +1239,25 @@ export function ItineraryManager({
     );
   }
 
+  // Render a home bookend leg (outbound/return) as a normal, fully-editable card.
+  function renderBookendLeg(t: ItineraryTransport) {
+    return (
+      <TransportCard
+        transport={enrichTransport(t, stops)}
+        isPending={pendingId === t.id}
+        onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
+        onDelete={handleDeleteTransport}
+        costs={t.costs}
+        tripId={tripId}
+        homeCurrency={homeCurrency}
+        homeBaseName={homeBaseName}
+        notes={notesByTransportId?.get(t.id) ?? []}
+        attachments={attachmentsByTransportId?.get(t.id) ?? []}
+        currentUserId={currentUserId}
+      />
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Seam render helper — renders cross-chapter transports between two groups
   // ---------------------------------------------------------------------------
@@ -1277,6 +1323,31 @@ export function ItineraryManager({
           >
             Set dates for all stops
           </Button>
+        </div>
+      )}
+      {hasHomeBase && (
+        <div className="flex flex-col gap-3">
+          <HomeBaseCard
+            tripId={tripId}
+            name={homeBaseName!}
+            countryCode={homeCountryCode}
+            variant="origin"
+          />
+          {outboundLeg
+            ? renderBookendLeg(outboundLeg)
+            : firstStop
+              ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-fit text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setAddTransportDefaults({ fromStopId: HOME_ENDPOINT, toStopId: firstStop.id })}
+                >
+                  <Plus className="size-3.5" aria-hidden="true" />
+                  Add transport to {firstStop.name}
+                </Button>
+              )
+              : null}
         </div>
       )}
       {hasContent ? (
@@ -1633,6 +1704,31 @@ export function ItineraryManager({
                   currentUserId={currentUserId}
                 />
               ))}
+            </div>
+          )}
+
+          {/* Home base return bookend (round trips only) */}
+          {hasHomeBase && roundTrip && lastStop && (
+            <div className="flex flex-col gap-3">
+              {returnLeg
+                ? renderBookendLeg(returnLeg)
+                : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-fit text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setAddTransportDefaults({ fromStopId: lastStop.id, toStopId: HOME_ENDPOINT })}
+                  >
+                    <Plus className="size-3.5" aria-hidden="true" />
+                    Add transport home to {homeBaseName}
+                  </Button>
+                )}
+              <HomeBaseCard
+                tripId={tripId}
+                name={homeBaseName!}
+                countryCode={homeCountryCode}
+                variant="return"
+              />
             </div>
           )}
 

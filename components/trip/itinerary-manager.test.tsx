@@ -1160,3 +1160,101 @@ describe("Task 12: prominent firm-up control at top of plan editor", () => {
     expect(firmUpTrip).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Home base bookend fixtures
+// ---------------------------------------------------------------------------
+
+function makeTransport(overrides: Partial<import("./itinerary-manager").ItineraryTransport> = {}): import("./itinerary-manager").ItineraryTransport {
+  return {
+    id: "tr-1",
+    mode: "FLIGHT",
+    fromStopId: null,
+    toStopId: null,
+    depIsHome: false,
+    arrIsHome: false,
+    depPlace: null,
+    arrPlace: null,
+    depAt: null,
+    arrAt: null,
+    reference: null,
+    notes: null,
+    sortOrder: 0,
+    costs: [],
+    ...overrides,
+  };
+}
+
+describe("home base bookends", () => {
+  it("renders a Home base card at the top when a home base is set", () => {
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop({ id: "s1", name: "Paris" })]}
+        homeBaseName="Sydney"
+        roundTrip={false}
+      />,
+    );
+    expect(screen.getByText(/Trip starts here/i)).toBeInTheDocument();
+    expect(screen.getByText("Sydney")).toBeInTheDocument();
+  });
+
+  it("does NOT render a Home base card when no home base is set", () => {
+    render(
+      <ItineraryManager {...baseProps} initialStops={[makeStop({ id: "s1", name: "Paris" })]} />,
+    );
+    expect(screen.queryByText(/Trip starts here/i)).not.toBeInTheDocument();
+  });
+
+  it("prompts to add the outbound flight when the home base has no outbound leg yet", () => {
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop({ id: "s1", name: "Paris" })]}
+        homeBaseName="Sydney"
+        roundTrip={false}
+      />,
+    );
+    expect(screen.getByRole("button", { name: /add transport to Paris/i })).toBeInTheDocument();
+  });
+
+  it("renders the outbound leg as a bookend (not in the 'Other transport' box)", () => {
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop({ id: "s1", name: "Paris" })]}
+        initialTransports={[makeTransport({ id: "out", depIsHome: true, toStopId: "s1" })]}
+        homeBaseName="Sydney"
+        roundTrip={false}
+      />,
+    );
+    // The outbound leg exists → no "add outbound" prompt, and no "Other transport" section.
+    expect(screen.queryByRole("button", { name: /add transport to Paris/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Other transport/i)).not.toBeInTheDocument();
+  });
+
+  it("renders a bottom Home base card + return prompt on a round trip", () => {
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop({ id: "s1", name: "Paris" })]}
+        homeBaseName="Sydney"
+        roundTrip={true}
+      />,
+    );
+    expect(screen.getByText(/Trip ends here/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add transport home to Sydney/i })).toBeInTheDocument();
+  });
+
+  it("omits the bottom Home base card on a one-way trip", () => {
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop({ id: "s1", name: "Paris" })]}
+        homeBaseName="Sydney"
+        roundTrip={false}
+      />,
+    );
+    expect(screen.queryByText(/Trip ends here/i)).not.toBeInTheDocument();
+  });
+});
