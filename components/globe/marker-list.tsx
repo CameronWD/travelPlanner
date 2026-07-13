@@ -5,6 +5,8 @@ import { categoryLabel } from "@/lib/categories";
 import { Button } from "@/components/ui/button";
 import { Pencil, Trash2 } from "lucide-react";
 import type { MarkerView } from "@/components/globe/types";
+import type { AttachmentView } from "@/components/trip/attachment-list";
+import { AttachmentPopover } from "@/components/trip/attachment-popover";
 
 const CATEGORY_HEX: Record<string, string> = {
   SIGHTSEEING: "#0ea5e9",
@@ -21,9 +23,11 @@ export interface MarkerListProps {
   onSelect: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  globeId?: string;
+  attachmentsByMarkerId?: Record<string, AttachmentView[]>;
 }
 
-export function MarkerList({ markers, selectedId, onSelect, onEdit, onDelete }: MarkerListProps) {
+export function MarkerList({ markers, selectedId, onSelect, onEdit, onDelete, globeId, attachmentsByMarkerId }: MarkerListProps) {
   const groups = groupMarkersByCountry(markers);
   if (markers.length === 0) {
     return <p className="text-sm text-muted-foreground">No markers yet.</p>;
@@ -63,6 +67,14 @@ export function MarkerList({ markers, selectedId, onSelect, onEdit, onDelete }: 
                         </span>
                       </span>
                     </button>
+                    {attachmentsByMarkerId !== undefined && globeId && (
+                      <AttachmentPopover
+                        globeId={globeId}
+                        targetType="MARKER"
+                        targetId={mk.id}
+                        attachments={attachmentsByMarkerId[mk.id] ?? []}
+                      />
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"

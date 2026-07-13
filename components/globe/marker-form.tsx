@@ -31,6 +31,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
+import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
 export interface MarkerFormProps {
   open: boolean;
@@ -38,6 +39,8 @@ export interface MarkerFormProps {
   marker?: MarkerView | null;
   prefill?: { lat: number; lng: number } | null;
   onSaved: () => void;
+  globeId?: string;
+  attachments?: AttachmentView[];
 }
 
 interface ResolvedPlace {
@@ -48,7 +51,7 @@ interface ResolvedPlace {
   countryCode: string | null;
 }
 
-export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: MarkerFormProps) {
+export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved, globeId, attachments }: MarkerFormProps) {
   const isEdit = !!marker;
 
   // State seeds directly from props so the parent can remount this component
@@ -301,6 +304,21 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved }: Mar
               disabled={busy}
             />
           </Field>
+
+          {/* Attachments */}
+          {marker?.id && globeId ? (
+            <AttachmentList
+              globeId={globeId}
+              targetType="MARKER"
+              targetId={marker.id}
+              attachments={attachments ?? []}
+              compact
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Save this marker first, then reopen it to attach files.
+            </p>
+          )}
 
           <DialogFooter>
             {/* Delete — edit mode only */}

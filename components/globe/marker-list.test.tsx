@@ -3,6 +3,12 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 
+// Prevent the next-auth crash: AttachmentPopover → AttachmentList → server actions
+vi.mock("@/server/actions/attachments", () => ({
+  uploadAttachment: vi.fn(),
+  deleteAttachment: vi.fn(),
+}));
+
 import { MarkerList } from "./marker-list";
 import { MarkerFilters } from "./marker-filters";
 import type { MarkerView } from "./types";
@@ -110,6 +116,35 @@ describe("MarkerList", () => {
     );
     expect(rowButton).toBeDefined();
     expect(rowButton).toHaveAttribute("aria-current", "true");
+  });
+
+  it("renders a paperclip badge with the attachment count when globeId and attachmentsByMarkerId are provided", () => {
+    const singleMarker = [mkMarker({ id: "m1", title: "Tokyo Tower", category: "SIGHTSEEING" })];
+    const attachment = {
+      id: "att-1",
+      filename: "photo.jpg",
+      mime: "image/jpeg",
+      size: 1024,
+      url: "https://example.com/photo.jpg",
+      uploadedById: "user-1",
+      createdAt: new Date(),
+    };
+    render(
+      <MarkerList
+        markers={singleMarker}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        globeId="globe-1"
+        attachmentsByMarkerId={{ "m1": [attachment] }}
+      />,
+    );
+
+    // The AttachmentPopover button should show count "1" and be labelled "Attachments (1)"
+    const attachBtn = screen.getByRole("button", { name: /attachments \(1\)/i });
+    expect(attachBtn).toBeInTheDocument();
+    expect(attachBtn).toHaveTextContent("1");
   });
 });
 

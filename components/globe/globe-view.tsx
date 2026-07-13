@@ -12,13 +12,16 @@ import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { deleteMarker } from "@/server/actions/globe";
 import type { MarkerView, GlobeMemberView } from "./types";
+import type { AttachmentView } from "@/components/trip/attachment-list";
 
 export interface GlobeViewProps {
   markers: MarkerView[];
   members: GlobeMemberView[];
+  globeId?: string;
+  attachmentsByMarkerId?: Record<string, AttachmentView[]>;
 }
 
-export function GlobeView({ markers, members }: GlobeViewProps) {
+export function GlobeView({ markers, members, globeId, attachmentsByMarkerId }: GlobeViewProps) {
   const router = useRouter();
   const { confirm, dialog: confirmDialog } = useConfirm();
   const [filter, setFilter] = useState<MarkerFilter>({ category: null, country: null, query: "" });
@@ -73,6 +76,7 @@ export function GlobeView({ markers, members }: GlobeViewProps) {
         onEdit={openEdit}
         onDelete={handleDelete}
         onMapClick={openDrop}
+        attachmentsByMarkerId={attachmentsByMarkerId}
       />
 
       <MarkerFilters filter={filter} countries={countries} onChange={setFilter} />
@@ -82,6 +86,8 @@ export function GlobeView({ markers, members }: GlobeViewProps) {
         onSelect={setSelectedId}
         onEdit={openEdit}
         onDelete={handleDelete}
+        globeId={globeId}
+        attachmentsByMarkerId={attachmentsByMarkerId}
       />
 
       <MarkerForm
@@ -91,6 +97,8 @@ export function GlobeView({ markers, members }: GlobeViewProps) {
         marker={editing}
         prefill={prefill}
         onSaved={onSaved}
+        globeId={globeId}
+        attachments={editing ? (attachmentsByMarkerId?.[editing.id] ?? []) : undefined}
       />
 
       {confirmDialog}

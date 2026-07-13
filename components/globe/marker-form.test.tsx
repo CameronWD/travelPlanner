@@ -3,6 +3,12 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 
+// Prevent the next-auth crash: AttachmentList → server actions
+vi.mock("@/server/actions/attachments", () => ({
+  uploadAttachment: vi.fn(),
+  deleteAttachment: vi.fn(),
+}));
+
 vi.mock("@/server/actions/globe", () => ({
   createMarker: vi.fn().mockResolvedValue({ success: true }),
   updateMarker: vi.fn().mockResolvedValue({ success: true }),

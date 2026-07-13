@@ -20,6 +20,7 @@ export interface GlobeMapProps {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   onMapClick: (lat: number, lng: number) => void;
+  attachmentsByMarkerId?: Record<string, { id: string }[]>;
 }
 
 const CATEGORY_HEX: Record<string, string> = {
@@ -61,7 +62,7 @@ function selectedIcon(L: typeof import("leaflet"), category: string): import("le
   });
 }
 
-export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMapClick }: GlobeMapProps) {
+export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMapClick, attachmentsByMarkerId }: GlobeMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const leafletMapRef = useRef<any>(null);
@@ -157,10 +158,14 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       for (const mk of located) {
         const isSelected = mk.id === selectedId;
         const icon = isSelected ? selectedIcon(L, mk.category) : categoryIcon(L, mk.category);
+        const attachCount = attachmentsByMarkerId?.[mk.id]?.length ?? 0;
+        const attachLine = attachCount > 0
+          ? `<p style="font-size:12px;color:#6b7280;margin:0 0 4px">📎 ${attachCount}</p>`
+          : "";
         const popupHtml = `
           <div style="min-width:min(140px,80vw);max-width:min(240px,90vw);line-height:1.5">
             <strong style="font-size:13px;display:block;margin-bottom:6px">${escapeHtml(mk.title)}</strong>
-            <!-- attach count here -->
+            ${attachLine}
             <div style="display:flex;gap:6px;margin-top:4px">
               <button data-edit="${escapeHtml(mk.id)}" style="font-size:12px;padding:2px 8px;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;background:#fff">Edit</button>
               <button data-delete="${escapeHtml(mk.id)}" style="font-size:12px;padding:2px 8px;border:1px solid #fca5a5;border-radius:4px;cursor:pointer;background:#fff;color:#dc2626">Delete</button>
@@ -190,7 +195,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, located.map((m) => `${m.id}:${m.lat},${m.lng}:${m.category}`).join("|")]);
+  }, [ready, located.map((m) => `${m.id}:${m.lat},${m.lng}:${m.category}`).join("|"), JSON.stringify(attachmentsByMarkerId ? Object.fromEntries(Object.entries(attachmentsByMarkerId).map(([k, v]) => [k, v.length])) : null)]);
 
   // Fly to + highlight the selected marker whenever selectedId changes.
   useEffect(() => {
