@@ -86,18 +86,32 @@ describe("MarkerList", () => {
     );
 
     // Row click → select, NOT edit
-    // The row button's accessible name is "Tokyo Tower <subtitle>" (not "Edit Tokyo Tower")
-    const rowButton = screen.getAllByRole("button").find(
-      (b) => b.textContent?.includes("Tokyo Tower") && !b.getAttribute("aria-label"),
-    );
-    expect(rowButton).toBeDefined();
-    await user.click(rowButton!);
+    const rowButton = screen.getByTestId("marker-row-m1");
+    await user.click(rowButton);
     expect(onSelect).toHaveBeenCalledWith("m1");
     expect(onEdit).not.toHaveBeenCalled();
 
     // Edit button → onEdit
     await user.click(screen.getByRole("button", { name: /edit tokyo tower/i }));
     expect(onEdit).toHaveBeenCalledWith("m1");
+  });
+
+  it("clicking the Delete button calls onDelete with the marker id", async () => {
+    const user = userEvent.setup();
+    const onDelete = vi.fn();
+    const singleMarker = [mkMarker({ id: "m1", title: "Tokyo Tower", category: "SIGHTSEEING" })];
+    render(
+      <MarkerList
+        markers={singleMarker}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={onDelete}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /delete tokyo tower/i }));
+    expect(onDelete).toHaveBeenCalledWith("m1");
   });
 
   it("applies aria-current to the selected row", () => {
@@ -111,10 +125,7 @@ describe("MarkerList", () => {
         onDelete={vi.fn()}
       />,
     );
-    const rowButton = screen.getAllByRole("button").find(
-      (b) => b.textContent?.includes("Tokyo Tower") && !b.getAttribute("aria-label"),
-    );
-    expect(rowButton).toBeDefined();
+    const rowButton = screen.getByTestId("marker-row-m1");
     expect(rowButton).toHaveAttribute("aria-current", "true");
   });
 

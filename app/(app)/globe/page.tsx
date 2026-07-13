@@ -47,8 +47,7 @@ export default async function GlobePage() {
   const attachmentsByMarkerId: Record<string, AttachmentView[]> = {};
   for (const att of attachmentsRaw) {
     if (!att.targetId) continue;
-    const list = attachmentsByMarkerId[att.targetId] ?? [];
-    list.push({
+    (attachmentsByMarkerId[att.targetId] ??= []).push({
       id: att.id,
       filename: att.filename,
       mime: att.mime,
@@ -57,7 +56,6 @@ export default async function GlobePage() {
       uploadedById: att.uploadedById,
       createdAt: att.createdAt,
     });
-    attachmentsByMarkerId[att.targetId] = list;
   }
 
   return (

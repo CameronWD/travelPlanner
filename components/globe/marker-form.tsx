@@ -31,6 +31,7 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
 export interface MarkerFormProps {
@@ -124,6 +125,9 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved, globe
     },
   );
 
+  // Confirm dialog for destructive delete
+  const { confirm, dialog: confirmDialog } = useConfirm();
+
   // Combined busy flag — disables every control during any async operation
   const busy = searchPending || save.isPending || del.isPending;
 
@@ -180,6 +184,8 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved, globe
   const errors = save.errors;
 
   return (
+    <>
+    {confirmDialog}
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
@@ -326,7 +332,15 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved, globe
               <Button
                 type="button"
                 variant="destructive"
-                onClick={() => del.run()}
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: `Delete "${title}"?`,
+                    description: "This marker will be permanently removed.",
+                    confirmLabel: "Delete",
+                    destructive: true,
+                  });
+                  if (ok) del.run();
+                }}
                 loading={del.isPending}
                 disabled={busy}
                 className="sm:mr-auto"
@@ -352,5 +366,6 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved, globe
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

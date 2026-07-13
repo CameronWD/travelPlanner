@@ -49,6 +49,7 @@ export function MarkerList({ markers, selectedId, onSelect, onEdit, onDelete, gl
                       type="button"
                       aria-current={isSelected ? "true" : undefined}
                       onClick={() => onSelect(mk.id)}
+                      data-testid={`marker-row-${mk.id}`}
                       className={`flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background${isSelected ? " bg-muted/60 ring-1 ring-ring ring-offset-1 ring-offset-background" : ""}`}
                     >
                       <span
