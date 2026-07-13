@@ -9,6 +9,8 @@ import { MarkerForm } from "./marker-form";
 import { GlobeInviteButton } from "./globe-invite-button";
 import { filterMarkers, distinctCountries, type MarkerFilter } from "@/lib/globe-list";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { deleteMarker } from "@/server/actions/globe";
 import type { MarkerView, GlobeMemberView } from "./types";
 
 export interface GlobeViewProps {
@@ -18,10 +20,12 @@ export interface GlobeViewProps {
 
 export function GlobeView({ markers, members }: GlobeViewProps) {
   const router = useRouter();
+  const { confirm, dialog: confirmDialog } = useConfirm();
   const [filter, setFilter] = useState<MarkerFilter>({ category: null, country: null, query: "" });
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<MarkerView | null>(null);
   const [prefill, setPrefill] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   // Bumped on every open so the form's `key` changes and MarkerForm remounts
   // fresh — otherwise reopening "Add" (a constant key) reuses the prior
   // instance's state and carries the last marker's fields over.
@@ -35,6 +39,19 @@ export function GlobeView({ markers, members }: GlobeViewProps) {
   const openEdit = (id: string) => { setEditing(byId.get(id) ?? null); setPrefill(null); setOpenSeq((n) => n + 1); setFormOpen(true); };
   const openDrop = (lat: number, lng: number) => { setEditing(null); setPrefill({ lat, lng }); setOpenSeq((n) => n + 1); setFormOpen(true); };
   const onSaved = () => router.refresh();
+
+  const handleDelete = async (id: string) => {
+    const marker = byId.get(id);
+    const confirmed = await confirm({
+      title: `Delete "${marker?.title ?? "this marker"}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    await deleteMarker(id);
+    router.refresh();
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -52,7 +69,13 @@ export function GlobeView({ markers, members }: GlobeViewProps) {
       <GlobeMapLoader markers={filtered} onSelect={openEdit} onMapClick={openDrop} />
 
       <MarkerFilters filter={filter} countries={countries} onChange={setFilter} />
-      <MarkerList markers={filtered} onSelect={openEdit} />
+      <MarkerList
+        markers={filtered}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+        onEdit={openEdit}
+        onDelete={handleDelete}
+      />
 
       <MarkerForm
         key={`${openSeq}-${editing ? `edit-${editing.id}` : prefill ? `drop-${prefill.lat},${prefill.lng}` : "add"}`}
@@ -62,6 +85,8 @@ export function GlobeView({ markers, members }: GlobeViewProps) {
         prefill={prefill}
         onSaved={onSaved}
       />
+
+      {confirmDialog}
     </div>
   );
 }
