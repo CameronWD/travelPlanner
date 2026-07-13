@@ -14,22 +14,22 @@ import {
 
 describe("generateKey", () => {
   it("includes the tripId in the key", () => {
-    const key = generateKey("trip-abc", "id-1", "photo.jpg");
+    const key = generateKey({ trip: "trip-abc" }, "id-1", "photo.jpg");
     expect(key).toContain("trip-abc");
   });
 
   it("starts with trips/<tripId>/", () => {
-    const key = generateKey("trip-xyz", "uid-42", "doc.pdf");
+    const key = generateKey({ trip: "trip-xyz" }, "uid-42", "doc.pdf");
     expect(key).toMatch(/^trips\/trip-xyz\//);
   });
 
   it("includes the uniqueId in the key", () => {
-    const key = generateKey("trip-1", "unique-99", "file.png");
+    const key = generateKey({ trip: "trip-1" }, "unique-99", "file.png");
     expect(key).toContain("unique-99");
   });
 
   it("sanitises the filename", () => {
-    const key = generateKey("trip-1", "uid", "my file (1).pdf");
+    const key = generateKey({ trip: "trip-1" }, "uid", "my file (1).pdf");
     // spaces and parens replaced/collapsed with underscores
     expect(key).not.toMatch(/[\s()]/);
     // the sanitised name ends with .pdf and has no raw spaces or parens
@@ -38,22 +38,33 @@ describe("generateKey", () => {
   });
 
   it("strips path separators from the filename", () => {
-    const key = generateKey("trip-1", "uid", "../../etc/passwd");
+    const key = generateKey({ trip: "trip-1" }, "uid", "../../etc/passwd");
     // path.basename removes the traversal; the remaining part is safe
     expect(key).not.toContain("..");
     expect(key).not.toContain("/etc/");
   });
 
   it("produces unique keys for different uniqueIds", () => {
-    const a = generateKey("trip-1", "uuid-aaaa", "image.png");
-    const b = generateKey("trip-1", "uuid-bbbb", "image.png");
+    const a = generateKey({ trip: "trip-1" }, "uuid-aaaa", "image.png");
+    const b = generateKey({ trip: "trip-1" }, "uuid-bbbb", "image.png");
     expect(a).not.toBe(b);
   });
 
   it("produces unique keys for different tripIds", () => {
-    const a = generateKey("trip-1", "uid", "image.png");
-    const b = generateKey("trip-2", "uid", "image.png");
+    const a = generateKey({ trip: "trip-1" }, "uid", "image.png");
+    const b = generateKey({ trip: "trip-2" }, "uid", "image.png");
     expect(a).not.toBe(b);
+  });
+
+  it("starts with globes/<globeId>/ for globe-scoped keys", () => {
+    const key = generateKey({ globe: "globe-99" }, "uid-1", "photo.jpg");
+    expect(key).toMatch(/^globes\/globe-99\//);
+  });
+
+  it("produces unique keys for globe vs trip scope", () => {
+    const trip = generateKey({ trip: "id-1" }, "uid", "file.txt");
+    const globe = generateKey({ globe: "id-1" }, "uid", "file.txt");
+    expect(trip).not.toBe(globe);
   });
 });
 

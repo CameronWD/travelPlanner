@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
+
+// Prevent the next-auth crash: AttachmentList → server actions
+vi.mock("@/server/actions/attachments", () => ({
+  uploadAttachment: vi.fn(),
+  deleteAttachment: vi.fn(),
+}));
 
 vi.mock("@/server/actions/globe", () => ({
   createMarker: vi.fn().mockResolvedValue({ success: true }),
@@ -101,15 +107,40 @@ describe("MarkerForm — edit mode", () => {
     expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument();
   });
 
-  it("clicking Delete calls deleteMarker with the marker id", async () => {
+  it("clicking Delete shows confirm dialog and deleteMarker fires ONLY after confirming", async () => {
     const user = userEvent.setup();
     render(<MarkerForm {...baseProps} marker={existingMarker} />);
 
-    await user.click(screen.getByRole("button", { name: /delete/i }));
+    // Click the Delete button — should NOT fire deleteMarker immediately
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+
+    // Confirm dialog should appear with the marker title
+    expect(
+      await screen.findByRole("heading", { name: /Delete "Tokyo Tower"\?/i }),
+    ).toBeInTheDocument();
+
+    // deleteMarker must NOT have been called yet
+    expect(deleteMarker).not.toHaveBeenCalled();
+
+    // Confirm deletion — click the Delete button inside the confirm dialog
+    const confirmHeading = await screen.findByRole("heading", { name: /Delete "Tokyo Tower"\?/i });
+    const confirmDialog = confirmHeading.closest("[role='dialog']")!;
+    await user.click(within(confirmDialog as HTMLElement).getByRole("button", { name: /^delete$/i }));
 
     await waitFor(() => {
       expect(deleteMarker).toHaveBeenCalledWith("marker-1");
     });
+  });
+
+  it("clicking Delete and then cancelling does NOT call deleteMarker", async () => {
+    const user = userEvent.setup();
+    render(<MarkerForm {...baseProps} marker={existingMarker} />);
+
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    await screen.findByRole("heading", { name: /Delete "Tokyo Tower"\?/i });
+
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(deleteMarker).not.toHaveBeenCalled();
   });
 
   it("does NOT render a Delete button in add mode", () => {

@@ -54,6 +54,7 @@ export const TARGET_TYPES = [
   "TRANSPORT",
   "ACCOMMODATION",
   "JOURNAL",
+  "MARKER",
 ] as const;
 export type TargetType = (typeof TARGET_TYPES)[number];
 export const targetTypeSchema = z.enum(TARGET_TYPES);

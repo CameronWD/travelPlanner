@@ -237,20 +237,23 @@ export function sanitiseFilename(filename: string): string {
 /**
  * Generate a collision-resistant storage key for a new attachment.
  *
- * Shape: `trips/<tripId>/<uuid>-<safeFilename>`
+ * Shapes:
+ *   - `trips/<tripId>/<uuid>-<safeFilename>`   (trip-scoped)
+ *   - `globes/<globeId>/<uuid>-<safeFilename>` (globe-scoped)
  *
- * @param tripId   The trip this attachment belongs to.
+ * @param scope    The owner scope: `{ trip: string }` or `{ globe: string }`.
  * @param uniqueId A collision-resistant id, e.g. the Attachment.id (cuid) or
  *                 crypto.randomUUID(). Do NOT pass user-supplied input here.
  * @param filename The original filename from the upload (will be sanitised).
  */
 export function generateKey(
-  tripId: string,
+  scope: { trip: string } | { globe: string },
   uniqueId: string,
   filename: string,
 ): string {
   const safe = sanitiseFilename(filename);
-  return `trips/${tripId}/${uniqueId}-${safe}`;
+  const prefix = "trip" in scope ? `trips/${scope.trip}` : `globes/${scope.globe}`;
+  return `${prefix}/${uniqueId}-${safe}`;
 }
 
 // ---------------------------------------------------------------------------

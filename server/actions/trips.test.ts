@@ -112,8 +112,10 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/storage", () => ({
   getStorage: () => ({ delete: storageDeleteMock, save: storageSaveMock }),
   // Keep the real implementations of the pure helpers so cover logic can use them.
-  generateKey: (tripId: string, uniqueId: string, filename: string) =>
-    `trips/${tripId}/${uniqueId}-${filename}`,
+  generateKey: (scope: { trip: string } | { globe: string }, uniqueId: string, filename: string) => {
+    const prefix = "trip" in scope ? `trips/${scope.trip}` : `globes/${scope.globe}`;
+    return `${prefix}/${uniqueId}-${filename}`;
+  },
   validateUpload: ({ mime, size }: { mime: string; size: number }) => {
     const ALLOWED = new Set(["image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf", "text/plain"]);
     if (!ALLOWED.has(mime)) return { ok: false, error: `File type "${mime}" is not allowed.` };

@@ -69,7 +69,7 @@ A single shared, cross-trip world map of everywhere its members want to go somed
 _Avoid_: World map, bucket list, wishlist (Wishlist is the trip-scoped pool); atlas, pinboard
 
 **Marker**:
-A single entry on the **Globe** — one place, thing or event a member wants to visit (a country, a town, a specific sight like "Tokyo Tower", or a timed happening like a festival). A member names it and it is added; the app **auto-derives** its location — point, **town/city** and **country** — by geocoding, so the member never classifies its scale by hand and the derived country/town are what later filtering and Trip-overlap read. Beyond name and derived location a Marker carries a **Category** (the same set as an **Item**'s), an optional free-text note, an optional link, and an optional rough **when** (loose timing like "late Sept" for an event — a wish, never a scheduled date). Either member may add, edit or remove any Marker. A Marker with no resolvable location still exists — it simply shows in the list and not on the map. Distinct from a **Pinned** Stop (unrelated — that's a Stop with fixed dates) and from a Wishlist **Item** (a Marker is Globe-level and trip-agnostic; bringing one into a Trip later would *copy* it into that Trip's Wishlist).
+A single entry on the **Globe** — one place, thing or event a member wants to visit (a country, a town, a specific sight like "Tokyo Tower", or a timed happening like a festival). A member names it and it is added; the app **auto-derives** its location — point, **town/city** and **country** — by geocoding, so the member never classifies its scale by hand and the derived country/town are what later filtering and Trip-overlap read. Beyond name and derived location a Marker carries a **Category** (the same set as an **Item**'s), an optional free-text note, an optional link, an optional rough **when** (loose timing like "late Sept" for an event — a wish, never a scheduled date), and optional **Attachments** (files — tickets, screenshots, docs). Either member may add, edit or remove any Marker. A Marker with no resolvable location still exists — it simply shows in the list and not on the map. Distinct from a **Pinned** Stop (unrelated — that's a Stop with fixed dates) and from a Wishlist **Item** (a Marker is Globe-level and trip-agnostic; bringing one into a Trip later would *copy* it into that Trip's Wishlist).
 _Avoid_: Pin (noun — too close to **Pinned** Stops; use "Marker", and "add/drop a Marker"), place, spot, wishlist item
 
 ### Money
@@ -143,7 +143,7 @@ A list of tickable tasks. Two flavours: a **Pre-trip checklist** (visas, insuran
 _Avoid_: To-do, tasks
 
 **Attachment**:
-A file (PDF/image) stored against a Trip, Transport, Accommodation or Item — tickets, confirmations, passport scans.
+A file (PDF/image) stored against a Trip, Transport, Accommodation, Item, or a Globe **Marker** — tickets, confirmations, passport scans, screenshots. Most Attachments are trip-scoped (owned by a Trip); a Marker's Attachments are **Globe-scoped** (owned by the account-level Globe, since a Marker is not part of any Trip).
 _Avoid_: Document, upload, file
 
 **Note**:

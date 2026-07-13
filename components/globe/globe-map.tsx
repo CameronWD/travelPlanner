@@ -15,8 +15,12 @@ import type { MarkerView } from "@/components/globe/types";
 
 export interface GlobeMapProps {
   markers: MarkerView[];
+  selectedId: string | null;
   onSelect: (id: string) => void;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
   onMapClick: (lat: number, lng: number) => void;
+  attachmentsByMarkerId?: Record<string, { id: string }[]>;
 }
 
 const CATEGORY_HEX: Record<string, string> = {
@@ -47,19 +51,38 @@ function categoryIcon(L: typeof import("leaflet"), category: string): import("le
   });
 }
 
-export function GlobeMap({ markers, onSelect, onMapClick }: GlobeMapProps) {
+function selectedIcon(L: typeof import("leaflet"), category: string): import("leaflet").DivIcon {
+  const hex = pinHex(category);
+  return L.divIcon({
+    html: `<div style="width:34px;height:34px;border-radius:50%;background:${hex};color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;border:3px solid #fff;box-shadow:0 0 0 2px ${hex},0 4px 12px rgba(0,0,0,0.4)">●</div>`,
+    className: "",
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -19],
+  });
+}
+
+export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMapClick, attachmentsByMarkerId }: GlobeMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const leafletMapRef = useRef<any>(null);
   // Keep latest callbacks without re-initialising the map.
   const onSelectRef = useRef(onSelect);
   const onMapClickRef = useRef(onMapClick);
+  const onEditRef = useRef(onEdit);
+  const onDeleteRef = useRef(onDelete);
   // Update refs in an effect so they're never mutated during render
   // (react-hooks/no-ref-access-during-render compliance).
   useEffect(() => {
     onSelectRef.current = onSelect;
     onMapClickRef.current = onMapClick;
+    onEditRef.current = onEdit;
+    onDeleteRef.current = onDelete;
   });
+
+  // Ref map: markerId → Leaflet Marker instance, for fly-to / highlight / popup.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markerInstancesRef = useRef<Map<string, any>>(new Map());
 
   // Flips true once the async Leaflet map exists, so the pin-plotting effect
   // below re-runs and actually plots on first load (it otherwise runs once,
@@ -125,26 +148,80 @@ export function GlobeMap({ markers, onSelect, onMapClick }: GlobeMapProps) {
     if (!map || !ready) return;
     import("leaflet").then((leaflet) => {
       const L = leaflet.default ?? leaflet;
-      // Clear existing markers (layer group kept on the map instance).
+      // Clear existing markers and the id→instance map.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (map as any)._globeMarkers?.forEach((mk: import("leaflet").Marker) => mk.remove());
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (map as any)._globeMarkers = [];
+      markerInstancesRef.current.clear();
+
       for (const mk of located) {
-        const marker = L.marker([mk.lat, mk.lng], { icon: categoryIcon(L, mk.category) })
+        const isSelected = mk.id === selectedId;
+        const icon = isSelected ? selectedIcon(L, mk.category) : categoryIcon(L, mk.category);
+        const attachCount = attachmentsByMarkerId?.[mk.id]?.length ?? 0;
+        const attachLine = attachCount > 0
+          ? `<p style="font-size:12px;color:#6b7280;margin:0 0 4px">📎 ${attachCount}</p>`
+          : "";
+        const popupHtml = `
+          <div style="min-width:min(140px,80vw);max-width:min(240px,90vw);line-height:1.5">
+            <strong style="font-size:13px;display:block;margin-bottom:6px">${escapeHtml(mk.title)}</strong>
+            ${attachLine}
+            <div style="display:flex;gap:6px;margin-top:4px">
+              <button data-edit="${escapeHtml(mk.id)}" style="font-size:12px;padding:2px 8px;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;background:#fff">Edit</button>
+              <button data-delete="${escapeHtml(mk.id)}" style="font-size:12px;padding:2px 8px;border:1px solid #fca5a5;border-radius:4px;cursor:pointer;background:#fff;color:#dc2626">Delete</button>
+            </div>
+          </div>`;
+        const marker = L.marker([mk.lat, mk.lng], { icon })
           .addTo(map)
-          .bindPopup(
-            `<div style="min-width:min(140px,80vw);max-width:min(240px,90vw);line-height:1.5"><strong style="font-size:13px">${escapeHtml(
-              mk.title,
-            )}</strong></div>`,
-          );
+          .bindPopup(popupHtml);
+        if (isSelected) marker.setZIndexOffset(1000);
         marker.on("click", () => onSelectRef.current(mk.id));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (map as any)._globeMarkers.push(marker);
+        markerInstancesRef.current.set(mk.id, marker);
       }
+
+      // Wire Edit/Delete buttons when a popup opens.
+      map.off("popupopen");
+      map.on("popupopen", (e: import("leaflet").PopupEvent) => {
+        const container: HTMLElement | undefined = e.popup.getElement();
+        if (!container) return;
+        container.querySelectorAll<HTMLButtonElement>("[data-edit]").forEach((btn) => {
+          btn.onclick = () => onEditRef.current(btn.dataset.edit!);
+        });
+        container.querySelectorAll<HTMLButtonElement>("[data-delete]").forEach((btn) => {
+          btn.onclick = () => onDeleteRef.current(btn.dataset.delete!);
+        });
+      });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, located.map((m) => `${m.id}:${m.lat},${m.lng}:${m.category}`).join("|")]);
+  }, [ready, located.map((m) => `${m.id}:${m.lat},${m.lng}:${m.category}`).join("|"), JSON.stringify(attachmentsByMarkerId ? Object.fromEntries(Object.entries(attachmentsByMarkerId).map(([k, v]) => [k, v.length])) : null)]);
+
+  // Fly to + highlight the selected marker whenever selectedId changes.
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+    import("leaflet").then((leaflet) => {
+      const L = leaflet.default ?? leaflet;
+      // Restyle all markers to reflect new selection.
+      for (const mk of located) {
+        const instance = markerInstancesRef.current.get(mk.id);
+        if (!instance) continue;
+        const isSelected = mk.id === selectedId;
+        instance.setIcon(isSelected ? selectedIcon(L, mk.category) : categoryIcon(L, mk.category));
+        instance.setZIndexOffset(isSelected ? 1000 : 0);
+      }
+      // Fly to + open popup of the newly selected marker.
+      if (!selectedId) return;
+      const mk = located.find((m) => m.id === selectedId);
+      if (!mk) return;
+      const instance = markerInstancesRef.current.get(selectedId);
+      if (!instance) return;
+      map.flyTo([mk.lat, mk.lng], Math.max(map.getZoom(), 9), { duration: 0.6 });
+      instance.openPopup();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
 
   return (
     <div

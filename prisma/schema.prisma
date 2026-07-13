@@ -456,7 +456,8 @@ model ChecklistItem {
 
 model Attachment {
   id           String  @id @default(cuid())
-  tripId       String
+  tripId       String?
+  globeId      String?
   targetType   String // lib/enums.ts TARGET_TYPES
   targetId     String?
   filename     String
@@ -466,12 +467,14 @@ model Attachment {
   storageKey   String? // opaque key used by the Storage abstraction
   uploadedById String
 
-  trip       Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip       Trip? @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  globe      Globe? @relation(fields: [globeId], references: [id], onDelete: Cascade)
   uploadedBy User @relation("AttachmentUploadedBy", fields: [uploadedById], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
   @@index([tripId])
+  @@index([globeId])
   @@index([targetType, targetId])
 }
 
@@ -586,10 +589,11 @@ model Globe {
   id          String @id @default(cuid())
   createdById String
 
-  createdBy User          @relation("GlobeCreatedBy", fields: [createdById], references: [id])
-  members   GlobeMember[]
-  markers   Marker[]
-  invites   GlobeInvite[]
+  createdBy   User          @relation("GlobeCreatedBy", fields: [createdById], references: [id])
+  members     GlobeMember[]
+  markers     Marker[]
+  invites     GlobeInvite[]
+  attachments Attachment[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

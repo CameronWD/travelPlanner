@@ -9,6 +9,7 @@ import { requireGlobeAccess } from "@/lib/globe";
 import { markerSchema, type MarkerInput } from "@/lib/validations/marker";
 import { searchPlacesWithStatus, reverseGeocode, type GeoCandidate, type PlaceSearchOutcome } from "@/lib/geocode";
 import { type ActionResult, validationResult } from "@/lib/action-result";
+import { cleanupGlobeAttachments } from "./target-cleanup";
 
 export type GlobeActionResult = ActionResult;
 
@@ -96,6 +97,7 @@ export async function deleteMarker(markerId: string): Promise<GlobeActionResult>
   const { globe } = await requireGlobeAccess();
   await requireMarkerOnGlobe(markerId, globe.id);
   await db.marker.delete({ where: { id: markerId } });
+  await cleanupGlobeAttachments(globe.id, "MARKER", markerId);
   revalidatePath("/globe");
   return { success: true };
 }

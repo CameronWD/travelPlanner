@@ -33,7 +33,9 @@ export interface AttachmentView {
 }
 
 export interface AttachmentListProps {
-  tripId: string;
+  /** Trip-scoped attachments set `tripId`; Globe-scoped (Marker) attachments set `globeId`. Exactly one. */
+  tripId?: string;
+  globeId?: string;
   targetType: TargetType;
   targetId?: string;
   attachments: AttachmentView[];
@@ -77,6 +79,7 @@ function mimeLabel(mime: string): string {
 
 export function AttachmentList({
   tripId,
+  globeId,
   targetType,
   targetId,
   attachments,
@@ -95,7 +98,8 @@ export function AttachmentList({
     setUploadError(null);
 
     const fd = new FormData();
-    fd.set("tripId", tripId);
+    if (tripId) fd.set("tripId", tripId);
+    if (globeId) fd.set("globeId", globeId);
     fd.set("targetType", targetType);
     if (targetId) fd.set("targetId", targetId);
     fd.set("file", file);
@@ -208,7 +212,7 @@ export function AttachmentList({
       <div>
         <input
           ref={inputRef}
-          id={`upload-${tripId}-${targetType}-${targetId ?? "trip"}`}
+          id={`upload-${tripId ?? globeId}-${targetType}-${targetId ?? "root"}`}
           type="file"
           accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain"
           className="sr-only"
@@ -216,7 +220,7 @@ export function AttachmentList({
           disabled={isPending}
         />
         <label
-          htmlFor={`upload-${tripId}-${targetType}-${targetId ?? "trip"}`}
+          htmlFor={`upload-${tripId ?? globeId}-${targetType}-${targetId ?? "root"}`}
           className={cn(
             "inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary",
             isPending && "pointer-events-none opacity-50",

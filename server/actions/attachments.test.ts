@@ -11,6 +11,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 
 const {
   requireTripAccessMock,
+  requireGlobeAccessMock,
   revalidatePathMock,
   notFoundMock,
   attachmentFindUniqueMock,
@@ -24,6 +25,10 @@ const {
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "user-1" },
     membership: { role: "member" },
+  }),
+  requireGlobeAccessMock: vi.fn().mockResolvedValue({
+    user: { id: "u1" },
+    globe: { id: "g1" },
   }),
   revalidatePathMock: vi.fn(),
   notFoundMock: vi.fn(() => {
@@ -39,6 +44,7 @@ const {
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+vi.mock("@/lib/globe", () => ({ requireGlobeAccess: requireGlobeAccessMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
@@ -253,6 +259,23 @@ describe("uploadAttachment", () => {
         changes: { excerpt: "boarding.pdf" },
       }),
     );
+  });
+
+  it("uploads a globe-scoped attachment to a marker", async () => {
+    requireGlobeAccessMock.mockResolvedValue({ user: { id: "u1" }, globe: { id: "g1" } });
+    attachmentCreateMock.mockResolvedValue({ id: "at1", globeId: "g1" });
+    // Build a FormData without tripId, with globeId instead
+    const fd = new FormData();
+    fd.set("globeId", "g1");
+    fd.set("targetType", "MARKER");
+    fd.set("targetId", "m1");
+    fd.set("file", new File(["hello"], "tickets.pdf", { type: "application/pdf" }));
+    const result = await uploadAttachment(fd);
+    expect(result.success).toBe(true);
+    expect(requireGlobeAccessMock).toHaveBeenCalled();
+    expect(requireTripAccessMock).not.toHaveBeenCalled();
+    // storage key is globe-scoped
+    expect(storageSaveMock).toHaveBeenCalledWith(expect.stringMatching(/^globes\/g1\//), expect.anything(), expect.any(String));
   });
 });
 
