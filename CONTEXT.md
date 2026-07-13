@@ -10,8 +10,12 @@ A collaborative web app for a couple to plan and run a holiday together: scoping
 A single named travel project. It may have an overall date range (e.g. "Europe Summer 2026"), but while it's still just an idea it can be **date-less** — a name and nothing more — and gain a range only as its Stops are firmed up. A start date, if set, is the default **anchor** for firming up; the **soft end date** auto-extends to cover the planned Stops. Distinct from this is an optional **Hard end date** the Traveller may set as a ceiling. The app holds many trips; you work in one at a time.
 _Avoid_: Holiday, vacation (use "Trip" in code/UI consistently)
 
+**Home base**:
+The place a Trip departs from and (on a round trip) returns to — e.g. "Sydney". A lightweight **origin** set per Trip: a name plus an auto-geocoded point and country, like a **Stop**'s location — but it is *not* a Stop (you are not based there, so it holds no nights, **Accommodation**, **Items** or dates). A **Transport** may use the Home base as its departure or arrival endpoint: the **outbound** leg is Home base → first Stop and the **return** leg is last Stop → Home base. Trip-wide (shared across the real plan and all **Forks**) and optional — a Trip with no Home base simply has no origin. Whether a Trip returns to its Home base is the **round-trip** flag (default on), which governs whether a missing return leg is nudged and **Flag**ged.
+_Avoid_: Origin, base, start point; **Home** (bare "Home" is the front-door screen — a different thing); not a **Stop**
+
 **Plan**:
-The itinerary *arrangement* of a Trip — its ordered Stops (and their nights/dates), the Transport between them, Accommodation, Chapters, scheduled Items, and the estimated Costs attached to all of those. A Trip has exactly one **real plan** — the live arrangement every dated view, the **Summary**, the **Calendar feed**, sharing and reminders read from — and zero or more **Forks**: non-live Plans kept alongside it for comparison. Trip-wide things are *not* part of a Plan and are shared across all of a Trip's Plans: the **Wishlist**, **Checklists**, **Journal**, **Notes**, **Attachments**, **Exchange rates**, **Home currency**, name, cover image and **Traveller** membership.
+The itinerary *arrangement* of a Trip — its ordered Stops (and their nights/dates), the Transport between them, Accommodation, Chapters, scheduled Items, and the estimated Costs attached to all of those. A Trip has exactly one **real plan** — the live arrangement every dated view, the **Summary**, the **Calendar feed**, sharing and reminders read from — and zero or more **Forks**: non-live Plans kept alongside it for comparison. Trip-wide things are *not* part of a Plan and are shared across all of a Trip's Plans: the **Wishlist**, **Checklists**, **Journal**, **Notes**, **Attachments**, **Exchange rates**, **Home currency**, **Home base**, name, cover image and **Traveller** membership.
 _Avoid_: Itinerary (that's the editable view onto a Plan), variant (a Fork is the variant), version
 
 **Hard end date**:
@@ -35,7 +39,7 @@ A named, coloured **date range** within a Trip that groups a chunk of the journe
 _Avoid_: Phase, leg, segment, part
 
 **Transport**:
-A first-class movement between two Stops — a flight, train, drive, ferry, etc. Has a mode, departure/arrival place & time, a reference (flight/train number), and a cost. Connects Stops in sequence.
+A first-class movement between two Stops — a flight, train, drive, ferry, etc. Has a mode, departure/arrival place & time, a reference (flight/train number), and a cost. Connects Stops in sequence. Either endpoint may instead be the Trip's **Home base** (the **outbound** and **return** legs) or left unset; a Transport with a non-Stop endpoint is **between-legs travel** (see **Chapter**) and stays out of the date engine.
 _Avoid_: Leg, journey, travel, segment
 
 **Accommodation**:
@@ -101,12 +105,12 @@ The read-only overview of a whole Trip: each Stop with its nights, the Transport
 _Avoid_: Report, dashboard
 
 **Flag**:
-An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, **no Transport connecting two consecutive Stops** (a missing connection), a night at a Stop with **no Accommodation cover** (a coverage gap, finer than a Stop with none at all), an empty day, Transport times that don't line up with Stop dates, a very short stay, backtracking in the route, a **packed day** (more scheduled than is realistic), a day whose plans are **geographically spread out** (located Items far apart), Items whose times **overlap**, a **long driving day** (more estimated driving in one day than is comfortable), a **Pinned** Stop the surrounding plan can't fit around, or the plan's **projected** end running up against (within a couple of nights) or past the **Hard end date**. A Flag is always something the Traveller can act on; pure awareness signals (e.g. spending over estimate — see **Spend so far**) are not Flags.
+An automatically-detected potential problem surfaced in the Summary — e.g. a Stop with no Accommodation, **no Transport connecting two consecutive Stops** (a missing connection), no Transport from the **Home base** to the first Stop or — on a round trip — from the last Stop back to the Home base (a missing home connection), a **return** leg that lands after the **Hard end date**, a night at a Stop with **no Accommodation cover** (a coverage gap, finer than a Stop with none at all), an empty day, Transport times that don't line up with Stop dates, a very short stay, backtracking in the route, a **packed day** (more scheduled than is realistic), a day whose plans are **geographically spread out** (located Items far apart), Items whose times **overlap**, a **long driving day** (more estimated driving in one day than is comfortable), a **Pinned** Stop the surrounding plan can't fit around, or the plan's **projected** end running up against (within a couple of nights) or past the **Hard end date**. A Flag is always something the Traveller can act on; pure awareness signals (e.g. spending over estimate — see **Spend so far**) are not Flags.
 _Avoid_: Warning, alert, issue, error
 
 **Home**:
 The adaptive front door of a Trip — the screen you land on. It reads the Trip's **Phase** and leads with whatever matters now: the shape of the sketch, a countdown and **Next steps**, final-prep checklists, the live day while Travelling, or a wrap-up once Past. The live Travelling view (the **Today view**) is part of the Home, not a separate screen.
-_Avoid_: Dashboard, landing (and don't conflate with Summary, which is the full report)
+_Avoid_: Dashboard, landing (and don't conflate with Summary, which is the full report; the **Home base** is the trip's physical origin, an unrelated thing)
 
 **Next steps**:
 The ranked list of what to do next on a Trip, shown on the **Home**. Combines **Flags** (problems already detected) with forward nudges that aren't problems — rough Stops to firm up, Stops with no Accommodation, undated Chapters, a missing packing list, unbooked Transport — each linking to where you act on it.
