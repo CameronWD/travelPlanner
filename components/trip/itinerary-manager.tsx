@@ -8,13 +8,12 @@ import { StopCard, type StopCardStop } from "./stop-card";
 import { StopFormDialog } from "./stop-form-dialog";
 import { QuickAddStops } from "./quick-add-stops";
 import { TransportCard, type TransportCardTransport } from "./transport-card";
-import { TransportFormDialog, type StopOption } from "./transport-form-dialog";
+import { TransportFormDialog, type StopOption, HOME_ENDPOINT } from "./transport-form-dialog";
 import { AccommodationCard, type AccommodationCardAccommodation } from "./accommodation-card";
 import { AccommodationFormDialog } from "./accommodation-form-dialog";
 import { ChapterFormDialog } from "./chapter-form-dialog";
 import { ChapterChip } from "./chapter-chip";
 import { HomeBaseCard } from "./home-base-card";
-import { HOME_ENDPOINT } from "./transport-form-dialog";
 import { findOutboundLeg, findReturnLeg } from "@/lib/home-base";
 import { DateField } from "@/components/ui/date-field";
 import {
