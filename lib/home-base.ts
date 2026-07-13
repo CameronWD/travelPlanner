@@ -30,18 +30,32 @@ export function resolveEndpoint(opts: {
   return { label: null, lat: null, lng: null, isHome: false };
 }
 
+export function findOutboundLeg<T extends { depIsHome?: boolean | null; toStopId?: string | null }>(
+  transports: readonly T[],
+  firstStopId: string | null,
+): T | null {
+  if (!firstStopId) return null;
+  return transports.find((t) => Boolean(t.depIsHome) && t.toStopId === firstStopId) ?? null;
+}
+
+export function findReturnLeg<T extends { arrIsHome?: boolean | null; fromStopId?: string | null }>(
+  transports: readonly T[],
+  lastStopId: string | null,
+): T | null {
+  if (!lastStopId) return null;
+  return transports.find((t) => Boolean(t.arrIsHome) && t.fromStopId === lastStopId) ?? null;
+}
+
 export function hasOutboundLeg(
   transports: readonly { depIsHome?: boolean | null; toStopId?: string | null }[],
   firstStopId: string | null,
 ): boolean {
-  if (!firstStopId) return false;
-  return transports.some((t) => Boolean(t.depIsHome) && t.toStopId === firstStopId);
+  return findOutboundLeg(transports, firstStopId) !== null;
 }
 
 export function hasReturnLeg(
   transports: readonly { arrIsHome?: boolean | null; fromStopId?: string | null }[],
   lastStopId: string | null,
 ): boolean {
-  if (!lastStopId) return false;
-  return transports.some((t) => Boolean(t.arrIsHome) && t.fromStopId === lastStopId);
+  return findReturnLeg(transports, lastStopId) !== null;
 }

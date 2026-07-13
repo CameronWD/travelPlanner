@@ -220,8 +220,11 @@ interface TransportFormProps {
 
 /** Sentinel for "none selected" in stop selects */
 const NONE = "__none__";
-/** Sentinel for "trip's Home base" in stop selects */
-const HOME = "__home__";
+/** Sentinel for "trip's Home base" in stop selects. Exported so callers (e.g. the
+ * plan editor's "add outbound flight" prompt) can pre-select the Home base as an
+ * endpoint via defaultFromStopId / defaultToStopId. */
+export const HOME_ENDPOINT = "__home__";
+const HOME = HOME_ENDPOINT;
 
 /**
  * Format a Date to datetime-local input value (YYYY-MM-DDTHH:mm).

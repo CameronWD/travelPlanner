@@ -53,6 +53,8 @@ export default async function TripPlanPage({
       select: {
         homeCurrency: true,
         homeName: true,
+        homeCountryCode: true,
+        roundTrip: true,
         startDate: true,
         endDate: true,
         hardEndDate: true,
@@ -379,6 +381,8 @@ export default async function TripPlanPage({
         tripId={tripId}
         homeCurrency={trip?.homeCurrency}
         homeBaseName={trip?.homeName}
+        homeCountryCode={trip?.homeCountryCode}
+        roundTrip={trip?.roundTrip}
         forkId={activeForkId}
         tripStartDate={tripStartDate}
         tripEndDate={tripEndDate}
