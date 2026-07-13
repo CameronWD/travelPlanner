@@ -66,7 +66,14 @@ export function GlobeView({ markers, members }: GlobeViewProps) {
         </div>
       </div>
 
-      <GlobeMapLoader markers={filtered} onSelect={openEdit} onMapClick={openDrop} />
+      <GlobeMapLoader
+        markers={filtered}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+        onEdit={openEdit}
+        onDelete={handleDelete}
+        onMapClick={openDrop}
+      />
 
       <MarkerFilters filter={filter} countries={countries} onChange={setFilter} />
       <MarkerList
