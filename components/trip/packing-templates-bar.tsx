@@ -214,7 +214,7 @@ export function PackingTemplatesBar({
         }}
       />
 
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Templates
         </span>
