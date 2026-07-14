@@ -330,11 +330,8 @@ export async function PhasePlanning({
       </section>
     ) : null;
 
-  // final-prep leads with action cards; planning leads with plan-oriented cards
-  const order =
-    phase === "final-prep"
-      ? [hero, nextSteps, actions, money, route]
-      : [hero, nextSteps, money, route, actions];
+  // Bold Modular: route promoted directly under the hero, both phases.
+  const order = [hero, route, nextSteps, money, actions];
 
   return <div className="flex flex-col gap-6">{order}</div>;
 }
