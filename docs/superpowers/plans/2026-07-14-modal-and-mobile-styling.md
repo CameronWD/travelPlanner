@@ -43,6 +43,7 @@ it("gives the header breathing room below the title", async () => {
 
   const header = screen.getByText("Invite traveller").closest("div");
   expect(header?.className).toContain("pb-4");
+  expect(header?.className).toContain("sm:pb-3"); // desktop unchanged
 });
 
 it("pads the scroll body for the mobile safe-area inset", async () => {
@@ -61,12 +62,12 @@ it("pads the scroll body for the mobile safe-area inset", async () => {
 Run: `npm test -- dialog.test`
 Expected: FAIL — header still has `pb-3` (not `pb-4`); scroll body has `pb-6` (no `safe-area-inset-bottom`).
 
-- [ ] **Step 3: Increase the header's bottom padding**
+- [ ] **Step 3: Increase the header's bottom padding (mobile only)**
 
-In `components/ui/dialog.tsx`, in `DialogHeader`, change `pb-3` to `pb-4` in the class string. The full line becomes:
+In `components/ui/dialog.tsx`, in `DialogHeader`, change `pb-3` to `pb-4 sm:pb-3`. The `sm:pb-3` restores the desktop value exactly, so this change is mobile-only (honoring the "desktop must not change" constraint — `pb-3` was previously unprefixed and applied at all widths). The full line becomes:
 
 ```tsx
-        "sticky top-0 z-10 -mx-6 -mt-4 flex flex-col gap-1.5 border-b border-border/60 bg-card px-6 pr-10 pb-4 pt-4 text-left sm:-mt-6 sm:pt-6 before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-card sm:before:h-6",
+        "sticky top-0 z-10 -mx-6 -mt-4 flex flex-col gap-1.5 border-b border-border/60 bg-card px-6 pr-10 pb-4 pt-4 text-left sm:-mt-6 sm:pt-6 sm:pb-3 before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-card sm:before:h-6",
 ```
 
 - [ ] **Step 4: Add safe-area padding to the scroll body**
@@ -131,7 +132,7 @@ describe("DialogFooter", () => {
     // Mobile: equal halves. Desktop: natural width, right-aligned.
     expect(footer.className).toContain("[&>*]:flex-1");
     expect(footer.className).toContain("sm:justify-end");
-    expect(footer.className).toContain("sm:[&>*]:flex-none");
+    expect(footer.className).toContain("sm:[&>*]:flex-initial");
 
     // DOM order preserved: Cancel precedes the primary action.
     const buttons = footer.querySelectorAll("button");
@@ -162,7 +163,7 @@ function DialogFooter({
         // is on the right and focus order is natural).
         // Mobile (bottom sheet): split the width equally (flex-1) for large,
         // balanced tap targets. Desktop (sm+): natural width, right-aligned.
-        "flex flex-row gap-2 [&>*]:flex-1 sm:justify-end sm:[&>*]:flex-none",
+        "flex flex-row gap-2 [&>*]:flex-1 sm:justify-end sm:[&>*]:flex-initial",
         className,
       )}
       {...props}
