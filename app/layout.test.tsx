@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 // next/font/google runs a Node loader that isn't available in vitest's jsdom
 // environment. Mock it minimally so the layout module can be imported.
 vi.mock("next/font/google", () => ({
-  Fraunces: () => ({ variable: "--font-display-google", className: "" }),
+  Space_Grotesk: () => ({ variable: "--font-display-google", className: "" }),
   Plus_Jakarta_Sans: () => ({ variable: "--font-sans-google", className: "" }),
 }));
 

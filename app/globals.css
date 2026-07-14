@@ -149,7 +149,7 @@
 
   /* Fonts (provided by next/font in app/layout.tsx) */
   --font-sans: var(--font-sans-google), ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-display-google), ui-serif, Georgia, serif;
+  --font-display: var(--font-display-google), ui-sans-serif, system-ui, sans-serif;
 
   /* Generous radii */
   --radius-lg: var(--radius);
@@ -251,7 +251,7 @@
 
 /* ---------------------------------------------------------------------------
    Base styles + typographic scale.
-   Headings use Fraunces (display), body uses Plus Jakarta Sans.
+   Headings use Space Grotesk (display), body uses Plus Jakarta Sans.
 --------------------------------------------------------------------------- */
 @layer base {
   * {
