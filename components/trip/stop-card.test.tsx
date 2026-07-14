@@ -21,7 +21,13 @@ vi.mock("@/server/actions/items", () => ({
 }));
 import { createItem } from "@/server/actions/items";
 
-import { StopCard } from "./stop-card";
+vi.mock("@/server/actions/costs", () => ({
+  createCost: vi.fn().mockResolvedValue({ success: true }),
+  updateCost: vi.fn().mockResolvedValue({ success: true }),
+  deleteCost: vi.fn().mockResolvedValue({ success: true }),
+}));
+
+import { StopCard, type StopCardStop } from "./stop-card";
 
 const base = { id: "a", name: "Rome", country: "Italy", sortOrder: 0, chapterId: null, notes: null, lat: null, lng: null };
 
@@ -329,5 +335,91 @@ describe("Task 15 — things to do under a stop", () => {
       />,
     );
     expect(screen.queryByRole("button", { name: /add thing to do/i })).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 3 (fix/modal-mobile-styling): mobile action row decluttering
+// ---------------------------------------------------------------------------
+// Named distinctly from the file's existing `roughStop`/`base` fixtures above
+// to avoid shadowing them at module scope.
+
+const mobileStop: StopCardStop = {
+  id: "stop-1",
+  name: "Germany",
+  country: "Germany",
+  timezone: null,
+  arriveDate: null,
+  departDate: null,
+  nights: 4,
+  pinned: false,
+  chapterId: null,
+  notes: null,
+  lat: null,
+  lng: null,
+  sortOrder: 0,
+};
+
+function renderMobileStopCard(overrides = {}) {
+  return render(
+    <StopCard
+      stop={mobileStop}
+      isFirst={false}
+      isLast={false}
+      onEdit={vi.fn()}
+      onDelete={vi.fn()}
+      onStartChapter={vi.fn()}
+      onMoveUp={vi.fn()}
+      onMoveDown={vi.fn()}
+      tripId="trip-1"
+      currentUserId="user-1"
+      notes={[
+        {
+          id: "note-1",
+          body: "Remember the castle tour",
+          createdAt: new Date("2026-07-01T00:00:00Z"),
+          author: { id: "user-1", name: "Cam", image: null },
+        },
+      ]}
+      attachments={[]}
+      {...overrides}
+    />,
+  );
+}
+
+describe("StopCard mobile actions", () => {
+  it("folds Notes, Attachments and Delete into the overflow menu", async () => {
+    const user = userEvent.setup();
+    renderMobileStopCard();
+
+    // A rough stop renders a single overflow menu (desktop menu is scheduled-only).
+    await user.click(screen.getByRole("button", { name: /More actions for Germany/ }));
+
+    expect(await screen.findByRole("menuitem", { name: /Notes \(1\)/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Attachments/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Delete/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Start a chapter here/ })).toBeInTheDocument();
+  });
+
+  it("opens the note thread as a sheet from the overflow menu", async () => {
+    const user = userEvent.setup();
+    renderMobileStopCard();
+
+    await user.click(screen.getByRole("button", { name: /More actions for Germany/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /Notes \(1\)/ }));
+
+    // The notes sheet (a Dialog) is now open with the thread content.
+    expect(await screen.findByText("Remember the castle tour")).toBeInTheDocument();
+  });
+
+  it("routes Delete through onDelete", async () => {
+    const onDelete = vi.fn();
+    const user = userEvent.setup();
+    renderMobileStopCard({ onDelete });
+
+    await user.click(screen.getByRole("button", { name: /More actions for Germany/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /Delete/ }));
+
+    expect(onDelete).toHaveBeenCalledWith("stop-1");
   });
 });

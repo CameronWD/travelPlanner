@@ -102,10 +102,31 @@ describe("Dialog", () => {
     expect(header?.className).toContain("sticky");
     expect(header?.className).toContain("top-0");
   });
+
+  it("gives the header breathing room below the title", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+
+    const header = screen.getByText("Invite traveller").closest("div");
+    expect(header?.className).toContain("pb-4");
+    expect(header?.className).toContain("sm:pb-3"); // desktop unchanged
+  });
+
+  it("pads the scroll body for the mobile safe-area inset", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+
+    const scrollBody = content.querySelector('[class*="overflow-y-auto"]');
+    expect(scrollBody?.className).toContain("safe-area-inset-bottom");
+  });
 });
 
 describe("DialogFooter", () => {
-  it("uses flex-col so the primary button (last in DOM) renders at the bottom for thumb reach on mobile", () => {
+  it("lays buttons side-by-side: equal halves on mobile, right-aligned on desktop, primary last in DOM", () => {
     render(
       <Dialog open>
         <DialogContent>
@@ -119,11 +140,15 @@ describe("DialogFooter", () => {
     );
 
     const footer = screen.getByRole("button", { name: "Cancel" }).closest("div")!;
-    // flex-col (not flex-col-reverse): primary is last in DOM and visually at the bottom
-    expect(footer.className).toContain("flex-col");
-    expect(footer.className).not.toContain("flex-col-reverse");
+    // Row at all widths (not stacked).
+    expect(footer.className).toContain("flex-row");
+    expect(footer.className).not.toContain("flex-col");
+    // Mobile: equal halves. Desktop: natural width, right-aligned.
+    expect(footer.className).toContain("[&>*]:flex-1");
+    expect(footer.className).toContain("sm:justify-end");
+    expect(footer.className).toContain("sm:[&>*]:flex-initial");
 
-    // DOM order: Cancel precedes Save
+    // DOM order preserved: Cancel precedes the primary action.
     const buttons = footer.querySelectorAll("button");
     expect(buttons[0]).toHaveTextContent("Cancel");
     expect(buttons[1]).toHaveTextContent("Save");

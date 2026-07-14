@@ -67,7 +67,7 @@ const DialogContent = React.forwardRef<
             className="mx-auto mt-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30 sm:hidden"
           />
           {/* Scrollable body — the frame above never scrolls, so the ✕ stays put. */}
-          <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-6 pt-4 sm:pt-6">
+          <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-4 sm:pt-6">
             {children}
           </div>
         </>
@@ -95,7 +95,7 @@ function DialogHeader({
   return (
     <div
       className={cn(
-        "sticky top-0 z-10 -mx-6 -mt-4 flex flex-col gap-1.5 border-b border-border/60 bg-card px-6 pr-10 pb-3 pt-4 text-left sm:-mt-6 sm:pt-6 before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-card sm:before:h-6",
+        "sticky top-0 z-10 -mx-6 -mt-4 flex flex-col gap-1.5 border-b border-border/60 bg-card px-6 pr-10 pb-4 pt-4 text-left sm:-mt-6 sm:pt-6 sm:pb-3 before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-card sm:before:h-6",
         className,
       )}
       {...props}
@@ -111,12 +111,11 @@ function DialogFooter({
   return (
     <div
       className={cn(
-        // flex-col: DOM order is Cancel → Primary (primary last in DOM).
-        // On mobile (bottom sheet): primary renders at the bottom — closest to the thumb.
-        // On desktop (sm+): flex-row lays buttons out horizontally, primary at the right.
-        // flex-col-reverse was avoided because it put primary at the top (hard to reach on
-        // a bottom sheet) and inverted the natural DOM/focus order (primary before cancel).
-        "flex flex-col gap-2 sm:flex-row sm:justify-end",
+        // Buttons sit side-by-side (DOM order Cancel → primary, so the primary
+        // is on the right and focus order is natural).
+        // Mobile (bottom sheet): split the width equally (flex-1) for large,
+        // balanced tap targets. Desktop (sm+): natural width, right-aligned.
+        "flex flex-row gap-2 [&>*]:flex-1 sm:justify-end sm:[&>*]:flex-initial",
         className,
       )}
       {...props}
