@@ -12,6 +12,8 @@
 import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import type { MarkerView } from "@/components/globe/types";
+import { useTheme } from "@/components/ui/theme-provider";
+import { cartoTiles } from "@/lib/map-tiles";
 
 export interface GlobeMapProps {
   markers: MarkerView[];
@@ -66,6 +68,11 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
   const mapRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const leafletMapRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tileLayerRef = useRef<any>(null);
+
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
   // Keep latest callbacks without re-initialising the map.
   const onSelectRef = useRef(onSelect);
   const onMapClickRef = useRef(onMapClick);
@@ -111,11 +118,15 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       const map = L.map(mapRef.current, { zoomControl: true, worldCopyJump: true });
       leafletMapRef.current = map;
 
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution:
-          '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 18,
-      }).addTo(map);
+      // CARTO basemap tiles (Positron / Dark Matter), theme-aware.
+      const tiles = cartoTiles(isDark);
+      tileLayerRef.current = L
+        .tileLayer(tiles.url, {
+          attribution: tiles.attribution,
+          subdomains: tiles.subdomains,
+          maxZoom: tiles.maxZoom,
+        })
+        .addTo(map);
 
       map.on("click", (e: import("leaflet").LeafletMouseEvent) => {
         onMapClickRef.current(e.latlng.lat, e.latlng.lng);
@@ -140,7 +151,12 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       setReady(false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isDark]);
+
+  // Swap basemap tiles when the theme flips, without rebuilding the map.
+  useEffect(() => {
+    tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
+  }, [isDark]);
 
   // Re-render markers whenever the located set changes.
   useEffect(() => {

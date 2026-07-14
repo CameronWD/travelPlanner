@@ -23,6 +23,8 @@ import {
   googleDirectionsUrl,
   appleDirectionsUrl,
 } from "@/lib/maps";
+import { useTheme } from "@/components/ui/theme-provider";
+import { cartoTiles } from "@/lib/map-tiles";
 
 // Leaflet CSS imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
@@ -155,6 +157,11 @@ export function DayMap({
   const mapRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const leafletMapRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tileLayerRef = useRef<any>(null);
+
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const { points, routePoints, perItemPrev } = model;
 
@@ -187,12 +194,15 @@ export function DayMap({
       const lf = L;
       const mapInstance = map;
 
-      // OSM tile layer
-      lf.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution:
-          '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 18,
-      }).addTo(mapInstance);
+      // CARTO basemap tiles (Positron / Dark Matter), theme-aware.
+      const tiles = cartoTiles(isDark);
+      tileLayerRef.current = lf
+        .tileLayer(tiles.url, {
+          attribution: tiles.attribution,
+          subdomains: tiles.subdomains,
+          maxZoom: tiles.maxZoom,
+        })
+        .addTo(mapInstance);
 
       // Place markers for all points
       for (const point of points) {
@@ -238,10 +248,16 @@ export function DayMap({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    isDark,
     points.length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     points.map((p) => `${p.id}:${p.lat},${p.lng}`).join("|"),
   ]);
+
+  // Swap basemap tiles when the theme flips, without rebuilding the map.
+  useEffect(() => {
+    tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
+  }, [isDark]);
 
   if (points.length === 0) return null;
 

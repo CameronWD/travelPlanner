@@ -15,6 +15,8 @@
 import { useEffect, useRef } from "react";
 import { MapPin } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useTheme } from "@/components/ui/theme-provider";
+import { cartoTiles } from "@/lib/map-tiles";
 
 // Leaflet CSS imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
@@ -96,6 +98,11 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const leafletMapRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tileLayerRef = useRef<any>(null);
+
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   useEffect(() => {
     if (items.length === 0) return;
@@ -124,12 +131,15 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
 
       const mapInstance = map;
 
-      // OSM tile layer
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution:
-          '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 18,
-      }).addTo(mapInstance);
+      // CARTO basemap tiles (Positron / Dark Matter), theme-aware.
+      const tiles = cartoTiles(isDark);
+      tileLayerRef.current = L
+        .tileLayer(tiles.url, {
+          attribution: tiles.attribution,
+          subdomains: tiles.subdomains,
+          maxZoom: tiles.maxZoom,
+        })
+        .addTo(mapInstance);
 
       // Place a marker per wishlist item
       for (const item of items) {
@@ -162,10 +172,16 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
+    isDark,
     items.length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     items.map((p) => `${p.id}:${p.lat},${p.lng}`).join("|"),
   ]);
+
+  // Swap basemap tiles when the theme flips, without rebuilding the map.
+  useEffect(() => {
+    tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
+  }, [isDark]);
 
   if (items.length === 0) {
     return (

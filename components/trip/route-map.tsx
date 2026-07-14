@@ -18,6 +18,8 @@ import { useEffect, useRef } from "react";
 import { MapPin } from "lucide-react";
 import { formatDateRange } from "@/lib/dates";
 import type { HomeMapPoint } from "@/lib/route-map";
+import { useTheme } from "@/components/ui/theme-provider";
+import { cartoTiles } from "@/lib/map-tiles";
 
 // Leaflet CSS is imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
@@ -109,6 +111,11 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
   // and avoid double-init in React strict mode.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const leafletMapRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tileLayerRef = useRef<any>(null);
+
+  const { theme } = useTheme();
+  const isDark = theme === "dark";
 
   const coordStops = stopsWithCoords(stops);
   const hasEnoughCoords = coordStops.length >= 2;
@@ -148,12 +155,15 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
       const lf = L;
       const mapInstance = map;
 
-      // OSM tile layer
-      lf.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution:
-          '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 18,
-      }).addTo(mapInstance);
+      // CARTO basemap tiles (Positron / Dark Matter), theme-aware.
+      const tiles = cartoTiles(isDark);
+      tileLayerRef.current = lf
+        .tileLayer(tiles.url, {
+          attribution: tiles.attribution,
+          subdomains: tiles.subdomains,
+          maxZoom: tiles.maxZoom,
+        })
+        .addTo(mapInstance);
 
       // Markers and per-segment polylines
       const DEFAULT_COLOUR = "hsl(221, 83%, 53%)";
@@ -284,7 +294,12 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
   // changes; we depend on a derived signature string rather than the `stops`
   // array identity, which exhaustive-deps can't verify — hence the disable.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasEnoughCoords, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.chapterColour ?? ""}:${s.chapterName ?? ""}`).join("|"), home?.lat, home?.lng, home?.name, showReturn]);
+  }, [hasEnoughCoords, isDark, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.chapterColour ?? ""}:${s.chapterName ?? ""}`).join("|"), home?.lat, home?.lng, home?.name, showReturn]);
+
+  // Swap basemap tiles when the theme flips, without rebuilding the map.
+  useEffect(() => {
+    tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
+  }, [isDark]);
 
   if (!hasEnoughCoords) {
     return <MapFallback stops={stops} />;
