@@ -323,3 +323,73 @@ describe("Timeline — mobile-hardening structural assertions (Task 3)", () => {
     expect(gutterSpan!.className).toMatch(/\bw-9\b/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task-8 class-string regression tests: Bold-Modular day rows
+// ---------------------------------------------------------------------------
+
+const dayPlanWithTimedFood: DayPlan = {
+  dateISO: "2025-07-01",
+  stop: {
+    id: "stop-1",
+    name: "Tokyo",
+    timezone: "Asia/Tokyo",
+    arriveDate: "2025-07-01",
+    departDate: "2025-07-03",
+    sortOrder: 0,
+  },
+  timedItems: [
+    {
+      kind: "item",
+      item: {
+        id: "item-food-1",
+        title: "Sushi Dinner",
+        category: "FOOD",
+        date: "2025-07-01",
+        startTime: "19:00",
+        endTime: "21:00",
+      },
+    },
+  ],
+  untimedItems: [],
+  transportEntries: [],
+  accommodationEntries: [],
+};
+
+const dayPlanWithUntimedItem: DayPlan = {
+  dateISO: "2025-07-01",
+  stop: {
+    id: "stop-1",
+    name: "Tokyo",
+    timezone: "Asia/Tokyo",
+    arriveDate: "2025-07-01",
+    departDate: "2025-07-03",
+    sortOrder: 0,
+  },
+  timedItems: [],
+  untimedItems: [
+    {
+      kind: "item",
+      item: {
+        id: "item-untimed-food-1",
+        title: "Browse Tsukiji Market",
+        category: "FOOD",
+        date: "2025-07-01",
+      },
+    },
+  ],
+  transportEntries: [],
+  accommodationEntries: [],
+};
+
+describe("Timeline — Task 8 Bold-Modular day row class-string regressions", () => {
+  it("day timed rows get a category-hued left border card", () => {
+    const { container } = render(<Timeline day={dayPlanWithTimedFood} variant="day" />);
+    expect(container.querySelector(".border-l-4.border-l-amber-500")).toBeTruthy();
+  });
+
+  it("day untimed rows use a dashed border", () => {
+    const { container } = render(<Timeline day={dayPlanWithUntimedItem} variant="day" />);
+    expect(container.querySelector(".border-dashed")).toBeTruthy();
+  });
+});
