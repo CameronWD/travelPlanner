@@ -102,6 +102,26 @@ describe("Dialog", () => {
     expect(header?.className).toContain("sticky");
     expect(header?.className).toContain("top-0");
   });
+
+  it("gives the header breathing room below the title", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+
+    const header = screen.getByText("Invite traveller").closest("div");
+    expect(header?.className).toContain("pb-4");
+  });
+
+  it("pads the scroll body for the mobile safe-area inset", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+
+    const scrollBody = content.querySelector('[class*="overflow-y-auto"]');
+    expect(scrollBody?.className).toContain("safe-area-inset-bottom");
+  });
 });
 
 describe("DialogFooter", () => {

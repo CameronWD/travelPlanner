@@ -67,7 +67,7 @@ const DialogContent = React.forwardRef<
             className="mx-auto mt-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30 sm:hidden"
           />
           {/* Scrollable body — the frame above never scrolls, so the ✕ stays put. */}
-          <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-6 pt-4 sm:pt-6">
+          <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-4 sm:pt-6">
             {children}
           </div>
         </>
@@ -95,7 +95,7 @@ function DialogHeader({
   return (
     <div
       className={cn(
-        "sticky top-0 z-10 -mx-6 -mt-4 flex flex-col gap-1.5 border-b border-border/60 bg-card px-6 pr-10 pb-3 pt-4 text-left sm:-mt-6 sm:pt-6 before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-card sm:before:h-6",
+        "sticky top-0 z-10 -mx-6 -mt-4 flex flex-col gap-1.5 border-b border-border/60 bg-card px-6 pr-10 pb-4 pt-4 text-left sm:-mt-6 sm:pt-6 before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-card sm:before:h-6",
         className,
       )}
       {...props}
