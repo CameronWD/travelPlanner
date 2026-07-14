@@ -77,4 +77,14 @@ describe("WeatherDaylightCard", () => {
     render(<WeatherDaylightCard weather={null} daylight={noTzDaylight} />);
     expect(screen.getByText(/05:30/)).toBeInTheDocument();
   });
+
+  it("renders the weather as a gradient card with white text", () => {
+    const { container } = render(
+      <WeatherDaylightCard weather={forecastWeather} daylight={baseDaylight} />,
+    );
+    const card = container.querySelector(".bg-gradient-to-br");
+    expect(card).toBeTruthy();
+    expect(card?.className).toMatch(/from-sky-500/);
+    expect(card?.className).toMatch(/text-white/);
+  });
 });
