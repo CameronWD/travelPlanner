@@ -393,3 +393,43 @@ describe("Timeline — Task 8 Bold-Modular day row class-string regressions", ()
     expect(container.querySelector(".border-dashed")).toBeTruthy();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task-8 regression: address must appear on untimed day rows
+// ---------------------------------------------------------------------------
+
+const UNTIMED_ITEM_ADDRESS = "2-3-1 Asakusa, Taito City, Tokyo";
+
+const dayPlanWithUntimedItemAddress: DayPlan = {
+  dateISO: "2025-07-01",
+  stop: {
+    id: "stop-1",
+    name: "Tokyo",
+    timezone: "Asia/Tokyo",
+    arriveDate: "2025-07-01",
+    departDate: "2025-07-03",
+    sortOrder: 0,
+  },
+  timedItems: [],
+  untimedItems: [
+    {
+      kind: "item",
+      item: {
+        id: "item-untimed-addr-1",
+        title: "Senso-ji Temple",
+        category: "SIGHTSEEING",
+        date: "2025-07-01",
+        address: UNTIMED_ITEM_ADDRESS,
+      },
+    },
+  ],
+  transportEntries: [],
+  accommodationEntries: [],
+};
+
+describe("Timeline — untimed day row address regression (Task 8 fix)", () => {
+  it("renders the address for an untimed day item that has an address", () => {
+    render(<Timeline day={dayPlanWithUntimedItemAddress} variant="day" />);
+    expect(screen.getByText(UNTIMED_ITEM_ADDRESS)).toBeInTheDocument();
+  });
+});

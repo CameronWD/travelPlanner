@@ -375,6 +375,9 @@ function UntimedItemRow({
           >
             {item.title}
           </span>
+          {item.address && (
+            <span className="truncate text-xs text-muted-foreground">{item.address}</span>
+          )}
           <DirectionsLink directions={directions} label={item.title} />
           <AttachmentLinks attachments={attachments} />
         </div>
