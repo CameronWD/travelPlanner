@@ -111,6 +111,7 @@ describe("Dialog", () => {
 
     const header = screen.getByText("Invite traveller").closest("div");
     expect(header?.className).toContain("pb-4");
+    expect(header?.className).toContain("sm:pb-3"); // desktop unchanged
   });
 
   it("pads the scroll body for the mobile safe-area inset", async () => {
