@@ -60,3 +60,24 @@ const CATEGORY_COLOR_CLASSES: Record<string, string> = {
 
 const FALLBACK_CLASSES =
   "border-border bg-muted text-muted-foreground";
+
+// ---------------------------------------------------------------------------
+// Accent classes (hued dot + 4px left-border) for timeline rows and globe-suggestion
+// dots. Literal strings so Tailwind's content scanner keeps every variant.
+// ---------------------------------------------------------------------------
+
+const CATEGORY_ACCENT_CLASSES: Record<string, { dot: string; borderL: string }> = {
+  sky: { dot: "bg-sky-500", borderL: "border-l-sky-500" },
+  amber: { dot: "bg-amber-500", borderL: "border-l-amber-500" },
+  emerald: { dot: "bg-emerald-500", borderL: "border-l-emerald-500" },
+  violet: { dot: "bg-violet-500", borderL: "border-l-violet-500" },
+  rose: { dot: "bg-rose-500", borderL: "border-l-rose-500" },
+  stone: { dot: "bg-stone-500", borderL: "border-l-stone-500" },
+};
+
+const FALLBACK_ACCENT = { dot: "bg-muted-foreground", borderL: "border-l-border" };
+
+/** Category-hued accent classes: a filled dot and a 4px left-border colour. */
+export function categoryAccent(category: Category): { dot: string; borderL: string } {
+  return CATEGORY_ACCENT_CLASSES[categoryMeta(category).color] ?? FALLBACK_ACCENT;
+}
