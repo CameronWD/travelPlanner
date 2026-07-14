@@ -115,7 +115,7 @@ function DialogFooter({
         // is on the right and focus order is natural).
         // Mobile (bottom sheet): split the width equally (flex-1) for large,
         // balanced tap targets. Desktop (sm+): natural width, right-aligned.
-        "flex flex-row gap-2 [&>*]:flex-1 sm:justify-end sm:[&>*]:flex-none",
+        "flex flex-row gap-2 [&>*]:flex-1 sm:justify-end sm:[&>*]:flex-initial",
         className,
       )}
       {...props}

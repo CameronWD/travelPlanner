@@ -146,7 +146,7 @@ describe("DialogFooter", () => {
     // Mobile: equal halves. Desktop: natural width, right-aligned.
     expect(footer.className).toContain("[&>*]:flex-1");
     expect(footer.className).toContain("sm:justify-end");
-    expect(footer.className).toContain("sm:[&>*]:flex-none");
+    expect(footer.className).toContain("sm:[&>*]:flex-initial");
 
     // DOM order preserved: Cancel precedes the primary action.
     const buttons = footer.querySelectorAll("button");
