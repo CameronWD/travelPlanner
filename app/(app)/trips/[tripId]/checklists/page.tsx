@@ -73,9 +73,11 @@ export default async function ChecklistsPage({
 
   return (
     <div className="flex flex-col gap-6">
+      <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Checklists</h2>
+
       <Tabs defaultValue="pretrip" className="w-full">
-        <TabsList className="w-full sm:w-auto">
-          <TabsTrigger value="pretrip">
+        <TabsList className="h-auto w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0">
+          <TabsTrigger value="pretrip" className="rounded-none border-b-2 border-transparent px-0 py-2.5 font-semibold text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-bold data-[state=active]:text-primary data-[state=active]:shadow-none">
             Pre-trip
             {pretripItems.length > 0 && (
               <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
@@ -83,7 +85,7 @@ export default async function ChecklistsPage({
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="packing">
+          <TabsTrigger value="packing" className="rounded-none border-b-2 border-transparent px-0 py-2.5 font-semibold text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-bold data-[state=active]:text-primary data-[state=active]:shadow-none">
             Packing
             {packingItems.length > 0 && (
               <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
@@ -91,7 +93,7 @@ export default async function ChecklistsPage({
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="booking">
+          <TabsTrigger value="booking" className="rounded-none border-b-2 border-transparent px-0 py-2.5 font-semibold text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-bold data-[state=active]:text-primary data-[state=active]:shadow-none">
             Booking parser
           </TabsTrigger>
         </TabsList>
@@ -99,15 +101,6 @@ export default async function ChecklistsPage({
         {/* ── Pre-trip tab ── */}
         <TabsContent value="pretrip">
           <div className="flex flex-col gap-4">
-            <div>
-              <h2 className="font-display text-lg font-semibold text-foreground">
-                Pre-trip checklist
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Tasks to complete before you leave — bookings, paperwork, and
-                anything with a deadline.
-              </p>
-            </div>
             <Checklist
               tripId={tripId}
               kind="PRETRIP"
@@ -122,16 +115,6 @@ export default async function ChecklistsPage({
         {/* ── Packing tab ── */}
         <TabsContent value="packing">
           <div className="flex flex-col gap-4">
-            <div>
-              <h2 className="font-display text-lg font-semibold text-foreground">
-                Packing list
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                Everything you need to pack. Check items off as you go — done items
-                won&apos;t disappear until you remove them.
-              </p>
-            </div>
-
             {/* AI packing list suggestions */}
             <AiPackingSuggestions tripId={tripId} aiConfigured={aiConfigured} />
 
