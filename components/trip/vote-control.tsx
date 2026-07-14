@@ -45,6 +45,13 @@ const LEVEL_EMOJI: Record<VoteLevel, string> = {
   MEH: "🤷",
 };
 
+/** Per-level active-state class overrides (twMerge wins over the base data-[state=on]:bg-card). */
+const ACTIVE_CLASS: Record<VoteLevel, string> = {
+  MUST: "data-[state=on]:bg-warning data-[state=on]:text-warning-foreground data-[state=on]:shadow-none",
+  KEEN: "data-[state=on]:bg-accent data-[state=on]:text-accent-foreground data-[state=on]:shadow-none",
+  MEH: "data-[state=on]:bg-muted-foreground/20 data-[state=on]:text-foreground data-[state=on]:shadow-none",
+};
+
 function initials(name: string | null | undefined): string {
   if (!name) return "?";
   return name
@@ -100,7 +107,7 @@ export function VoteControl({
         }}
         aria-label="Your vote"
         className={cn(
-          "transition-opacity",
+          "rounded-full p-1 transition-opacity",
           isPending && "pointer-events-none opacity-50",
         )}
       >
@@ -118,7 +125,10 @@ export function VoteControl({
                 ? "Click again to clear your vote"
                 : undefined
             }
-            className="gap-1 px-2 py-1 text-xs"
+            className={cn(
+              "rounded-full px-2.5 py-1 text-xs",
+              ACTIVE_CLASS[level],
+            )}
             onClick={() => {
               // Handle clicking the currently-active item (Radix won't fire onValueChange
               // when the same value is selected, so we handle clear here)
@@ -148,40 +158,31 @@ export function VoteControl({
 
       {/* Other traveller's votes */}
       {otherVotes.map((vote) => (
-        <div
+        <span
           key={vote.userId}
-          className="flex flex-wrap items-center gap-1.5"
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
+            // Theme-aware level chips — bumped to /20 tint; avatar lives inside the pill
+            // MUST → warning (amber/orange family); KEEN → accent (teal); MEH → muted
+            vote.level === "MUST" && "bg-warning/20 text-warning",
+            vote.level === "KEEN" && "bg-accent/20 text-accent",
+            vote.level === "MEH" && "bg-muted text-muted-foreground",
+          )}
           title={`${vote.user.name ?? "Traveller"}: ${LEVEL_LABEL[vote.level]}`}
         >
-          <Avatar className="size-5 shrink-0">
+          <Avatar className="size-4 shrink-0">
             {vote.user.image && (
               <AvatarImage
                 src={vote.user.image}
                 alt={vote.user.name ?? ""}
               />
             )}
-            <AvatarFallback className="text-[9px]">
+            <AvatarFallback className="text-[8px]">
               {initials(vote.user.name)}
             </AvatarFallback>
           </Avatar>
-          <span
-            className={cn(
-              "inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-xs sm:text-[10px] font-medium",
-              // Theme-aware level chips — use semantic tokens so both light and dark
-              // modes are covered without raw palette classes.
-              // MUST → warning (amber/orange family); KEEN → accent (teal); MEH → muted
-              vote.level === "MUST" &&
-                "bg-warning/15 text-warning dark:bg-warning/20 dark:text-warning",
-              vote.level === "KEEN" &&
-                "bg-accent/15 text-accent dark:bg-accent/20 dark:text-accent",
-              vote.level === "MEH" &&
-                "bg-muted text-muted-foreground",
-            )}
-          >
-            <span aria-hidden="true">{LEVEL_EMOJI[vote.level]}</span>
-            {LEVEL_LABEL[vote.level]}
-          </span>
-        </div>
+          {LEVEL_LABEL[vote.level]}
+        </span>
       ))}
     </div>
   );
