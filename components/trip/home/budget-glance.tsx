@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { DollarSign, ArrowRight } from "lucide-react";
 import { formatMoney } from "@/lib/money";
 
 interface BudgetGlanceProps {
@@ -9,29 +8,21 @@ interface BudgetGlanceProps {
   href: string;
 }
 
-/** Compact estimated/actual budget summary linking to the Budget tab. */
+/** Quiet "spent so far" strip: label + thin success bar + spent/estimated. */
 export function BudgetGlance({ estimatedMinor, actualMinor, homeCurrency, href }: BudgetGlanceProps) {
-  const hasActual = actualMinor > 0;
+  const pct = estimatedMinor > 0 ? Math.min(100, Math.round((actualMinor / estimatedMinor) * 100)) : 0;
   return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 rounded-2xl border border-border bg-card p-5 shadow-soft transition-colors hover:bg-muted/40"
-    >
-      <DollarSign className="size-5 shrink-0 text-primary" aria-hidden="true" />
-      <div className="flex flex-1 flex-col">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          {hasActual ? "Spent so far" : "Estimated budget"}
-        </span>
-        <span className="font-mono text-xl font-semibold text-foreground">
-          {formatMoney(hasActual ? actualMinor : estimatedMinor, homeCurrency)}
-        </span>
-        {hasActual && (
-          <span className="text-xs text-muted-foreground">
-            of {formatMoney(estimatedMinor, homeCurrency)} estimated
-          </span>
-        )}
-      </div>
-      <ArrowRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+    <Link href={href} className="flex items-center gap-3 rounded-full px-1 py-2 transition-colors hover:bg-muted/40">
+      <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
+        Spent so far
+      </span>
+      <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+        <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
+      </span>
+      <span className="shrink-0 text-xs font-semibold tabular-nums text-foreground">
+        {formatMoney(actualMinor, homeCurrency)}{" "}
+        <span className="font-medium text-muted-foreground">/ {formatMoney(estimatedMinor, homeCurrency)} est</span>
+      </span>
     </Link>
   );
 }
