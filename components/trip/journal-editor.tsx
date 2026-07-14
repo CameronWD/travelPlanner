@@ -1,12 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { Camera, Loader2, Save } from "lucide-react";
+import { Loader2, Plus, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormError } from "@/components/ui/form-error";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/cn";
-import { relativeTime } from "@/lib/relative-time";
 import { saveJournalEntry } from "@/server/actions/journal";
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
 import type { AttachmentView } from "@/components/trip/attachment-list";
@@ -80,7 +79,7 @@ function PhotoStrip({
     <div className="space-y-3">
       {/* Photo grid */}
       {photos.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {photos.map((photo) => (
             <div key={photo.id} className="group relative">
               <a
@@ -93,7 +92,7 @@ function PhotoStrip({
                 <img
                   src={photo.url}
                   alt={photo.filename}
-                  className="h-24 w-24 rounded-lg object-cover transition-opacity group-hover:opacity-80"
+                  className="h-24 w-full rounded-xl object-cover transition-opacity group-hover:opacity-80"
                 />
               </a>
               <button
@@ -136,16 +135,15 @@ function PhotoStrip({
         <label
           htmlFor={`journal-photo-${tripId}-${date}`}
           className={cn(
-            "inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary",
+            "inline-flex size-14 cursor-pointer items-center justify-center rounded-xl border-[1.5px] border-dashed border-border transition-colors hover:border-primary hover:text-primary",
             isPending && !deletingId && "pointer-events-none opacity-50",
           )}
         >
           {isPending && !deletingId ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
-            <Camera className="size-4" />
+            <Plus className="size-4" />
           )}
-          {isPending && !deletingId ? "Uploading…" : "Add photo"}
         </label>
       </div>
     </div>
@@ -161,7 +159,6 @@ export function JournalEditor({
   date,
   initialBody,
   updatedAt,
-  author,
   photos,
 }: JournalEditorProps) {
   const [body, setBody] = React.useState(initialBody);
@@ -209,71 +206,86 @@ export function JournalEditor({
 
   const hasChanges = body !== initialBody;
 
+  // Format date label for header (YYYY-MM-DD → e.g. "Monday 1 Jun 2026")
+  const dateLabel = React.useMemo(() => {
+    try {
+      return new Date(date + "T00:00:00").toLocaleDateString("en-GB", {
+        weekday: "long",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    } catch {
+      return date;
+    }
+  }, [date]);
+
   return (
-    <div className="space-y-4">
-      {/* Text area */}
-      <div className="relative">
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+      <div className="space-y-3">
+        {/* Header row: date label + combined save status / char count */}
+        <div className="flex items-center justify-between">
+          <span className="font-display text-sm font-bold text-foreground">
+            {dateLabel}
+          </span>
+          {/* role="status" aria-live="polite" — always mounted, stable position */}
+          <p
+            role="status"
+            aria-live="polite"
+            className="text-[11px] font-medium text-success"
+          >
+            {saveStatus === "saving"
+              ? "Saving…"
+              : saveStatus === "saved"
+                ? "Saved"
+                : lastSaved
+                  ? "Saved"
+                  : ""}
+            {" · "}
+            {body.length}/5000
+          </p>
+        </div>
+
+        {/* Text area */}
         <Textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
           onBlur={handleBlur}
-          placeholder="How was today? Jot down your thoughts, highlights, and moments worth remembering…"
+          placeholder="How was today? Jot a memory…"
           rows={6}
           maxLength={5000}
-          className="resize-none"
+          className="rounded-xl resize-none"
           aria-label="Journal entry"
           disabled={isSaving}
         />
-        <div className="mt-1 flex items-center justify-between">
-          <div className="text-xs text-muted-foreground">
-            {body.length}/5000
+
+        {/* Save error */}
+        <FormError>{saveError ?? undefined}</FormError>
+
+        {/* Save button — visible when there are unsaved changes */}
+        {hasChanges ? (
+          <div className="flex justify-end">
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSave}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Save className="size-4" />
+              )}
+              {isSaving ? "Saving…" : "Save"}
+            </Button>
           </div>
-          <div className="flex items-center gap-2">
-            {saveStatus ? (
-              <p
-                role="status"
-                aria-live="polite"
-                className="text-xs text-muted-foreground"
-              >
-                {saveStatus === "saving" ? "Saving…" : "Saved"}
-              </p>
-            ) : null}
-            {lastSaved && author ? (
-              <p className="text-xs text-muted-foreground">
-                Last edited by {author.name ?? "someone"}{" "}
-                {relativeTime(lastSaved)}
-              </p>
-            ) : null}
-          </div>
+        ) : null}
+
+        {/* Photo strip */}
+        <div className="space-y-2">
+          <h4 className="text-sm font-medium text-foreground">Photos</h4>
+          <PhotoStrip tripId={tripId} date={date} photos={photos} />
         </div>
-      </div>
-
-      {/* Save error */}
-      <FormError>{saveError ?? undefined}</FormError>
-
-      {/* Save button — visible when there are unsaved changes */}
-      {hasChanges ? (
-        <div className="flex justify-end">
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={handleSave}
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Save className="size-4" />
-            )}
-            {isSaving ? "Saving…" : "Save"}
-          </Button>
-        </div>
-      ) : null}
-
-      {/* Photo strip */}
-      <div className="space-y-2">
-        <h4 className="text-sm font-medium text-foreground">Photos</h4>
-        <PhotoStrip tripId={tripId} date={date} photos={photos} />
       </div>
     </div>
   );
