@@ -10,7 +10,6 @@ import {
   StickyNote,
   Clock,
   CalendarX,
-  CalendarCheck,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { safeWebHref } from "@/lib/url";
@@ -101,14 +100,14 @@ export function ItemCard({
   return (
     <div
       className={cn(
-        "group flex flex-col gap-2.5 rounded-xl border border-border/60 bg-card px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
+        "group flex flex-col gap-2.5 rounded-3xl bg-card p-3.5 shadow-soft transition-shadow hover:shadow-soft-lg",
         isPending && "pointer-events-none opacity-60",
       )}
     >
       {/* Top row: title + controls */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <h4 className="truncate font-display text-base font-semibold leading-tight text-foreground">
+          <h4 className="truncate font-display text-[15px] font-semibold leading-tight text-foreground">
             {item.title}
           </h4>
 
@@ -121,22 +120,11 @@ export function ItemCard({
           )}
         </div>
 
-        {/* Action buttons */}
+        {/* Action buttons (top-right cluster) */}
         <div className="flex shrink-0 items-center gap-1">
-          {/* Wishlist mode → Schedule button */}
-          {mode === "wishlist" && onSchedule && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-              disabled={isPending}
-              onClick={() => onSchedule(item)}
-              aria-label={`Schedule ${item.title}`}
-              title="Schedule this item"
-            >
-              <CalendarCheck className="size-3.5" aria-hidden="true" />
-              Schedule
-            </Button>
+          {/* Wishlist mode → CategoryPill replaces ghost Schedule slot */}
+          {mode === "wishlist" && (
+            <CategoryPill category={item.category as Category} size="sm" />
           )}
 
           {/* Scheduled mode → Unschedule button */}
@@ -207,17 +195,19 @@ export function ItemCard({
         </div>
       </div>
 
-      {/* Second row: category pill + time (if scheduled) */}
-      <div className="flex flex-wrap items-center gap-2">
-        <CategoryPill category={item.category as Category} size="sm" />
+      {/* Category pill + time row (scheduled mode only) */}
+      {mode === "scheduled" && (
+        <div className="flex flex-wrap items-center gap-2">
+          <CategoryPill category={item.category as Category} size="sm" />
 
-        {mode === "scheduled" && timeLabel && (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="size-3 shrink-0" aria-hidden="true" />
-            {timeLabel}
-          </span>
-        )}
-      </div>
+          {timeLabel && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+              <Clock className="size-3 shrink-0" aria-hidden="true" />
+              {timeLabel}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Address / link / booking affordances */}
       {(item.address || item.link || item.booking) && (
@@ -261,16 +251,14 @@ export function ItemCard({
         </div>
       )}
 
-      {/* Vote control (wishlist mode only) */}
+      {/* Vote control (wishlist mode only) — inline, no border-t */}
       {mode === "wishlist" && votes !== undefined && tripId && currentUserId && (
-        <div className="border-t border-border/40 pt-2">
-          <VoteControl
-            tripId={tripId}
-            itemId={item.id}
-            votes={votes}
-            currentUserId={currentUserId}
-          />
-        </div>
+        <VoteControl
+          tripId={tripId}
+          itemId={item.id}
+          votes={votes}
+          currentUserId={currentUserId}
+        />
       )}
 
       {/* Costs */}
@@ -285,6 +273,18 @@ export function ItemCard({
             defaultCurrency={homeCurrency}
           />
         </div>
+      )}
+
+      {/* Full-width coral Schedule button (wishlist mode only) */}
+      {mode === "wishlist" && onSchedule && (
+        <button
+          type="button"
+          onClick={() => onSchedule(item)}
+          aria-label={`Schedule ${item.title}`}
+          className="mt-1 w-full rounded-xl bg-primary py-2.5 text-[13px] font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          Schedule this
+        </button>
       )}
     </div>
   );
