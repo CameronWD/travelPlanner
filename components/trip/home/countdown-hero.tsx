@@ -56,7 +56,7 @@ export function CountdownHero({
         {range && <span className="text-sm font-semibold opacity-95">{range}</span>}
       </div>
 
-      <div className="relative mt-3.5 flex items-baseline gap-3" aria-label={ariaCountdown}>
+      <div role="img" aria-label={ariaCountdown} className="relative mt-3.5 flex items-baseline gap-3">
         <span className="font-display text-6xl font-bold leading-[0.9] tracking-[-0.03em]">
           {description.countdownValue}
         </span>
