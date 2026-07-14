@@ -111,12 +111,11 @@ function DialogFooter({
   return (
     <div
       className={cn(
-        // flex-col: DOM order is Cancel → Primary (primary last in DOM).
-        // On mobile (bottom sheet): primary renders at the bottom — closest to the thumb.
-        // On desktop (sm+): flex-row lays buttons out horizontally, primary at the right.
-        // flex-col-reverse was avoided because it put primary at the top (hard to reach on
-        // a bottom sheet) and inverted the natural DOM/focus order (primary before cancel).
-        "flex flex-col gap-2 sm:flex-row sm:justify-end",
+        // Buttons sit side-by-side (DOM order Cancel → primary, so the primary
+        // is on the right and focus order is natural).
+        // Mobile (bottom sheet): split the width equally (flex-1) for large,
+        // balanced tap targets. Desktop (sm+): natural width, right-aligned.
+        "flex flex-row gap-2 [&>*]:flex-1 sm:justify-end sm:[&>*]:flex-none",
         className,
       )}
       {...props}

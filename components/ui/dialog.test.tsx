@@ -126,7 +126,7 @@ describe("Dialog", () => {
 });
 
 describe("DialogFooter", () => {
-  it("uses flex-col so the primary button (last in DOM) renders at the bottom for thumb reach on mobile", () => {
+  it("lays buttons side-by-side: equal halves on mobile, right-aligned on desktop, primary last in DOM", () => {
     render(
       <Dialog open>
         <DialogContent>
@@ -140,11 +140,15 @@ describe("DialogFooter", () => {
     );
 
     const footer = screen.getByRole("button", { name: "Cancel" }).closest("div")!;
-    // flex-col (not flex-col-reverse): primary is last in DOM and visually at the bottom
-    expect(footer.className).toContain("flex-col");
-    expect(footer.className).not.toContain("flex-col-reverse");
+    // Row at all widths (not stacked).
+    expect(footer.className).toContain("flex-row");
+    expect(footer.className).not.toContain("flex-col");
+    // Mobile: equal halves. Desktop: natural width, right-aligned.
+    expect(footer.className).toContain("[&>*]:flex-1");
+    expect(footer.className).toContain("sm:justify-end");
+    expect(footer.className).toContain("sm:[&>*]:flex-none");
 
-    // DOM order: Cancel precedes Save
+    // DOM order preserved: Cancel precedes the primary action.
     const buttons = footer.querySelectorAll("button");
     expect(buttons[0]).toHaveTextContent("Cancel");
     expect(buttons[1]).toHaveTextContent("Save");
