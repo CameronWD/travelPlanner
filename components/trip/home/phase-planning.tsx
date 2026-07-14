@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { daysBetween } from "@/lib/dates";
 import { describePhase, type TripPhase } from "@/lib/trip-phase";
 import {
   detectFlags,
@@ -296,6 +297,9 @@ export async function PhasePlanning({
       description={description}
       startDate={trip.startDate}
       endDate={trip.endDate}
+      nights={daysBetween(startDate, endDate)}
+      stopCount={allStopsRaw.length}
+      homeCurrency={homeCurrency}
       urgent={phase === "final-prep"}
     />
   );
