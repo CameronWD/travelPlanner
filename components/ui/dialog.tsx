@@ -95,7 +95,7 @@ function DialogHeader({
   return (
     <div
       className={cn(
-        "sticky top-0 z-10 -mx-6 -mt-4 flex flex-col gap-1.5 border-b border-border/60 bg-card px-6 pr-10 pb-4 pt-4 text-left sm:-mt-6 sm:pt-6 sm:pb-3 before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-card sm:before:h-6",
+        "sticky top-0 z-10 -mx-6 -mt-4 mb-2 flex flex-col gap-1.5 border-b border-border/60 bg-card px-6 pr-10 pb-4 pt-4 text-left sm:-mt-6 sm:pt-6 sm:pb-3 before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-card sm:before:h-6",
         className,
       )}
       {...props}
