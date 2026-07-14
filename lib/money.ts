@@ -229,3 +229,23 @@ export function sumMinorToHome(
 
   return { totalMinor, missingRates: Array.from(missingSet) };
 }
+
+/**
+ * Return a currency's symbol via Intl (e.g. "JPY" -> "¥", "GBP" -> "£").
+ * Uses `narrowSymbol` so foreign currencies render the bare glyph ("¥") rather
+ * than a locale-prefixed form ("JP¥" under en-AU). Falls back to the uppercased
+ * code for currencies the runtime doesn't know.
+ */
+export function currencySymbol(currency: string, locale: string = "en-AU"): string {
+  const code = currency.toUpperCase();
+  try {
+    const parts = new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: code,
+      currencyDisplay: "narrowSymbol",
+    }).formatToParts(0);
+    return parts.find((p) => p.type === "currency")?.value ?? code;
+  } catch {
+    return code;
+  }
+}

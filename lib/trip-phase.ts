@@ -46,6 +46,10 @@ export interface PhaseDescription {
   label: string;
   /** Short status line: "In 26 days", "Day 5 of 11", "Ended 14 days ago". */
   countdown: string;
+  /** Big display value for the Home countdown hero, e.g. "26", "5", "Not dated". */
+  countdownValue: string;
+  /** Small stacked unit beside the value, e.g. "DAYS TO GO"; null when it stands alone. */
+  countdownUnit: string | null;
 }
 
 function pluralDays(n: number): string {
@@ -56,15 +60,21 @@ export function describePhase(input: TripPhaseInput): PhaseDescription {
   const phase = computeTripPhase(input);
   const { startDate, endDate, today } = input;
   let countdown = "";
+  let countdownValue = "";
+  let countdownUnit: string | null = null;
 
   switch (phase) {
     case "sketching":
       countdown = "Not dated yet";
+      countdownValue = "Not dated";
+      countdownUnit = null;
       break;
     case "planning":
     case "final-prep": {
       const days = daysBetween(today, startDate!); // > 0 (today < start)
       countdown = days === 1 ? "Tomorrow" : `In ${pluralDays(days)}`;
+      countdownValue = String(days);
+      countdownUnit = days === 1 ? "DAY TO GO" : "DAYS TO GO";
       break;
     }
     case "travelling": {
@@ -72,17 +82,21 @@ export function describePhase(input: TripPhaseInput): PhaseDescription {
       const dayNum = dayNumberInTrip(today, startDate!);
       const total = daysBetween(startDate!, end) + 1;
       countdown = `Day ${dayNum} of ${total}`;
+      countdownValue = String(dayNum);
+      countdownUnit = `OF ${total}`;
       break;
     }
     case "past": {
       const end = endDate ?? startDate!;
       const ago = daysBetween(end, today); // >= 1 — "past" means today > end
       countdown = `Ended ${pluralDays(ago)} ago`;
+      countdownValue = String(ago);
+      countdownUnit = ago === 1 ? "DAY AGO" : "DAYS AGO";
       break;
     }
   }
 
-  return { phase, label: PHASE_LABELS[phase], countdown };
+  return { phase, label: PHASE_LABELS[phase], countdown, countdownValue, countdownUnit };
 }
 
 /** Lower rank sorts earlier in the trips list. */

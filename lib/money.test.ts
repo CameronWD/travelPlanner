@@ -8,6 +8,7 @@ import {
   formatAmountOnly,
   convertMinor,
   sumMinorToHome,
+  currencySymbol,
 } from "./money";
 
 describe("parseAmountToMinor", () => {
@@ -308,5 +309,18 @@ describe("sumMinorToHome", () => {
     const { totalMinor, missingRates } = sumMinorToHome([], "AUD", () => 1);
     expect(totalMinor).toBe(0);
     expect(missingRates).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// currencySymbol
+// ---------------------------------------------------------------------------
+
+describe("currencySymbol", () => {
+  it("returns the symbol for a known currency", () => {
+    expect(currencySymbol("JPY")).toBe("¥");
+  });
+  it("upper-cases and falls back to the code for unknown currencies", () => {
+    expect(currencySymbol("zzz")).toBe("ZZZ");
   });
 });
