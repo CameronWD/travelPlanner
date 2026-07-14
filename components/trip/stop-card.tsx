@@ -13,6 +13,8 @@ import {
   Sparkles,
   X,
   Plus,
+  MessageCircle,
+  Paperclip,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
@@ -20,11 +22,12 @@ import { formatDateRange, nightsBetween, tzAbbrev } from "@/lib/dates";
 import { MapLink } from "./map-link";
 import { NoteThread, type NoteView } from "./note-thread";
 import { AttachmentPopover } from "./attachment-popover";
-import type { AttachmentView } from "./attachment-list";
+import { AttachmentList, type AttachmentView } from "./attachment-list";
 import { MoreActionsMenu, type CardActionItem } from "./card-actions";
 import { ItemFormDialog, type StopOption } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export interface StopCardStop {
   id: string;
@@ -154,6 +157,11 @@ export function StopCard({
   const [addThingOpen, setAddThingOpen] = React.useState(false);
   const [editingThing, setEditingThing] = React.useState<ItemCardItem | null>(null);
 
+  // Mobile-only Notes/Attachments bottom sheets (ADR n/a — reversible CSS
+  // decluttering pass, see fix/modal-mobile-styling).
+  const [notesSheetOpen, setNotesSheetOpen] = React.useState(false);
+  const [attachSheetOpen, setAttachSheetOpen] = React.useState(false);
+
   // Overflow menu items (rough-only reorder + scheduled-only actions).
   const overflowItems: CardActionItem[] = [];
   if (isRough) {
@@ -202,6 +210,48 @@ export function StopCard({
     });
   }
 
+  // Mobile overflow menu: every secondary action folds in here so the card
+  // face shows only the drag handle, Edit, and this ⋯ menu. Desktop keeps the
+  // inline buttons (below, behind `hidden sm:*`) and the scheduled-only menu.
+  const mobileOverflowItems: CardActionItem[] = [];
+  if (notes !== undefined && tripId && currentUserId) {
+    mobileOverflowItems.push({
+      key: "notes",
+      label: notes.length > 0 ? `Notes (${notes.length})` : "Notes",
+      icon: <MessageCircle className="size-4" aria-hidden="true" />,
+      onSelect: () => setNotesSheetOpen(true),
+    });
+  }
+  if (attachments !== undefined && tripId) {
+    mobileOverflowItems.push({
+      key: "attachments",
+      label: attachments.length > 0 ? `Attachments (${attachments.length})` : "Attachments",
+      icon: <Paperclip className="size-4" aria-hidden="true" />,
+      onSelect: () => setAttachSheetOpen(true),
+    });
+  }
+  // Chapter / reorder / date actions reuse the same shapes as overflowItems.
+  mobileOverflowItems.push(...overflowItems);
+  if (!isRough && onTogglePin) {
+    mobileOverflowItems.push({
+      key: "pin",
+      label: stop.pinned ? "Unpin dates" : "Pin dates",
+      icon: <Pin className={cn("size-4", stop.pinned && "fill-current")} aria-hidden="true" />,
+      onSelect: () => onTogglePin(stop.id),
+      disabled: isPending,
+    });
+  }
+  if (onDelete) {
+    mobileOverflowItems.push({
+      key: "delete",
+      label: "Delete",
+      icon: <Trash2 className="size-4" aria-hidden="true" />,
+      onSelect: () => onDelete(stop.id),
+      disabled: isPending,
+      destructive: true,
+    });
+  }
+
   return (
     <div
       className={cn(
@@ -241,7 +291,7 @@ export function StopCard({
             <Button
               variant="ghost"
               size="icon"
-              className="size-8"
+              className="size-8 hidden sm:inline-flex"
               disabled={isPending}
               onClick={() => onStartChapter(stop)}
               aria-label="Start a chapter here"
@@ -257,7 +307,7 @@ export function StopCard({
               variant="ghost"
               size="icon"
               className={cn(
-                "size-8",
+                "size-8 hidden sm:inline-flex",
                 stop.pinned
                   ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
                   : "text-muted-foreground",
@@ -282,7 +332,7 @@ export function StopCard({
             <Button
               variant="ghost"
               size="icon"
-              className="size-8 text-muted-foreground"
+              className="size-8 text-muted-foreground hidden sm:inline-flex"
               disabled={isPending}
               onClick={() => onMakeRough(stop.id)}
               aria-label={`Clear dates for ${stop.name}`}
@@ -307,30 +357,34 @@ export function StopCard({
 
           {/* Notes trigger */}
           {notes !== undefined && tripId && currentUserId && (
-            <NoteThread
-              tripId={tripId}
-              targetType="STOP"
-              targetId={stop.id}
-              notes={notes}
-              currentUserId={currentUserId}
-            />
+            <div className="hidden sm:block">
+              <NoteThread
+                tripId={tripId}
+                targetType="STOP"
+                targetId={stop.id}
+                notes={notes}
+                currentUserId={currentUserId}
+              />
+            </div>
           )}
 
           {/* Attachment popover */}
           {attachments !== undefined && tripId && (
-            <AttachmentPopover
-              tripId={tripId}
-              targetType="STOP"
-              targetId={stop.id}
-              attachments={attachments}
-            />
+            <div className="hidden sm:block">
+              <AttachmentPopover
+                tripId={tripId}
+                targetType="STOP"
+                targetId={stop.id}
+                attachments={attachments}
+              />
+            </div>
           )}
 
           {/* Delete */}
           <Button
             variant="ghost"
             size="icon"
-            className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+            className="hidden sm:inline-flex size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
             disabled={isPending}
             onClick={() => onDelete?.(stop.id)}
             aria-label={`Delete ${stop.name}`}
@@ -339,13 +393,11 @@ export function StopCard({
             <Trash2 className="size-4" aria-hidden="true" />
           </Button>
 
-          {/* Overflow menu — mobile reorder + scheduled-only secondary actions.
-              On sm+ only the scheduled actions remain (reorder is inline), so
-              hide the trigger entirely when nothing but reorder would show. */}
+          {/* Overflow menu — mobile: all secondary actions. */}
           <div className="sm:hidden">
             <MoreActionsMenu
               label={`More actions for ${stop.name}`}
-              items={overflowItems}
+              items={mobileOverflowItems}
             />
           </div>
           {!isRough && (onAdjustDates || onMakeRough) && (
@@ -463,6 +515,42 @@ export function StopCard({
             />
           )}
         </>
+      )}
+
+      {/* Notes sheet — opened from the mobile overflow menu (Notes is a
+          Popover on desktop; on mobile it opens here as a bottom sheet). */}
+      {notes !== undefined && tripId && currentUserId && (
+        <Dialog open={notesSheetOpen} onOpenChange={setNotesSheetOpen}>
+          <DialogContent>
+            <DialogTitle className="sr-only">Notes</DialogTitle>
+            <NoteThread
+              inline
+              tripId={tripId}
+              targetType="STOP"
+              targetId={stop.id}
+              notes={notes}
+              currentUserId={currentUserId}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Attachments sheet — mobile counterpart to the desktop AttachmentPopover. */}
+      {attachments !== undefined && tripId && (
+        <Dialog open={attachSheetOpen} onOpenChange={setAttachSheetOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Attachments</DialogTitle>
+            </DialogHeader>
+            <AttachmentList
+              tripId={tripId}
+              targetType="STOP"
+              targetId={stop.id}
+              attachments={attachments}
+              compact
+            />
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
