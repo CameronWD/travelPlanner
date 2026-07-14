@@ -449,9 +449,14 @@ export default async function SummaryPage({
         />
       </div>
 
-      {/* ── Not yet scheduled ── */}
-      {roughStops.length > 0 && (
-        <section aria-labelledby="rough-heading">
+      {/* Bold Modular desktop (D6): main column (route + itinerary + flags)
+          beside a right rail (budget summary). Mobile collapses to one column:
+          rough → route → itinerary → flags → budget. */}
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <div className="flex flex-col gap-8">
+          {/* ── Not yet scheduled ── */}
+          {roughStops.length > 0 && (
+            <section aria-labelledby="rough-heading">
           <SectionHeading id="rough-heading" icon={MapPin} title="Not yet scheduled" />
           <div className="flex flex-col gap-3">
             {roughStops.map((stop) => {
@@ -640,70 +645,75 @@ export default async function SummaryPage({
         )}
       </section>
 
-      {/* ── Budget summary ── */}
-      <section aria-labelledby="budget-heading">
-        <SectionHeading id="budget-heading" icon={DollarSign} title="Budget summary" />
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">
-              Total trip cost
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-6">
-            <Stat
-              label="Estimated"
-              value={formatMoney(grandTotal.estimatedMinor, homeCurrency)}
-            />
-            {grandTotal.actualMinor > 0 && (
-              <Stat
-                label="Actual"
-                value={formatMoney(grandTotal.actualMinor, homeCurrency)}
+      {/* ── Flags ── */}
+          <section aria-labelledby="flags-heading">
+            <SectionHeading id="flags-heading" icon={FlagIcon} title="Trip health" />
+            {isOverHardEnd && (
+              <MakeItFit
+                tripId={tripId}
+                stops={fitStops}
+                anchor={trip.startDate ?? null}
+                hardEndDate={projection.hardEndDate}
               />
             )}
-            {budget.hasMissingRates && (
-              <p className="w-full text-xs text-amber-600">
-                ⚠ Some costs in {budget.missingRates.join(", ")} are excluded
-                (no FX rate available).
-              </p>
-            )}
-            {/* Category breakdown */}
-            {budget.byCategory.length > 0 && (
-              <div className="w-full">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  By category
-                </p>
-                <div className="flex flex-col gap-1">
-                  {budget.byCategory.map((bc) => (
-                    <div
-                      key={bc.category}
-                      className="flex items-center justify-between text-sm"
-                    >
-                      <span className="text-muted-foreground">{bc.category}</span>
-                      <span className="font-mono font-medium">
-                        {formatMoney(bc.estimatedMinor, homeCurrency)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </section>
+            <FlagList flags={flags} tripBasePath={tripBasePath} />
+          </section>
+        </div>
 
-      {/* ── Flags ── */}
-      <section aria-labelledby="flags-heading">
-        <SectionHeading id="flags-heading" icon={FlagIcon} title="Trip health" />
-        {isOverHardEnd && (
-          <MakeItFit
-            tripId={tripId}
-            stops={fitStops}
-            anchor={trip.startDate ?? null}
-            hardEndDate={projection.hardEndDate}
-          />
-        )}
-        <FlagList flags={flags} tripBasePath={tripBasePath} />
-      </section>
+        {/* ── Right rail ── */}
+        <div className="flex flex-col gap-8">
+          {/* ── Budget summary → right rail ── */}
+          <section aria-labelledby="budget-heading">
+            <SectionHeading id="budget-heading" icon={DollarSign} title="Budget summary" />
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base font-semibold">
+                  Total trip cost
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-6">
+                <Stat
+                  label="Estimated"
+                  value={formatMoney(grandTotal.estimatedMinor, homeCurrency)}
+                />
+                {grandTotal.actualMinor > 0 && (
+                  <Stat
+                    label="Actual"
+                    value={formatMoney(grandTotal.actualMinor, homeCurrency)}
+                  />
+                )}
+                {budget.hasMissingRates && (
+                  <p className="w-full text-xs text-amber-600">
+                    ⚠ Some costs in {budget.missingRates.join(", ")} are excluded
+                    (no FX rate available).
+                  </p>
+                )}
+                {/* Category breakdown */}
+                {budget.byCategory.length > 0 && (
+                  <div className="w-full">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      By category
+                    </p>
+                    <div className="flex flex-col gap-1">
+                      {budget.byCategory.map((bc) => (
+                        <div
+                          key={bc.category}
+                          className="flex items-center justify-between text-sm"
+                        >
+                          <span className="text-muted-foreground">{bc.category}</span>
+                          <span className="font-mono font-medium">
+                            {formatMoney(bc.estimatedMinor, homeCurrency)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </section>
+        </div>
+      </div>
     </div>
   );
 }
