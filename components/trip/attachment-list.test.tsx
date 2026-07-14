@@ -115,6 +115,19 @@ describe("AttachmentList", () => {
     expect(screen.getByText(/browse/i)).toBeInTheDocument();
   });
 
+  it("hides the upload trigger when showUpload={false} but still lists files", () => {
+    render(
+      <AttachmentList
+        tripId="trip-1"
+        targetType="STOP"
+        attachments={[sampleAttachments[0]]}
+        showUpload={false}
+      />,
+    );
+    expect(screen.queryByText(/browse/i)).toBeNull();
+    expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
+  });
+
   it("delete does NOT fire when the dialog is cancelled", async () => {
     const user = userEvent.setup();
     render(

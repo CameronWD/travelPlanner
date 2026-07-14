@@ -44,6 +44,12 @@ export interface AttachmentListProps {
    * file-size label. Useful in sidebar or grouped-file contexts.
    */
   compact?: boolean;
+  /**
+   * Whether to show the upload trigger (dropzone / inline label). Defaults to
+   * true so all existing callers are byte-identical. Set to false on grouped
+   * entity lists where there is no single upload target.
+   */
+  showUpload?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,6 +90,7 @@ export function AttachmentList({
   targetId,
   attachments,
   compact = false,
+  showUpload = true,
 }: AttachmentListProps) {
   const [isPending, startTransition] = React.useTransition();
   const [uploadError, setUploadError] = React.useState<string | null>(null);
@@ -226,53 +233,55 @@ export function AttachmentList({
       ) : null}
 
       {/* Upload control */}
-      <div>
-        <input
-          ref={inputRef}
-          id={`upload-${tripId ?? globeId}-${targetType}-${targetId ?? "root"}`}
-          type="file"
-          accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain"
-          className="sr-only"
-          onChange={handleFileChange}
-          disabled={isPending}
-        />
-        {compact ? (
-          <label
-            htmlFor={`upload-${tripId ?? globeId}-${targetType}-${targetId ?? "root"}`}
-            className={cn(
-              "inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary",
-              isPending && "pointer-events-none opacity-50",
-            )}
-          >
-            {isPending && !deletingId ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Upload className="size-4" />
-            )}
-            {isPending && !deletingId ? "Uploading…" : "Add file"}
-          </label>
-        ) : (
-          <label
-            htmlFor={`upload-${tripId ?? globeId}-${targetType}-${targetId ?? "root"}`}
-            className={cn(
-              "flex cursor-pointer flex-col items-center gap-1 rounded-2xl border-2 border-dashed border-border p-5 text-center transition-colors hover:border-primary",
-              isPending && "pointer-events-none opacity-50",
-            )}
-          >
-            {isPending && !deletingId ? (
-              <Loader2 className="size-6 animate-spin text-muted-foreground" />
-            ) : (
-              <Upload className="size-6 text-muted-foreground" />
-            )}
-            <span className="text-sm font-semibold">
-              {isPending && !deletingId ? "Uploading…" : "Drop files or browse"}
-            </span>
-            <span className="text-xs text-muted-foreground">
-              PDF, images · attach to any entity
-            </span>
-          </label>
-        )}
-      </div>
+      {showUpload && (
+        <div>
+          <input
+            ref={inputRef}
+            id={`upload-${tripId ?? globeId}-${targetType}-${targetId ?? "root"}`}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain"
+            className="sr-only"
+            onChange={handleFileChange}
+            disabled={isPending}
+          />
+          {compact ? (
+            <label
+              htmlFor={`upload-${tripId ?? globeId}-${targetType}-${targetId ?? "root"}`}
+              className={cn(
+                "inline-flex cursor-pointer items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-primary",
+                isPending && "pointer-events-none opacity-50",
+              )}
+            >
+              {isPending && !deletingId ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Upload className="size-4" />
+              )}
+              {isPending && !deletingId ? "Uploading…" : "Add file"}
+            </label>
+          ) : (
+            <label
+              htmlFor={`upload-${tripId ?? globeId}-${targetType}-${targetId ?? "root"}`}
+              className={cn(
+                "flex cursor-pointer flex-col items-center gap-1 rounded-2xl border-2 border-dashed border-border p-5 text-center transition-colors hover:border-primary",
+                isPending && "pointer-events-none opacity-50",
+              )}
+            >
+              {isPending && !deletingId ? (
+                <Loader2 className="size-6 animate-spin text-muted-foreground" />
+              ) : (
+                <Upload className="size-6 text-muted-foreground" />
+              )}
+              <span className="text-sm font-semibold">
+                {isPending && !deletingId ? "Uploading…" : "Drop files or browse"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                PDF, images · attach to any entity
+              </span>
+            </label>
+          )}
+        </div>
+      )}
     </div>
     </>
   );

@@ -103,6 +103,7 @@ export default async function FilesPage({
             tripId={tripId}
             targetType={type}
             attachments={items}
+            showUpload={false}
           />
         </div>
       ))}
