@@ -382,10 +382,10 @@ export default async function DayPage({
   ).map((f) => ({ severity: f.severity, message: f.message }));
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       {/* Day header */}
       <div className="flex flex-col gap-1">
-        <h2 className="font-display text-2xl font-semibold text-foreground">
+        <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
           {formatLongDate(effectiveDate)}
         </h2>
         {dayPlan.stop && (
@@ -422,9 +422,7 @@ export default async function DayPage({
       <DayFeasibility entries={feasibility} />
 
       {/* Detailed timeline */}
-      <div className="rounded-xl border border-border bg-card px-4 py-4">
-        <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} />
-      </div>
+      <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} />
 
       {/* Quick add */}
       <div className="flex items-center justify-between">
