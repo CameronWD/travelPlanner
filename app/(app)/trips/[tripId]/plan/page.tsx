@@ -366,89 +366,98 @@ export default async function TripPlanPage({
       {/* Discreet mode returns the stop-spreadsheet view earlier in this function and
           never reaches this branch, so the variant banner cannot leak fork vocabulary. */}
       {activeFork && <VariantBanner tripId={tripId} variantName={activeFork.name} />}
-      {stops.length > 0 && (
-        <PlanOverview
-          tripId={tripId}
-          summary={planSummary}
-          startDate={trip?.startDate ?? null}
-          fitStops={stops.map((s) => ({
-            id: s.id, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate,
-            nights: s.nights, pinned: s.pinned, sortOrder: s.sortOrder,
-          }))}
-        />
-      )}
-      <ItineraryManager
-        tripId={tripId}
-        homeCurrency={trip?.homeCurrency}
-        homeBaseName={trip?.homeName}
-        homeCountryCode={trip?.homeCountryCode}
-        roundTrip={trip?.roundTrip}
-        forkId={activeForkId}
-        tripStartDate={tripStartDate}
-        tripEndDate={tripEndDate}
-        notesByStopId={notesByStopId}
-        notesByTransportId={notesByTransportId}
-        notesByAccommodationId={notesByAccommodationId}
-        attachmentsByStopId={attachmentsByStopId}
-        attachmentsByTransportId={attachmentsByTransportId}
-        attachmentsByAccommodationId={attachmentsByAccommodationId}
-        attachmentsByItemId={attachmentsByItemId}
-        currentUserId={user.id}
-        chapters={chapters}
-        thingsToDoByStopId={thingsToDoByStopId}
-        thingsToDoItemCostsById={thingsToDoItemCostsById}
-        initialStops={stops.map((stop) => ({
-          ...stop,
-          accommodations: stop.accommodations.map((acc) => ({
-            ...acc,
-            costs: costsByOwnerId.get(acc.id) ?? [],
-          })),
-        }))}
-        initialTransports={transports.map((t) => {
-          const hasTimes = t.depAt != null && t.arrAt != null;
-          // Resolve coordinates: transport's own dep/arr coords take priority;
-          // fall back to the linked stop's coords when the transport has no
-          // typed place (so stop-linked legs get estimates the same way the
-          // long-driving-day flag does).
-          const fromCoord =
-            t.depLat != null && t.depLng != null
-              ? { lat: t.depLat, lng: t.depLng }
-              : t.fromStopId != null
-                ? (stopCoordsById.get(t.fromStopId) ?? null)
-                : null;
-          const toCoord =
-            t.arrLat != null && t.arrLng != null
-              ? { lat: t.arrLat, lng: t.arrLng }
-              : t.toStopId != null
-                ? (stopCoordsById.get(t.toStopId) ?? null)
-                : null;
-          const coords =
-            fromCoord != null && toCoord != null
-              ? { from: fromCoord, to: toCoord }
-              : null;
-          const driveEstimate =
-            t.mode === "CAR" && !hasTimes && coords
-              ? (() => {
-                  const km = haversineKm(coords.from, coords.to);
-                  return {
-                    minutes: Math.round(
-                      estimateDriveMinutes(km, {
-                        windingFactor: trip?.drivingWindingFactor ?? 1.5,
-                        avgSpeedKph: trip?.drivingAvgSpeedKph ?? 80,
-                      }),
-                    ),
-                    roadKm: Math.round(estimateRoadKm(km, trip?.drivingWindingFactor ?? 1.5)),
-                  };
-                })()
-              : null;
-          return {
-            ...t,
-            mode: t.mode as TransportMode,
-            costs: costsByOwnerId.get(t.id) ?? [],
-            driveEstimate,
-          };
-        })}
-      />
+      {/* Bold Modular desktop (D3): itinerary editor in the main column, plan overview
+          in a right rail. DOM order (overview → itinerary) keeps the overview on top on
+          mobile; lg:order swaps them so the editor is the 1fr main column on desktop. */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        {stops.length > 0 && (
+          <div className="flex flex-col gap-6 lg:order-2">
+            <PlanOverview
+              tripId={tripId}
+              summary={planSummary}
+              startDate={trip?.startDate ?? null}
+              fitStops={stops.map((s) => ({
+                id: s.id, name: s.name, arriveDate: s.arriveDate, departDate: s.departDate,
+                nights: s.nights, pinned: s.pinned, sortOrder: s.sortOrder,
+              }))}
+            />
+          </div>
+        )}
+        <div className="flex flex-col gap-6 lg:order-1">
+          <ItineraryManager
+            tripId={tripId}
+            homeCurrency={trip?.homeCurrency}
+            homeBaseName={trip?.homeName}
+            homeCountryCode={trip?.homeCountryCode}
+            roundTrip={trip?.roundTrip}
+            forkId={activeForkId}
+            tripStartDate={tripStartDate}
+            tripEndDate={tripEndDate}
+            notesByStopId={notesByStopId}
+            notesByTransportId={notesByTransportId}
+            notesByAccommodationId={notesByAccommodationId}
+            attachmentsByStopId={attachmentsByStopId}
+            attachmentsByTransportId={attachmentsByTransportId}
+            attachmentsByAccommodationId={attachmentsByAccommodationId}
+            attachmentsByItemId={attachmentsByItemId}
+            currentUserId={user.id}
+            chapters={chapters}
+            thingsToDoByStopId={thingsToDoByStopId}
+            thingsToDoItemCostsById={thingsToDoItemCostsById}
+            initialStops={stops.map((stop) => ({
+              ...stop,
+              accommodations: stop.accommodations.map((acc) => ({
+                ...acc,
+                costs: costsByOwnerId.get(acc.id) ?? [],
+              })),
+            }))}
+            initialTransports={transports.map((t) => {
+              const hasTimes = t.depAt != null && t.arrAt != null;
+              // Resolve coordinates: transport's own dep/arr coords take priority;
+              // fall back to the linked stop's coords when the transport has no
+              // typed place (so stop-linked legs get estimates the same way the
+              // long-driving-day flag does).
+              const fromCoord =
+                t.depLat != null && t.depLng != null
+                  ? { lat: t.depLat, lng: t.depLng }
+                  : t.fromStopId != null
+                    ? (stopCoordsById.get(t.fromStopId) ?? null)
+                    : null;
+              const toCoord =
+                t.arrLat != null && t.arrLng != null
+                  ? { lat: t.arrLat, lng: t.arrLng }
+                  : t.toStopId != null
+                    ? (stopCoordsById.get(t.toStopId) ?? null)
+                    : null;
+              const coords =
+                fromCoord != null && toCoord != null
+                  ? { from: fromCoord, to: toCoord }
+                  : null;
+              const driveEstimate =
+                t.mode === "CAR" && !hasTimes && coords
+                  ? (() => {
+                      const km = haversineKm(coords.from, coords.to);
+                      return {
+                        minutes: Math.round(
+                          estimateDriveMinutes(km, {
+                            windingFactor: trip?.drivingWindingFactor ?? 1.5,
+                            avgSpeedKph: trip?.drivingAvgSpeedKph ?? 80,
+                          }),
+                        ),
+                        roadKm: Math.round(estimateRoadKm(km, trip?.drivingWindingFactor ?? 1.5)),
+                      };
+                    })()
+                  : null;
+              return {
+                ...t,
+                mode: t.mode as TransportMode,
+                costs: costsByOwnerId.get(t.id) ?? [],
+                driveEstimate,
+              };
+            })}
+          />
+        </div>
+      </div>
     </div>
   );
 }
