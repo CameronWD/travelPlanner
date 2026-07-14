@@ -1,17 +1,17 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Plus_Jakarta_Sans } from "next/font/google";
+import { Space_Grotesk, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ui/theme-provider";
 import { MotionProvider } from "@/components/ui/motion-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { PwaRegister } from "@/components/pwa-register";
 
-// Fraunces is a variable font: omitting `weight` keeps the full variable
-// range (400–600 used in the type scale) and lets us enable optical sizing.
-const fraunces = Fraunces({
+// Space Grotesk is a variable font (weight axis 300–700): omitting `weight`
+// keeps the full range, covering the 600 used across the heading scale and
+// the 700/font-bold used on error/print headings.
+const spaceGrotesk = Space_Grotesk({
   variable: "--font-display-google",
   subsets: ["latin"],
-  axes: ["opsz"],
   display: "swap",
 });
 
@@ -48,7 +48,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${plusJakarta.variable} ${fraunces.variable} h-full antialiased`}
+      className={`${plusJakarta.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
         <ThemeProvider>
