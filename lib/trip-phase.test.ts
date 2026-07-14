@@ -68,6 +68,36 @@ describe("describePhase", () => {
   });
 });
 
+describe("describePhase countdown value/unit (Bold-Modular hero)", () => {
+  it("splits an upcoming planning countdown into value + unit", () => {
+    const d = describePhase({ startDate: "2026-08-09", endDate: "2026-08-20", today: "2026-07-14" });
+    expect(d.phase).toBe("planning");
+    expect(d.countdown).toBe("In 26 days"); // unchanged
+    expect(d.countdownValue).toBe("26");
+    expect(d.countdownUnit).toBe("DAYS TO GO");
+  });
+  it("uses the singular unit one day out (final-prep)", () => {
+    const d = describePhase({ startDate: "2026-07-15", endDate: "2026-07-20", today: "2026-07-14" });
+    expect(d.phase).toBe("final-prep");
+    expect(d.countdown).toBe("Tomorrow"); // unchanged
+    expect(d.countdownValue).toBe("1");
+    expect(d.countdownUnit).toBe("DAY TO GO");
+  });
+  it("exposes value/unit for travelling and past", () => {
+    const t = describePhase({ startDate: "2026-07-10", endDate: "2026-07-20", today: "2026-07-14" });
+    expect(t.countdownValue).toBe("5");
+    expect(t.countdownUnit).toBe("OF 11");
+    const p = describePhase({ startDate: "2026-07-01", endDate: "2026-07-10", today: "2026-07-14" });
+    expect(p.countdownValue).toBe("4");
+    expect(p.countdownUnit).toBe("DAYS AGO");
+  });
+  it("leaves a date-less trip without a unit", () => {
+    const s = describePhase({ startDate: null, endDate: null, today: "2026-07-14" });
+    expect(s.countdownValue).toBe("Not dated");
+    expect(s.countdownUnit).toBeNull();
+  });
+});
+
 describe("compareForTripList", () => {
   it("orders travelling, final-prep, planning (soonest first), sketching, then past", () => {
     const today = "2026-06-24";

@@ -6,7 +6,7 @@ describe("CountdownHero", () => {
   it("shows the label, countdown and date range", () => {
     render(
       <CountdownHero
-        description={{ phase: "planning", label: "Planning", countdown: "In 26 days" }}
+        description={{ phase: "planning", label: "Planning", countdown: "In 26 days", countdownValue: "26", countdownUnit: "DAYS TO GO" }}
         startDate="2026-07-20"
         endDate="2026-07-30"
       />,

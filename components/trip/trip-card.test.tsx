@@ -28,7 +28,7 @@ describe("TripCard", () => {
     render(
       <TripCard
         {...defaultProps}
-        phase={{ phase: "planning", label: "Planning", countdown: "In 26 days" }}
+        phase={{ phase: "planning", label: "Planning", countdown: "In 26 days", countdownValue: "26", countdownUnit: "DAYS TO GO" }}
       />,
     );
     expect(screen.getByText(/planning · in 26 days/i)).toBeInTheDocument();
@@ -38,7 +38,7 @@ describe("TripCard", () => {
     render(
       <TripCard
         {...defaultProps}
-        phase={{ phase: "travelling", label: "Travelling", countdown: "Day 5 of 11" }}
+        phase={{ phase: "travelling", label: "Travelling", countdown: "Day 5 of 11", countdownValue: "5", countdownUnit: "OF 11" }}
       />,
     );
     expect(screen.getByText("Day 5 of 11")).toBeInTheDocument();
