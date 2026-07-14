@@ -228,6 +228,11 @@ describe("MarkerForm — place search feedback", () => {
     await user.click(screen.getByRole("button", { name: /^search$/i }));
     expect(await screen.findByText(/no matching places/i)).toBeInTheDocument();
 
+    // The input is disabled while the search transition is pending; under load
+    // that pending flag can outlive the commit that renders the message, so
+    // wait for the field to be interactive again before typing — otherwise
+    // userEvent silently drops the keystroke into a disabled input.
+    await waitFor(() => expect(search).toBeEnabled());
     await user.type(search, "x"); // editing the query should clear the message
     expect(screen.queryByText(/no matching places/i)).not.toBeInTheDocument();
   });
