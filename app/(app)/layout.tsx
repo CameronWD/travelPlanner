@@ -4,7 +4,6 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { acceptPendingInvitesForUser } from "@/lib/invites";
 import { acceptPendingGlobeInvitesForUser } from "@/lib/globe-invites";
-import { getDiscreetState } from "@/lib/discreet-server";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -15,17 +14,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SignOutMenuItem } from "@/components/ui/sign-out-button";
-import { DiscreetToggle } from "@/components/discreet/discreet-toggle";
 import { OfflineBanner } from "@/components/offline-banner";
 import { CommandPaletteMount } from "@/components/command-palette-mount";
 import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
-import { cn } from "@/lib/cn";
 
-export async function generateMetadata(): Promise<Metadata> {
-  const { discreet, label } = await getDiscreetState();
-  if (!discreet) return {};
-  return { title: label, icons: { icon: "/discreet-icon.svg" } };
-}
+export async function generateMetadata(): Promise<Metadata> { return {}; }
 
 /**
  * Derive initials from a display name (up to 2 chars).
@@ -46,10 +39,6 @@ function initials(name?: string | null): string {
  * Keeps the server-side auth gate from the stub layout and adds:
  *   - A sticky top bar with the wordmark + theme toggle + traveller avatar dropdown
  *   - A centered, padded content area
- *
- * When discreet mode is on the outer wrapper receives a `.discreet` class,
- * the wordmark is replaced with the user-chosen neutral label, and
- * generateMetadata swaps the page title + favicon.
  */
 export default async function AppLayout({
   children,
@@ -72,12 +61,10 @@ export default async function AppLayout({
     await acceptPendingGlobeInvitesForUser(session.user.id, email);
   }
 
-  const { discreet, label } = await getDiscreetState();
-
   return (
-    <div className={cn("flex min-h-full flex-col", discreet && "discreet")}>
+    <div className="flex min-h-full flex-col">
       <OfflineBanner />
-      <CommandPaletteMount disabled={discreet} />
+      <CommandPaletteMount />
       {/* ── Top bar ── */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-14 max-w-5xl lg:max-w-6xl 2xl:max-w-7xl items-center justify-between px-4 sm:px-6">
@@ -85,44 +72,38 @@ export default async function AppLayout({
           <Link
             href="/trips"
             className="flex items-center gap-1.5 font-display text-lg font-semibold tracking-tight text-foreground hover:text-foreground/80 transition-colors"
-            aria-label={discreet ? label : "TEEPEE — go to your trips"}
+            aria-label="TEEPEE — go to your trips"
           >
-            {discreet ? (
-              label
-            ) : (
-              <>
-                <svg
-                  data-testid="tent-icon"
-                  aria-hidden="true"
-                  xmlns="http://www.w3.org/2000/svg"
-                  width="24"
-                  height="24"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="size-6 text-primary"
-                >
-                  <path d="M12 3 4 21M12 3l8 18M8.5 12h7M10 21l2-5 2 5" />
-                </svg>
-                TEEPEE
-              </>
-            )}
+            <>
+              <svg
+                data-testid="tent-icon"
+                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="size-6 text-primary"
+              >
+                <path d="M12 3 4 21M12 3l8 18M8.5 12h7M10 21l2-5 2 5" />
+              </svg>
+              TEEPEE
+            </>
           </Link>
 
           {/* Right-hand controls */}
           <div className="flex items-center gap-1">
-            {!discreet && <CommandPaletteTrigger />}
-            {!discreet && (
-              <Link
-                href="/globe"
-                className="rounded-md px-2 py-1 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
-              >
-                Globe
-              </Link>
-            )}
+            <CommandPaletteTrigger />
+            <Link
+              href="/globe"
+              className="rounded-md px-2 py-1 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
+            >
+              Globe
+            </Link>
             <ThemeToggle />
 
             {/* Traveller avatar dropdown */}
@@ -150,10 +131,6 @@ export default async function AppLayout({
                     </span>
                   ) : null}
                 </DropdownMenuLabel>
-
-                <DropdownMenuSeparator />
-
-                <DiscreetToggle discreet={discreet} label={label} />
 
                 <DropdownMenuSeparator />
 
