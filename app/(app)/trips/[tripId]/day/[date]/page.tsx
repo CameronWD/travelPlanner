@@ -22,6 +22,9 @@ import { AddItemButton } from "@/components/trip/item-form-dialog";
 import { JournalEditor } from "@/components/trip/journal-editor";
 import type { TransportMode } from "@/lib/enums";
 
+/** Reading-width wrapper applied to the timeline+editor stack. Exported for tests. */
+export const DAY_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
+
 export default async function DayPage({
   params,
 }: {
@@ -414,48 +417,51 @@ export default async function DayPage({
       {/* Day map (collapsed toggle) */}
       <DayMapPanel tripId={tripId} model={dayMapModel} />
 
-      {/* Nearby Wishlist items */}
-      <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
+      {/* Reading column: timeline + editor stack capped at max-w-3xl */}
+      <div className={`${DAY_READING_WIDTH_CLASS} flex flex-col gap-4`}>
+        {/* Nearby Wishlist items */}
+        <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
 
-      {/* Feasibility advisory */}
-      <DayFeasibility entries={feasibility} />
+        {/* Feasibility advisory */}
+        <DayFeasibility entries={feasibility} />
 
-      {/* Detailed timeline */}
-      <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} />
+        {/* Detailed timeline */}
+        <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} />
 
-      {/* Quick add */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">Add something to this day</p>
-        <AddItemButton
-          tripId={tripId}
-          stops={stopOptions}
-          tripStartDate={effectiveDate}
-          defaultUnscheduled={false}
-          label="Add to this day"
-        />
-      </div>
-
-      {/* Journal */}
-      <section aria-labelledby="journal-heading">
-        <div className="mb-3 flex items-center gap-2">
-          <BookOpen className="size-4 text-primary" aria-hidden />
-          <h3
-            id="journal-heading"
-            className="font-display text-lg font-semibold text-foreground"
-          >
-            Journal
-          </h3>
-        </div>
-        <div className="rounded-xl border border-border bg-card px-4 py-4">
-          <JournalEditor
+        {/* Quick add */}
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">Add something to this day</p>
+          <AddItemButton
             tripId={tripId}
-            date={effectiveDate}
-            initialBody={journalEntry?.body ?? ""}
-            updatedAt={journalEntry?.updatedAt ?? null}
-            photos={journalPhotos}
+            stops={stopOptions}
+            tripStartDate={effectiveDate}
+            defaultUnscheduled={false}
+            label="Add to this day"
           />
         </div>
-      </section>
+
+        {/* Journal */}
+        <section aria-labelledby="journal-heading">
+          <div className="mb-3 flex items-center gap-2">
+            <BookOpen className="size-4 text-primary" aria-hidden />
+            <h3
+              id="journal-heading"
+              className="font-display text-lg font-semibold text-foreground"
+            >
+              Journal
+            </h3>
+          </div>
+          <div className="rounded-xl border border-border bg-card px-4 py-4">
+            <JournalEditor
+              tripId={tripId}
+              date={effectiveDate}
+              initialBody={journalEntry?.body ?? ""}
+              updatedAt={journalEntry?.updatedAt ?? null}
+              photos={journalPhotos}
+            />
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

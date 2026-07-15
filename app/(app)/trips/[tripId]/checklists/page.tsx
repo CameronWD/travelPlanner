@@ -2,6 +2,9 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { isAiConfigured } from "@/lib/ai";
 import { sortChecklist } from "@/lib/checklists";
+
+/** Reading-width wrapper applied to the tabs+content column. Exported for tests. */
+export const CHECKLISTS_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
 import { listTemplates } from "@/server/actions/checklists";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checklist } from "@/components/trip/checklist";
@@ -75,6 +78,7 @@ export default async function ChecklistsPage({
     <div className="flex flex-col gap-6">
       <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Checklists</h2>
 
+      <div className={CHECKLISTS_READING_WIDTH_CLASS}>
       <Tabs defaultValue="pretrip" className="w-full">
         <TabsList className="h-auto w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0">
           <TabsTrigger value="pretrip" className="rounded-none border-b-2 border-transparent px-0 py-2.5 font-semibold text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-bold data-[state=active]:text-primary data-[state=active]:shadow-none">
@@ -139,6 +143,7 @@ export default async function ChecklistsPage({
           </div>
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 }
