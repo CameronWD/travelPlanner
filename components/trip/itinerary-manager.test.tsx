@@ -74,11 +74,11 @@ vi.mock("@/components/ui/use-toast", async (importOriginal) => {
 });
 
 import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop } from "@/server/actions/stops";
-import { createTransport } from "@/server/actions/transport";
+import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation } from "@/server/actions/accommodation";
 import { createChapter, deleteChapter } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
-import { ItineraryManager, summariseReorder, type ItineraryStop } from "./itinerary-manager";
+import { ItineraryManager, summariseReorder, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -1305,5 +1305,100 @@ describe("home base bookends", () => {
       />,
     );
     expect(screen.queryByText(/Trip ends here/i)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 5: Optimistic transport delete
+// ---------------------------------------------------------------------------
+
+describe("optimistic transport delete", () => {
+  function makeTransportBetweenStops(
+    fromStopId: string,
+    toStopId: string,
+    overrides: Partial<ItineraryTransport> = {},
+  ): ItineraryTransport {
+    return {
+      id: "tr-opt-1",
+      mode: "FLIGHT",
+      fromStopId,
+      toStopId,
+      depIsHome: false,
+      arrIsHome: false,
+      depPlace: "Sydney",
+      arrPlace: "Paris",
+      depAt: null,
+      arrAt: null,
+      reference: null,
+      notes: null,
+      sortOrder: 0,
+      costs: [],
+      ...overrides,
+    };
+  }
+
+  it("optimistically removes a transport on delete (no prop change needed)", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    const transport = makeTransportBetweenStops("s-a", "s-b");
+
+    vi.mocked(deleteTransport).mockResolvedValueOnce({ success: true });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+        initialTransports={[transport]}
+      />,
+    );
+
+    // The transport card heading must be visible initially
+    expect(await screen.findByTestId("transport-heading")).toBeInTheDocument();
+
+    // Click the transport's delete button (aria-label="Delete Transport" from RowActions)
+    await user.click(screen.getByRole("button", { name: "Delete Transport" }));
+
+    // Confirm the dialog
+    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
+    await user.click(deleteBtn);
+
+    // The transport card must be removed from the DOM without any prop change
+    await waitFor(() => {
+      expect(screen.queryByTestId("transport-heading")).not.toBeInTheDocument();
+    });
+  });
+
+  it("rolls back the optimistic removal and shows a destructive toast on server failure", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    const transport = makeTransportBetweenStops("s-a", "s-b");
+
+    vi.mocked(deleteTransport).mockResolvedValueOnce({ success: false, errors: {} });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+        initialTransports={[transport]}
+      />,
+    );
+
+    expect(await screen.findByTestId("transport-heading")).toBeInTheDocument();
+
+    // Click delete
+    await user.click(screen.getByRole("button", { name: "Delete Transport" }));
+    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
+    await user.click(deleteBtn);
+
+    // The card must be restored and a destructive toast shown
+    await waitFor(() => {
+      expect(screen.getByTestId("transport-heading")).toBeInTheDocument();
+    });
+
+    expect(vi.mocked(toast)).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: "destructive" }),
+    );
   });
 });

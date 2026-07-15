@@ -382,14 +382,16 @@ export function ItineraryManager({
 }: ItineraryManagerProps) {
   const { confirm, dialog } = useConfirm();
 
-  // ── Local mutable copies (for optimistic drag reordering) ──
+  // ── Local mutable copies (for optimistic drag reordering + optimistic delete) ──
   // Seeded from props; the drag handlers mutate them optimistically.
   // Re-sync during render (getDerivedStateFromProps pattern) when props identity
   // changes — this is idiomatic React and avoids setState-in-effect.
   const [localStops, setLocalStops] = React.useState<ItineraryStop[]>(initialStops);
   const [localChapters, setLocalChapters] = React.useState<ItineraryChapter[]>(chapters);
+  const [localTransports, setLocalTransports] = React.useState<ItineraryTransport[]>(initialTransports);
   const [trackedInitialStops, setTrackedInitialStops] = React.useState(initialStops);
   const [trackedChapters, setTrackedChapters] = React.useState(chapters);
+  const [trackedInitialTransports, setTrackedInitialTransports] = React.useState(initialTransports);
   if (trackedInitialStops !== initialStops) {
     setTrackedInitialStops(initialStops);
     setLocalStops(initialStops);
@@ -397,6 +399,10 @@ export function ItineraryManager({
   if (trackedChapters !== chapters) {
     setTrackedChapters(chapters);
     setLocalChapters(chapters);
+  }
+  if (trackedInitialTransports !== initialTransports) {
+    setTrackedInitialTransports(initialTransports);
+    setLocalTransports(initialTransports);
   }
 
   // ── dnd-kit sensors ──
@@ -651,7 +657,7 @@ export function ItineraryManager({
 
   // ── Transport handlers ──
   async function handleDeleteTransport(transportId: string) {
-    const t = initialTransports.find((tr) => tr.id === transportId);
+    const t = localTransports.find((tr) => tr.id === transportId);
     const modeLabel = t ? (TRANSPORT_MODE_META[t.mode]?.label ?? t.mode) : "transport leg";
     // Build a route identifier from place names if available.
     const routeLabel = t
@@ -670,9 +676,18 @@ export function ItineraryManager({
       destructive: true,
     });
     if (!confirmed) return;
+    const snapshot = localTransports;
+    setLocalTransports((prev) => prev.filter((tr) => tr.id !== transportId));
     setPendingId(transportId);
     try {
-      await deleteTransport(transportId);
+      const res = await deleteTransport(transportId);
+      if (!res.success) {
+        setLocalTransports(snapshot);
+        toast({ variant: "destructive", title: "Couldn't delete that transport." });
+      }
+    } catch {
+      setLocalTransports(snapshot);
+      toast({ variant: "destructive", title: "Couldn't delete that transport." });
     } finally {
       setPendingId(null);
     }
@@ -752,8 +767,8 @@ export function ItineraryManager({
   const hasHomeBase = Boolean(homeBaseName);
   const firstStop = stops.length > 0 ? stops[0] : null;
   const lastStop = stops.length > 0 ? stops[stops.length - 1] : null;
-  const outboundLeg = findOutboundLeg(initialTransports, firstStop?.id ?? null);
-  const returnLeg = findReturnLeg(initialTransports, lastStop?.id ?? null);
+  const outboundLeg = findOutboundLeg(localTransports, firstStop?.id ?? null);
+  const returnLeg = findReturnLeg(localTransports, lastStop?.id ?? null);
   const bookendLegIds = React.useMemo(() => {
     const ids = new Set<string>();
     if (outboundLeg) ids.add(outboundLeg.id);
@@ -767,7 +782,7 @@ export function ItineraryManager({
    */
   const transportByPair = React.useMemo(() => {
     const map = new Map<string, ItineraryTransport[]>();
-    for (const t of initialTransports) {
+    for (const t of localTransports) {
       if (t.fromStopId && t.toStopId) {
         const key = `${t.fromStopId}-${t.toStopId}`;
         const arr = map.get(key) ?? [];
@@ -776,7 +791,7 @@ export function ItineraryManager({
       }
     }
     return map;
-  }, [initialTransports]);
+  }, [localTransports]);
 
   /**
    * Set of transport IDs that are "between-legs" (cross chapters or have a
@@ -786,13 +801,13 @@ export function ItineraryManager({
   const betweenLegsIds = React.useMemo<Set<string>>(() => {
     if (!hasChapters) return new Set();
     const ids = new Set<string>();
-    for (const t of initialTransports) {
+    for (const t of localTransports) {
       if (isTransportBetweenLegs(t, localChapters, stopsById)) {
         ids.add(t.id);
       }
     }
     return ids;
-  }, [initialTransports, localChapters, stopsById, hasChapters]);
+  }, [localTransports, localChapters, stopsById, hasChapters]);
 
   /** Transports that DON'T link a consecutive pair (orphaned or partial),
    *  excluding the home bookend legs which render in the frame instead. */
@@ -802,13 +817,13 @@ export function ItineraryManager({
       consecutivePairKeys.add(`${stops[i].id}-${stops[i + 1].id}`);
     }
 
-    return initialTransports.filter((t) => {
+    return localTransports.filter((t) => {
       if (bookendLegIds.has(t.id)) return false; // rendered as a home bookend
       if (!t.fromStopId || !t.toStopId) return true; // null endpoint → other
       const key = `${t.fromStopId}-${t.toStopId}`;
       return !consecutivePairKeys.has(key); // non-consecutive → other
     });
-  }, [initialTransports, stops, bookendLegIds]);
+  }, [localTransports, stops, bookendLegIds]);
 
   const hasStops = stops.length > 0;
   // Show the planning UI when there are stops OR chapters. A freshly created
