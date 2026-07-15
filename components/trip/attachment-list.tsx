@@ -79,6 +79,16 @@ function mimeLabel(mime: string): string {
   return "File";
 }
 
+const MONTH_SHORT_LABELS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/** Format a Date as "D MMM YYYY" using UTC calendar date (e.g. "1 Jan 2026"). */
+function formatAddedDate(date: Date): string {
+  return `${date.getUTCDate()} ${MONTH_SHORT_LABELS[date.getUTCMonth()]} ${date.getUTCFullYear()}`;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -185,6 +195,8 @@ export function AttachmentList({
                   {!compact && (
                     <span className="text-xs text-muted-foreground">
                       {formatBytes(att.size)}
+                      {" · added "}
+                      {formatAddedDate(att.createdAt)}
                     </span>
                   )}
                 </div>

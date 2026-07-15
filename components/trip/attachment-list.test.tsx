@@ -128,6 +128,51 @@ describe("AttachmentList", () => {
     expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
   });
 
+  it("shows '· added {date}' in non-compact mode using the createdAt field", () => {
+    render(
+      <AttachmentList
+        tripId="trip-1"
+        targetType="TRIP"
+        attachments={[
+          {
+            id: "att-date",
+            filename: "ticket.pdf",
+            mime: "application/pdf",
+            size: 1024,
+            url: "/ticket.pdf",
+            uploadedById: "u1",
+            // 1 Jan 2026 UTC
+            createdAt: new Date("2026-01-01T00:00:00Z"),
+          },
+        ]}
+      />,
+    );
+    // Should render the added-date annotation
+    expect(screen.getByText(/added 1 Jan 2026/i)).toBeInTheDocument();
+  });
+
+  it("does NOT show '· added {date}' in compact mode", () => {
+    render(
+      <AttachmentList
+        tripId="trip-1"
+        targetType="TRIP"
+        compact
+        attachments={[
+          {
+            id: "att-date2",
+            filename: "compact.pdf",
+            mime: "application/pdf",
+            size: 1024,
+            url: "/compact.pdf",
+            uploadedById: "u1",
+            createdAt: new Date("2026-01-01T00:00:00Z"),
+          },
+        ]}
+      />,
+    );
+    expect(screen.queryByText(/added 1 Jan 2026/i)).toBeNull();
+  });
+
   it("delete does NOT fire when the dialog is cancelled", async () => {
     const user = userEvent.setup();
     render(

@@ -13,6 +13,14 @@ import { TARGET_TYPES } from "@/lib/enums";
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Tailwind classes for the entity-group section-header label.
+ * Space-Grotesk (font-display) bold, matching the Bold Modular mock.
+ * Exported so the page test can assert the class is present.
+ */
+export const FILES_SECTION_HEADER_CLASS =
+  "font-display font-bold text-xs uppercase tracking-[0.06em] text-muted-foreground";
+
 const TARGET_TYPE_LABELS: Record<TargetType, string> = {
   TRIP: "Trip-level",
   STOP: "Stops",
@@ -93,7 +101,7 @@ export default async function FilesPage({
       ).map(([type, items]) => (
         <div key={type} className="flex flex-col gap-3">
           <div className="flex items-center gap-2 px-1">
-            <span className="text-xs font-bold uppercase tracking-[0.06em] text-muted-foreground">
+            <span className={FILES_SECTION_HEADER_CLASS}>
               {TARGET_TYPE_LABELS[type]}
             </span>
             <span className="text-xs text-muted-foreground">{items.length}</span>
