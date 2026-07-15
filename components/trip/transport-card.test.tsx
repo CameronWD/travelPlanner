@@ -111,3 +111,62 @@ describe("TransportCard NoteThread", () => {
     expect(screen.queryByRole("button", { name: /note/i })).not.toBeInTheDocument();
   });
 });
+
+describe("TransportCard Bold-Modular D3 visual spec", () => {
+  it("renders the card with a dashed border", () => {
+    const { container } = render(<TransportCard transport={base} />);
+    const card = container.firstElementChild as HTMLElement;
+    expect(card.className).toMatch(/border-dashed/);
+    expect(card.className).toMatch(/border-\[1\.5px\]/);
+  });
+
+  it("wraps the mode icon in a tinted rounded-square (size-9 rounded-xl bg-primary/10)", () => {
+    const { container } = render(<TransportCard transport={base} />);
+    const iconWrap = container.querySelector(".size-9.rounded-xl.bg-primary\\/10");
+    expect(iconWrap).toBeInTheDocument();
+  });
+
+  it("shows From → To as the primary title when both endpoints are present", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "t1",
+          mode: "TRAIN" as const,
+          sortOrder: 0,
+          depPlace: "Kyoto",
+          arrPlace: "Osaka",
+        }}
+      />,
+    );
+    // The heading "Kyoto → Osaka" must appear as a single element (or adjacent text)
+    // at a higher visual weight than the mode label beneath it.
+    const heading = screen.getByTestId("transport-heading");
+    expect(heading.textContent).toMatch(/Kyoto/);
+    expect(heading.textContent).toMatch(/Osaka/);
+  });
+
+  it("shows mode label beneath the heading, not above it", () => {
+    const { container } = render(
+      <TransportCard
+        transport={{
+          id: "t1",
+          mode: "TRAIN" as const,
+          sortOrder: 0,
+          depPlace: "Kyoto",
+          arrPlace: "Osaka",
+        }}
+      />,
+    );
+    const heading = container.querySelector("[data-testid='transport-heading']")!;
+    const subline = container.querySelector("[data-testid='transport-subline']")!;
+    expect(heading).toBeInTheDocument();
+    expect(subline).toBeInTheDocument();
+    // subline must contain "Train" (the mode label)
+    expect(subline.textContent).toMatch(/Train/);
+    // heading must come before subline in DOM order
+    const allTextNodes = Array.from(container.querySelectorAll("[data-testid]"));
+    const headingIdx = allTextNodes.indexOf(heading);
+    const sublineIdx = allTextNodes.indexOf(subline);
+    expect(headingIdx).toBeLessThan(sublineIdx);
+  });
+});

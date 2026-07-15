@@ -95,34 +95,60 @@ export function TransportCard({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2.5 rounded-xl border border-border bg-card px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
+        "flex flex-col gap-2.5 rounded-xl border-[1.5px] border-dashed border-border bg-card px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
         isPending && "opacity-60 pointer-events-none",
       )}
     >
-      {/* Top row: mode icon + label + from→to + controls */}
+      {/* Top row: mode icon + from→to title + controls */}
       <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          {/* Mode */}
-          <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
-            <Icon className="size-4 shrink-0 text-primary" aria-hidden="true" />
-            <span>{meta.label}</span>
-            {t.reference && (
-              <span className="ml-1 rounded bg-muted px-1.5 py-0.5 text-xs font-mono text-muted-foreground">
-                {t.reference}
-              </span>
-            )}
-          </div>
+        <div className="flex min-w-0 items-start gap-3">
+          {/* Tinted mode-icon square */}
+          <span
+            className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10"
+            aria-hidden="true"
+          >
+            <Icon className="size-5 text-primary" aria-hidden="true" />
+          </span>
 
-          {/* From → To */}
-          {(fromLabel || toLabel) && (
-            <div className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-              {fromLabel && <span className="font-medium text-foreground">{fromLabel}</span>}
-              {fromLabel && toLabel && (
-                <ArrowRight className="size-3.5 shrink-0" aria-hidden="true" />
+          {/* Text block: From → To heading + mode subline */}
+          <div className="flex min-w-0 flex-col gap-0.5">
+            {/* Primary heading: From → To (or mode label when no places) */}
+            {(fromLabel || toLabel) ? (
+              <div
+                className="flex flex-wrap items-center gap-1 text-sm font-semibold text-foreground"
+                data-testid="transport-heading"
+              >
+                {fromLabel && <span>{fromLabel}</span>}
+                {fromLabel && toLabel && (
+                  <ArrowRight className="size-3.5 shrink-0" aria-hidden="true" />
+                )}
+                {toLabel && <span>{toLabel}</span>}
+              </div>
+            ) : (
+              <div
+                className="text-sm font-semibold text-foreground"
+                data-testid="transport-heading"
+              >
+                {meta.label}
+              </div>
+            )}
+
+            {/* Subline: mode · reference */}
+            <div
+              className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground"
+              data-testid="transport-subline"
+            >
+              <span>{meta.label}</span>
+              {t.reference && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-muted-foreground">
+                    {t.reference}
+                  </span>
+                </>
               )}
-              {toLabel && <span className="font-medium text-foreground">{toLabel}</span>}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Controls */}
