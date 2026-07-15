@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/cn";
-import type { PhaseDescription } from "@/lib/trip-phase";
+import type { PhaseDescription, TripPhase } from "@/lib/trip-phase";
 import { TripCover } from "./trip-cover";
 import { DuplicateTripDialog } from "./duplicate-trip-dialog";
 
@@ -45,6 +45,15 @@ export interface TripCardProps {
   hasCover: boolean;
   coverStops: { lat: number; lng: number }[];
 }
+
+/** Dot colour class per trip phase, matching the design tokens. */
+const PHASE_DOT_CLASS: Record<TripPhase, string> = {
+  planning: "bg-primary",
+  "final-prep": "bg-primary",
+  sketching: "bg-amber-500",
+  travelling: "bg-teal-500",
+  past: "bg-stone-400",
+};
 
 /**
  * A warm, playful card for a single trip in the trips grid.
@@ -84,7 +93,12 @@ export function TripCard({
         <div className="relative h-28 w-full overflow-hidden">
           <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} />
           {phase && (
-            <span className="absolute left-3 top-3 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-soft">
+            <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-soft">
+              <span
+                data-testid="phase-dot"
+                aria-hidden="true"
+                className={cn("size-2 shrink-0 rounded-full", PHASE_DOT_CLASS[phase.phase])}
+              />
               {phase.phase === "travelling" || phase.phase === "past" ? phase.countdown : `${phase.label} · ${phase.countdown}`}
             </span>
           )}

@@ -59,7 +59,12 @@ export function GlobeSuggestionsStrip({
     <section className="rounded-2xl bg-accent/10 p-3">
       <div className="flex items-center gap-2">
         <Globe2 className="size-4 text-accent" aria-hidden="true" />
-        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-accent">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-accent">
+          <span
+            data-testid="globe-eyebrow-dot"
+            aria-hidden="true"
+            className="size-2 shrink-0 rounded-full bg-accent"
+          />
           From your Globe
         </span>
       </div>

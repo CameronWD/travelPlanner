@@ -127,4 +127,42 @@ describe("TripCard", () => {
     const item = await screen.findByRole("menuitem", { name: /duplicate/i });
     expect(item).toBeInTheDocument();
   });
+
+  it("renders a leading hue dot inside the phase badge for planning phase", () => {
+    const { container } = render(
+      <TripCard
+        {...defaultProps}
+        phase={{ phase: "planning", label: "Planning", countdown: "In 26 days", countdownValue: "26", countdownUnit: "DAYS TO GO" }}
+      />,
+    );
+    const dot = container.querySelector("[data-testid='phase-dot']") as HTMLElement;
+    expect(dot).toBeTruthy();
+    expect(dot.getAttribute("aria-hidden")).toBe("true");
+    expect(dot.className).toContain("rounded-full");
+    expect(dot.className).toContain("bg-primary");
+  });
+
+  it("renders a leading hue dot inside the phase badge for sketching phase", () => {
+    const { container } = render(
+      <TripCard
+        {...defaultProps}
+        phase={{ phase: "sketching", label: "Sketching", countdown: "Not dated yet", countdownValue: "Not dated", countdownUnit: null }}
+      />,
+    );
+    const dot = container.querySelector("[data-testid='phase-dot']") as HTMLElement;
+    expect(dot).toBeTruthy();
+    expect(dot.className).toContain("bg-amber");
+  });
+
+  it("renders a leading hue dot inside the phase badge for past phase", () => {
+    const { container } = render(
+      <TripCard
+        {...defaultProps}
+        phase={{ phase: "past", label: "Past", countdown: "Ended 14 days ago", countdownValue: "14", countdownUnit: "DAYS AGO" }}
+      />,
+    );
+    const dot = container.querySelector("[data-testid='phase-dot']") as HTMLElement;
+    expect(dot).toBeTruthy();
+    expect(dot.className).toContain("bg-stone");
+  });
 });
