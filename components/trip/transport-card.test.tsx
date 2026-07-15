@@ -112,6 +112,38 @@ describe("TransportCard NoteThread", () => {
   });
 });
 
+describe("TransportCard placeless leg — no duplicate mode label", () => {
+  it("renders the mode label exactly once when there are no from/to places", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "t1",
+          mode: "TRAIN" as const,
+          sortOrder: 0,
+          // no depPlace, arrPlace, depIsHome, arrIsHome, fromStopName, toStopName
+        }}
+      />,
+    );
+    // "Train" should appear only once (in the heading fallback) — NOT also in the subline
+    const matches = screen.getAllByText(/^Train$/i);
+    expect(matches).toHaveLength(1);
+  });
+
+  it("still renders a reference in the subline when there are no places", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "t1",
+          mode: "TRAIN" as const,
+          sortOrder: 0,
+          reference: "TK123",
+        }}
+      />,
+    );
+    expect(screen.getByText("TK123")).toBeInTheDocument();
+  });
+});
+
 describe("TransportCard Bold-Modular D3 visual spec", () => {
   it("renders the card with a dashed border", () => {
     const { container } = render(<TransportCard transport={base} />);
@@ -138,11 +170,9 @@ describe("TransportCard Bold-Modular D3 visual spec", () => {
         }}
       />,
     );
-    // The heading "Kyoto → Osaka" must appear as a single element (or adjacent text)
-    // at a higher visual weight than the mode label beneath it.
+    // The heading must contain both place names in order: Kyoto … Osaka
     const heading = screen.getByTestId("transport-heading");
-    expect(heading.textContent).toMatch(/Kyoto/);
-    expect(heading.textContent).toMatch(/Osaka/);
+    expect(heading.textContent).toMatch(/Kyoto[\s\S]*Osaka/);
   });
 
   it("shows mode label beneath the heading, not above it", () => {

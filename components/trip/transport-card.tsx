@@ -107,7 +107,7 @@ export function TransportCard({
             className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10"
             aria-hidden="true"
           >
-            <Icon className="size-5 text-primary" aria-hidden="true" />
+            <Icon className="size-5 text-primary" />
           </span>
 
           {/* Text block: From → To heading + mode subline */}
@@ -138,7 +138,7 @@ export function TransportCard({
               className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground"
               data-testid="transport-subline"
             >
-              <span>{meta.label}</span>
+              {(fromLabel || toLabel) && <span>{meta.label}</span>}
               {t.reference && (
                 <>
                   <span aria-hidden="true">·</span>
