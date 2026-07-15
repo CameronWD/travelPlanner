@@ -6,6 +6,7 @@ import {
   decimalsFor,
   formatMoney,
   formatAmountOnly,
+  formatMoneyCompact,
   convertMinor,
   sumMinorToHome,
   currencySymbol,
@@ -309,6 +310,24 @@ describe("sumMinorToHome", () => {
     const { totalMinor, missingRates } = sumMinorToHome([], "AUD", () => 1);
     expect(totalMinor).toBe(0);
     expect(missingRates).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatMoneyCompact
+// ---------------------------------------------------------------------------
+
+describe("formatMoneyCompact", () => {
+  it("formats compact money with a lowercase magnitude suffix", () => {
+    // JPY has 0 decimal places, so amountMinor == major units.
+    // 184000 minor JPY = ¥184,000 → Node ICU compact → "¥184K" → lowercased → "¥184k"
+    expect(formatMoneyCompact(184000, "JPY")).toBe("¥184k"); // ¥184,000 → ¥184k
+    expect(formatMoneyCompact(950, "JPY")).toBe("¥950");     // below 1k: no suffix
+  });
+
+  it("falls back to formatMoney for invalid currency codes", () => {
+    const result = formatMoneyCompact(123456, "INVALID");
+    expect(result).toBeTruthy();
   });
 });
 

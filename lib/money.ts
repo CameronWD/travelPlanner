@@ -231,6 +231,33 @@ export function sumMinorToHome(
 }
 
 /**
+ * Compact currency (e.g. "¥184k", "A$1.2k") for tight strips like BudgetGlance.
+ * Lower-cases the magnitude suffix to match the design mocks. Falls back to
+ * formatMoney for unknown currency codes.
+ */
+export function formatMoneyCompact(
+  amountMinor: number,
+  currency: string,
+  locale: string = "en-AU",
+): string {
+  const decimals = decimalsFor(currency);
+  const value = amountMinor / 10 ** decimals;
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: currency.toUpperCase(),
+      notation: "compact",
+      maximumFractionDigits: 1,
+      currencyDisplay: "narrowSymbol",
+    })
+      .format(value)
+      .replace(/([KMBT])\b/g, (m) => m.toLowerCase());
+  } catch {
+    return formatMoney(amountMinor, currency, locale);
+  }
+}
+
+/**
  * Return a currency's symbol via Intl (e.g. "JPY" -> "¥", "GBP" -> "£").
  * Uses `narrowSymbol` so foreign currencies render the bare glyph ("¥") rather
  * than a locale-prefixed form ("JP¥" under en-AU). Falls back to the uppercased
