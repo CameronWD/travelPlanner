@@ -6,7 +6,6 @@ import { getCalendarFeed } from "@/server/actions/calendar-feed";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -81,16 +80,15 @@ export default async function SettingsPage({
   ]);
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-2xl flex flex-col gap-3.5">
+      <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Settings</h2>
+
       {/* ── Trip details ── */}
       <Card>
-        <CardHeader>
-          <CardTitle>Trip details</CardTitle>
-          <CardDescription>
-            Update the name, dates, and home currency for this trip.
-          </CardDescription>
+        <CardHeader className="p-5 pb-0">
+          <CardTitle className="font-display text-base font-bold tracking-tight">Trip details</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-5 pt-3">
           <TripDetailsForm
             tripId={tripId}
             defaultValues={{
@@ -112,27 +110,20 @@ export default async function SettingsPage({
 
       {/* ── Chapters ── */}
       <Card>
-        <CardHeader>
-          <CardTitle>Chapters</CardTitle>
-          <CardDescription>
-            Group stops into named segments of your trip, each with its own
-            colour. Chapters are optional.
-          </CardDescription>
+        <CardHeader className="p-5 pb-0">
+          <CardTitle className="font-display text-base font-bold tracking-tight">Chapters</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-5 pt-3">
           <ChaptersManager tripId={tripId} chapters={chapters} />
         </CardContent>
       </Card>
 
       {/* ── Travellers ── */}
       <Card>
-        <CardHeader>
-          <CardTitle>Travellers</CardTitle>
-          <CardDescription>
-            Manage who has access to this trip.
-          </CardDescription>
+        <CardHeader className="p-5 pb-0">
+          <CardTitle className="font-display text-base font-bold tracking-tight">Travellers</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-5 pt-3">
           <InvitePanel
             tripId={tripId}
             members={trip.members}
@@ -143,28 +134,21 @@ export default async function SettingsPage({
 
       {/* ── Sharing ── */}
       <Card>
-        <CardHeader>
-          <CardTitle>Public share link</CardTitle>
-          <CardDescription>
-            Share a read-only view of the itinerary with anyone — no account
-            needed. Budget, notes, and files are never visible.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <CardContent className="p-5">
           <SharePanel tripId={tripId} initialToken={shareLink?.token ?? null} />
         </CardContent>
       </Card>
 
       {/* ── Calendar feed ── */}
       <Card>
-        <CardHeader>
-          <CardTitle>Calendar feed</CardTitle>
-          <CardDescription>
+        <CardHeader className="p-5 pb-0">
+          <CardTitle className="font-display text-base font-bold tracking-tight">Calendar feed</CardTitle>
+        </CardHeader>
+        <CardContent className="p-5 pt-3">
+          <p className="text-xs text-muted-foreground">
             Subscribe to this trip in Google, Apple or Outlook Calendar. Updates one-way as you
             edit the itinerary.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </p>
           <CalendarFeedPanel
             tripId={tripId}
             initialToken={calendarFeed?.token ?? null}
@@ -183,14 +167,14 @@ export default async function SettingsPage({
 
       {/* ── Driving estimates ── */}
       <Card>
-        <CardHeader>
-          <CardTitle>Driving estimates</CardTitle>
-          <CardDescription>
+        <CardHeader className="p-5 pb-0">
+          <CardTitle className="font-display text-base font-bold tracking-tight">Driving estimates</CardTitle>
+        </CardHeader>
+        <CardContent className="p-5 pt-3">
+          <p className="text-xs text-muted-foreground">
             Tune the offline estimates used to flag long driving days. These are rough guides, not
             navigation ETAs.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+          </p>
           <DrivingEstimatesPanel
             tripId={tripId}
             initialWindingFactor={trip.drivingWindingFactor}
@@ -199,31 +183,17 @@ export default async function SettingsPage({
         </CardContent>
       </Card>
 
-      {/* ── Duplicate ── */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Duplicate</CardTitle>
-          <CardDescription>
-            Start a new trip from this one&apos;s structure — dates reset,
-            bookings and costs left behind.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DuplicateTripDialog tripId={tripId} tripName={trip.name} />
-        </CardContent>
-      </Card>
-
-      {/* ── Danger zone (owner only) ── */}
+      {/* ── Danger zone (owner only) — includes Duplicate ── */}
       {isOwner && (
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardTitle className="text-destructive">Danger zone</CardTitle>
-            <CardDescription>
-              Irreversible actions. Please be certain before proceeding.
-            </CardDescription>
+        <Card className="bg-destructive/5 border-destructive/30">
+          <CardHeader className="p-5 pb-0">
+            <CardTitle className="font-display text-base font-bold tracking-tight text-destructive">Danger zone</CardTitle>
           </CardHeader>
-          <CardContent>
-            <DangerZone tripId={tripId} tripName={trip.name} />
+          <CardContent className="p-5 pt-3">
+            <div className="flex flex-wrap gap-2.5">
+              <DuplicateTripDialog tripId={tripId} tripName={trip.name} />
+              <DangerZone tripId={tripId} tripName={trip.name} />
+            </div>
           </CardContent>
         </Card>
       )}

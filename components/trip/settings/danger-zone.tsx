@@ -60,7 +60,7 @@ export function DangerZone({ tripId, tripName }: DangerZoneProps) {
       )}
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogTrigger asChild>
-          <Button variant="destructive" size="md">
+          <Button variant="outline" size="md" className="border-destructive text-destructive hover:bg-destructive/5">
             <Trash2 className="size-4" aria-hidden="true" />
             Delete trip
           </Button>
