@@ -2,9 +2,6 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { isAiConfigured } from "@/lib/ai";
 import { sortChecklist } from "@/lib/checklists";
-
-/** Reading-width wrapper applied to the tabs+content column. Exported for tests. */
-export const CHECKLISTS_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
 import { listTemplates } from "@/server/actions/checklists";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checklist } from "@/components/trip/checklist";
@@ -12,6 +9,9 @@ import { PackingTemplatesBar } from "@/components/trip/packing-templates-bar";
 import { AiPackingSuggestions } from "@/components/trip/ai-packing-suggestions";
 import { AiBookingParser } from "@/components/trip/ai-booking-parser";
 import type { ChecklistKind } from "@/lib/enums";
+
+/** Reading-width wrapper applied to the tabs+content column. Exported for tests. */
+export const CHECKLISTS_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
 
 export default async function ChecklistsPage({
   params,
