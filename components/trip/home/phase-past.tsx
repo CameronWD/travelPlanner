@@ -14,8 +14,8 @@ import {
 import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
 import { chapterForStop } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
-import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
 
@@ -217,42 +217,59 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   });
 
   // ---------------------------------------------------------------------------
+  // Final spend derived values
+  // ---------------------------------------------------------------------------
+  const stopCount = datedStops.length;
+  const spentMinor = hasActual ? grandTotal.actualMinor : grandTotal.estimatedMinor;
+  const paidMinor = spend.paidSoFarMinor;
+  const estimatedMinor = spend.estimatedTotalMinor;
+  const varianceMinor = spend.varianceMinor;
+  const underBudget = varianceMinor <= 0;
+  const pct = estimatedMinor > 0 ? Math.min(100, Math.round((paidMinor / estimatedMinor) * 100)) : 0;
+
+  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
   return (
     <div className="flex flex-col gap-6">
       {/* ── That's a wrap ── */}
-      <section className="flex flex-col gap-1 rounded-2xl border border-border bg-card p-6 shadow-soft">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          That&apos;s a wrap
-        </span>
-        <p className="font-display text-2xl font-semibold tracking-tight text-foreground">
-          {trip.name}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {datedStops.length} stop{datedStops.length === 1 ? "" : "s"} &middot;{" "}
-          {totalNights} night{totalNights === 1 ? "" : "s"} &middot;{" "}
-          {formatMoney(
-            hasActual ? grandTotal.actualMinor : grandTotal.estimatedMinor,
-            homeCurrency,
-          )}{" "}
-          {hasActual ? "spent" : "estimated"}
-        </p>
+      <section className="relative overflow-hidden rounded-3xl bg-[hsl(24_14%_15%)] p-6 text-white">
+        <div className="pointer-events-none absolute -right-8 -top-8 size-[150px] rounded-full bg-white/[0.06]" aria-hidden="true" />
+        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/60">That&apos;s a wrap</p>
+        <p className="mt-2 font-display text-2xl font-bold">{trip.name}</p>
+        <div className="mt-4 flex gap-5">
+          <div><div className="font-display text-2xl font-bold">{stopCount}</div><div className="text-[11px] text-white/60">stops</div></div>
+          <div><div className="font-display text-2xl font-bold">{totalNights}</div><div className="text-[11px] text-white/60">nights</div></div>
+          <div><div className="font-display text-2xl font-bold">{formatMoney(spentMinor, trip.homeCurrency)}</div><div className="text-[11px] text-white/60">{hasActual ? "spent" : "estimated"}</div></div>
+        </div>
       </section>
 
-      {/* ── Spend retro ── */}
-      <SpendSoFarCard spend={spend} homeCurrency={homeCurrency} />
+      {/* ── Final spend ── */}
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Final spend</span>
+          <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", underBudget ? "bg-success/15 text-success" : "bg-over/10 text-over")}>
+            {formatMoney(Math.abs(varianceMinor), trip.homeCurrency)} {underBudget ? "under" : "over"}
+          </span>
+        </div>
+        <p className="font-display text-2xl font-bold text-foreground">
+          {formatMoney(paidMinor, trip.homeCurrency)} <span className="text-sm font-medium text-muted-foreground">of {formatMoney(estimatedMinor, trip.homeCurrency)} estimated</span>
+        </p>
+        <span className="mt-3 block h-2 overflow-hidden rounded-full bg-muted">
+          <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
+        </span>
+      </section>
 
       {/* ── Route map ── */}
       {mapStops.length > 0 && (
         <section className="overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-soft">
-          <RouteMap stops={mapStops} height={280} />
+          <RouteMap stops={mapStops} height={200} />
         </section>
       )}
 
       {/* ── CTAs ── */}
-      <div className="flex flex-wrap gap-3">
-        <Button asChild variant="outline">
+      <div className="flex gap-3">
+        <Button asChild variant="primary" className="flex-1">
           <Link href={`${base}/journal`}>
             <NotebookPen className="size-4" aria-hidden="true" />
             {journalCount === 0
@@ -260,7 +277,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
               : "Finish your journal"}
           </Link>
         </Button>
-        <Button asChild variant="outline">
+        <Button asChild variant="outline" className="flex-1 border-2 border-foreground">
           <Link href="/trips/new">
             <PlaneTakeoff className="size-4" aria-hidden="true" />
             Plan another trip
