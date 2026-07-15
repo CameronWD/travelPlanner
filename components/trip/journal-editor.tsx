@@ -14,18 +14,11 @@ import type { AttachmentView } from "@/components/trip/attachment-list";
 // Types
 // ---------------------------------------------------------------------------
 
-export interface JournalAuthor {
-  id: string;
-  name: string | null;
-  image: string | null;
-}
-
 export interface JournalEditorProps {
   tripId: string;
   date: string; // YYYY-MM-DD
   initialBody: string;
   updatedAt?: Date | null;
-  author?: JournalAuthor | null;
   photos: AttachmentView[];
 }
 

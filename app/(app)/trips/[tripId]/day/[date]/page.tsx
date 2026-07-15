@@ -139,7 +139,6 @@ export default async function DayPage({
           id: true,
           body: true,
           updatedAt: true,
-          author: { select: { id: true, name: true, image: true } },
         },
       }),
       db.attachment.findMany({
@@ -453,7 +452,6 @@ export default async function DayPage({
             date={effectiveDate}
             initialBody={journalEntry?.body ?? ""}
             updatedAt={journalEntry?.updatedAt ?? null}
-            author={journalEntry?.author ?? null}
             photos={journalPhotos}
           />
         </div>
