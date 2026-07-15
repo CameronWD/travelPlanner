@@ -25,12 +25,7 @@ describe("JournalEditor", () => {
 
   it("shows a 'Saving…' status and then 'Saved' status after a blur-save", async () => {
     const user = userEvent.setup();
-    render(
-      <JournalEditor
-        {...BASE_PROPS}
-        author={{ id: "u1", name: "Alice", image: null }}
-      />,
-    );
+    render(<JournalEditor {...BASE_PROPS} />);
 
     const textarea = screen.getByRole("textbox", { name: /journal entry/i });
 
