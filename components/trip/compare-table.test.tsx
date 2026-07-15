@@ -221,21 +221,6 @@ describe("CompareTable — Promote affordance", () => {
   });
 });
 
-describe("CompareTable — discreet mode", () => {
-  it("hides the compare table in discreet mode", () => {
-    render(<CompareTable trip={trip} plans={[realPlan, forkA]} discreet />);
-    // Should not render the Real plan column header
-    expect(screen.queryByText("Real plan")).not.toBeInTheDocument();
-    // Should not render fork name
-    expect(screen.queryByText("Beach variant")).not.toBeInTheDocument();
-  });
-
-  it("shows a neutral placeholder in discreet mode", () => {
-    render(<CompareTable trip={trip} plans={[realPlan, forkA]} discreet />);
-    expect(screen.getByText(/not available/i)).toBeInTheDocument();
-  });
-});
-
 describe("CompareTable — real plan only (no forks)", () => {
   it("renders just the real plan column with no Promote button", () => {
     render(<CompareTable trip={trip} plans={[realPlan]} />);

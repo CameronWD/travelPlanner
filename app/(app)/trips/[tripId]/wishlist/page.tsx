@@ -4,7 +4,6 @@ import { requireTripAccess } from "@/lib/guards";
 import { isAiConfigured } from "@/lib/ai";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
 import { VariantBanner } from "@/components/trip/variant-banner";
-import { getDiscreetState } from "@/lib/discreet-server";
 import { getUserGlobe } from "@/lib/globe";
 import { suggestMarkersForTrip } from "@/lib/globe-suggestions";
 import type { MarkerView } from "@/components/globe/types";
@@ -24,7 +23,6 @@ export default async function WishlistPage({
   const { plan } = await searchParams;
 
   const { user } = await requireTripAccess(tripId);
-  const { discreet } = await getDiscreetState();
 
   // Validate the fork exists for this trip; fall back to real plan if not.
   const selectedForkId = plan ?? null;
@@ -254,7 +252,7 @@ export default async function WishlistPage({
 
   return (
     <div className="flex flex-col gap-6">
-      {activeFork && !discreet && <VariantBanner tripId={trip.id} variantName={activeFork.name} />}
+      {activeFork && <VariantBanner tripId={trip.id} variantName={activeFork.name} />}
       <WishlistBoard
         tripId={trip.id}
         tripStartDate={trip.startDate}

@@ -16,7 +16,6 @@ import {
 } from "@/server/actions/activity";
 import { listForks } from "@/server/actions/forks";
 import { computeTripPhase } from "@/lib/trip-phase";
-import { getDiscreetState } from "@/lib/discreet-server";
 
 function initials(name?: string | null): string {
   if (!name) return "?";
@@ -62,11 +61,10 @@ export default async function TripLayout({
     notFound();
   }
 
-  const [unreadCount, recent, forks, { discreet }] = await Promise.all([
+  const [unreadCount, recent, forks] = await Promise.all([
     getUnreadActivityCount(tripId),
     getRecentActivity(tripId, 10),
     listForks(tripId),
-    getDiscreetState(),
   ]);
 
   const tripPhase = computeTripPhase({
@@ -76,7 +74,7 @@ export default async function TripLayout({
   });
 
   // Forking is allowed in sketching / planning / final-prep (not travelling/past)
-  const showForkSwitcher = !discreet && (tripPhase !== "travelling" && tripPhase !== "past");
+  const showForkSwitcher = tripPhase !== "travelling" && tripPhase !== "past";
 
   // A date-less trip shows a placeholder instead of a range.
   const dateRange =

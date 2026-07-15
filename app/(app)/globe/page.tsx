@@ -1,14 +1,12 @@
 import type { Metadata } from "next";
 import { requireGlobeAccess } from "@/lib/globe";
 import { db } from "@/lib/db";
-import { getDiscreetState } from "@/lib/discreet-server";
 import { GlobeView } from "@/components/globe/globe-view";
 import type { MarkerView, GlobeMemberView } from "@/components/globe/types";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { discreet, label } = await getDiscreetState();
-  return { title: discreet ? label : "Globe · TEEPEE" };
+  return { title: "Globe · TEEPEE" };
 }
 
 export default async function GlobePage() {
