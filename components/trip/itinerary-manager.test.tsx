@@ -502,6 +502,40 @@ describe("drag handle rendering", () => {
 
     expect(screen.queryAllByLabelText(/reorder/i)).toHaveLength(2);
   });
+
+  it("stop drag handle carries data-testid='drag-handle-stop'", () => {
+    const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[roughStop]} />,
+    );
+
+    expect(screen.getByTestId("drag-handle-stop")).toBeInTheDocument();
+  });
+
+  it("chapter drag handle carries data-testid='drag-handle-chapter'", () => {
+    const chapter = {
+      id: "ch-1",
+      name: "France",
+      colour: "rose" as const,
+      startDate: null,
+      endDate: null,
+      sortOrder: 0,
+    };
+    const roughStop = makeStop({
+      id: "s-1",
+      name: "Paris",
+      arriveDate: null,
+      departDate: null,
+      chapterId: "ch-1",
+    });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[roughStop]} chapters={[chapter]} />,
+    );
+
+    expect(screen.getByTestId("drag-handle-chapter")).toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------

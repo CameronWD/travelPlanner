@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, BookOpen, CalendarClock, GripVertical, MapPin, Trash2 } from "lucide-react";
+import { Plus, BookOpen, CalendarClock, MapPin, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StopCard, type StopCardStop } from "./stop-card";
@@ -215,9 +215,23 @@ function SortableStop({
       {...attributes}
       aria-label={`Reorder ${stop.name}`}
       title="Drag to reorder"
+      data-testid="drag-handle-stop"
       className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
     >
-      <GripVertical className="size-4" aria-hidden="true" />
+      <svg
+        width="10"
+        height="14"
+        viewBox="0 0 10 14"
+        aria-hidden="true"
+        className="fill-muted-foreground/60"
+      >
+        <circle cx="2" cy="2" r="1.5" />
+        <circle cx="8" cy="2" r="1.5" />
+        <circle cx="2" cy="7" r="1.5" />
+        <circle cx="8" cy="7" r="1.5" />
+        <circle cx="2" cy="12" r="1.5" />
+        <circle cx="8" cy="12" r="1.5" />
+      </svg>
     </button>
   );
 
@@ -256,9 +270,23 @@ function SortableChapterHeader({
       {...listeners}
       {...attributes}
       aria-label="Reorder chapter"
+      data-testid="drag-handle-chapter"
       className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
     >
-      <GripVertical className="size-4" aria-hidden="true" />
+      <svg
+        width="10"
+        height="14"
+        viewBox="0 0 10 14"
+        aria-hidden="true"
+        className="fill-muted-foreground/60"
+      >
+        <circle cx="2" cy="2" r="1.5" />
+        <circle cx="8" cy="2" r="1.5" />
+        <circle cx="2" cy="7" r="1.5" />
+        <circle cx="8" cy="7" r="1.5" />
+        <circle cx="2" cy="12" r="1.5" />
+        <circle cx="8" cy="12" r="1.5" />
+      </svg>
     </button>
   );
 
@@ -1155,7 +1183,7 @@ export function ItineraryManager({
 
         {/* Accommodations under this stop (dated stops only) */}
         {stop.arriveDate && stop.departDate && stop.accommodations.length > 0 && (
-          <div className="ml-4 flex flex-col gap-2 border-l-2 border-border/40 pl-4">
+          <div className="ml-4 flex flex-col gap-2 pl-4">
             {stop.accommodations.map((acc) => (
               <AccommodationCard
                 key={acc.id}

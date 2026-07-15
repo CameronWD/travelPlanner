@@ -111,3 +111,92 @@ describe("TransportCard NoteThread", () => {
     expect(screen.queryByRole("button", { name: /note/i })).not.toBeInTheDocument();
   });
 });
+
+describe("TransportCard placeless leg — no duplicate mode label", () => {
+  it("renders the mode label exactly once when there are no from/to places", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "t1",
+          mode: "TRAIN" as const,
+          sortOrder: 0,
+          // no depPlace, arrPlace, depIsHome, arrIsHome, fromStopName, toStopName
+        }}
+      />,
+    );
+    // "Train" should appear only once (in the heading fallback) — NOT also in the subline
+    const matches = screen.getAllByText(/^Train$/i);
+    expect(matches).toHaveLength(1);
+  });
+
+  it("still renders a reference in the subline when there are no places", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "t1",
+          mode: "TRAIN" as const,
+          sortOrder: 0,
+          reference: "TK123",
+        }}
+      />,
+    );
+    expect(screen.getByText("TK123")).toBeInTheDocument();
+  });
+});
+
+describe("TransportCard Bold-Modular D3 visual spec", () => {
+  it("renders the card with a dashed border", () => {
+    const { container } = render(<TransportCard transport={base} />);
+    const card = container.firstElementChild as HTMLElement;
+    expect(card.className).toMatch(/border-dashed/);
+    expect(card.className).toMatch(/border-\[1\.5px\]/);
+  });
+
+  it("wraps the mode icon in a tinted rounded-square (size-9 rounded-xl bg-primary/10)", () => {
+    const { container } = render(<TransportCard transport={base} />);
+    const iconWrap = container.querySelector(".size-9.rounded-xl.bg-primary\\/10");
+    expect(iconWrap).toBeInTheDocument();
+  });
+
+  it("shows From → To as the primary title when both endpoints are present", () => {
+    render(
+      <TransportCard
+        transport={{
+          id: "t1",
+          mode: "TRAIN" as const,
+          sortOrder: 0,
+          depPlace: "Kyoto",
+          arrPlace: "Osaka",
+        }}
+      />,
+    );
+    // The heading must contain both place names in order: Kyoto … Osaka
+    const heading = screen.getByTestId("transport-heading");
+    expect(heading.textContent).toMatch(/Kyoto[\s\S]*Osaka/);
+  });
+
+  it("shows mode label beneath the heading, not above it", () => {
+    const { container } = render(
+      <TransportCard
+        transport={{
+          id: "t1",
+          mode: "TRAIN" as const,
+          sortOrder: 0,
+          depPlace: "Kyoto",
+          arrPlace: "Osaka",
+        }}
+      />,
+    );
+    const heading = container.querySelector("[data-testid='transport-heading']")!;
+    const subline = container.querySelector("[data-testid='transport-subline']")!;
+    expect(heading).toBeInTheDocument();
+    expect(subline).toBeInTheDocument();
+    // subline must contain "Train" (the mode label)
+    expect(subline.textContent).toMatch(/Train/);
+    // heading must come before subline in DOM order
+    const allTextNodes = Array.from(container.querySelectorAll("[data-testid]"));
+    const headingIdx = allTextNodes.indexOf(heading);
+    const sublineIdx = allTextNodes.indexOf(subline);
+    expect(headingIdx).toBeLessThan(sublineIdx);
+  });
+});

@@ -80,7 +80,7 @@ export default async function AppLayout({
       <CommandPaletteMount disabled={discreet} />
       {/* ── Top bar ── */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
+        <div className="mx-auto flex h-14 max-w-5xl lg:max-w-6xl 2xl:max-w-7xl items-center justify-between px-4 sm:px-6">
           {/* Wordmark */}
           <Link
             href="/trips"
@@ -91,7 +91,22 @@ export default async function AppLayout({
               label
             ) : (
               <>
-                <span aria-hidden="true">🛖</span>
+                <svg
+                  data-testid="tent-icon"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="size-6 text-primary"
+                >
+                  <path d="M12 3 4 21M12 3l8 18M8.5 12h7M10 21l2-5 2 5" />
+                </svg>
                 TEEPEE
               </>
             )}
@@ -150,7 +165,8 @@ export default async function AppLayout({
       </header>
 
       {/* ── Content area ── */}
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
+      {/* Deliberately wider than the mocks' 1024px: they were framed at 1360px; real monitors need more. */}
+      <main data-testid="app-main" className="mx-auto w-full max-w-5xl lg:max-w-6xl 2xl:max-w-7xl flex-1 px-4 py-8 sm:px-6">
         {children}
       </main>
     </div>

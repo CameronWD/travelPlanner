@@ -6,6 +6,9 @@ import { formatLongDate } from "@/lib/dates";
 import { EmptyState } from "@/components/ui/empty-state";
 import { relativeTime } from "@/lib/relative-time";
 
+/** Reading-width wrapper applied to the entries column. Exported for tests. */
+export const JOURNAL_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
+
 export default async function JournalPage({
   params,
 }: {
@@ -83,7 +86,7 @@ export default async function JournalPage({
         </p>
       </div>
 
-      <div className="flex flex-col gap-10">
+      <div className={`${JOURNAL_READING_WIDTH_CLASS} flex flex-col gap-10`}>
         {sortedDates.map((date) => {
           const entry = entryByDate.get(date);
           const dayPhotos = photosByDate.get(date) ?? [];

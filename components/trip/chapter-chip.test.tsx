@@ -20,4 +20,12 @@ describe("ChapterChip", () => {
     expect(inner).toBeTruthy();
     expect(inner.className).toContain("truncate");
   });
+  it("renders a leading hue dot with aria-hidden and the chapter colour", () => {
+    const { container } = render(<ChapterChip name="Italy" colour="rose" />);
+    const dot = container.querySelector("[data-testid='chapter-chip-dot']") as HTMLElement;
+    expect(dot).toBeTruthy();
+    expect(dot.getAttribute("aria-hidden")).toBe("true");
+    expect(dot.className).toContain("rounded-full");
+    expect(dot.className).toContain("rose");
+  });
 });

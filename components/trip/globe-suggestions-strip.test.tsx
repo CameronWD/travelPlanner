@@ -44,4 +44,15 @@ describe("GlobeSuggestionsStrip", () => {
     fireEvent.click(screen.getByRole("button", { name: /add m0/i }));
     await waitFor(() => expect(addMarkerToWishlist).toHaveBeenCalledWith("m0", "t1"));
   });
+
+  it("renders a leading teal dot on the 'FROM YOUR GLOBE' eyebrow", () => {
+    const { container } = render(
+      <GlobeSuggestionsStrip tripId="t1" suggestions={[marker("m0")]} addedMarkerIds={[]} onSeeMore={() => {}} />,
+    );
+    const dot = container.querySelector("[data-testid='globe-eyebrow-dot']") as HTMLElement;
+    expect(dot).toBeTruthy();
+    expect(dot.getAttribute("aria-hidden")).toBe("true");
+    expect(dot.className).toContain("rounded-full");
+    expect(dot.className).toContain("bg-accent");
+  });
 });

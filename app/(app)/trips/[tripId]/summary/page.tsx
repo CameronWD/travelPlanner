@@ -65,6 +65,10 @@ const COST_SELECT = {
 
 // ---------------------------------------------------------------------------
 // Transport mode label helper
+/** Exported for className assertion in tests — must match the JSX below. */
+export const SUMMARY_DESKTOP_GRID_CLASS =
+  "grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
+
 // ---------------------------------------------------------------------------
 
 const MODE_LABELS: Record<string, string> = {
@@ -452,7 +456,7 @@ export default async function SummaryPage({
       {/* Bold Modular desktop (D6): main column (route + itinerary + flags)
           beside a right rail (budget summary). Mobile collapses to one column:
           rough → route → itinerary → flags → budget. */}
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+      <div className={SUMMARY_DESKTOP_GRID_CLASS} data-testid="summary-desktop-grid">
         <div className="flex flex-col gap-8">
           {/* ── Not yet scheduled ── */}
           {roughStops.length > 0 && (

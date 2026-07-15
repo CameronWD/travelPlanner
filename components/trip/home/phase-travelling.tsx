@@ -30,6 +30,10 @@ import { AttachmentLinks } from "@/components/trip/attachment-links";
 import { ChapterChip } from "@/components/trip/chapter-chip";
 import { WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
 
+/** Exported for className assertion in tests — must match the JSX below. */
+export const TRAVELLING_DESKTOP_GRID_CLASS =
+  "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
+
 export async function PhaseTravelling({ tripId }: { tripId: string }) {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -368,7 +372,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* ── Header ── */}
+      {/* ── Header (full-width above the grid) ── */}
       <div className="flex flex-col gap-1">
         <div className="flex items-baseline gap-2">
           <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
@@ -405,119 +409,127 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         )}
       </div>
 
-      {/* ── Where you are ── */}
-      {effectiveStop && (
-        <section className="flex flex-col gap-1">
+      {/* ── Two-column desktop grid (E1 Travelling: 1fr + 340px rail) ── */}
+      {/* Mobile: single column; cards stack in natural order (plan first, rail below).  */}
+      {/* Desktop (lg+): main column left, rail right. lg:order-* controls column assignment. */}
+      <div className={TRAVELLING_DESKTOP_GRID_CLASS} data-testid="today-grid">
+        {/* ── Main column: today's plan + day-map ── */}
+        <section className="flex flex-col gap-2 lg:order-1">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-            Where you are
+            Today&apos;s plan
           </h3>
-          <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-soft">
-            <MapPin className="size-5 shrink-0 text-primary" aria-hidden="true" />
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              <span className="font-display text-base font-bold text-foreground">
-                {effectiveStop.name}
-              </span>
-              {effectiveStop.country && (
-                <span className="text-sm text-muted-foreground">
-                  {effectiveStop.country}
-                </span>
-              )}
-            </div>
-            <MapLink
-              lat={stops.find((s) => s.id === effectiveStop.id)?.lat}
-              lng={stops.find((s) => s.id === effectiveStop.id)?.lng}
-              label={
-                effectiveStop.country
-                  ? `${effectiveStop.name}, ${effectiveStop.country}`
-                  : effectiveStop.name
-              }
-              className="text-muted-foreground/70 hover:text-primary"
-            />
-          </div>
-        </section>
-      )}
 
-      {/* ── Spend so far (compact glance) ── */}
-      <SpendSoFarCard compact spend={spend} homeCurrency={homeCurrency} />
+          {/* Day map (collapsed toggle) */}
+          <DayMapPanel tripId={tripId} model={dayMapModel} />
 
-      {/* ── Next transport countdown ── */}
-      {nextTransportDep && nextTransportDep.transport.depAt && (
-        <section className="flex flex-col gap-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-            Next departure
-          </h3>
-          <TransportCountdown
-            depAt={new Date(nextTransportDep.transport.depAt).toISOString()}
-            depTimeLabel={nextTransportDep.depTimeLabel}
-            depZone={zoneLabel(
-              stops.find((s) => s.id === nextTransportDep.transport.fromStopId)?.timezone,
-              effectiveDate,
+          <div className="rounded-2xl border border-border bg-card p-5">
+            {dayPlan ? (
+              <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} />
+            ) : (
+              <p className="py-2 text-sm text-muted-foreground italic">
+                Nothing planned for this day.
+              </p>
             )}
-            label={buildTransportLabel(nextTransportDep.transport)}
-          />
+          </div>
+
+          {/* Nearby Wishlist items */}
+          <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
         </section>
-      )}
 
-      {/* ── Today's plan ── */}
-      <section className="flex flex-col gap-2">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-          Today&apos;s plan
-        </h3>
+        {/* ── Right rail: where-you-are · next-departure · spend · tonight ── */}
+        <div className="flex flex-col gap-6 lg:order-2">
+          {/* Where you are */}
+          {effectiveStop && (
+            <section className="flex flex-col gap-1">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+                Where you are
+              </h3>
+              <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-soft">
+                <MapPin className="size-5 shrink-0 text-primary" aria-hidden="true" />
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  <span className="font-display text-base font-bold text-foreground">
+                    {effectiveStop.name}
+                  </span>
+                  {effectiveStop.country && (
+                    <span className="text-sm text-muted-foreground">
+                      {effectiveStop.country}
+                    </span>
+                  )}
+                </div>
+                <MapLink
+                  lat={stops.find((s) => s.id === effectiveStop.id)?.lat}
+                  lng={stops.find((s) => s.id === effectiveStop.id)?.lng}
+                  label={
+                    effectiveStop.country
+                      ? `${effectiveStop.name}, ${effectiveStop.country}`
+                      : effectiveStop.name
+                  }
+                  className="text-muted-foreground/70 hover:text-primary"
+                />
+              </div>
+            </section>
+          )}
 
-        {/* Day map (collapsed toggle) */}
-        <DayMapPanel tripId={tripId} model={dayMapModel} />
+          {/* Next transport countdown */}
+          {nextTransportDep && nextTransportDep.transport.depAt && (
+            <section className="flex flex-col gap-1">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+                Next departure
+              </h3>
+              <TransportCountdown
+                depAt={new Date(nextTransportDep.transport.depAt).toISOString()}
+                depTimeLabel={nextTransportDep.depTimeLabel}
+                depZone={zoneLabel(
+                  stops.find((s) => s.id === nextTransportDep.transport.fromStopId)?.timezone,
+                  effectiveDate,
+                )}
+                label={buildTransportLabel(nextTransportDep.transport)}
+              />
+            </section>
+          )}
 
-        <div className="rounded-2xl border border-border bg-card p-5">
-          {dayPlan ? (
-            <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} />
-          ) : (
-            <p className="py-2 text-sm text-muted-foreground italic">
-              Nothing planned for this day.
-            </p>
+          {/* Spend so far (compact glance) */}
+          <SpendSoFarCard compact spend={spend} homeCurrency={homeCurrency} />
+
+          {/* Tonight's accommodation */}
+          {tonightAccom && (
+            <section className="flex flex-col gap-1">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
+                Tonight&apos;s stay
+              </h3>
+              <div className="flex items-start gap-3 rounded-2xl bg-emerald-50 px-4 py-3 dark:bg-emerald-950/20">
+                <Bed className="mt-0.5 size-5 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-emerald-900 dark:text-emerald-100">{tonightAccom.name}</p>
+                  {tonightAccom.address && (
+                    <div className="mt-0.5 flex items-center gap-1 text-xs text-emerald-700/80 dark:text-emerald-300/70">
+                      <span className="truncate">{tonightAccom.address}</span>
+                      <MapLink
+                        lat={tonightAccom.lat}
+                        lng={tonightAccom.lng}
+                        address={tonightAccom.address}
+                        label={tonightAccom.name}
+                        className="shrink-0 text-muted-foreground/60 hover:text-primary"
+                      />
+                    </div>
+                  )}
+                  {!tonightAccom.address && (
+                    <MapLink
+                      lat={tonightAccom.lat}
+                      lng={tonightAccom.lng}
+                      label={tonightAccom.name}
+                      className="mt-0.5 text-xs text-muted-foreground/60 hover:text-primary"
+                    />
+                  )}
+                  <AttachmentLinks attachments={attachmentsByTarget[tonightAccom.id] ?? []} />
+                </div>
+              </div>
+            </section>
           )}
         </div>
+      </div>
 
-        {/* Nearby Wishlist items */}
-        <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
-      </section>
-
-      {/* ── Tonight's accommodation ── */}
-      {tonightAccom && (
-        <section className="flex flex-col gap-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-            Tonight&apos;s stay
-          </h3>
-          <div className="flex items-start gap-3 rounded-2xl bg-emerald-50 px-4 py-3 dark:bg-emerald-950/20">
-            <Bed className="mt-0.5 size-5 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-emerald-900 dark:text-emerald-100">{tonightAccom.name}</p>
-              {tonightAccom.address && (
-                <div className="mt-0.5 flex items-center gap-1 text-xs text-emerald-700/80 dark:text-emerald-300/70">
-                  <span className="truncate">{tonightAccom.address}</span>
-                  <MapLink
-                    lat={tonightAccom.lat}
-                    lng={tonightAccom.lng}
-                    address={tonightAccom.address}
-                    label={tonightAccom.name}
-                    className="shrink-0 text-muted-foreground/60 hover:text-primary"
-                  />
-                </div>
-              )}
-              {!tonightAccom.address && (
-                <MapLink
-                  lat={tonightAccom.lat}
-                  lng={tonightAccom.lng}
-                  label={tonightAccom.name}
-                  className="mt-0.5 text-xs text-muted-foreground/60 hover:text-primary"
-                />
-              )}
-              <AttachmentLinks attachments={attachmentsByTarget[tonightAccom.id] ?? []} />
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* ── Reminders ── */}
+      {/* ── Reminders (full-width, below the grid) ── */}
       <section className="flex flex-col gap-1">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
           Reminders

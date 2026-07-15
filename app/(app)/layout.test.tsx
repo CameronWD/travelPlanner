@@ -111,6 +111,15 @@ describe("AppLayout", () => {
     expect(screen.getByText("TEEPEE")).toBeInTheDocument();
   });
 
+  it("ramps the content width up on large screens", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const main = screen.getByTestId("app-main");
+    expect(main.className).toContain("max-w-5xl");
+    expect(main.className).toContain("lg:max-w-6xl");
+    expect(main.className).toContain("2xl:max-w-7xl");
+  });
+
   it("shows the neutral label and no TEEPEE when discreet is on", async () => {
     vi.mocked(getDiscreetState).mockResolvedValue({ discreet: true, label: "Q3 Tracker" });
     const ui = await AppLayout({ children: <div /> });
@@ -119,5 +128,19 @@ describe("AppLayout", () => {
     expect(screen.queryByText("TEEPEE")).not.toBeInTheDocument();
     expect(document.querySelector(".discreet")).toBeInTheDocument();
     expect(screen.getByTestId("discreet-toggle")).toHaveAttribute("data-discreet", "true");
+  });
+
+  it("renders the tent SVG in normal mode", async () => {
+    vi.mocked(getDiscreetState).mockResolvedValue({ discreet: false, label: "Workspace" });
+    const ui = await AppLayout({ children: <div /> });
+    const { container } = render(ui as React.ReactElement);
+    expect(container.querySelector("svg[data-testid='tent-icon']")).toBeInTheDocument();
+  });
+
+  it("does NOT render the tent SVG in discreet mode", async () => {
+    vi.mocked(getDiscreetState).mockResolvedValue({ discreet: true, label: "Q3 Tracker" });
+    const ui = await AppLayout({ children: <div /> });
+    const { container } = render(ui as React.ReactElement);
+    expect(container.querySelector("svg[data-testid='tent-icon']")).not.toBeInTheDocument();
   });
 });
