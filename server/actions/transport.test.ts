@@ -942,3 +942,102 @@ describe("updateTransport: home base departure", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// anchorStopId: createTransport persists anchorStopId and validates it
+// ---------------------------------------------------------------------------
+
+describe("anchorStopId: createTransport round-trips and validates", () => {
+  it("persists anchorStopId when a valid stop is provided", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    // stops: stopA (from) and stopB (anchor)
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-a", tripId: "trip-1", forkId: null },
+      { id: "stop-b", tripId: "trip-1", forkId: null },
+    ]);
+    transportCreateMock.mockResolvedValue({ id: "t-anchor-1", mode: "FLIGHT" });
+
+    const result = await createTransport("trip-1", {
+      mode: "FLIGHT",
+      fromStopId: "stop-a",
+      anchorStopId: "stop-b",
+    });
+
+    expect(result.success).toBe(true);
+    expect(transportCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ anchorStopId: "stop-b" }),
+    });
+  });
+
+  it("rejects anchorStopId from a different trip (cross-trip stop)", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    // stopFindMany returns empty (no stops matching the given IDs in this plan)
+    stopFindManyMock.mockResolvedValue([]);
+
+    const result = await createTransport("trip-1", {
+      mode: "FLIGHT",
+      anchorStopId: "stop-other-trip",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors._form).toBeDefined();
+    }
+    expect(transportCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("null anchorStopId round-trips as null in create", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    stopFindManyMock.mockResolvedValue([]);
+    transportCreateMock.mockResolvedValue({ id: "t-no-anchor", mode: "TRAIN" });
+
+    const result = await createTransport("trip-1", { mode: "TRAIN" });
+
+    expect(result.success).toBe(true);
+    expect(transportCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ anchorStopId: null }),
+    });
+  });
+});
+
+describe("anchorStopId: updateTransport persists anchorStopId and validates it", () => {
+  it("persists anchorStopId when a valid stop is provided on update", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tu-anchor", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "tu-anchor", mode: "FLIGHT" }); // before snapshot
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-a", tripId: "trip-1", forkId: null },
+      { id: "stop-b", tripId: "trip-1", forkId: null },
+    ]);
+    transportUpdateMock.mockResolvedValue({ id: "tu-anchor", mode: "FLIGHT" });
+
+    const result = await updateTransport("tu-anchor", {
+      mode: "FLIGHT",
+      fromStopId: "stop-a",
+      anchorStopId: "stop-b",
+    });
+
+    expect(result.success).toBe(true);
+    expect(transportUpdateMock).toHaveBeenCalledWith({
+      where: { id: "tu-anchor" },
+      data: expect.objectContaining({ anchorStopId: "stop-b" }),
+    });
+  });
+
+  it("rejects anchorStopId from a different trip on update", async () => {
+    transportFindUniqueMock.mockResolvedValue({ id: "tu-bad-anchor", tripId: "trip-1", forkId: null });
+    // No matching stops — the anchor stop belongs to another trip
+    stopFindManyMock.mockResolvedValue([]);
+
+    const result = await updateTransport("tu-bad-anchor", {
+      mode: "FLIGHT",
+      anchorStopId: "stop-other-trip",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors._form).toBeDefined();
+    }
+    expect(transportUpdateMock).not.toHaveBeenCalled();
+  });
+});

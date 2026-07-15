@@ -36,6 +36,8 @@ export const transportSchema = z.object({
   fromStopId: z.string().trim().min(1).optional().or(z.literal("")),
   /** Stop this transport arrives at. */
   toStopId: z.string().trim().min(1).optional().or(z.literal("")),
+  /** Stop this leg renders after in the Plan view (position anchor). */
+  anchorStopId: z.string().trim().min(1).optional().or(z.literal("")),
 
   /** Whether this transport departs from the trip's Home base. */
   depIsHome: z.boolean().optional(),

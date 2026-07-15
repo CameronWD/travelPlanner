@@ -100,6 +100,7 @@ export default async function TripPlanPage({
         mode: true,
         fromStopId: true,
         toStopId: true,
+        anchorStopId: true,
         depPlace: true,
         depAt: true,
         depLat: true,
@@ -410,6 +411,7 @@ export default async function TripPlanPage({
               return {
                 ...t,
                 mode: t.mode as TransportMode,
+                anchorStopId: t.anchorStopId,
                 costs: costsByOwnerId.get(t.id) ?? [],
                 driveEstimate,
               };

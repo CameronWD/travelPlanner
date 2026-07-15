@@ -109,9 +109,10 @@ export async function createTransport(
   // Normalise empty stop IDs to null (also cleared when home flag is set)
   const fromStopId = depIsHome ? null : (data.fromStopId || null);
   const toStopId = arrIsHome ? null : (data.toStopId || null);
+  const anchorStopId = data.anchorStopId || null;
 
   // Validate stop ownership (same plan)
-  const stopError = await validateStopBelongsToTrip(tripId, [fromStopId, toStopId], forkId);
+  const stopError = await validateStopBelongsToTrip(tripId, [fromStopId, toStopId, anchorStopId], forkId);
   if (stopError) return stopError;
 
   // Determine sort order
@@ -149,6 +150,7 @@ export async function createTransport(
       arrIsHome,
       fromStopId,
       toStopId,
+      anchorStopId,
       depPlace,
       depAt: data.depAt ?? null,
       arrPlace,
@@ -229,10 +231,11 @@ export async function updateTransport(
   // Normalise empty stop IDs to null (also cleared when home flag is set)
   const fromStopId = depIsHome ? null : (data.fromStopId || null);
   const toStopId = arrIsHome ? null : (data.toStopId || null);
+  const anchorStopId = data.anchorStopId || null;
 
   const stopError = await validateStopBelongsToTrip(
     transport.tripId,
-    [fromStopId, toStopId],
+    [fromStopId, toStopId, anchorStopId],
     transport.forkId,
   );
   if (stopError) return stopError;
@@ -265,6 +268,7 @@ export async function updateTransport(
       arrIsHome,
       fromStopId,
       toStopId,
+      anchorStopId,
       depPlace,
       depAt: data.depAt ?? null,
       arrPlace,
