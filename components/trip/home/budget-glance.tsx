@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { formatMoney } from "@/lib/money";
+import { formatMoneyCompact } from "@/lib/money";
 
 interface BudgetGlanceProps {
   estimatedMinor: number;
@@ -20,8 +20,8 @@ export function BudgetGlance({ estimatedMinor, actualMinor, homeCurrency, href }
         <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
       </span>
       <span className="shrink-0 text-xs font-semibold tabular-nums text-foreground">
-        {formatMoney(actualMinor, homeCurrency)}{" "}
-        <span className="font-medium text-muted-foreground">/ {formatMoney(estimatedMinor, homeCurrency)} est</span>
+        {formatMoneyCompact(actualMinor, homeCurrency)}{" "}
+        <span className="font-medium text-muted-foreground">/ {formatMoneyCompact(estimatedMinor, homeCurrency)} est</span>
       </span>
     </Link>
   );

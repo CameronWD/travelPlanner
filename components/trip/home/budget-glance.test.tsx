@@ -8,8 +8,8 @@ describe("BudgetGlance", () => {
     expect(screen.getByText(/spent so far/i)).toBeInTheDocument();
     const link = screen.getByRole("link");
     expect(link).toHaveAttribute("href", "/trips/t/budget");
-    expect(link.textContent).toContain("184,000");
-    expect(link.textContent).toMatch(/312,000\s*est/);
+    expect(link.textContent).toContain("184k");
+    expect(link.textContent).toMatch(/312k\s*est/);
   });
 
   it("renders a zero-width bar when nothing is spent", () => {
