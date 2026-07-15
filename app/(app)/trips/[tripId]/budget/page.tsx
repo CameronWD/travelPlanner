@@ -41,6 +41,13 @@ const COST_SELECT = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Layout constants (exported for unit tests)
+// ---------------------------------------------------------------------------
+
+export const BUDGET_DESKTOP_GRID_CLASS =
+  "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start";
+
+// ---------------------------------------------------------------------------
 // Page component
 // ---------------------------------------------------------------------------
 
@@ -300,206 +307,221 @@ export default async function BudgetPage({
         <span className="text-emerald-600 dark:text-emerald-400">Spent</span>
       </div>
 
-      {/* By category */}
-      {budget.byCategory.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>By category</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-3">
-              {budget.byCategory.map((cat) => {
-                const pct =
-                  budget.grandTotal.estimatedMinor > 0
-                    ? Math.round((cat.estimatedMinor / budget.grandTotal.estimatedMinor) * 100)
-                    : 0;
-                return (
-                  <div key={cat.category} className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between gap-2 text-sm">
-                      <span className="flex items-center gap-1.5 min-w-0">
-                        <span className="truncate font-medium">{cat.category}</span>
-                        {categoriesWithMissingRates.has(cat.category) && (
-                          <span
-                            title="Some costs in this category are excluded — missing exchange rate"
-                            aria-label="Missing rate"
-                            className="shrink-0 inline-flex items-center gap-0.5 rounded-sm bg-amber-100 dark:bg-amber-900/40 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400"
-                          >
-                            <AlertTriangle className="size-2.5" aria-hidden="true" />
-                            No rate
+      {/* Two-column grid: main roll-up | right rail (rates + other costs) */}
+      <div className={BUDGET_DESKTOP_GRID_CLASS} data-testid="budget-grid">
+
+        {/* ── Main column ── */}
+        <div className="flex flex-col gap-6 lg:order-1">
+
+          {/* By category */}
+          {budget.byCategory.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>By category</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-3">
+                  {budget.byCategory.map((cat) => {
+                    const pct =
+                      budget.grandTotal.estimatedMinor > 0
+                        ? Math.round((cat.estimatedMinor / budget.grandTotal.estimatedMinor) * 100)
+                        : 0;
+                    return (
+                      <div key={cat.category} className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between gap-2 text-sm">
+                          <span className="flex items-center gap-1.5 min-w-0">
+                            <span className="truncate font-medium">{cat.category}</span>
+                            {categoriesWithMissingRates.has(cat.category) && (
+                              <span
+                                title="Some costs in this category are excluded — missing exchange rate"
+                                aria-label="Missing rate"
+                                className="shrink-0 inline-flex items-center gap-0.5 rounded-sm bg-amber-100 dark:bg-amber-900/40 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400"
+                              >
+                                <AlertTriangle className="size-2.5" aria-hidden="true" />
+                                No rate
+                              </span>
+                            )}
                           </span>
-                        )}
-                      </span>
-                      <div className="flex items-center gap-3 tabular-nums text-right">
-                        <span className="text-muted-foreground text-xs" title="% of estimated">{pct}% est.</span>
-                        <CostAmounts
-                          estimatedMinor={cat.estimatedMinor}
-                          actualMinor={cat.actualMinor}
-                          currency={homeCurrency}
-                        />
+                          <div className="flex items-center gap-3 tabular-nums text-right">
+                            <span className="text-muted-foreground text-xs" title="% of estimated">{pct}% est.</span>
+                            <CostAmounts
+                              estimatedMinor={cat.estimatedMinor}
+                              actualMinor={cat.actualMinor}
+                              currency={homeCurrency}
+                            />
+                          </div>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-primary/70 transition-all"
+                            style={{ width: `${pct}%` }}
+                            aria-label={`${pct}% of budget`}
+                          />
+                        </div>
                       </div>
-                    </div>
-                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-primary/70 transition-all"
-                        style={{ width: `${pct}%` }}
-                        aria-label={`${pct}% of budget`}
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* By stop */}
+          {budget.byStop.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>By destination</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="divide-y divide-border">
+                  {budget.byStop.map((stop) => (
+                    <div
+                      key={stop.stopId ?? "tripwide"}
+                      className="flex items-center justify-between py-2.5 gap-2"
+                    >
+                      <span className="min-w-0 truncate text-sm font-medium">{stop.stopName}</span>
+                      <CostAmounts
+                        estimatedMinor={stop.estimatedMinor}
+                        actualMinor={stop.actualMinor}
+                        currency={homeCurrency}
                       />
                     </div>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-      {/* By stop */}
-      {budget.byStop.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>By destination</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y divide-border">
-              {budget.byStop.map((stop) => (
-                <div
-                  key={stop.stopId ?? "tripwide"}
-                  className="flex items-center justify-between py-2.5 gap-2"
-                >
-                  <span className="min-w-0 truncate text-sm font-medium">{stop.stopName}</span>
-                  <CostAmounts
-                    estimatedMinor={stop.estimatedMinor}
-                    actualMinor={stop.actualMinor}
-                    currency={homeCurrency}
-                  />
+          {/* By chapter */}
+          {budget.byChapter.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>By chapter</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="divide-y divide-border">
+                  {budget.byChapter.map((row) => (
+                    <div
+                      key={row.chapterId}
+                      className="flex items-center justify-between py-2.5 gap-2"
+                    >
+                      <ChapterChip name={row.chapterName} colour={row.colour} />
+                      <CostAmounts
+                        estimatedMinor={row.estimatedMinor}
+                        actualMinor={row.actualMinor}
+                        currency={homeCurrency}
+                      />
+                    </div>
+                  ))}
+                  {/* Reconciliation rows — shown only when non-zero */}
+                  {(budget.chapterReconciliation.ungrouped.estimatedMinor > 0 ||
+                    budget.chapterReconciliation.ungrouped.actualMinor > 0) && (
+                    <div className="flex items-center justify-between py-2.5 gap-2">
+                      <span className="min-w-0 truncate text-sm text-muted-foreground">Ungrouped</span>
+                      <CostAmounts
+                        estimatedMinor={budget.chapterReconciliation.ungrouped.estimatedMinor}
+                        actualMinor={budget.chapterReconciliation.ungrouped.actualMinor}
+                        currency={homeCurrency}
+                        className="text-muted-foreground"
+                      />
+                    </div>
+                  )}
+                  {(budget.chapterReconciliation.betweenLegs.estimatedMinor > 0 ||
+                    budget.chapterReconciliation.betweenLegs.actualMinor > 0) && (
+                    <div className="flex items-center justify-between py-2.5 gap-2">
+                      <span className="min-w-0 truncate text-sm text-muted-foreground">Between legs</span>
+                      <CostAmounts
+                        estimatedMinor={budget.chapterReconciliation.betweenLegs.estimatedMinor}
+                        actualMinor={budget.chapterReconciliation.betweenLegs.actualMinor}
+                        currency={homeCurrency}
+                        className="text-muted-foreground"
+                      />
+                    </div>
+                  )}
+                  {(budget.chapterReconciliation.otherCosts.estimatedMinor > 0 ||
+                    budget.chapterReconciliation.otherCosts.actualMinor > 0) && (
+                    <div className="flex items-center justify-between py-2.5 gap-2">
+                      <span className="min-w-0 truncate text-sm text-muted-foreground">Other costs</span>
+                      <CostAmounts
+                        estimatedMinor={budget.chapterReconciliation.otherCosts.estimatedMinor}
+                        actualMinor={budget.chapterReconciliation.otherCosts.actualMinor}
+                        currency={homeCurrency}
+                        className="text-muted-foreground"
+                      />
+                    </div>
+                  )}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </CardContent>
+            </Card>
+          )}
 
-      {/* By chapter */}
-      {budget.byChapter.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>By chapter</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="divide-y divide-border">
-              {budget.byChapter.map((row) => (
-                <div
-                  key={row.chapterId}
-                  className="flex items-center justify-between py-2.5 gap-2"
-                >
-                  <ChapterChip name={row.chapterName} colour={row.colour} />
-                  <CostAmounts
-                    estimatedMinor={row.estimatedMinor}
-                    actualMinor={row.actualMinor}
-                    currency={homeCurrency}
-                  />
+          {/* Per-day costs */}
+          {daysWithCosts.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Day by day</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-1">
+                  {daysWithCosts.map((day) => (
+                    <div
+                      key={day.dateISO}
+                      className="flex items-center justify-between py-1.5 gap-2"
+                    >
+                      <span className="text-sm text-muted-foreground tabular-nums font-mono">
+                        {day.dateISO}
+                      </span>
+                      <CostAmounts
+                        estimatedMinor={day.estimatedMinor}
+                        actualMinor={day.actualMinor}
+                        currency={homeCurrency}
+                      />
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {/* Reconciliation rows — shown only when non-zero */}
-              {(budget.chapterReconciliation.ungrouped.estimatedMinor > 0 ||
-                budget.chapterReconciliation.ungrouped.actualMinor > 0) && (
-                <div className="flex items-center justify-between py-2.5 gap-2">
-                  <span className="min-w-0 truncate text-sm text-muted-foreground">Ungrouped</span>
-                  <CostAmounts
-                    estimatedMinor={budget.chapterReconciliation.ungrouped.estimatedMinor}
-                    actualMinor={budget.chapterReconciliation.ungrouped.actualMinor}
-                    currency={homeCurrency}
-                    className="text-muted-foreground"
-                  />
-                </div>
-              )}
-              {(budget.chapterReconciliation.betweenLegs.estimatedMinor > 0 ||
-                budget.chapterReconciliation.betweenLegs.actualMinor > 0) && (
-                <div className="flex items-center justify-between py-2.5 gap-2">
-                  <span className="min-w-0 truncate text-sm text-muted-foreground">Between legs</span>
-                  <CostAmounts
-                    estimatedMinor={budget.chapterReconciliation.betweenLegs.estimatedMinor}
-                    actualMinor={budget.chapterReconciliation.betweenLegs.actualMinor}
-                    currency={homeCurrency}
-                    className="text-muted-foreground"
-                  />
-                </div>
-              )}
-              {(budget.chapterReconciliation.otherCosts.estimatedMinor > 0 ||
-                budget.chapterReconciliation.otherCosts.actualMinor > 0) && (
-                <div className="flex items-center justify-between py-2.5 gap-2">
-                  <span className="min-w-0 truncate text-sm text-muted-foreground">Other costs</span>
-                  <CostAmounts
-                    estimatedMinor={budget.chapterReconciliation.otherCosts.estimatedMinor}
-                    actualMinor={budget.chapterReconciliation.otherCosts.actualMinor}
-                    currency={homeCurrency}
-                    className="text-muted-foreground"
-                  />
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </CardContent>
+            </Card>
+          )}
 
-      {/* Per-day costs */}
-      {daysWithCosts.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Day by day</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-1">
-              {daysWithCosts.map((day) => (
-                <div
-                  key={day.dateISO}
-                  className="flex items-center justify-between py-1.5 gap-2"
-                >
-                  <span className="text-sm text-muted-foreground tabular-nums font-mono">
-                    {day.dateISO}
-                  </span>
-                  <CostAmounts
-                    estimatedMinor={day.estimatedMinor}
-                    actualMinor={day.actualMinor}
-                    currency={homeCurrency}
-                  />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        </div>{/* end main column */}
 
-      {/* Exchange rates */}
-      {foreignCurrencies.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Exchange rates</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <RatesPanel
-              tripId={tripId}
-              homeCurrency={homeCurrency}
-              rates={rateEntries}
-            />
-          </CardContent>
-        </Card>
-      )}
+        {/* ── Right rail (desktop) / below roll-up (mobile) ── */}
+        <div className="flex flex-col gap-6 lg:order-2">
 
-      {/* Other costs */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Other costs</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <OtherCostEditor
-            tripId={tripId}
-            costs={otherCosts}
-            homeCurrency={homeCurrency}
-            defaultCurrency={homeCurrency}
-          />
-        </CardContent>
-      </Card>
+          {/* Exchange rates */}
+          {foreignCurrencies.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Exchange rates</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <RatesPanel
+                  tripId={tripId}
+                  homeCurrency={homeCurrency}
+                  rates={rateEntries}
+                />
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Other costs */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Other costs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <OtherCostEditor
+                tripId={tripId}
+                costs={otherCosts}
+                homeCurrency={homeCurrency}
+                defaultCurrency={homeCurrency}
+              />
+            </CardContent>
+          </Card>
+
+        </div>{/* end right rail */}
+
+      </div>{/* end budget-grid */}
     </div>
   );
 }
