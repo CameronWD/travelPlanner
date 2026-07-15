@@ -312,7 +312,7 @@ export default async function PrintPage({
                 const isLast = idx === stops.length - 1;
 
                 return (
-                  <div key={stop.id} className="border border-border rounded-xl p-4 print:border-gray-300 print:rounded-none">
+                  <div key={stop.id} className="border border-border rounded-2xl p-4 print:border-gray-300 print:rounded-none">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-3">
                         <span className="flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-foreground font-mono text-sm font-bold">
@@ -509,7 +509,7 @@ export default async function PrintPage({
         {/* ── Budget summary ── */}
         <section className="print-page-break">
           <h2 className="font-display text-2xl font-semibold mb-4">Budget Summary</h2>
-          <div className="border border-border rounded-xl p-5 print:border-gray-300 print:rounded-none">
+          <div className="border border-border rounded-2xl p-5 print:border-gray-300 print:rounded-none">
             {/* Grand total */}
             <div className="flex flex-wrap gap-6 mb-4 pb-4 border-b border-border print:border-gray-200">
               <div>

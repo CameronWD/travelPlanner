@@ -290,7 +290,7 @@ export default async function SharePage({
                   return (
                     <div
                       key={stop.id}
-                      className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+                      className="rounded-2xl border border-border bg-card p-5 shadow-soft"
                     >
                       <div className="flex items-start gap-3">
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-xs font-semibold text-primary">
@@ -377,7 +377,7 @@ export default async function SharePage({
                 return (
                   <div
                     key={day.dateISO}
-                    className="rounded-xl border border-border bg-card"
+                    className="rounded-2xl border border-border bg-card"
                   >
                     {/* Day header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
