@@ -197,7 +197,7 @@ export async function createTransport(
   }
 
   await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created as unknown as Record<string, unknown>) });
-  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/trips/${tripId}`, "layout");
   return { success: true };
 }
 
@@ -343,7 +343,7 @@ export async function updateTransport(
     entityLabel: entityLabel("TRANSPORT", updated as unknown as Record<string, unknown>),
     changes: describeChanges("TRANSPORT", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
-  revalidatePath(`/trips/${transport.tripId}`);
+  revalidatePath(`/trips/${transport.tripId}`, "layout");
   return { success: true };
 }
 
@@ -361,6 +361,6 @@ export async function deleteTransport(
 
   await cleanupTargetSideData(transport.tripId, "TRANSPORT", transportId);
 
-  revalidatePath(`/trips/${transport.tripId}`);
+  revalidatePath(`/trips/${transport.tripId}`, "layout");
   return { success: true };
 }

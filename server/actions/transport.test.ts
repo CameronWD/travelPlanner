@@ -228,7 +228,7 @@ describe("createTransport", () => {
         sortOrder: 0,
       }),
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
   });
 
   it("sets sortOrder = max + 1 when transports exist", async () => {
@@ -417,7 +417,7 @@ describe("updateTransport", () => {
       where: { id: "t-1" },
       data: expect.objectContaining({ mode: "TRAIN" }),
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
   });
 
   it("returns validation error and does not write", async () => {
@@ -512,7 +512,7 @@ describe("deleteTransport", () => {
 
     expect(result.success).toBe(true);
     expect(transportDeleteMock).toHaveBeenCalledWith({ where: { id: "t-1" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
   });
 
   it("access-checks via transport's tripId", async () => {
@@ -535,6 +535,21 @@ describe("deleteTransport", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "DELETED", entityType: "TRANSPORT", entityLabel: "BA490" }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// revalidation scope
+// ---------------------------------------------------------------------------
+
+describe("revalidation: layout scope", () => {
+  it("deleteTransport revalidates with layout scope so sub-routes (e.g. /plan) also refresh", async () => {
+    transportFindUniqueMock.mockResolvedValue({ id: "t-rv", tripId: "trip-rv", forkId: null });
+    transportDeleteMock.mockResolvedValue({});
+
+    await deleteTransport("t-rv");
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-rv", "layout");
   });
 });
 
