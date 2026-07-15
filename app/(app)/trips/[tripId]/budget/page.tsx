@@ -1,9 +1,7 @@
 import { notFound } from "next/navigation";
-import { Wallet, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
+import { Wallet, AlertTriangle } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { formatMoney } from "@/lib/money";
-import { AnimatedMoney } from "@/components/trip/animated-money";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Card,
@@ -22,7 +20,8 @@ import type { BudgetCost, BudgetStopWithDates, BudgetItem, BudgetAccommodation, 
 import { buildSpendSoFar } from "@/lib/spend-so-far";
 import type { SpendCost } from "@/lib/spend-so-far";
 import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
-import { todayISO } from "@/lib/dates";
+import { todayISO, nightsBetween } from "@/lib/dates";
+import { BudgetHeroRow } from "@/components/trip/budget-hero-row";
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -40,18 +39,6 @@ const COST_SELECT = {
   label: true,
   category: true,
 } as const;
-
-// ---------------------------------------------------------------------------
-// Small server-only helpers
-// ---------------------------------------------------------------------------
-
-function formatGap(gapMinor: number, currency: string) {
-  const abs = Math.abs(gapMinor);
-  const formatted = formatMoney(abs, currency);
-  if (gapMinor > 0) return { label: `${formatted} under`, positive: true };
-  if (gapMinor < 0) return { label: `${formatted} over`, positive: false };
-  return { label: "on budget", positive: true };
-}
 
 // ---------------------------------------------------------------------------
 // Page component
@@ -237,9 +224,6 @@ export default async function BudgetPage({
   });
 
   const hasAnyCosts = allCosts.length > 0;
-  const gapMinor = budget.grandTotal.actualMinor > 0
-    ? budget.grandTotal.estimatedMinor - budget.grandTotal.actualMinor
-    : null;
 
   // Per-day data — only days with non-zero costs for the compact strip
   const daysWithCosts = budget.byDay.filter(
@@ -299,56 +283,13 @@ export default async function BudgetPage({
         </div>
       )}
 
-      {/* Grand total hero */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                Estimated total
-              </p>
-              <p className="font-display text-2xl sm:text-4xl font-semibold tracking-tight break-words">
-                <AnimatedMoney minor={budget.grandTotal.estimatedMinor} currency={homeCurrency} />
-              </p>
-            </div>
-
-            <div className="flex flex-col gap-1 sm:text-right">
-              <p className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                Spent so far
-              </p>
-              {budget.grandTotal.actualMinor > 0 ? (
-                <>
-                  <p className="font-display text-2xl sm:text-4xl font-semibold tracking-tight break-words">
-                    <AnimatedMoney minor={budget.grandTotal.actualMinor} currency={homeCurrency} />
-                  </p>
-                  {gapMinor !== null && (
-                    <div className="flex items-center gap-1 text-sm sm:justify-end">
-                      {gapMinor >= 0 ? (
-                        <TrendingDown className="size-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                      ) : (
-                        <TrendingUp className="size-3.5 text-rose-600 dark:text-rose-400" aria-hidden="true" />
-                      )}
-                      <span
-                        className={
-                          gapMinor >= 0
-                            ? "text-emerald-700 dark:text-emerald-400"
-                            : "text-rose-700 dark:text-rose-400"
-                        }
-                      >
-                        {formatGap(gapMinor, homeCurrency).label}
-                      </span>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="text-lg text-muted-foreground">
-                  No payments yet
-                </p>
-              )}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* 4-up hero: Estimated total · Paid · Still to pay · Est / day */}
+      <BudgetHeroRow
+        estimatedMinor={budget.grandTotal.estimatedMinor}
+        paidMinor={spend.paidSoFarMinor}
+        homeCurrency={homeCurrency}
+        tripNights={nightsBetween(startDate, endDate)}
+      />
 
       {/* Spend so far card */}
       <SpendSoFarCard spend={spend} homeCurrency={homeCurrency} />
