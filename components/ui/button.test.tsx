@@ -23,8 +23,14 @@ describe("Button", () => {
   it("applies the outline variant", () => {
     render(<Button variant="outline">Outline</Button>);
     const btn = screen.getByRole("button");
-    expect(btn).toHaveClass("border");
+    expect(btn).toHaveClass("border-[1.5px]");
     expect(btn).toHaveClass("bg-background");
+  });
+
+  it("applies a 1.5px border to the outline variant", () => {
+    render(<Button variant="outline">Outline</Button>);
+    const btn = screen.getByRole("button");
+    expect(btn).toHaveClass("border-[1.5px]");
   });
 
   it("applies size classes", () => {
