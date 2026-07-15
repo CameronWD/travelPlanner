@@ -12,6 +12,9 @@ import { PromoteForkDialog } from "@/components/trip/promote-fork-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+/** Column accent-dot colours by fork index (the real plan uses bg-primary). */
+const FORK_DOT_COLORS = ["bg-accent", "bg-violet-500", "bg-sky-500"];
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -502,9 +505,8 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
               </th>
               {/* Fork columns */}
               {(() => {
-                const forkDotColors = ["bg-accent", "bg-violet-500", "bg-sky-500"];
                 return forkPlans.map((plan, forkIndex) => {
-                  const dotColor = forkDotColors[Math.min(forkIndex, forkDotColors.length - 1)];
+                  const dotColor = FORK_DOT_COLORS[Math.min(forkIndex, FORK_DOT_COLORS.length - 1)];
                   return (
                     <th
                       key={plan.forkId}
