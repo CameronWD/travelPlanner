@@ -75,6 +75,20 @@ describe("buildNextSteps", () => {
       tripBasePath: "/trips/t",
     });
     expect(steps[0].title).toMatch(/set your trip dates/i);
+    expect(steps[0].subtitle).toMatch(/firming up/i);
+  });
+
+  it("nudge-unbooked-transport has a subtitle and kind=transport", () => {
+    const steps = buildNextSteps({
+      flags: [],
+      phase: "planning",
+      nudges: makeNudges({ unbookedTransportCount: 2 }),
+      tripBasePath: "/trips/t",
+    });
+    const step = steps.find((s) => s.id === "nudge-unbooked-transport");
+    expect(step).toBeDefined();
+    expect(step!.subtitle).toBeTruthy();
+    expect(step!.kind).toBe("transport");
   });
 
   it("caps the list at the limit (default 4)", () => {
@@ -95,6 +109,9 @@ describe("buildNextSteps", () => {
     const ids = withHome.map((s) => s.id);
     expect(ids).toContain("nudge-add-outbound-flight");
     expect(ids).toContain("nudge-add-return-flight");
-    expect(withHome.find((s) => s.id === "nudge-add-outbound-flight")!.title).toContain("Paris");
+    const outbound = withHome.find((s) => s.id === "nudge-add-outbound-flight")!;
+    expect(outbound.title).toContain("Paris");
+    expect(outbound.subtitle).toContain("Sydney");
+    expect(outbound.kind).toBe("transport");
   });
 });

@@ -41,7 +41,7 @@ export function NextStepsCard({ steps, seeAllHref }: NextStepsCardProps) {
                   <span
                     className={cn(
                       "flex size-10 shrink-0 items-center justify-center rounded-xl text-white",
-                      isWarning ? "bg-amber-500" : "bg-sky-500",
+                      isWarning ? "bg-amber-500" : step.kind === "transport" ? "bg-primary" : "bg-sky-500",
                     )}
                   >
                     {isWarning ? (
@@ -50,7 +50,12 @@ export function NextStepsCard({ steps, seeAllHref }: NextStepsCardProps) {
                       <Info className="size-5" aria-hidden="true" />
                     )}
                   </span>
-                  <span className="flex-1 font-semibold text-foreground">{step.title}</span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-semibold text-foreground">{step.title}</span>
+                    {step.subtitle && (
+                      <span className="block text-xs text-muted-foreground">{step.subtitle}</span>
+                    )}
+                  </span>
                   <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 </Link>
               </li>

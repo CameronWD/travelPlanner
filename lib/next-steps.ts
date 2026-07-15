@@ -11,9 +11,16 @@ import type { TripPhase } from "@/lib/trip-phase";
 export interface NextStep {
   id: string;
   title: string;
+  /** Optional secondary detail line shown below the title. */
+  subtitle?: string;
   href: string;
   severity: "warning" | "info";
   source: "flag" | "nudge";
+  /**
+   * Presentational discriminator for chip-colour selection.
+   * "transport" → coral (bg-primary); absent/other → fall through to severity.
+   */
+  kind?: "transport";
 }
 
 /** Forward-looking gaps that detectFlags does not already cover. */
@@ -102,44 +109,56 @@ export function buildNextSteps({
     title: string,
     href: string,
     priority: number,
+    subtitle?: string,
+    kind?: NextStep["kind"],
   ) => {
-    if (cond) candidates.push({ id, title, href, severity: "info", source: "nudge", priority });
+    if (cond) candidates.push({ id, title, subtitle, href, severity: "info", source: "nudge", kind, priority });
   };
 
-  push(!nudges.hasDates, "nudge-set-dates", "Set your trip dates to start firming up.", `${tripBasePath}/plan`, 1);
-  push(nudges.undatedChapterCount > 0, "nudge-undated-chapters", `Set dates for ${nudges.undatedChapterCount} chapter${nudges.undatedChapterCount === 1 ? "" : "s"}.`, `${tripBasePath}/plan`, 22);
-  push(nudges.unbookedTransportCount > 0, "nudge-unbooked-transport", `${nudges.unbookedTransportCount} transport leg${nudges.unbookedTransportCount === 1 ? "" : "s"} have no times yet.`, `${tripBasePath}/plan`, isFinalPrep ? 9 : 20);
-  push(!nudges.hasPackingList, "nudge-packing", "Start your packing list.", `${tripBasePath}/checklists`, isFinalPrep ? 6 : 26);
-  push(!nudges.hasPretripList, "nudge-pretrip", "Add pre-trip to-dos (visas, insurance, eSIM).", `${tripBasePath}/checklists`, isFinalPrep ? 8 : 28);
+  push(!nudges.hasDates, "nudge-set-dates", "Set your trip dates", `${tripBasePath}/plan`, 1, "Start firming up the itinerary.");
+  push(nudges.undatedChapterCount > 0, "nudge-undated-chapters", `Date ${nudges.undatedChapterCount} chapter${nudges.undatedChapterCount === 1 ? "" : "s"}`, `${tripBasePath}/plan`, 22, "Still rough — set their dates to add them to the itinerary.");
+  push(nudges.unbookedTransportCount > 0, "nudge-unbooked-transport", `Book transport (${nudges.unbookedTransportCount} leg${nudges.unbookedTransportCount === 1 ? "" : "s"} missing times)`, `${tripBasePath}/plan`, isFinalPrep ? 9 : 20, "No times booked yet.", "transport");
+  push(!nudges.hasPackingList, "nudge-packing", "Start your packing list", `${tripBasePath}/checklists`, isFinalPrep ? 6 : 26, "Nothing added yet.");
+  push(!nudges.hasPretripList, "nudge-pretrip", "Add pre-trip to-dos", `${tripBasePath}/checklists`, isFinalPrep ? 8 : 28, "Visas, insurance, eSIM and more.");
   push(
     !nudges.hasHomeBase,
     "nudge-set-home-base",
-    "Set your home base to plan your outbound and return flights.",
+    "Set your home base",
     `${tripBasePath}/settings`,
     12,
+    "Needed to plan your outbound and return flights.",
   );
   push(
     nudges.hasHomeBase && !!nudges.firstStopName && !nudges.hasOutboundLeg,
     "nudge-add-outbound-flight",
-    `Add your outbound flight from ${nudges.homeName} to ${nudges.firstStopName}.`,
+    `Add outbound flight to ${nudges.firstStopName}`,
     `${tripBasePath}/plan`,
     13,
+    `No flight booked from ${nudges.homeName} yet.`,
+    "transport",
   );
   push(
     nudges.hasHomeBase && nudges.roundTrip && !!nudges.lastStopName && !nudges.hasReturnLeg,
     "nudge-add-return-flight",
-    `Add your flight home from ${nudges.lastStopName} to ${nudges.homeName}.`,
+    `Add return flight from ${nudges.lastStopName}`,
     `${tripBasePath}/plan`,
     14,
+    `No flight home to ${nudges.homeName} yet.`,
+    "transport",
   );
 
   candidates.sort((a, b) => (a.priority !== b.priority ? a.priority - b.priority : a.id.localeCompare(b.id)));
 
-  return candidates.slice(0, limit).map((c) => ({
-    id: c.id,
-    title: c.title,
-    href: c.href,
-    severity: c.severity,
-    source: c.source,
-  }));
+  return candidates.slice(0, limit).map((c) => {
+    const step: NextStep = {
+      id: c.id,
+      title: c.title,
+      href: c.href,
+      severity: c.severity,
+      source: c.source,
+    };
+    if (c.subtitle !== undefined) step.subtitle = c.subtitle;
+    if (c.kind !== undefined) step.kind = c.kind;
+    return step;
+  });
 }
