@@ -1,5 +1,5 @@
 import * as React from "react";
-import { MapPin, Calendar, Hash, StickyNote, AlertTriangle } from "lucide-react";
+import { MapPin, Calendar, Hash, StickyNote, AlertTriangle, Home } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
 import { RowActions } from "@/components/ui/row-actions";
@@ -81,55 +81,61 @@ export function AccommodationCard({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2.5 rounded-xl border border-border/60 bg-card px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
+        "flex flex-col gap-2.5 rounded-xl border bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-900 px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
         isPending && "opacity-60 pointer-events-none",
       )}
     >
-      {/* Top row: name + controls */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h4 className="font-display text-base font-semibold leading-tight text-foreground truncate">
-            {a.name}
-          </h4>
-          {a.address && (
-            <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-              <MapPin className="size-3 shrink-0" aria-hidden="true" />
-              <span className="truncate">{a.address}</span>
-              <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} className="ml-0.5 text-muted-foreground/60" />
-            </div>
-          )}
-        </div>
+      {/* Top row: leading icon + name + controls */}
+      <div className="flex items-start gap-3">
+        <Home
+          className="size-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400"
+          aria-hidden="true"
+        />
+        <div className="flex flex-1 items-start justify-between gap-3 min-w-0">
+          <div className="min-w-0">
+            <h4 className="font-display text-base font-semibold leading-tight text-emerald-900 dark:text-emerald-100 truncate">
+              {a.name}
+            </h4>
+            {a.address && (
+              <div className="mt-0.5 flex items-center gap-1 text-xs text-emerald-700/70 dark:text-emerald-300/70">
+                <MapPin className="size-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">{a.address}</span>
+                <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} className="ml-0.5 text-emerald-600/60 dark:text-emerald-400/60" />
+              </div>
+            )}
+          </div>
 
-        <div className="flex shrink-0 items-center gap-1">
-          {attachments !== undefined && tripId && (
-            <AttachmentPopover
-              tripId={tripId}
-              targetType="ACCOMMODATION"
-              targetId={a.id}
-              attachments={attachments}
+          <div className="flex shrink-0 items-center gap-1">
+            {attachments !== undefined && tripId && (
+              <AttachmentPopover
+                tripId={tripId}
+                targetType="ACCOMMODATION"
+                targetId={a.id}
+                attachments={attachments}
+              />
+            )}
+            {notes !== undefined && tripId && currentUserId && (
+              <NoteThread
+                tripId={tripId}
+                targetType="ACCOMMODATION"
+                targetId={a.id}
+                notes={notes}
+                currentUserId={currentUserId}
+              />
+            )}
+            <RowActions
+              onEdit={onEdit ? () => onEdit(a) : undefined}
+              onDelete={onDelete ? () => onDelete(a.id) : undefined}
+              editLabel={`Edit ${a.name}`}
+              deleteLabel={`Delete ${a.name}`}
+              disabled={isPending}
             />
-          )}
-          {notes !== undefined && tripId && currentUserId && (
-            <NoteThread
-              tripId={tripId}
-              targetType="ACCOMMODATION"
-              targetId={a.id}
-              notes={notes}
-              currentUserId={currentUserId}
-            />
-          )}
-          <RowActions
-            onEdit={onEdit ? () => onEdit(a) : undefined}
-            onDelete={onDelete ? () => onDelete(a.id) : undefined}
-            editLabel={`Edit ${a.name}`}
-            deleteLabel={`Delete ${a.name}`}
-            disabled={isPending}
-          />
+          </div>
         </div>
       </div>
 
       {/* Dates + nights */}
-      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-3 text-xs text-emerald-700/70 dark:text-emerald-300/70">
         <div className="flex items-center gap-1.5">
           <Calendar className="size-3.5 shrink-0" aria-hidden="true" />
           <span>{dateRange}</span>
@@ -141,15 +147,16 @@ export function AccommodationCard({
 
       {/* Confirmation */}
       {a.confirmation && (
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <div className="flex items-center gap-1.5 text-xs text-emerald-700/80 dark:text-emerald-300/80">
           <Hash className="size-3 shrink-0" aria-hidden="true" />
           <span className="font-mono">{a.confirmation}</span>
+          <span className="font-semibold text-emerald-700 dark:text-emerald-400">· Confirmed</span>
         </div>
       )}
 
       {/* Notes */}
       {a.notes && (
-        <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+        <div className="flex items-start gap-1.5 text-xs text-emerald-700/70 dark:text-emerald-300/70">
           <StickyNote className="size-3.5 mt-0.5 shrink-0" aria-hidden="true" />
           <p className="line-clamp-2">{a.notes}</p>
         </div>
@@ -173,7 +180,7 @@ export function AccommodationCard({
 
       {/* Costs */}
       {costs !== undefined && tripId && (
-        <div className="border-t border-border/40 pt-2">
+        <div className="border-t border-emerald-200/60 dark:border-emerald-900/60 pt-2">
           <CostEditor
             tripId={tripId}
             ownerType="ACCOMMODATION"

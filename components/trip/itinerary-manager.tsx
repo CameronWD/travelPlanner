@@ -1183,7 +1183,7 @@ export function ItineraryManager({
 
         {/* Accommodations under this stop (dated stops only) */}
         {stop.arriveDate && stop.departDate && stop.accommodations.length > 0 && (
-          <div className="ml-4 flex flex-col gap-2 border-l-2 border-border/40 pl-4">
+          <div className="ml-4 flex flex-col gap-2 pl-4">
             {stop.accommodations.map((acc) => (
               <AccommodationCard
                 key={acc.id}

@@ -79,3 +79,44 @@ describe("AccommodationCard NoteThread", () => {
     expect(screen.queryByRole("button", { name: /note/i })).not.toBeInTheDocument();
   });
 });
+
+describe("AccommodationCard emerald Bold-Modular styling (D3)", () => {
+  it("applies emerald wash class on the root element", () => {
+    const { container } = render(
+      <AccommodationCard accommodation={baseAcc} stop={baseStop} />,
+    );
+    const root = container.firstChild as HTMLElement;
+    expect(root.className).toMatch(/bg-emerald/);
+  });
+
+  it("renders a Home or BedDouble icon with emerald colour class", () => {
+    const { container } = render(
+      <AccommodationCard accommodation={baseAcc} stop={baseStop} />,
+    );
+    // The leading icon is an aria-hidden SVG; its className is an SVGAnimatedString
+    const svgs = container.querySelectorAll("svg[aria-hidden='true']");
+    expect(svgs.length).toBeGreaterThan(0);
+    // At least one of the aria-hidden SVGs carries an emerald colour class
+    const emeraldSvg = Array.from(svgs).find((svg) =>
+      (svg.getAttribute("class") ?? "").includes("emerald"),
+    );
+    expect(emeraldSvg).toBeDefined();
+  });
+
+  it("shows 'Confirmed' affirmative label when confirmation exists", () => {
+    const accWithConfirm = { ...baseAcc, confirmation: "BK-12345" };
+    render(
+      <AccommodationCard accommodation={accWithConfirm} stop={baseStop} />,
+    );
+    expect(screen.getByText(/confirmed/i)).toBeInTheDocument();
+    // Still shows the confirmation code
+    expect(screen.getByText(/BK-12345/)).toBeInTheDocument();
+  });
+
+  it("does not show 'Confirmed' label when confirmation is absent", () => {
+    render(
+      <AccommodationCard accommodation={baseAcc} stop={baseStop} />,
+    );
+    expect(screen.queryByText(/confirmed/i)).not.toBeInTheDocument();
+  });
+});
