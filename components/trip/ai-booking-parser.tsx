@@ -64,7 +64,7 @@ export function AiBookingParser({ tripId, aiConfigured }: AiBookingParserProps) 
 
       <form onSubmit={handleParse} className="flex flex-col gap-2">
         <textarea
-          className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none min-h-[100px]"
+          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none min-h-[100px]"
           placeholder="Paste booking confirmation email or text here…"
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -89,7 +89,7 @@ export function AiBookingParser({ tripId, aiConfigured }: AiBookingParserProps) 
       )}
 
       {parsed && (
-        <div className="rounded-xl border border-violet-200 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-950/30">
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-950/30">
           <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mb-3">
             Extracted draft — review and add manually
           </p>

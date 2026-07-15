@@ -79,4 +79,14 @@ describe("Button", () => {
     expect(el).toHaveAttribute("aria-busy", "true");
     expect(el.className).toMatch(/pointer-events-none/);
   });
+
+  it("applies the pill shape as rounded-full", () => {
+    render(<Button shape="pill">Go</Button>);
+    expect(screen.getByRole("button", { name: "Go" }).className).toContain("rounded-full");
+  });
+
+  it("defaults to the rounded-md shape", () => {
+    render(<Button>Plain</Button>);
+    expect(screen.getByRole("button", { name: "Plain" }).className).toContain("rounded-md");
+  });
 });

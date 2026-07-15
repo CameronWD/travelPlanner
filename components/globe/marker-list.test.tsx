@@ -169,19 +169,31 @@ describe("MarkerFilters", () => {
 
   beforeEach(() => vi.clearAllMocks());
 
-  it("changing the category select calls onChange with the new category", async () => {
+  it("clicking a category chip calls onChange with the new category", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(
       <MarkerFilters filter={defaultFilter} countries={countries} onChange={onChange} />,
     );
 
-    const selects = screen.getAllByRole("combobox");
-    const categorySelect = selects[0];
-    await user.selectOptions(categorySelect, "ACTIVITY");
+    await user.click(screen.getByRole("button", { name: /food/i }));
 
     expect(onChange).toHaveBeenCalledWith(
-      expect.objectContaining({ category: "ACTIVITY" }),
+      expect.objectContaining({ category: "FOOD" }),
+    );
+  });
+
+  it("clicking the All chip calls onChange with category null", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    render(
+      <MarkerFilters filter={{ ...defaultFilter, category: "FOOD" }} countries={countries} onChange={onChange} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /^all$/i }));
+
+    expect(onChange).toHaveBeenCalledWith(
+      expect.objectContaining({ category: null }),
     );
   });
 
@@ -192,7 +204,7 @@ describe("MarkerFilters", () => {
       <MarkerFilters filter={defaultFilter} countries={countries} onChange={onChange} />,
     );
 
-    const queryInput = screen.getByPlaceholderText(/filter your markers/i);
+    const queryInput = screen.getByPlaceholderText(/search places/i);
     await user.type(queryInput, "e");
 
     expect(onChange).toHaveBeenCalledWith(
@@ -207,8 +219,7 @@ describe("MarkerFilters", () => {
       <MarkerFilters filter={defaultFilter} countries={countries} onChange={onChange} />,
     );
 
-    const selects = screen.getAllByRole("combobox");
-    const countrySelect = selects[1];
+    const countrySelect = screen.getByRole("combobox");
     await user.selectOptions(countrySelect, "Japan");
 
     expect(onChange).toHaveBeenCalledWith(

@@ -49,11 +49,11 @@ describe("AttachmentList", () => {
 
   it("uploads a globe-scoped attachment with globeId and no tripId", async () => {
     const user = userEvent.setup();
-    render(
+    const { container } = render(
       <AttachmentList globeId="g1" targetType="MARKER" targetId="m1" attachments={[]} />,
     );
     await user.upload(
-      screen.getByLabelText(/add file/i),
+      container.querySelector('input[type="file"]') as HTMLInputElement,
       new File(["x"], "tickets.pdf", { type: "application/pdf" }),
     );
     expect(uploadAttachment).toHaveBeenCalledTimes(1);
@@ -66,9 +66,11 @@ describe("AttachmentList", () => {
 
   it("uploads a trip-scoped attachment with tripId and no globeId", async () => {
     const user = userEvent.setup();
-    render(<AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />);
+    const { container } = render(
+      <AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />,
+    );
     await user.upload(
-      screen.getByLabelText(/add file/i),
+      container.querySelector('input[type="file"]') as HTMLInputElement,
       new File(["x"], "insurance.pdf", { type: "application/pdf" }),
     );
     expect(uploadAttachment).toHaveBeenCalledTimes(1);
@@ -103,6 +105,27 @@ describe("AttachmentList", () => {
     // Confirm deletion
     await user.click(screen.getByRole("button", { name: "Delete" }));
     expect(deleteAttachment).toHaveBeenCalledWith("att-1");
+  });
+
+  it("shows a full dropzone in non-compact mode", () => {
+    const { container } = render(
+      <AttachmentList tripId="t" targetType="TRIP" attachments={[{ id: "a", filename: "x.pdf", mime: "application/pdf", size: 1000, url: "/x", uploadedById: "u1", createdAt: new Date() }]} />,
+    );
+    expect(container.querySelector(".border-dashed")).toBeTruthy();
+    expect(screen.getByText(/browse/i)).toBeInTheDocument();
+  });
+
+  it("hides the upload trigger when showUpload={false} but still lists files", () => {
+    render(
+      <AttachmentList
+        tripId="trip-1"
+        targetType="STOP"
+        attachments={[sampleAttachments[0]]}
+        showUpload={false}
+      />,
+    );
+    expect(screen.queryByText(/browse/i)).toBeNull();
+    expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
   });
 
   it("delete does NOT fire when the dialog is cancelled", async () => {

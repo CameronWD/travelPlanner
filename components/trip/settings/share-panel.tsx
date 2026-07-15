@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import { useTransition } from "react";
-import { Copy, Check, Link as LinkIcon, RefreshCw, Trash2 } from "lucide-react";
+import { Copy, Check, RefreshCw, Trash2 } from "lucide-react";
 import {
   createShareLink,
   rotateShareLink,
   revokeShareLink,
 } from "@/server/actions/share";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/cn";
 
 interface SharePanelProps {
   tripId: string;
@@ -56,25 +57,41 @@ export function SharePanel({ tripId, initialToken }: SharePanelProps) {
 
   return (
     <div className="space-y-5">
-      <p className="text-sm text-muted-foreground">
-        A public link lets anyone view the itinerary — stops, transport, and
-        activities. Budget, notes, and files are not shared.
-      </p>
+      {/* Header row: title + toggle */}
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="font-display text-base font-bold tracking-tight text-foreground">
+          Public share link
+        </h3>
+        <button
+          role="switch"
+          aria-checked={!!token}
+          aria-label="Public share link"
+          disabled={isPending}
+          onClick={token ? handleRevoke : handleCreate}
+          className={cn(
+            "relative h-6 w-11 rounded-full transition-colors",
+            token ? "bg-success" : "bg-muted",
+            isPending && "opacity-50",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-0.5 size-5 rounded-full bg-white transition-all",
+              token ? "right-0.5" : "left-0.5",
+            )}
+          />
+        </button>
+      </div>
 
-      {shareUrl ? (
+      {shareUrl && (
         <div className="space-y-3">
-          {/* Link display */}
-          <div className="flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-2">
-            <LinkIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span className="flex-1 truncate font-mono text-sm text-foreground">
+          {/* URL bar */}
+          <div className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate rounded-[10px] border border-border px-3 py-2 font-mono text-xs text-muted-foreground">
               {typeof window !== "undefined"
                 ? `${window.location.origin}${shareUrl}`
                 : shareUrl}
             </span>
-          </div>
-
-          {/* Actions */}
-          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
@@ -90,10 +107,19 @@ export function SharePanel({ tripId, initialToken }: SharePanelProps) {
               ) : (
                 <>
                   <Copy className="size-4" aria-hidden="true" />
-                  Copy link
+                  Copy
                 </>
               )}
             </Button>
+          </div>
+
+          {/* Caption */}
+          <p className="mt-2 text-xs text-muted-foreground">
+            Read-only · hides costs, notes, confirmations.
+          </p>
+
+          {/* Regenerate + Revoke */}
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
               variant="outline"
@@ -114,27 +140,6 @@ export function SharePanel({ tripId, initialToken }: SharePanelProps) {
             >
               <Trash2 className="size-4" aria-hidden="true" />
               Revoke
-            </Button>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Regenerating invalidates the old link immediately. Revoking removes
-            the link entirely.
-          </p>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted-foreground">
-            No public link active. Create one to share the itinerary.
-          </p>
-          <div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleCreate}
-              loading={isPending}
-            >
-              <LinkIcon className="size-4" aria-hidden="true" />
-              Create share link
             </Button>
           </div>
         </div>

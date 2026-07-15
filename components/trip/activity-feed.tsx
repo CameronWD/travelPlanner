@@ -88,19 +88,19 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
           <li
             key={activity.id}
             className={cn(
-              "flex items-start gap-3 py-4",
+              "flex items-start gap-3 py-4 transition-colors hover:bg-muted/30 rounded-xl -mx-1 px-1",
             )}
           >
-            <Avatar className="size-8 shrink-0">
+            <Avatar className="size-9 shrink-0">
               {activity.actor.image ? (
                 <AvatarImage src={activity.actor.image} alt={actorName} />
               ) : null}
-              <AvatarFallback className="text-xs">{initials}</AvatarFallback>
+              <AvatarFallback className="bg-primary/10 text-primary text-xs">{initials}</AvatarFallback>
             </Avatar>
 
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <p className="text-sm text-foreground">
-                <span className="font-medium">{actorName}</span>{" "}
+                <span className="font-semibold">{actorName}</span>{" "}
                 {summary ?? headlineText}
               </p>
 

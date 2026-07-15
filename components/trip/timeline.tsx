@@ -8,7 +8,7 @@ import {
   Navigation,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { CategoryPill } from "./category-pill";
+import { CategoryPill, categoryAccent } from "./category-pill";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type {
   DayPlan,
@@ -209,10 +209,10 @@ function TransportRow({
   return (
     <div
       className={cn(
-        "flex items-start gap-2 rounded-lg px-2 py-1.5",
+        "flex items-start gap-2 px-2 py-1.5",
         isDay
-          ? "bg-primary/5 border border-primary/10"
-          : "bg-transparent",
+          ? "rounded-2xl bg-primary/5 border border-primary/10"
+          : "rounded-lg bg-transparent",
       )}
     >
       <TimeGutter time={gutterTime} isDay={isDay} />
@@ -292,6 +292,34 @@ function TimedItemRow({
     ? `${item.startTime} – ${item.endTime}`
     : item.startTime;
 
+  if (isDay) {
+    const accent = categoryAccent(item.category as Category);
+    return (
+      <div className="flex items-start gap-2">
+        <TimeGutter time={item.startTime} isDay={isDay} />
+        <div className={cn("flex-1 rounded-2xl border-l-4 bg-card px-3 py-2.5 shadow-soft", accent.borderL)}>
+          <div className="flex min-w-0 items-center gap-2">
+            <span
+              className="truncate text-sm font-bold leading-tight text-foreground min-w-0"
+              title={item.title}
+            >
+              {item.title}
+            </span>
+            <CategoryPill category={item.category as Category} size="sm" />
+            <DirectionsLink directions={directions} label={item.title} />
+          </div>
+          {(timeLabel || item.address) && (
+            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {timeLabel && <span>{timeLabel}</span>}
+              {item.address && <span>{item.address}</span>}
+            </div>
+          )}
+          <AttachmentLinks attachments={attachments} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-start gap-2 px-2 py-1">
       <TimeGutter time={item.startTime} isDay={isDay} />
@@ -306,22 +334,12 @@ function TimedItemRow({
           <span className="truncate text-sm font-medium leading-tight text-foreground min-w-0">
             {item.title}
           </span>
-          {!isDay && timeLabel && (
+          {timeLabel && (
             <span className="text-xs sm:text-[11px] text-muted-foreground">{timeLabel}</span>
           )}
           <DirectionsLink directions={directions} label={item.title} />
         </div>
-        {isDay && (
-          <div className="mt-0.5 flex flex-wrap items-center gap-2">
-            <CategoryPill category={item.category as Category} size="sm" />
-            {timeLabel && (
-              <span className="text-xs text-muted-foreground">{timeLabel}</span>
-            )}
-          </div>
-        )}
-        {!isDay && (
-          <CategoryPill category={item.category as Category} size="sm" />
-        )}
+        <CategoryPill category={item.category as Category} size="sm" />
         <AttachmentLinks attachments={attachments} />
       </div>
     </div>
@@ -340,6 +358,33 @@ function UntimedItemRow({
   attachments: AttachmentView[];
 }) {
   const { item } = entry;
+
+  if (isDay) {
+    const accent = categoryAccent(item.category as Category);
+    return (
+      <div className="flex items-start gap-2">
+        <TimeGutter time={null} isDay={isDay} />
+        <div className="flex-1 flex items-center gap-2 rounded-2xl border border-dashed border-border/70 px-3 py-2.5">
+          <span
+            className={cn("size-2 shrink-0 rounded-full", accent.dot)}
+            aria-hidden="true"
+          />
+          <span
+            className="truncate text-sm text-foreground/90 min-w-0"
+            title={item.title}
+          >
+            {item.title}
+          </span>
+          {item.address && (
+            <span className="truncate text-xs text-muted-foreground">{item.address}</span>
+          )}
+          <DirectionsLink directions={directions} label={item.title} />
+          <AttachmentLinks attachments={attachments} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-start gap-2 px-2 py-0.5">
       <TimeGutter time={null} isDay={isDay} />
@@ -350,9 +395,6 @@ function UntimedItemRow({
           <CategoryPill category={item.category as Category} size="sm" />
           <DirectionsLink directions={directions} label={item.title} />
         </div>
-        {isDay && item.address && (
-          <p className="mt-0.5 text-xs text-muted-foreground">{item.address}</p>
-        )}
         <AttachmentLinks attachments={attachments} />
       </div>
     </div>
@@ -372,8 +414,10 @@ function AccomCheckinRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-2 py-1 rounded-lg",
-        isDay ? "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/30" : "",
+        "flex items-center gap-2",
+        isDay
+          ? "rounded-2xl bg-emerald-100 px-3 py-2.5 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+          : "px-2 py-1 rounded-lg",
       )}
     >
       <TimeGutter time={null} isDay={isDay} />
@@ -410,8 +454,10 @@ function AccomCheckoutRow({
   return (
     <div
       className={cn(
-        "flex items-center gap-2 px-2 py-1 rounded-lg",
-        isDay ? "bg-rose-50 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-800/30" : "",
+        "flex items-center gap-2",
+        isDay
+          ? "rounded-2xl bg-rose-100 px-3 py-2.5 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+          : "px-2 py-1 rounded-lg",
       )}
     >
       <TimeGutter time={null} isDay={isDay} />

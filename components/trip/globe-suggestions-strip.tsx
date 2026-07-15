@@ -5,6 +5,9 @@ import { Globe2, Plus } from "lucide-react";
 import { addMarkerToWishlist } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import type { MarkerView } from "@/components/globe/types";
+import { cn } from "@/lib/cn";
+import { categoryAccent } from "./category-pill";
+import type { Category } from "@/lib/categories";
 
 const SUGGESTIONS_CAP = 5;
 
@@ -53,48 +56,43 @@ export function GlobeSuggestionsStrip({
   }
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-4 shadow-sm">
-      <div className="mb-3 flex items-center gap-2">
-        <Globe2 className="size-4 text-primary" aria-hidden="true" />
-        <h3 className="font-display text-base font-semibold text-foreground">
-          Suggested from your Globe
-        </h3>
+    <section className="rounded-2xl bg-accent/10 p-3">
+      <div className="flex items-center gap-2">
+        <Globe2 className="size-4 text-accent" aria-hidden="true" />
+        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-accent">
+          From your Globe
+        </span>
       </div>
-      <ul className="flex flex-col gap-2">
-        {shown.map((marker) => (
-          <li
-            key={marker.id}
-            className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2"
-          >
-            <div className="min-w-0">
-              <span className="block truncate text-sm font-medium text-foreground">
-                {marker.title}
-              </span>
-              <span className="text-xs text-muted-foreground">
-                {marker.city ?? marker.country}
-              </span>
-            </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {shown.map((marker) => {
+          const dot = marker.category
+            ? categoryAccent(marker.category as Category).dot
+            : "bg-muted-foreground";
+          return (
             <button
+              key={marker.id}
               type="button"
-              aria-label={`Add ${marker.title}`}
-              disabled={pending === marker.id}
               onClick={() => handleAdd(marker)}
-              className="inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              disabled={pending === marker.id}
+              aria-label={`Add ${marker.title}`}
+              className="inline-flex items-center gap-1.5 rounded-full bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-soft transition-colors hover:bg-background/70 disabled:opacity-50"
             >
-              <Plus className="size-3.5" aria-hidden="true" /> Add
+              <span className={cn("size-1.5 rounded-full", dot)} aria-hidden="true" />
+              {marker.title}
+              <Plus className="size-3" aria-hidden="true" />
             </button>
-          </li>
-        ))}
-      </ul>
-      {overflow > 0 && (
-        <button
-          type="button"
-          onClick={onSeeMore}
-          className="mt-3 text-xs font-medium text-primary hover:underline"
-        >
-          +{overflow} more from your Globe
-        </button>
-      )}
+          );
+        })}
+        {overflow > 0 && (
+          <button
+            type="button"
+            onClick={onSeeMore}
+            className="px-1 text-xs font-semibold text-accent hover:underline"
+          >
+            +{overflow} more
+          </button>
+        )}
+      </div>
     </section>
   );
 }

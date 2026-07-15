@@ -69,26 +69,32 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId }: 
         </div>
       </div>
 
-      <GlobeMapLoader
-        markers={filtered}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        onEdit={openEdit}
-        onDelete={handleDelete}
-        onMapClick={openDrop}
-        attachmentsByMarkerId={attachmentsByMarkerId}
-      />
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_330px] lg:items-start">
+        <div className="min-w-0">
+          <GlobeMapLoader
+            markers={filtered}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onEdit={openEdit}
+            onDelete={handleDelete}
+            onMapClick={openDrop}
+            attachmentsByMarkerId={attachmentsByMarkerId}
+          />
+        </div>
 
-      <MarkerFilters filter={filter} countries={countries} onChange={setFilter} />
-      <MarkerList
-        markers={filtered}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        onEdit={openEdit}
-        onDelete={handleDelete}
-        globeId={globeId}
-        attachmentsByMarkerId={attachmentsByMarkerId}
-      />
+        <div className="flex flex-col gap-3">
+          <MarkerFilters filter={filter} countries={countries} onChange={setFilter} />
+          <MarkerList
+            markers={filtered}
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onEdit={openEdit}
+            onDelete={handleDelete}
+            globeId={globeId}
+            attachmentsByMarkerId={attachmentsByMarkerId}
+          />
+        </div>
+      </div>
 
       <MarkerForm
         key={`${openSeq}-${editing ? `edit-${editing.id}` : prefill ? `drop-${prefill.lat},${prefill.lng}` : "add"}`}

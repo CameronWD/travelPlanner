@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Globe2, Heart, MapPin } from "lucide-react";
+import { Check, Globe2, Heart } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ItemCard, type ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
@@ -16,7 +16,6 @@ import type { VoteView } from "./vote-control";
 import { sortItemsByVotes } from "@/lib/votes";
 import { AiActivitySuggestions } from "./ai-activity-suggestions";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
-import { SectionHeader } from "@/components/ui/section-header";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { WishlistMapLoader } from "./wishlist-map-loader";
@@ -243,9 +242,6 @@ export function WishlistBoard({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
         <div className="min-w-0">
           <h2 className="font-display text-2xl font-semibold">Wishlist</h2>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Items you&apos;re not sure about yet — collect them here and schedule later.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Segmented
@@ -348,11 +344,10 @@ export function WishlistBoard({
             const stopItems = grouped.get(stop.id) ?? [];
             return (
               <section key={stop.id} className="flex flex-col gap-3">
-                <SectionHeader
-                  icon={<MapPin className="size-4 text-muted-foreground" aria-hidden="true" />}
-                  title={stop.name}
-                  count={stopItems.length > 0 ? stopItems.length : undefined}
-                />
+                <div className="flex items-baseline gap-2 px-1">
+                  <h3 className="font-display text-sm font-bold text-foreground">{stop.name}</h3>
+                  <span className="text-xs font-medium text-muted-foreground">{stopItems.length} {stopItems.length === 1 ? "idea" : "ideas"}</span>
+                </div>
                 <AiActivitySuggestions
                   tripId={tripId}
                   stopId={stop.id}
@@ -400,11 +395,10 @@ export function WishlistBoard({
           {/* Anywhere / no stop group */}
           {anywhereItems.length > 0 && (
             <section className="flex flex-col gap-3">
-              <SectionHeader
-                icon={<Heart className="size-4 text-muted-foreground" aria-hidden="true" />}
-                title="Anywhere"
-                count={anywhereItems.length}
-              />
+              <div className="flex items-baseline gap-2 px-1">
+                <h3 className="font-display text-sm font-bold text-foreground">Anywhere</h3>
+                <span className="text-xs font-medium text-muted-foreground">{anywhereItems.length} {anywhereItems.length === 1 ? "idea" : "ideas"}</span>
+              </div>
               <AnimatedList className="flex flex-col gap-2">
                 {anywhereItems.map((item) => (
                   <AnimatedItem key={item.id}>

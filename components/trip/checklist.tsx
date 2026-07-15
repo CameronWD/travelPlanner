@@ -93,6 +93,18 @@ function initials(name?: string | null): string {
 }
 
 /**
+ * Format a YYYY-MM-DD string as a short human-readable date (e.g. "1 Jul").
+ * Parses as UTC midnight to match how dueDateStatus compares dates.
+ */
+function formatShortDueDate(dueDate: string): string {
+  return new Date(`${dueDate}T00:00:00Z`).toLocaleDateString("en-AU", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/**
  * Returns a due-date status hint for display. Returns null if no dueDate.
  */
 function dueDateStatus(
@@ -101,15 +113,16 @@ function dueDateStatus(
 ): { label: string; variant: "overdue" | "soon" | "normal" } | null {
   if (!dueDate || done) return null;
   const today = todayISO();
+  const formatted = formatShortDueDate(dueDate);
   if (dueDate < today)
-    return { label: `Due ${dueDate}`, variant: "overdue" };
+    return { label: `Overdue · ${formatted}`, variant: "overdue" };
   // "due soon" = within 7 days
   const diff =
     (new Date(`${dueDate}T00:00:00Z`).getTime() -
       new Date(`${today}T00:00:00Z`).getTime()) /
     86_400_000;
-  if (diff <= 7) return { label: `Due ${dueDate}`, variant: "soon" };
-  return { label: `Due ${dueDate}`, variant: "normal" };
+  if (diff <= 7) return { label: `Due soon · ${formatted}`, variant: "soon" };
+  return { label: `Due · ${formatted}`, variant: "normal" };
 }
 
 // ---------------------------------------------------------------------------
@@ -163,7 +176,7 @@ function AddItemForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="flex flex-col gap-3 rounded-xl border border-dashed border-border bg-muted/30 p-3 sm:flex-row sm:items-end"
+      className="flex flex-col gap-3 rounded-2xl border border-dashed border-border/80 bg-muted/40 p-3 sm:flex-row sm:items-end"
     >
       <div className="flex-1 min-w-0">
         <Field label="New item" error={error}>
@@ -219,6 +232,7 @@ function AddItemForm({
         type="submit"
         variant="primary"
         size="sm"
+        shape="pill"
         loading={pending}
         className="shrink-0 self-end sm:self-auto"
       >
@@ -441,7 +455,7 @@ function ChecklistRow({
       <AnimatedItem
         as="li"
         className={cn(
-          "group flex items-start gap-3 rounded-lg px-3 py-2.5 transition-colors",
+          "group flex items-center gap-3 rounded-lg px-3.5 py-3 transition-colors",
           "hover:bg-muted/40",
           (pending || deleteIsPending) && "opacity-60",
         )}
@@ -452,7 +466,7 @@ function ChecklistRow({
           onClick={toggle}
           disabled={pending}
           aria-label={item.done ? "Mark incomplete" : "Mark complete"}
-          className="mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-primary"
+          className="shrink-0 text-muted-foreground transition-colors hover:text-primary"
         >
           <motion.span
             key={item.done ? "done" : "todo"}
@@ -484,9 +498,9 @@ function ChecklistRow({
           {showDueDate && status && (
             <span
               className={cn(
-                "inline-flex items-center gap-1 text-xs",
+                "inline-flex items-center gap-1 text-xs font-semibold",
                 status.variant === "overdue" && "text-destructive",
-                status.variant === "soon" && "text-amber-600 dark:text-amber-400",
+                status.variant === "soon" && "text-amber-700 dark:text-amber-400",
                 status.variant === "normal" && "text-muted-foreground",
               )}
             >
@@ -505,7 +519,7 @@ function ChecklistRow({
         {/* Assignee avatar */}
         {showAssignee && item.assignedTo && (
           <Avatar
-            className="size-6 shrink-0 ring-1 ring-border"
+            className="size-6 shrink-0"
             title={item.assignedTo.name ?? "Assigned member"}
           >
             {item.assignedTo.image ? (
@@ -604,7 +618,7 @@ function ProgressBar({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="shrink-0 text-xs text-muted-foreground">
+      <span className="shrink-0 text-xs font-semibold text-muted-foreground">
         {done} of {total} done
       </span>
     </div>
@@ -654,7 +668,7 @@ export function Checklist({
       <ProgressBar done={doneCount} total={items.length} />
 
       {/* Items */}
-      <AnimatedList as="ul" className="flex flex-col divide-y divide-border/50 rounded-xl border border-border bg-card">
+      <AnimatedList as="ul" className="flex flex-col divide-y divide-border/50 rounded-2xl border border-border bg-card">
         {items.map((item, idx) => (
           <ChecklistRow
             key={item.id}

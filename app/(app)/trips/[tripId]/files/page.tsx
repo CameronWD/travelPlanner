@@ -74,57 +74,39 @@ export default async function FilesPage({
   const hasAny = rows.length > 0;
 
   return (
-    <div className="space-y-8">
+    <div className="flex flex-col gap-6">
       {/* ── Page heading ── */}
-      <div>
-        <h2 className="font-display text-2xl font-semibold text-foreground">
-          Files
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Keep tickets, booking confirmations and passport scans here.
-        </p>
-      </div>
+      <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">
+        Files
+      </h2>
 
-      {/* ── Upload + trip-level list ── */}
-      <section aria-labelledby="trip-files-heading">
-        <h3
-          id="trip-files-heading"
-          className="mb-3 text-base font-semibold text-foreground"
-        >
-          {TARGET_TYPE_LABELS["TRIP"]} files
-        </h3>
-        <AttachmentList
-          tripId={tripId}
-          targetType="TRIP"
-          attachments={tripAttachments}
-        />
-      </section>
+      {/* ── Trip-level files (first, no group header) ── */}
+      <AttachmentList
+        tripId={tripId}
+        targetType="TRIP"
+        attachments={tripAttachments}
+      />
 
       {/* ── Grouped entity-level files ── */}
-      {grouped.size > 0 ? (
-        <section aria-label="Files by category">
-          <h3 className="mb-4 text-base font-semibold text-foreground">
-            Files by category
-          </h3>
-          <div className="space-y-6">
-            {(
-              Array.from(grouped.entries()) as Array<[TargetType, AttachmentView[]]>
-            ).map(([type, items]) => (
-              <div key={type}>
-                <h4 className="mb-2 text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                  {TARGET_TYPE_LABELS[type]}
-                </h4>
-                <AttachmentList
-                  tripId={tripId}
-                  targetType={type}
-                  attachments={items}
-                  compact
-                />
-              </div>
-            ))}
+      {(
+        Array.from(grouped.entries()) as Array<[TargetType, AttachmentView[]]>
+      ).map(([type, items]) => (
+        <div key={type} className="flex flex-col gap-3">
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-xs font-bold uppercase tracking-[0.06em] text-muted-foreground">
+              {TARGET_TYPE_LABELS[type]}
+            </span>
+            <span className="text-xs text-muted-foreground">{items.length}</span>
+            <span className="h-px flex-1 bg-border" />
           </div>
-        </section>
-      ) : null}
+          <AttachmentList
+            tripId={tripId}
+            targetType={type}
+            attachments={items}
+            showUpload={false}
+          />
+        </div>
+      ))}
 
       {/* ── Empty state when there are no files at all ── */}
       {!hasAny ? (

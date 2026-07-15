@@ -29,7 +29,7 @@ export default async function ActivityPage({
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-1">
-        <h2 className="font-display text-2xl font-semibold text-foreground">
+        <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">
           Activity
         </h2>
         <p className="text-sm text-muted-foreground">
@@ -39,7 +39,7 @@ export default async function ActivityPage({
         </p>
       </div>
 
-      <div className="rounded-xl border border-border bg-card px-5 py-2">
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
         <ActivityFeed activities={activities} />
       </div>
 

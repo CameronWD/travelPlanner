@@ -119,7 +119,7 @@ export function AiPackingSuggestions({
       )}
 
       {hasItems && (
-        <div className="rounded-xl border border-violet-200 bg-violet-50 p-3 dark:border-violet-800 dark:bg-violet-950/30">
+        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-3 dark:border-violet-800 dark:bg-violet-950/30">
           <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mb-2">
             AI suggested packing items
           </p>
@@ -130,7 +130,7 @@ export function AiPackingSuggestions({
                 <li
                   key={item}
                   className={cn(
-                    "flex items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-sm",
+                    "flex items-center justify-between gap-3 rounded-xl px-2.5 py-1.5 text-sm",
                     "bg-white/70 dark:bg-black/20",
                     added && "opacity-60",
                   )}

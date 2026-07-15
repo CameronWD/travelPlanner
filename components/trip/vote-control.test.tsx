@@ -51,4 +51,15 @@ describe("VoteControl", () => {
     const mustItem = screen.getByRole("radio", { name: /must.*clear your vote/i });
     expect(mustItem).toHaveAttribute("title", "Click again to clear your vote");
   });
+
+  it("gives the active vote a semantic-hued pill", () => {
+    const votes = [{ userId: "me", level: "MUST" as const, user: { name: "Me", image: null } }];
+    const { container } = render(
+      <VoteControl tripId="t" itemId="i" votes={votes} currentUserId="me" />,
+    );
+    // pill track
+    expect(container.querySelector(".rounded-full")).toBeTruthy();
+    // active MUST segment carries the warning fill
+    expect(container.querySelector('[data-state="on"]')?.className).toMatch(/bg-warning/);
+  });
 });

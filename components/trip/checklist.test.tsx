@@ -11,6 +11,13 @@ vi.mock("@/server/actions/checklists", () => ({
 }));
 import { toggleChecklistItem, addChecklistItem, deleteChecklistItem } from "@/server/actions/checklists";
 
+// Fixed "today" for deterministic due-date tests.
+const FIXED_TODAY = "2026-07-14";
+vi.mock("@/lib/dates", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/dates")>();
+  return { ...real, todayISO: () => FIXED_TODAY };
+});
+
 import { Checklist } from "./checklist";
 import type { ChecklistItemRow } from "./checklist";
 
@@ -129,5 +136,53 @@ describe("Checklist", () => {
 
     await user.click(screen.getByRole("button", { name: /cancel/i }));
     expect(deleteChecklistItem).not.toHaveBeenCalled();
+  });
+
+  it("due badge shows humanized label: Overdue for past date, Due soon for near-future date", () => {
+    // FIXED_TODAY = "2026-07-14"
+    // Overdue: clearly in the past
+    const overdueItem: ChecklistItemRow = {
+      id: "item-overdue",
+      kind: "PRETRIP",
+      text: "Overdue task",
+      done: false,
+      dueDate: "2026-07-01", // 13 days before FIXED_TODAY → overdue
+      sortOrder: 0,
+      assignedTo: null,
+    };
+    // Soon: 3 days ahead → within 7-day window
+    const soonItem: ChecklistItemRow = {
+      id: "item-soon",
+      kind: "PRETRIP",
+      text: "Soon task",
+      done: false,
+      dueDate: "2026-07-17", // 3 days after FIXED_TODAY → "due soon"
+      sortOrder: 1,
+      assignedTo: null,
+    };
+
+    const { rerender } = render(
+      <Checklist
+        tripId="trip-1"
+        kind="PRETRIP"
+        items={[overdueItem]}
+        showDueDate={true}
+        showAssignee={false}
+      />,
+    );
+    // Should contain "Overdue" prefix in the badge
+    expect(screen.getAllByText(/Overdue/)[0]).toBeInTheDocument();
+
+    rerender(
+      <Checklist
+        tripId="trip-1"
+        kind="PRETRIP"
+        items={[soonItem]}
+        showDueDate={true}
+        showAssignee={false}
+      />,
+    );
+    // Should contain "Due soon" prefix in the badge
+    expect(screen.getAllByText(/Due soon/)[0]).toBeInTheDocument();
   });
 });

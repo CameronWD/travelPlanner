@@ -330,11 +330,23 @@ export async function PhasePlanning({
       </section>
     ) : null;
 
-  // final-prep leads with action cards; planning leads with plan-oriented cards
-  const order =
-    phase === "final-prep"
-      ? [hero, nextSteps, actions, money, route]
-      : [hero, nextSteps, money, route, actions];
-
-  return <div className="flex flex-col gap-6">{order}</div>;
+  // Bold Modular desktop (D2): full-width hero, then a main column (route +
+  // next-steps) beside a right rail (budget + quick-actions). On mobile the
+  // grid collapses to one column, preserving the order hero → route →
+  // next-steps → budget → quick-actions.
+  return (
+    <div className="flex flex-col gap-6">
+      {hero}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+        <div className="flex flex-col gap-6">
+          {route}
+          {nextSteps}
+        </div>
+        <div className="flex flex-col gap-6">
+          {money}
+          {actions}
+        </div>
+      </div>
+    </div>
+  );
 }

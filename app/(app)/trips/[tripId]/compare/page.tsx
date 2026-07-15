@@ -23,7 +23,7 @@ export default async function ComparePage({
   if (plans.length <= 1 && !discreet) {
     return (
       <div className="flex flex-col gap-6">
-        <h2 className="sr-only">Compare plans</h2>
+        <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Compare plans</h2>
         <EmptyState
           icon={GitCompare}
           title="No variants to compare"
@@ -35,8 +35,7 @@ export default async function ComparePage({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* sr-only heading so screen readers get context without adding a duplicate h1 */}
-      <h2 className="sr-only">Compare plans</h2>
+      <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Compare plans</h2>
 
       <CompareTable
         trip={{ id: trip.id, name: trip.name, homeCurrency: trip.homeCurrency }}

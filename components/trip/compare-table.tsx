@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { GitMerge, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/money";
 import { formatLongDate } from "@/lib/dates";
@@ -172,9 +172,9 @@ function DiffStopRow({ stop }: { stop: RouteDiffStop }) {
   if (stop.kind === "dropped") {
     return (
       <div className={base}>
-        <span className="truncate min-w-0 text-muted-foreground line-through">{stop.name}</span>
+        <span className="truncate min-w-0 text-over line-through">{stop.name}</span>
         {nightsLabel(stop.nights) && (
-          <span className="ml-auto text-xs text-muted-foreground line-through font-mono">{nightsLabel(stop.nights)}</span>
+          <span className="ml-auto text-xs text-over line-through font-mono">{nightsLabel(stop.nights)}</span>
         )}
       </div>
     );
@@ -226,7 +226,7 @@ function DeltaBadge({ text }: { text: string }) {
   return (
     <span
       className={[
-        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+        "inline-flex items-center rounded-[5px] px-2 py-0.5 text-xs font-medium",
         isNegative
           ? "bg-over/10 text-over"
           : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
@@ -434,7 +434,7 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
           return (
             <div
               key={plan.forkId ?? "real"}
-              className="rounded-2xl border border-border bg-card shadow-soft"
+              className="rounded-3xl border border-border bg-card shadow-soft"
             >
               <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
                 <span className="min-w-0 truncate text-sm font-semibold text-foreground">
@@ -452,11 +452,11 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
                     <Button
                       size="sm"
                       variant="outline"
-                      className="shrink-0 text-xs"
+                      shape="pill"
+                      className="border-[1.5px] text-[11px] font-bold shrink-0"
                       onClick={() => setPromoteOpenFor(plan.forkId)}
                       aria-label={`Promote ${plan.name}`}
                     >
-                      <GitMerge className="mr-1 size-3.5 shrink-0" aria-hidden="true" />
                       Promote
                     </Button>
                   </div>
@@ -465,7 +465,7 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
               <dl className="divide-y divide-border">
                 {METRIC_ROWS.map((row) => (
                   <div key={row.id} className="flex items-start justify-between gap-3 px-4 py-2">
-                    <dt className="shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    <dt className="shrink-0 text-xs font-bold uppercase tracking-wide text-muted-foreground">
                       {row.label}
                     </dt>
                     <dd className="flex min-w-0 flex-col items-end gap-1 text-right">
@@ -481,7 +481,7 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
       </div>
 
       {/* Horizontal-scroll container — wide content stays inside; page never scrolls sideways */}
-      <div className="hidden sm:block overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
+      <div className="hidden sm:block overflow-x-auto rounded-3xl border border-border bg-card shadow-soft">
         <table className="min-w-full border-collapse">
           <thead>
             <tr className="border-b border-border bg-muted/50">
@@ -493,51 +493,62 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
               {/* Real plan column */}
               <th
                 scope="col"
-                className="px-4 py-3 text-left text-sm font-semibold text-foreground min-w-[200px]"
+                className="px-4 py-3 text-left text-sm min-w-[200px]"
               >
-                {realPlan.name}
+                <div className="flex items-center gap-2">
+                  <span className="inline-block size-2 rounded-full bg-primary shrink-0" aria-hidden="true" />
+                  <span className="font-display font-bold text-foreground">{realPlan.name}</span>
+                </div>
               </th>
               {/* Fork columns */}
-              {forkPlans.map((plan, forkIndex) => (
-                <th
-                  key={plan.forkId}
-                  scope="col"
-                  className="px-4 py-3 text-left min-w-[200px]"
-                >
-                  <div className="flex flex-col gap-2 min-w-0">
-                    <div className="flex items-center justify-between gap-1 min-w-0">
-                      <span className="text-sm font-semibold text-foreground min-w-0 truncate">{plan.name}</span>
-                      <ReorderArrows
-                        planName={plan.name}
-                        isFirst={forkIndex === 0}
-                        isLast={forkIndex === forkPlans.length - 1}
-                        onMove={(d) => handleMove(plan.forkId!, d)}
-                        pending={reorderPending}
-                      />
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-fit text-xs"
-                      onClick={() => setPromoteOpenFor(plan.forkId)}
-                      aria-label={`Promote ${plan.name}`}
+              {(() => {
+                const forkDotColors = ["bg-accent", "bg-violet-500", "bg-sky-500"];
+                return forkPlans.map((plan, forkIndex) => {
+                  const dotColor = forkDotColors[Math.min(forkIndex, forkDotColors.length - 1)];
+                  return (
+                    <th
+                      key={plan.forkId}
+                      scope="col"
+                      className="px-4 py-3 text-left min-w-[200px]"
                     >
-                      <GitMerge className="size-3.5 mr-1" aria-hidden="true" />
-                      Promote
-                    </Button>
-                  </div>
-                </th>
-              ))}
+                      <div className="flex flex-col gap-2 min-w-0">
+                        <div className="flex items-center justify-between gap-1 min-w-0">
+                          <div className="flex items-center gap-2 min-w-0 truncate">
+                            <span className={`inline-block size-2 rounded-full ${dotColor} shrink-0`} aria-hidden="true" />
+                            <span className="font-display font-bold text-foreground min-w-0 truncate">{plan.name}</span>
+                          </div>
+                          <ReorderArrows
+                            planName={plan.name}
+                            isFirst={forkIndex === 0}
+                            isLast={forkIndex === forkPlans.length - 1}
+                            onMove={(d) => handleMove(plan.forkId!, d)}
+                            pending={reorderPending}
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          shape="pill"
+                          className="w-fit border-[1.5px] text-[11px] font-bold"
+                          onClick={() => setPromoteOpenFor(plan.forkId)}
+                          aria-label={`Promote ${plan.name}`}
+                        >
+                          Promote
+                        </Button>
+                      </div>
+                    </th>
+                  );
+                });
+              })()}
             </tr>
           </thead>
-          <tbody>
-            {METRIC_ROWS.map((row, rowIndex) => (
+          <tbody className="divide-y divide-border/60">
+            {METRIC_ROWS.map((row) => (
               <tr
                 key={row.id}
-                className={rowIndex % 2 === 0 ? "bg-background" : "bg-muted/20"}
               >
                 {/* Row label — sticky on left for wide tables */}
-                <td className="sticky left-0 z-10 border-r border-border bg-inherit px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground whitespace-nowrap">
+                <td className="sticky left-0 z-10 border-r border-border bg-inherit px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
                   {row.label}
                 </td>
                 {/* Real plan cell */}

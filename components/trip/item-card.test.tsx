@@ -106,3 +106,25 @@ describe("ItemCard — AttachmentPopover guard symmetry", () => {
     expect(btn).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Bold-Modular: full-width coral Schedule button (wishlist mode)
+// ---------------------------------------------------------------------------
+
+describe("ItemCard — Bold-Modular Schedule button", () => {
+  it("renders a full-width coral Schedule button in wishlist mode", () => {
+    const onSchedule = vi.fn();
+    render(
+      <ItemCard
+        item={baseItem}
+        mode="wishlist"
+        tripId="trip-1"
+        attachments={[]}
+        onSchedule={onSchedule}
+      />,
+    );
+    const btn = screen.getByRole("button", { name: /schedule/i });
+    expect(btn.className).toMatch(/w-full/);
+    expect(btn.className).toMatch(/bg-primary/);
+  });
+});

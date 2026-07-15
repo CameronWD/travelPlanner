@@ -73,7 +73,7 @@ export default async function JournalPage({
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-1">
-        <h2 className="font-display text-2xl font-semibold text-foreground">
+        <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">
           Journal
         </h2>
         <p className="text-sm text-muted-foreground">
@@ -91,39 +91,42 @@ export default async function JournalPage({
           return (
             <article key={date} className="flex flex-col gap-4">
               {/* Date heading — links to the day view */}
-              <Link
-                href={`/trips/${tripId}/day/${date}`}
-                className="group inline-flex items-baseline gap-2 hover:opacity-80"
-              >
-                <h3 className="font-display text-xl font-semibold text-foreground group-hover:text-primary transition-colors">
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/trips/${tripId}/day/${date}`}
+                  className="font-display text-sm font-bold text-foreground hover:opacity-80"
+                >
                   {formatLongDate(date)}
-                </h3>
-                <span className="text-xs text-muted-foreground">
-                  View day →
-                </span>
-              </Link>
+                </Link>
+                <span className="h-px flex-1 bg-border" aria-hidden="true" />
+              </div>
 
               {/* Body */}
               {entry ? (
-                <div className="rounded-xl border border-border bg-card px-5 py-4">
+                <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
                   <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
                     {entry.body}
                   </p>
                   <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
                     {entry.author.name ? (
-                      <span>{entry.author.name}</span>
-                    ) : null}
-                    <span>·</span>
-                    <time dateTime={entry.updatedAt.toISOString()}>
-                      {relativeTime(entry.updatedAt)}
-                    </time>
+                      <>
+                        <span className="flex size-6 items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-secondary-foreground">
+                          {entry.author.name.charAt(0).toUpperCase()}
+                        </span>
+                        <span>{entry.author.name} · {relativeTime(entry.updatedAt)}</span>
+                      </>
+                    ) : (
+                      <time dateTime={entry.updatedAt.toISOString()}>
+                        {relativeTime(entry.updatedAt)}
+                      </time>
+                    )}
                   </div>
                 </div>
               ) : null}
 
               {/* Photo grid */}
               {dayPhotos.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {dayPhotos.map((photo) => (
                     <a
                       key={photo.id}
@@ -131,13 +134,12 @@ export default async function JournalPage({
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-label={`View photo ${photo.filename}`}
-                      className="overflow-hidden rounded-lg"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={photo.url}
                         alt={photo.filename}
-                        className="h-28 w-28 object-cover transition-opacity hover:opacity-80 sm:h-36 sm:w-36"
+                        className="h-24 w-full rounded-xl object-cover transition-opacity hover:opacity-80"
                       />
                     </a>
                   ))}

@@ -261,8 +261,8 @@ describe("CompareTable — responsive layout visibility gates", () => {
   it("mobile cards contain one card per plan", () => {
     const { container } = render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
     const mobileBlock = container.querySelector(".sm\\:hidden");
-    // Each plan gets a rounded-2xl card
-    const cards = mobileBlock?.querySelectorAll(".rounded-2xl");
+    // Each plan gets a rounded-3xl card
+    const cards = mobileBlock?.querySelectorAll(".rounded-3xl");
     expect(cards?.length).toBe(2);
   });
 });

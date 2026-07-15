@@ -8,7 +8,7 @@ export interface DayFeasibilityEntry {
 export function DayFeasibility({ entries }: { entries: DayFeasibilityEntry[] }) {
   if (entries.length === 0) return null;
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-border bg-card px-4 py-3">
+    <div className="flex flex-col gap-2 rounded-2xl border border-border bg-card px-4 py-3">
       <h3 className="text-sm font-medium text-muted-foreground">Getting around</h3>
       {entries.map((e, i) => (
         <p

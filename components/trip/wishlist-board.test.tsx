@@ -476,6 +476,6 @@ describe("WishlistBoard — Globe suggestions strip", () => {
       />,
     );
 
-    expect(await screen.findByRole("heading", { name: /suggested from your globe/i })).toBeInTheDocument();
+    expect(await screen.findByText(/from your globe/i)).toBeInTheDocument();
   });
 });

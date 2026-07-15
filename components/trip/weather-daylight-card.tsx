@@ -1,3 +1,4 @@
+import { Sun } from "lucide-react";
 import type { DayWeather } from "@/lib/weather";
 
 interface DaylightProps {
@@ -27,26 +28,53 @@ function formatDayLength(minutes: number): string {
 }
 
 export function WeatherDaylightCard({ weather, daylight }: Props) {
+  const hasBothBlocks = weather !== null;
+
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3 flex flex-col gap-3">
-      {/* Weather section */}
-      {weather && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-foreground">
-            {weather.highC}° / {weather.lowC}°C
-          </span>
-          <span className="text-sm text-muted-foreground">{weather.label}</span>
-          {weather.source === "typical" && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-              typical
+    <div>
+      {/* Gradient card */}
+      <div className="flex gap-3 rounded-2xl bg-gradient-to-br from-sky-500 to-teal-500 p-4 text-white shadow-soft-lg">
+        {/* Left block: weather (only when weather is present) */}
+        {weather && (
+          <div className="flex flex-1 flex-col gap-1">
+            <Sun className="size-6 shrink-0" aria-hidden />
+            <span className="font-display text-2xl font-bold">
+              {weather.highC}° / {weather.lowC}°
             </span>
+            <span className="text-xs opacity-90">
+              {weather.label}
+              {weather.source === "typical" && " · typical"}
+            </span>
+          </div>
+        )}
+
+        {/* Divider — only when both blocks present */}
+        {hasBothBlocks && (
+          <div className="w-px self-stretch bg-white/30" aria-hidden />
+        )}
+
+        {/* Right block: daylight */}
+        <div className="flex flex-1 flex-col justify-center gap-1 text-xs font-semibold">
+          {daylight.polarDay ? (
+            <span>Daylight all day</span>
+          ) : daylight.polarNight ? (
+            <span>Polar night</span>
+          ) : (
+            <>
+              <span>↑ {daylight.sunrise} sunrise</span>
+              <span>↓ {daylight.sunset} sunset</span>
+              <span className="opacity-85">
+                {formatDayLength(daylight.dayLengthMin)} daylight
+                {daylight.tzLabel ? ` ${daylight.tzLabel}` : ""}
+              </span>
+            </>
           )}
         </div>
-      )}
+      </div>
 
-      {/* Attribution — shown only when weather data is present */}
+      {/* Attribution — legally required, shown when weather data is present */}
       {weather && (
-        <p className="text-xs text-muted-foreground">
+        <p className="mt-1 text-[10px] text-muted-foreground">
           <a
             href="https://open-meteo.com/"
             target="_blank"
@@ -57,21 +85,6 @@ export function WeatherDaylightCard({ weather, daylight }: Props) {
           </a>
         </p>
       )}
-
-      {/* Daylight section */}
-      <div className="text-sm text-muted-foreground">
-        {daylight.polarDay ? (
-          <span>Daylight all day</span>
-        ) : daylight.polarNight ? (
-          <span>Polar night</span>
-        ) : (
-          <span>
-            ☀ {daylight.sunrise} – {daylight.sunset}
-            {daylight.tzLabel ? ` ${daylight.tzLabel}` : ""} ·{" "}
-            {formatDayLength(daylight.dayLengthMin)} of light
-          </span>
-        )}
-      </div>
     </div>
   );
 }
