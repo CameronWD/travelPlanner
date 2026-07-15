@@ -60,6 +60,10 @@ interface PhasePlanningProps {
   phase: TripPhase; // "planning" | "final-prep"
 }
 
+/** Exported for className assertion in tests — must match the JSX below. */
+export const PLANNING_DESKTOP_GRID_CLASS =
+  "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
+
 export async function PhasePlanning({
   tripId,
   trip,
@@ -337,7 +341,7 @@ export async function PhasePlanning({
   return (
     <div className="flex flex-col gap-6">
       {hero}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+      <div className={PLANNING_DESKTOP_GRID_CLASS} data-testid="planning-desktop-grid">
         <div className="flex flex-col gap-6">
           {route}
           {nextSteps}

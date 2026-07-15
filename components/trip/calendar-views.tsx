@@ -198,7 +198,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems 
               </div>
 
               {wishlistItems.length > 0 && (
-                <aside className="lg:w-56 lg:shrink-0">
+                <aside className="lg:w-64 lg:shrink-0">
                   <button
                     type="button"
                     onClick={() => setRailOpen((o) => !o)}
