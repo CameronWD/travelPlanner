@@ -62,4 +62,19 @@ describe("CountdownHero", () => {
     expect(screen.getByText("1 night")).toBeInTheDocument();
     expect(screen.getByText("1 stop")).toBeInTheDocument();
   });
+
+  it("applies lg:text-7xl to the countdown number on desktop", () => {
+    render(
+      <CountdownHero
+        description={planning}
+        startDate="2026-07-20"
+        endDate="2026-07-30"
+        nights={11}
+        stopCount={3}
+        homeCurrency="JPY"
+      />,
+    );
+    const numberElement = screen.getByLabelText("26 days to go").querySelector("span");
+    expect(numberElement?.className).toContain("lg:text-7xl");
+  });
 });

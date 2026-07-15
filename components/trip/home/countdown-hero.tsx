@@ -57,7 +57,7 @@ export function CountdownHero({
       </div>
 
       <div role="img" aria-label={ariaCountdown} className="relative mt-3.5 flex items-baseline gap-3">
-        <span className="font-display text-6xl font-bold leading-[0.9] tracking-[-0.03em]">
+        <span className="font-display text-6xl lg:text-7xl font-bold leading-[0.9] tracking-[-0.03em]">
           {description.countdownValue}
         </span>
         {description.countdownUnit && (
