@@ -91,7 +91,22 @@ export default async function AppLayout({
               label
             ) : (
               <>
-                <span aria-hidden="true">🛖</span>
+                <svg
+                  data-testid="tent-icon"
+                  aria-hidden="true"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="24"
+                  height="24"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  className="size-6 text-primary"
+                >
+                  <path d="M12 3 4 21M12 3l8 18M8.5 12h7M10 21l2-5 2 5" />
+                </svg>
                 TEEPEE
               </>
             )}

@@ -129,4 +129,18 @@ describe("AppLayout", () => {
     expect(document.querySelector(".discreet")).toBeInTheDocument();
     expect(screen.getByTestId("discreet-toggle")).toHaveAttribute("data-discreet", "true");
   });
+
+  it("renders the tent SVG in normal mode", async () => {
+    vi.mocked(getDiscreetState).mockResolvedValue({ discreet: false, label: "Workspace" });
+    const ui = await AppLayout({ children: <div /> });
+    const { container } = render(ui as React.ReactElement);
+    expect(container.querySelector("svg[data-testid='tent-icon']")).toBeInTheDocument();
+  });
+
+  it("does NOT render the tent SVG in discreet mode", async () => {
+    vi.mocked(getDiscreetState).mockResolvedValue({ discreet: true, label: "Q3 Tracker" });
+    const ui = await AppLayout({ children: <div /> });
+    const { container } = render(ui as React.ReactElement);
+    expect(container.querySelector("svg[data-testid='tent-icon']")).not.toBeInTheDocument();
+  });
 });

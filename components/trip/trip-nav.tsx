@@ -73,7 +73,7 @@ export function TripNav({ tripId }: TripNavProps) {
                 "relative shrink-0 px-4 py-3 text-sm font-medium transition-colors",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
                 active
-                  ? "text-foreground"
+                  ? "text-primary"
                   : "text-muted-foreground hover:text-foreground/80",
               )}
               aria-current={active ? "page" : undefined}
