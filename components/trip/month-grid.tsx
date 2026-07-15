@@ -10,16 +10,7 @@ import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { TransportMode } from "@/lib/enums";
 import type { DayPlan } from "@/lib/itinerary";
 import { PACKED_DAY_THRESHOLD } from "@/lib/flags";
-
-/** Subtle left-border colour per stop, keyed by stop.sortOrder (purge-safe static strings). */
-const STOP_BAND_CLASSES = [
-  "border-l-sky-400",
-  "border-l-amber-400",
-  "border-l-emerald-400",
-  "border-l-violet-400",
-  "border-l-rose-400",
-  "border-l-teal-400",
-];
+import { stopBandBorderClass } from "@/lib/stop-colours";
 
 
 export interface MonthGridProps {
@@ -71,7 +62,7 @@ export function MonthGrid({
           const dayNum = parseISODate(cell.dateISO).getUTCDate();
           const bandClass =
             active && day?.stop
-              ? STOP_BAND_CLASSES[day.stop.sortOrder % STOP_BAND_CLASSES.length]
+              ? stopBandBorderClass(day.stop.sortOrder)
               : "border-l-transparent";
 
           const timed = day?.timedItems ?? [];
