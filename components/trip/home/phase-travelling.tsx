@@ -370,12 +370,14 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
     <div className="flex flex-col gap-6">
       {/* ── Header ── */}
       <div className="flex flex-col gap-1">
-        <h2 className="font-display text-2xl font-semibold text-foreground">
-          Today
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          {formatLongDate(effectiveDate)}
-        </p>
+        <div className="flex items-baseline gap-2">
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
+            Today
+          </h2>
+          <span className="text-sm text-muted-foreground">
+            {formatLongDate(effectiveDate)}
+          </span>
+        </div>
 
         {/* Day / chapter context label */}
         {isWithinTrip && (
@@ -409,10 +411,10 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
             Where you are
           </h3>
-          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
+          <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-soft">
             <MapPin className="size-5 shrink-0 text-primary" aria-hidden="true" />
             <div className="flex min-w-0 flex-1 items-center gap-2">
-              <span className="font-display text-lg font-semibold text-foreground">
+              <span className="font-display text-base font-bold text-foreground">
                 {effectiveStop.name}
               </span>
               {effectiveStop.country && (
@@ -465,7 +467,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         {/* Day map (collapsed toggle) */}
         <DayMapPanel tripId={tripId} model={dayMapModel} />
 
-        <div className="rounded-xl border border-border bg-card p-5">
+        <div className="rounded-2xl border border-border bg-card p-5">
           {dayPlan ? (
             <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} />
           ) : (
@@ -485,12 +487,12 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
             Tonight&apos;s stay
           </h3>
-          <div className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3">
-            <Bed className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+          <div className="flex items-start gap-3 rounded-2xl bg-emerald-50 px-4 py-3 dark:bg-emerald-950/20">
+            <Bed className="mt-0.5 size-5 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
             <div className="min-w-0 flex-1">
-              <p className="font-medium text-foreground">{tonightAccom.name}</p>
+              <p className="font-medium text-emerald-900 dark:text-emerald-100">{tonightAccom.name}</p>
               {tonightAccom.address && (
-                <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+                <div className="mt-0.5 flex items-center gap-1 text-xs text-emerald-700/80 dark:text-emerald-300/70">
                   <span className="truncate">{tonightAccom.address}</span>
                   <MapLink
                     lat={tonightAccom.lat}
