@@ -28,6 +28,8 @@ import { ItemFormDialog, type StopOption } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { stopBandBorderClass, stopPillClass } from "@/lib/stop-colours";
+import { categoryDotClass } from "./category-dot";
 
 export interface StopCardStop {
   id: string;
@@ -255,10 +257,11 @@ export function StopCard({
   return (
     <div
       className={cn(
-        "group relative flex flex-col gap-3 rounded-2xl border bg-card p-5 shadow-soft transition-shadow hover:shadow-soft-lg",
+        "group relative flex flex-col gap-3 rounded-2xl border border-l-4 bg-card p-5 shadow-soft transition-shadow hover:shadow-soft-lg",
         isRough
-          ? "border-l-4 border-dashed border-border/70 bg-card/60"
+          ? "border-dashed border-border/70 bg-card/60"
           : "border-border",
+        stopBandBorderClass(stop.sortOrder),
         isPending && "opacity-60 pointer-events-none",
       )}
     >
@@ -416,16 +419,17 @@ export function StopCard({
       {/* Rough draft badge OR scheduled dates + nights */}
       {isRough ? (
         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-border bg-muted/50 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-            <Clock className="size-3.5 shrink-0" aria-hidden="true" />
-            {(() => {
-              const n = stop.nights ?? 1;
-              return `~${n} ${n === 1 ? "night" : "nights"}`;
-            })()}
+          <span
+            className={cn(
+              "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold border border-dashed border-border/70",
+              stopPillClass(stop.sortOrder),
+            )}
+          >
+            ~{stop.nights ?? 1}n
           </span>
         </div>
       ) : (
-        <DatedMeta arriveDate={stop.arriveDate!} departDate={stop.departDate!} timezone={stop.timezone} />
+        <DatedMeta arriveDate={stop.arriveDate!} departDate={stop.departDate!} timezone={stop.timezone} sortOrder={stop.sortOrder} />
       )}
 
       {/* Notes preview */}
@@ -440,10 +444,25 @@ export function StopCard({
         <>
           {/* List of existing things to do */}
           {thingsToDo && thingsToDo.length > 0 && (
-            <ul className="flex flex-col gap-1 border-t border-border/40 pt-2">
+            <ul className="flex flex-col gap-1.5 border-t border-border/40 pt-2">
               {thingsToDo.map((thing) => (
-                <li key={thing.id} className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm text-foreground">{thing.title}</span>
+                <li key={thing.id} className="flex items-center gap-2">
+                  {/* Category/stop hue dot */}
+                  <span
+                    data-testid="thing-dot"
+                    className={cn(
+                      "size-2 shrink-0 rounded-full",
+                      categoryDotClass(thing.category),
+                    )}
+                    aria-hidden="true"
+                  />
+                  <span className="flex-1 truncate text-sm text-foreground">{thing.title}</span>
+                  {/* Right-aligned time when item is timed */}
+                  {thing.startTime && (
+                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                      {thing.startTime}
+                    </span>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -474,12 +493,12 @@ export function StopCard({
             </ul>
           )}
 
-          {/* Add a thing to do button */}
+          {/* Add a thing to do — coral text link (D3 design) */}
           <div>
             <Button
               variant="ghost"
               size="sm"
-              className="h-7 text-xs text-muted-foreground hover:text-foreground"
+              className="h-7 px-0 text-xs text-primary hover:text-primary/80 hover:bg-transparent"
               disabled={isPending}
               onClick={() => setAddThingOpen(true)}
             >
@@ -560,10 +579,12 @@ function DatedMeta({
   arriveDate,
   departDate,
   timezone,
+  sortOrder,
 }: {
   arriveDate: string;
   departDate: string;
   timezone: string | null;
+  sortOrder: number;
 }) {
   const nights = nightsBetween(arriveDate, departDate);
   const dateRange = formatDateRange(arriveDate, departDate);
@@ -580,13 +601,16 @@ function DatedMeta({
           </span>
         )}
       </div>
+      {/* Compact "Nn" nights pill (D3 design) */}
       {nights > 0 && (
-        <div className="flex items-center gap-1.5">
-          <Clock className="size-3.5 shrink-0" aria-hidden="true" />
-          <span>
-            {nights} {nights === 1 ? "night" : "nights"}
-          </span>
-        </div>
+        <span
+          className={cn(
+            "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold",
+            stopPillClass(sortOrder),
+          )}
+        >
+          {nights}n
+        </span>
       )}
       {nights === 0 && (
         <div className="flex items-center gap-1.5">

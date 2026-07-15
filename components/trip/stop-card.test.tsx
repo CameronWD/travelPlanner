@@ -34,9 +34,10 @@ const base = { id: "a", name: "Rome", country: "Italy", sortOrder: 0, chapterId:
 const roughStop = { ...base, timezone: null, arriveDate: null, departDate: null, nights: 3, pinned: false };
 const scheduledStop = { ...base, timezone: "Europe/Rome", arriveDate: "2026-07-10", departDate: "2026-07-13", nights: null, pinned: false };
 
-it("shows a nights badge for a rough stop and no date range", () => {
+it("shows a compact nights pill for a rough stop and no date range", () => {
   render(<StopCard stop={{ ...base, timezone: null, arriveDate: null, departDate: null, nights: 3, pinned: false }} isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} onDelete={() => {}} />);
-  expect(screen.getByText(/3 nights/i)).toBeInTheDocument();
+  // Task 10: "N nights" text replaced with compact "~Nn" pill
+  expect(screen.getByText(/^~?3n$/)).toBeInTheDocument();
 });
 
 it("shows the date range and a pin control for a scheduled stop", () => {
@@ -421,5 +422,127 @@ describe("StopCard mobile actions", () => {
     await user.click(await screen.findByRole("menuitem", { name: /Delete/ }));
 
     expect(onDelete).toHaveBeenCalledWith("stop-1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 10: StopCard hue band + "Nn" pill + things-to-do dots
+// ---------------------------------------------------------------------------
+
+describe("Task 10 — StopCard Bold-Modular anatomy", () => {
+  it("scheduled stop card has a left hue border class from stopBandBorderClass(sortOrder)", () => {
+    // sortOrder 0 → sky palette → border-l-sky-400
+    const { container } = render(
+      <StopCard
+        stop={{ ...scheduledStop, sortOrder: 0 }}
+        isFirst={false}
+        isLast={false}
+      />,
+    );
+    const card = container.firstChild as HTMLElement;
+    expect(card.className).toMatch(/border-l-sky-400/);
+    expect(card.className).toMatch(/border-l-4/);
+  });
+
+  it("rough stop card also gets the hue border class (dashed + hued)", () => {
+    // sortOrder 1 → amber palette → border-l-amber-400
+    const { container } = render(
+      <StopCard
+        stop={{ ...roughStop, sortOrder: 1 }}
+        isFirst={false}
+        isLast={false}
+      />,
+    );
+    const card = container.firstChild as HTMLElement;
+    expect(card.className).toMatch(/border-l-amber-400/);
+    expect(card.className).toMatch(/border-l-4/);
+    // Still dashed for rough stops
+    expect(card.className).toMatch(/border-dashed/);
+  });
+
+  it("renders a compact 'Nn' nights pill (e.g. '3n') for a rough stop", () => {
+    render(
+      <StopCard
+        stop={{ ...roughStop, nights: 3, sortOrder: 0 }}
+        isFirst={false}
+        isLast={false}
+      />,
+    );
+    // Should show "3n" pill text
+    expect(screen.getByText(/^~?3n$/)).toBeInTheDocument();
+  });
+
+  it("renders a compact 'Nn' nights pill for a scheduled stop", () => {
+    // 3 nights between Jul 10 and Jul 13
+    render(
+      <StopCard
+        stop={{ ...scheduledStop, sortOrder: 0 }}
+        isFirst={false}
+        isLast={false}
+      />,
+    );
+    // 3 nights between Jul 10–13 → "3n"
+    expect(screen.getByText(/^3n$/)).toBeInTheDocument();
+  });
+
+  it("things-to-do rows render a leading hue dot element", () => {
+    const thingsToDo = [
+      { id: "ttd-1", title: "Visit the Colosseum", category: "SIGHTSEEING", date: null, stopId: "a" },
+    ];
+    const { container } = render(
+      <StopCard
+        stop={{ ...roughStop, sortOrder: 0 }}
+        isFirst={false}
+        isLast={false}
+        tripId="trip-1"
+        stops={[{ id: "a", name: "Rome" }]}
+        thingsToDo={thingsToDo}
+        forkId={null}
+      />,
+    );
+    // Should contain a dot span with a bg colour class
+    const dots = container.querySelectorAll("[data-testid='thing-dot']");
+    expect(dots.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("'+ Add thing to do' link has text-primary class (coral styling)", () => {
+    render(
+      <StopCard
+        stop={roughStop}
+        isFirst={false}
+        isLast={false}
+        tripId="trip-1"
+        stops={[{ id: "a", name: "Rome" }]}
+        thingsToDo={[]}
+        forkId={null}
+      />,
+    );
+    const btn = screen.getByRole("button", { name: /add thing to do/i });
+    expect(btn.className).toMatch(/text-primary/);
+  });
+
+  it("things-to-do row shows right-aligned time when startTime is present", () => {
+    const thingsToDo = [
+      {
+        id: "ttd-timed",
+        title: "Sunrise hike",
+        category: "SIGHTSEEING",
+        date: null,
+        stopId: "a",
+        startTime: "06:00",
+      },
+    ];
+    render(
+      <StopCard
+        stop={{ ...roughStop, sortOrder: 0 }}
+        isFirst={false}
+        isLast={false}
+        tripId="trip-1"
+        stops={[{ id: "a", name: "Rome" }]}
+        thingsToDo={thingsToDo}
+        forkId={null}
+      />,
+    );
+    expect(screen.getByText("06:00")).toBeInTheDocument();
   });
 });
