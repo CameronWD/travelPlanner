@@ -77,50 +77,37 @@ export function InvitePanel({ tripId, members, pendingInvites }: InvitePanelProp
   return (
     <div className="space-y-5">
       {/* Current members */}
-      <div>
-        <h4 className="mb-3 text-sm font-medium text-muted-foreground">
-          Current members ({members.length})
-        </h4>
-        <ul className="space-y-3">
-          {members.map((m) => (
-            <li key={m.userId} className="flex items-center gap-3">
-              <Avatar className="size-9">
-                {m.user.image ? (
-                  <AvatarImage src={m.user.image} alt={m.user.name ?? "Member"} />
-                ) : null}
-                <AvatarFallback className="text-xs">
-                  {initials(m.user.name, m.user.email)}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-medium text-foreground">
-                  {m.user.name ?? m.user.email}
-                </span>
-                {m.user.name && (
-                  <span className="truncate text-xs text-muted-foreground">
-                    {m.user.email}
-                  </span>
-                )}
-              </div>
-              <Badge variant={m.role === "owner" ? "default" : "secondary"}>
+      <ul className="space-y-0">
+        {members.map((m) => (
+          <li key={m.userId} className="flex items-center gap-3 py-1.5">
+            <Avatar className="size-9">
+              {m.user.image ? (
+                <AvatarImage src={m.user.image} alt={m.user.name ?? "Member"} />
+              ) : null}
+              <AvatarFallback className="text-xs">
+                {initials(m.user.name, m.user.email)}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-sm font-medium text-foreground">
+                {m.user.name ?? m.user.email}
+              </span>
+              <span className="truncate text-xs text-muted-foreground">
                 {m.role}
-              </Badge>
-            </li>
-          ))}
-        </ul>
-      </div>
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
 
       {/* Pending invites */}
       {pendingInvites.length > 0 && (
         <div>
-          <h4 className="mb-3 text-sm font-medium text-muted-foreground">
-            Pending invites ({pendingInvites.length})
-          </h4>
           <ul className="space-y-2">
             {pendingInvites.map((invite) => (
               <li
                 key={invite.id}
-                className="flex items-center gap-3 rounded-md border border-border bg-muted/40 px-3 py-2"
+                className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 px-3 py-2"
               >
                 <Mail className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
                 <span className="flex-1 truncate text-sm text-foreground">
@@ -151,7 +138,7 @@ export function InvitePanel({ tripId, members, pendingInvites }: InvitePanelProp
           No email is sent. An Invite is created here, and access activates automatically the
           next time that person signs in with the matching email address.
         </p>
-        <form onSubmit={handleInvite} noValidate className="flex items-end gap-2">
+        <form onSubmit={handleInvite} noValidate className="flex items-end gap-2.5">
           <Field
             label="Email address"
             error={inviteError}
@@ -168,6 +155,7 @@ export function InvitePanel({ tripId, members, pendingInvites }: InvitePanelProp
           </Field>
           <Button
             type="submit"
+            variant="primary"
             size="md"
             loading={invitePending}
             disabled={!emailValue.trim()}
