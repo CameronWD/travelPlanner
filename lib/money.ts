@@ -240,9 +240,9 @@ export function formatMoneyCompact(
   currency: string,
   locale: string = "en-AU",
 ): string {
-  const decimals = decimalsFor(currency);
-  const value = amountMinor / 10 ** decimals;
   try {
+    const decimals = decimalsFor(currency);
+    const value = amountMinor / 10 ** decimals;
     return new Intl.NumberFormat(locale, {
       style: "currency",
       currency: currency.toUpperCase(),
@@ -251,7 +251,7 @@ export function formatMoneyCompact(
       currencyDisplay: "narrowSymbol",
     })
       .format(value)
-      .replace(/([KMBT])\b/g, (m) => m.toLowerCase());
+      .replace(/[KMBT]\b/g, (m) => m.toLowerCase());
   } catch {
     return formatMoney(amountMinor, currency, locale);
   }

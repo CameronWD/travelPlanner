@@ -326,8 +326,9 @@ describe("formatMoneyCompact", () => {
   });
 
   it("falls back to formatMoney for invalid currency codes", () => {
-    const result = formatMoneyCompact(123456, "INVALID");
-    expect(result).toBeTruthy();
+    expect(formatMoneyCompact(123456, "INVALID")).toBe(
+      formatMoney(123456, "INVALID"),
+    );
   });
 });
 
