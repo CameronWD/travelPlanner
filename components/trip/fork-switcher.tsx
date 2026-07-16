@@ -237,7 +237,6 @@ function DiscardDialog({ forkName, open, onOpenChange, onConfirm, isPending }: D
  * - Navigate to the Compare page
  *
  * Hidden entirely when the trip phase is travelling or past (forking not allowed).
- * Also hidden when discreet mode is on (caller must gate before rendering).
  */
 export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
   const router = useRouter();

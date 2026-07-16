@@ -5,6 +5,7 @@ import userEvent from "@testing-library/user-event";
 vi.mock("@/server/actions/transport", () => ({
   createTransport: vi.fn().mockResolvedValue({ success: true }),
   updateTransport: vi.fn().mockResolvedValue({ success: true }),
+  searchPlacesAction: vi.fn().mockResolvedValue({ status: "ok", candidates: [] }),
 }));
 vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn().mockResolvedValue({ success: true }),
@@ -44,6 +45,53 @@ const existingTransport: TransportCardTransport = {
 };
 
 // ---------------------------------------------------------------------------
+// Helper: open a LocationCombobox by its aria-label prefix and click an option
+// ---------------------------------------------------------------------------
+
+async function openComboboxAndSelectStop(
+  user: ReturnType<typeof userEvent.setup>,
+  labelPrefix: string,
+  optionText: string | RegExp,
+) {
+  // The combobox trigger button has aria-label like "From: — none —" or "To: — none —"
+  const trigger = screen.getByRole("button", { name: new RegExp(labelPrefix, "i") });
+  await user.click(trigger);
+  const option = await screen.findByRole("button", { name: optionText });
+  await user.click(option);
+}
+
+async function openComboboxAndTypePlace(
+  user: ReturnType<typeof userEvent.setup>,
+  labelPrefix: string,
+  placeName: string,
+) {
+  // Open the popover
+  const trigger = screen.getByRole("button", { name: new RegExp(labelPrefix, "i") });
+  await user.click(trigger);
+  // The search input inside the popover
+  const searchInput = await screen.findByPlaceholderText(/type to filter or search/i);
+  await user.type(searchInput, placeName);
+  // Use the "place" option that's typed in: click "Use …" button which appears
+  // when user types but no candidates (handled via the search candidates list).
+  // In our combobox, we need to search first then select a candidate.
+  // Mock returns empty candidates, so we rely on the "Use typed text" approach.
+  // Actually, the combobox doesn't have a "use typed text" button by default.
+  // We need to trigger the search and have the mock return a candidate.
+  // Re-mock searchPlacesAction to return a candidate for this search.
+  const { searchPlacesAction } = await import("@/server/actions/transport");
+  (searchPlacesAction as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+    status: "ok",
+    candidates: [{ name: placeName, lat: 0, lon: 0 }],
+  });
+  // Click the search button
+  const searchBtn = screen.getByRole("button", { name: new RegExp(`search.*${placeName}`, "i") });
+  await user.click(searchBtn);
+  // Click the candidate result
+  const candidate = await screen.findByRole("button", { name: placeName });
+  await user.click(candidate);
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -81,45 +129,34 @@ describe("TransportFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 2: valid create — correct payload shape
+  // Case 2: valid create — From stop + To place via combobox
   // -------------------------------------------------------------------------
-  it("submitting with departure + arrival places and times calls createTransport with the expected payload", async () => {
+  it("picking a From stop and a To place via combobox submits with fromStopId set and arrPlace set", async () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} />);
 
-    // Fill departure place
-    const depPlaceInput = screen.getByPlaceholderText(/heathrow t5/i);
-    await user.type(depPlaceInput, "Heathrow T5");
+    // Pick a stop for From
+    await openComboboxAndSelectStop(user, "^From:", "London");
 
-    // Fill arrival place
-    const arrPlaceInput = screen.getByPlaceholderText(/cdg terminal 2/i);
-    await user.type(arrPlaceInput, "CDG Terminal 2");
+    // Pick a place for To via search
+    await openComboboxAndTypePlace(user, "^To:", "CDG Terminal 2");
 
-    // Fill departure time (datetime-local input)
+    // Fill departure time
     const depAtInput = screen.getByLabelText(/departure time/i);
     await user.type(depAtInput, "2026-07-10T09:00");
-
-    // Fill arrival time
-    const arrAtInput = screen.getByLabelText(/arrival time/i);
-    await user.type(arrAtInput, "2026-07-10T11:30");
-
-    // Fill booking reference
-    const refInput = screen.getByPlaceholderText(/ba0123/i);
-    await user.type(refInput, "BA0123");
 
     await user.click(screen.getByRole("button", { name: /add transport/i }));
 
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({
-        mode: "FLIGHT", // default
-        depPlace: "Heathrow T5",
-        arrPlace: "CDG Terminal 2",
-        depAt: "2026-07-10T09:00",
-        arrAt: "2026-07-10T11:30",
-        reference: "BA0123",
-        fromStopId: undefined,
+        mode: "FLIGHT",
+        fromStopId: "stop-a",
+        depIsHome: false,
+        depPlace: undefined,
         toStopId: undefined,
+        arrIsHome: false,
+        arrPlace: "CDG Terminal 2",
       }),
       undefined,
     );
@@ -138,19 +175,21 @@ describe("TransportFormDialog", () => {
       screen.getByRole("heading", { name: /edit transport/i }),
     ).toBeInTheDocument();
 
-    // Update the departure place
-    const depPlaceInput = screen.getByDisplayValue("St Pancras");
-    await user.clear(depPlaceInput);
-    await user.type(depPlaceInput, "St Pancras International");
-
+    // In edit mode the form prefills from existingTransport.
+    // existingTransport has fromStopId="stop-a" (London) and depPlace="St Pancras"
+    // Per the derivation logic: edit + fromStopId → {kind:"stop"} so depPlace is ignored in initial state.
+    // toStopId="stop-b" (Paris) → {kind:"stop"}, arrPlace ignored.
+    // Just submit directly to verify the payload is correct.
     await user.click(screen.getByRole("button", { name: /save changes/i }));
 
     expect(updateTransport).toHaveBeenCalledWith(
       "transport-99",
       expect.objectContaining({
         mode: "TRAIN",
-        depPlace: "St Pancras International",
-        arrPlace: "Gare du Nord",
+        fromStopId: "stop-a",
+        toStopId: "stop-b",
+        depIsHome: false,
+        arrIsHome: false,
         reference: "TGV-123",
       }),
     );
@@ -187,10 +226,6 @@ describe("TransportFormDialog", () => {
 
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} />);
-
-    // Fill just enough to trigger a real submit
-    const depPlaceInput = screen.getByPlaceholderText(/heathrow t5/i);
-    await user.type(depPlaceInput, "Heathrow T5");
 
     await user.click(screen.getByRole("button", { name: /add transport/i }));
 
@@ -429,29 +464,136 @@ describe("TransportFormDialog", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Home base option in stop selects
+// Task 12: add-mode anchor — defaultAnchorStopId is forwarded on create
+// ---------------------------------------------------------------------------
+
+describe("TransportFormDialog: add-mode anchor (Task 12)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("passes defaultAnchorStopId as anchorStopId when creating a transport", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        defaultAnchorStopId="stop-a"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /add transport/i }));
+
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ anchorStopId: "stop-a" }),
+      undefined,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 13: "Position in plan" picker — edit mode only
+// ---------------------------------------------------------------------------
+
+describe("TransportFormDialog: position-in-plan picker (Task 13)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const transportWithAnchor: TransportCardTransport = {
+    id: "transport-99",
+    mode: "TRAIN",
+    fromStopId: "stop-a",
+    toStopId: "stop-b",
+    sortOrder: 0,
+    anchorStopId: "stop-a",
+  };
+
+  it("edit mode: selecting 'After B' submits updateTransport with anchorStopId='stop-b'", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={transportWithAnchor}
+      />,
+    );
+
+    // The "Position in plan" select should be visible in edit mode
+    const positionSelect = screen.getByRole("combobox", { name: /position in plan/i });
+    await user.click(positionSelect);
+
+    // Select "After Paris" (stop-b)
+    const afterParisOption = await screen.findByRole("option", { name: /after paris/i });
+    await user.click(afterParisOption);
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateTransport).toHaveBeenCalledWith(
+      "transport-99",
+      expect.objectContaining({ anchorStopId: "stop-b" }),
+    );
+  });
+
+  it("edit mode: selecting 'Before London' (head) submits updateTransport with anchorStopId=''", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={transportWithAnchor}
+      />,
+    );
+
+    const positionSelect = screen.getByRole("combobox", { name: /position in plan/i });
+    await user.click(positionSelect);
+
+    // Select "Before London" (head sentinel)
+    const beforeLondonOption = await screen.findByRole("option", { name: /before london/i });
+    await user.click(beforeLondonOption);
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateTransport).toHaveBeenCalledWith(
+      "transport-99",
+      expect.objectContaining({ anchorStopId: "" }),
+    );
+  });
+
+  it("add mode: position-in-plan picker is NOT shown", () => {
+    render(<TransportFormDialog {...baseProps} />);
+    expect(
+      screen.queryByRole("combobox", { name: /position in plan/i }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Home base option in LocationCombobox
 // ---------------------------------------------------------------------------
 
 describe("TransportFormDialog: homeBaseName", () => {
   // -------------------------------------------------------------------------
-  // Case 16: Home option appears in both selects when homeBaseName is set
+  // Case 16: Home option appears in From combobox when homeBaseName is set
   // -------------------------------------------------------------------------
-  it("renders a Home option in both From and To stop selects when homeBaseName is provided", async () => {
+  it("renders a Home option in the From combobox when homeBaseName is provided", async () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeBaseName="Sydney" />);
 
-    // Open the From stop select and look for the Home option
-    const fromTrigger = screen.getAllByRole("combobox")[1]; // second combobox = From stop
+    // Open the From combobox via its aria-label
+    const fromTrigger = screen.getByRole("button", { name: /^From:/i });
     await user.click(fromTrigger);
-    // Both selects include the option; we expect at least one visible instance.
-    expect((await screen.findAllByText(/🏠 Sydney/)).length).toBeGreaterThanOrEqual(1);
+
+    // Home option should appear inside the popover
+    expect(await screen.findByRole("button", { name: /🏠 Sydney/i })).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
   // Case 17: Home option NOT shown when homeBaseName is absent
   // -------------------------------------------------------------------------
-  it("does not render a Home option when homeBaseName is not provided", () => {
+  it("does not render a Home option when homeBaseName is not provided", async () => {
+    const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} />);
+
+    // Open From combobox
+    const fromTrigger = screen.getByRole("button", { name: /^From:/i });
+    await user.click(fromTrigger);
+
+    // No home emoji in the popover
     expect(screen.queryByText(/🏠/)).not.toBeInTheDocument();
   });
 
@@ -487,24 +629,18 @@ describe("TransportFormDialog: homeBaseName", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 18: Selecting Home in From stop submits depIsHome=true
+  // Case 18: Selecting Home in From combobox submits depIsHome=true
   // -------------------------------------------------------------------------
-  it("submitting with Home selected as From stop sends depIsHome=true and fromStopId=undefined", async () => {
+  it("submitting with Home selected as From location sends depIsHome=true and fromStopId=undefined", async () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeBaseName="Sydney" />);
 
-    // Open the From stop select
-    const fromTrigger = screen.getAllByRole("combobox")[1];
+    // Open the From combobox and select Home
+    const fromTrigger = screen.getByRole("button", { name: /^From:/i });
     await user.click(fromTrigger);
 
-    // Select the Home option — find the span inside the Radix dropdown listbox
-    // (not the hidden native <option>s which have pointer-events:none).
-    const homeOptions = await screen.findAllByText(/🏠 Sydney/);
-    const clickable = homeOptions.find(
-      (el) => el.tagName.toLowerCase() === "span",
-    );
-    if (!clickable) throw new Error("Home option span not found");
-    await user.click(clickable);
+    const homeOption = await screen.findByRole("button", { name: /🏠 Sydney/i });
+    await user.click(homeOption);
 
     // Submit the form
     await user.click(screen.getByRole("button", { name: /add transport/i }));

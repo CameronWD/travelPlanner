@@ -39,9 +39,11 @@ import { reorderChapters, deleteChapter } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestNextStopDates, formatDateRange, formatLongDate } from "@/lib/dates";
-import { deleteTransport } from "@/server/actions/transport";
+import { deleteTransport, reorderTransports } from "@/server/actions/transport";
+import { reorderTransportItems } from "@/lib/reorder-transports";
 import { deleteAccommodation } from "@/server/actions/accommodation";
-import { groupStopsByChapter, isTransportBetweenLegs, sortGroupStops } from "@/lib/chapters";
+import { groupStopsByChapter, sortGroupStops } from "@/lib/chapters";
+import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
 import { moveStopInOrder, moveChapterBlocks } from "@/lib/reorder";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import type { TransportMode } from "@/lib/enums";
@@ -93,6 +95,7 @@ export interface ItineraryTransport {
   mode: TransportMode;
   fromStopId?: string | null;
   toStopId?: string | null;
+  anchorStopId?: string | null;
   depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
   depPlace?: string | null;
@@ -294,6 +297,64 @@ function SortableChapterHeader({
 }
 
 /**
+ * Wraps a transport leg card in a dnd-kit sortable context.
+ * Provides a grip handle that is rendered alongside the card.
+ */
+function SortableTransport({
+  transportId,
+  anchorStopId,
+  children,
+}: {
+  transportId: string;
+  anchorStopId: string | null;
+  children: (dragHandle: React.ReactNode) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: transportId,
+    data: { type: "transport", anchorStopId },
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const dragHandle = (
+    <button
+      type="button"
+      {...listeners}
+      {...attributes}
+      aria-label="Reorder transport leg"
+      title="Drag to reorder"
+      data-testid="drag-handle-transport"
+      className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
+    >
+      <svg
+        width="10"
+        height="14"
+        viewBox="0 0 10 14"
+        aria-hidden="true"
+        className="fill-muted-foreground/60"
+      >
+        <circle cx="2" cy="2" r="1.5" />
+        <circle cx="8" cy="2" r="1.5" />
+        <circle cx="2" cy="7" r="1.5" />
+        <circle cx="8" cy="7" r="1.5" />
+        <circle cx="2" cy="12" r="1.5" />
+        <circle cx="8" cy="12" r="1.5" />
+      </svg>
+    </button>
+  );
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children(dragHandle)}
+    </div>
+  );
+}
+
+/**
  * An empty droppable container for rough chapters that have no stops.
  * Allows rough stops to be dragged into an empty rough chapter.
  */
@@ -382,14 +443,16 @@ export function ItineraryManager({
 }: ItineraryManagerProps) {
   const { confirm, dialog } = useConfirm();
 
-  // ── Local mutable copies (for optimistic drag reordering) ──
+  // ── Local mutable copies (for optimistic drag reordering + optimistic delete) ──
   // Seeded from props; the drag handlers mutate them optimistically.
   // Re-sync during render (getDerivedStateFromProps pattern) when props identity
   // changes — this is idiomatic React and avoids setState-in-effect.
   const [localStops, setLocalStops] = React.useState<ItineraryStop[]>(initialStops);
   const [localChapters, setLocalChapters] = React.useState<ItineraryChapter[]>(chapters);
+  const [localTransports, setLocalTransports] = React.useState<ItineraryTransport[]>(initialTransports);
   const [trackedInitialStops, setTrackedInitialStops] = React.useState(initialStops);
   const [trackedChapters, setTrackedChapters] = React.useState(chapters);
+  const [trackedInitialTransports, setTrackedInitialTransports] = React.useState(initialTransports);
   if (trackedInitialStops !== initialStops) {
     setTrackedInitialStops(initialStops);
     setLocalStops(initialStops);
@@ -397,6 +460,10 @@ export function ItineraryManager({
   if (trackedChapters !== chapters) {
     setTrackedChapters(chapters);
     setLocalChapters(chapters);
+  }
+  if (trackedInitialTransports !== initialTransports) {
+    setTrackedInitialTransports(initialTransports);
+    setLocalTransports(initialTransports);
   }
 
   // ── dnd-kit sensors ──
@@ -418,6 +485,7 @@ export function ItineraryManager({
   const [addTransportDefaults, setAddTransportDefaults] = React.useState<{
     fromStopId?: string;
     toStopId?: string;
+    anchorStopId?: string;
   } | null>(null);
 
   // ── Accommodation dialog state ──
@@ -651,7 +719,7 @@ export function ItineraryManager({
 
   // ── Transport handlers ──
   async function handleDeleteTransport(transportId: string) {
-    const t = initialTransports.find((tr) => tr.id === transportId);
+    const t = localTransports.find((tr) => tr.id === transportId);
     const modeLabel = t ? (TRANSPORT_MODE_META[t.mode]?.label ?? t.mode) : "transport leg";
     // Build a route identifier from place names if available.
     const routeLabel = t
@@ -670,9 +738,18 @@ export function ItineraryManager({
       destructive: true,
     });
     if (!confirmed) return;
+    const snapshot = localTransports;
+    setLocalTransports((prev) => prev.filter((tr) => tr.id !== transportId));
     setPendingId(transportId);
     try {
-      await deleteTransport(transportId);
+      const res = await deleteTransport(transportId);
+      if (!res.success) {
+        setLocalTransports(snapshot);
+        toast({ variant: "destructive", title: "Couldn't delete that transport." });
+      }
+    } catch {
+      setLocalTransports(snapshot);
+      toast({ variant: "destructive", title: "Couldn't delete that transport." });
     } finally {
       setPendingId(null);
     }
@@ -736,24 +813,15 @@ export function ItineraryManager({
   const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
   const hasChapters = localChapters.length > 0;
 
-  /** Build a stopsById lookup (used by chapter helpers) */
-  const stopsById = React.useMemo(() => {
-    const map: Record<string, ItineraryStop> = {};
-    for (const s of stops) {
-      map[s.id] = s;
-    }
-    return map;
-  }, [stops]);
-
   // ── Home base bookends (see ADR 0032) ──
   // The Home base frames the plan: its card is pinned above the first stop
   // (with the outbound leg) and, on a round trip, below the last (with the
-  // return leg). Home legs render here, NOT in the "Other transport" box.
+  // return leg). Home legs are excluded from legsBySlot via bookendLegIds.
   const hasHomeBase = Boolean(homeBaseName);
   const firstStop = stops.length > 0 ? stops[0] : null;
   const lastStop = stops.length > 0 ? stops[stops.length - 1] : null;
-  const outboundLeg = findOutboundLeg(initialTransports, firstStop?.id ?? null);
-  const returnLeg = findReturnLeg(initialTransports, lastStop?.id ?? null);
+  const outboundLeg = findOutboundLeg(localTransports, firstStop?.id ?? null);
+  const returnLeg = findReturnLeg(localTransports, lastStop?.id ?? null);
   const bookendLegIds = React.useMemo(() => {
     const ids = new Set<string>();
     if (outboundLeg) ids.add(outboundLeg.id);
@@ -762,53 +830,13 @@ export function ItineraryManager({
   }, [outboundLeg, returnLeg]);
 
   /**
-   * Transports that link consecutive stops[i] → stops[i+1].
-   * Returns a map of `${fromId}-${toId}` → transport[].
+   * Transports grouped by their anchor slot (stop id or HEAD_SLOT).
+   * Home bookend legs are excluded via bookendLegIds.
    */
-  const transportByPair = React.useMemo(() => {
-    const map = new Map<string, ItineraryTransport[]>();
-    for (const t of initialTransports) {
-      if (t.fromStopId && t.toStopId) {
-        const key = `${t.fromStopId}-${t.toStopId}`;
-        const arr = map.get(key) ?? [];
-        arr.push(t);
-        map.set(key, arr);
-      }
-    }
-    return map;
-  }, [initialTransports]);
-
-  /**
-   * Set of transport IDs that are "between-legs" (cross chapters or have a
-   * null endpoint). These are NOT rendered inline with the stop loop.
-   * When there are no chapters, every transport is intra-chapter → set is empty.
-   */
-  const betweenLegsIds = React.useMemo<Set<string>>(() => {
-    if (!hasChapters) return new Set();
-    const ids = new Set<string>();
-    for (const t of initialTransports) {
-      if (isTransportBetweenLegs(t, localChapters, stopsById)) {
-        ids.add(t.id);
-      }
-    }
-    return ids;
-  }, [initialTransports, localChapters, stopsById, hasChapters]);
-
-  /** Transports that DON'T link a consecutive pair (orphaned or partial),
-   *  excluding the home bookend legs which render in the frame instead. */
-  const otherTransports = React.useMemo(() => {
-    const consecutivePairKeys = new Set<string>();
-    for (let i = 0; i < stops.length - 1; i++) {
-      consecutivePairKeys.add(`${stops[i].id}-${stops[i + 1].id}`);
-    }
-
-    return initialTransports.filter((t) => {
-      if (bookendLegIds.has(t.id)) return false; // rendered as a home bookend
-      if (!t.fromStopId || !t.toStopId) return true; // null endpoint → other
-      const key = `${t.fromStopId}-${t.toStopId}`;
-      return !consecutivePairKeys.has(key); // non-consecutive → other
-    });
-  }, [initialTransports, stops, bookendLegIds]);
+  const legsBySlot = React.useMemo(
+    () => groupTransportsBySlot(localTransports, stops, bookendLegIds),
+    [localTransports, stops, bookendLegIds],
+  );
 
   const hasStops = stops.length > 0;
   // Show the planning UI when there are stops OR chapters. A freshly created
@@ -889,7 +917,70 @@ export function ItineraryManager({
     const { active, over } = event;
     if (!over) return;
 
-    const activeType = active.data.current?.type as "stop" | "chapter" | undefined;
+    const activeType = active.data.current?.type as "stop" | "chapter" | "transport" | undefined;
+
+    if (activeType === "transport") {
+      const activeId = active.id as string;
+      const overId = over.id as string;
+
+      // No-op: dropped on itself
+      if (activeId === overId) return;
+
+      // Determine target slot from over:
+      // - over is another transport → use its anchorStopId
+      // - over is a stop (by id match in stops) → use that stop's id
+      // - otherwise (dropped on a container/droppable) → use overId if it's a stop id, else HEAD_SLOT
+      const overTransport = localTransports.find((t) => t.id === overId);
+      const overStop = stops.find((s) => s.id === overId);
+      let targetSlot: string | null;
+      if (overTransport) {
+        targetSlot = overTransport.anchorStopId ?? null;
+      } else if (overStop) {
+        targetSlot = overStop.id;
+      } else {
+        // overStop was undefined, so overId is not a known stop → HEAD_SLOT fallback
+        targetSlot = null;
+      }
+
+      // Snapshot for revert on failure
+      const snapshot = localTransports;
+
+      const orderedStopIds = stops.map((s) => s.id);
+      const newTransports = reorderTransportItems(
+        localTransports.map((t) => ({ id: t.id, anchorStopId: t.anchorStopId ?? null, sortOrder: t.sortOrder })),
+        activeId,
+        targetSlot,
+        overId,
+        orderedStopIds,
+      );
+
+      // Apply optimistically
+      setLocalTransports((prev) =>
+        prev.map((t) => {
+          const updated = newTransports.find((u) => u.id === t.id);
+          return updated ? { ...t, anchorStopId: updated.anchorStopId, sortOrder: updated.sortOrder } : t;
+        }),
+      );
+
+      // Persist
+      const items = newTransports.map((t) => ({
+        id: t.id,
+        anchorStopId: t.anchorStopId,
+        sortOrder: t.sortOrder,
+      }));
+      try {
+        const res = await reorderTransports(tripId, items, forkId ?? undefined);
+        if (!res.success) {
+          setLocalTransports(snapshot);
+          const firstError = res.errors ? Object.values(res.errors).flat()[0] : undefined;
+          toast({ variant: "destructive", title: firstError ?? "Couldn't reorder transport legs." });
+        }
+      } catch {
+        setLocalTransports(snapshot);
+        toast({ variant: "destructive", title: "Couldn't reorder transport legs." });
+      }
+      return;
+    }
 
     if (activeType === "stop") {
       const activeId = active.id as string;
@@ -1135,15 +1226,78 @@ export function ItineraryManager({
   // Per-stop render helper (shared between grouped and flat rendering)
   // ---------------------------------------------------------------------------
 
+  // Render a single transport leg card (reused in head slot, per-stop slot, and bookend).
+  function renderLegCard(t: ItineraryTransport) {
+    return (
+      <TransportCard
+        key={t.id}
+        transport={enrichTransport(t, stops)}
+        isPending={pendingId === t.id}
+        onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
+        onDelete={handleDeleteTransport}
+        costs={t.costs}
+        tripId={tripId}
+        homeCurrency={homeCurrency}
+        homeBaseName={homeBaseName}
+        notes={notesByTransportId?.get(t.id) ?? []}
+        attachments={attachmentsByTransportId?.get(t.id) ?? []}
+        currentUserId={currentUserId}
+      />
+    );
+  }
+
+  // Render the HEAD_SLOT bucket (legs before the first stop) + the head "Add transport" button.
+  // Called at the top of both the no-chapters and chapters render paths so head-slot legs are
+  // never invisible when chapters exist.
+  function renderHeadSlot() {
+    const headLegs = legsBySlot.get(HEAD_SLOT) ?? [];
+    if (headLegs.length === 0) return null;
+    return (
+      <div className="flex flex-col gap-2 px-2">
+        <SortableContext
+          items={headLegs.map((t) => t.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {headLegs.map(renderSortableLegCard)}
+        </SortableContext>
+        <div className="flex justify-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setAddTransportDefaults({ anchorStopId: undefined })}
+          >
+            <Plus className="size-3.5" aria-hidden="true" />
+            Add transport here
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Render a transport leg card wrapped in a SortableTransport for drag-to-reorder.
+  function renderSortableLegCard(t: ItineraryTransport) {
+    return (
+      <SortableTransport
+        key={t.id}
+        transportId={t.id}
+        anchorStopId={t.anchorStopId ?? null}
+      >
+        {(dragHandle) => (
+          <div className="flex items-start gap-1">
+            {dragHandle}
+            <div className="flex-1 min-w-0">
+              {renderLegCard(t)}
+            </div>
+          </div>
+        )}
+      </SortableTransport>
+    );
+  }
+
   function renderStop(stop: ItineraryStop, globalIdx: number, isFirst: boolean, isLast: boolean) {
     const nextStop = isLast ? null : stops[globalIdx + 1];
-
-    // When chapters exist, filter out between-legs transports from inline render.
-    const legTransports = nextStop
-      ? (transportByPair.get(`${stop.id}-${nextStop.id}`) ?? []).filter(
-          (t) => !betweenLegsIds.has(t.id) && !bookendLegIds.has(t.id),
-        )
-      : [];
+    const slotLegs = legsBySlot.get(stop.id) ?? [];
 
     const stopCard = (dragHandle?: React.ReactNode) => (
       <StopCard
@@ -1223,43 +1377,53 @@ export function ItineraryManager({
           </div>
         )}
 
-        {/* Transport legs to next stop (intra-chapter only when chapters exist) */}
-        {!isLast && (
+        {/* Anchor-slot transport legs for this stop — rendered unconditionally
+            (an anchored leg can sit under the final stop too). */}
+        {(slotLegs.length > 0 || !isLast) && (
           <div className="flex flex-col gap-2 px-2">
-            {legTransports.map((t) => (
-              <TransportCard
-                key={t.id}
-                transport={enrichTransport(t, stops)}
-                isPending={pendingId === t.id}
-                onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
-                onDelete={handleDeleteTransport}
-                costs={t.costs}
-                tripId={tripId}
-                homeCurrency={homeCurrency}
-                homeBaseName={homeBaseName}
-                notes={notesByTransportId?.get(t.id) ?? []}
-                attachments={attachmentsByTransportId?.get(t.id) ?? []}
-                currentUserId={currentUserId}
-              />
-            ))}
+            <SortableContext
+              items={slotLegs.map((t) => t.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {slotLegs.map(renderSortableLegCard)}
+            </SortableContext>
 
-            {/* Add transport between this pair */}
+            {/* Add transport between this stop and the next (only makes sense
+                when there is a next stop). */}
+            {/* "Add transport here" ghost button — lands in this stop's anchor slot */}
             <div className="flex justify-center">
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-8 text-xs text-muted-foreground hover:text-foreground"
                 onClick={() =>
-                  setAddTransportDefaults({
-                    fromStopId: stop.id,
-                    toStopId: nextStop!.id,
-                  })
+                  setAddTransportDefaults({ anchorStopId: stop.id })
                 }
               >
                 <Plus className="size-3.5" aria-hidden="true" />
-                Add Transport to {nextStop!.name}
+                Add transport here
               </Button>
             </div>
+
+            {!isLast && (
+              <div className="flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() =>
+                    setAddTransportDefaults({
+                      fromStopId: stop.id,
+                      toStopId: nextStop!.id,
+                      anchorStopId: stop.id,
+                    })
+                  }
+                >
+                  <Plus className="size-3.5" aria-hidden="true" />
+                  Add Transport to {nextStop!.name}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </React.Fragment>
@@ -1268,56 +1432,7 @@ export function ItineraryManager({
 
   // Render a home bookend leg (outbound/return) as a normal, fully-editable card.
   function renderBookendLeg(t: ItineraryTransport) {
-    return (
-      <TransportCard
-        transport={enrichTransport(t, stops)}
-        isPending={pendingId === t.id}
-        onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
-        onDelete={handleDeleteTransport}
-        costs={t.costs}
-        tripId={tripId}
-        homeCurrency={homeCurrency}
-        homeBaseName={homeBaseName}
-        notes={notesByTransportId?.get(t.id) ?? []}
-        attachments={attachmentsByTransportId?.get(t.id) ?? []}
-        currentUserId={currentUserId}
-      />
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Seam render helper — renders cross-chapter transports between two groups
-  // ---------------------------------------------------------------------------
-
-  function renderSeam(
-    lastStopOfPrevGroup: ItineraryStop,
-    firstStopOfNextGroup: ItineraryStop,
-  ) {
-    const seamKey = `${lastStopOfPrevGroup.id}-${firstStopOfNextGroup.id}`;
-    const seamTransports = (transportByPair.get(seamKey) ?? []).filter((t) =>
-      betweenLegsIds.has(t.id) && !bookendLegIds.has(t.id),
-    );
-    if (seamTransports.length === 0) return null;
-    return (
-      <div key={`seam-${seamKey}`} className="flex flex-col gap-2 px-2">
-        {seamTransports.map((t) => (
-          <TransportCard
-            key={t.id}
-            transport={enrichTransport(t, stops)}
-            isPending={pendingId === t.id}
-            onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
-            onDelete={handleDeleteTransport}
-            costs={t.costs}
-            tripId={tripId}
-            homeCurrency={homeCurrency}
-            homeBaseName={homeBaseName}
-            notes={notesByTransportId?.get(t.id) ?? []}
-            attachments={attachmentsByTransportId?.get(t.id) ?? []}
-            currentUserId={currentUserId}
-          />
-        ))}
-      </div>
-    );
+    return renderLegCard(t);
   }
 
   // ---------------------------------------------------------------------------
@@ -1403,6 +1518,8 @@ export function ItineraryManager({
                     </Button>
                   </div>
                 )}
+                {/* HEAD_SLOT legs: transports that belong before the first stop */}
+                {renderHeadSlot()}
                 <SortableContext
                   items={stops.map((s) => s.id)}
                   strategy={verticalListSortingStrategy}
@@ -1417,13 +1534,14 @@ export function ItineraryManager({
               </>
             ) : (
               // ── Chapters path: grouped rendering with seams ──
-              // Wrap chapter groups in a SortableContext for chapter-level drag.
-              // ADR 0021: both rough and dated populated chapters are draggable;
-              // empty chapters remain non-reorderable via EmptyRoughDroppable.
+              <>
+                {/* HEAD_SLOT legs: visible even when chapters exist */}
+                {renderHeadSlot()}
+              {/* Wrap chapter groups in a SortableContext for chapter-level drag.
+                  ADR 0021: both rough and dated populated chapters are draggable;
+                  empty chapters remain non-reorderable via EmptyRoughDroppable. */}
               <SortableContext items={populatedChapterIds} strategy={verticalListSortingStrategy}>
                 {groups.map((group, groupIdx) => {
-                  const isFirstGroup = groupIdx === 0;
-                  const prevGroup = isFirstGroup ? null : groups[groupIdx - 1];
                   const groupKey = group.chapter?.id ?? "ungrouped";
                   const isCollapsed = collapsedGroups.has(groupKey);
                   const isRoughChapter = group.chapter ? group.chapter.startDate === null : false;
@@ -1432,13 +1550,6 @@ export function ItineraryManager({
 
                   return (
                     <React.Fragment key={groupKey + "-" + groupIdx}>
-                      {/* Seam: cross-chapter transports between prev group and this group */}
-                      {!isFirstGroup && prevGroup && prevGroup.stops.length > 0 && group.stops.length > 0 &&
-                        renderSeam(
-                          prevGroup.stops[prevGroup.stops.length - 1],
-                          group.stops[0],
-                        )
-                      }
 
                       {/* Chapter group header (only when group has a chapter) */}
                       {group.chapter ? (
@@ -1603,6 +1714,7 @@ export function ItineraryManager({
                   );
                 })}
               </SortableContext>
+              </>
             )}
 
             {/* Empty chapters: a freshly created chapter holds no stops yet, so
@@ -1701,39 +1813,6 @@ export function ItineraryManager({
               })()}
           </div>
 
-          {/* Other transports (not linked to consecutive stops, or home bookends) */}
-          {otherTransports.length > 0 && (
-            <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4">
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">
-                  Other transport
-                </h3>
-                <p
-                  className="text-xs text-muted-foreground/70"
-                  title="These legs cross chapter boundaries or have an unlinked endpoint, so they're shown separately rather than between two stops."
-                >
-                  Between-chapter or unlinked legs
-                </p>
-              </div>
-              {otherTransports.map((t) => (
-                <TransportCard
-                  key={t.id}
-                  transport={enrichTransport(t, stops)}
-                  isPending={pendingId === t.id}
-                  onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
-                  onDelete={handleDeleteTransport}
-                  costs={t.costs}
-                  tripId={tripId}
-                  homeCurrency={homeCurrency}
-                  homeBaseName={homeBaseName}
-                  notes={notesByTransportId?.get(t.id) ?? []}
-                  attachments={attachmentsByTransportId?.get(t.id) ?? []}
-                  currentUserId={currentUserId}
-                />
-              ))}
-            </div>
-          )}
-
           {/* Home base return bookend (round trips only) */}
           {hasHomeBase && roundTrip && lastStop && (
             <div className="flex flex-col gap-3">
@@ -1765,10 +1844,10 @@ export function ItineraryManager({
               variant="ghost"
               size="sm"
               className="text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setAddTransportDefaults({})}
+              onClick={() => setAddTransportDefaults({ anchorStopId: lastStop?.id })}
             >
               <Plus className="size-3.5" aria-hidden="true" />
-              Add Transport (Other)
+              Add transport
             </Button>
 
             <div className="flex items-center gap-2">
@@ -1859,6 +1938,7 @@ export function ItineraryManager({
           stops={stopOptions}
           defaultFromStopId={addTransportDefaults.fromStopId}
           defaultToStopId={addTransportDefaults.toStopId}
+          defaultAnchorStopId={addTransportDefaults.anchorStopId}
           open={true}
           onOpenChange={(open) => {
             if (!open) setAddTransportDefaults(null);

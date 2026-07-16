@@ -31,6 +31,7 @@ vi.mock("@/server/actions/transport", () => ({
   deleteTransport: vi.fn().mockResolvedValue({ success: true }),
   createTransport: vi.fn().mockResolvedValue({ success: true }),
   updateTransport: vi.fn().mockResolvedValue({ success: true }),
+  reorderTransports: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 vi.mock("@/server/actions/accommodation", () => ({
@@ -74,11 +75,11 @@ vi.mock("@/components/ui/use-toast", async (importOriginal) => {
 });
 
 import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop } from "@/server/actions/stops";
-import { createTransport } from "@/server/actions/transport";
+import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation } from "@/server/actions/accommodation";
 import { createChapter, deleteChapter } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
-import { ItineraryManager, summariseReorder, type ItineraryStop } from "./itinerary-manager";
+import { ItineraryManager, summariseReorder, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -884,8 +885,8 @@ describe("fork-aware createTransport", () => {
       />,
     );
 
-    // Open transport dialog via the "Add transport (other)" button
-    await user.click(screen.getByRole("button", { name: /add transport \(other\)/i }));
+    // Open transport dialog via the "Add transport" button at the bottom
+    await user.click(screen.getAllByRole("button", { name: /^add transport$/i })[0]);
 
     // The form has a mode select; FLIGHT is the default so we can submit directly.
     // Fill in the dep place to satisfy some minimal input.
@@ -1305,5 +1306,288 @@ describe("home base bookends", () => {
       />,
     );
     expect(screen.queryByText(/Trip ends here/i)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 5: Optimistic transport delete
+// ---------------------------------------------------------------------------
+
+describe("optimistic transport delete", () => {
+  function makeTransportBetweenStops(
+    fromStopId: string,
+    toStopId: string,
+    overrides: Partial<ItineraryTransport> = {},
+  ): ItineraryTransport {
+    return {
+      id: "tr-opt-1",
+      mode: "FLIGHT",
+      fromStopId,
+      toStopId,
+      depIsHome: false,
+      arrIsHome: false,
+      depPlace: "Sydney",
+      arrPlace: "Paris",
+      depAt: null,
+      arrAt: null,
+      reference: null,
+      notes: null,
+      sortOrder: 0,
+      costs: [],
+      ...overrides,
+    };
+  }
+
+  it("optimistically removes a transport on delete (no prop change needed)", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    const transport = makeTransportBetweenStops("s-a", "s-b");
+
+    vi.mocked(deleteTransport).mockResolvedValueOnce({ success: true });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+        initialTransports={[transport]}
+      />,
+    );
+
+    // The transport card heading must be visible initially
+    expect(await screen.findByTestId("transport-heading")).toBeInTheDocument();
+
+    // Click the transport's delete button (aria-label="Delete Transport" from RowActions)
+    await user.click(screen.getByRole("button", { name: "Delete Transport" }));
+
+    // Confirm the dialog
+    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
+    await user.click(deleteBtn);
+
+    // The transport card must be removed from the DOM without any prop change
+    await waitFor(() => {
+      expect(screen.queryByTestId("transport-heading")).not.toBeInTheDocument();
+    });
+  });
+
+  it("rolls back the optimistic removal and shows a destructive toast on server failure", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Sydney", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Paris", sortOrder: 1 });
+    const transport = makeTransportBetweenStops("s-a", "s-b");
+
+    vi.mocked(deleteTransport).mockResolvedValueOnce({ success: false, errors: {} });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+        initialTransports={[transport]}
+      />,
+    );
+
+    expect(await screen.findByTestId("transport-heading")).toBeInTheDocument();
+
+    // Click delete
+    await user.click(screen.getByRole("button", { name: "Delete Transport" }));
+    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
+    await user.click(deleteBtn);
+
+    // The card must be restored and a destructive toast shown
+    await waitFor(() => {
+      expect(screen.getByTestId("transport-heading")).toBeInTheDocument();
+    });
+
+    expect(vi.mocked(toast)).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: "destructive" }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 12: Capture position anchor when adding a leg + "Add transport here" affordances
+// ---------------------------------------------------------------------------
+
+describe("Task 12: Add transport here affordance", () => {
+  it("clicking 'Add transport here' in a stop's slot opens the dialog and createTransport is called with anchorStopId", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Tokyo", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Osaka", sortOrder: 1 });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+      />,
+    );
+
+    // Click the "Add transport here" button in stopA's slot
+    const addHereBtns = screen.getAllByRole("button", { name: /add transport here/i });
+    // The first one belongs to Tokyo (stopA)
+    await user.click(addHereBtns[0]);
+
+    // The transport form dialog should be open — submit immediately (FLIGHT default)
+    const submitBtn = await screen.findByRole("button", { name: /^add transport$/i });
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(createTransport).toHaveBeenCalledWith(
+        TRIP_ID,
+        expect.objectContaining({ anchorStopId: "s-a" }),
+        undefined,
+      );
+    });
+  });
+
+  it("between-stops button still passes fromStopId + toStopId + anchorStopId", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Tokyo", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Osaka", sortOrder: 1 });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+      />,
+    );
+
+    // Between-stops button opens dialog pre-filled with from/to
+    await user.click(screen.getByRole("button", { name: /add transport to osaka/i }));
+
+    const submitBtn = await screen.findByRole("button", { name: /^add transport$/i });
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(createTransport).toHaveBeenCalledWith(
+        TRIP_ID,
+        expect.objectContaining({ anchorStopId: "s-a" }),
+        undefined,
+      );
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 8: Anchor-slot rendering — free-place leg renders under its anchor stop
+// ---------------------------------------------------------------------------
+
+describe("Task 8: anchor-slot transport rendering", () => {
+  it("renders a free-place leg anchored under its stop, with no Other-transport box", async () => {
+    const stopA = makeStop({ id: "s-a", name: "Tokyo", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Osaka", sortOrder: 1 });
+    // Leg: departs from A, arrives at free place "Hakone", anchorStopId = A
+    const freeLeg: ItineraryTransport = {
+      id: "tr-free",
+      mode: "TRAIN",
+      fromStopId: "s-a",
+      toStopId: null,
+      anchorStopId: "s-a",
+      depIsHome: false,
+      arrIsHome: false,
+      depPlace: null,
+      arrPlace: "Hakone",
+      depAt: null,
+      arrAt: null,
+      reference: null,
+      notes: null,
+      sortOrder: 0,
+      costs: [],
+    };
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+        initialTransports={[freeLeg]}
+      />,
+    );
+
+    // The leg's arrival place must render somewhere in the DOM
+    expect(await screen.findByText(/Hakone/)).toBeInTheDocument();
+    // There must be no "Other transport" heading
+    expect(screen.queryByText("Other transport")).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 14: HEAD_SLOT legs visible when chapters exist (regression guard)
+// ---------------------------------------------------------------------------
+
+describe("Task 14: HEAD_SLOT legs are visible in both no-chapters and chapters paths", () => {
+  it("renders a HEAD_SLOT leg when chapters are present (chapters path)", async () => {
+    // A transport that resolves to HEAD_SLOT:
+    //   - no anchorStopId, fromStopId, or toStopId → resolveTransportSlot falls through to HEAD_SLOT
+    //   - arrPlace is used as the displayed destination label (no stop name to override it)
+    const firstStop = makeStop({ id: "s-first", name: "London", sortOrder: 0, chapterId: "ch-1" });
+    const headLeg: ItineraryTransport = {
+      id: "tr-head",
+      mode: "FLIGHT",
+      fromStopId: null,
+      toStopId: null,
+      anchorStopId: null,
+      depIsHome: false,
+      arrIsHome: false,
+      depPlace: null,
+      arrPlace: "Layover City",
+      depAt: null,
+      arrAt: null,
+      reference: null,
+      notes: null,
+      sortOrder: 0,
+      costs: [],
+    };
+    const chapter = {
+      id: "ch-1",
+      name: "UK",
+      colour: "rose" as const,
+      startDate: null,
+      endDate: null,
+      sortOrder: 0,
+    };
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[firstStop]}
+        initialTransports={[headLeg]}
+        chapters={[chapter]}
+      />,
+    );
+
+    // The HEAD_SLOT leg's arrPlace must appear in the DOM even when chapters exist.
+    // Before the fix this test FAILS (leg invisible); after the fix it passes.
+    expect(await screen.findByText(/Layover City/)).toBeInTheDocument();
+  });
+
+  it("still renders a HEAD_SLOT leg in the no-chapters path (existing behaviour)", async () => {
+    const firstStop = makeStop({ id: "s-first", name: "Berlin", sortOrder: 0 });
+    const headLeg: ItineraryTransport = {
+      id: "tr-head-nc",
+      mode: "TRAIN",
+      fromStopId: null,
+      toStopId: null,
+      anchorStopId: null,
+      depIsHome: false,
+      arrIsHome: false,
+      depPlace: null,
+      arrPlace: "Transit Hub",
+      depAt: null,
+      arrAt: null,
+      reference: null,
+      notes: null,
+      sortOrder: 0,
+      costs: [],
+    };
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[firstStop]}
+        initialTransports={[headLeg]}
+        chapters={[]}
+      />,
+    );
+
+    expect(await screen.findByText(/Transit Hub/)).toBeInTheDocument();
   });
 });

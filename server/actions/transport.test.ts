@@ -10,8 +10,10 @@ const {
   requireTripAccessMock,
   revalidatePathMock,
   geocodePlaceMock,
+  searchPlacesWithStatusMock,
   transportFindUniqueMock,
   transportFindFirstMock,
+  transportFindManyMock,
   transportCreateMock,
   transportUpdateMock,
   transportDeleteMock,
@@ -26,9 +28,11 @@ const {
 } = vi.hoisted(() => {
   const costCreateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
   const costUpdateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
+  const transportUpdateMock = vi.fn().mockResolvedValue({});
   const transactionMock = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
+        transport: { update: transportUpdateMock },
         cost: { create: costCreateMock, update: costUpdateMock },
         exchangeRate: { upsert: vi.fn().mockResolvedValue({}) },
       });
@@ -44,10 +48,12 @@ const {
     }),
     revalidatePathMock: vi.fn(),
     geocodePlaceMock: vi.fn().mockResolvedValue(null),
+    searchPlacesWithStatusMock: vi.fn().mockResolvedValue({ status: "ok", candidates: [] }),
     transportFindUniqueMock: vi.fn(),
     transportFindFirstMock: vi.fn(),
+    transportFindManyMock: vi.fn().mockResolvedValue([]),
     transportCreateMock: vi.fn(),
-    transportUpdateMock: vi.fn(),
+    transportUpdateMock,
     transportDeleteMock: vi.fn(),
     stopFindManyMock: vi.fn().mockResolvedValue([]),
     tripFindUniqueMock: vi.fn().mockResolvedValue({ homeCurrency: "AUD" }),
@@ -62,7 +68,10 @@ const {
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
+vi.mock("@/lib/geocode", () => ({
+  geocodePlace: geocodePlaceMock,
+  searchPlacesWithStatus: searchPlacesWithStatusMock,
+}));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/fx", () => ({
   resolveRateForTrip: resolveRateForTripMock,
@@ -73,6 +82,7 @@ vi.mock("@/lib/db", () => ({
     transport: {
       findUnique: transportFindUniqueMock,
       findFirst: transportFindFirstMock,
+      findMany: transportFindManyMock,
       create: transportCreateMock,
       update: transportUpdateMock,
       delete: transportDeleteMock,
@@ -100,6 +110,8 @@ import {
   createTransport,
   updateTransport,
   deleteTransport,
+  searchPlacesAction,
+  reorderTransports,
 } from "./transport";
 import { recordActivity } from "@/server/actions/activity";
 
@@ -228,7 +240,7 @@ describe("createTransport", () => {
         sortOrder: 0,
       }),
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
   });
 
   it("sets sortOrder = max + 1 when transports exist", async () => {
@@ -417,7 +429,7 @@ describe("updateTransport", () => {
       where: { id: "t-1" },
       data: expect.objectContaining({ mode: "TRAIN" }),
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
   });
 
   it("returns validation error and does not write", async () => {
@@ -512,7 +524,7 @@ describe("deleteTransport", () => {
 
     expect(result.success).toBe(true);
     expect(transportDeleteMock).toHaveBeenCalledWith({ where: { id: "t-1" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
   });
 
   it("access-checks via transport's tripId", async () => {
@@ -535,6 +547,21 @@ describe("deleteTransport", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "DELETED", entityType: "TRANSPORT", entityLabel: "BA490" }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// revalidation scope
+// ---------------------------------------------------------------------------
+
+describe("revalidation: layout scope", () => {
+  it("deleteTransport revalidates with layout scope so sub-routes (e.g. /plan) also refresh", async () => {
+    transportFindUniqueMock.mockResolvedValue({ id: "t-rv", tripId: "trip-rv", forkId: null });
+    transportDeleteMock.mockResolvedValue({});
+
+    await deleteTransport("t-rv");
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-rv", "layout");
   });
 });
 
@@ -925,5 +952,234 @@ describe("updateTransport: home base departure", () => {
         }),
       }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// anchorStopId: createTransport persists anchorStopId and validates it
+// ---------------------------------------------------------------------------
+
+describe("anchorStopId: createTransport round-trips and validates", () => {
+  it("persists anchorStopId when a valid stop is provided", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    // stops: stopA (from) and stopB (anchor)
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-a", tripId: "trip-1", forkId: null },
+      { id: "stop-b", tripId: "trip-1", forkId: null },
+    ]);
+    transportCreateMock.mockResolvedValue({ id: "t-anchor-1", mode: "FLIGHT" });
+
+    const result = await createTransport("trip-1", {
+      mode: "FLIGHT",
+      fromStopId: "stop-a",
+      anchorStopId: "stop-b",
+    });
+
+    expect(result.success).toBe(true);
+    expect(transportCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ anchorStopId: "stop-b" }),
+    });
+  });
+
+  it("rejects anchorStopId from a different trip (cross-trip stop)", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    // stopFindMany returns empty (no stops matching the given IDs in this plan)
+    stopFindManyMock.mockResolvedValue([]);
+
+    const result = await createTransport("trip-1", {
+      mode: "FLIGHT",
+      anchorStopId: "stop-other-trip",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors._form).toBeDefined();
+    }
+    expect(transportCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("null anchorStopId round-trips as null in create", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    stopFindManyMock.mockResolvedValue([]);
+    transportCreateMock.mockResolvedValue({ id: "t-no-anchor", mode: "TRAIN" });
+
+    const result = await createTransport("trip-1", { mode: "TRAIN" });
+
+    expect(result.success).toBe(true);
+    expect(transportCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ anchorStopId: null }),
+    });
+  });
+});
+
+describe("anchorStopId: updateTransport persists anchorStopId and validates it", () => {
+  it("persists anchorStopId when a valid stop is provided on update", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tu-anchor", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "tu-anchor", mode: "FLIGHT" }); // before snapshot
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-a", tripId: "trip-1", forkId: null },
+      { id: "stop-b", tripId: "trip-1", forkId: null },
+    ]);
+    transportUpdateMock.mockResolvedValue({ id: "tu-anchor", mode: "FLIGHT" });
+
+    const result = await updateTransport("tu-anchor", {
+      mode: "FLIGHT",
+      fromStopId: "stop-a",
+      anchorStopId: "stop-b",
+    });
+
+    expect(result.success).toBe(true);
+    expect(transportUpdateMock).toHaveBeenCalledWith({
+      where: { id: "tu-anchor" },
+      data: expect.objectContaining({ anchorStopId: "stop-b" }),
+    });
+  });
+
+  it("rejects anchorStopId from a different trip on update", async () => {
+    transportFindUniqueMock.mockResolvedValue({ id: "tu-bad-anchor", tripId: "trip-1", forkId: null });
+    // No matching stops — the anchor stop belongs to another trip
+    stopFindManyMock.mockResolvedValue([]);
+
+    const result = await updateTransport("tu-bad-anchor", {
+      mode: "FLIGHT",
+      anchorStopId: "stop-other-trip",
+    });
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors._form).toBeDefined();
+    }
+    expect(transportUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reorderTransports
+// ---------------------------------------------------------------------------
+
+describe("reorderTransports", () => {
+  it("writes anchorStopId and sortOrder for each item", async () => {
+    // Two legs in trip-1, both anchored to stop-a; reorder moves leg-2 to stop-b
+    transportFindManyMock.mockResolvedValue([
+      { id: "leg-1", tripId: "trip-1", forkId: null },
+      { id: "leg-2", tripId: "trip-1", forkId: null },
+    ]);
+
+    const items = [
+      { id: "leg-1", anchorStopId: "stop-a", sortOrder: 0 },
+      { id: "leg-2", anchorStopId: "stop-b", sortOrder: 0 },
+    ];
+
+    const result = await reorderTransports("trip-1", items);
+
+    expect(result.success).toBe(true);
+    // transaction called with a callback
+    expect(transactionMock).toHaveBeenCalled();
+    // transport.update called inside tx for each item
+    expect(transportUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "leg-1" },
+        data: expect.objectContaining({ anchorStopId: "stop-a", sortOrder: 0 }),
+      }),
+    );
+    expect(transportUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "leg-2" },
+        data: expect.objectContaining({ anchorStopId: "stop-b", sortOrder: 0 }),
+      }),
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+  });
+
+  it("returns success: true with empty items (no-op)", async () => {
+    const result = await reorderTransports("trip-1", []);
+    expect(result.success).toBe(true);
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a leg from another trip", async () => {
+    // leg-bad belongs to trip-2, not trip-1
+    transportFindManyMock.mockResolvedValue([
+      { id: "leg-good", tripId: "trip-1", forkId: null },
+      // leg-bad is NOT in the result (it belongs to another trip)
+    ]);
+
+    const items = [
+      { id: "leg-good", anchorStopId: "stop-a", sortOrder: 0 },
+      { id: "leg-bad", anchorStopId: "stop-a", sortOrder: 1 },
+    ];
+
+    const result = await reorderTransports("trip-1", items);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.id).toBeDefined();
+    }
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("calls requireTripAccess for auth check", async () => {
+    transportFindManyMock.mockResolvedValue([
+      { id: "leg-1", tripId: "trip-1", forkId: null },
+    ]);
+    const items = [{ id: "leg-1", anchorStopId: "stop-a", sortOrder: 0 }];
+
+    await reorderTransports("trip-1", items);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+  });
+
+  it("scopes the findMany query to the given forkId", async () => {
+    transportFindManyMock.mockResolvedValue([
+      { id: "leg-f", tripId: "trip-1", forkId: "fork-9" },
+    ]);
+    const items = [{ id: "leg-f", anchorStopId: "stop-a", sortOrder: 0 }];
+
+    await reorderTransports("trip-1", items, "fork-9");
+
+    expect(transportFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ forkId: "fork-9" }),
+      }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// searchPlacesAction
+// ---------------------------------------------------------------------------
+
+describe("searchPlacesAction", () => {
+  it("returns candidates from searchPlacesWithStatus for an accessible trip", async () => {
+    const candidate = {
+      name: "Hakone, Japan",
+      lat: 35.2,
+      lng: 139.0,
+      city: "Hakone",
+      country: "Japan",
+      countryCode: "jp",
+    };
+    searchPlacesWithStatusMock.mockResolvedValueOnce({ status: "ok", candidates: [candidate] });
+
+    const result = await searchPlacesAction("trip-1", "Hakone");
+
+    expect(result).toEqual({ status: "ok", candidates: [candidate] });
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expect(searchPlacesWithStatusMock).toHaveBeenCalledWith("Hakone");
+  });
+
+  it("returns empty candidates immediately for an empty/whitespace query without calling the geocode mock", async () => {
+    const result = await searchPlacesAction("trip-1", "   ");
+
+    expect(result).toEqual({ status: "ok", candidates: [] });
+    expect(searchPlacesWithStatusMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects when requireTripAccess denies access (inaccessible trip)", async () => {
+    requireTripAccessMock.mockRejectedValueOnce(new Error("Not found"));
+
+    await expect(searchPlacesAction("trip-no-access", "Hakone")).rejects.toThrow("Not found");
+    expect(searchPlacesWithStatusMock).not.toHaveBeenCalled();
   });
 });

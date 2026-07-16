@@ -2,15 +2,10 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { planScope } from "@/lib/plan-scope";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
-import { StopSpreadsheet } from "@/components/discreet/stop-spreadsheet";
-import { getDiscreetState } from "@/lib/discreet-server";
-import { buildStopSheetRows } from "@/lib/discreet";
 import type { TransportMode } from "@/lib/enums";
 import type { NoteView } from "@/components/trip/note-thread";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 import { haversineKm, estimateDriveMinutes, estimateRoadKm } from "@/lib/geo";
-import { convertMinor } from "@/lib/money";
-import { DEFAULT_HOME_CURRENCY } from "@/lib/currencies";
 import { PlanOverview } from "@/components/trip/plan-overview";
 import { summarizePlan } from "@/lib/plan-overview";
 import { VariantBanner } from "@/components/trip/variant-banner";
@@ -105,6 +100,7 @@ export default async function TripPlanPage({
         mode: true,
         fromStopId: true,
         toStopId: true,
+        anchorStopId: true,
         depPlace: true,
         depAt: true,
         depLat: true,
@@ -314,40 +310,6 @@ export default async function TripPlanPage({
   const tripStartDate = trip?.startDate ?? undefined;
   const tripEndDate = trip?.endDate ?? undefined;
 
-  const { discreet } = await getDiscreetState();
-  if (discreet) {
-    const home = trip?.homeCurrency ?? DEFAULT_HOME_CURRENCY;
-    const costHomeMinorByStopId: Record<string, number> = {};
-    for (const s of stops) {
-      let sum = 0;
-      for (const acc of s.accommodations) {
-        for (const c of costsByOwnerId.get(acc.id) ?? []) {
-          // Use the canonical FX path so non-2-decimal currencies convert correctly.
-          sum += c.rateToHome
-            ? convertMinor(c.estimatedMinor, c.currency, home, c.rateToHome)
-            : c.estimatedMinor;
-        }
-      }
-      costHomeMinorByStopId[s.id] = sum;
-    }
-    const rows = buildStopSheetRows({
-      stops: stops.map((s) => ({
-        id: s.id, name: s.name, country: s.country,
-        arriveDate: s.arriveDate, departDate: s.departDate,
-        nights: s.nights, pinned: s.pinned, notes: s.notes,
-        accommodations: s.accommodations.map((a) => ({ name: a.name })),
-      })),
-      transports: transports.map((t) => ({ mode: t.mode, fromStopId: t.fromStopId, toStopId: t.toStopId })),
-      costHomeMinorByStopId,
-      homeCurrency: home,
-    });
-    return (
-      <div className="flex flex-col gap-6">
-        <StopSpreadsheet tripId={tripId} rows={rows} homeCurrency={home} />
-      </div>
-    );
-  }
-
   const planSummary = summarizePlan({
     stops: stops.map((s) => ({
       id: s.id,
@@ -363,8 +325,6 @@ export default async function TripPlanPage({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Discreet mode returns the stop-spreadsheet view earlier in this function and
-          never reaches this branch, so the variant banner cannot leak fork vocabulary. */}
       {activeFork && <VariantBanner tripId={tripId} variantName={activeFork.name} />}
       {/* Bold Modular desktop (D3): itinerary editor in the main column, plan overview
           in a right rail. DOM order (overview → itinerary) keeps the overview on top on
@@ -451,6 +411,7 @@ export default async function TripPlanPage({
               return {
                 ...t,
                 mode: t.mode as TransportMode,
+                anchorStopId: t.anchorStopId,
                 costs: costsByOwnerId.get(t.id) ?? [],
                 driveEstimate,
               };

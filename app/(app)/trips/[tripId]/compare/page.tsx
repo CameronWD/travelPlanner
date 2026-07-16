@@ -1,6 +1,5 @@
 import { GitCompare } from "lucide-react";
 import { getComparison } from "@/server/actions/forks";
-import { getDiscreetState } from "@/lib/discreet-server";
 import { CompareTable } from "@/components/trip/compare-table";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -12,15 +11,12 @@ export default async function ComparePage({
   const { tripId } = await params;
 
   // requireTripAccess is enforced inside getComparison — no need to call it here.
-  const [data, { discreet }] = await Promise.all([
-    getComparison(tripId),
-    getDiscreetState(),
-  ]);
+  const data = await getComparison(tripId);
 
   const { trip, plans } = data;
 
   // No forks yet — show a helpful empty state so the page is still meaningful.
-  if (plans.length <= 1 && !discreet) {
+  if (plans.length <= 1) {
     return (
       <div className="flex flex-col gap-6">
         <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Compare plans</h2>
@@ -40,7 +36,6 @@ export default async function ComparePage({
       <CompareTable
         trip={{ id: trip.id, name: trip.name, homeCurrency: trip.homeCurrency }}
         plans={plans}
-        discreet={discreet}
       />
     </div>
   );

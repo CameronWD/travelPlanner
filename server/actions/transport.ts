@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
-import { geocodePlace } from "@/lib/geocode";
+import { geocodePlace, searchPlacesWithStatus, type PlaceSearchOutcome } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
@@ -109,9 +109,10 @@ export async function createTransport(
   // Normalise empty stop IDs to null (also cleared when home flag is set)
   const fromStopId = depIsHome ? null : (data.fromStopId || null);
   const toStopId = arrIsHome ? null : (data.toStopId || null);
+  const anchorStopId = data.anchorStopId || null;
 
   // Validate stop ownership (same plan)
-  const stopError = await validateStopBelongsToTrip(tripId, [fromStopId, toStopId], forkId);
+  const stopError = await validateStopBelongsToTrip(tripId, [fromStopId, toStopId, anchorStopId], forkId);
   if (stopError) return stopError;
 
   // Determine sort order
@@ -149,6 +150,7 @@ export async function createTransport(
       arrIsHome,
       fromStopId,
       toStopId,
+      anchorStopId,
       depPlace,
       depAt: data.depAt ?? null,
       arrPlace,
@@ -197,7 +199,7 @@ export async function createTransport(
   }
 
   await recordPlanActivity(forkId, { tripId, verb: "CREATED", entityType: "TRANSPORT", entityId: created.id, entityLabel: entityLabel("TRANSPORT", created as unknown as Record<string, unknown>) });
-  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/trips/${tripId}`, "layout");
   return { success: true };
 }
 
@@ -229,10 +231,11 @@ export async function updateTransport(
   // Normalise empty stop IDs to null (also cleared when home flag is set)
   const fromStopId = depIsHome ? null : (data.fromStopId || null);
   const toStopId = arrIsHome ? null : (data.toStopId || null);
+  const anchorStopId = data.anchorStopId || null;
 
   const stopError = await validateStopBelongsToTrip(
     transport.tripId,
-    [fromStopId, toStopId],
+    [fromStopId, toStopId, anchorStopId],
     transport.forkId,
   );
   if (stopError) return stopError;
@@ -265,6 +268,7 @@ export async function updateTransport(
       arrIsHome,
       fromStopId,
       toStopId,
+      anchorStopId,
       depPlace,
       depAt: data.depAt ?? null,
       arrPlace,
@@ -343,7 +347,58 @@ export async function updateTransport(
     entityLabel: entityLabel("TRANSPORT", updated as unknown as Record<string, unknown>),
     changes: describeChanges("TRANSPORT", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
-  revalidatePath(`/trips/${transport.tripId}`);
+  revalidatePath(`/trips/${transport.tripId}`, "layout");
+  return { success: true };
+}
+
+/**
+ * Search for geocoded place candidates scoped to a trip the current user can access.
+ */
+export async function searchPlacesAction(
+  tripId: string,
+  query: string,
+): Promise<PlaceSearchOutcome> {
+  await requireTripAccess(tripId);
+  const q = query.trim();
+  if (q === "") return { status: "ok", candidates: [] };
+  return searchPlacesWithStatus(q);
+}
+
+/**
+ * Reorder transport legs — update anchorStopId + sortOrder for each item.
+ * Verifies every leg belongs to tripId within planScope(forkId) before writing.
+ */
+export async function reorderTransports(
+  tripId: string,
+  items: { id: string; anchorStopId: string | null; sortOrder: number }[],
+  forkId?: PlanId,
+): Promise<TransportActionResult> {
+  await requireTripAccess(tripId);
+  if (items.length === 0) return { success: true };
+
+  // Verify all ids belong to this trip + plan before opening a transaction.
+  const ids = items.map((i) => i.id);
+  const rows = await db.transport.findMany({
+    where: { id: { in: ids }, tripId, ...planScope(forkId) },
+    select: { id: true },
+  });
+  const foundIds = new Set(rows.map((r) => r.id));
+  for (const id of ids) {
+    if (!foundIds.has(id)) {
+      return { success: false, errors: { id: ["One or more transport legs aren't part of this trip."] } };
+    }
+  }
+
+  await db.$transaction(async (tx) => {
+    for (const item of items) {
+      await (tx as typeof db).transport.update({
+        where: { id: item.id },
+        data: { anchorStopId: item.anchorStopId, sortOrder: item.sortOrder },
+      });
+    }
+  });
+
+  revalidatePath(`/trips/${tripId}`, "layout");
   return { success: true };
 }
 
@@ -361,6 +416,6 @@ export async function deleteTransport(
 
   await cleanupTargetSideData(transport.tripId, "TRANSPORT", transportId);
 
-  revalidatePath(`/trips/${transport.tripId}`);
+  revalidatePath(`/trips/${transport.tripId}`, "layout");
   return { success: true };
 }

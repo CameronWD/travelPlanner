@@ -15,25 +15,7 @@ import { Input } from "@/components/ui/input";
 import { useTheme } from "@/components/ui/theme-provider";
 import { searchTrip, listMyTrips } from "@/server/actions/search";
 import type { SearchHit } from "@/server/actions/search";
-import { DISCREET_COOKIE } from "@/lib/discreet";
 import { cn } from "@/lib/cn";
-
-// ── Cookie helpers (same pattern as discreet-toggle.tsx) ──────────────────────
-
-const YEAR = 60 * 60 * 24 * 365;
-
-function setCookie(name: string, value: string) {
-  document.cookie = `${name}=${encodeURIComponent(value)}; path=/; max-age=${YEAR}; samesite=lax`;
-}
-function clearCookie(name: string) {
-  document.cookie = `${name}=; path=/; max-age=0; samesite=lax`;
-}
-function readCookie(name: string): string | null {
-  const match = document.cookie
-    .split("; ")
-    .find((row) => row.startsWith(name + "="));
-  return match ? decodeURIComponent(match.split("=")[1]) : null;
-}
 
 // ── Static "Go to" pages ──────────────────────────────────────────────────────
 
@@ -205,17 +187,6 @@ function CommandPaletteInner({ onOpenChange, tripId }: CommandPaletteInnerProps)
     onOpenChange(false);
   }
 
-  function toggleDiscreet() {
-    const current = readCookie(DISCREET_COOKIE);
-    if (current) {
-      clearCookie(DISCREET_COOKIE);
-    } else {
-      setCookie(DISCREET_COOKIE, "1");
-    }
-    router.refresh();
-    onOpenChange(false);
-  }
-
   // ── Filtered command lists ──────────────────────────────────────────────────
   const q = query.toLowerCase();
 
@@ -246,10 +217,6 @@ function CommandPaletteInner({ onOpenChange, tripId }: CommandPaletteInnerProps)
         toggleTheme();
         onOpenChange(false);
       },
-    },
-    {
-      label: "Toggle Discreet",
-      onActivate: toggleDiscreet,
     },
   ];
   const doCmds = allDoCmds.filter(({ label }) =>

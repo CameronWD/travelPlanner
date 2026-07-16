@@ -15,10 +15,6 @@ vi.mock("next-auth/react", () => ({
   signOut: vi.fn(),
 }));
 
-vi.mock("@/lib/discreet-server", () => ({
-  getDiscreetState: vi.fn(),
-}));
-
 // next/link renders a plain <a> in jsdom
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; children?: React.ReactNode }) => (
@@ -37,16 +33,10 @@ vi.mock("@/components/ui/dropdown-menu", () => ({
   DropdownMenuItem: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement> & { children?: React.ReactNode }) => <div {...props}>{children}</div>,
 }));
 
-// ThemeToggle and DiscreetToggle are client components; stub them to avoid
+// ThemeToggle is a client component; stub it to avoid
 // client-only hooks in the jsdom test environment.
 vi.mock("@/components/ui/theme-toggle", () => ({
   ThemeToggle: () => <button>ThemeToggle</button>,
-}));
-
-vi.mock("@/components/discreet/discreet-toggle", () => ({
-  DiscreetToggle: ({ discreet, label }: { discreet: boolean; label: string }) => (
-    <div data-testid="discreet-toggle" data-discreet={discreet} data-label={label}>DiscreetToggle</div>
-  ),
 }));
 
 vi.mock("@/components/command-palette-mount", () => ({ CommandPaletteMount: () => null }));
@@ -55,7 +45,6 @@ vi.mock("@/components/command-palette-trigger", () => ({ CommandPaletteTrigger: 
 // ── Imports (after mocks) ──
 
 import { auth } from "@/lib/auth";
-import { getDiscreetState } from "@/lib/discreet-server";
 import AppLayout from "./layout";
 
 // ── Shared test fixture ──
@@ -68,8 +57,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   // Default: signed-in user
   vi.mocked(auth).mockResolvedValue(SIGNED_IN_SESSION as never);
-  // Default: discreet mode off
-  vi.mocked(getDiscreetState).mockResolvedValue({ discreet: false, label: "Workspace" });
 });
 
 // ── Tests ──
@@ -104,10 +91,10 @@ describe("AppLayout", () => {
     expect(screen.getByRole("button", { name: /traveller menu/i })).toBeInTheDocument();
   });
 
-  it("shows the TEEPEE wordmark when discreet is off", async () => {
-    vi.mocked(getDiscreetState).mockResolvedValue({ discreet: false, label: "Workspace" });
+  it("renders the tent SVG wordmark", async () => {
     const ui = await AppLayout({ children: <div /> });
-    render(ui as React.ReactElement);
+    const { container } = render(ui as React.ReactElement);
+    expect(container.querySelector("svg[data-testid='tent-icon']")).toBeInTheDocument();
     expect(screen.getByText("TEEPEE")).toBeInTheDocument();
   });
 
@@ -118,29 +105,5 @@ describe("AppLayout", () => {
     expect(main.className).toContain("max-w-5xl");
     expect(main.className).toContain("lg:max-w-6xl");
     expect(main.className).toContain("2xl:max-w-7xl");
-  });
-
-  it("shows the neutral label and no TEEPEE when discreet is on", async () => {
-    vi.mocked(getDiscreetState).mockResolvedValue({ discreet: true, label: "Q3 Tracker" });
-    const ui = await AppLayout({ children: <div /> });
-    render(ui as React.ReactElement);
-    expect(screen.getByText("Q3 Tracker")).toBeInTheDocument();
-    expect(screen.queryByText("TEEPEE")).not.toBeInTheDocument();
-    expect(document.querySelector(".discreet")).toBeInTheDocument();
-    expect(screen.getByTestId("discreet-toggle")).toHaveAttribute("data-discreet", "true");
-  });
-
-  it("renders the tent SVG in normal mode", async () => {
-    vi.mocked(getDiscreetState).mockResolvedValue({ discreet: false, label: "Workspace" });
-    const ui = await AppLayout({ children: <div /> });
-    const { container } = render(ui as React.ReactElement);
-    expect(container.querySelector("svg[data-testid='tent-icon']")).toBeInTheDocument();
-  });
-
-  it("does NOT render the tent SVG in discreet mode", async () => {
-    vi.mocked(getDiscreetState).mockResolvedValue({ discreet: true, label: "Q3 Tracker" });
-    const ui = await AppLayout({ children: <div /> });
-    const { container } = render(ui as React.ReactElement);
-    expect(container.querySelector("svg[data-testid='tent-icon']")).not.toBeInTheDocument();
   });
 });

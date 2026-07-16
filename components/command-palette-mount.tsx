@@ -7,14 +7,13 @@ import { CommandPalette } from "@/components/command-palette";
 /**
  * Global mount for the command palette.
  *
- * - Returns null when discreet mode is active (disabled=true).
  * - Derives the current tripId from the pathname (/trips/<id>/...).
  *   The literal segment "new" is excluded (no trip exists yet).
  * - Owns the open/close state.
  * - Registers ⌘K / Ctrl+K and a custom "teepee:open-palette" event
  *   listener on mount; cleans both up on unmount.
  */
-export function CommandPaletteMount({ disabled }: { disabled: boolean }) {
+export function CommandPaletteMount() {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
 
@@ -27,8 +26,6 @@ export function CommandPaletteMount({ disabled }: { disabled: boolean }) {
   }, [pathname]);
 
   React.useEffect(() => {
-    if (disabled) return;
-
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -47,9 +44,7 @@ export function CommandPaletteMount({ disabled }: { disabled: boolean }) {
       window.removeEventListener("keydown", handleKeyDown);
       window.removeEventListener("teepee:open-palette", handleCustomEvent);
     };
-  }, [disabled]);
-
-  if (disabled) return null;
+  }, []);
 
   return (
     <CommandPalette open={open} onOpenChange={setOpen} tripId={tripId} />

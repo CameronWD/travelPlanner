@@ -28,8 +28,6 @@ interface TripMeta {
 export interface CompareTableProps {
   trip: TripMeta;
   plans: ComparisonPlan[];
-  /** When true (discreet mode) the table is hidden and a neutral placeholder shown. */
-  discreet?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -271,7 +269,7 @@ function ReorderArrows({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function CompareTable({ trip, plans, discreet = false }: CompareTableProps) {
+export function CompareTable({ trip, plans }: CompareTableProps) {
   const [promoteOpenFor, setPromoteOpenFor] = React.useState<string | null>(null);
   const router = useRouter();
   const [reorderPending, startReorder] = React.useTransition();
@@ -281,21 +279,6 @@ export function CompareTable({ trip, plans, discreet = false }: CompareTableProp
       await moveFork(forkId, direction);
       router.refresh();
     });
-  }
-
-  // ---------------------------------------------------------------------------
-  // Discreet gate — hide fork/plan vocabulary when discreet mode is active.
-  // The Compare view names forks explicitly; it cannot be rendered neutrally
-  // without disclosing fork vocabulary, so we gate the entire feature.
-  // ---------------------------------------------------------------------------
-  if (discreet) {
-    return (
-      <div className="rounded-2xl border border-border bg-card p-8 text-center">
-        <p className="text-sm text-muted-foreground">
-          Comparison view not available in this mode.
-        </p>
-      </div>
-    );
   }
 
   const realPlan = plans[0];

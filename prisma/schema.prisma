@@ -232,8 +232,9 @@ model Stop {
   chapter        Chapter?        @relation(fields: [chapterId], references: [id], onDelete: SetNull)
   accommodations Accommodation[]
   items          Item[]
-  fromTransports Transport[]     @relation("TransportFromStop")
-  toTransports   Transport[]     @relation("TransportToStop")
+  fromTransports   Transport[]     @relation("TransportFromStop")
+  toTransports     Transport[]     @relation("TransportToStop")
+  anchorTransports Transport[]     @relation("TransportAnchorStop")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -285,16 +286,20 @@ model Transport {
   notes      String?
   sortOrder  Int       @default(0)
 
-  trip     Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
-  fork     Fork? @relation(fields: [forkId], references: [id], onDelete: Cascade)
-  fromStop Stop? @relation("TransportFromStop", fields: [fromStopId], references: [id], onDelete: SetNull)
-  toStop   Stop? @relation("TransportToStop", fields: [toStopId], references: [id], onDelete: SetNull)
+  anchorStopId String?
+
+  trip       Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  fork       Fork? @relation(fields: [forkId], references: [id], onDelete: Cascade)
+  fromStop   Stop? @relation("TransportFromStop", fields: [fromStopId], references: [id], onDelete: SetNull)
+  toStop     Stop? @relation("TransportToStop", fields: [toStopId], references: [id], onDelete: SetNull)
+  anchorStop Stop? @relation("TransportAnchorStop", fields: [anchorStopId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([tripId])
   @@index([forkId])
+  @@index([anchorStopId])
 }
 
 model Accommodation {

@@ -128,7 +128,6 @@ describe("CommandPalette", () => {
       await user.type(input, "toggle");
 
       expect(screen.getByText("Toggle theme")).toBeInTheDocument();
-      expect(screen.getByText("Toggle Discreet")).toBeInTheDocument();
       expect(screen.queryByText("New trip")).not.toBeInTheDocument();
     });
   });
