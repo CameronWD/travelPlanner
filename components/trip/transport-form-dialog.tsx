@@ -28,6 +28,7 @@ import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
+import { LocationCombobox, type LocationValue } from "@/components/trip/location-combobox";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -218,13 +219,10 @@ interface TransportFormProps {
   attachments?: AttachmentView[];
 }
 
-/** Sentinel for "none selected" in stop selects */
-const NONE = "__none__";
 /** Sentinel for "trip's Home base" in stop selects. Exported so callers (e.g. the
  * plan editor's "add outbound flight" prompt) can pre-select the Home base as an
  * endpoint via defaultFromStopId / defaultToStopId. */
 export const HOME_ENDPOINT = "__home__";
-const HOME = HOME_ENDPOINT;
 
 /**
  * Format a Date to datetime-local input value (YYYY-MM-DDTHH:mm).
@@ -265,14 +263,51 @@ function TransportForm({
   const defaultCurrency = homeCurrency ?? "AUD";
 
   const [mode, setMode] = React.useState<string>(transport?.mode ?? "FLIGHT");
-  const [fromStopId, setFromStopId] = React.useState(
-    transport?.depIsHome ? HOME : (transport?.fromStopId ?? defaultFromStopId ?? NONE),
-  );
-  const [toStopId, setToStopId] = React.useState(
-    transport?.arrIsHome ? HOME : (transport?.toStopId ?? defaultToStopId ?? NONE),
-  );
-  const [depPlace, setDepPlace] = React.useState(transport?.depPlace ?? "");
-  const [arrPlace, setArrPlace] = React.useState(transport?.arrPlace ?? "");
+
+  // Derive initial LocationValue for From endpoint
+  const initialFrom = React.useMemo((): LocationValue => {
+    if (isEdit && transport) {
+      if (transport.depIsHome) return { kind: "home" };
+      if (transport.fromStopId) {
+        const stop = stops.find((s) => s.id === transport.fromStopId);
+        return { kind: "stop", stopId: transport.fromStopId, name: stop?.name ?? transport.fromStopId };
+      }
+      if (transport.depPlace) return { kind: "place", name: transport.depPlace };
+      return { kind: "none" };
+    }
+    // Add mode
+    if (defaultFromStopId === HOME_ENDPOINT) return { kind: "home" };
+    if (defaultFromStopId) {
+      const stop = stops.find((s) => s.id === defaultFromStopId);
+      return { kind: "stop", stopId: defaultFromStopId, name: stop?.name ?? defaultFromStopId };
+    }
+    return { kind: "none" };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Derive initial LocationValue for To endpoint
+  const initialTo = React.useMemo((): LocationValue => {
+    if (isEdit && transport) {
+      if (transport.arrIsHome) return { kind: "home" };
+      if (transport.toStopId) {
+        const stop = stops.find((s) => s.id === transport.toStopId);
+        return { kind: "stop", stopId: transport.toStopId, name: stop?.name ?? transport.toStopId };
+      }
+      if (transport.arrPlace) return { kind: "place", name: transport.arrPlace };
+      return { kind: "none" };
+    }
+    // Add mode
+    if (defaultToStopId === HOME_ENDPOINT) return { kind: "home" };
+    if (defaultToStopId) {
+      const stop = stops.find((s) => s.id === defaultToStopId);
+      return { kind: "stop", stopId: defaultToStopId, name: stop?.name ?? defaultToStopId };
+    }
+    return { kind: "none" };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const [fromValue, setFromValue] = React.useState<LocationValue>(initialFrom);
+  const [toValue, setToValue] = React.useState<LocationValue>(initialTo);
   const [depAt, setDepAt] = React.useState(toDatetimeLocal(transport?.depAt));
   const [arrAt, setArrAt] = React.useState(toDatetimeLocal(transport?.arrAt));
   const [reference, setReference] = React.useState(transport?.reference ?? "");
@@ -306,15 +341,39 @@ function TransportForm({
       // The action accepts TransportInput whose depAt/arrAt are Date | undefined
       // (after Zod coercion), but we pass raw strings from the form — Zod's
       // preprocess in transportSchema handles the coercion server-side.
+      // Map LocationValue → endpoint fields for From
+      const fromFields = (() => {
+        switch (fromValue.kind) {
+          case "home":
+            return { fromStopId: undefined, depIsHome: true, depPlace: undefined };
+          case "stop":
+            return { fromStopId: fromValue.stopId, depIsHome: false, depPlace: undefined };
+          case "place":
+            return { fromStopId: undefined, depIsHome: false, depPlace: fromValue.name };
+          default:
+            return { fromStopId: undefined, depIsHome: false, depPlace: undefined };
+        }
+      })();
+
+      // Map LocationValue → endpoint fields for To
+      const toFields = (() => {
+        switch (toValue.kind) {
+          case "home":
+            return { toStopId: undefined, arrIsHome: true, arrPlace: undefined };
+          case "stop":
+            return { toStopId: toValue.stopId, arrIsHome: false, arrPlace: undefined };
+          case "place":
+            return { toStopId: undefined, arrIsHome: false, arrPlace: toValue.name };
+          default:
+            return { toStopId: undefined, arrIsHome: false, arrPlace: undefined };
+        }
+      })();
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const input: any = {
         mode: mode as import("@/lib/enums").TransportMode,
-        fromStopId: fromStopId === NONE || fromStopId === HOME ? undefined : fromStopId,
-        depIsHome: fromStopId === HOME,
-        toStopId: toStopId === NONE || toStopId === HOME ? undefined : toStopId,
-        arrIsHome: toStopId === HOME,
-        depPlace: depPlace.trim() || undefined,
-        arrPlace: arrPlace.trim() || undefined,
+        ...fromFields,
+        ...toFields,
         depAt: depAt || undefined,
         arrAt: arrAt || undefined,
         reference: reference.trim() || undefined,
@@ -363,72 +422,31 @@ function TransportForm({
         </Select>
       </Field>
 
-      {/* Stop selects */}
+      {/* Location comboboxes — replace From/To stop selects + place inputs */}
       <div className="grid grid-cols-2 gap-3">
-        <Field label="From stop" error={(errors as FormErrors).fromStopId?.[0]}>
-          <Select
-            value={fromStopId}
-            onValueChange={setFromStopId}
+        <Field label="From" error={(errors as FormErrors).fromStopId?.[0]}>
+          <LocationCombobox
+            label="From"
+            value={fromValue}
+            onChange={setFromValue}
+            stops={stops}
+            homeBaseName={homeBaseName}
+            tripId={tripId}
             disabled={isPending}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="— none —" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>— none —</SelectItem>
-              {homeBaseName ? (
-                <SelectItem value={HOME}>🏠 {homeBaseName}</SelectItem>
-              ) : null}
-              {stops.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-
-        <Field label="To stop" error={(errors as FormErrors).toStopId?.[0]}>
-          <Select
-            value={toStopId}
-            onValueChange={setToStopId}
-            disabled={isPending}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="— none —" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={NONE}>— none —</SelectItem>
-              {homeBaseName ? (
-                <SelectItem value={HOME}>🏠 {homeBaseName}</SelectItem>
-              ) : null}
-              {stops.map((s) => (
-                <SelectItem key={s.id} value={s.id}>
-                  {s.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-
-      {/* Place names */}
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Departure place" error={(errors as FormErrors).depPlace?.[0]}>
-          <Input
-            value={depPlace}
-            onChange={(e) => setDepPlace(e.target.value)}
-            placeholder="e.g. Heathrow T5"
-            autoFocus
-            disabled={isPending}
+            data-testid="from-combobox"
           />
         </Field>
-        <Field label="Arrival place" error={(errors as FormErrors).arrPlace?.[0]}>
-          <Input
-            value={arrPlace}
-            onChange={(e) => setArrPlace(e.target.value)}
-            placeholder="e.g. CDG Terminal 2"
+
+        <Field label="To" error={(errors as FormErrors).toStopId?.[0]}>
+          <LocationCombobox
+            label="To"
+            value={toValue}
+            onChange={setToValue}
+            stops={stops}
+            homeBaseName={homeBaseName}
+            tripId={tripId}
             disabled={isPending}
+            data-testid="to-combobox"
           />
         </Field>
       </div>
