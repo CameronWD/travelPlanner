@@ -923,6 +923,9 @@ export function ItineraryManager({
       const activeId = active.id as string;
       const overId = over.id as string;
 
+      // No-op: dropped on itself
+      if (activeId === overId) return;
+
       // Determine target slot from over:
       // - over is another transport → use its anchorStopId
       // - over is a stop (by id match in stops) → use that stop's id
@@ -935,9 +938,8 @@ export function ItineraryManager({
       } else if (overStop) {
         targetSlot = overStop.id;
       } else {
-        // overId could be a stop id used as a droppable container id
-        const overIsStop = stops.some((s) => s.id === overId);
-        targetSlot = overIsStop ? overId : null;
+        // overStop was undefined, so overId is not a known stop → HEAD_SLOT fallback
+        targetSlot = null;
       }
 
       // Snapshot for revert on failure
@@ -1244,6 +1246,35 @@ export function ItineraryManager({
     );
   }
 
+  // Render the HEAD_SLOT bucket (legs before the first stop) + the head "Add transport" button.
+  // Called at the top of both the no-chapters and chapters render paths so head-slot legs are
+  // never invisible when chapters exist.
+  function renderHeadSlot() {
+    const headLegs = legsBySlot.get(HEAD_SLOT) ?? [];
+    if (headLegs.length === 0) return null;
+    return (
+      <div className="flex flex-col gap-2 px-2">
+        <SortableContext
+          items={headLegs.map((t) => t.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          {headLegs.map(renderSortableLegCard)}
+        </SortableContext>
+        <div className="flex justify-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => setAddTransportDefaults({ anchorStopId: undefined })}
+          >
+            <Plus className="size-3.5" aria-hidden="true" />
+            Add transport here
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // Render a transport leg card wrapped in a SortableTransport for drag-to-reorder.
   function renderSortableLegCard(t: ItineraryTransport) {
     return (
@@ -1488,27 +1519,7 @@ export function ItineraryManager({
                   </div>
                 )}
                 {/* HEAD_SLOT legs: transports that belong before the first stop */}
-                {(legsBySlot.get(HEAD_SLOT) ?? []).length > 0 && (
-                  <div className="flex flex-col gap-2 px-2">
-                    <SortableContext
-                      items={(legsBySlot.get(HEAD_SLOT) ?? []).map((t) => t.id)}
-                      strategy={verticalListSortingStrategy}
-                    >
-                      {(legsBySlot.get(HEAD_SLOT) ?? []).map(renderSortableLegCard)}
-                    </SortableContext>
-                    <div className="flex justify-center">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => setAddTransportDefaults({ anchorStopId: undefined })}
-                      >
-                        <Plus className="size-3.5" aria-hidden="true" />
-                        Add transport here
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                {renderHeadSlot()}
                 <SortableContext
                   items={stops.map((s) => s.id)}
                   strategy={verticalListSortingStrategy}
@@ -1523,9 +1534,12 @@ export function ItineraryManager({
               </>
             ) : (
               // ── Chapters path: grouped rendering with seams ──
-              // Wrap chapter groups in a SortableContext for chapter-level drag.
-              // ADR 0021: both rough and dated populated chapters are draggable;
-              // empty chapters remain non-reorderable via EmptyRoughDroppable.
+              <>
+                {/* HEAD_SLOT legs: visible even when chapters exist */}
+                {renderHeadSlot()}
+              {/* Wrap chapter groups in a SortableContext for chapter-level drag.
+                  ADR 0021: both rough and dated populated chapters are draggable;
+                  empty chapters remain non-reorderable via EmptyRoughDroppable. */}
               <SortableContext items={populatedChapterIds} strategy={verticalListSortingStrategy}>
                 {groups.map((group, groupIdx) => {
                   const groupKey = group.chapter?.id ?? "ungrouped";
@@ -1700,6 +1714,7 @@ export function ItineraryManager({
                   );
                 })}
               </SortableContext>
+              </>
             )}
 
             {/* Empty chapters: a freshly created chapter holds no stops yet, so

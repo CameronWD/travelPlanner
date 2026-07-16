@@ -1508,3 +1508,86 @@ describe("Task 8: anchor-slot transport rendering", () => {
     expect(screen.queryByText("Other transport")).not.toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 14: HEAD_SLOT legs visible when chapters exist (regression guard)
+// ---------------------------------------------------------------------------
+
+describe("Task 14: HEAD_SLOT legs are visible in both no-chapters and chapters paths", () => {
+  it("renders a HEAD_SLOT leg when chapters are present (chapters path)", async () => {
+    // A transport that resolves to HEAD_SLOT:
+    //   - no anchorStopId, fromStopId, or toStopId → resolveTransportSlot falls through to HEAD_SLOT
+    //   - arrPlace is used as the displayed destination label (no stop name to override it)
+    const firstStop = makeStop({ id: "s-first", name: "London", sortOrder: 0, chapterId: "ch-1" });
+    const headLeg: ItineraryTransport = {
+      id: "tr-head",
+      mode: "FLIGHT",
+      fromStopId: null,
+      toStopId: null,
+      anchorStopId: null,
+      depIsHome: false,
+      arrIsHome: false,
+      depPlace: null,
+      arrPlace: "Layover City",
+      depAt: null,
+      arrAt: null,
+      reference: null,
+      notes: null,
+      sortOrder: 0,
+      costs: [],
+    };
+    const chapter = {
+      id: "ch-1",
+      name: "UK",
+      colour: "rose" as const,
+      startDate: null,
+      endDate: null,
+      sortOrder: 0,
+    };
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[firstStop]}
+        initialTransports={[headLeg]}
+        chapters={[chapter]}
+      />,
+    );
+
+    // The HEAD_SLOT leg's arrPlace must appear in the DOM even when chapters exist.
+    // Before the fix this test FAILS (leg invisible); after the fix it passes.
+    expect(await screen.findByText(/Layover City/)).toBeInTheDocument();
+  });
+
+  it("still renders a HEAD_SLOT leg in the no-chapters path (existing behaviour)", async () => {
+    const firstStop = makeStop({ id: "s-first", name: "Berlin", sortOrder: 0 });
+    const headLeg: ItineraryTransport = {
+      id: "tr-head-nc",
+      mode: "TRAIN",
+      fromStopId: null,
+      toStopId: null,
+      anchorStopId: null,
+      depIsHome: false,
+      arrIsHome: false,
+      depPlace: null,
+      arrPlace: "Transit Hub",
+      depAt: null,
+      arrAt: null,
+      reference: null,
+      notes: null,
+      sortOrder: 0,
+      costs: [],
+    };
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[firstStop]}
+        initialTransports={[headLeg]}
+        chapters={[]}
+      />,
+    );
+
+    expect(await screen.findByText(/Transit Hub/)).toBeInTheDocument();
+  });
+});

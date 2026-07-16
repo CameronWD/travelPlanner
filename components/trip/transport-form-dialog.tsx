@@ -224,9 +224,9 @@ interface TransportFormProps {
   attachments?: AttachmentView[];
 }
 
-/** Sentinel for "trip's Home base" in stop selects. Exported so callers (e.g. the
- * plan editor's "add outbound flight" prompt) can pre-select the Home base as an
- * endpoint via defaultFromStopId / defaultToStopId. */
+/** Sentinel for "trip's Home base" in endpoint comboboxes. Exported so callers
+ * (e.g. the plan editor's "add outbound flight" prompt) can pre-select the Home
+ * base as an endpoint via defaultFromStopId / defaultToStopId. */
 export const HOME_ENDPOINT = "__home__";
 
 /**

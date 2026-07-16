@@ -21,7 +21,7 @@ export interface TransportSlimItem {
  * @param targetSlot      - the slot (stopId | HEAD_SLOT | null) the leg is dropped into;
  *                          null is treated as HEAD_SLOT
  * @param overId          - the dnd-kit `over.id` (another transport id or stop id)
- * @param orderedStopIds  - stop ids in their current sortOrder (used to resolve HEAD_SLOT)
+ * @param orderedStopIds  - stop ids in their current sortOrder (available for callers; not used internally — slot membership is derived from anchorStopId)
  *
  * @returns New `{ id, anchorStopId, sortOrder }[]` for ALL transports
  *          (only anchorStopId + sortOrder fields change; other fields are untouched)
