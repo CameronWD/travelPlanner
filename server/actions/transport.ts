@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
-import { geocodePlace } from "@/lib/geocode";
+import { geocodePlace, searchPlacesWithStatus, type PlaceSearchOutcome } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
@@ -349,6 +349,19 @@ export async function updateTransport(
   });
   revalidatePath(`/trips/${transport.tripId}`, "layout");
   return { success: true };
+}
+
+/**
+ * Search for geocoded place candidates scoped to a trip the current user can access.
+ */
+export async function searchPlacesAction(
+  tripId: string,
+  query: string,
+): Promise<PlaceSearchOutcome> {
+  await requireTripAccess(tripId);
+  const q = query.trim();
+  if (q === "") return { status: "ok", candidates: [] };
+  return searchPlacesWithStatus(q);
 }
 
 /**

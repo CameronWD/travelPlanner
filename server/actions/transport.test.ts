@@ -10,6 +10,7 @@ const {
   requireTripAccessMock,
   revalidatePathMock,
   geocodePlaceMock,
+  searchPlacesWithStatusMock,
   transportFindUniqueMock,
   transportFindFirstMock,
   transportCreateMock,
@@ -44,6 +45,7 @@ const {
     }),
     revalidatePathMock: vi.fn(),
     geocodePlaceMock: vi.fn().mockResolvedValue(null),
+    searchPlacesWithStatusMock: vi.fn().mockResolvedValue({ status: "ok", candidates: [] }),
     transportFindUniqueMock: vi.fn(),
     transportFindFirstMock: vi.fn(),
     transportCreateMock: vi.fn(),
@@ -62,7 +64,10 @@ const {
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
+vi.mock("@/lib/geocode", () => ({
+  geocodePlace: geocodePlaceMock,
+  searchPlacesWithStatus: searchPlacesWithStatusMock,
+}));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/fx", () => ({
   resolveRateForTrip: resolveRateForTripMock,
@@ -100,6 +105,7 @@ import {
   createTransport,
   updateTransport,
   deleteTransport,
+  searchPlacesAction,
 } from "./transport";
 import { recordActivity } from "@/server/actions/activity";
 
@@ -1039,5 +1045,43 @@ describe("anchorStopId: updateTransport persists anchorStopId and validates it",
       expect(result.errors._form).toBeDefined();
     }
     expect(transportUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// searchPlacesAction
+// ---------------------------------------------------------------------------
+
+describe("searchPlacesAction", () => {
+  it("returns candidates from searchPlacesWithStatus for an accessible trip", async () => {
+    const candidate = {
+      name: "Hakone, Japan",
+      lat: 35.2,
+      lng: 139.0,
+      city: "Hakone",
+      country: "Japan",
+      countryCode: "jp",
+    };
+    searchPlacesWithStatusMock.mockResolvedValueOnce({ status: "ok", candidates: [candidate] });
+
+    const result = await searchPlacesAction("trip-1", "Hakone");
+
+    expect(result).toEqual({ status: "ok", candidates: [candidate] });
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expect(searchPlacesWithStatusMock).toHaveBeenCalledWith("Hakone");
+  });
+
+  it("returns empty candidates immediately for an empty/whitespace query without calling the geocode mock", async () => {
+    const result = await searchPlacesAction("trip-1", "   ");
+
+    expect(result).toEqual({ status: "ok", candidates: [] });
+    expect(searchPlacesWithStatusMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects when requireTripAccess denies access (inaccessible trip)", async () => {
+    requireTripAccessMock.mockRejectedValueOnce(new Error("Not found"));
+
+    await expect(searchPlacesAction("trip-no-access", "Hakone")).rejects.toThrow("Not found");
+    expect(searchPlacesWithStatusMock).not.toHaveBeenCalled();
   });
 });
