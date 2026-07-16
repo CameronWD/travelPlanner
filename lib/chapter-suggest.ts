@@ -186,3 +186,38 @@ function buildZoneChapters(zoneRuns: readonly CountryRun[]): PlacedChapter[] {
 
   return [...leftPeeled, ...core, ...rightPeeled.reverse()];
 }
+
+/**
+ * Append the anchor city to every chapter in any group that shares an exact
+ * name (e.g. two "France" bands from a double edge-peel → "France (Paris)" and
+ * "France (Lyon)"). A solo + combined pair ("France" vs "Germany & France") is
+ * not an exact clash and is left alone.
+ */
+export function disambiguateNames(chapters: readonly PlacedChapter[]): PlacedChapter[] {
+  const counts = new Map<string, number>();
+  for (const c of chapters) counts.set(c.name, (counts.get(c.name) ?? 0) + 1);
+  return chapters.map((c) =>
+    (counts.get(c.name) ?? 0) > 1 ? { ...c, name: `${c.name} (${c.anchorCity})` } : c,
+  );
+}
+
+/**
+ * Suggest chapters for a Trip's dated stops (see ADR 0008 and ADR 0034). Clean,
+ * unique-country blocks become one chapter each; an interleaved stretch becomes
+ * a single combined chapter (with substantial edge stays peeled off). Adjacent
+ * bands are seam-trimmed so they never share a boundary day — chaptersOverlap
+ * is inclusive and stops hand off arrive == previous depart.
+ */
+export function suggestChapters(stops: readonly SuggestStop[]): ChapterRun[] {
+  const runs = countryRuns(stops);
+  const placed = disambiguateNames(buildChapters(runs, zoneIntervals(runs)));
+
+  for (let i = 0; i < placed.length - 1; i++) {
+    if (placed[i].endDate >= placed[i + 1].startDate) {
+      const trimmed = addDays(placed[i + 1].startDate, -1);
+      placed[i].endDate = trimmed >= placed[i].startDate ? trimmed : placed[i].startDate;
+    }
+  }
+
+  return placed.map((c) => ({ name: c.name, startDate: c.startDate, endDate: c.endDate }));
+}

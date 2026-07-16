@@ -159,3 +159,63 @@ describe("buildChapters", () => {
     expect(out.map((c) => c.anchorCity)).toEqual(["Paris", "Munich", "Lyon"]);
   });
 });
+
+import { disambiguateNames, suggestChapters } from "./chapter-suggest";
+
+describe("disambiguateNames", () => {
+  it("appends the anchor city to chapters that share an identical name", () => {
+    const out = disambiguateNames([
+      { name: "France", startDate: "2026-07-01", endDate: "2026-07-08", anchorCity: "Paris" },
+      { name: "Germany", startDate: "2026-07-08", endDate: "2026-07-10", anchorCity: "Munich" },
+      { name: "France", startDate: "2026-07-10", endDate: "2026-07-17", anchorCity: "Lyon" },
+    ]);
+    expect(out.map((c) => c.name)).toEqual(["France (Paris)", "Germany", "France (Lyon)"]);
+  });
+  it("leaves a solo+combo pair alone (not an exact clash)", () => {
+    const out = disambiguateNames([
+      { name: "France", startDate: "2026-07-01", endDate: "2026-07-08", anchorCity: "Paris" },
+      { name: "Germany & France", startDate: "2026-07-08", endDate: "2026-07-14", anchorCity: "Munich" },
+    ]);
+    expect(out.map((c) => c.name)).toEqual(["France", "Germany & France"]);
+  });
+});
+
+describe("suggestChapters (end to end)", () => {
+  it("matches the previous suggester for clean country blocks (seam-trimmed)", () => {
+    const runs = suggestChapters([
+      { name: "Helsinki", arriveDate: "2026-06-26", departDate: "2026-06-30", country: "Finland" },
+      { name: "Rovaniemi", arriveDate: "2026-06-30", departDate: "2026-07-03", country: "Finland" },
+      { name: "London", arriveDate: "2026-07-03", departDate: "2026-07-07", country: "United Kingdom" },
+    ]);
+    expect(runs).toEqual([
+      { name: "Finland", startDate: "2026-06-26", endDate: "2026-07-02" },
+      { name: "United Kingdom", startDate: "2026-07-03", endDate: "2026-07-07" },
+    ]);
+  });
+
+  it("combines the canonical ping-pong route into one chapter", () => {
+    const runs = suggestChapters([
+      { name: "Munich", arriveDate: "2026-07-01", departDate: "2026-07-03", country: "Germany" },
+      { name: "Strasbourg", arriveDate: "2026-07-03", departDate: "2026-07-05", country: "France" },
+      { name: "Frankfurt", arriveDate: "2026-07-05", departDate: "2026-07-07", country: "Germany" },
+      { name: "Paris", arriveDate: "2026-07-07", departDate: "2026-07-10", country: "France" },
+    ]);
+    expect(runs).toEqual([
+      { name: "Germany & France", startDate: "2026-07-01", endDate: "2026-07-10" },
+    ]);
+  });
+
+  it("disambiguates a double edge-peel with the anchor city", () => {
+    const runs = suggestChapters([
+      { name: "Paris", arriveDate: "2026-07-01", departDate: "2026-07-08", country: "France" },
+      { name: "Munich", arriveDate: "2026-07-08", departDate: "2026-07-10", country: "Germany" },
+      { name: "Lyon", arriveDate: "2026-07-10", departDate: "2026-07-17", country: "France" },
+    ]);
+    expect(runs.map((r) => r.name)).toEqual(["France (Paris)", "Germany", "France (Lyon)"]);
+  });
+
+  it("returns no runs for an empty or fully-rough trip", () => {
+    expect(suggestChapters([])).toEqual([]);
+    expect(suggestChapters([{ name: "X", arriveDate: null, departDate: null, country: "Spain" }])).toEqual([]);
+  });
+});
