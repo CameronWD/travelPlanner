@@ -464,6 +464,105 @@ describe("TransportFormDialog", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Task 12: add-mode anchor — defaultAnchorStopId is forwarded on create
+// ---------------------------------------------------------------------------
+
+describe("TransportFormDialog: add-mode anchor (Task 12)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("passes defaultAnchorStopId as anchorStopId when creating a transport", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        defaultAnchorStopId="stop-a"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /add transport/i }));
+
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ anchorStopId: "stop-a" }),
+      undefined,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 13: "Position in plan" picker — edit mode only
+// ---------------------------------------------------------------------------
+
+describe("TransportFormDialog: position-in-plan picker (Task 13)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const transportWithAnchor: TransportCardTransport = {
+    id: "transport-99",
+    mode: "TRAIN",
+    fromStopId: "stop-a",
+    toStopId: "stop-b",
+    sortOrder: 0,
+    anchorStopId: "stop-a",
+  };
+
+  it("edit mode: selecting 'After B' submits updateTransport with anchorStopId='stop-b'", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={transportWithAnchor}
+      />,
+    );
+
+    // The "Position in plan" select should be visible in edit mode
+    const positionSelect = screen.getByRole("combobox", { name: /position in plan/i });
+    await user.click(positionSelect);
+
+    // Select "After Paris" (stop-b)
+    const afterParisOption = await screen.findByRole("option", { name: /after paris/i });
+    await user.click(afterParisOption);
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateTransport).toHaveBeenCalledWith(
+      "transport-99",
+      expect.objectContaining({ anchorStopId: "stop-b" }),
+    );
+  });
+
+  it("edit mode: selecting 'Before London' (head) submits updateTransport with anchorStopId=''", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={transportWithAnchor}
+      />,
+    );
+
+    const positionSelect = screen.getByRole("combobox", { name: /position in plan/i });
+    await user.click(positionSelect);
+
+    // Select "Before London" (head sentinel)
+    const beforeLondonOption = await screen.findByRole("option", { name: /before london/i });
+    await user.click(beforeLondonOption);
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateTransport).toHaveBeenCalledWith(
+      "transport-99",
+      expect.objectContaining({ anchorStopId: "" }),
+    );
+  });
+
+  it("add mode: position-in-plan picker is NOT shown", () => {
+    render(<TransportFormDialog {...baseProps} />);
+    expect(
+      screen.queryByRole("combobox", { name: /position in plan/i }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Home base option in LocationCombobox
 // ---------------------------------------------------------------------------
 

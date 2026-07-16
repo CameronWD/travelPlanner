@@ -230,6 +230,13 @@ interface TransportFormProps {
 export const HOME_ENDPOINT = "__home__";
 
 /**
+ * Sentinel value for the "Before {firstStop}" head option in the Position in
+ * plan picker. Radix Select disallows empty-string item values, so we use this
+ * non-empty string and map it to "" (no explicit anchor) on submit.
+ */
+const HEAD_SENTINEL = "__head__";
+
+/**
  * Format a Date to datetime-local input value (YYYY-MM-DDTHH:mm).
  * Uses local (wall-clock) getters so the displayed value matches what the user
  * originally entered — not the UTC equivalent.
@@ -314,6 +321,12 @@ function TransportForm({
 
   const [fromValue, setFromValue] = React.useState<LocationValue>(initialFrom);
   const [toValue, setToValue] = React.useState<LocationValue>(initialTo);
+
+  // anchorStopId: in edit mode this is controlled by the Position in plan
+  // picker; in add mode it is seeded from defaultAnchorStopId and never shown.
+  const [anchorStopId, setAnchorStopId] = React.useState<string>(
+    transport?.anchorStopId ?? defaultAnchorStopId ?? "",
+  );
   const [depAt, setDepAt] = React.useState(toDatetimeLocal(transport?.depAt));
   const [arrAt, setArrAt] = React.useState(toDatetimeLocal(transport?.arrAt));
   const [reference, setReference] = React.useState(transport?.reference ?? "");
@@ -384,7 +397,7 @@ function TransportForm({
         arrAt: arrAt || undefined,
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
-        anchorStopId: transport?.anchorStopId ?? defaultAnchorStopId ?? undefined,
+        anchorStopId: anchorStopId === HEAD_SENTINEL ? "" : (anchorStopId || undefined),
         ...(estimatedMinor !== undefined && {
           estimatedMinor,
           currency,
@@ -457,6 +470,33 @@ function TransportForm({
           />
         </Field>
       </div>
+
+      {/* Position in plan — edit mode only */}
+      {isEdit && (
+        <Field label="Position in plan">
+          <Select
+            value={anchorStopId === "" ? HEAD_SENTINEL : anchorStopId}
+            onValueChange={setAnchorStopId}
+            disabled={isPending}
+          >
+            <SelectTrigger aria-label="Position in plan">
+              <SelectValue placeholder="Select position" />
+            </SelectTrigger>
+            <SelectContent>
+              {stops.length > 0 && (
+                <SelectItem value={HEAD_SENTINEL}>
+                  Before {stops[0].name}
+                </SelectItem>
+              )}
+              {stops.map((stop) => (
+                <SelectItem key={stop.id} value={stop.id}>
+                  After {stop.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
 
       {/* Times */}
       <div className="grid grid-cols-2 gap-3">
