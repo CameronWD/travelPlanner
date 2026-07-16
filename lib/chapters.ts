@@ -1,4 +1,4 @@
-import { addDays, isDateWithin } from "./dates";
+import { isDateWithin } from "./dates";
 
 export interface ChapterLike {
   id: string;
@@ -124,39 +124,3 @@ export interface ChapterRun {
   endDate: string;
 }
 
-export function suggestChapterRuns(stops: readonly StopLike[]): ChapterRun[] {
-  // Rough (date-less) stops can't anchor a date band — exclude them.
-  const dated = stops.filter(
-    (s): s is StopLike & { arriveDate: string; departDate: string } =>
-      s.arriveDate !== null && s.departDate !== null,
-  );
-  const ordered = [...dated].sort((a, b) => a.arriveDate.localeCompare(b.arriveDate));
-  const runs: ChapterRun[] = [];
-  let current: ChapterRun | null = null;
-  let currentCountry: string | null = null;
-  for (const stop of ordered) {
-    const country = stop.country?.trim() || null;
-    if (country && country === currentCountry && current) {
-      current.endDate = stop.departDate;
-    } else if (country) {
-      current = { name: country, startDate: stop.arriveDate, endDate: stop.departDate };
-      currentCountry = country;
-      runs.push(current);
-    } else {
-      current = null;
-      currentCountry = null;
-    }
-  }
-  // Trim adjacent runs so they are contiguous but never share a boundary day.
-  // Each run's endDate starts as the last stop's departDate, which equals the
-  // next run's startDate (stops are contiguous). Subtract one day from the
-  // earlier run's end so chaptersOverlap (inclusive) won't fire on the seam.
-  for (let i = 0; i < runs.length - 1; i++) {
-    if (runs[i].endDate >= runs[i + 1].startDate) {
-      const trimmed = addDays(runs[i + 1].startDate, -1);
-      // Guard: never let the trimmed end fall before the run's own start.
-      runs[i].endDate = trimmed >= runs[i].startDate ? trimmed : runs[i].startDate;
-    }
-  }
-  return runs;
-}
