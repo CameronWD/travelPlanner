@@ -1402,3 +1402,45 @@ describe("optimistic transport delete", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 8: Anchor-slot rendering — free-place leg renders under its anchor stop
+// ---------------------------------------------------------------------------
+
+describe("Task 8: anchor-slot transport rendering", () => {
+  it("renders a free-place leg anchored under its stop, with no Other-transport box", async () => {
+    const stopA = makeStop({ id: "s-a", name: "Tokyo", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Osaka", sortOrder: 1 });
+    // Leg: departs from A, arrives at free place "Hakone", anchorStopId = A
+    const freeLeg: ItineraryTransport = {
+      id: "tr-free",
+      mode: "TRAIN",
+      fromStopId: "s-a",
+      toStopId: null,
+      anchorStopId: "s-a",
+      depIsHome: false,
+      arrIsHome: false,
+      depPlace: null,
+      arrPlace: "Hakone",
+      depAt: null,
+      arrAt: null,
+      reference: null,
+      notes: null,
+      sortOrder: 0,
+      costs: [],
+    };
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+        initialTransports={[freeLeg]}
+      />,
+    );
+
+    // The leg's arrival place must render somewhere in the DOM
+    expect(await screen.findByText(/Hakone/)).toBeInTheDocument();
+    // There must be no "Other transport" heading
+    expect(screen.queryByText("Other transport")).not.toBeInTheDocument();
+  });
+});

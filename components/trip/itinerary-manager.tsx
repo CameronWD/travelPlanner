@@ -41,7 +41,8 @@ import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestNextStopDates, formatDateRange, formatLongDate } from "@/lib/dates";
 import { deleteTransport } from "@/server/actions/transport";
 import { deleteAccommodation } from "@/server/actions/accommodation";
-import { groupStopsByChapter, isTransportBetweenLegs, sortGroupStops } from "@/lib/chapters";
+import { groupStopsByChapter, sortGroupStops } from "@/lib/chapters";
+import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
 import { moveStopInOrder, moveChapterBlocks } from "@/lib/reorder";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import type { TransportMode } from "@/lib/enums";
@@ -752,19 +753,10 @@ export function ItineraryManager({
   const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
   const hasChapters = localChapters.length > 0;
 
-  /** Build a stopsById lookup (used by chapter helpers) */
-  const stopsById = React.useMemo(() => {
-    const map: Record<string, ItineraryStop> = {};
-    for (const s of stops) {
-      map[s.id] = s;
-    }
-    return map;
-  }, [stops]);
-
   // ── Home base bookends (see ADR 0032) ──
   // The Home base frames the plan: its card is pinned above the first stop
   // (with the outbound leg) and, on a round trip, below the last (with the
-  // return leg). Home legs render here, NOT in the "Other transport" box.
+  // return leg). Home legs are excluded from legsBySlot via bookendLegIds.
   const hasHomeBase = Boolean(homeBaseName);
   const firstStop = stops.length > 0 ? stops[0] : null;
   const lastStop = stops.length > 0 ? stops[stops.length - 1] : null;
@@ -778,53 +770,13 @@ export function ItineraryManager({
   }, [outboundLeg, returnLeg]);
 
   /**
-   * Transports that link consecutive stops[i] → stops[i+1].
-   * Returns a map of `${fromId}-${toId}` → transport[].
+   * Transports grouped by their anchor slot (stop id or HEAD_SLOT).
+   * Home bookend legs are excluded via bookendLegIds.
    */
-  const transportByPair = React.useMemo(() => {
-    const map = new Map<string, ItineraryTransport[]>();
-    for (const t of localTransports) {
-      if (t.fromStopId && t.toStopId) {
-        const key = `${t.fromStopId}-${t.toStopId}`;
-        const arr = map.get(key) ?? [];
-        arr.push(t);
-        map.set(key, arr);
-      }
-    }
-    return map;
-  }, [localTransports]);
-
-  /**
-   * Set of transport IDs that are "between-legs" (cross chapters or have a
-   * null endpoint). These are NOT rendered inline with the stop loop.
-   * When there are no chapters, every transport is intra-chapter → set is empty.
-   */
-  const betweenLegsIds = React.useMemo<Set<string>>(() => {
-    if (!hasChapters) return new Set();
-    const ids = new Set<string>();
-    for (const t of localTransports) {
-      if (isTransportBetweenLegs(t, localChapters, stopsById)) {
-        ids.add(t.id);
-      }
-    }
-    return ids;
-  }, [localTransports, localChapters, stopsById, hasChapters]);
-
-  /** Transports that DON'T link a consecutive pair (orphaned or partial),
-   *  excluding the home bookend legs which render in the frame instead. */
-  const otherTransports = React.useMemo(() => {
-    const consecutivePairKeys = new Set<string>();
-    for (let i = 0; i < stops.length - 1; i++) {
-      consecutivePairKeys.add(`${stops[i].id}-${stops[i + 1].id}`);
-    }
-
-    return localTransports.filter((t) => {
-      if (bookendLegIds.has(t.id)) return false; // rendered as a home bookend
-      if (!t.fromStopId || !t.toStopId) return true; // null endpoint → other
-      const key = `${t.fromStopId}-${t.toStopId}`;
-      return !consecutivePairKeys.has(key); // non-consecutive → other
-    });
-  }, [localTransports, stops, bookendLegIds]);
+  const legsBySlot = React.useMemo(
+    () => groupTransportsBySlot(localTransports, stops, bookendLegIds),
+    [localTransports, stops, bookendLegIds],
+  );
 
   const hasStops = stops.length > 0;
   // Show the planning UI when there are stops OR chapters. A freshly created
@@ -1151,15 +1103,29 @@ export function ItineraryManager({
   // Per-stop render helper (shared between grouped and flat rendering)
   // ---------------------------------------------------------------------------
 
+  // Render a single transport leg card (reused in head slot, per-stop slot, and bookend).
+  function renderLegCard(t: ItineraryTransport) {
+    return (
+      <TransportCard
+        key={t.id}
+        transport={enrichTransport(t, stops)}
+        isPending={pendingId === t.id}
+        onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
+        onDelete={handleDeleteTransport}
+        costs={t.costs}
+        tripId={tripId}
+        homeCurrency={homeCurrency}
+        homeBaseName={homeBaseName}
+        notes={notesByTransportId?.get(t.id) ?? []}
+        attachments={attachmentsByTransportId?.get(t.id) ?? []}
+        currentUserId={currentUserId}
+      />
+    );
+  }
+
   function renderStop(stop: ItineraryStop, globalIdx: number, isFirst: boolean, isLast: boolean) {
     const nextStop = isLast ? null : stops[globalIdx + 1];
-
-    // When chapters exist, filter out between-legs transports from inline render.
-    const legTransports = nextStop
-      ? (transportByPair.get(`${stop.id}-${nextStop.id}`) ?? []).filter(
-          (t) => !betweenLegsIds.has(t.id) && !bookendLegIds.has(t.id),
-        )
-      : [];
+    const slotLegs = legsBySlot.get(stop.id) ?? [];
 
     const stopCard = (dragHandle?: React.ReactNode) => (
       <StopCard
@@ -1239,43 +1205,32 @@ export function ItineraryManager({
           </div>
         )}
 
-        {/* Transport legs to next stop (intra-chapter only when chapters exist) */}
-        {!isLast && (
+        {/* Anchor-slot transport legs for this stop — rendered unconditionally
+            (an anchored leg can sit under the final stop too). */}
+        {(slotLegs.length > 0 || !isLast) && (
           <div className="flex flex-col gap-2 px-2">
-            {legTransports.map((t) => (
-              <TransportCard
-                key={t.id}
-                transport={enrichTransport(t, stops)}
-                isPending={pendingId === t.id}
-                onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
-                onDelete={handleDeleteTransport}
-                costs={t.costs}
-                tripId={tripId}
-                homeCurrency={homeCurrency}
-                homeBaseName={homeBaseName}
-                notes={notesByTransportId?.get(t.id) ?? []}
-                attachments={attachmentsByTransportId?.get(t.id) ?? []}
-                currentUserId={currentUserId}
-              />
-            ))}
+            {slotLegs.map(renderLegCard)}
 
-            {/* Add transport between this pair */}
-            <div className="flex justify-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() =>
-                  setAddTransportDefaults({
-                    fromStopId: stop.id,
-                    toStopId: nextStop!.id,
-                  })
-                }
-              >
-                <Plus className="size-3.5" aria-hidden="true" />
-                Add Transport to {nextStop!.name}
-              </Button>
-            </div>
+            {/* Add transport between this stop and the next (only makes sense
+                when there is a next stop). */}
+            {!isLast && (
+              <div className="flex justify-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() =>
+                    setAddTransportDefaults({
+                      fromStopId: stop.id,
+                      toStopId: nextStop!.id,
+                    })
+                  }
+                >
+                  <Plus className="size-3.5" aria-hidden="true" />
+                  Add Transport to {nextStop!.name}
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </React.Fragment>
@@ -1284,56 +1239,7 @@ export function ItineraryManager({
 
   // Render a home bookend leg (outbound/return) as a normal, fully-editable card.
   function renderBookendLeg(t: ItineraryTransport) {
-    return (
-      <TransportCard
-        transport={enrichTransport(t, stops)}
-        isPending={pendingId === t.id}
-        onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
-        onDelete={handleDeleteTransport}
-        costs={t.costs}
-        tripId={tripId}
-        homeCurrency={homeCurrency}
-        homeBaseName={homeBaseName}
-        notes={notesByTransportId?.get(t.id) ?? []}
-        attachments={attachmentsByTransportId?.get(t.id) ?? []}
-        currentUserId={currentUserId}
-      />
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // Seam render helper — renders cross-chapter transports between two groups
-  // ---------------------------------------------------------------------------
-
-  function renderSeam(
-    lastStopOfPrevGroup: ItineraryStop,
-    firstStopOfNextGroup: ItineraryStop,
-  ) {
-    const seamKey = `${lastStopOfPrevGroup.id}-${firstStopOfNextGroup.id}`;
-    const seamTransports = (transportByPair.get(seamKey) ?? []).filter((t) =>
-      betweenLegsIds.has(t.id) && !bookendLegIds.has(t.id),
-    );
-    if (seamTransports.length === 0) return null;
-    return (
-      <div key={`seam-${seamKey}`} className="flex flex-col gap-2 px-2">
-        {seamTransports.map((t) => (
-          <TransportCard
-            key={t.id}
-            transport={enrichTransport(t, stops)}
-            isPending={pendingId === t.id}
-            onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
-            onDelete={handleDeleteTransport}
-            costs={t.costs}
-            tripId={tripId}
-            homeCurrency={homeCurrency}
-            homeBaseName={homeBaseName}
-            notes={notesByTransportId?.get(t.id) ?? []}
-            attachments={attachmentsByTransportId?.get(t.id) ?? []}
-            currentUserId={currentUserId}
-          />
-        ))}
-      </div>
-    );
+    return renderLegCard(t);
   }
 
   // ---------------------------------------------------------------------------
@@ -1419,6 +1325,12 @@ export function ItineraryManager({
                     </Button>
                   </div>
                 )}
+                {/* HEAD_SLOT legs: transports that belong before the first stop */}
+                {(legsBySlot.get(HEAD_SLOT) ?? []).length > 0 && (
+                  <div className="flex flex-col gap-2 px-2">
+                    {(legsBySlot.get(HEAD_SLOT) ?? []).map(renderLegCard)}
+                  </div>
+                )}
                 <SortableContext
                   items={stops.map((s) => s.id)}
                   strategy={verticalListSortingStrategy}
@@ -1438,8 +1350,6 @@ export function ItineraryManager({
               // empty chapters remain non-reorderable via EmptyRoughDroppable.
               <SortableContext items={populatedChapterIds} strategy={verticalListSortingStrategy}>
                 {groups.map((group, groupIdx) => {
-                  const isFirstGroup = groupIdx === 0;
-                  const prevGroup = isFirstGroup ? null : groups[groupIdx - 1];
                   const groupKey = group.chapter?.id ?? "ungrouped";
                   const isCollapsed = collapsedGroups.has(groupKey);
                   const isRoughChapter = group.chapter ? group.chapter.startDate === null : false;
@@ -1448,13 +1358,6 @@ export function ItineraryManager({
 
                   return (
                     <React.Fragment key={groupKey + "-" + groupIdx}>
-                      {/* Seam: cross-chapter transports between prev group and this group */}
-                      {!isFirstGroup && prevGroup && prevGroup.stops.length > 0 && group.stops.length > 0 &&
-                        renderSeam(
-                          prevGroup.stops[prevGroup.stops.length - 1],
-                          group.stops[0],
-                        )
-                      }
 
                       {/* Chapter group header (only when group has a chapter) */}
                       {group.chapter ? (
@@ -1716,39 +1619,6 @@ export function ItineraryManager({
                 });
               })()}
           </div>
-
-          {/* Other transports (not linked to consecutive stops, or home bookends) */}
-          {otherTransports.length > 0 && (
-            <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border p-4">
-              <div>
-                <h3 className="text-sm font-medium text-muted-foreground">
-                  Other transport
-                </h3>
-                <p
-                  className="text-xs text-muted-foreground/70"
-                  title="These legs cross chapter boundaries or have an unlinked endpoint, so they're shown separately rather than between two stops."
-                >
-                  Between-chapter or unlinked legs
-                </p>
-              </div>
-              {otherTransports.map((t) => (
-                <TransportCard
-                  key={t.id}
-                  transport={enrichTransport(t, stops)}
-                  isPending={pendingId === t.id}
-                  onEdit={(tr) => { setEditingTransport(tr); setEditingTransportCosts(t.costs); }}
-                  onDelete={handleDeleteTransport}
-                  costs={t.costs}
-                  tripId={tripId}
-                  homeCurrency={homeCurrency}
-                  homeBaseName={homeBaseName}
-                  notes={notesByTransportId?.get(t.id) ?? []}
-                  attachments={attachmentsByTransportId?.get(t.id) ?? []}
-                  currentUserId={currentUserId}
-                />
-              ))}
-            </div>
-          )}
 
           {/* Home base return bookend (round trips only) */}
           {hasHomeBase && roundTrip && lastStop && (
