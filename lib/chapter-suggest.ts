@@ -40,3 +40,43 @@ export function combineName(countries: readonly string[]): string {
   if (unique.length === 3) return `${unique[0]}, ${unique[1]} & ${unique[2]}`;
   return "Multi-country leg";
 }
+
+/**
+ * Group dated stops into maximal runs of consecutive same-country stops, in
+ * date order. Stops missing arrive/depart or country are skipped and break the
+ * current run (they stay Ungrouped). Mirrors the run-building the previous
+ * suggester used, but also carries run-total nights and an anchor city.
+ */
+export function countryRuns(stops: readonly SuggestStop[]): CountryRun[] {
+  const dated = stops.filter(
+    (s): s is SuggestStop & { arriveDate: string; departDate: string } =>
+      s.arriveDate !== null && s.departDate !== null,
+  );
+  const ordered = [...dated].sort((a, b) => a.arriveDate.localeCompare(b.arriveDate));
+
+  const runs: CountryRun[] = [];
+  let current: CountryRun | null = null;
+  let currentCountry: string | null = null;
+
+  for (const stop of ordered) {
+    const country = stop.country?.trim() || null;
+    if (country && country === currentCountry && current) {
+      current.endDate = stop.departDate;
+      current.nights = nightsBetween(current.startDate, current.endDate);
+    } else if (country) {
+      current = {
+        country,
+        anchorCity: stop.name,
+        startDate: stop.arriveDate,
+        endDate: stop.departDate,
+        nights: nightsBetween(stop.arriveDate, stop.departDate),
+      };
+      currentCountry = country;
+      runs.push(current);
+    } else {
+      current = null;
+      currentCountry = null;
+    }
+  }
+  return runs;
+}
