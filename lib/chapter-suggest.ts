@@ -80,3 +80,38 @@ export function countryRuns(stops: readonly SuggestStop[]): CountryRun[] {
   }
   return runs;
 }
+
+/**
+ * Index intervals of the interleaved zones — contiguous stretches of runs
+ * within which a country recurs. A country appearing in more than one run
+ * (necessarily non-adjacent, since runs are maximal) forces the span between
+ * its first and last run into one zone; spans that share an index merge, but
+ * spans that merely touch at a boundary (a clean gap between two tangles) do
+ * not. Returns sorted, disjoint inclusive [startIdx, endIdx] pairs.
+ */
+export function zoneIntervals(runs: readonly CountryRun[]): [number, number][] {
+  const firstIdx = new Map<string, number>();
+  const lastIdx = new Map<string, number>();
+  runs.forEach((r, i) => {
+    if (!firstIdx.has(r.country)) firstIdx.set(r.country, i);
+    lastIdx.set(r.country, i);
+  });
+
+  const spans: [number, number][] = [];
+  for (const [country, first] of firstIdx) {
+    const last = lastIdx.get(country)!;
+    if (last > first) spans.push([first, last]);
+  }
+  spans.sort((a, b) => a[0] - b[0]);
+
+  const merged: [number, number][] = [];
+  for (const [start, end] of spans) {
+    const prev = merged[merged.length - 1];
+    if (prev && start <= prev[1]) {
+      prev[1] = Math.max(prev[1], end);
+    } else {
+      merged.push([start, end]);
+    }
+  }
+  return merged;
+}

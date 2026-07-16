@@ -54,3 +54,39 @@ describe("countryRuns", () => {
     expect(runs.map((r) => r.country)).toEqual(["France", "Italy"]);
   });
 });
+
+import { zoneIntervals } from "./chapter-suggest";
+
+// Minimal run factory — only country matters for zone detection.
+function run(country: string): CountryRunForTest {
+  return { country, anchorCity: country, startDate: "2026-01-01", endDate: "2026-01-02", nights: 1 };
+}
+type CountryRunForTest = { country: string; anchorCity: string; startDate: string; endDate: string; nights: number };
+
+describe("zoneIntervals", () => {
+  it("returns no zones when every country is unique", () => {
+    expect(zoneIntervals([run("Finland"), run("United Kingdom"), run("Italy")])).toEqual([]);
+  });
+
+  it("spans a single recurring country from its first to last run", () => {
+    // Germany, France, Germany → Germany recurs at 0 and 2
+    expect(zoneIntervals([run("Germany"), run("France"), run("Germany")])).toEqual([[0, 2]]);
+  });
+
+  it("merges interlocking recurrences into one zone", () => {
+    // Germany(0,2), France(1,3) → [0,2] and [1,3] merge → [0,3]
+    expect(zoneIntervals([run("Germany"), run("France"), run("Germany"), run("France")])).toEqual([[0, 3]]);
+  });
+
+  it("keeps two separate tangles separate when a clean country sits between them", () => {
+    // Germany(0,2), Italy(3) clean, Spain(4,6)
+    const runs = [run("Germany"), run("France"), run("Germany"), run("Italy"), run("Spain"), run("Portugal"), run("Spain")];
+    expect(zoneIntervals(runs)).toEqual([[0, 2], [4, 6]]);
+  });
+
+  it("does not merge adjacent-but-non-overlapping tangles", () => {
+    // Germany(0,2), Spain(3,5) — touch at the 2|3 boundary but share no index
+    const runs = [run("Germany"), run("France"), run("Germany"), run("Spain"), run("Portugal"), run("Spain")];
+    expect(zoneIntervals(runs)).toEqual([[0, 2], [3, 5]]);
+  });
+});
