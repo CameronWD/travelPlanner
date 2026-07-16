@@ -20,6 +20,7 @@ export interface TransportCardTransport {
   mode: TransportMode;
   fromStopId?: string | null;
   toStopId?: string | null;
+  anchorStopId?: string | null;
   depIsHome?: boolean | null;
   arrIsHome?: boolean | null;
   depPlace?: string | null;

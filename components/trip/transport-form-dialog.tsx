@@ -65,6 +65,8 @@ export interface TransportFormDialogProps {
   defaultFromStopId?: string;
   /** Pre-fill toStopId. */
   defaultToStopId?: string;
+  /** Pre-fill anchorStopId (the slot this leg will render under). */
+  defaultAnchorStopId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
@@ -97,6 +99,7 @@ export function TransportFormDialog({
   transport,
   defaultFromStopId,
   defaultToStopId,
+  defaultAnchorStopId,
   open,
   onOpenChange,
   onSaved,
@@ -119,6 +122,7 @@ export function TransportFormDialog({
         transport={transport}
         defaultFromStopId={defaultFromStopId}
         defaultToStopId={defaultToStopId}
+        defaultAnchorStopId={defaultAnchorStopId}
         onClose={() => onOpenChange(false)}
         onSaved={onSaved}
         forkId={forkId}
@@ -210,6 +214,7 @@ interface TransportFormProps {
   transport?: TransportCardTransport | null;
   defaultFromStopId?: string;
   defaultToStopId?: string;
+  defaultAnchorStopId?: string;
   onClose: () => void;
   onSaved?: () => void;
   forkId?: string | null;
@@ -245,6 +250,7 @@ function TransportForm({
   transport,
   defaultFromStopId,
   defaultToStopId,
+  defaultAnchorStopId,
   onClose,
   onSaved,
   forkId,
@@ -378,6 +384,7 @@ function TransportForm({
         arrAt: arrAt || undefined,
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
+        anchorStopId: transport?.anchorStopId ?? defaultAnchorStopId ?? undefined,
         ...(estimatedMinor !== undefined && {
           estimatedMinor,
           currency,

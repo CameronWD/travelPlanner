@@ -884,8 +884,8 @@ describe("fork-aware createTransport", () => {
       />,
     );
 
-    // Open transport dialog via the "Add transport (other)" button
-    await user.click(screen.getByRole("button", { name: /add transport \(other\)/i }));
+    // Open transport dialog via the "Add transport" button at the bottom
+    await user.click(screen.getAllByRole("button", { name: /^add transport$/i })[0]);
 
     // The form has a mode select; FLIGHT is the default so we can submit directly.
     // Fill in the dep place to satisfy some minimal input.
@@ -1400,6 +1400,69 @@ describe("optimistic transport delete", () => {
     expect(vi.mocked(toast)).toHaveBeenCalledWith(
       expect.objectContaining({ variant: "destructive" }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 12: Capture position anchor when adding a leg + "Add transport here" affordances
+// ---------------------------------------------------------------------------
+
+describe("Task 12: Add transport here affordance", () => {
+  it("clicking 'Add transport here' in a stop's slot opens the dialog and createTransport is called with anchorStopId", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Tokyo", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Osaka", sortOrder: 1 });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+      />,
+    );
+
+    // Click the "Add transport here" button in stopA's slot
+    const addHereBtns = screen.getAllByRole("button", { name: /add transport here/i });
+    // The first one belongs to Tokyo (stopA)
+    await user.click(addHereBtns[0]);
+
+    // The transport form dialog should be open — submit immediately (FLIGHT default)
+    const submitBtn = await screen.findByRole("button", { name: /^add transport$/i });
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(createTransport).toHaveBeenCalledWith(
+        TRIP_ID,
+        expect.objectContaining({ anchorStopId: "s-a" }),
+        undefined,
+      );
+    });
+  });
+
+  it("between-stops button still passes fromStopId + toStopId + anchorStopId", async () => {
+    const user = userEvent.setup();
+    const stopA = makeStop({ id: "s-a", name: "Tokyo", sortOrder: 0 });
+    const stopB = makeStop({ id: "s-b", name: "Osaka", sortOrder: 1 });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stopA, stopB]}
+      />,
+    );
+
+    // Between-stops button opens dialog pre-filled with from/to
+    await user.click(screen.getByRole("button", { name: /add transport to osaka/i }));
+
+    const submitBtn = await screen.findByRole("button", { name: /^add transport$/i });
+    await user.click(submitBtn);
+
+    await waitFor(() => {
+      expect(createTransport).toHaveBeenCalledWith(
+        TRIP_ID,
+        expect.objectContaining({ anchorStopId: "s-a" }),
+        undefined,
+      );
+    });
   });
 });
 

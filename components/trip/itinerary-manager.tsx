@@ -426,6 +426,7 @@ export function ItineraryManager({
   const [addTransportDefaults, setAddTransportDefaults] = React.useState<{
     fromStopId?: string;
     toStopId?: string;
+    anchorStopId?: string;
   } | null>(null);
 
   // ── Accommodation dialog state ──
@@ -1213,6 +1214,21 @@ export function ItineraryManager({
 
             {/* Add transport between this stop and the next (only makes sense
                 when there is a next stop). */}
+            {/* "Add transport here" ghost button — lands in this stop's anchor slot */}
+            <div className="flex justify-center">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() =>
+                  setAddTransportDefaults({ anchorStopId: stop.id })
+                }
+              >
+                <Plus className="size-3.5" aria-hidden="true" />
+                Add transport here
+              </Button>
+            </div>
+
             {!isLast && (
               <div className="flex justify-center">
                 <Button
@@ -1223,6 +1239,7 @@ export function ItineraryManager({
                     setAddTransportDefaults({
                       fromStopId: stop.id,
                       toStopId: nextStop!.id,
+                      anchorStopId: stop.id,
                     })
                   }
                 >
@@ -1329,6 +1346,17 @@ export function ItineraryManager({
                 {(legsBySlot.get(HEAD_SLOT) ?? []).length > 0 && (
                   <div className="flex flex-col gap-2 px-2">
                     {(legsBySlot.get(HEAD_SLOT) ?? []).map(renderLegCard)}
+                    <div className="flex justify-center">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => setAddTransportDefaults({ anchorStopId: undefined })}
+                      >
+                        <Plus className="size-3.5" aria-hidden="true" />
+                        Add transport here
+                      </Button>
+                    </div>
                   </div>
                 )}
                 <SortableContext
@@ -1651,10 +1679,10 @@ export function ItineraryManager({
               variant="ghost"
               size="sm"
               className="text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setAddTransportDefaults({})}
+              onClick={() => setAddTransportDefaults({ anchorStopId: lastStop?.id })}
             >
               <Plus className="size-3.5" aria-hidden="true" />
-              Add Transport (Other)
+              Add transport
             </Button>
 
             <div className="flex items-center gap-2">
@@ -1745,6 +1773,7 @@ export function ItineraryManager({
           stops={stopOptions}
           defaultFromStopId={addTransportDefaults.fromStopId}
           defaultToStopId={addTransportDefaults.toStopId}
+          defaultAnchorStopId={addTransportDefaults.anchorStopId}
           open={true}
           onOpenChange={(open) => {
             if (!open) setAddTransportDefaults(null);
