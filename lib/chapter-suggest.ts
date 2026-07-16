@@ -115,3 +115,74 @@ export function zoneIntervals(runs: readonly CountryRun[]): [number, number][] {
   }
   return merged;
 }
+
+/** A chapter positioned in the plan, before seam-trimming and final output. */
+export interface PlacedChapter {
+  name: string;
+  startDate: string;
+  endDate: string;
+  anchorCity: string;
+}
+
+function standalone(r: CountryRun): PlacedChapter {
+  return { name: r.country, startDate: r.startDate, endDate: r.endDate, anchorCity: r.anchorCity };
+}
+
+/**
+ * Turn runs + zone intervals into positioned chapters, left to right. Runs
+ * outside any zone become standalone country chapters. Each zone becomes a
+ * combined chapter over its core, with substantial (>= SUBSTANTIAL_STAY_NIGHTS,
+ * run-total) single-country runs at the zone's FRONT or BACK peeled off as
+ * their own chapters.
+ */
+export function buildChapters(
+  runs: readonly CountryRun[],
+  intervals: readonly [number, number][],
+): PlacedChapter[] {
+  const zoneStartToEnd = new Map<number, number>();
+  for (const [start, end] of intervals) zoneStartToEnd.set(start, end);
+
+  const out: PlacedChapter[] = [];
+  let i = 0;
+  while (i < runs.length) {
+    const end = zoneStartToEnd.get(i);
+    if (end === undefined) {
+      out.push(standalone(runs[i]));
+      i += 1;
+    } else {
+      out.push(...buildZoneChapters(runs.slice(i, end + 1)));
+      i = end + 1;
+    }
+  }
+  return out;
+}
+
+/** Edge-peel a single zone into [leftPeeled..., core?, rightPeeled...]. */
+function buildZoneChapters(zoneRuns: readonly CountryRun[]): PlacedChapter[] {
+  let left = 0;
+  let right = zoneRuns.length - 1;
+  const leftPeeled: PlacedChapter[] = [];
+  const rightPeeled: PlacedChapter[] = [];
+
+  while (left <= right && zoneRuns[left].nights >= SUBSTANTIAL_STAY_NIGHTS) {
+    leftPeeled.push(standalone(zoneRuns[left]));
+    left += 1;
+  }
+  while (right >= left && zoneRuns[right].nights >= SUBSTANTIAL_STAY_NIGHTS) {
+    rightPeeled.push(standalone(zoneRuns[right]));
+    right -= 1;
+  }
+
+  const core: PlacedChapter[] = [];
+  if (left <= right) {
+    const coreRuns = zoneRuns.slice(left, right + 1);
+    core.push({
+      name: combineName(coreRuns.map((r) => r.country)),
+      startDate: coreRuns[0].startDate,
+      endDate: coreRuns[coreRuns.length - 1].endDate,
+      anchorCity: coreRuns[0].anchorCity,
+    });
+  }
+
+  return [...leftPeeled, ...core, ...rightPeeled.reverse()];
+}

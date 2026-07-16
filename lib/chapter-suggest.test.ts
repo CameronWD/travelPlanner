@@ -90,3 +90,72 @@ describe("zoneIntervals", () => {
     expect(zoneIntervals(runs)).toEqual([[0, 2], [3, 5]]);
   });
 });
+
+import { buildChapters } from "./chapter-suggest";
+
+// Full run factory with dates + nights for edge-peel behavior.
+function frun(country: string, city: string, start: string, end: string, nights: number): CountryRunForTest {
+  return { country, anchorCity: city, startDate: start, endDate: end, nights };
+}
+
+describe("buildChapters", () => {
+  it("emits standalone chapters for clean unique-country runs", () => {
+    const runs = [
+      frun("Finland", "Helsinki", "2026-06-26", "2026-07-03", 7),
+      frun("United Kingdom", "London", "2026-07-03", "2026-07-07", 4),
+    ];
+    const out = buildChapters(runs, zoneIntervals(runs));
+    expect(out.map((c) => c.name)).toEqual(["Finland", "United Kingdom"]);
+  });
+
+  it("combines a short interleaved zone into one chapter spanning it", () => {
+    const runs = [
+      frun("Germany", "Munich", "2026-07-01", "2026-07-03", 2),
+      frun("France", "Strasbourg", "2026-07-03", "2026-07-05", 2),
+      frun("Germany", "Frankfurt", "2026-07-05", "2026-07-07", 2),
+      frun("France", "Paris", "2026-07-07", "2026-07-10", 3),
+    ];
+    const out = buildChapters(runs, zoneIntervals(runs));
+    expect(out).toEqual([
+      { name: "Germany & France", startDate: "2026-07-01", endDate: "2026-07-10", anchorCity: "Munich" },
+    ]);
+  });
+
+  it("keeps a substantial stay sandwiched inside the zone in the combined band", () => {
+    const runs = [
+      frun("Germany", "Munich", "2026-07-01", "2026-07-03", 2),
+      frun("France", "Paris", "2026-07-03", "2026-07-10", 7), // interior, 7 nights
+      frun("Germany", "Frankfurt", "2026-07-10", "2026-07-12", 2),
+    ];
+    const out = buildChapters(runs, zoneIntervals(runs));
+    expect(out.map((c) => c.name)).toEqual(["Germany & France"]);
+    expect(out[0].startDate).toBe("2026-07-01");
+    expect(out[0].endDate).toBe("2026-07-12");
+  });
+
+  it("peels a substantial run off the FRONT of a zone as its own chapter", () => {
+    const runs = [
+      frun("France", "Paris", "2026-07-01", "2026-07-08", 7), // front, 7 nights
+      frun("Germany", "Munich", "2026-07-08", "2026-07-10", 2),
+      frun("France", "Strasbourg", "2026-07-10", "2026-07-12", 2),
+      frun("Germany", "Frankfurt", "2026-07-12", "2026-07-14", 2),
+    ];
+    const out = buildChapters(runs, zoneIntervals(runs));
+    expect(out.map((c) => c.name)).toEqual(["France", "Germany & France"]);
+    expect(out[0]).toMatchObject({ startDate: "2026-07-01", endDate: "2026-07-08", anchorCity: "Paris" });
+    expect(out[1]).toMatchObject({ startDate: "2026-07-08", endDate: "2026-07-14" });
+  });
+
+  it("double edge-peel leaves two same-named standalones around the core", () => {
+    // Paris(7) · Munich(2) · Lyon(7): both French weeks peel, Germany core remains.
+    const runs = [
+      frun("France", "Paris", "2026-07-01", "2026-07-08", 7),
+      frun("Germany", "Munich", "2026-07-08", "2026-07-10", 2),
+      frun("France", "Lyon", "2026-07-10", "2026-07-17", 7),
+    ];
+    const out = buildChapters(runs, zoneIntervals(runs));
+    // Names still collide here; disambiguation is Task 6. Assert structure + order.
+    expect(out.map((c) => c.name)).toEqual(["France", "Germany", "France"]);
+    expect(out.map((c) => c.anchorCity)).toEqual(["Paris", "Munich", "Lyon"]);
+  });
+});
