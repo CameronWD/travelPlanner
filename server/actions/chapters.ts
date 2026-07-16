@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { chapterSchema, type ChapterInput } from "@/lib/validations/chapter";
-import { chaptersOverlap, suggestChapterRuns } from "@/lib/chapters";
+import { chaptersOverlap } from "@/lib/chapters";
+import { suggestChapters } from "@/lib/chapter-suggest";
 import { nextChapterColour } from "@/lib/chapter-colours";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
@@ -288,7 +289,7 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
   const [stops, existing] = await Promise.all([
     db.stop.findMany({
       where: { tripId, ...REAL_PLAN },
-      select: { id: true, arriveDate: true, departDate: true, country: true, sortOrder: true },
+      select: { id: true, name: true, arriveDate: true, departDate: true, country: true, sortOrder: true },
     }),
     db.chapter.findMany({
       where: { tripId, ...REAL_PLAN },
@@ -296,7 +297,7 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
     }),
   ]);
 
-  const runs = suggestChapterRuns(stops);
+  const runs = suggestChapters(stops);
   const usedColours = existing.map((c) => c.colour);
   const data: {
     tripId: string;

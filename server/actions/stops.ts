@@ -873,7 +873,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
   // adjacent chapters don't share a boundary day. flowDates hands off
   // arrive == previous depart, and chaptersOverlap (lib/chapters.ts) is inclusive,
   // so untrimmed bands would falsely "overlap" and block a later add/edit-chapter.
-  // Mirrors the seam trim in suggestChapterRuns.
+  // Mirrors the seam trim in suggestChapters.
   const chapterSpans: { id: string; start: string; end: string }[] = [];
   const chapterIds = [...new Set(stops.map((s) => s.chapterId).filter((c): c is string => Boolean(c)))];
   for (const chId of chapterIds) {
