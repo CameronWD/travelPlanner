@@ -31,6 +31,7 @@ vi.mock("@/server/actions/transport", () => ({
   deleteTransport: vi.fn().mockResolvedValue({ success: true }),
   createTransport: vi.fn().mockResolvedValue({ success: true }),
   updateTransport: vi.fn().mockResolvedValue({ success: true }),
+  reorderTransports: vi.fn().mockResolvedValue({ success: true }),
 }));
 
 vi.mock("@/server/actions/accommodation", () => ({

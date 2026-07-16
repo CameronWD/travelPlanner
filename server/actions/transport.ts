@@ -365,6 +365,44 @@ export async function searchPlacesAction(
 }
 
 /**
+ * Reorder transport legs — update anchorStopId + sortOrder for each item.
+ * Verifies every leg belongs to tripId within planScope(forkId) before writing.
+ */
+export async function reorderTransports(
+  tripId: string,
+  items: { id: string; anchorStopId: string | null; sortOrder: number }[],
+  forkId?: PlanId,
+): Promise<TransportActionResult> {
+  await requireTripAccess(tripId);
+  if (items.length === 0) return { success: true };
+
+  // Verify all ids belong to this trip + plan before opening a transaction.
+  const ids = items.map((i) => i.id);
+  const rows = await db.transport.findMany({
+    where: { id: { in: ids }, tripId, ...planScope(forkId) },
+    select: { id: true },
+  });
+  const foundIds = new Set(rows.map((r) => r.id));
+  for (const id of ids) {
+    if (!foundIds.has(id)) {
+      return { success: false, errors: { id: ["One or more transport legs aren't part of this trip."] } };
+    }
+  }
+
+  await db.$transaction(async (tx) => {
+    for (const item of items) {
+      await (tx as typeof db).transport.update({
+        where: { id: item.id },
+        data: { anchorStopId: item.anchorStopId, sortOrder: item.sortOrder },
+      });
+    }
+  });
+
+  revalidatePath(`/trips/${tripId}`, "layout");
+  return { success: true };
+}
+
+/**
  * Delete a transport.
  */
 export async function deleteTransport(

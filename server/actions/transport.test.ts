@@ -13,6 +13,7 @@ const {
   searchPlacesWithStatusMock,
   transportFindUniqueMock,
   transportFindFirstMock,
+  transportFindManyMock,
   transportCreateMock,
   transportUpdateMock,
   transportDeleteMock,
@@ -27,9 +28,11 @@ const {
 } = vi.hoisted(() => {
   const costCreateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
   const costUpdateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
+  const transportUpdateMock = vi.fn().mockResolvedValue({});
   const transactionMock = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
+        transport: { update: transportUpdateMock },
         cost: { create: costCreateMock, update: costUpdateMock },
         exchangeRate: { upsert: vi.fn().mockResolvedValue({}) },
       });
@@ -48,8 +51,9 @@ const {
     searchPlacesWithStatusMock: vi.fn().mockResolvedValue({ status: "ok", candidates: [] }),
     transportFindUniqueMock: vi.fn(),
     transportFindFirstMock: vi.fn(),
+    transportFindManyMock: vi.fn().mockResolvedValue([]),
     transportCreateMock: vi.fn(),
-    transportUpdateMock: vi.fn(),
+    transportUpdateMock,
     transportDeleteMock: vi.fn(),
     stopFindManyMock: vi.fn().mockResolvedValue([]),
     tripFindUniqueMock: vi.fn().mockResolvedValue({ homeCurrency: "AUD" }),
@@ -78,6 +82,7 @@ vi.mock("@/lib/db", () => ({
     transport: {
       findUnique: transportFindUniqueMock,
       findFirst: transportFindFirstMock,
+      findMany: transportFindManyMock,
       create: transportCreateMock,
       update: transportUpdateMock,
       delete: transportDeleteMock,
@@ -106,6 +111,7 @@ import {
   updateTransport,
   deleteTransport,
   searchPlacesAction,
+  reorderTransports,
 } from "./transport";
 import { recordActivity } from "@/server/actions/activity";
 
@@ -1045,6 +1051,98 @@ describe("anchorStopId: updateTransport persists anchorStopId and validates it",
       expect(result.errors._form).toBeDefined();
     }
     expect(transportUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reorderTransports
+// ---------------------------------------------------------------------------
+
+describe("reorderTransports", () => {
+  it("writes anchorStopId and sortOrder for each item", async () => {
+    // Two legs in trip-1, both anchored to stop-a; reorder moves leg-2 to stop-b
+    transportFindManyMock.mockResolvedValue([
+      { id: "leg-1", tripId: "trip-1", forkId: null },
+      { id: "leg-2", tripId: "trip-1", forkId: null },
+    ]);
+
+    const items = [
+      { id: "leg-1", anchorStopId: "stop-a", sortOrder: 0 },
+      { id: "leg-2", anchorStopId: "stop-b", sortOrder: 0 },
+    ];
+
+    const result = await reorderTransports("trip-1", items);
+
+    expect(result.success).toBe(true);
+    // transaction called with a callback
+    expect(transactionMock).toHaveBeenCalled();
+    // transport.update called inside tx for each item
+    expect(transportUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "leg-1" },
+        data: expect.objectContaining({ anchorStopId: "stop-a", sortOrder: 0 }),
+      }),
+    );
+    expect(transportUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "leg-2" },
+        data: expect.objectContaining({ anchorStopId: "stop-b", sortOrder: 0 }),
+      }),
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
+  });
+
+  it("returns success: true with empty items (no-op)", async () => {
+    const result = await reorderTransports("trip-1", []);
+    expect(result.success).toBe(true);
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a leg from another trip", async () => {
+    // leg-bad belongs to trip-2, not trip-1
+    transportFindManyMock.mockResolvedValue([
+      { id: "leg-good", tripId: "trip-1", forkId: null },
+      // leg-bad is NOT in the result (it belongs to another trip)
+    ]);
+
+    const items = [
+      { id: "leg-good", anchorStopId: "stop-a", sortOrder: 0 },
+      { id: "leg-bad", anchorStopId: "stop-a", sortOrder: 1 },
+    ];
+
+    const result = await reorderTransports("trip-1", items);
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.id).toBeDefined();
+    }
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("calls requireTripAccess for auth check", async () => {
+    transportFindManyMock.mockResolvedValue([
+      { id: "leg-1", tripId: "trip-1", forkId: null },
+    ]);
+    const items = [{ id: "leg-1", anchorStopId: "stop-a", sortOrder: 0 }];
+
+    await reorderTransports("trip-1", items);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+  });
+
+  it("scopes the findMany query to the given forkId", async () => {
+    transportFindManyMock.mockResolvedValue([
+      { id: "leg-f", tripId: "trip-1", forkId: "fork-9" },
+    ]);
+    const items = [{ id: "leg-f", anchorStopId: "stop-a", sortOrder: 0 }];
+
+    await reorderTransports("trip-1", items, "fork-9");
+
+    expect(transportFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ forkId: "fork-9" }),
+      }),
+    );
   });
 });
 

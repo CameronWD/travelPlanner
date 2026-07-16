@@ -39,7 +39,8 @@ import { reorderChapters, deleteChapter } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestNextStopDates, formatDateRange, formatLongDate } from "@/lib/dates";
-import { deleteTransport } from "@/server/actions/transport";
+import { deleteTransport, reorderTransports } from "@/server/actions/transport";
+import { reorderTransportItems } from "@/lib/reorder-transports";
 import { deleteAccommodation } from "@/server/actions/accommodation";
 import { groupStopsByChapter, sortGroupStops } from "@/lib/chapters";
 import { groupTransportsBySlot, HEAD_SLOT } from "@/lib/transport-anchor";
@@ -293,6 +294,64 @@ function SortableChapterHeader({
   );
 
   return <>{children(dragHandle, setNodeRef, style)}</>;
+}
+
+/**
+ * Wraps a transport leg card in a dnd-kit sortable context.
+ * Provides a grip handle that is rendered alongside the card.
+ */
+function SortableTransport({
+  transportId,
+  anchorStopId,
+  children,
+}: {
+  transportId: string;
+  anchorStopId: string | null;
+  children: (dragHandle: React.ReactNode) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: transportId,
+    data: { type: "transport", anchorStopId },
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const dragHandle = (
+    <button
+      type="button"
+      {...listeners}
+      {...attributes}
+      aria-label="Reorder transport leg"
+      title="Drag to reorder"
+      data-testid="drag-handle-transport"
+      className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
+    >
+      <svg
+        width="10"
+        height="14"
+        viewBox="0 0 10 14"
+        aria-hidden="true"
+        className="fill-muted-foreground/60"
+      >
+        <circle cx="2" cy="2" r="1.5" />
+        <circle cx="8" cy="2" r="1.5" />
+        <circle cx="2" cy="7" r="1.5" />
+        <circle cx="8" cy="7" r="1.5" />
+        <circle cx="2" cy="12" r="1.5" />
+        <circle cx="8" cy="12" r="1.5" />
+      </svg>
+    </button>
+  );
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children(dragHandle)}
+    </div>
+  );
 }
 
 /**
@@ -858,7 +917,68 @@ export function ItineraryManager({
     const { active, over } = event;
     if (!over) return;
 
-    const activeType = active.data.current?.type as "stop" | "chapter" | undefined;
+    const activeType = active.data.current?.type as "stop" | "chapter" | "transport" | undefined;
+
+    if (activeType === "transport") {
+      const activeId = active.id as string;
+      const overId = over.id as string;
+
+      // Determine target slot from over:
+      // - over is another transport → use its anchorStopId
+      // - over is a stop (by id match in stops) → use that stop's id
+      // - otherwise (dropped on a container/droppable) → use overId if it's a stop id, else HEAD_SLOT
+      const overTransport = localTransports.find((t) => t.id === overId);
+      const overStop = stops.find((s) => s.id === overId);
+      let targetSlot: string | null;
+      if (overTransport) {
+        targetSlot = overTransport.anchorStopId ?? null;
+      } else if (overStop) {
+        targetSlot = overStop.id;
+      } else {
+        // overId could be a stop id used as a droppable container id
+        const overIsStop = stops.some((s) => s.id === overId);
+        targetSlot = overIsStop ? overId : null;
+      }
+
+      // Snapshot for revert on failure
+      const snapshot = localTransports;
+
+      const orderedStopIds = stops.map((s) => s.id);
+      const newTransports = reorderTransportItems(
+        localTransports.map((t) => ({ id: t.id, anchorStopId: t.anchorStopId ?? null, sortOrder: t.sortOrder })),
+        activeId,
+        targetSlot,
+        overId,
+        orderedStopIds,
+      );
+
+      // Apply optimistically
+      setLocalTransports((prev) =>
+        prev.map((t) => {
+          const updated = newTransports.find((u) => u.id === t.id);
+          return updated ? { ...t, anchorStopId: updated.anchorStopId, sortOrder: updated.sortOrder } : t;
+        }),
+      );
+
+      // Persist
+      const items = newTransports.map((t) => ({
+        id: t.id,
+        anchorStopId: t.anchorStopId,
+        sortOrder: t.sortOrder,
+      }));
+      try {
+        const res = await reorderTransports(tripId, items, forkId ?? undefined);
+        if (!res.success) {
+          setLocalTransports(snapshot);
+          const firstError = res.errors ? Object.values(res.errors).flat()[0] : undefined;
+          toast({ variant: "destructive", title: firstError ?? "Couldn't reorder transport legs." });
+        }
+      } catch {
+        setLocalTransports(snapshot);
+        toast({ variant: "destructive", title: "Couldn't reorder transport legs." });
+      }
+      return;
+    }
 
     if (activeType === "stop") {
       const activeId = active.id as string;
@@ -1124,6 +1244,26 @@ export function ItineraryManager({
     );
   }
 
+  // Render a transport leg card wrapped in a SortableTransport for drag-to-reorder.
+  function renderSortableLegCard(t: ItineraryTransport) {
+    return (
+      <SortableTransport
+        key={t.id}
+        transportId={t.id}
+        anchorStopId={t.anchorStopId ?? null}
+      >
+        {(dragHandle) => (
+          <div className="flex items-start gap-1">
+            {dragHandle}
+            <div className="flex-1 min-w-0">
+              {renderLegCard(t)}
+            </div>
+          </div>
+        )}
+      </SortableTransport>
+    );
+  }
+
   function renderStop(stop: ItineraryStop, globalIdx: number, isFirst: boolean, isLast: boolean) {
     const nextStop = isLast ? null : stops[globalIdx + 1];
     const slotLegs = legsBySlot.get(stop.id) ?? [];
@@ -1210,7 +1350,12 @@ export function ItineraryManager({
             (an anchored leg can sit under the final stop too). */}
         {(slotLegs.length > 0 || !isLast) && (
           <div className="flex flex-col gap-2 px-2">
-            {slotLegs.map(renderLegCard)}
+            <SortableContext
+              items={slotLegs.map((t) => t.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              {slotLegs.map(renderSortableLegCard)}
+            </SortableContext>
 
             {/* Add transport between this stop and the next (only makes sense
                 when there is a next stop). */}
@@ -1345,7 +1490,12 @@ export function ItineraryManager({
                 {/* HEAD_SLOT legs: transports that belong before the first stop */}
                 {(legsBySlot.get(HEAD_SLOT) ?? []).length > 0 && (
                   <div className="flex flex-col gap-2 px-2">
-                    {(legsBySlot.get(HEAD_SLOT) ?? []).map(renderLegCard)}
+                    <SortableContext
+                      items={(legsBySlot.get(HEAD_SLOT) ?? []).map((t) => t.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {(legsBySlot.get(HEAD_SLOT) ?? []).map(renderSortableLegCard)}
+                    </SortableContext>
                     <div className="flex justify-center">
                       <Button
                         variant="ghost"
