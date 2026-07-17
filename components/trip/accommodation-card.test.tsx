@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 // Stub out server-action imports that pull in next-auth (not needed for UI tests)
 vi.mock("@/server/actions/costs", () => ({
@@ -118,5 +119,28 @@ describe("AccommodationCard emerald Bold-Modular styling (D3)", () => {
       <AccommodationCard accommodation={baseAcc} stop={baseStop} />,
     );
     expect(screen.queryByText(/confirmed/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("AccommodationCard mobile overflow", () => {
+  it("folds Delete into the overflow menu", async () => {
+    const user = userEvent.setup();
+    render(
+      <AccommodationCard
+        accommodation={baseAcc}
+        stop={baseStop}
+        tripId="t1"
+        currentUserId="u1"
+        notes={[]}
+        attachments={[]}
+        onEdit={() => {}}
+        onDelete={() => {}}
+      />,
+    );
+    const trigger = screen.getByRole("button", {
+      name: `More actions for ${baseAcc.name}`,
+    });
+    await user.click(trigger);
+    expect(await screen.findByRole("menuitem", { name: /delete/i })).toBeInTheDocument();
   });
 });
