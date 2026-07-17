@@ -19,10 +19,10 @@ import type { Category } from "@/lib/categories";
 import { CostEditor } from "./cost-editor";
 import { MapLink } from "./map-link";
 import type { CostRow } from "@/server/actions/costs";
-import { NoteThread, type NoteView } from "./note-thread";
+import type { NoteView } from "./note-thread";
 import { VoteControl, type VoteView } from "./vote-control";
-import { AttachmentPopover } from "./attachment-popover";
 import type { AttachmentView } from "./attachment-list";
+import { CardActionCluster } from "./card-action-cluster";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -122,75 +122,66 @@ export function ItemCard({
 
         {/* Action buttons (top-right cluster) */}
         <div className="flex shrink-0 items-center gap-1">
-          {/* Wishlist mode → CategoryPill replaces ghost Schedule slot */}
-          {mode === "wishlist" && (
-            <CategoryPill category={item.category as Category} size="sm" />
-          )}
-
-          {/* Scheduled mode → Unschedule button */}
-          {mode === "scheduled" && onUnschedule && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-              disabled={isPending}
-              onClick={() => onUnschedule(item.id)}
-              title="Move back to wishlist"
-            >
-              <CalendarX className="size-3.5" aria-hidden="true" />
-              Unschedule
-            </Button>
-          )}
-
-          {/* Edit */}
-          {onEdit && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              disabled={isPending}
-              onClick={() => onEdit(item)}
-              aria-label={`Edit ${item.title}`}
-              title="Edit"
-            >
-              <Pencil className="size-4" aria-hidden="true" />
-            </Button>
-          )}
-
-          {/* Notes trigger (wishlist mode) */}
-          {mode === "wishlist" && notes !== undefined && tripId && currentUserId && (
-            <NoteThread
-              tripId={tripId}
-              targetType="ITEM"
-              targetId={item.id}
-              notes={notes}
-              currentUserId={currentUserId}
-            />
-          )}
-
-          {/* Attachment popover */}
-          {mode === "wishlist" && attachments !== undefined && tripId && (
-            <AttachmentPopover
-              tripId={tripId}
-              targetType="ITEM"
-              targetId={item.id}
-              attachments={attachments}
-            />
-          )}
-
-          {/* Delete */}
-          {onDelete && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-              disabled={isPending}
-              onClick={() => onDelete(item.id)}
-              aria-label={`Delete ${item.title}`}
-              title="Delete"
-            >
-              <Trash2 className="size-4" aria-hidden="true" />
-            </Button>
+          {mode === "wishlist" ? (
+            <>
+              <CategoryPill category={item.category as Category} size="sm" />
+              <CardActionCluster
+                tripId={tripId}
+                targetType="ITEM"
+                targetId={item.id}
+                editLabel={`Edit ${item.title}`}
+                deleteLabel={`Delete ${item.title}`}
+                moreLabel={`More actions for ${item.title}`}
+                onEdit={onEdit ? () => onEdit(item) : undefined}
+                onDelete={onDelete ? () => onDelete(item.id) : undefined}
+                isPending={isPending}
+                notes={notes}
+                currentUserId={currentUserId}
+                attachments={attachments}
+              />
+            </>
+          ) : (
+            <>
+              {onUnschedule && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  disabled={isPending}
+                  onClick={() => onUnschedule(item.id)}
+                  title="Move back to wishlist"
+                >
+                  <CalendarX className="size-3.5" aria-hidden="true" />
+                  Unschedule
+                </Button>
+              )}
+              {onEdit && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8"
+                  disabled={isPending}
+                  onClick={() => onEdit(item)}
+                  aria-label={`Edit ${item.title}`}
+                  title="Edit"
+                >
+                  <Pencil className="size-4" aria-hidden="true" />
+                </Button>
+              )}
+              {onDelete && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  disabled={isPending}
+                  onClick={() => onDelete(item.id)}
+                  aria-label={`Delete ${item.title}`}
+                  title="Delete"
+                >
+                  <Trash2 className="size-4" aria-hidden="true" />
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>

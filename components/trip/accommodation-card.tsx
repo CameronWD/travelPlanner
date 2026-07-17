@@ -2,15 +2,14 @@ import * as React from "react";
 import { MapPin, Calendar, Hash, StickyNote, AlertTriangle, Home } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
-import { RowActions } from "@/components/ui/row-actions";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { accommodationDateWarnings } from "@/lib/validations/accommodation";
 import { CostEditor } from "./cost-editor";
 import { MapLink } from "./map-link";
 import type { CostRow } from "@/server/actions/costs";
-import { NoteThread, type NoteView } from "./note-thread";
-import { AttachmentPopover } from "./attachment-popover";
+import type { NoteView } from "./note-thread";
 import type { AttachmentView } from "./attachment-list";
+import { CardActionCluster } from "./card-action-cluster";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -105,32 +104,20 @@ export function AccommodationCard({
             )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-1">
-            {attachments !== undefined && tripId && (
-              <AttachmentPopover
-                tripId={tripId}
-                targetType="ACCOMMODATION"
-                targetId={a.id}
-                attachments={attachments}
-              />
-            )}
-            {notes !== undefined && tripId && currentUserId && (
-              <NoteThread
-                tripId={tripId}
-                targetType="ACCOMMODATION"
-                targetId={a.id}
-                notes={notes}
-                currentUserId={currentUserId}
-              />
-            )}
-            <RowActions
-              onEdit={onEdit ? () => onEdit(a) : undefined}
-              onDelete={onDelete ? () => onDelete(a.id) : undefined}
-              editLabel={`Edit ${a.name}`}
-              deleteLabel={`Delete ${a.name}`}
-              disabled={isPending}
-            />
-          </div>
+          <CardActionCluster
+            tripId={tripId}
+            targetType="ACCOMMODATION"
+            targetId={a.id}
+            editLabel={`Edit ${a.name}`}
+            deleteLabel={`Delete ${a.name}`}
+            moreLabel={`More actions for ${a.name}`}
+            onEdit={onEdit ? () => onEdit(a) : undefined}
+            onDelete={onDelete ? () => onDelete(a.id) : undefined}
+            isPending={isPending}
+            notes={notes}
+            currentUserId={currentUserId}
+            attachments={attachments}
+          />
         </div>
       </div>
 

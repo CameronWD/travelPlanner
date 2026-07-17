@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import * as React from "react";
 
 // ---------------------------------------------------------------------------
@@ -126,5 +127,32 @@ describe("ItemCard — Bold-Modular Schedule button", () => {
     const btn = screen.getByRole("button", { name: /schedule/i });
     expect(btn.className).toMatch(/w-full/);
     expect(btn.className).toMatch(/bg-primary/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// CardActionCluster adoption — wishlist mode mobile overflow
+// ---------------------------------------------------------------------------
+
+describe("ItemCard wishlist mobile overflow", () => {
+  it("folds Delete into the overflow menu in wishlist mode", async () => {
+    const user = userEvent.setup();
+    render(
+      <ItemCard
+        item={baseItem}
+        mode="wishlist"
+        tripId="t1"
+        currentUserId="u1"
+        notes={[]}
+        attachments={[]}
+        onEdit={() => {}}
+        onDelete={() => {}}
+      />,
+    );
+    const trigger = screen.getByRole("button", {
+      name: `More actions for ${baseItem.title}`,
+    });
+    await user.click(trigger);
+    expect(await screen.findByRole("menuitem", { name: /delete/i })).toBeInTheDocument();
   });
 });

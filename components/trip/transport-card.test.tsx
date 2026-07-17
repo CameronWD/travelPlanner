@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 
 // Stub out server-action imports that pull in next-auth (not needed for UI tests)
 vi.mock("@/server/actions/costs", () => ({
@@ -198,5 +199,27 @@ describe("TransportCard Bold-Modular D3 visual spec", () => {
     const headingIdx = allTextNodes.indexOf(heading);
     const sublineIdx = allTextNodes.indexOf(subline);
     expect(headingIdx).toBeLessThan(sublineIdx);
+  });
+});
+
+describe("TransportCard mobile overflow", () => {
+  it("folds Delete into the overflow menu", async () => {
+    const user = userEvent.setup();
+    render(
+      <TransportCard
+        transport={base}
+        tripId="t1"
+        currentUserId="u1"
+        notes={[]}
+        attachments={[]}
+        onEdit={() => {}}
+        onDelete={() => {}}
+      />,
+    );
+    const trigger = screen.getByRole("button", {
+      name: "More actions for this transport",
+    });
+    await user.click(trigger);
+    expect(await screen.findByRole("menuitem", { name: /delete/i })).toBeInTheDocument();
   });
 });
