@@ -94,21 +94,6 @@ export function CardActionCluster({
 
   return (
     <div className={cn("flex shrink-0 items-center gap-1", className)}>
-      {/* Edit — single always-visible instance across breakpoints. */}
-      {onEdit && (
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-8"
-          disabled={isPending}
-          onClick={onEdit}
-          aria-label={editLabel}
-          title={editLabel}
-        >
-          <Pencil className="size-4" aria-hidden="true" />
-        </Button>
-      )}
-
       {/* Desktop-only inline secondary actions. */}
       {hasAttachments && (
         <div className="hidden sm:block">
@@ -131,11 +116,26 @@ export function CardActionCluster({
           />
         </div>
       )}
+
+      {/* Edit — single always-visible instance across breakpoints. */}
+      {onEdit && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative size-8 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
+          disabled={isPending}
+          onClick={onEdit}
+          aria-label={editLabel}
+          title={editLabel}
+        >
+          <Pencil className="size-4" aria-hidden="true" />
+        </Button>
+      )}
       {onDelete && (
         <Button
           variant="ghost"
           size="icon"
-          className="hidden sm:inline-flex size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+          className="hidden sm:inline-flex relative size-8 text-destructive hover:bg-destructive/10 hover:text-destructive pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
           disabled={isPending}
           onClick={onDelete}
           aria-label={deleteLabel}
