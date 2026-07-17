@@ -9,8 +9,13 @@ vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn().mockResolvedValue({ success: true }),
   deleteAttachment: vi.fn().mockResolvedValue({ success: true }),
 }));
+vi.mock("@/lib/image-compress", () => ({
+  compressImage: vi.fn(async (f: File) => f),
+}));
 
 import { saveJournalEntry } from "@/server/actions/journal";
+import { uploadAttachment } from "@/server/actions/attachments";
+import { compressImage } from "@/lib/image-compress";
 import { JournalEditor } from "./journal-editor";
 
 const BASE_PROPS = {
@@ -61,5 +66,27 @@ describe("JournalEditor", () => {
     await user.tab();
 
     expect(saveJournalEntry).not.toHaveBeenCalled();
+  });
+
+  it("compresses the selected photo before calling uploadAttachment", async () => {
+    const user = userEvent.setup();
+    const compressedFile = new File([new Uint8Array(10)], "photo.webp", { type: "image/webp" });
+    vi.mocked(compressImage).mockResolvedValueOnce(compressedFile);
+    const { container } = render(<JournalEditor {...BASE_PROPS} />);
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).not.toBeNull();
+
+    const rawFile = new File([new Uint8Array(5000)], "big.jpg", { type: "image/jpeg" });
+    await user.upload(fileInput, rawFile);
+
+    await waitFor(() => expect(uploadAttachment).toHaveBeenCalledTimes(1));
+
+    expect(compressImage).toHaveBeenCalledWith(rawFile);
+
+    const formData = (uploadAttachment as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0] as FormData;
+    const sent = formData.get("file") as File;
+    expect(sent.name).toBe("photo.webp");
+    expect(sent.type).toBe("image/webp");
   });
 });

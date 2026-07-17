@@ -18,7 +18,12 @@ vi.mock("@/server/actions/cover", () => ({
 
 vi.mock("@/components/ui/use-toast", () => ({ toast: toastMock }));
 
+vi.mock("@/lib/image-compress", () => ({
+  compressImage: vi.fn(async (f: File) => f),
+}));
+
 import { CoverImageField } from "./cover-image-field";
+import { compressImage } from "@/lib/image-compress";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -81,5 +86,27 @@ describe("CoverImageField", () => {
     await user.upload(fileInput, file);
 
     await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" })));
+  });
+
+  it("compresses the selected file before calling setTripCover", async () => {
+    const user = userEvent.setup();
+    const compressedFile = new File([new Uint8Array(10)], "photo.webp", { type: "image/webp" });
+    vi.mocked(compressImage).mockResolvedValueOnce(compressedFile);
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).not.toBeNull();
+
+    const rawFile = new File([new Uint8Array(5000)], "big.jpg", { type: "image/jpeg" });
+    await user.upload(fileInput, rawFile);
+
+    await waitFor(() => expect(setTripCoverMock).toHaveBeenCalledTimes(1));
+
+    expect(compressImage).toHaveBeenCalledWith(rawFile);
+
+    const formData: FormData = setTripCoverMock.mock.calls[0][0];
+    const sent = formData.get("file") as File;
+    expect(sent.name).toBe("photo.webp");
+    expect(sent.type).toBe("image/webp");
   });
 });
