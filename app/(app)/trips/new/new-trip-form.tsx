@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useTransition } from "react";
 import { createTrip } from "@/server/actions/trips";
+import { compressImage } from "@/lib/image-compress";
 import { CURRENCIES, DEFAULT_HOME_CURRENCY } from "@/lib/currencies";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -40,7 +41,9 @@ export function NewTripForm() {
     };
 
     startTransition(async () => {
-      const result = await createTrip(input, coverFile && coverFile.size > 0 ? coverFile : null);
+      const rawCover = coverFile && coverFile.size > 0 ? coverFile : null;
+      const cover = rawCover ? await compressImage(rawCover) : null;
+      const result = await createTrip(input, cover);
       // If createTrip redirects successfully, this line won't be reached.
       // It only resolves here on a validation error.
       if (!result.success) {

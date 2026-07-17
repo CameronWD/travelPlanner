@@ -4,6 +4,7 @@ import * as React from "react";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setTripCover, removeTripCover } from "@/server/actions/cover";
+import { compressImage } from "@/lib/image-compress";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -16,11 +17,12 @@ export function CoverImageField({ tripId, hasCover }: { tripId: string; hasCover
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const fd = new FormData();
-    fd.set("tripId", tripId);
-    fd.set("file", file);
     startTransition(async () => {
       try {
+        const compressed = await compressImage(file);
+        const fd = new FormData();
+        fd.set("tripId", tripId);
+        fd.set("file", compressed);
         const r = await setTripCover(fd);
         if (!r.success) toast({ variant: "destructive", title: r.error });
         else router.refresh();
