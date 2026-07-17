@@ -59,7 +59,9 @@ describe("compressImage", () => {
 
   it("falls back to the original when compression throws", async () => {
     const jpg = makeFile(5000, "photo.jpg", "image/jpeg");
-    imageCompressionMock.mockRejectedValue(new Error("decode failed"));
+    imageCompressionMock.mockImplementationOnce(async () => {
+      throw new Error("decode failed");
+    });
     const out = await compressImage(jpg);
     expect(out).toBe(jpg);
   });
