@@ -1,15 +1,14 @@
 import * as React from "react";
 import { ArrowRight, Clock, StickyNote } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { RowActions } from "@/components/ui/row-actions";
 import { TRANSPORT_MODE_META, durationMinutes, formatDuration } from "@/lib/transport";
 import type { TransportMode } from "@/lib/enums";
 import { transportTimeDisplay, shortDate, dayDeltaSuffix } from "@/lib/time-display";
 import { CostEditor } from "./cost-editor";
 import type { CostRow } from "@/server/actions/costs";
-import { NoteThread, type NoteView } from "./note-thread";
-import { AttachmentPopover } from "./attachment-popover";
+import type { NoteView } from "./note-thread";
 import type { AttachmentView } from "./attachment-list";
+import { CardActionCluster } from "./card-action-cluster";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -153,32 +152,20 @@ export function TransportCard({
         </div>
 
         {/* Controls */}
-        <div className="flex shrink-0 items-center gap-1">
-          {attachments !== undefined && tripId && (
-            <AttachmentPopover
-              tripId={tripId}
-              targetType="TRANSPORT"
-              targetId={t.id}
-              attachments={attachments}
-            />
-          )}
-          {notes !== undefined && tripId && currentUserId && (
-            <NoteThread
-              tripId={tripId}
-              targetType="TRANSPORT"
-              targetId={t.id}
-              notes={notes}
-              currentUserId={currentUserId}
-            />
-          )}
-          <RowActions
-            onEdit={onEdit ? () => onEdit(t) : undefined}
-            onDelete={onDelete ? () => onDelete(t.id) : undefined}
-            editLabel="Edit Transport"
-            deleteLabel="Delete Transport"
-            disabled={isPending}
-          />
-        </div>
+        <CardActionCluster
+          tripId={tripId}
+          targetType="TRANSPORT"
+          targetId={t.id}
+          editLabel="Edit Transport"
+          deleteLabel="Delete Transport"
+          moreLabel="More actions for this transport"
+          onEdit={onEdit ? () => onEdit(t) : undefined}
+          onDelete={onDelete ? () => onDelete(t.id) : undefined}
+          isPending={isPending}
+          notes={notes}
+          currentUserId={currentUserId}
+          attachments={attachments}
+        />
       </div>
 
       {/* Times row */}
