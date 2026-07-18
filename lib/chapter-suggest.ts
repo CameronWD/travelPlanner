@@ -1,15 +1,16 @@
 import { addDays, nightsBetween } from "./dates";
 import type { ChapterRun } from "./chapters";
+import { countryName } from "./countries";
 
 /**
  * A dated Stop as consumed by the chapter suggester. Only stops with BOTH
- * arriveDate AND departDate are considered; a country-less stop breaks a run.
+ * arriveDate AND departDate are considered; a countryCode-less stop breaks a run.
  */
 export interface SuggestStop {
   name: string;
   arriveDate: string | null;
   departDate: string | null;
-  country: string | null;
+  countryCode: string | null;
 }
 
 /** A maximal run of consecutive same-country dated stops. */
@@ -56,26 +57,26 @@ export function countryRuns(stops: readonly SuggestStop[]): CountryRun[] {
 
   const runs: CountryRun[] = [];
   let current: CountryRun | null = null;
-  let currentCountry: string | null = null;
+  let currentCountryCode: string | null = null;
 
   for (const stop of ordered) {
-    const country = stop.country?.trim() || null;
-    if (country && country === currentCountry && current) {
+    const code = stop.countryCode?.trim() || null;
+    if (code && code === currentCountryCode && current) {
       current.endDate = stop.departDate;
       current.nights = nightsBetween(current.startDate, current.endDate);
-    } else if (country) {
+    } else if (code) {
       current = {
-        country,
+        country: countryName(code),
         anchorCity: stop.name,
         startDate: stop.arriveDate,
         endDate: stop.departDate,
         nights: nightsBetween(stop.arriveDate, stop.departDate),
       };
-      currentCountry = country;
+      currentCountryCode = code;
       runs.push(current);
     } else {
       current = null;
-      currentCountry = null;
+      currentCountryCode = null;
     }
   }
   return runs;

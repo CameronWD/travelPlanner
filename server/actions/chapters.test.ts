@@ -277,9 +277,9 @@ describe("deleteChapter", () => {
 describe("suggestChaptersFromCountries", () => {
   it("creates one chapter per country run, skipping runs that overlap existing chapters", async () => {
     stopFindManyMock.mockResolvedValue([
-      { id: "a", name: "City", arriveDate: "2026-06-26", departDate: "2026-06-30", country: "Finland", sortOrder: 0 },
-      { id: "b", name: "City", arriveDate: "2026-06-30", departDate: "2026-07-03", country: "Finland", sortOrder: 1 },
-      { id: "c", name: "City", arriveDate: "2026-07-10", departDate: "2026-07-18", country: "Italy", sortOrder: 2 },
+      { id: "a", name: "City", arriveDate: "2026-06-26", departDate: "2026-06-30", countryCode: "fi", sortOrder: 0 },
+      { id: "b", name: "City", arriveDate: "2026-06-30", departDate: "2026-07-03", countryCode: "fi", sortOrder: 1 },
+      { id: "c", name: "City", arriveDate: "2026-07-10", departDate: "2026-07-18", countryCode: "it", sortOrder: 2 },
     ]);
     chapterFindManyMock.mockResolvedValue([{ id: "ex", startDate: "2026-07-09", endDate: "2026-07-20" }]);
     const r = await suggestChaptersFromCountries("trip-1");
@@ -292,9 +292,9 @@ describe("suggestChaptersFromCountries", () => {
     // used to cause chaptersOverlap to fire and skip UK. After the fix, the runs
     // are trimmed so Finland ends 2026-07-02 and both chapters are created.
     stopFindManyMock.mockResolvedValue([
-      { id: "a", name: "City", arriveDate: "2026-06-26", departDate: "2026-06-30", country: "Finland", sortOrder: 0 },
-      { id: "b", name: "City", arriveDate: "2026-06-30", departDate: "2026-07-03", country: "Finland", sortOrder: 1 },
-      { id: "c", name: "City", arriveDate: "2026-07-03", departDate: "2026-07-07", country: "United Kingdom", sortOrder: 2 },
+      { id: "a", name: "City", arriveDate: "2026-06-26", departDate: "2026-06-30", countryCode: "fi", sortOrder: 0 },
+      { id: "b", name: "City", arriveDate: "2026-06-30", departDate: "2026-07-03", countryCode: "fi", sortOrder: 1 },
+      { id: "c", name: "City", arriveDate: "2026-07-03", departDate: "2026-07-07", countryCode: "gb", sortOrder: 2 },
     ]);
     chapterFindManyMock.mockResolvedValue([]);
     const r = await suggestChaptersFromCountries("trip-1");
@@ -309,9 +309,9 @@ describe("suggestChaptersFromCountries", () => {
   it("records one summary when chapters are created", async () => {
     // Two non-overlapping country runs: Finland then Italy — both will be created.
     stopFindManyMock.mockResolvedValue([
-      { id: "a", name: "City", arriveDate: "2026-06-26", departDate: "2026-06-30", country: "Finland", sortOrder: 0 },
-      { id: "b", name: "City", arriveDate: "2026-06-30", departDate: "2026-07-03", country: "Finland", sortOrder: 1 },
-      { id: "c", name: "City", arriveDate: "2026-07-10", departDate: "2026-07-18", country: "Italy", sortOrder: 2 },
+      { id: "a", name: "City", arriveDate: "2026-06-26", departDate: "2026-06-30", countryCode: "fi", sortOrder: 0 },
+      { id: "b", name: "City", arriveDate: "2026-06-30", departDate: "2026-07-03", countryCode: "fi", sortOrder: 1 },
+      { id: "c", name: "City", arriveDate: "2026-07-10", departDate: "2026-07-18", countryCode: "it", sortOrder: 2 },
     ]);
     chapterFindManyMock.mockResolvedValue([]);
     await suggestChaptersFromCountries("trip-1");
@@ -335,10 +335,10 @@ describe("suggestChaptersFromCountries", () => {
   it("creates a single combined chapter for an interleaved route", async () => {
     // Munich(DE) → Strasbourg(FR) → Frankfurt(DE) → Paris(FR): Germany & France interleave.
     stopFindManyMock.mockResolvedValue([
-      { id: "a", name: "Munich", arriveDate: "2026-07-01", departDate: "2026-07-03", country: "Germany", sortOrder: 0 },
-      { id: "b", name: "Strasbourg", arriveDate: "2026-07-03", departDate: "2026-07-05", country: "France", sortOrder: 1 },
-      { id: "c", name: "Frankfurt", arriveDate: "2026-07-05", departDate: "2026-07-07", country: "Germany", sortOrder: 2 },
-      { id: "d", name: "Paris", arriveDate: "2026-07-07", departDate: "2026-07-10", country: "France", sortOrder: 3 },
+      { id: "a", name: "Munich", arriveDate: "2026-07-01", departDate: "2026-07-03", countryCode: "de", sortOrder: 0 },
+      { id: "b", name: "Strasbourg", arriveDate: "2026-07-03", departDate: "2026-07-05", countryCode: "fr", sortOrder: 1 },
+      { id: "c", name: "Frankfurt", arriveDate: "2026-07-05", departDate: "2026-07-07", countryCode: "de", sortOrder: 2 },
+      { id: "d", name: "Paris", arriveDate: "2026-07-07", departDate: "2026-07-10", countryCode: "fr", sortOrder: 3 },
     ]);
     chapterFindManyMock.mockResolvedValue([]);
     const r = await suggestChaptersFromCountries("trip-1");

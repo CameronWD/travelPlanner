@@ -330,7 +330,7 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
   const [stops, existing] = await Promise.all([
     db.stop.findMany({
       where: { tripId, ...REAL_PLAN },
-      select: { id: true, name: true, arriveDate: true, departDate: true, country: true, sortOrder: true },
+      select: { id: true, name: true, arriveDate: true, departDate: true, countryCode: true, sortOrder: true },
     }),
     db.chapter.findMany({
       where: { tripId, ...REAL_PLAN },
