@@ -97,17 +97,15 @@ export function chapterIdForTransport(
 }
 
 /**
- * Order stops within a rendered chapter group: dated stops by arrive date
- * (their source of truth), then rough stops by explicit sortOrder. Pure.
+ * Order stops within a rendered chapter group as a single list by `sortOrder`
+ * (the arrangement spine). For dated stops sortOrder already tracks date order —
+ * firm-up flows dates forward in sortOrder and drag-reorder reflows dates to the
+ * new position (ADR 0021) — so this yields chronological order for dated stops
+ * while letting rough stops hold the position the traveller put them in. Pure;
+ * stable via the id tiebreak. Supersedes the old dated-first / rough-after split.
  */
-export function sortGroupStops<S extends StopLike>(stops: readonly S[]): S[] {
-  const dated = stops
-    .filter((s) => s.arriveDate != null)
-    .sort((a, b) => (a.arriveDate as string).localeCompare(b.arriveDate as string) || a.sortOrder - b.sortOrder);
-  const rough = stops
-    .filter((s) => s.arriveDate == null)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-  return [...dated, ...rough];
+export function sortGroupStops<S extends StopLike & { id: string }>(stops: readonly S[]): S[] {
+  return [...stops].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
 export function isTransportBetweenLegs(

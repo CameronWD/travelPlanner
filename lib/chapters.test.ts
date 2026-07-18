@@ -121,14 +121,12 @@ describe("mixed rough + dated membership", () => {
 });
 
 describe("sortGroupStops", () => {
-  it("orders a group: dated by date, then rough by sortOrder", () => {
-    const stops = [
-      { id: "r2", arriveDate: null, departDate: null, sortOrder: 5 },
-      { id: "d2", arriveDate: "2026-07-10", departDate: "2026-07-12", sortOrder: 1 },
-      { id: "r1", arriveDate: null, departDate: null, sortOrder: 2 },
-      { id: "d1", arriveDate: "2026-07-01", departDate: "2026-07-05", sortOrder: 9 },
-    ];
-    expect(sortGroupStops(stops).map((s) => s.id)).toEqual(["d1", "d2", "r1", "r2"]);
+  it("orders by sortOrder, interleaving rough and dated (no dated-first hoist)", () => {
+    const rome = stop("rome", "2026-07-03", "2026-07-06", null, 0);
+    const florence = stop("florence", null, null, "italy", 1); // rough, placed mid-chapter
+    const venice = stop("venice", "2026-07-08", "2026-07-10", null, 2);
+    const out = sortGroupStops([venice, florence, rome]);
+    expect(out.map((s) => s.id)).toEqual(["rome", "florence", "venice"]);
   });
 });
 
