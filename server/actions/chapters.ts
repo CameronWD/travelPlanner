@@ -283,6 +283,45 @@ export async function reorderChapters(
   return { success: true, changed, conflicts };
 }
 
+/** A dated Stop's chapter follows its dates (ADR 0008); only rough Stops can be explicitly assigned. */
+export function canAssignToChapter(stop: { arriveDate: string | null }): boolean {
+  return stop.arriveDate == null;
+}
+
+export async function assignStopToChapter(
+  stopId: string,
+  chapterId: string | null,
+): Promise<ChapterActionResult> {
+  const stop = await db.stop.findUnique({
+    where: { id: stopId },
+    select: { id: true, tripId: true, forkId: true, arriveDate: true, chapterId: true },
+  });
+  if (!stop) notFound();
+  await requireTripAccess(stop.tripId);
+
+  if (!canAssignToChapter(stop)) {
+    return { success: false, errors: { _: ["A dated stop's chapter follows its dates — drag or re-date it to move."] } };
+  }
+
+  if (chapterId) {
+    const chapter = await db.chapter.findUnique({ where: { id: chapterId }, select: { tripId: true, forkId: true } });
+    if (!chapter || chapter.tripId !== stop.tripId || chapter.forkId !== stop.forkId) {
+      return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
+    }
+  }
+
+  // Append to the end of the target chapter's rough order.
+  const siblings = await db.stop.findMany({
+    where: { tripId: stop.tripId, forkId: stop.forkId, chapterId },
+    select: { chapterSortOrder: true },
+  });
+  const nextOrder = siblings.reduce((max, s) => Math.max(max, (s.chapterSortOrder ?? 0) + 1), 0);
+
+  await db.stop.update({ where: { id: stopId }, data: { chapterId, chapterSortOrder: nextOrder } });
+  revalidateChapterPaths(stop.tripId);
+  return { success: true };
+}
+
 export async function suggestChaptersFromCountries(tripId: string): Promise<ChapterActionResult> {
   await requireTripAccess(tripId);
 

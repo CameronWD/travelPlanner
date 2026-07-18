@@ -35,7 +35,7 @@ import {
   reorderStops,
   restoreStops,
 } from "@/server/actions/stops";
-import { reorderChapters, deleteChapter } from "@/server/actions/chapters";
+import { reorderChapters, deleteChapter, assignStopToChapter } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestNextStopDates, formatDateRange, formatLongDate } from "@/lib/dates";
@@ -511,6 +511,9 @@ export function ItineraryManager({
     null,
   );
 
+  // ── Assign-to-chapter dialog state ──
+  const [assigningStop, setAssigningStop] = React.useState<StopCardStop | null>(null);
+
   // ── Chapter group collapse state (keyed by chapter id or "ungrouped") ──
   // Persisted to localStorage under `${tripId}:${chapterId}` keys so state
   // survives a page refresh. Guard for SSR: localStorage is browser-only.
@@ -781,6 +784,23 @@ export function ItineraryManager({
       originStopId: stop.id,
     });
     setChapterDialogOpen(true);
+  }
+
+  // Assign a rough stop to a chapter (or null = Ungrouped) from the picker dialog.
+  // Optimistically updates localStops, then persists via assignStopToChapter.
+  // On failure, reverts and shows an error toast.
+  async function handleAssign(stopId: string, chapterId: string | null) {
+    setAssigningStop(null);
+    const snapshot = localStops;
+    setLocalStops((prev) =>
+      prev.map((s) => (s.id === stopId ? { ...s, chapterId } : s)),
+    );
+    const res = await assignStopToChapter(stopId, chapterId);
+    if (!res.success) {
+      setLocalStops(snapshot);
+      const firstError = res.errors ? Object.values(res.errors).flat()[0] : undefined;
+      toast({ variant: "destructive", title: firstError ?? "Couldn't assign stop to chapter." });
+    }
   }
 
   // Open the "+ New chapter" dialog with NO default dates (creates a rough chapter).
@@ -1310,6 +1330,7 @@ export function ItineraryManager({
         onMoveDown={(id) => handleMoveStop(id, "down")}
         onDelete={handleDeleteStop}
         onStartChapter={handleStartChapterHere}
+        onAssignToChapter={(s) => setAssigningStop(s)}
         onTogglePin={handleTogglePin}
         onMakeRough={handleMakeRough}
         onAdjustDates={handleAdjustDates}
@@ -2030,6 +2051,23 @@ export function ItineraryManager({
           onCancel={() => setAdjustingStop(null)}
           onSave={(dates) => handleSaveAdjustDates(adjustingStop.id, dates)}
         />
+      )}
+
+      {/* Assign stop to chapter picker */}
+      {assigningStop && (
+        <Dialog open onOpenChange={(o) => !o && setAssigningStop(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Assign &quot;{assigningStop.name}&quot; to a chapter</DialogTitle></DialogHeader>
+            <div className="flex flex-col gap-2">
+              {localChapters.map((c) => (
+                <Button key={c.id} variant="ghost" className="justify-start"
+                  onClick={() => handleAssign(assigningStop.id, c.id)}>{c.name}</Button>
+              ))}
+              <Button variant="ghost" className="justify-start text-muted-foreground"
+                onClick={() => handleAssign(assigningStop.id, null)}>Remove from chapter</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {dialog}
