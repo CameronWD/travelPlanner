@@ -311,8 +311,10 @@ export async function assignStopToChapter(
   }
 
   // Append to the end of the target chapter's rough order.
+  // Exclude the stop itself so that re-assigning to the same chapter doesn't
+  // inflate nextOrder and leave a gap.
   const siblings = await db.stop.findMany({
-    where: { tripId: stop.tripId, forkId: stop.forkId, chapterId },
+    where: { tripId: stop.tripId, forkId: stop.forkId, chapterId, id: { not: stopId } },
     select: { chapterSortOrder: true },
   });
   const nextOrder = siblings.reduce((max, s) => Math.max(max, (s.chapterSortOrder ?? 0) + 1), 0);
