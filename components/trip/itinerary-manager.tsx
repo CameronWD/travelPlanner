@@ -1408,55 +1408,41 @@ export function ItineraryManager({
           </div>
         )}
 
-        {/* Anchor-slot transport legs for this stop — rendered unconditionally
-            (an anchored leg can sit under the final stop too). */}
-        {(slotLegs.length > 0 || !isLast) && (
-          <div className="flex flex-col gap-2 px-2">
+        {/* Anchor-slot transport legs + the single context-aware Add transport
+            button. The SortableContext for legs is guarded: the slot only exists
+            when there are legs already or when this is NOT the last stop (a
+            between-stop leg must have a next-stop anchor). The button renders for
+            every stop so the last stop always has a way to add a departure leg. */}
+        <div className="flex flex-col gap-2 px-2">
+          {(slotLegs.length > 0 || !isLast) && (
             <SortableContext
               items={slotLegs.map((t) => t.id)}
               strategy={verticalListSortingStrategy}
             >
               {slotLegs.map(renderSortableLegCard)}
             </SortableContext>
+          )}
 
-            {/* Add transport between this stop and the next (only makes sense
-                when there is a next stop). */}
-            {/* "Add transport here" ghost button — lands in this stop's anchor slot */}
-            <div className="flex justify-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() =>
-                  setAddTransportDefaults({ anchorStopId: stop.id })
-                }
-              >
-                <Plus className="size-3.5" aria-hidden="true" />
-                Add transport here
-              </Button>
-            </div>
-
-            {!isLast && (
-              <div className="flex justify-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() =>
-                    setAddTransportDefaults({
-                      fromStopId: stop.id,
-                      toStopId: nextStop!.id,
-                      anchorStopId: stop.id,
-                    })
-                  }
-                >
-                  <Plus className="size-3.5" aria-hidden="true" />
-                  Add Transport to {nextStop!.name}
-                </Button>
-              </div>
-            )}
+          {/* Single context-aware "Add transport" button per Stop slot.
+              Pre-fills from→to when there is a next Stop; from-only at the last. */}
+          <div className="flex justify-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() =>
+                setAddTransportDefaults(
+                  !isLast && nextStop
+                    ? { fromStopId: stop.id, toStopId: nextStop.id, anchorStopId: stop.id }
+                    : { fromStopId: stop.id, anchorStopId: stop.id },
+                )
+              }
+            >
+              <Plus className="size-3.5" aria-hidden="true" />
+              Add transport
+            </Button>
           </div>
-        )}
+        </div>
       </React.Fragment>
     );
   }
