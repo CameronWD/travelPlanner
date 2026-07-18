@@ -324,7 +324,7 @@ export async function assignStopToChapter(
   return { success: true };
 }
 
-export async function suggestChaptersFromCountries(tripId: string): Promise<ChapterActionResult> {
+export async function suggestChaptersFromCountries(tripId: string): Promise<ActionResult<{ created: number }>> {
   await requireTripAccess(tripId);
 
   const [stops, existing] = await Promise.all([
@@ -405,5 +405,5 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
     });
   }
   revalidateChapterPaths(tripId);
-  return { success: true };
+  return { success: true, created: data.length + roughCreated };
 }

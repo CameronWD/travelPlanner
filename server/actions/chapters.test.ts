@@ -284,6 +284,7 @@ describe("suggestChaptersFromCountries", () => {
     chapterFindManyMock.mockResolvedValue([{ id: "ex", startDate: "2026-07-09", endDate: "2026-07-20" }]);
     const r = await suggestChaptersFromCountries("trip-1");
     expect(r.success).toBe(true);
+    if (r.success) expect(r.created).toBe(1);
     expect(chapterCreateManyMock).toHaveBeenCalledWith({ data: [expect.objectContaining({ name: "Finland", tripId: "trip-1" })] });
   });
 
@@ -299,6 +300,7 @@ describe("suggestChaptersFromCountries", () => {
     chapterFindManyMock.mockResolvedValue([]);
     const r = await suggestChaptersFromCountries("trip-1");
     expect(r.success).toBe(true);
+    if (r.success) expect(r.created).toBe(2);
     const callArg = chapterCreateManyMock.mock.calls[0][0] as { data: { name: string }[] };
     expect(callArg.data).toHaveLength(2);
     const names = callArg.data.map((d) => d.name);
@@ -328,7 +330,9 @@ describe("suggestChaptersFromCountries", () => {
     // Empty stops → suggestChapters yields no runs → data stays empty.
     stopFindManyMock.mockResolvedValue([]);
     chapterFindManyMock.mockResolvedValue([]);
-    await suggestChaptersFromCountries("trip-1");
+    const r = await suggestChaptersFromCountries("trip-1");
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.created).toBe(0);
     expect(recordActivity).not.toHaveBeenCalled();
   });
 
@@ -343,6 +347,7 @@ describe("suggestChaptersFromCountries", () => {
     chapterFindManyMock.mockResolvedValue([]);
     const r = await suggestChaptersFromCountries("trip-1");
     expect(r.success).toBe(true);
+    if (r.success) expect(r.created).toBe(1);
     const callArg = chapterCreateManyMock.mock.calls[0][0] as { data: { name: string; startDate: string; endDate: string }[] };
     expect(callArg.data).toHaveLength(1);
     expect(callArg.data[0]).toMatchObject({ name: "Germany & France", startDate: "2026-07-01", endDate: "2026-07-10" });

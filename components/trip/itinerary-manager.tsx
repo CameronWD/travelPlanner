@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, BookOpen, CalendarClock, MapPin, Trash2 } from "lucide-react";
+import { Plus, BookOpen, CalendarClock, MapPin, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StopCard, type StopCardStop } from "./stop-card";
@@ -35,7 +35,7 @@ import {
   reorderStops,
   restoreStops,
 } from "@/server/actions/stops";
-import { reorderChapters, deleteChapter, assignStopToChapter } from "@/server/actions/chapters";
+import { reorderChapters, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestNextStopDates, formatDateRange, formatLongDate } from "@/lib/dates";
@@ -556,6 +556,7 @@ export function ItineraryManager({
 
   // ── Pending mutations ──
   const [pendingId, setPendingId] = React.useState<string | null>(null);
+  const [isSuggesting, startSuggestTransition] = React.useTransition();
 
   // ── Stop handlers ──
   async function handleDeleteStop(stopId: string) {
@@ -807,6 +808,20 @@ export function ItineraryManager({
   function handleNewChapter() {
     setChapterDialogDefaults({});
     setChapterDialogOpen(true);
+  }
+
+  // Suggest chapters from countries and toast the outcome.
+  function handleSuggestChapters() {
+    startSuggestTransition(async () => {
+      const result = await suggestChaptersFromCountries(tripId);
+      if (!result.success) {
+        toast({ variant: "destructive", title: "Couldn't suggest chapters", description: result.errors._?.[0] ?? "Something went wrong." });
+      } else if (result.created === 0) {
+        toast({ title: "Nothing to group", description: "Add stops with a resolvable country (or dates) first — anything already grouped is left alone." });
+      } else {
+        toast({ title: `Created ${result.created} ${result.created === 1 ? "chapter" : "chapters"}`, description: "Rename or redraw them any time." });
+      }
+    });
   }
 
   // Save handler for the adjust-dates dialog (ripple path for dated stops).
@@ -1890,6 +1905,16 @@ export function ItineraryManager({
               >
                 <BookOpen className="size-4" aria-hidden="true" />
                 New Chapter
+              </Button>
+              <Button
+                variant="ghost"
+                size="md"
+                onClick={handleSuggestChapters}
+                disabled={isSuggesting}
+                loading={isSuggesting}
+              >
+                <Wand2 className="size-4" aria-hidden="true" />
+                Suggest from countries
               </Button>
               <Button
                 variant="outline"

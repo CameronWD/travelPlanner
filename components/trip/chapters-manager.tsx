@@ -11,6 +11,7 @@ import { formatDateRange } from "@/lib/dates";
 import { cn } from "@/lib/cn";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { toast } from "@/components/ui/use-toast";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,7 +67,11 @@ export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
     startSuggestTransition(async () => {
       const result = await suggestChaptersFromCountries(tripId);
       if (!result.success) {
-        setError("Couldn't suggest chapters. Please try again.");
+        toast({ variant: "destructive", title: "Couldn't suggest chapters", description: result.errors._?.[0] ?? "Something went wrong." });
+      } else if (result.created === 0) {
+        toast({ title: "Nothing to group", description: "Add stops with a resolvable country (or dates) first — anything already grouped is left alone." });
+      } else {
+        toast({ title: `Created ${result.created} ${result.created === 1 ? "chapter" : "chapters"}`, description: "Rename or redraw them any time." });
       }
     });
   }
