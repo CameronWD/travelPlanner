@@ -38,7 +38,7 @@ the render.
    This is the same rule the render uses to place stops; the band-recompute now
    produces the same set the reader would see.
 
-2. **`chapterId != null → only its own chapter.** A Stop that is explicitly linked
+2. **`chapterId != null` → only its own chapter.** A Stop that is explicitly linked
    to a chapter is only a span contributor for that chapter. This prevents one Stop
    from feeding two bands simultaneously (e.g. if its arrive date happened to fall
    in a neighbour's band) — which could push bands into overlap.
