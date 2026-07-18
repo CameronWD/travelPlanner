@@ -38,6 +38,7 @@ import {
 import { reorderChapters, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { toastWithUndo } from "@/components/ui/undo-toast";
+import { suggestResultToast } from "@/lib/suggest-toast";
 import { suggestNextStopDates, formatDateRange, formatLongDate } from "@/lib/dates";
 import { deleteTransport, reorderTransports } from "@/server/actions/transport";
 import { reorderTransportItems } from "@/lib/reorder-transports";
@@ -814,13 +815,7 @@ export function ItineraryManager({
   function handleSuggestChapters() {
     startSuggestTransition(async () => {
       const result = await suggestChaptersFromCountries(tripId);
-      if (!result.success) {
-        toast({ variant: "destructive", title: "Couldn't suggest chapters", description: result.errors._?.[0] ?? "Something went wrong." });
-      } else if (result.created === 0) {
-        toast({ title: "Nothing to group", description: "Add stops with a resolvable country (or dates) first — anything already grouped is left alone." });
-      } else {
-        toast({ title: `Created ${result.created} ${result.created === 1 ? "chapter" : "chapters"}`, description: "Rename or redraw them any time." });
-      }
+      toast(suggestResultToast(result));
     });
   }
 

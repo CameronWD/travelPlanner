@@ -405,5 +405,5 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Acti
     });
   }
   revalidateChapterPaths(tripId);
-  return { success: true, created: data.length + roughCreated };
+  return { success: true, created: totalCreated };
 }
