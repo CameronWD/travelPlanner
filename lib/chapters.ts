@@ -124,3 +124,24 @@ export interface ChapterRun {
   endDate: string;
 }
 
+/**
+ * The dated Stops that define a chapter's date band. A dated Stop contributes to
+ * chapter C when it is explicitly linked (`chapterId === C.id`) OR — when it has
+ * no explicit chapterId — its arrive date falls inside C's current band. The
+ * `chapterId != null → only its own chapter` rule prevents a Stop from feeding
+ * two bands (which could push bands into overlap). Mirrors how the editor renders
+ * a chapter's contents (ADR 0008) while still catching a just-firmed rough leg
+ * whose chapter has no band yet (ADR 0009/0021). Pure.
+ */
+export function spanContributors<C extends ChapterLike, S extends StopLike>(
+  chapter: C,
+  stops: readonly S[],
+  chapters: readonly C[],
+): S[] {
+  return stops.filter((s) => {
+    if (s.arriveDate == null || s.departDate == null) return false; // rough: no span
+    if (s.chapterId != null) return s.chapterId === chapter.id;
+    return chapterForDate(s.arriveDate, chapters)?.id === chapter.id;
+  });
+}
+

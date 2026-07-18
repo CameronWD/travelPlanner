@@ -14,6 +14,7 @@ import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, reflowReorderedDates, type ReflowStop } from "@/lib/reorder";
 import { chapterSpan } from "@/lib/chapter-span";
+import { spanContributors } from "@/lib/chapters";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
 
@@ -80,10 +81,11 @@ async function requireStopAccess(stopId: string): Promise<{
 
 /**
  * Recompute every chapter's startDate/endDate in the given plan so it spans
- * the stops whose explicit `chapterId` === that chapter AND that are dated
- * (non-null arriveDate AND departDate).
+ * the stops that are rendered into it: dated stops explicitly linked by
+ * `chapterId`, PLUS dated stops with no `chapterId` whose arrive date falls
+ * inside the chapter's current band (union rule — mirrors ADR 0008 rendering).
  *
- * If a chapter has NO dated `chapterId`-members its dates are cleared to null,
+ * If a chapter has NO such dated members its dates are cleared to null,
  * reverting it to "rough" (fixes the "last stop made rough leaves chapter
  * stranded" case in #8).
  *
@@ -99,22 +101,24 @@ export async function recomputeChapterSpans(
   const [chapters, stops] = await Promise.all([
     tx.chapter.findMany({
       where: { tripId, ...planScope(forkId) },
-      select: { id: true },
+      select: { id: true, startDate: true, endDate: true },
     }),
     tx.stop.findMany({
       where: { tripId, ...planScope(forkId) },
-      select: { id: true, chapterId: true, arriveDate: true, departDate: true },
+      select: { id: true, chapterId: true, arriveDate: true, departDate: true, sortOrder: true },
     }),
   ]);
 
-  for (const chapter of chapters) {
-    const members = stops.filter((s) => s.chapterId === chapter.id);
-    const { startDate, endDate } = chapterSpan(members);
+  // Snapshot bands so date-band membership is evaluated against the pre-update
+  // state, not chapters we've already rewritten in this loop.
+  const snapshot = chapters.map((c) => ({
+    id: c.id, name: "", colour: "", startDate: c.startDate, endDate: c.endDate,
+  }));
 
-    await tx.chapter.update({
-      where: { id: chapter.id },
-      data: { startDate, endDate },
-    });
+  for (const chapter of snapshot) {
+    const members = spanContributors(chapter, stops, snapshot);
+    const { startDate, endDate } = chapterSpan(members);
+    await tx.chapter.update({ where: { id: chapter.id }, data: { startDate, endDate } });
   }
 }
 

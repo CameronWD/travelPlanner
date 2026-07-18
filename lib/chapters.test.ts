@@ -130,3 +130,43 @@ describe("sortGroupStops", () => {
     expect(sortGroupStops(stops).map((s) => s.id)).toEqual(["d1", "d2", "r1", "r2"]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// spanContributors
+// ---------------------------------------------------------------------------
+
+const ch = (id: string, startDate: string | null, endDate: string | null): ChapterLike =>
+  ({ id, name: id, colour: "#000", startDate, endDate });
+
+const stop = (id: string, arriveDate: string | null, departDate: string | null, chapterId: string | null, sortOrder = 0): StopLike =>
+  ({ id, arriveDate, departDate, chapterId, sortOrder });
+
+import { spanContributors } from "./chapters";
+
+describe("spanContributors", () => {
+  const italy = ch("italy", "2026-07-03", "2026-07-06");
+  const alps = ch("alps", "2026-07-20", "2026-07-25");
+  const chapters = [italy, alps];
+
+  it("includes a dated stop explicitly linked by chapterId", () => {
+    const rome = stop("rome", "2026-07-03", "2026-07-06", "italy");
+    expect(spanContributors(italy, [rome], chapters).map((s) => s.id)).toEqual(["rome"]);
+  });
+
+  it("includes a directly-dated stop (no chapterId) that falls in the band", () => {
+    const verona = stop("verona", "2026-07-04", "2026-07-08", null);
+    expect(spanContributors(italy, [verona], chapters).map((s) => s.id)).toEqual(["verona"]);
+  });
+
+  it("does not double-count: a chapterId'd stop only contributes to its own chapter", () => {
+    // chapterId=alps but date sits inside italy's band → contributes to alps only, never italy.
+    const odd = stop("odd", "2026-07-04", "2026-07-05", "alps");
+    expect(spanContributors(italy, [odd], chapters)).toEqual([]);
+    expect(spanContributors(alps, [odd], chapters).map((s) => s.id)).toEqual(["odd"]);
+  });
+
+  it("ignores rough (undated) stops — they don't define a span", () => {
+    const rough = stop("x", null, null, "italy");
+    expect(spanContributors(italy, [rough], chapters)).toEqual([]);
+  });
+});
