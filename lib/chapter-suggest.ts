@@ -202,6 +202,39 @@ export function disambiguateNames(chapters: readonly PlacedChapter[]): PlacedCha
   );
 }
 
+export interface RoughSuggestStop {
+  id: string;
+  countryCode: string | null;
+  chapterId: string | null;
+  sortOrder: number;
+}
+
+/**
+ * Propose rough (date-less) chapters over the unchaptered rough Stops: maximal
+ * runs of consecutive same-country Stops in sortOrder, named by country. Stops
+ * already in a chapter, or with no resolvable country, break the current run and
+ * are left Ungrouped. Single-Stop runs are kept (a lone country is still a leg).
+ */
+export function suggestRoughChapters(
+  stops: readonly RoughSuggestStop[],
+): { name: string; stopIds: string[] }[] {
+  const ordered = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
+  const out: { name: string; stopIds: string[] }[] = [];
+  let currentCode: string | null = null;
+  for (const s of ordered) {
+    const code = s.chapterId == null ? (s.countryCode?.trim().toLowerCase() || null) : null;
+    if (code && code === currentCode) {
+      out[out.length - 1].stopIds.push(s.id);
+    } else if (code) {
+      out.push({ name: countryName(code), stopIds: [s.id] });
+      currentCode = code;
+    } else {
+      currentCode = null; // country-less or already-chaptered stop breaks the run
+    }
+  }
+  return out;
+}
+
 /**
  * Suggest chapters for a Trip's dated stops (see ADR 0008 and ADR 0034). Clean,
  * unique-country blocks become one chapter each; an interleaved stretch becomes

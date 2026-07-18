@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { chapterSchema, type ChapterInput } from "@/lib/validations/chapter";
 import { chaptersOverlap } from "@/lib/chapters";
-import { suggestChapters } from "@/lib/chapter-suggest";
+import { suggestChapters, suggestRoughChapters } from "@/lib/chapter-suggest";
 import { nextChapterColour } from "@/lib/chapter-colours";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
@@ -330,7 +330,7 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
   const [stops, existing] = await Promise.all([
     db.stop.findMany({
       where: { tripId, ...REAL_PLAN },
-      select: { id: true, name: true, arriveDate: true, departDate: true, countryCode: true, sortOrder: true },
+      select: { id: true, name: true, arriveDate: true, departDate: true, countryCode: true, chapterId: true, sortOrder: true },
     }),
     db.chapter.findMany({
       where: { tripId, ...REAL_PLAN },
@@ -339,7 +339,7 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
   ]);
 
   const runs = suggestChapters(stops);
-  const usedColours = existing.map((c) => c.colour);
+  const usedColours: string[] = existing.map((c) => c.colour);
   const data: {
     tripId: string;
     name: string;
@@ -367,13 +367,39 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
 
   if (data.length > 0) {
     await db.chapter.createMany({ data });
+  }
+
+  // Create rough chapters for unchaptered rough stops grouped by country.
+  let roughCreated = 0;
+  const roughProposals = suggestRoughChapters(
+    stops.filter((s) => s.arriveDate == null)
+         .map((s) => ({ id: s.id, countryCode: s.countryCode, chapterId: s.chapterId, sortOrder: s.sortOrder })),
+  );
+  if (roughProposals.length > 0) {
+    await db.$transaction(async (tx) => {
+      let order = existing.length + data.length;
+      for (const p of roughProposals) {
+        const colour = nextChapterColour([...usedColours, ...data.map((d) => d.colour)]);
+        usedColours.push(colour);
+        const chapter = await tx.chapter.create({
+          data: { tripId, forkId: null, name: p.name, colour, startDate: null, endDate: null, sortOrder: order++ },
+        });
+        await Promise.all(p.stopIds.map((id, i) =>
+          tx.stop.update({ where: { id }, data: { chapterId: chapter.id, chapterSortOrder: i } })));
+        roughCreated++;
+      }
+    });
+  }
+
+  const totalCreated = data.length + roughCreated;
+  if (totalCreated > 0) {
     await recordPlanActivity(null, {
       tripId,
       verb: "CREATED",
       entityType: "CHAPTER",
       entityId: null,
       entityLabel: "",
-      changes: { summary: `Created ${data.length} ${data.length === 1 ? "chapter" : "chapters"} from countries` },
+      changes: { summary: `Created ${totalCreated} ${totalCreated === 1 ? "chapter" : "chapters"} from countries` },
     });
   }
   revalidateChapterPaths(tripId);

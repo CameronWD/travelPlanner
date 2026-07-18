@@ -160,7 +160,7 @@ describe("buildChapters", () => {
   });
 });
 
-import { disambiguateNames, suggestChapters } from "./chapter-suggest";
+import { disambiguateNames, suggestChapters, suggestRoughChapters } from "./chapter-suggest";
 
 describe("disambiguateNames", () => {
   it("appends the anchor city to chapters that share an identical name", () => {
@@ -217,5 +217,27 @@ describe("suggestChapters (end to end)", () => {
   it("returns no runs for an empty or fully-rough trip", () => {
     expect(suggestChapters([])).toEqual([]);
     expect(suggestChapters([{ name: "X", arriveDate: null, departDate: null, countryCode: "es" }])).toEqual([]);
+  });
+});
+
+describe("suggestRoughChapters", () => {
+  const s = (id: string, countryCode: string | null, sortOrder: number, chapterId: string | null = null) =>
+    ({ id, countryCode, chapterId, sortOrder });
+
+  it("groups consecutive same-country rough stops in sortOrder", () => {
+    const out = suggestRoughChapters([
+      s("rome", "it", 0), s("florence", "it", 1), s("paris", "fr", 2), s("lyon", "fr", 3),
+    ]);
+    expect(out).toEqual([
+      { name: "Italy", stopIds: ["rome", "florence"] },
+      { name: "France", stopIds: ["paris", "lyon"] },
+    ]);
+  });
+
+  it("skips stops already in a chapter and country-less stops (which break a run)", () => {
+    const out = suggestRoughChapters([
+      s("a", "it", 0, "existing"), s("b", null, 1), s("c", "it", 2),
+    ]);
+    expect(out).toEqual([{ name: "Italy", stopIds: ["c"] }]);
   });
 });
