@@ -369,6 +369,8 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
     await db.chapter.createMany({ data });
   }
 
+  usedColours.push(...data.map((d) => d.colour));
+
   // Create rough chapters for unchaptered rough stops grouped by country.
   let roughCreated = 0;
   const roughProposals = suggestRoughChapters(
@@ -379,7 +381,7 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
     await db.$transaction(async (tx) => {
       let order = existing.length + data.length;
       for (const p of roughProposals) {
-        const colour = nextChapterColour([...usedColours, ...data.map((d) => d.colour)]);
+        const colour = nextChapterColour(usedColours);
         usedColours.push(colour);
         const chapter = await tx.chapter.create({
           data: { tripId, forkId: null, name: p.name, colour, startDate: null, endDate: null, sortOrder: order++ },
