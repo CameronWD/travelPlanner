@@ -60,7 +60,7 @@ export function countryRuns(stops: readonly SuggestStop[]): CountryRun[] {
   let currentCountryCode: string | null = null;
 
   for (const stop of ordered) {
-    const code = stop.countryCode?.trim() || null;
+    const code = stop.countryCode?.trim().toLowerCase() || null;
     if (code && code === currentCountryCode && current) {
       current.endDate = stop.departDate;
       current.nights = nightsBetween(current.startDate, current.endDate);
