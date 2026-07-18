@@ -423,16 +423,19 @@ describe("createStop", () => {
     expect(stopCreateMock).not.toHaveBeenCalled();
   });
 
-  it("creates a rough stop with nights, chapterId, null dates/timezone", async () => {
+  it("creates a rough stop with nights, chapterId, null dates/timezone, and geocodes for countryCode", async () => {
     stopFindFirstMock.mockResolvedValue({ sortOrder: 1 });
     stopCreateMock.mockResolvedValue({ id: "stop-9" });
+    // Default mock returns { lat:1, lng:2, countryCode:"jp" } — rough stops now geocode too.
     const result = await createStop("trip-1", ROUGH_INPUT);
     expect(result.success).toBe(true);
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledOnce();
     expect(stopCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({
         tripId: "trip-1",
         name: "Rome",
         country: "Italy",
+        countryCode: "jp",
         nights: 3,
         chapterId: "ch-1",
         arriveDate: null,
@@ -442,7 +445,6 @@ describe("createStop", () => {
         sortOrder: 2,
       }),
     });
-    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
   });
 
   it("records CREATED activity for a scheduled stop", async () => {
@@ -614,7 +616,7 @@ describe("updateStop", () => {
     expect(stopUpdateMock).not.toHaveBeenCalled();
   });
 
-  it("updates a rough stop with null dates and timezone", async () => {
+  it("updates a rough stop with null dates and timezone, and geocodes for countryCode", async () => {
     stopFindUniqueMock.mockResolvedValue({
       id: "stop-r",
       tripId: "trip-1",
@@ -629,11 +631,14 @@ describe("updateStop", () => {
     const result = await updateStop("stop-r", ROUGH_INPUT);
 
     expect(result.success).toBe(true);
+    // Rough stops now geocode to derive countryCode (mirrors scheduled-stop behavior).
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledOnce();
     expect(stopUpdateMock).toHaveBeenCalledWith({
       where: { id: "stop-r" },
       data: expect.objectContaining({
         name: "Rome",
         country: "Italy",
+        countryCode: "jp",
         nights: 3,
         chapterId: "ch-1",
         arriveDate: null,
@@ -641,7 +646,6 @@ describe("updateStop", () => {
         timezone: null,
       }),
     });
-    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
   });
 
   it("preserves notes and chapter when updating a rough stop", async () => {
