@@ -14,6 +14,7 @@ import { buildItinerary } from "@/lib/itinerary";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enums";
+import { homeMapPoint } from "@/lib/route-map";
 
 // ---------------------------------------------------------------------------
 // Metadata — noindex so search engines don't index private trips
@@ -63,6 +64,10 @@ export default async function SharePage({
           name: true,
           startDate: true,
           endDate: true,
+          homeName: true,
+          homeLat: true,
+          homeLng: true,
+          roundTrip: true,
           // homeCurrency intentionally omitted — no money on public page
         },
       },
@@ -267,7 +272,7 @@ export default async function SharePage({
                 <MapPin className="size-4 text-primary" aria-hidden="true" />
                 Route
               </h2>
-              <RouteMap stops={mapStops} height={340} />
+              <RouteMap stops={mapStops} height={340} home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} />
             </section>
           )}
 

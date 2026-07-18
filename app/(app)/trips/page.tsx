@@ -115,6 +115,8 @@ export default async function TripsPage() {
                 unreadCount={unreadByTrip[trip.id] ?? 0}
                 hasCover={hasCoverByTrip.get(trip.id) ?? false}
                 coverStops={coverStopsByTrip.get(trip.id) ?? []}
+                home={trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null}
+                roundTrip={trip.roundTrip ?? false}
               />
             </AnimatedItem>
           ))}

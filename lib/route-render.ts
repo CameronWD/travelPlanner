@@ -44,3 +44,17 @@ export function projectStops(
     y: pad + (1 - (s.lat - minLat) / spanLat) * innerH,
   }));
 }
+
+/**
+ * Ordered points for the cover route path: home base bookends the itinerary —
+ * always at the start, and at the end too on a round trip (mirrors the Summary
+ * map, ADR 0032). No home base → the stops unchanged.
+ */
+export function orderedRoutePoints(
+  stops: LatLng[],
+  home: LatLng | null,
+  roundTrip: boolean,
+): LatLng[] {
+  if (!home) return stops;
+  return roundTrip ? [home, ...stops, home] : [home, ...stops];
+}
