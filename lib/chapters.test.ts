@@ -8,6 +8,7 @@ import {
   chapterIdForTransport,
   sortedByStart,
   sortGroupStops,
+  spanContributors,
   type ChapterLike,
   type StopLike,
   type TransportLike,
@@ -140,8 +141,6 @@ const ch = (id: string, startDate: string | null, endDate: string | null): Chapt
 
 const stop = (id: string, arriveDate: string | null, departDate: string | null, chapterId: string | null, sortOrder = 0): StopLike =>
   ({ id, arriveDate, departDate, chapterId, sortOrder });
-
-import { spanContributors } from "./chapters";
 
 describe("spanContributors", () => {
   const italy = ch("italy", "2026-07-03", "2026-07-06");
