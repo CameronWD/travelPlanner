@@ -366,6 +366,10 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Acti
   }
 
   if (data.length > 0) {
+    // NOTE: dated chapters are committed here, OUTSIDE the rough-chapter transaction below.
+    // A failure in that subsequent transaction will leave these dated chapters committed
+    // (partial result). The suggester is idempotent and safely re-runnable: a second call
+    // will skip the already-created dated chapters (overlap check) and retry the rough path.
     await db.chapter.createMany({ data });
   }
 

@@ -335,6 +335,8 @@ export async function createStop(
       }
     }
 
+    // ROUGH APPEND PATH: geocode ran before this write; no FOR UPDATE lock is held here
+    // (a racing plain append only yields consecutive sortOrders — no collision, cf. ADR 0007).
     // rough create (append): derive country like scheduled stops do (best-effort; failure leaves coords null)
     let appendRoughLat: number | null = null;
     let appendRoughLng: number | null = null;
@@ -443,6 +445,8 @@ export async function updateStop(
       updateRoughCountryCode = updateRoughCoords.countryCode ?? null;
     }
 
+    // On a geocode miss, omit lat/lng from the update so we don't clobber previously-good
+    // coordinates — unlike create paths which write explicit null.
     const updated = await db.stop.update({
       where: { id: stopId },
       data: {
