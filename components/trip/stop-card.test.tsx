@@ -36,8 +36,8 @@ const scheduledStop = { ...base, timezone: "Europe/Rome", arriveDate: "2026-07-1
 
 it("shows a compact nights pill for a rough stop and no date range", () => {
   render(<StopCard stop={{ ...base, timezone: null, arriveDate: null, departDate: null, nights: 3, pinned: false }} isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} onDelete={() => {}} />);
-  // Task 10: "N nights" text replaced with compact "~Nn" pill
-  expect(screen.getByText(/^~?3n$/)).toBeInTheDocument();
+  // Task 1: night count is now spelled out ("~3 nights")
+  expect(screen.getByText(/^~3 nights$/)).toBeInTheDocument();
 });
 
 it("shows the date range and a pin control for a scheduled stop", () => {
@@ -468,8 +468,8 @@ describe("Task 10 — StopCard Bold-Modular anatomy", () => {
         isLast={false}
       />,
     );
-    // Should show "3n" pill text
-    expect(screen.getByText(/^~?3n$/)).toBeInTheDocument();
+    // Task 1: night count is now spelled out ("~3 nights")
+    expect(screen.getByText(/^~3 nights$/)).toBeInTheDocument();
   });
 
   it("renders a compact 'Nn' nights pill for a scheduled stop", () => {
@@ -481,8 +481,8 @@ describe("Task 10 — StopCard Bold-Modular anatomy", () => {
         isLast={false}
       />,
     );
-    // 3 nights between Jul 10–13 → "3n"
-    expect(screen.getByText(/^3n$/)).toBeInTheDocument();
+    // Task 1: night count is now spelled out ("3 nights")
+    expect(screen.getByText(/^3 nights$/)).toBeInTheDocument();
   });
 
   it("things-to-do rows render a leading hue dot element", () => {

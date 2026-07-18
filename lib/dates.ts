@@ -35,6 +35,16 @@ export function formatISODate(date: Date): string {
 // Formatting helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Human night count: "1 night" / "3 nights"; rough estimates get a "~" prefix
+ * ("~2 nights"). 0-night stays are shown as "Same-day visit" by the caller, not
+ * here — this only formats a night total.
+ */
+export function formatNights(nights: number, opts?: { rough?: boolean }): string {
+  const label = `${nights} ${nights === 1 ? "night" : "nights"}`;
+  return opts?.rough ? `~${label}` : label;
+}
+
 const MONTH_SHORT = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",

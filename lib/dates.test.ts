@@ -18,6 +18,7 @@ import {
   monthKey,
   tzAbbrev,
   dayNumberInTrip,
+  formatNights,
 } from "./dates";
 
 describe("parseISODate", () => {
@@ -299,5 +300,17 @@ describe("dayNumberInTrip", () => {
   });
   it("counts inclusive days from the start", () => {
     expect(dayNumberInTrip("2026-06-30", "2026-06-26")).toBe(5);
+  });
+});
+
+describe("formatNights", () => {
+  it("pluralises correctly", () => {
+    expect(formatNights(1)).toBe("1 night");
+    expect(formatNights(3)).toBe("3 nights");
+    expect(formatNights(0)).toBe("0 nights");
+  });
+  it("prefixes a tilde for rough estimates", () => {
+    expect(formatNights(2, { rough: true })).toBe("~2 nights");
+    expect(formatNights(1, { rough: true })).toBe("~1 night");
   });
 });

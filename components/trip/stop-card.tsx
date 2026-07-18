@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
-import { formatDateRange, nightsBetween, tzAbbrev } from "@/lib/dates";
+import { formatDateRange, formatNights, nightsBetween, tzAbbrev } from "@/lib/dates";
 import { MapLink } from "./map-link";
 import { NoteThread, type NoteView } from "./note-thread";
 import { AttachmentPopover } from "./attachment-popover";
@@ -425,7 +425,7 @@ export function StopCard({
               stopPillClass(stop.sortOrder),
             )}
           >
-            ~{stop.nights ?? 1}n
+            {formatNights(stop.nights ?? 1, { rough: true })}
           </span>
         </div>
       ) : (
@@ -609,7 +609,7 @@ function DatedMeta({
             stopPillClass(sortOrder),
           )}
         >
-          {nights}n
+          {formatNights(nights)}
         </span>
       )}
       {nights === 0 && (
