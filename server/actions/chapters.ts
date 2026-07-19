@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { chapterSchema, type ChapterInput } from "@/lib/validations/chapter";
-import { chaptersOverlap } from "@/lib/chapters";
+import { chaptersOverlap, canAssignToChapter } from "@/lib/chapters";
 import { suggestChapters, suggestRoughChapters } from "@/lib/chapter-suggest";
 import { nextChapterColour } from "@/lib/chapter-colours";
 import { recordPlanActivity } from "@/lib/activity-guard";
@@ -281,11 +281,6 @@ export async function reorderChapters(
 
   revalidateChapterPaths(tripId);
   return { success: true, changed, conflicts };
-}
-
-/** A dated Stop's chapter follows its dates (ADR 0008); only rough Stops can be explicitly assigned. */
-export function canAssignToChapter(stop: { arriveDate: string | null }): boolean {
-  return stop.arriveDate == null;
 }
 
 export async function assignStopToChapter(
