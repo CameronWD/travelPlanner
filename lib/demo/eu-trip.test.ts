@@ -12,8 +12,13 @@ describe("buildEuTrip", () => {
 
   it("has a home base with outbound and return legs", () => {
     expect(t.home?.name).toBe("Brisbane");
-    expect(hasOutboundLeg(t.transports, t.home ?? null)).toBe(true);
-    expect(hasReturnLeg(t.transports, t.home ?? null, t.roundTrip ?? true)).toBe(true);
+    const legs = t.transports.map((x) => ({
+      depIsHome: x.depIsHome, arrIsHome: x.arrIsHome,
+      toStopId: x.toStopKey ?? null, fromStopId: x.fromStopKey ?? null,
+    }));
+    const ordered = [...t.stops].sort((a, b) => a.sortOrder - b.sortOrder);
+    expect(hasOutboundLeg(legs, ordered[0].key)).toBe(true);
+    expect(hasReturnLeg(legs, ordered[ordered.length - 1].key)).toBe(true);
   });
   it("has 6 scheduled stops, all with a lowercase country code", () => {
     expect(t.stops).toHaveLength(6);

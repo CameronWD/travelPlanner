@@ -850,8 +850,8 @@ const FORK_ITALY_FIRST: DemoFork = {
 };
 
 // ---------------------------------------------------------------------------
-// "+ Switzerland" fork — inserts rough Zermatt after Paris, Rome rough+extended
-// (projected end overruns hardEndDate 2027-01-16)
+// "+ Switzerland" fork — Paris SCHEDULED, then rough Zermatt (4n) + Interlaken (4n)
+// + rough Rome (6n); projected end Jan 17 > hardEndDate 2027-01-16
 // ---------------------------------------------------------------------------
 
 const FORK_PLUS_CH: DemoFork = {
@@ -865,8 +865,8 @@ const FORK_PLUS_CH: DemoFork = {
     { ...STOPS[1] },
     { ...STOPS[2] },
     { ...STOPS[3] },
-    { ...STOPS[4] },
-    // Rough Zermatt stop inserted between Paris and Rome
+    { ...STOPS[4] }, // Paris scheduled (departs 2027-01-03)
+    // Rough Swiss extension: Zermatt ~4 nights
     {
       key: "eu:fork:ch:stop:zermatt",
       name: "Zermatt",
@@ -877,11 +877,25 @@ const FORK_PLUS_CH: DemoFork = {
       timezone: "Europe/Zurich",
       arriveDate: null,
       departDate: null,
-      nights: 3,
+      nights: 4,
       sortOrder: 5,
     },
-    // Rome is rough (no dates) in this fork — pins it so it stays after Zermatt,
-    // with 12 nights to ensure projected end (Jan 3+3+12=Jan 18) > hardEndDate Jan 16
+    // Rough Swiss extension: Interlaken ~4 nights
+    {
+      key: "eu:fork:ch:stop:interlaken",
+      name: "Interlaken",
+      country: "Switzerland",
+      countryCode: "ch",
+      lat: 46.6863,
+      lng: 7.8632,
+      timezone: "Europe/Zurich",
+      arriveDate: null,
+      departDate: null,
+      nights: 4,
+      sortOrder: 6,
+    },
+    // Rome is rough (no dates) in this fork — ~6 nights is realistic.
+    // Projected tail flows from Paris depart (2027-01-03): +4+4+6 = 2027-01-17 > hardEndDate 2027-01-16
     {
       key: "eu:fork:ch:stop:rome",
       name: "Rome",
@@ -892,9 +906,8 @@ const FORK_PLUS_CH: DemoFork = {
       timezone: "Europe/Rome",
       arriveDate: null,
       departDate: null,
-      nights: 12,
-      pinned: true,
-      sortOrder: 6,
+      nights: 6,
+      sortOrder: 7,
     },
   ],
   transports: TRANSPORTS.slice(0, 5), // same up through Paris
@@ -902,13 +915,20 @@ const FORK_PLUS_CH: DemoFork = {
   items: ITEMS,
   costs: [
     ...COSTS,
-    // CHF cost specific to this fork
+    // CHF costs specific to this fork
     {
       ownerType: "OTHER",
       label: "Zermatt ski pass & gondola",
       category: "Activity",
       currency: "CHF",
       estimatedMinor: 45000,
+    },
+    {
+      ownerType: "OTHER",
+      label: "Interlaken adventure activities",
+      category: "Activity",
+      currency: "CHF",
+      estimatedMinor: 32000,
     },
   ],
 };
