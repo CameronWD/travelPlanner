@@ -722,12 +722,38 @@ const COSTS: DemoCost[] = [
 // Italy First fork (clean — same window, Rome ↔ Paris swapped)
 // ---------------------------------------------------------------------------
 
+// Items for the Italy-first fork — refs the two fork-scoped stops (rome/paris swapped)
+// plus a couple of the shared stops (rovaniemi, munich) from the main-plan stop keys
+// which are carried into this fork unchanged.
+const FORK_ITALY_FIRST_ITEMS: DemoItem[] = [
+  makeItem("eu:fork:if:item:husky-safari", "Husky sled safari", "ACTIVITY", SK.rovaniemi, "2026-12-08", {
+    startTime: "09:00", endTime: "12:00",
+    cost: { estimatedMinor: 32000, currency: "EUR" },
+  }),
+  makeItem("eu:fork:if:item:neuschwanstein", "Neuschwanstein Castle day trip", "SIGHTSEEING", SK.munich, "2026-12-12", {
+    startTime: "08:30", endTime: "17:00",
+    cost: { estimatedMinor: 15000, currency: "EUR" },
+  }),
+  makeItem("eu:fork:if:item:colosseum", "Colosseum & Roman Forum", "SIGHTSEEING", "eu:fork:if:stop:rome", "2026-12-30", {
+    startTime: "09:00", endTime: "12:00",
+    cost: { estimatedMinor: 11000, currency: "EUR" },
+  }),
+  makeItem("eu:fork:if:item:eiffel-summit", "Eiffel Tower summit", "SIGHTSEEING", "eu:fork:if:stop:paris", "2027-01-05", {
+    startTime: "14:00", endTime: "16:00",
+    cost: { estimatedMinor: 7400, currency: "EUR" },
+  }),
+  makeItem("eu:fork:if:item:nye-cruise", "New Year's Eve dinner cruise on the Seine", "NIGHTLIFE", "eu:fork:if:stop:paris", "2027-01-05", {
+    startTime: "20:00", endTime: "23:30",
+    cost: { estimatedMinor: 34000, currency: "EUR" },
+  }),
+];
+
 const FORK_ITALY_FIRST: DemoFork = {
   key: "eu:fork:italy-first",
   name: "Italy first",
   sortOrder: 0,
   createdBy: "you",
-  chapters: CHAPTERS,
+  chapters: [],
   stops: [
     { ...STOPS[0] },
     { ...STOPS[1] },
@@ -845,7 +871,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       cost: { estimatedMinor: 165000, currency: "EUR" },
     },
   ],
-  items: ITEMS,
+  items: FORK_ITALY_FIRST_ITEMS,
   costs: COSTS,
 };
 
@@ -854,12 +880,37 @@ const FORK_ITALY_FIRST: DemoFork = {
 // + rough Rome (6n); projected end Jan 17 > hardEndDate 2027-01-16
 // ---------------------------------------------------------------------------
 
+// Items for the +Switzerland fork. Paris stop uses the main-plan SK.paris key
+// (STOPS[4] is spread in as-is). The three rough stops have null dates.
+const FORK_PLUS_CH_ITEMS: DemoItem[] = [
+  makeItem("eu:fork:ch:item:husky-safari", "Husky sled safari", "ACTIVITY", SK.rovaniemi, "2026-12-08", {
+    startTime: "09:00", endTime: "12:00",
+    cost: { estimatedMinor: 32000, currency: "EUR" },
+  }),
+  makeItem("eu:fork:ch:item:eiffel-summit", "Eiffel Tower summit", "SIGHTSEEING", SK.paris, "2026-12-31", {
+    startTime: "14:00", endTime: "16:00",
+    cost: { estimatedMinor: 7400, currency: "EUR" },
+  }),
+  makeItem("eu:fork:ch:item:zermatt-ski", "Ski Zermatt — Matterhorn panorama run", "ACTIVITY", "eu:fork:ch:stop:zermatt", null, {
+    notes: "Full-day ski with gondola pass.",
+    cost: { estimatedMinor: 22000, currency: "CHF" },
+  }),
+  makeItem("eu:fork:ch:item:interlaken-paraglide", "Tandem paragliding over Interlaken", "ACTIVITY", "eu:fork:ch:stop:interlaken", null, {
+    notes: "Weather-dependent — check forecast the night before.",
+    cost: { estimatedMinor: 19000, currency: "CHF" },
+  }),
+  makeItem("eu:fork:ch:item:colosseum", "Colosseum & Roman Forum", "SIGHTSEEING", "eu:fork:ch:stop:rome", null, {
+    notes: "Book skip-the-line entry in advance.",
+    cost: { estimatedMinor: 11000, currency: "EUR" },
+  }),
+];
+
 const FORK_PLUS_CH: DemoFork = {
   key: "eu:fork:plus-ch",
   name: "+ Switzerland",
   sortOrder: 1,
   createdBy: "partner",
-  chapters: CHAPTERS,
+  chapters: [],
   stops: [
     { ...STOPS[0] },
     { ...STOPS[1] },
@@ -912,7 +963,7 @@ const FORK_PLUS_CH: DemoFork = {
   ],
   transports: TRANSPORTS.slice(0, 5), // same up through Paris
   accommodations: ACCOMMODATIONS.slice(0, 5), // same up through Paris
-  items: ITEMS,
+  items: FORK_PLUS_CH_ITEMS,
   costs: [
     ...COSTS,
     // CHF costs specific to this fork
@@ -1229,7 +1280,7 @@ export function buildEuTrip(): DemoTrip {
         at: "2026-07-01T09:00:00Z",
       },
       {
-        actor: "you",
+        actor: "partner",
         verb: "NOTED",
         entityType: "ACCOMMODATION",
         entityKey: "eu:acc:igloo",
@@ -1258,7 +1309,7 @@ export function buildEuTrip(): DemoTrip {
       {
         actor: "partner",
         verb: "CREATED",
-        entityType: "ITEM",
+        entityType: "FORK",
         entityKey: "eu:fork:plus-ch",
         entityLabel: "+ Switzerland fork",
         at: "2026-07-16T09:00:00Z",
@@ -1268,7 +1319,7 @@ export function buildEuTrip(): DemoTrip {
     // --- Share & feed -----------------------------------------------------
     shareLink: true,
     calendarFeed: { includeActivities: false },
-    invites: [{ email: "partner@example.com", role: "member" }],
+    invites: [{ email: "friend@example.com", role: "member" }],
     unreadFor: "you",
   };
 }

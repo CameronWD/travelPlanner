@@ -30,6 +30,8 @@ describe("buildEuTrip", () => {
       return t.chapters.some((c) => c.startDate! <= arr && arr <= c.endDate!);
     }));
     expect(chaptered.has(false)).toBe(false);
+    const validColours = new Set(["sky","amber","emerald","violet","rose","teal","orange","indigo"]);
+    for (const c of t.chapters) expect(validColours.has(c.colour)).toBe(true);
   });
   it("real plan is CLEAN — zero warning-severity flags", () => {
     const flags = detectFlags(planFlagInput(realPlan, { tripStart: t.startDate!, tripEnd: t.endDate!, hardEndDate: t.hardEndDate, home: t.home, roundTrip: t.roundTrip }));
