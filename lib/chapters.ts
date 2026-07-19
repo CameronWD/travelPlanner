@@ -143,3 +143,12 @@ export function spanContributors<C extends ChapterLike, S extends StopLike>(
   });
 }
 
+/**
+ * A dated Stop's chapter follows its dates (ADR 0008); only rough Stops can be
+ * explicitly assigned to a chapter. Pure predicate — lives here (not in the
+ * "use server" actions file, where every export must be an async server action).
+ */
+export function canAssignToChapter(stop: { arriveDate: string | null }): boolean {
+  return stop.arriveDate == null;
+}
+
