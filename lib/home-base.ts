@@ -48,14 +48,24 @@ export function findReturnLeg<T extends { arrIsHome?: boolean | null; fromStopId
 
 export function hasOutboundLeg(
   transports: readonly { depIsHome?: boolean | null; toStopId?: string | null }[],
-  firstStopId: string | null,
+  firstStopIdOrHome: string | HomeBase | null,
 ): boolean {
-  return findOutboundLeg(transports, firstStopId) !== null;
+  if (firstStopIdOrHome === null || typeof firstStopIdOrHome === "string") {
+    return findOutboundLeg(transports, firstStopIdOrHome) !== null;
+  }
+  // HomeBase overload: any transport departing from home counts
+  return transports.some((t) => Boolean(t.depIsHome));
 }
 
 export function hasReturnLeg(
   transports: readonly { arrIsHome?: boolean | null; fromStopId?: string | null }[],
-  lastStopId: string | null,
+  lastStopIdOrHome: string | HomeBase | null,
+  roundTrip?: boolean,
 ): boolean {
-  return findReturnLeg(transports, lastStopId) !== null;
+  if (roundTrip === false) return true; // no return leg expected for one-way trips
+  if (lastStopIdOrHome === null || typeof lastStopIdOrHome === "string") {
+    return findReturnLeg(transports, lastStopIdOrHome) !== null;
+  }
+  // HomeBase overload: any transport arriving home counts
+  return transports.some((t) => Boolean(t.arrIsHome));
 }
