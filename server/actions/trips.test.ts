@@ -298,6 +298,79 @@ describe("createTrip", () => {
     expect(tripUpdateMock).not.toHaveBeenCalled();
     expect(redirectMock).toHaveBeenCalledWith(`/trips/${newTrip.id}`);
   });
+
+  it("geocodes homeName at creation and stores coords in the trip row", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    geocodePlaceDetailedMock.mockResolvedValueOnce({
+      name: "Sydney", lat: -33.86, lng: 151.2, city: "Sydney", country: "Australia", countryCode: "au",
+    });
+    const newTrip = { id: "trip-home", name: "Down Under" };
+    tripCreateMock.mockResolvedValue(newTrip);
+    memberCreateMock.mockResolvedValue({});
+
+    await expect(
+      createTrip({ name: "Down Under", homeCurrency: "AUD", homeName: "Sydney" }),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledWith("Sydney");
+    expect(tripCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        homeName: "Sydney",
+        homeLat: -33.86,
+        homeLng: 151.2,
+        homeCountryCode: "au",
+      }),
+    });
+  });
+
+  it("creates the trip without home fields when homeName is omitted", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripCreateMock.mockResolvedValue({ id: "trip-no-home", name: "Wanderer" });
+    memberCreateMock.mockResolvedValue({});
+
+    await expect(createTrip({ name: "Wanderer", homeCurrency: "AUD" })).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
+    expect(tripCreateMock).toHaveBeenCalledWith({
+      data: expect.not.objectContaining({ homeName: expect.anything() }),
+    });
+  });
+
+  it("creates the trip with home fields omitted when geocode fails (best-effort)", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    geocodePlaceDetailedMock.mockResolvedValueOnce(null);
+    tripCreateMock.mockResolvedValue({ id: "trip-geo-fail", name: "Wanderer" });
+    memberCreateMock.mockResolvedValue({});
+
+    await expect(
+      createTrip({ name: "Wanderer", homeCurrency: "AUD", homeName: "Nowheresville" }),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledWith("Nowheresville");
+    // homeName is still stored even when geocode returns null; coords are null
+    expect(tripCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        homeName: "Nowheresville",
+        homeLat: null,
+        homeLng: null,
+        homeCountryCode: null,
+      }),
+    });
+  });
+
+  it("honours roundTrip when provided at creation", async () => {
+    requireUserMock.mockResolvedValue({ id: "user-1", email: "you@example.com" });
+    tripCreateMock.mockResolvedValue({ id: "trip-rt", name: "One-way" });
+    memberCreateMock.mockResolvedValue({});
+
+    await expect(
+      createTrip({ name: "One-way", homeCurrency: "AUD", roundTrip: false }),
+    ).rejects.toThrow("NEXT_REDIRECT");
+
+    expect(tripCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ roundTrip: false }),
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

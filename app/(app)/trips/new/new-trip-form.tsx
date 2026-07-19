@@ -33,11 +33,13 @@ export function NewTripForm() {
     const startDate = (data.get("startDate") as string) || undefined;
     const endDate = (data.get("endDate") as string) || undefined;
     const coverFile = (data.get("cover") as File | null) ?? null;
+    const homeName = (data.get("homeName") as string)?.trim() || undefined;
     const input = {
       name: data.get("name") as string,
       homeCurrency: data.get("homeCurrency") as string,
       ...(startDate ? { startDate } : {}),
       ...(endDate ? { endDate } : {}),
+      ...(homeName ? { homeName } : {}),
     };
 
     startTransition(async () => {
@@ -116,6 +118,15 @@ export function NewTripForm() {
             ))}
           </SelectContent>
         </Select>
+      </Field>
+
+      {/* Home base (optional) */}
+      <Field
+        label="Home base (optional)"
+        error={fieldError("homeName")}
+        description="Where this trip departs from and returns to. Leave blank to add later."
+      >
+        <Input name="homeName" placeholder="e.g. Sydney" disabled={isPending} />
       </Field>
 
       {/* Cover photo (optional) */}

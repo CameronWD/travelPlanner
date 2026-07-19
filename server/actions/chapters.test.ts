@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const {
   requireTripAccessMock, revalidatePathMock,
   chapterFindUniqueMock, chapterFindManyMock, chapterCountMock, chapterCreateMock, chapterCreateManyMock, chapterUpdateMock, chapterDeleteMock,
-  stopFindManyMock, stopFindUniqueMock, stopUpdateMock, tripFindUniqueMock, queryRawMock, dbTransactionMock,
+  stopFindManyMock, stopFindUniqueMock, stopUpdateMock, tripFindUniqueMock, queryRawMock, dbTransactionMock, chapterCreateInTxMock,
 } = vi.hoisted(() => {
   const queryRawMock = vi.fn();
   const stopFindManyMock = vi.fn().mockResolvedValue([]);
@@ -11,12 +11,13 @@ const {
   const chapterFindManyMock = vi.fn().mockResolvedValue([]);
   const chapterUpdateMock = vi.fn().mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
   const tripFindUniqueMock = vi.fn();
+  const chapterCreateInTxMock = vi.fn();
   const dbTransactionMock = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
         stop: { findMany: stopFindManyMock, update: stopUpdateMock },
-        chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
+        chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock, create: chapterCreateInTxMock },
       });
     }
     if (Array.isArray(arg)) return Promise.all(arg);
@@ -38,6 +39,7 @@ const {
     tripFindUniqueMock,
     queryRawMock,
     dbTransactionMock,
+    chapterCreateInTxMock,
   };
 });
 
@@ -68,13 +70,14 @@ afterEach(() => {
   chapterUpdateMock.mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
   stopFindManyMock.mockResolvedValue([]);
   stopUpdateMock.mockReset();
+  chapterCreateInTxMock.mockReset();
   // Restore dbTransactionMock to the callback-aware default.
   dbTransactionMock.mockImplementation(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
         stop: { findMany: stopFindManyMock, update: stopUpdateMock },
-        chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
+        chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock, create: chapterCreateInTxMock },
       });
     }
     if (Array.isArray(arg)) return Promise.all(arg);
@@ -277,13 +280,14 @@ describe("deleteChapter", () => {
 describe("suggestChaptersFromCountries", () => {
   it("creates one chapter per country run, skipping runs that overlap existing chapters", async () => {
     stopFindManyMock.mockResolvedValue([
-      { id: "a", name: "City", arriveDate: "2026-06-26", departDate: "2026-06-30", country: "Finland", sortOrder: 0 },
-      { id: "b", name: "City", arriveDate: "2026-06-30", departDate: "2026-07-03", country: "Finland", sortOrder: 1 },
-      { id: "c", name: "City", arriveDate: "2026-07-10", departDate: "2026-07-18", country: "Italy", sortOrder: 2 },
+      { id: "a", name: "City", arriveDate: "2026-06-26", departDate: "2026-06-30", countryCode: "fi", sortOrder: 0 },
+      { id: "b", name: "City", arriveDate: "2026-06-30", departDate: "2026-07-03", countryCode: "fi", sortOrder: 1 },
+      { id: "c", name: "City", arriveDate: "2026-07-10", departDate: "2026-07-18", countryCode: "it", sortOrder: 2 },
     ]);
     chapterFindManyMock.mockResolvedValue([{ id: "ex", startDate: "2026-07-09", endDate: "2026-07-20" }]);
     const r = await suggestChaptersFromCountries("trip-1");
     expect(r.success).toBe(true);
+    if (r.success) expect(r.created).toBe(1);
     expect(chapterCreateManyMock).toHaveBeenCalledWith({ data: [expect.objectContaining({ name: "Finland", tripId: "trip-1" })] });
   });
 
@@ -292,13 +296,14 @@ describe("suggestChaptersFromCountries", () => {
     // used to cause chaptersOverlap to fire and skip UK. After the fix, the runs
     // are trimmed so Finland ends 2026-07-02 and both chapters are created.
     stopFindManyMock.mockResolvedValue([
-      { id: "a", name: "City", arriveDate: "2026-06-26", departDate: "2026-06-30", country: "Finland", sortOrder: 0 },
-      { id: "b", name: "City", arriveDate: "2026-06-30", departDate: "2026-07-03", country: "Finland", sortOrder: 1 },
-      { id: "c", name: "City", arriveDate: "2026-07-03", departDate: "2026-07-07", country: "United Kingdom", sortOrder: 2 },
+      { id: "a", name: "City", arriveDate: "2026-06-26", departDate: "2026-06-30", countryCode: "fi", sortOrder: 0 },
+      { id: "b", name: "City", arriveDate: "2026-06-30", departDate: "2026-07-03", countryCode: "fi", sortOrder: 1 },
+      { id: "c", name: "City", arriveDate: "2026-07-03", departDate: "2026-07-07", countryCode: "gb", sortOrder: 2 },
     ]);
     chapterFindManyMock.mockResolvedValue([]);
     const r = await suggestChaptersFromCountries("trip-1");
     expect(r.success).toBe(true);
+    if (r.success) expect(r.created).toBe(2);
     const callArg = chapterCreateManyMock.mock.calls[0][0] as { data: { name: string }[] };
     expect(callArg.data).toHaveLength(2);
     const names = callArg.data.map((d) => d.name);
@@ -309,9 +314,9 @@ describe("suggestChaptersFromCountries", () => {
   it("records one summary when chapters are created", async () => {
     // Two non-overlapping country runs: Finland then Italy — both will be created.
     stopFindManyMock.mockResolvedValue([
-      { id: "a", name: "City", arriveDate: "2026-06-26", departDate: "2026-06-30", country: "Finland", sortOrder: 0 },
-      { id: "b", name: "City", arriveDate: "2026-06-30", departDate: "2026-07-03", country: "Finland", sortOrder: 1 },
-      { id: "c", name: "City", arriveDate: "2026-07-10", departDate: "2026-07-18", country: "Italy", sortOrder: 2 },
+      { id: "a", name: "City", arriveDate: "2026-06-26", departDate: "2026-06-30", countryCode: "fi", sortOrder: 0 },
+      { id: "b", name: "City", arriveDate: "2026-06-30", departDate: "2026-07-03", countryCode: "fi", sortOrder: 1 },
+      { id: "c", name: "City", arriveDate: "2026-07-10", departDate: "2026-07-18", countryCode: "it", sortOrder: 2 },
     ]);
     chapterFindManyMock.mockResolvedValue([]);
     await suggestChaptersFromCountries("trip-1");
@@ -328,24 +333,64 @@ describe("suggestChaptersFromCountries", () => {
     // Empty stops → suggestChapters yields no runs → data stays empty.
     stopFindManyMock.mockResolvedValue([]);
     chapterFindManyMock.mockResolvedValue([]);
-    await suggestChaptersFromCountries("trip-1");
+    const r = await suggestChaptersFromCountries("trip-1");
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.created).toBe(0);
     expect(recordActivity).not.toHaveBeenCalled();
   });
 
   it("creates a single combined chapter for an interleaved route", async () => {
     // Munich(DE) → Strasbourg(FR) → Frankfurt(DE) → Paris(FR): Germany & France interleave.
     stopFindManyMock.mockResolvedValue([
-      { id: "a", name: "Munich", arriveDate: "2026-07-01", departDate: "2026-07-03", country: "Germany", sortOrder: 0 },
-      { id: "b", name: "Strasbourg", arriveDate: "2026-07-03", departDate: "2026-07-05", country: "France", sortOrder: 1 },
-      { id: "c", name: "Frankfurt", arriveDate: "2026-07-05", departDate: "2026-07-07", country: "Germany", sortOrder: 2 },
-      { id: "d", name: "Paris", arriveDate: "2026-07-07", departDate: "2026-07-10", country: "France", sortOrder: 3 },
+      { id: "a", name: "Munich", arriveDate: "2026-07-01", departDate: "2026-07-03", countryCode: "de", sortOrder: 0 },
+      { id: "b", name: "Strasbourg", arriveDate: "2026-07-03", departDate: "2026-07-05", countryCode: "fr", sortOrder: 1 },
+      { id: "c", name: "Frankfurt", arriveDate: "2026-07-05", departDate: "2026-07-07", countryCode: "de", sortOrder: 2 },
+      { id: "d", name: "Paris", arriveDate: "2026-07-07", departDate: "2026-07-10", countryCode: "fr", sortOrder: 3 },
     ]);
     chapterFindManyMock.mockResolvedValue([]);
     const r = await suggestChaptersFromCountries("trip-1");
     expect(r.success).toBe(true);
+    if (r.success) expect(r.created).toBe(1);
     const callArg = chapterCreateManyMock.mock.calls[0][0] as { data: { name: string; startDate: string; endDate: string }[] };
     expect(callArg.data).toHaveLength(1);
     expect(callArg.data[0]).toMatchObject({ name: "Germany & France", startDate: "2026-07-01", endDate: "2026-07-10" });
+  });
+
+  it("creates ROUGH chapters for undated stops grouped by country, links stops via chapterId/chapterSortOrder", async () => {
+    // Two "it" stops then two "fr" stops, all undated (arriveDate: null).
+    // Expects: tx.chapter.create called twice (Italy, France), startDate/endDate null on each.
+    // Expects: tx.stop.update called for each stop with { chapterId, chapterSortOrder: <index> }.
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", name: "Rome", arriveDate: null, departDate: null, countryCode: "it", chapterId: null, sortOrder: 0 },
+      { id: "s2", name: "Milan", arriveDate: null, departDate: null, countryCode: "it", chapterId: null, sortOrder: 1 },
+      { id: "s3", name: "Paris", arriveDate: null, departDate: null, countryCode: "fr", chapterId: null, sortOrder: 2 },
+      { id: "s4", name: "Lyon", arriveDate: null, departDate: null, countryCode: "fr", chapterId: null, sortOrder: 3 },
+    ]);
+    chapterFindManyMock.mockResolvedValue([]);
+    // tx.chapter.create returns a chapter with the given name so stop.update can reference its id.
+    chapterCreateInTxMock
+      .mockResolvedValueOnce({ id: "rough-it", name: "Italy", colour: "rose", startDate: null, endDate: null })
+      .mockResolvedValueOnce({ id: "rough-fr", name: "France", colour: "violet", startDate: null, endDate: null });
+
+    const r = await suggestChaptersFromCountries("trip-1");
+
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.created).toBe(2);
+
+    // Two rough chapters must have been created inside the transaction.
+    expect(chapterCreateInTxMock).toHaveBeenCalledTimes(2);
+    expect(chapterCreateInTxMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ name: "Italy", tripId: "trip-1", startDate: null, endDate: null }) }),
+    );
+    expect(chapterCreateInTxMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ name: "France", tripId: "trip-1", startDate: null, endDate: null }) }),
+    );
+
+    // Each stop must be linked to its chapter with the correct intra-chapter sort index.
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: { chapterId: "rough-it", chapterSortOrder: 0 } });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s2" }, data: { chapterId: "rough-it", chapterSortOrder: 1 } });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s3" }, data: { chapterId: "rough-fr", chapterSortOrder: 0 } });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s4" }, data: { chapterId: "rough-fr", chapterSortOrder: 1 } });
   });
 });
 

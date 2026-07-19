@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, BookOpen, CalendarClock, MapPin, Trash2 } from "lucide-react";
+import { Plus, BookOpen, CalendarClock, MapPin, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { StopCard, type StopCardStop } from "./stop-card";
@@ -35,9 +35,10 @@ import {
   reorderStops,
   restoreStops,
 } from "@/server/actions/stops";
-import { reorderChapters, deleteChapter } from "@/server/actions/chapters";
+import { reorderChapters, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
 import { toast } from "@/components/ui/use-toast";
 import { toastWithUndo } from "@/components/ui/undo-toast";
+import { suggestResultToast } from "@/lib/suggest-toast";
 import { suggestNextStopDates, formatDateRange, formatLongDate } from "@/lib/dates";
 import { deleteTransport, reorderTransports } from "@/server/actions/transport";
 import { reorderTransportItems } from "@/lib/reorder-transports";
@@ -511,6 +512,9 @@ export function ItineraryManager({
     null,
   );
 
+  // ── Assign-to-chapter dialog state ──
+  const [assigningStop, setAssigningStop] = React.useState<StopCardStop | null>(null);
+
   // ── Chapter group collapse state (keyed by chapter id or "ungrouped") ──
   // Persisted to localStorage under `${tripId}:${chapterId}` keys so state
   // survives a page refresh. Guard for SSR: localStorage is browser-only.
@@ -553,6 +557,7 @@ export function ItineraryManager({
 
   // ── Pending mutations ──
   const [pendingId, setPendingId] = React.useState<string | null>(null);
+  const [isSuggesting, startSuggestTransition] = React.useTransition();
 
   // ── Stop handlers ──
   async function handleDeleteStop(stopId: string) {
@@ -783,10 +788,35 @@ export function ItineraryManager({
     setChapterDialogOpen(true);
   }
 
+  // Assign a rough stop to a chapter (or null = Ungrouped) from the picker dialog.
+  // Optimistically updates localStops, then persists via assignStopToChapter.
+  // On failure, reverts and shows an error toast.
+  async function handleAssign(stopId: string, chapterId: string | null) {
+    setAssigningStop(null);
+    const snapshot = localStops;
+    setLocalStops((prev) =>
+      prev.map((s) => (s.id === stopId ? { ...s, chapterId } : s)),
+    );
+    const res = await assignStopToChapter(stopId, chapterId);
+    if (!res.success) {
+      setLocalStops(snapshot);
+      const firstError = res.errors ? Object.values(res.errors).flat()[0] : undefined;
+      toast({ variant: "destructive", title: firstError ?? "Couldn't assign stop to chapter." });
+    }
+  }
+
   // Open the "+ New chapter" dialog with NO default dates (creates a rough chapter).
   function handleNewChapter() {
     setChapterDialogDefaults({});
     setChapterDialogOpen(true);
+  }
+
+  // Suggest chapters from countries and toast the outcome.
+  function handleSuggestChapters() {
+    startSuggestTransition(async () => {
+      const result = await suggestChaptersFromCountries(tripId);
+      toast(suggestResultToast(result));
+    });
   }
 
   // Save handler for the adjust-dates dialog (ripple path for dated stops).
@@ -1310,6 +1340,7 @@ export function ItineraryManager({
         onMoveDown={(id) => handleMoveStop(id, "down")}
         onDelete={handleDeleteStop}
         onStartChapter={handleStartChapterHere}
+        onAssignToChapter={(s) => setAssigningStop(s)}
         onTogglePin={handleTogglePin}
         onMakeRough={handleMakeRough}
         onAdjustDates={handleAdjustDates}
@@ -1377,55 +1408,41 @@ export function ItineraryManager({
           </div>
         )}
 
-        {/* Anchor-slot transport legs for this stop — rendered unconditionally
-            (an anchored leg can sit under the final stop too). */}
-        {(slotLegs.length > 0 || !isLast) && (
-          <div className="flex flex-col gap-2 px-2">
+        {/* Anchor-slot transport legs + the single context-aware Add transport
+            button. The SortableContext for legs is guarded: the slot only exists
+            when there are legs already or when this is NOT the last stop (a
+            between-stop leg must have a next-stop anchor). The button renders for
+            every stop so the last stop always has a way to add a departure leg. */}
+        <div className="flex flex-col gap-2 px-2">
+          {(slotLegs.length > 0 || !isLast) && (
             <SortableContext
               items={slotLegs.map((t) => t.id)}
               strategy={verticalListSortingStrategy}
             >
               {slotLegs.map(renderSortableLegCard)}
             </SortableContext>
+          )}
 
-            {/* Add transport between this stop and the next (only makes sense
-                when there is a next stop). */}
-            {/* "Add transport here" ghost button — lands in this stop's anchor slot */}
-            <div className="flex justify-center">
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                onClick={() =>
-                  setAddTransportDefaults({ anchorStopId: stop.id })
-                }
-              >
-                <Plus className="size-3.5" aria-hidden="true" />
-                Add transport here
-              </Button>
-            </div>
-
-            {!isLast && (
-              <div className="flex justify-center">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() =>
-                    setAddTransportDefaults({
-                      fromStopId: stop.id,
-                      toStopId: nextStop!.id,
-                      anchorStopId: stop.id,
-                    })
-                  }
-                >
-                  <Plus className="size-3.5" aria-hidden="true" />
-                  Add Transport to {nextStop!.name}
-                </Button>
-              </div>
-            )}
+          {/* Single context-aware "Add transport" button per Stop slot.
+              Pre-fills from→to when there is a next Stop; from-only at the last. */}
+          <div className="flex justify-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs text-muted-foreground hover:text-foreground"
+              onClick={() =>
+                setAddTransportDefaults(
+                  !isLast && nextStop
+                    ? { fromStopId: stop.id, toStopId: nextStop.id, anchorStopId: stop.id }
+                    : { fromStopId: stop.id, anchorStopId: stop.id },
+                )
+              }
+            >
+              <Plus className="size-3.5" aria-hidden="true" />
+              Add transport
+            </Button>
           </div>
-        )}
+        </div>
       </React.Fragment>
     );
   }
@@ -1871,6 +1888,16 @@ export function ItineraryManager({
                 New Chapter
               </Button>
               <Button
+                variant="ghost"
+                size="md"
+                onClick={handleSuggestChapters}
+                disabled={isSuggesting}
+                loading={isSuggesting}
+              >
+                <Wand2 className="size-4" aria-hidden="true" />
+                Suggest from countries
+              </Button>
+              <Button
                 variant="outline"
                 size="md"
                 onClick={() => setAddStopOpen(true)}
@@ -2030,6 +2057,23 @@ export function ItineraryManager({
           onCancel={() => setAdjustingStop(null)}
           onSave={(dates) => handleSaveAdjustDates(adjustingStop.id, dates)}
         />
+      )}
+
+      {/* Assign stop to chapter picker */}
+      {assigningStop && (
+        <Dialog open onOpenChange={(o) => !o && setAssigningStop(null)}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Assign &quot;{assigningStop.name}&quot; to a chapter</DialogTitle></DialogHeader>
+            <div className="flex flex-col gap-2">
+              {localChapters.map((c) => (
+                <Button key={c.id} variant="ghost" className="justify-start"
+                  onClick={() => handleAssign(assigningStop.id, c.id)}>{c.name}</Button>
+              ))}
+              <Button variant="ghost" className="justify-start text-muted-foreground"
+                onClick={() => handleAssign(assigningStop.id, null)}>Remove from chapter</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {dialog}

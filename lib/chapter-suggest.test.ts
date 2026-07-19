@@ -23,9 +23,9 @@ describe("combineName", () => {
 describe("countryRuns", () => {
   it("merges consecutive same-country stops into one run with run-total nights", () => {
     const runs = countryRuns([
-      { name: "Helsinki", arriveDate: "2026-06-26", departDate: "2026-06-30", country: "Finland" },
-      { name: "Rovaniemi", arriveDate: "2026-06-30", departDate: "2026-07-03", country: "Finland" },
-      { name: "London", arriveDate: "2026-07-03", departDate: "2026-07-07", country: "United Kingdom" },
+      { name: "Helsinki", arriveDate: "2026-06-26", departDate: "2026-06-30", countryCode: "fi" },
+      { name: "Rovaniemi", arriveDate: "2026-06-30", departDate: "2026-07-03", countryCode: "fi" },
+      { name: "London", arriveDate: "2026-07-03", departDate: "2026-07-07", countryCode: "gb" },
     ]);
     expect(runs).toEqual([
       { country: "Finland", anchorCity: "Helsinki", startDate: "2026-06-26", endDate: "2026-07-03", nights: 7 },
@@ -35,21 +35,21 @@ describe("countryRuns", () => {
 
   it("opens a fresh run each time the country changes, even when it recurs", () => {
     const runs = countryRuns([
-      { name: "Munich", arriveDate: "2026-07-01", departDate: "2026-07-03", country: "Germany" },
-      { name: "Strasbourg", arriveDate: "2026-07-03", departDate: "2026-07-05", country: "France" },
-      { name: "Frankfurt", arriveDate: "2026-07-05", departDate: "2026-07-07", country: "Germany" },
-      { name: "Paris", arriveDate: "2026-07-07", departDate: "2026-07-10", country: "France" },
+      { name: "Munich", arriveDate: "2026-07-01", departDate: "2026-07-03", countryCode: "de" },
+      { name: "Strasbourg", arriveDate: "2026-07-03", departDate: "2026-07-05", countryCode: "fr" },
+      { name: "Frankfurt", arriveDate: "2026-07-05", departDate: "2026-07-07", countryCode: "de" },
+      { name: "Paris", arriveDate: "2026-07-07", departDate: "2026-07-10", countryCode: "fr" },
     ]);
     expect(runs.map((r) => r.country)).toEqual(["Germany", "France", "Germany", "France"]);
     expect(runs.map((r) => r.anchorCity)).toEqual(["Munich", "Strasbourg", "Frankfurt", "Paris"]);
   });
 
-  it("skips rough (date-less) and country-less stops, ordering by arrive date", () => {
+  it("skips rough (date-less) and countryCode-less stops, ordering by arrive date", () => {
     const runs = countryRuns([
-      { name: "Late", arriveDate: "2026-07-10", departDate: "2026-07-12", country: "Italy" },
-      { name: "Rough", arriveDate: null, departDate: null, country: "Spain" },
-      { name: "Nowhere", arriveDate: "2026-07-01", departDate: "2026-07-03", country: null },
-      { name: "Early", arriveDate: "2026-07-03", departDate: "2026-07-06", country: "France" },
+      { name: "Late", arriveDate: "2026-07-10", departDate: "2026-07-12", countryCode: "it" },
+      { name: "Rough", arriveDate: null, departDate: null, countryCode: "es" },
+      { name: "Nowhere", arriveDate: "2026-07-01", departDate: "2026-07-03", countryCode: null },
+      { name: "Early", arriveDate: "2026-07-03", departDate: "2026-07-06", countryCode: "fr" },
     ]);
     expect(runs.map((r) => r.country)).toEqual(["France", "Italy"]);
   });
@@ -160,7 +160,7 @@ describe("buildChapters", () => {
   });
 });
 
-import { disambiguateNames, suggestChapters } from "./chapter-suggest";
+import { disambiguateNames, suggestChapters, suggestRoughChapters } from "./chapter-suggest";
 
 describe("disambiguateNames", () => {
   it("appends the anchor city to chapters that share an identical name", () => {
@@ -183,9 +183,9 @@ describe("disambiguateNames", () => {
 describe("suggestChapters (end to end)", () => {
   it("matches the previous suggester for clean country blocks (seam-trimmed)", () => {
     const runs = suggestChapters([
-      { name: "Helsinki", arriveDate: "2026-06-26", departDate: "2026-06-30", country: "Finland" },
-      { name: "Rovaniemi", arriveDate: "2026-06-30", departDate: "2026-07-03", country: "Finland" },
-      { name: "London", arriveDate: "2026-07-03", departDate: "2026-07-07", country: "United Kingdom" },
+      { name: "Helsinki", arriveDate: "2026-06-26", departDate: "2026-06-30", countryCode: "fi" },
+      { name: "Rovaniemi", arriveDate: "2026-06-30", departDate: "2026-07-03", countryCode: "fi" },
+      { name: "London", arriveDate: "2026-07-03", departDate: "2026-07-07", countryCode: "gb" },
     ]);
     expect(runs).toEqual([
       { name: "Finland", startDate: "2026-06-26", endDate: "2026-07-02" },
@@ -195,10 +195,10 @@ describe("suggestChapters (end to end)", () => {
 
   it("combines the canonical ping-pong route into one chapter", () => {
     const runs = suggestChapters([
-      { name: "Munich", arriveDate: "2026-07-01", departDate: "2026-07-03", country: "Germany" },
-      { name: "Strasbourg", arriveDate: "2026-07-03", departDate: "2026-07-05", country: "France" },
-      { name: "Frankfurt", arriveDate: "2026-07-05", departDate: "2026-07-07", country: "Germany" },
-      { name: "Paris", arriveDate: "2026-07-07", departDate: "2026-07-10", country: "France" },
+      { name: "Munich", arriveDate: "2026-07-01", departDate: "2026-07-03", countryCode: "de" },
+      { name: "Strasbourg", arriveDate: "2026-07-03", departDate: "2026-07-05", countryCode: "fr" },
+      { name: "Frankfurt", arriveDate: "2026-07-05", departDate: "2026-07-07", countryCode: "de" },
+      { name: "Paris", arriveDate: "2026-07-07", departDate: "2026-07-10", countryCode: "fr" },
     ]);
     expect(runs).toEqual([
       { name: "Germany & France", startDate: "2026-07-01", endDate: "2026-07-10" },
@@ -207,15 +207,37 @@ describe("suggestChapters (end to end)", () => {
 
   it("disambiguates a double edge-peel with the anchor city", () => {
     const runs = suggestChapters([
-      { name: "Paris", arriveDate: "2026-07-01", departDate: "2026-07-08", country: "France" },
-      { name: "Munich", arriveDate: "2026-07-08", departDate: "2026-07-10", country: "Germany" },
-      { name: "Lyon", arriveDate: "2026-07-10", departDate: "2026-07-17", country: "France" },
+      { name: "Paris", arriveDate: "2026-07-01", departDate: "2026-07-08", countryCode: "fr" },
+      { name: "Munich", arriveDate: "2026-07-08", departDate: "2026-07-10", countryCode: "de" },
+      { name: "Lyon", arriveDate: "2026-07-10", departDate: "2026-07-17", countryCode: "fr" },
     ]);
     expect(runs.map((r) => r.name)).toEqual(["France (Paris)", "Germany", "France (Lyon)"]);
   });
 
   it("returns no runs for an empty or fully-rough trip", () => {
     expect(suggestChapters([])).toEqual([]);
-    expect(suggestChapters([{ name: "X", arriveDate: null, departDate: null, country: "Spain" }])).toEqual([]);
+    expect(suggestChapters([{ name: "X", arriveDate: null, departDate: null, countryCode: "es" }])).toEqual([]);
+  });
+});
+
+describe("suggestRoughChapters", () => {
+  const s = (id: string, countryCode: string | null, sortOrder: number, chapterId: string | null = null) =>
+    ({ id, countryCode, chapterId, sortOrder });
+
+  it("groups consecutive same-country rough stops in sortOrder", () => {
+    const out = suggestRoughChapters([
+      s("rome", "it", 0), s("florence", "it", 1), s("paris", "fr", 2), s("lyon", "fr", 3),
+    ]);
+    expect(out).toEqual([
+      { name: "Italy", stopIds: ["rome", "florence"] },
+      { name: "France", stopIds: ["paris", "lyon"] },
+    ]);
+  });
+
+  it("skips stops already in a chapter and country-less stops (which break a run)", () => {
+    const out = suggestRoughChapters([
+      s("a", "it", 0, "existing"), s("b", null, 1), s("c", "it", 2),
+    ]);
+    expect(out).toEqual([{ name: "Italy", stopIds: ["c"] }]);
   });
 });

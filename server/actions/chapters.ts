@@ -6,7 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { chapterSchema, type ChapterInput } from "@/lib/validations/chapter";
 import { chaptersOverlap } from "@/lib/chapters";
-import { suggestChapters } from "@/lib/chapter-suggest";
+import { suggestChapters, suggestRoughChapters } from "@/lib/chapter-suggest";
 import { nextChapterColour } from "@/lib/chapter-colours";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
@@ -283,13 +283,54 @@ export async function reorderChapters(
   return { success: true, changed, conflicts };
 }
 
-export async function suggestChaptersFromCountries(tripId: string): Promise<ChapterActionResult> {
+/** A dated Stop's chapter follows its dates (ADR 0008); only rough Stops can be explicitly assigned. */
+export function canAssignToChapter(stop: { arriveDate: string | null }): boolean {
+  return stop.arriveDate == null;
+}
+
+export async function assignStopToChapter(
+  stopId: string,
+  chapterId: string | null,
+): Promise<ChapterActionResult> {
+  const stop = await db.stop.findUnique({
+    where: { id: stopId },
+    select: { id: true, tripId: true, forkId: true, arriveDate: true, chapterId: true },
+  });
+  if (!stop) notFound();
+  await requireTripAccess(stop.tripId);
+
+  if (!canAssignToChapter(stop)) {
+    return { success: false, errors: { _: ["A dated stop's chapter follows its dates — drag or re-date it to move."] } };
+  }
+
+  if (chapterId) {
+    const chapter = await db.chapter.findUnique({ where: { id: chapterId }, select: { tripId: true, forkId: true } });
+    if (!chapter || chapter.tripId !== stop.tripId || chapter.forkId !== stop.forkId) {
+      return { success: false, errors: { chapterId: ["Chapter does not belong to this plan"] } };
+    }
+  }
+
+  // Append to the end of the target chapter's rough order.
+  // Exclude the stop itself so that re-assigning to the same chapter doesn't
+  // inflate nextOrder and leave a gap.
+  const siblings = await db.stop.findMany({
+    where: { tripId: stop.tripId, forkId: stop.forkId, chapterId, id: { not: stopId } },
+    select: { chapterSortOrder: true },
+  });
+  const nextOrder = siblings.reduce((max, s) => Math.max(max, (s.chapterSortOrder ?? 0) + 1), 0);
+
+  await db.stop.update({ where: { id: stopId }, data: { chapterId, chapterSortOrder: nextOrder } });
+  revalidateChapterPaths(stop.tripId);
+  return { success: true };
+}
+
+export async function suggestChaptersFromCountries(tripId: string): Promise<ActionResult<{ created: number }>> {
   await requireTripAccess(tripId);
 
   const [stops, existing] = await Promise.all([
     db.stop.findMany({
       where: { tripId, ...REAL_PLAN },
-      select: { id: true, name: true, arriveDate: true, departDate: true, country: true, sortOrder: true },
+      select: { id: true, name: true, arriveDate: true, departDate: true, countryCode: true, chapterId: true, sortOrder: true },
     }),
     db.chapter.findMany({
       where: { tripId, ...REAL_PLAN },
@@ -298,7 +339,7 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
   ]);
 
   const runs = suggestChapters(stops);
-  const usedColours = existing.map((c) => c.colour);
+  const usedColours: string[] = existing.map((c) => c.colour);
   const data: {
     tripId: string;
     name: string;
@@ -325,16 +366,48 @@ export async function suggestChaptersFromCountries(tripId: string): Promise<Chap
   }
 
   if (data.length > 0) {
+    // NOTE: dated chapters are committed here, OUTSIDE the rough-chapter transaction below.
+    // A failure in that subsequent transaction will leave these dated chapters committed
+    // (partial result). The suggester is idempotent and safely re-runnable: a second call
+    // will skip the already-created dated chapters (overlap check) and retry the rough path.
     await db.chapter.createMany({ data });
+  }
+
+  usedColours.push(...data.map((d) => d.colour));
+
+  // Create rough chapters for unchaptered rough stops grouped by country.
+  let roughCreated = 0;
+  const roughProposals = suggestRoughChapters(
+    stops.filter((s) => s.arriveDate == null)
+         .map((s) => ({ id: s.id, countryCode: s.countryCode, chapterId: s.chapterId, sortOrder: s.sortOrder })),
+  );
+  if (roughProposals.length > 0) {
+    await db.$transaction(async (tx) => {
+      let order = existing.length + data.length;
+      for (const p of roughProposals) {
+        const colour = nextChapterColour(usedColours);
+        usedColours.push(colour);
+        const chapter = await tx.chapter.create({
+          data: { tripId, forkId: null, name: p.name, colour, startDate: null, endDate: null, sortOrder: order++ },
+        });
+        await Promise.all(p.stopIds.map((id, i) =>
+          tx.stop.update({ where: { id }, data: { chapterId: chapter.id, chapterSortOrder: i } })));
+        roughCreated++;
+      }
+    });
+  }
+
+  const totalCreated = data.length + roughCreated;
+  if (totalCreated > 0) {
     await recordPlanActivity(null, {
       tripId,
       verb: "CREATED",
       entityType: "CHAPTER",
       entityId: null,
       entityLabel: "",
-      changes: { summary: `Created ${data.length} ${data.length === 1 ? "chapter" : "chapters"} from countries` },
+      changes: { summary: `Created ${totalCreated} ${totalCreated === 1 ? "chapter" : "chapters"} from countries` },
     });
   }
   revalidateChapterPaths(tripId);
-  return { success: true };
+  return { success: true, created: totalCreated };
 }

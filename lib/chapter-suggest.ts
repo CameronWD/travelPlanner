@@ -1,15 +1,16 @@
 import { addDays, nightsBetween } from "./dates";
 import type { ChapterRun } from "./chapters";
+import { countryName } from "./countries";
 
 /**
  * A dated Stop as consumed by the chapter suggester. Only stops with BOTH
- * arriveDate AND departDate are considered; a country-less stop breaks a run.
+ * arriveDate AND departDate are considered; a countryCode-less stop breaks a run.
  */
 export interface SuggestStop {
   name: string;
   arriveDate: string | null;
   departDate: string | null;
-  country: string | null;
+  countryCode: string | null;
 }
 
 /** A maximal run of consecutive same-country dated stops. */
@@ -56,26 +57,26 @@ export function countryRuns(stops: readonly SuggestStop[]): CountryRun[] {
 
   const runs: CountryRun[] = [];
   let current: CountryRun | null = null;
-  let currentCountry: string | null = null;
+  let currentCountryCode: string | null = null;
 
   for (const stop of ordered) {
-    const country = stop.country?.trim() || null;
-    if (country && country === currentCountry && current) {
+    const code = stop.countryCode?.trim().toLowerCase() || null;
+    if (code && code === currentCountryCode && current) {
       current.endDate = stop.departDate;
       current.nights = nightsBetween(current.startDate, current.endDate);
-    } else if (country) {
+    } else if (code) {
       current = {
-        country,
+        country: countryName(code),
         anchorCity: stop.name,
         startDate: stop.arriveDate,
         endDate: stop.departDate,
         nights: nightsBetween(stop.arriveDate, stop.departDate),
       };
-      currentCountry = country;
+      currentCountryCode = code;
       runs.push(current);
     } else {
       current = null;
-      currentCountry = null;
+      currentCountryCode = null;
     }
   }
   return runs;
@@ -199,6 +200,39 @@ export function disambiguateNames(chapters: readonly PlacedChapter[]): PlacedCha
   return chapters.map((c) =>
     (counts.get(c.name) ?? 0) > 1 ? { ...c, name: `${c.name} (${c.anchorCity})` } : c,
   );
+}
+
+export interface RoughSuggestStop {
+  id: string;
+  countryCode: string | null;
+  chapterId: string | null;
+  sortOrder: number;
+}
+
+/**
+ * Propose rough (date-less) chapters over the unchaptered rough Stops: maximal
+ * runs of consecutive same-country Stops in sortOrder, named by country. Stops
+ * already in a chapter, or with no resolvable country, break the current run and
+ * are left Ungrouped. Single-Stop runs are kept (a lone country is still a leg).
+ */
+export function suggestRoughChapters(
+  stops: readonly RoughSuggestStop[],
+): { name: string; stopIds: string[] }[] {
+  const ordered = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
+  const out: { name: string; stopIds: string[] }[] = [];
+  let currentCode: string | null = null;
+  for (const s of ordered) {
+    const code = s.chapterId == null ? (s.countryCode?.trim().toLowerCase() || null) : null;
+    if (code && code === currentCode) {
+      out[out.length - 1].stopIds.push(s.id);
+    } else if (code) {
+      out.push({ name: countryName(code), stopIds: [s.id] });
+      currentCode = code;
+    } else {
+      currentCode = null; // country-less or already-chaptered stop breaks the run
+    }
+  }
+  return out;
 }
 
 /**

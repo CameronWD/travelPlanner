@@ -11,6 +11,8 @@ import { formatDateRange } from "@/lib/dates";
 import { cn } from "@/lib/cn";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
+import { toast } from "@/components/ui/use-toast";
+import { suggestResultToast } from "@/lib/suggest-toast";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,9 +67,7 @@ export function ChaptersManager({ tripId, chapters }: ChaptersManagerProps) {
     setError(null);
     startSuggestTransition(async () => {
       const result = await suggestChaptersFromCountries(tripId);
-      if (!result.success) {
-        setError("Couldn't suggest chapters. Please try again.");
-      }
+      toast(suggestResultToast(result));
     });
   }
 

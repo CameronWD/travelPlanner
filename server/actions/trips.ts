@@ -37,7 +37,19 @@ export async function createTrip(
     return validationResult(parsed.error);
   }
 
-  const { name, startDate, endDate, homeCurrency } = parsed.data;
+  const { name, startDate, endDate, homeCurrency, homeName: rawHomeName, roundTrip } = parsed.data;
+
+  let homeFields: { homeName: string; homeLat: number | null; homeLng: number | null; homeCountryCode: string | null } | null = null;
+  const trimmedHome = rawHomeName?.trim();
+  if (trimmedHome) {
+    const geo = await geocodePlaceDetailed(trimmedHome);
+    homeFields = {
+      homeName: trimmedHome,
+      homeLat: geo?.lat ?? null,
+      homeLng: geo?.lng ?? null,
+      homeCountryCode: geo?.countryCode ?? null,
+    };
+  }
 
   const trip = await db.$transaction(async (tx) => {
     const newTrip = await tx.trip.create({
@@ -47,6 +59,8 @@ export async function createTrip(
         endDate: endDate ?? null,
         homeCurrency,
         createdById: user.id,
+        ...(homeFields ?? {}),
+        ...(roundTrip !== undefined ? { roundTrip } : {}),
       },
     });
 

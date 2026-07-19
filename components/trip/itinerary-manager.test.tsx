@@ -1405,11 +1405,13 @@ describe("optimistic transport delete", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Task 12: Capture position anchor when adding a leg + "Add transport here" affordances
+// Task 12 / Task 9: Single context-aware "Add transport" button per Stop slot
+// (Two separate buttons — "Add transport here" and "Add Transport to {next}" —
+// were merged into one in Task 9. Tests updated accordingly.)
 // ---------------------------------------------------------------------------
 
-describe("Task 12: Add transport here affordance", () => {
-  it("clicking 'Add transport here' in a stop's slot opens the dialog and createTransport is called with anchorStopId", async () => {
+describe("Task 12 / Task 9: context-aware Add transport button", () => {
+  it("clicking 'Add transport' in a non-last stop's slot opens the dialog and createTransport is called with fromStopId + toStopId + anchorStopId", async () => {
     const user = userEvent.setup();
     const stopA = makeStop({ id: "s-a", name: "Tokyo", sortOrder: 0 });
     const stopB = makeStop({ id: "s-b", name: "Osaka", sortOrder: 1 });
@@ -1421,10 +1423,9 @@ describe("Task 12: Add transport here affordance", () => {
       />,
     );
 
-    // Click the "Add transport here" button in stopA's slot
-    const addHereBtns = screen.getAllByRole("button", { name: /add transport here/i });
-    // The first one belongs to Tokyo (stopA)
-    await user.click(addHereBtns[0]);
+    // One "Add transport" button per stop slot — click the first (Tokyo / non-last)
+    const addBtns = screen.getAllByRole("button", { name: /^add transport$/i });
+    await user.click(addBtns[0]);
 
     // The transport form dialog should be open — submit immediately (FLIGHT default)
     const submitBtn = await screen.findByRole("button", { name: /^add transport$/i });
@@ -1433,13 +1434,13 @@ describe("Task 12: Add transport here affordance", () => {
     await waitFor(() => {
       expect(createTransport).toHaveBeenCalledWith(
         TRIP_ID,
-        expect.objectContaining({ anchorStopId: "s-a" }),
+        expect.objectContaining({ fromStopId: "s-a", toStopId: "s-b", anchorStopId: "s-a" }),
         undefined,
       );
     });
   });
 
-  it("between-stops button still passes fromStopId + toStopId + anchorStopId", async () => {
+  it("clicking 'Add transport' in the last stop's slot opens the dialog and createTransport is called with fromStopId + anchorStopId only", async () => {
     const user = userEvent.setup();
     const stopA = makeStop({ id: "s-a", name: "Tokyo", sortOrder: 0 });
     const stopB = makeStop({ id: "s-b", name: "Osaka", sortOrder: 1 });
@@ -1451,8 +1452,11 @@ describe("Task 12: Add transport here affordance", () => {
       />,
     );
 
-    // Between-stops button opens dialog pre-filled with from/to
-    await user.click(screen.getByRole("button", { name: /add transport to osaka/i }));
+    // One "Add transport" button per stop slot — click the second (Osaka / last stop).
+    // Note: there is also a standalone "Add transport" button at the bottom of the
+    // manager, so we pick index 1 (the second stop slot) rather than the last element.
+    const addBtns = screen.getAllByRole("button", { name: /^add transport$/i });
+    await user.click(addBtns[1]);
 
     const submitBtn = await screen.findByRole("button", { name: /^add transport$/i });
     await user.click(submitBtn);
@@ -1460,7 +1464,7 @@ describe("Task 12: Add transport here affordance", () => {
     await waitFor(() => {
       expect(createTransport).toHaveBeenCalledWith(
         TRIP_ID,
-        expect.objectContaining({ anchorStopId: "s-a" }),
+        expect.objectContaining({ fromStopId: "s-b", anchorStopId: "s-b" }),
         undefined,
       );
     });

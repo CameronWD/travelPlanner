@@ -18,6 +18,8 @@ export interface CardActionItem {
   disabled?: boolean;
   /** Render the label/icon in the destructive color. */
   destructive?: boolean;
+  /** Optional muted subtext shown below the label (e.g. to explain why an item is disabled). */
+  hint?: string;
 }
 
 /**
@@ -46,9 +48,15 @@ export function MoreActionsMenu({
             disabled={item.disabled}
             onSelect={item.onSelect}
             className={item.destructive ? "text-destructive focus:text-destructive" : undefined}
+            title={item.hint}
           >
             {item.icon}
-            {item.label}
+            <span className="flex flex-col">
+              <span>{item.label}</span>
+              {item.hint && (
+                <span className="text-xs text-muted-foreground font-normal">{item.hint}</span>
+              )}
+            </span>
           </DropdownMenuItem>
         ))}
       </DropdownMenuContent>

@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
-import { formatDateRange, nightsBetween, tzAbbrev } from "@/lib/dates";
+import { formatDateRange, formatNights, nightsBetween, tzAbbrev } from "@/lib/dates";
 import { MapLink } from "./map-link";
 import { NoteThread, type NoteView } from "./note-thread";
 import { AttachmentPopover } from "./attachment-popover";
@@ -82,6 +82,8 @@ export interface StopCardProps {
   onDelete?: (stopId: string) => void;
   /** Called when "Start a chapter here" is selected */
   onStartChapter?: (stop: StopCardStop) => void;
+  /** Called when "Assign to chapter" is selected (rough stops only; dated stops show item disabled). */
+  onAssignToChapter?: (stop: StopCardStop) => void;
   /** Called when the pin toggle is clicked (scheduled stops only). */
   onTogglePin?: (stopId: string) => void;
   /** Called when "Make rough" is selected (scheduled stops only). */
@@ -137,6 +139,7 @@ export function StopCard({
   onMoveDown,
   onDelete,
   onStartChapter,
+  onAssignToChapter,
   onTogglePin,
   onMakeRough,
   onAdjustDates,
@@ -192,6 +195,26 @@ export function StopCard({
       onSelect: () => onStartChapter(stop),
       disabled: isPending,
     });
+  }
+  if (onAssignToChapter) {
+    overflowItems.push(
+      isRough
+        ? {
+            key: "assign-chapter",
+            label: "Assign to chapter",
+            icon: <BookOpen className="size-4" aria-hidden="true" />,
+            onSelect: () => onAssignToChapter(stop),
+            disabled: isPending,
+          }
+        : {
+            key: "assign-chapter",
+            label: "Assign to chapter",
+            icon: <BookOpen className="size-4" aria-hidden="true" />,
+            onSelect: () => {},
+            disabled: true,
+            hint: "Grouped by its dates — drag or re-date to move",
+          },
+    );
   }
   if (!isRough && onAdjustDates) {
     overflowItems.push({
@@ -425,7 +448,7 @@ export function StopCard({
               stopPillClass(stop.sortOrder),
             )}
           >
-            ~{stop.nights ?? 1}n
+            {formatNights(stop.nights ?? 1, { rough: true })}
           </span>
         </div>
       ) : (
@@ -609,7 +632,7 @@ function DatedMeta({
             stopPillClass(sortOrder),
           )}
         >
-          {nights}n
+          {formatNights(nights)}
         </span>
       )}
       {nights === 0 && (

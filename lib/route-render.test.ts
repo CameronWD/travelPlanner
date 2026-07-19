@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { projectStops } from "./route-render";
+import { projectStops, orderedRoutePoints } from "./route-render";
 
 describe("projectStops", () => {
   it("returns empty for no stops", () => {
@@ -38,5 +38,21 @@ describe("projectStops", () => {
       expect(p.y).toBeGreaterThanOrEqual(12 - 0.001);
       expect(p.y).toBeLessThanOrEqual(120 - 12 + 0.001);
     }
+  });
+});
+
+describe("orderedRoutePoints", () => {
+  const home = { lat: -33.87, lng: 151.21 };
+  const a = { lat: 48.85, lng: 2.35 };
+  const b = { lat: 41.9, lng: 12.5 };
+
+  it("bookends with home at start, and end too on a round trip", () => {
+    expect(orderedRoutePoints([a, b], home, true)).toEqual([home, a, b, home]);
+  });
+  it("one-way trip gets home only at the start", () => {
+    expect(orderedRoutePoints([a, b], home, false)).toEqual([home, a, b]);
+  });
+  it("no home → stops unchanged", () => {
+    expect(orderedRoutePoints([a, b], null, true)).toEqual([a, b]);
   });
 });

@@ -14,6 +14,7 @@ import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, reflowReorderedDates, type ReflowStop } from "@/lib/reorder";
 import { chapterSpan } from "@/lib/chapter-span";
+import { spanContributors } from "@/lib/chapters";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
 
@@ -80,10 +81,11 @@ async function requireStopAccess(stopId: string): Promise<{
 
 /**
  * Recompute every chapter's startDate/endDate in the given plan so it spans
- * the stops whose explicit `chapterId` === that chapter AND that are dated
- * (non-null arriveDate AND departDate).
+ * the stops that are rendered into it: dated stops explicitly linked by
+ * `chapterId`, PLUS dated stops with no `chapterId` whose arrive date falls
+ * inside the chapter's current band (union rule — mirrors ADR 0008 rendering).
  *
- * If a chapter has NO dated `chapterId`-members its dates are cleared to null,
+ * If a chapter has NO such dated members its dates are cleared to null,
  * reverting it to "rough" (fixes the "last stop made rough leaves chapter
  * stranded" case in #8).
  *
@@ -99,22 +101,24 @@ export async function recomputeChapterSpans(
   const [chapters, stops] = await Promise.all([
     tx.chapter.findMany({
       where: { tripId, ...planScope(forkId) },
-      select: { id: true },
+      select: { id: true, startDate: true, endDate: true },
     }),
     tx.stop.findMany({
       where: { tripId, ...planScope(forkId) },
-      select: { id: true, chapterId: true, arriveDate: true, departDate: true },
+      select: { id: true, chapterId: true, arriveDate: true, departDate: true, sortOrder: true },
     }),
   ]);
 
-  for (const chapter of chapters) {
-    const members = stops.filter((s) => s.chapterId === chapter.id);
-    const { startDate, endDate } = chapterSpan(members);
+  // Snapshot bands so date-band membership is evaluated against the pre-update
+  // state, not chapters we've already rewritten in this loop.
+  const snapshot = chapters.map((c) => ({
+    id: c.id, name: "", colour: "", startDate: c.startDate, endDate: c.endDate,
+  }));
 
-    await tx.chapter.update({
-      where: { id: chapter.id },
-      data: { startDate, endDate },
-    });
+  for (const chapter of snapshot) {
+    const members = spanContributors(chapter, stops, snapshot);
+    const { startDate, endDate } = chapterSpan(members);
+    await tx.chapter.update({ where: { id: chapter.id }, data: { startDate, endDate } });
   }
 }
 
@@ -156,8 +160,8 @@ export async function createStop(
     // mirroring the pattern used by moveStop and reorderStops.
     // -----------------------------------------------------------------------
 
-    // For scheduled stops, geocode outside the transaction (network call; must
-    // not hold a DB lock while waiting for an external service).
+    // For both scheduled and rough stops, geocode outside the transaction (network
+    // call; must not hold a DB lock while waiting for an external service — ADR 0007).
     let lat: number | undefined;
     let lng: number | undefined;
     let derivedCountryCode: string | null = null;
@@ -172,6 +176,22 @@ export async function createStop(
           derivedCountryCode = coords.countryCode ?? null;
         }
       }
+    } else {
+      // rough: derive country like scheduled stops do (best-effort; failure just leaves coords null)
+      const { name, country } = parsed.data;
+      let roughLat: number | undefined;
+      let roughLng: number | undefined;
+      let roughCountryCode: string | null = null;
+      const coords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
+      if (coords) {
+        roughLat = coords.lat;
+        roughLng = coords.lng;
+        roughCountryCode = coords.countryCode ?? null;
+      }
+      // Store on the outer variables so the rough branch inside the tx can read them.
+      lat = roughLat;
+      lng = roughLng;
+      derivedCountryCode = roughCountryCode;
     }
 
     // Chapter membership validation for rough stops is a pure read that doesn't
@@ -232,20 +252,22 @@ export async function createStop(
         const resolvedChapterId = effectiveChapterId ?? anchorChapterId ?? null;
         const chapterSortOrder = anchorChapterSortOrder ?? 0;
 
+        // lat/lng/derivedCountryCode were geocoded before this transaction opened (ADR 0007).
         return tx.stop.create({
           data: {
             tripId,
             forkId: forkId ?? null,
             name,
             country: country ?? null,
+            countryCode: derivedCountryCode,
             nights,
             chapterId: resolvedChapterId,
             chapterSortOrder,
             arriveDate: null,
             departDate: null,
             timezone: null,
-            lat: null,
-            lng: null,
+            lat: lat ?? null,
+            lng: lng ?? null,
             notes: notes ?? null,
             pinned: false,
             sortOrder,
@@ -313,20 +335,34 @@ export async function createStop(
       }
     }
 
+    // ROUGH APPEND PATH: geocode ran before this write; no FOR UPDATE lock is held here
+    // (a racing plain append only yields consecutive sortOrders — no collision, cf. ADR 0007).
+    // rough create (append): derive country like scheduled stops do (best-effort; failure leaves coords null)
+    let appendRoughLat: number | null = null;
+    let appendRoughLng: number | null = null;
+    let appendRoughCountryCode: string | null = null;
+    const appendRoughCoords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
+    if (appendRoughCoords) {
+      appendRoughLat = appendRoughCoords.lat;
+      appendRoughLng = appendRoughCoords.lng;
+      appendRoughCountryCode = appendRoughCoords.countryCode ?? null;
+    }
+
     const created = await db.stop.create({
       data: {
         tripId,
         forkId: forkId ?? null,
         name,
         country: country ?? null,
+        countryCode: appendRoughCountryCode,
         nights,
         chapterId: chapterId ?? null,
         chapterSortOrder: 0,
         arriveDate: null,
         departDate: null,
         timezone: null,
-        lat: null,
-        lng: null,
+        lat: appendRoughLat,
+        lng: appendRoughLng,
         notes: notes ?? null,
         pinned: false,
         sortOrder,
@@ -397,11 +433,27 @@ export async function updateStop(
 
   if (parsed.data.mode === "rough") {
     const { name, country, nights, chapterId, notes } = parsed.data;
+
+    // rough update: derive country like scheduled stops do (best-effort; failure leaves coords null)
+    let updateRoughLat: number | null | undefined;
+    let updateRoughLng: number | null | undefined;
+    let updateRoughCountryCode: string | null = null;
+    const updateRoughCoords = await geocodePlaceDetailed([name, country].filter(Boolean).join(", "));
+    if (updateRoughCoords) {
+      updateRoughLat = updateRoughCoords.lat;
+      updateRoughLng = updateRoughCoords.lng;
+      updateRoughCountryCode = updateRoughCoords.countryCode ?? null;
+    }
+
+    // On a geocode miss, omit lat/lng from the update so we don't clobber previously-good
+    // coordinates — unlike create paths which write explicit null.
     const updated = await db.stop.update({
       where: { id: stopId },
       data: {
         name,
         country: country ?? null,
+        countryCode: updateRoughCountryCode,
+        ...(updateRoughLat !== undefined ? { lat: updateRoughLat, lng: updateRoughLng } : {}),
         nights,
         chapterId: chapterId ?? null,
         notes: notes ?? null,

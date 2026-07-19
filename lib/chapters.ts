@@ -97,17 +97,15 @@ export function chapterIdForTransport(
 }
 
 /**
- * Order stops within a rendered chapter group: dated stops by arrive date
- * (their source of truth), then rough stops by explicit sortOrder. Pure.
+ * Order stops within a rendered chapter group as a single list by `sortOrder`
+ * (the arrangement spine). For dated stops sortOrder already tracks date order —
+ * firm-up flows dates forward in sortOrder and drag-reorder reflows dates to the
+ * new position (ADR 0021) — so this yields chronological order for dated stops
+ * while letting rough stops hold the position the traveller put them in. Pure;
+ * stable via the id tiebreak. Supersedes the old dated-first / rough-after split.
  */
-export function sortGroupStops<S extends StopLike>(stops: readonly S[]): S[] {
-  const dated = stops
-    .filter((s) => s.arriveDate != null)
-    .sort((a, b) => (a.arriveDate as string).localeCompare(b.arriveDate as string) || a.sortOrder - b.sortOrder);
-  const rough = stops
-    .filter((s) => s.arriveDate == null)
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-  return [...dated, ...rough];
+export function sortGroupStops<S extends StopLike & { id: string }>(stops: readonly S[]): S[] {
+  return [...stops].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
 }
 
 export function isTransportBetweenLegs(
@@ -122,5 +120,26 @@ export interface ChapterRun {
   name: string;
   startDate: string;
   endDate: string;
+}
+
+/**
+ * The dated Stops that define a chapter's date band. A dated Stop contributes to
+ * chapter C when it is explicitly linked (`chapterId === C.id`) OR — when it has
+ * no explicit chapterId — its arrive date falls inside C's current band. The
+ * `chapterId != null → only its own chapter` rule prevents a Stop from feeding
+ * two bands (which could push bands into overlap). Mirrors how the editor renders
+ * a chapter's contents (ADR 0008) while still catching a just-firmed rough leg
+ * whose chapter has no band yet (ADR 0009/0021). Pure.
+ */
+export function spanContributors<C extends ChapterLike, S extends StopLike>(
+  chapter: C,
+  stops: readonly S[],
+  chapters: readonly C[],
+): S[] {
+  return stops.filter((s) => {
+    if (s.arriveDate == null || s.departDate == null) return false; // rough: no span
+    if (s.chapterId != null) return s.chapterId === chapter.id;
+    return chapterForDate(s.arriveDate, chapters)?.id === chapter.id;
+  });
 }
 
