@@ -4,6 +4,7 @@ import { planFlagInput } from "./types";
 import { detectFlags } from "@/lib/flags";
 import { computeTripPhase } from "@/lib/trip-phase";
 
+// today is intentionally frozen; builders take today as a param so tests stay deterministic
 const today = "2026-07-19";
 
 describe("phase trips", () => {
@@ -29,7 +30,7 @@ describe("phase trips", () => {
     const t = buildPastTrip(today);
     expect(computeTripPhase({ startDate: t.startDate, endDate: t.endDate, today })).toBe("past");
     const allCosts = [...t.costs, ...t.transports.flatMap((x) => x.cost ? [x.cost] : []), ...t.accommodations.flatMap((a) => a.cost ? [a.cost] : [])];
-    expect(allCosts.some((c) => c.paid)).toBe(true);
+    expect(allCosts.some((c) => c.paid && c.actualMinor != null)).toBe(true);
     expect((t.journal ?? []).length).toBeGreaterThanOrEqual(2);
   });
   it("across the four phase trips, transport modes include TRAIN, CAR, FERRY, BUS", () => {

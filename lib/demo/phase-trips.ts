@@ -277,14 +277,18 @@ export function buildFinalPrepTrip(today: string): DemoTrip {
 // ---------------------------------------------------------------------------
 // Travelling Trip: "Great Ocean Road, right now"
 // Phase: travelling (today-2 … today+4)
-// Includes: CAR leg on today between Torquay and Nelson (~290km straight-line)
-//           → estimateDriveMinutes ≈ 327 min > 300 threshold → WARNING
+// TODAY: long CAR drive Torquay → Nelson (~291 km straight-line, ~327 min)
+//        → flagLongDrivingDays fires WARNING (/driv/i)
+// Tonight: Nelson Gateway Cabins (checkIn = today, at the drive's destination)
+// Located item on today: Nelson estuary sunset walk (lat/lng set)
 // ---------------------------------------------------------------------------
 
 export function buildTravellingTrip(today: string): DemoTrip {
   const d = phaseDates(today);
 
-  // Three stops along the Great Ocean Road
+  // Three stops along the Great Ocean Road.
+  // Today is a long driving day: Torquay → Nelson (~291 km straight-line).
+  // The traveller leaves Torquay today and arrives in Nelson tonight.
   const stops: DemoStop[] = [
     {
       key: "tv:stop:torquay",
@@ -301,6 +305,7 @@ export function buildTravellingTrip(today: string): DemoTrip {
       sortOrder: 0,
     },
     {
+      // Apollo Bay was a scenic detour — already passed through on day 1.
       key: "tv:stop:apollo-bay",
       name: "Apollo Bay",
       country: "Australia",
@@ -308,13 +313,14 @@ export function buildTravellingTrip(today: string): DemoTrip {
       lat: -38.7612,
       lng: 143.6719,
       timezone: "Australia/Melbourne",
-      arriveDate: today,
-      departDate: addDays(today, 2),
-      nights: 2,
+      arriveDate: addDays(d.travelling.start, 1),
+      departDate: addDays(d.travelling.start, 1),
+      nights: 0,
       notes: "Koalas, Mait's Rest rainforest walk, fresh crayfish.",
       sortOrder: 1,
     },
     {
+      // Tonight's destination — traveller drives here today and sleeps here.
       key: "tv:stop:nelson",
       name: "Nelson",
       country: "Australia",
@@ -322,9 +328,9 @@ export function buildTravellingTrip(today: string): DemoTrip {
       lat: -38.0423,
       lng: 141.0103,
       timezone: "Australia/Melbourne",
-      arriveDate: addDays(today, 2),
+      arriveDate: today,
       departDate: addDays(today, 4),
-      nights: 2,
+      nights: 4,
       notes: "Gateway to the Coorong — end of the Great Ocean Road journey.",
       sortOrder: 2,
     },
@@ -391,31 +397,21 @@ export function buildTravellingTrip(today: string): DemoTrip {
       cost: { estimatedMinor: 22000, currency: "AUD" },
     },
     {
-      // Tonight's accommodation
-      key: "tv:acc:apollo-bay-lodge",
-      stopKey: "tv:stop:apollo-bay",
-      name: "Apollo Bay Surf & Sand Holiday Apartments",
-      address: "4 Gambier St, Apollo Bay VIC 3233",
-      checkIn: today,
-      checkOut: addDays(today, 2),
-      lat: -38.7584,
-      lng: 143.6702,
-      cost: { estimatedMinor: 26000, currency: "AUD" },
-    },
-    {
-      key: "tv:acc:nelson-cabin",
+      // Tonight's accommodation — at the drive's destination (Nelson).
+      // checkIn=today matches the CAR leg arrPlace.
+      key: "tv:acc:nelson-tonight",
       stopKey: "tv:stop:nelson",
       name: "Nelson Gateway Cabins",
       address: "1 Kellett St, Nelson VIC 3292",
-      checkIn: addDays(today, 2),
+      checkIn: today,
       checkOut: addDays(today, 4),
       lat: -38.0436,
       lng: 141.0156,
-      cost: { estimatedMinor: 18000, currency: "AUD" },
+      cost: { estimatedMinor: 32000, currency: "AUD" },
     },
   ];
 
-  // Located item on today (checking in to Apollo Bay)
+  // Located item on today (arrival evening in Nelson — the drive's destination)
   const items: DemoItem[] = [
     {
       key: "tv:item:bells-beach",
@@ -431,17 +427,18 @@ export function buildTravellingTrip(today: string): DemoTrip {
       sortOrder: 0,
     },
     {
-      // Located item on today with lat/lng — required by acceptance test
-      key: "tv:item:apollo-bay-market",
-      title: "Apollo Bay Farmers Market",
-      category: "FOOD",
-      stopKey: "tv:stop:apollo-bay",
+      // Located item on today with lat/lng — required by acceptance test.
+      // Nelson: arrival evening sunset walk after the long drive.
+      key: "tv:item:nelson-estuary-sunset",
+      title: "Nelson estuary — sunset walk after the long drive",
+      category: "ACTIVITY",
+      stopKey: "tv:stop:nelson",
       date: today,
-      startTime: "09:00",
-      endTime: "10:30",
-      lat: -38.7580,
-      lng: 143.6710,
-      notes: "Saturday market — local produce, coffee, and fish n chips.",
+      startTime: "17:30",
+      endTime: "19:00",
+      lat: -38.0423,
+      lng: 141.0103,
+      notes: "Stretch the legs after a big day behind the wheel.",
       sortOrder: 1,
     },
     {
@@ -449,7 +446,7 @@ export function buildTravellingTrip(today: string): DemoTrip {
       title: "Twelve Apostles at sunset",
       category: "SIGHTSEEING",
       stopKey: "tv:stop:apollo-bay",
-      date: addDays(today, 1),
+      date: addDays(d.travelling.start, 1),
       startTime: "16:30",
       endTime: "18:30",
       lat: -38.6627,
