@@ -33,11 +33,11 @@ export interface DemoItem {
 export interface DemoPlan { stops: DemoStop[]; chapters: DemoChapter[]; transports: DemoTransport[]; accommodations: DemoAccommodation[]; items: DemoItem[]; costs: DemoCost[]; }
 export interface DemoFork extends DemoPlan { key: Key; name: string; sortOrder: number; createdBy: Who; }
 
-export interface DemoNote { author: Who; targetType: "STOP" | "ITEM" | "ACCOMMODATION" | "TRANSPORT" | "TRIP"; targetKey: Key | "TRIP"; body: string; }
+export interface DemoNote { author: Who; targetType: "TRIP" | "STOP" | "ITEM" | "TRANSPORT" | "ACCOMMODATION" | "JOURNAL" | "MARKER"; targetKey: Key | "TRIP"; body: string; }
 export interface DemoChecklistItem { kind: "PRETRIP" | "PACKING"; text: string; done: boolean; dueDate?: string | null; assignedTo?: Who | null; }
 export interface DemoReminder { title: string; fireAt: string; targetType?: "ITEM" | "TRANSPORT" | null; targetKey?: Key | null; sent?: boolean; }
 export interface DemoJournalEntry { date: string; author: Who; body: string; }
-export interface DemoAttachment { targetType: "TRIP" | "TRANSPORT" | "ACCOMMODATION" | "ITEM" | "MARKER"; targetKey?: Key | "TRIP" | null; filename: string; mime: string; body: string; }
+export interface DemoAttachment { targetType: "TRIP" | "STOP" | "ITEM" | "TRANSPORT" | "ACCOMMODATION" | "JOURNAL" | "MARKER"; targetKey?: Key | "TRIP" | null; filename: string; mime: string; body: string; }
 export interface DemoActivity { actor: Who; verb: "CREATED" | "UPDATED" | "DELETED" | "NOTED" | "PROMOTED"; entityType: string; entityKey?: Key | null; entityLabel: string; changes?: unknown; at?: string; daysAgo?: number; }
 export interface DemoInvite { email: string; role: "owner" | "member"; }
 
@@ -80,6 +80,7 @@ export interface PlanFlagOpts {
 export function planFlagInput(plan: DemoPlan, opts: PlanFlagOpts): DetectFlagsInput {
   const flagStops = plan.stops.map(toFlagStop).filter((s): s is FlagStop => s !== null);
   const roughStopCount = plan.stops.length - flagStops.length;
+  // first/last from ALL stops (scheduled + rough) so home-connection flags align with phase-planning nudges
   const ordered = [...plan.stops].sort((a, b) => a.sortOrder - b.sortOrder);
   const first = ordered[0]; const last = ordered[ordered.length - 1];
   return {
