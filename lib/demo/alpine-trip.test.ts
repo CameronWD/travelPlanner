@@ -8,7 +8,7 @@ describe("buildAlpineTrip", () => {
   const t = buildAlpineTrip();
   it("is anchored but every stop is rough (nights, no dates)", () => {
     expect(t.startDate).toBe("2027-05-01");
-    for (const s of t.stops) { expect(s.arriveDate).toBeFalsy(); expect(s.nights).toBeGreaterThan(0); expect(s.countryCode).toBeTruthy(); }
+    for (const s of t.stops) { expect(s.arriveDate).toBeFalsy(); expect(s.nights).toBeGreaterThan(0); expect(s.countryCode).toBeTruthy(); expect(s.countryCode).toBe(s.countryCode!.toLowerCase()); }
   });
   it("interleaves countries (a country is revisited) — a Combined chapter case", () => {
     const codes = t.stops.sort((a, b) => a.sortOrder - b.sortOrder).map((s) => s.countryCode);
