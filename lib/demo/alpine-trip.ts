@@ -343,5 +343,9 @@ export function buildAlpineTrip(): DemoTrip {
     accommodations: [],  // no accommodation — drives rough-stop / next-steps signals
     items: [...ITEMS, ...WISHLIST_ITEMS],
     costs: COSTS,
+
+    exchangeRates: [
+      { base: "CHF", quote: "EUR", rate: 1.05, manual: false, fetchedAt: "2027-04-01T00:00:00Z" },
+    ],
   };
 }
