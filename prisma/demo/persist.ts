@@ -335,6 +335,9 @@ export async function persistTrip(
   });
   const tripId = dbTrip.id;
 
+  // Register the trip's own key so TRIP-entity activities resolve.
+  id.set(trip.key, tripId);
+
   // Cover gradient image (if specified).
   if (trip.coverGradient) {
     const [top, bottom] = trip.coverGradient;
@@ -366,7 +369,12 @@ export async function persistTrip(
 
   function rateToHome(currency: string): number | null {
     if (currency === trip.homeCurrency) return null;
-    return rateMap.get(currency) ?? null;
+    const r = rateMap.get(currency);
+    if (r === undefined) {
+      console.warn(`persistTrip: no exchange rate for ${currency} on trip "${trip.name}" — cost will not convert`);
+      return null;
+    }
+    return r;
   }
 
   // -------------------------------------------------------------------------
@@ -621,10 +629,14 @@ export async function persistTrip(
 
   // Notes
   for (const n of trip.notes ?? []) {
-    const targetId =
-      n.targetKey === "TRIP"
-        ? tripId
-        : (id.get(n.targetKey) ?? tripId);
+    let targetId: string;
+    if (n.targetKey === "TRIP") {
+      targetId = tripId;
+    } else {
+      const resolved = id.get(n.targetKey);
+      if (!resolved) throw new Error(`Note targetKey did not resolve: ${n.targetKey}`);
+      targetId = resolved;
+    }
     await db.note.create({
       data: {
         tripId,
@@ -699,10 +711,7 @@ export async function persistTrip(
       att.targetKey === "TRIP" || !att.targetKey
         ? null
         : (id.get(att.targetKey) ?? null);
-    const uploaderId =
-      att.targetType === "TRIP" || !att.targetKey
-        ? who(trip.createdBy)
-        : who(trip.createdBy); // default uploader = trip creator; adjust if spec adds per-att owner
+    const uploaderId = who(trip.createdBy);
     await saveAttachment(
       { trip: tripId },
       att.targetType,
