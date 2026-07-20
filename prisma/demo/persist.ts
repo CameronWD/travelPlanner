@@ -12,7 +12,7 @@
  *     `wipeDemo` deletes the Globe (cascades members) before re-persisting, so
  *     `persistGlobe` never hits a duplicate.
  *   - Attachment rows are created with `url: ""`, then the storage key and final
- *     URL are written back after the blob is saved — mirrors seed-ai-trip.ts exactly.
+ *     URL are written back after the blob is saved — mirrors seed-demo.ts exactly.
  */
 
 import { db } from "@/lib/db";
@@ -126,7 +126,7 @@ export async function wipeDemo(): Promise<void> {
 
 /**
  * Create an Attachment row, save the blob to storage, then update the row
- * with the final storageKey and URL. Mirrors the pattern in seed-ai-trip.ts.
+ * with the final storageKey and URL. Mirrors the pattern in seed-demo.ts.
  *
  * @param scope        `{ trip: id }` or `{ globe: id }` — sets tripId/globeId.
  * @param targetType   E.g. "MARKER", "TRIP", "STOP", …
