@@ -16,7 +16,7 @@ import type { DemoTrip } from "@/lib/demo/types";
 import type { User } from "@prisma/client";
 
 export const REAL_TRIP_NAME = "Christmas in Europe 2026";
-export const REAL_USER = { email: "cameron.williams@hismileteeth.com", name: "Cam" };
+export const REAL_USER = { email: "cammark.williams@gmail.com", name: "Cam" };
 
 /** Upsert the real trip owner by email. */
 export async function ensureRealUser(): Promise<User> {
