@@ -93,6 +93,7 @@ describe("buildChristmasEurope2026", () => {
   });
 
   it("has the Neuschwanstein day trip on Munich, undated, marked must-do", () => {
+    expect(t.items).toHaveLength(1);
     const n = t.items.find((i) => i.title.includes("Neuschwanstein"));
     expect(n).toBeTruthy();
     expect(n!.stopKey).toBe("xmas26:stop:munich");
@@ -107,7 +108,7 @@ describe("buildChristmasEurope2026", () => {
 
   it("has a pre-trip checklist of outstanding tasks", () => {
     const cl = t.checklist ?? [];
-    expect(cl.length).toBeGreaterThanOrEqual(15);
+    expect(cl).toHaveLength(20);
     for (const c of cl) {
       expect(c.kind).toBe("PRETRIP");
       expect(c.done).toBe(false);
