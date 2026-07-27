@@ -49,7 +49,7 @@ export async function wipeRealTrip(): Promise<void> {
  * Persist a DemoTrip under a single owner member. Handles the full DemoPlan
  * shape (chapters, stops, transports+costs, accommodations+costs, items+votes+
  * costs, standalone costs) plus exchange rates, cover gradient and the pre-trip
- * checklist. No forks. `Who` always resolves to the single real user.
+ * checklist. No forks. Votes and checklist assignments resolve to the single owner.
  */
 export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void> {
   const storage = getStorage();
