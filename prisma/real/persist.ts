@@ -12,7 +12,7 @@
 import { db } from "@/lib/db";
 import { getStorage, generateKey } from "@/lib/storage";
 import { gradientPng } from "@/lib/demo/cover-image";
-import type { DemoTrip, Who } from "@/lib/demo/types";
+import type { DemoTrip } from "@/lib/demo/types";
 import type { User } from "@prisma/client";
 
 export const REAL_TRIP_NAME = "Christmas in Europe 2026";
@@ -53,8 +53,6 @@ export async function wipeRealTrip(): Promise<void> {
  */
 export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void> {
   const storage = getStorage();
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const who = (_w: Who): string => user.id; // single-user trip: you === partner === owner
   const id = new Map<string, string>();
 
   // --- Trip + owner member ---
@@ -94,8 +92,15 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
     });
     rateMap.set(er.base, er.rate);
   }
-  const rateToHome = (currency: string): number | null =>
-    currency === trip.homeCurrency ? null : (rateMap.get(currency) ?? null);
+  const rateToHome = (currency: string): number | null => {
+    if (currency === trip.homeCurrency) return null;
+    const r = rateMap.get(currency);
+    if (r === undefined) {
+      console.warn(`persistRealTrip: no exchange rate for ${currency} — cost will not convert`);
+      return null;
+    }
+    return r;
+  };
   const paidAt = (paid: boolean | undefined): Date | null => (paid ? new Date() : null);
 
   // --- Chapters ---
@@ -196,7 +201,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
       });
     }
     for (const v of it.votes ?? []) {
-      await db.vote.create({ data: { tripId, itemId: dbItem.id, userId: who(v.user), level: v.level } });
+      await db.vote.create({ data: { tripId, itemId: dbItem.id, userId: user.id, level: v.level } });
     }
   }
 
@@ -219,7 +224,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
     await db.checklistItem.create({
       data: {
         tripId, kind: c.kind, text: c.text, done: c.done,
-        dueDate: c.dueDate ?? null, assignedToId: c.assignedTo ? who(c.assignedTo) : null,
+        dueDate: c.dueDate ?? null, assignedToId: c.assignedTo ? user.id : null,
         sortOrder: clSort++,
       },
     });
