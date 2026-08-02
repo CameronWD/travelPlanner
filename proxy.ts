@@ -47,12 +47,60 @@ function stripCookies(rawCookieHeader: string, names: string[]): string {
     .join("; ");
 }
 
+const TRIM_SPACE_TAB = /^[ \t]+|[ \t]+$/g;
+
+/**
+ * Extract a single cookie's still-encoded value from a raw `Cookie` header,
+ * trimming surrounding spaces/tabs around the key and value the way
+ * @auth/core's vendored cookie parser does (lib/vendored/cookie.ts,
+ * `startIndex`/`endIndex`). That parser does not strip surrounding quotes,
+ * so neither do we.
+ *
+ * We deliberately do NOT use `request.cookies.get()` for this: it's backed
+ * by `@edge-runtime/cookies`, which decodes the value eagerly and DROPS the
+ * cookie entirely if `decodeURIComponent` throws. A cookie with invalid
+ * percent-encoding (e.g. a lone `%`) would then look absent to us, while
+ * @auth/core's parser hits the same decode failure but falls back to the
+ * raw string instead of dropping it, and still feeds that raw string to
+ * `isValidHttpUrl`. Reading the header ourselves keeps our view in sync
+ * with what the handler actually sees.
+ */
+function rawCookieValue(rawCookieHeader: string, name: string): string | undefined {
+  for (const pair of rawCookieHeader.split(";")) {
+    const eqIdx = pair.indexOf("=");
+    if (eqIdx === -1) continue;
+    const key = pair.slice(0, eqIdx).replace(TRIM_SPACE_TAB, "");
+    if (key !== name) continue;
+    return pair.slice(eqIdx + 1).replace(TRIM_SPACE_TAB, "");
+  }
+  return undefined;
+}
+
+/**
+ * Mirrors `decode()` in @auth/core/src/lib/vendored/cookie.ts exactly: skip
+ * the native call when there's no `%` (a perf shortcut in the original), and
+ * on a decode failure fall back to the raw string rather than throwing. This
+ * fallback is exactly what `request.cookies.get()` lacks — it drops the
+ * cookie instead of falling back, which is the bug this function exists to
+ * avoid reproducing.
+ */
+function decodeCookieValue(value: string): string {
+  if (value.indexOf("%") === -1) return value;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
 export function proxy(request: NextRequest): NextResponse {
   const { origin, searchParams } = request.nextUrl;
+  const rawCookieHeader = request.headers.get("cookie") ?? "";
 
   const poisonedCookies = CALLBACK_URL_COOKIES.filter((name) => {
-    const value = request.cookies.get(name)?.value;
-    return !!value && !isValidHttpUrl(value, origin);
+    const raw = rawCookieValue(rawCookieHeader, name);
+    if (!raw) return false;
+    return !isValidHttpUrl(decodeCookieValue(raw), origin);
   });
 
   const param = searchParams.get("callbackUrl");
@@ -64,7 +112,7 @@ export function proxy(request: NextRequest): NextResponse {
 
   const headers = new Headers(request.headers);
   if (poisonedCookies.length > 0) {
-    const kept = stripCookies(request.headers.get("cookie") ?? "", poisonedCookies);
+    const kept = stripCookies(rawCookieHeader, poisonedCookies);
     headers.set("cookie", kept);
   }
 

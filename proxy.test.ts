@@ -47,7 +47,28 @@ describe("proxy — Auth.js callback-url guard", () => {
     expect(setCookie).toContain("Max-Age=0");
     expect(setCookie).toContain("Path=/");
     expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("SameSite=lax");
     expect(setCookie).toContain("Secure");
+  });
+
+  it("detects, strips and expires a cookie value with invalid percent-encoding", () => {
+    // "100%" is not valid percent-encoding (a lone `%` with no hex digits
+    // following). `request.cookies.get()` (@edge-runtime/cookies) fails to
+    // decode it and drops the cookie from its map entirely, so a naive guard
+    // built on `.get()` would see nothing here and let it through — while
+    // @auth/core's own parser falls back to the raw "100%" and still 500s.
+    const response = proxy(request({ cookie: `${COOKIE}=100%` }));
+    expect(forwardedCookie(response)).toBe("");
+    const setCookie = response.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain(`${COOKIE}=`);
+    expect(setCookie).toContain("Max-Age=0");
+  });
+
+  it("leaves a valid percent-encoded callback-url cookie alone", () => {
+    // "%2Ftrips" decodes cleanly to "/trips", a valid root-relative URL.
+    const response = proxy(request({ cookie: `${COOKIE}=%2Ftrips` }));
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(forwardedCookie(response)).toBeNull();
   });
 
   it("keeps other cookies, with their original encoding, when stripping", () => {
