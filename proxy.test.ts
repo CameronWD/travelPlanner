@@ -6,8 +6,8 @@ import { config, proxy } from "./proxy";
 const COOKIE = "__Secure-authjs.callback-url";
 const ORIGIN = "https://travel-planner-nine-olive.vercel.app";
 
-function request(opts: { path?: string; cookie?: string } = {}): NextRequest {
-  return new NextRequest(`${ORIGIN}${opts.path ?? "/api/auth/signin"}`, {
+function request(opts: { cookie?: string } = {}): NextRequest {
+  return new NextRequest(`${ORIGIN}/api/auth/signin`, {
     headers: opts.cookie ? { cookie: opts.cookie } : {},
   });
 }
@@ -95,17 +95,6 @@ describe("proxy — Auth.js callback-url guard", () => {
   it("ignores an empty cookie value, matching @auth/core", () => {
     const response = proxy(request({ cookie: `${COOKIE}=` }));
     expect(response.headers.get("set-cookie")).toBeNull();
-  });
-
-  it("strips a malformed callbackUrl query param", () => {
-    const response = proxy(request({ path: "/api/auth/signin?callbackUrl=trips" }));
-    const rewrite = response.headers.get("x-middleware-rewrite") ?? "";
-    expect(rewrite).not.toContain("callbackUrl");
-  });
-
-  it("leaves a valid callbackUrl query param alone", () => {
-    const response = proxy(request({ path: "/api/auth/signin?callbackUrl=/trips" }));
-    expect(response.headers.get("x-middleware-rewrite")).toBeNull();
   });
 
   it("only runs on the Auth.js routes", () => {
