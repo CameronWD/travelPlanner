@@ -5,22 +5,34 @@ name: Reminders cron
 # The endpoint is auth'd by CRON_SECRET (fail-closed if unset). GitHub may delay
 # scheduled runs under load, and disables schedules after 60 days of repo
 # inactivity — fine for a low-stakes reminder ping.
+#
+# The job skips cleanly when APP_URL or CRON_SECRET are missing rather than
+# failing: an unconfigured repo should stay quiet, not email a failure every
+# five minutes. See docs/DEPLOY.md §5 for the repo Secret + Variable to set.
 on:
-  # Scheduled runs are DISABLED for now. They were firing every 5 minutes and
-  # failing (the curl to ${APP_URL}/api/cron/reminders errored out), which spammed
-  # failure emails. Re-enable by uncommenting the schedule block below once the
-  # cron is configured and the app is live — see docs/DEPLOY.md §5 (repo Secret
-  # CRON_SECRET + repo Variable APP_URL). workflow_dispatch stays on so the job
-  # can still be triggered manually from the Actions tab to test the wiring.
-  # schedule:
-  #   - cron: "*/5 * * * *"
+  schedule:
+    - cron: "*/5 * * * *"
   workflow_dispatch: {}
 
 jobs:
   ping:
     runs-on: ubuntu-latest
     steps:
+      - name: Check cron config is present
+        id: config
+        run: |
+          if [ -z "${APP_URL}" ] || [ -z "${CRON_SECRET}" ]; then
+            echo "APP_URL and/or CRON_SECRET are not configured — skipping."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          APP_URL: ${{ vars.APP_URL }}
+
       - name: Hit the reminders endpoint
+        if: steps.config.outputs.configured == 'true'
         run: |
           curl --fail --silent --show-error \
             -H "Authorization: Bearer ${CRON_SECRET}" \
