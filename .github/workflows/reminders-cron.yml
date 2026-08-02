@@ -9,10 +9,20 @@ name: Reminders cron
 # The job skips cleanly when APP_URL or CRON_SECRET are missing rather than
 # failing: an unconfigured repo should stay quiet, not email a failure every
 # five minutes. See docs/DEPLOY.md §5 for the repo Secret + Variable to set.
+#
+# A non-2xx response from a *configured* endpoint (e.g. the app itself is
+# down) is logged clearly but does NOT fail the job either: on the */5
+# schedule, failing here would mean ~288 failure emails/day for one outage.
+# curl runs without --fail so an HTTP error status isn't treated as a curl
+# failure. A genuine transport-level problem (DNS, TLS, connection refused —
+# i.e. APP_URL itself is misconfigured) still makes curl exit non-zero and
+# still fails the job — that case is worth surfacing loudly.
 on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch: {}
+
+permissions: {}
 
 jobs:
   ping:
@@ -34,9 +44,15 @@ jobs:
       - name: Hit the reminders endpoint
         if: steps.config.outputs.configured == 'true'
         run: |
-          curl --fail --silent --show-error \
+          status=$(curl --silent --show-error --output response.txt --write-out '%{http_code}' \
             -H "Authorization: Bearer ${CRON_SECRET}" \
-            "${APP_URL}/api/cron/reminders"
+            "${APP_URL}/api/cron/reminders")
+          echo "Reminders endpoint responded with HTTP ${status}"
+          cat response.txt
+          echo
+          if [ "${status}" -lt 200 ] || [ "${status}" -ge 300 ]; then
+            echo "::warning title=Reminders cron non-2xx::Reminders endpoint returned HTTP ${status} — not failing the job, see response body above."
+          fi
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
           APP_URL: ${{ vars.APP_URL }}
