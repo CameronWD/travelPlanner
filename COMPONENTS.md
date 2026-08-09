@@ -28,6 +28,9 @@ See also: **`docs/adr/0026-shared-ui-conventions.md`** (extraction decisions) an
 | `<RowActions>` | `components/ui/row-actions.tsx` | Edit (Pencil) / Delete (Trash2) ghost `size-8` icon-button pair. |
 | `<SectionHeader>` | `components/ui/section-header.tsx` | Icon + `h3` heading + optional count + optional right-aligned action slot. |
 | `createMapLoader<P>` | `components/ui/map-loader.tsx` | Factory: wraps a Leaflet component in `next/dynamic({ ssr:false })`. Returns a typed loader component. |
+| `escapeHtml(s)` | `lib/escape-html.ts` | Escapes `&<>"'`. MANDATORY for any user value interpolated into Leaflet popup HTML. |
+| `pinHex(category)` | `lib/map-pins.ts` | Category → map-pin hex (Tailwind-500 shade), falling back to OTHER. |
+| `applyLeafletIconDefaults(L)` | `lib/map-icons.ts` | Repoints Leaflet's bundler-broken default marker URLs at `public/leaflet/`. Call once per map init. |
 | `useDeleteWithConfirm` | `components/ui/use-delete-with-confirm.ts` | Confirm-then-delete. Composes `useConfirm` + `useServerAction`. Returns `{ requestDelete, isPending, dialog }`. |
 | `<InlineCostFields>` | `components/trip/inline-cost-fields.tsx` | Estimated / actual / date-paid cost input trio for transport, accommodation, and item form dialogs. |
 
@@ -172,6 +175,25 @@ export const RouteMapLoader = createMapLoader<RouteMapProps>(
 
 Then use `<RouteMapLoader …/>` in any server or client component — the dynamic
 import ensures Leaflet is never SSR'd.
+
+Inside the map component itself, four rules are non-negotiable:
+
+1. `import("leaflet")` **inside** the effect, and `leaflet.default ?? leaflet` —
+   the interop differs between the Next bundler and Vitest.
+2. Call `applyLeafletIconDefaults(L)` once, right after that import resolves.
+3. Every user-controlled value in popup HTML goes through `escapeHtml`.
+4. **Never put `isDark` in the init effect's dependency array** — its cleanup
+   destroys the map. Swap tiles with a separate `tileLayerRef.current?.setUrl()`
+   effect keyed on `[isDark]`.
+
+Test it by mocking the `leaflet` module with `createLeafletMock()` from
+`test/leaflet-mock.ts`, called inside a `beforeEach` via `vi.doMock("leaflet",
+…)` — **not** a hoisted `vi.mock(...)`. Vitest resolves a dynamically-imported
+specifier once per test file and caches it, so a hoisted factory only ever
+runs for the first test; every test after that would silently get the first
+test's stale mock and fail with a misleading "no map was ever built". See
+`components/trip/wishlist-map.test.tsx` for the working pattern. Never render
+real Leaflet in jsdom.
 
 ---
 
