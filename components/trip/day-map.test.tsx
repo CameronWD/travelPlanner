@@ -64,4 +64,25 @@ describe("DayMap theme handling", () => {
     expect(mapInstance.remove).not.toHaveBeenCalled();
     expect(hoisted.leaflet!.maps).toHaveLength(1);
   });
+
+  it("still rebuilds when the plotted points actually change", async () => {
+    const { rerender } = render(<DayMap tripId="t1" model={MODEL} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+
+    // Same point count as MODEL.points (2) — only a coordinate changes. This
+    // isolates the `points.map(...).join("|")` signature dependency: if that
+    // dependency were dropped and only `points.length` remained, this
+    // rerender would not re-trigger the init effect and `maps` would stay at
+    // length 1.
+    const movedModel: DayMapModel = {
+      ...MODEL,
+      points: [
+        MODEL.points[0],
+        { ...MODEL.points[1], lat: 35.7 },
+      ],
+    };
+    rerender(<DayMap tripId="t1" model={movedModel} />);
+
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(2));
+  });
 });

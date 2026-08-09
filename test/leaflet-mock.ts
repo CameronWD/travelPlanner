@@ -8,9 +8,23 @@ import { vi } from "vitest";
  * tests can assert on lifecycle — in particular that a theme change does NOT
  * destroy and rebuild the map.
  *
- * Usage:
- *   const leaflet = createLeafletMock();
- *   vi.mock("leaflet", () => leaflet.module);   // must be hoisted via vi.hoisted
+ * Usage — inside a `beforeEach`, NOT a hoisted top-level `vi.mock`:
+ *
+ *   const hoisted = vi.hoisted(() => ({ leaflet: null as ReturnType<typeof createLeafletMock> | null }));
+ *   beforeEach(() => {
+ *     hoisted.leaflet = createLeafletMock();
+ *     vi.doMock("leaflet", () => hoisted.leaflet!.module);
+ *   });
+ *
+ * Why `vi.doMock` in `beforeEach` and not a hoisted `vi.mock`: the map
+ * components dynamically `import("leaflet")` inside an effect, and Vitest
+ * resolves a dynamically-imported specifier once and caches it for the rest
+ * of the test file. A hoisted `vi.mock` factory therefore only ever runs
+ * once per file — every test after the first would silently resolve the
+ * FIRST test's cached module instead of its own fresh mock, and fail with
+ * "no map was ever built" even though the component behaved correctly.
+ * `vi.doMock` re-registers the factory before each test so the next dynamic
+ * import picks up the current mock instance.
  */
 export interface FakeTileLayer {
   url: string;

@@ -61,9 +61,13 @@ describe("WishlistMap theme handling", () => {
     const { rerender } = render(<WishlistMap items={ITEMS} onSelect={vi.fn()} />);
     await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
 
+    // Same item count as ITEMS (2) — only a coordinate changes. This isolates
+    // the `items.map(...).join("|")` signature dependency: if that dependency
+    // were dropped and only `items.length` remained, this rerender would not
+    // re-trigger the init effect and `maps` would stay at length 1.
     rerender(
       <WishlistMap
-        items={[...ITEMS, { id: "c", title: "Shibuya", category: "OTHER", lat: 35.66, lng: 139.7 }]}
+        items={[ITEMS[0], { ...ITEMS[1], lat: 35.7 }]}
         onSelect={vi.fn()}
       />,
     );
