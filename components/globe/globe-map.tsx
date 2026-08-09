@@ -15,6 +15,7 @@ import type { MarkerView } from "@/components/globe/types";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
 import { escapeHtml } from "@/lib/escape-html";
+import { pinHex } from "@/lib/map-pins";
 
 export interface GlobeMapProps {
   markers: MarkerView[];
@@ -25,16 +26,6 @@ export interface GlobeMapProps {
   onMapClick: (lat: number, lng: number) => void;
   attachmentsByMarkerId?: Record<string, { id: string }[]>;
 }
-
-const CATEGORY_HEX: Record<string, string> = {
-  SIGHTSEEING: "#0ea5e9",
-  FOOD: "#f59e0b",
-  ACTIVITY: "#10b981",
-  NIGHTLIFE: "#8b5cf6",
-  SHOPPING: "#f43f5e",
-  OTHER: "#78716c",
-};
-const pinHex = (c: string) => CATEGORY_HEX[c] ?? CATEGORY_HEX.OTHER;
 
 function categoryIcon(L: typeof import("leaflet"), category: string): import("leaflet").DivIcon {
   const hex = pinHex(category);

@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
 import { escapeHtml } from "@/lib/escape-html";
+import { pinHex } from "@/lib/map-pins";
 
 // Leaflet CSS imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
@@ -38,22 +39,6 @@ export interface WishlistMapProps {
   items: WishlistMapItem[];
   onSelect: (id: string) => void;
 }
-
-// ---------------------------------------------------------------------------
-// Category colours
-// ---------------------------------------------------------------------------
-
-const CATEGORY_HEX: Record<string, string> = {
-  SIGHTSEEING: "#0ea5e9", // sky
-  FOOD: "#f59e0b",        // amber
-  ACTIVITY: "#10b981",    // emerald
-  NIGHTLIFE: "#8b5cf6",   // violet
-  SHOPPING: "#f43f5e",    // rose
-  OTHER: "#78716c",       // stone
-};
-
-const pinHex = (category: string): string =>
-  CATEGORY_HEX[category] ?? CATEGORY_HEX.OTHER;
 
 // ---------------------------------------------------------------------------
 // Marker style helpers
