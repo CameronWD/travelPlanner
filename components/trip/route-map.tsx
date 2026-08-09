@@ -20,6 +20,7 @@ import { formatDateRange } from "@/lib/dates";
 import type { HomeMapPoint } from "@/lib/route-map";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
+import { escapeHtml } from "@/lib/escape-html";
 
 // Leaflet CSS is imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
@@ -45,13 +46,6 @@ export interface RouteMapProps {
   home?: HomeMapPoint | null;
   /** When true and home is set, also draw a return leg from last stop → home. */
   showReturn?: boolean;
-}
-
-/**
- * Escape user-controlled strings before interpolating into Leaflet popup HTML.
- */
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
 /**

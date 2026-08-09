@@ -25,20 +25,12 @@ import {
 } from "@/lib/maps";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
+import { escapeHtml } from "@/lib/escape-html";
 
 // Leaflet CSS imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
 
 export type { DayMapModel };
-
-/** Escape user-controlled strings before interpolating into Leaflet popup HTML. */
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!),
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Marker style helpers

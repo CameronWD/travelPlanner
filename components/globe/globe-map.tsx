@@ -14,6 +14,7 @@ import "leaflet/dist/leaflet.css";
 import type { MarkerView } from "@/components/globe/types";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
+import { escapeHtml } from "@/lib/escape-html";
 
 export interface GlobeMapProps {
   markers: MarkerView[];
@@ -34,13 +35,6 @@ const CATEGORY_HEX: Record<string, string> = {
   OTHER: "#78716c",
 };
 const pinHex = (c: string) => CATEGORY_HEX[c] ?? CATEGORY_HEX.OTHER;
-
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!),
-  );
-}
 
 function categoryIcon(L: typeof import("leaflet"), category: string): import("leaflet").DivIcon {
   const hex = pinHex(category);
