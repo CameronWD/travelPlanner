@@ -421,16 +421,48 @@ The split in §4 is what makes this testable at all:
   `day-map.test.ts`, `map-tiles.test.ts`, `geocode.test.ts`, `nearby.test.ts`,
   `route-render.test.ts`. This is where the actual logic lives, so this is where
   the coverage is.
-- **Leaflet components are never rendered in jsdom.** Tests mock at the loader
-  boundary:
+- **Real Leaflet never runs in jsdom — but the map components themselves now
+  do get rendered there**, with only the `leaflet` package swapped for a test
+  double. There are two distinct mocking seams, for two distinct jobs:
 
-```tsx
-vi.mock("./globe-map-loader", () => ({ GlobeMapLoader: () => null }));
-vi.mock("./day-map", () => ({ DayMap: () => <div data-testid="day-map" /> }));
-```
+  **Loader/component-boundary mock** — for testing the *surrounding* UI (panel
+  toggles, selection wiring, empty states) without the map in play at all:
 
-  That lets you assert the *surrounding* behaviour (panel toggles, selection
-  wiring, empty states) without Leaflet touching a fake DOM.
+  ```tsx
+  vi.mock("./globe-map-loader", () => ({ GlobeMapLoader: () => null }));
+  vi.mock("./day-map", () => ({ DayMap: () => <div data-testid="day-map" /> }));
+  ```
+
+  Used by parent/consumer tests such as `wishlist-board.test.tsx` (mocks
+  `./wishlist-map-loader`) and `day-map-panel.test.tsx` (mocks `./day-map`
+  directly — `DayMapPanel` imports `DayMap` without a loader, since it already
+  gates the mount on the panel being expanded, §5.9).
+
+  **`leaflet`-module mock** — for testing a map component's *own* lifecycle:
+  init-once, `fitBounds`, pin plotting, and — the one thing the boundary mock
+  above cannot exercise at all, because it never lets the component's effects
+  run — the §5.4 theme-swap-without-rebuild rule. The `leaflet` package itself
+  is replaced with `createLeafletMock()` from `test/leaflet-mock.ts`, wired up
+  via `vi.doMock("leaflet", ...)` **inside `beforeEach`**, not a hoisted
+  `vi.mock(...)`:
+
+  ```tsx
+  const hoisted = vi.hoisted(() => ({
+    leaflet: null as ReturnType<typeof createLeafletMock> | null,
+  }));
+  beforeEach(() => {
+    hoisted.leaflet = createLeafletMock();
+    vi.doMock("leaflet", () => hoisted.leaflet!.module);
+  });
+  ```
+
+  `vi.doMock` in `beforeEach` matters because Vitest resolves a dynamically
+  imported specifier once per test file and caches it — a hoisted `vi.mock`
+  factory would only ever run for the first test, and every test after that
+  would silently get the first test's stale mock (see the docblock at the top
+  of `test/leaflet-mock.ts`). Used by `route-map.test.tsx`, `day-map.test.tsx`,
+  `wishlist-map.test.tsx`, and `globe-map.test.tsx`.
+
 - **Visual output is human-verified.** Marker styling, polyline colours, and the
   home-base bookends carry `VISUAL:` comments saying so explicitly.
 
@@ -492,8 +524,10 @@ To stand this up in another Next.js App Router project:
    traffic
 8. Write one map component per surface, following §5.2–§5.8; write a
    `*-map-loader.tsx` beside each and import **the loader**, never the component
-9. Keep the point-model logic in a pure `lib/` module so it's testable, and mock
-   the loader in component tests
+9. Keep the point-model logic in a pure `lib/` module so it's testable. For
+   surrounding-UI tests, mock the loader (or the map component directly);
+   for a map component's own lifecycle (including the theme-swap rule in
+   §5.4), mock `leaflet` itself with `createLeafletMock()` — see §8
 
 ## 12. If we were starting fresh
 
