@@ -76,6 +76,6 @@ describe("GlobeMap theme handling", () => {
 
   it("still plots its pins after init (the ready-flag path)", async () => {
     render(globeElement());
-    await waitFor(() => expect(hoisted.leaflet!.markers.length).toBeGreaterThanOrEqual(2));
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
   });
 });

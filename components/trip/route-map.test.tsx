@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { render, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { createLeafletMock } from "@/test/leaflet-mock";
 import { cartoTiles } from "@/lib/map-tiles";
 
@@ -57,8 +57,21 @@ describe("RouteMap theme handling", () => {
     expect(hoisted.leaflet!.maps).toHaveLength(1);
   });
 
-  it("renders the text fallback, not a map, with fewer than two located stops", () => {
+  it("renders the text fallback, not a map, with fewer than two located stops", async () => {
     render(<RouteMap stops={[STOPS[0]]} />);
+
+    expect(
+      screen.getByText("Add coordinates to your stops to see the route map."),
+    ).toBeInTheDocument();
+
+    // Map construction happens inside `import("leaflet").then(...)`, so
+    // `maps` reads 0 synchronously after ANY render — including one that IS
+    // building a map, just asynchronously. Flush microtasks so a pending
+    // `import(...).then(...)` chain would have had the chance to run and
+    // push into `maps` by now. Without this, the assertion below can't tell
+    // "no map was built" apart from "map not built yet".
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
     expect(hoisted.leaflet!.maps).toHaveLength(0);
   });
 
