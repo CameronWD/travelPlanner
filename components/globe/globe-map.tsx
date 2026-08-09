@@ -130,8 +130,11 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       }
       setReady(false);
     };
+    // `isDark` is deliberately NOT a dependency: this effect's cleanup destroys
+    // the map, so depending on the theme would rebuild it (losing pan/zoom) on
+    // every toggle. The separate setUrl effect below swaps tiles in place.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDark]);
+  }, []);
 
   // Swap basemap tiles when the theme flips, without rebuilding the map.
   useEffect(() => {

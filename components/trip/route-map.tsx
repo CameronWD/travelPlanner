@@ -279,8 +279,11 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
   // The effect re-runs only when the set of plotted coords/colours actually
   // changes; we depend on a derived signature string rather than the `stops`
   // array identity, which exhaustive-deps can't verify — hence the disable.
+  // `isDark` is deliberately absent: this effect's cleanup destroys the map, so
+  // depending on the theme would rebuild it (losing pan/zoom) on every toggle.
+  // The separate setUrl effect below swaps tiles in place.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasEnoughCoords, isDark, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.chapterColour ?? ""}:${s.chapterName ?? ""}`).join("|"), home?.lat, home?.lng, home?.name, showReturn]);
+  }, [hasEnoughCoords, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.chapterColour ?? ""}:${s.chapterName ?? ""}`).join("|"), home?.lat, home?.lng, home?.name, showReturn]);
 
   // Swap basemap tiles when the theme flips, without rebuilding the map.
   useEffect(() => {
