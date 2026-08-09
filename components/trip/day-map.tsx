@@ -26,6 +26,7 @@ import {
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
 import { escapeHtml } from "@/lib/escape-html";
+import { applyLeafletIconDefaults } from "@/lib/map-icons";
 
 // Leaflet CSS imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
@@ -169,14 +170,7 @@ export function DayMap({
     import("leaflet").then((leaflet) => {
       L = leaflet.default ?? leaflet;
 
-      // Fix default icon URLs that break under bundlers.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-        iconUrl: "/leaflet/marker-icon.png",
-        shadowUrl: "/leaflet/marker-shadow.png",
-      });
+      applyLeafletIconDefaults(L);
 
       if (!mapRef.current) return;
 

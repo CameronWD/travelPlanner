@@ -16,6 +16,7 @@ import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
 import { escapeHtml } from "@/lib/escape-html";
 import { pinHex } from "@/lib/map-pins";
+import { applyLeafletIconDefaults } from "@/lib/map-icons";
 
 export interface GlobeMapProps {
   markers: MarkerView[];
@@ -91,13 +92,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
 
     import("leaflet").then((leaflet) => {
       const L = leaflet.default ?? leaflet;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-        iconUrl: "/leaflet/marker-icon.png",
-        shadowUrl: "/leaflet/marker-shadow.png",
-      });
+      applyLeafletIconDefaults(L);
       if (!mapRef.current) return;
 
       const map = L.map(mapRef.current, { zoomControl: true, worldCopyJump: true });
