@@ -232,9 +232,11 @@ export function DayMap({
         leafletMapRef.current = null;
       }
     };
+    // `isDark` is deliberately NOT a dependency: this effect's cleanup destroys
+    // the map, so depending on the theme would rebuild it (losing pan/zoom) on
+    // every toggle. The separate setUrl effect below swaps tiles in place.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    isDark,
     points.length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     points.map((p) => `${p.id}:${p.lat},${p.lng}`).join("|"),
