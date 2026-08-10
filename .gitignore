@@ -26,3 +26,6 @@ dev.db
 
 # subagent-driven-development scratch (briefs, reports, diffs, ledger)
 .superpowers/
+
+# Claude Code per-user local settings (permission allowlist)
+.claude/settings.local.json

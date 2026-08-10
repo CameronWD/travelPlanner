@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Plus Jakarta Sans',sans-serif;background:hsl(33 30% 90%);color:hsl(24 14% 15%);-webkit-font-smoothing:antialiased;}
+  a{color:hsl(12 84% 52%);text-decoration:none;}
+  a:hover{color:hsl(12 74% 44%);text-decoration:underline;}
+  .leaflet-container{font-family:'Plus Jakarta Sans',sans-serif;isolation:isolate;}
+  .leaflet-popup-content-wrapper{border-radius:12px;box-shadow:0 12px 28px rgba(0,0,0,.25);}
+  .leaflet-popup-content{margin:11px 13px;}
+  .tp-pop-title{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:hsl(24 14% 18%);}
+  .tp-pop-sub{font-size:11.5px;color:hsl(28 8% 48%);margin-top:2px;}
+</style>
+</helmet>
+
+<section style="padding:64px 72px 90px;">
+  <div style="max-width:820px;">
+    <span style="display:inline-block;font:700 12px 'Plus Jakarta Sans';letter-spacing:.14em;color:hsl(12 84% 52%);text-transform:uppercase;">TEEPEE · Real maps</span>
+    <h2 style="font-family:'Space Grotesk',sans-serif;font-size:42px;line-height:1.05;letter-spacing:-.03em;font-weight:700;margin:12px 0 14px;color:hsl(24 14% 15%);">Leaflet maps &amp; the dark tile style</h2>
+    <p style="margin:0;max-width:700px;font-size:16px;line-height:1.6;color:hsl(28 8% 40%);">Live Leaflet, not placeholders — <b>CARTO Positron</b> for light and <b>CARTO Dark Matter</b> for the dark gap in the brief. Category-coloured <code style="background:hsl(32 26% 90%);padding:1px 5px;border-radius:5px;font-size:14px;">divIcon</code> markers, chapter-dashed route polylines, and numbered day pins. Drag / zoom / click a pin. Lift these tile URLs + marker HTML straight into the rebuild.</p>
+  </div>
+
+  <div style="display:flex;gap:32px;flex-wrap:wrap;margin-top:48px;">
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="max-width:620px;"><div style="font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;color:hsl(24 14% 15%);">Globe · light (Positron)</div><div style="font-size:13.5px;color:hsl(28 8% 42%);">Cross-trip markers, fit to bounds, category-coloured pins.</div></div>
+      <div id="map-globe-light" style="width:620px;height:400px;border-radius:20px;overflow:hidden;box-shadow:0 8px 24px hsl(24 30% 20% / .12),0 0 0 1px hsl(30 20% 84%);background:hsl(199 30% 88%);"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="max-width:620px;"><div style="font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;color:hsl(24 14% 15%);">Globe · dark (Dark Matter)</div><div style="font-size:13.5px;color:hsl(28 8% 42%);">The missing dark tile style — same markers, dark base.</div></div>
+      <div id="map-globe-dark" style="width:620px;height:400px;border-radius:20px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.4),0 0 0 1px hsl(24 10% 26%);background:hsl(24 14% 12%);"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="max-width:620px;"><div style="font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;color:hsl(24 14% 15%);">Route map · light</div><div style="font-size:13.5px;color:hsl(28 8% 42%);">Numbered stops + chapter-coloured dashed polyline (Kansai).</div></div>
+      <div id="map-route" style="width:620px;height:400px;border-radius:20px;overflow:hidden;box-shadow:0 8px 24px hsl(24 30% 20% / .12),0 0 0 1px hsl(30 20% 84%);background:hsl(199 30% 88%);"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;">
+      <div style="max-width:620px;"><div style="font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:700;color:hsl(24 14% 15%);">Day map · dark</div><div style="font-size:13.5px;color:hsl(28 8% 42%);">One day in Osaka — numbered items, "H" stay, dashed walk.</div></div>
+      <div id="map-day" style="width:620px;height:400px;border-radius:20px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.4),0 0 0 1px hsl(24 10% 26%);background:hsl(24 14% 12%);"></div>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  componentDidMount() { this._tries = 0; this.initWhenReady(); }
+
+  initWhenReady() {
+    if (!window.L) {
+      if (this._tries++ > 80) return;
+      setTimeout(() => this.initWhenReady(), 80);
+      return;
+    }
+    if (this._built) return;
+    this._built = true;
+    try { this.buildMaps(); } catch (e) { console.error("map build failed", e); }
+  }
+
+  pin(color, label, size) {
+    const L = window.L;
+    const s = size || 24;
+    return L.divIcon({
+      className: "",
+      html: `<div style="width:${s}px;height:${s}px;border-radius:50%;background:${color};border:3px solid #fff;box-shadow:0 2px 7px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:#fff;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:${s>26?12:11}px;">${label || ""}</div>`,
+      iconSize: [s, s],
+      iconAnchor: [s / 2, s / 2],
+      popupAnchor: [0, -s / 2],
+    });
+  }
+
+  popup(title, sub) {
+    return `<div class="tp-pop-title">${title}</div><div class="tp-pop-sub">${sub}</div>`;
+  }
+
+  tiles(map, dark) {
+    const L = window.L;
+    const url = dark
+      ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+      : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+    L.tileLayer(url, {
+      subdomains: "abcd",
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
+    }).addTo(map);
+  }
+
+  buildMaps() {
+    const L = window.L;
+    const CAT = { sky: "#0ea5e9", amber: "#f59e0b", emerald: "#10b981", violet: "#8b5cf6", rose: "#f43f5e", stone: "#78716c" };
+    const mapOpts = { scrollWheelZoom: false, zoomControl: true };
+
+    // ── Globe (light) ──
+    const markers = [
+      ["Kyoto", "Japan · Sightseeing", 35.0116, 135.7681, CAT.sky],
+      ["Sintra palaces", "Lisbon, Portugal", 38.7979, -9.3907, CAT.rose],
+      ["Reykjavik", "Iceland · idea", 64.1466, -21.9426, CAT.emerald],
+      ["Bangkok street food", "Thailand · Food", 13.7563, 100.5018, CAT.amber],
+      ["Brooklyn galleries", "New York · Activity", 40.6782, -73.9442, CAT.violet],
+      ["Sydney coastal walk", "Australia", -33.8688, 151.2093, CAT.stone],
+    ];
+    const gl = L.map("map-globe-light", mapOpts);
+    this.tiles(gl, false);
+    const glGroup = [];
+    markers.forEach(([t, s, la, ln, c]) => {
+      const m = L.marker([la, ln], { icon: this.pin(c) }).addTo(gl).bindPopup(this.popup(t, s));
+      glGroup.push([la, ln]);
+    });
+    gl.fitBounds(glGroup, { padding: [40, 40] });
+
+    // ── Globe (dark) ──
+    const gd = L.map("map-globe-dark", mapOpts);
+    this.tiles(gd, true);
+    markers.forEach(([t, s, la, ln, c]) => {
+      L.marker([la, ln], { icon: this.pin(c) }).addTo(gd).bindPopup(this.popup(t, s));
+    });
+    gd.fitBounds(glGroup, { padding: [40, 40] });
+
+    // ── Route map (light) — Kansai ──
+    const route = [
+      ["Kyoto", "5 nights · Apr 3–8", 35.0116, 135.7681, CAT.sky, "1"],
+      ["Osaka", "4 nights · Apr 8–12", 34.6937, 135.5023, CAT.violet, "2"],
+      ["Nara", "2 nights · Apr 12–14", 34.6851, 135.8048, CAT.emerald, "3"],
+    ];
+    const rm = L.map("map-route", mapOpts);
+    this.tiles(rm, false);
+    const rpts = route.map(([t, s, la, ln, c, n]) => {
+      L.marker([la, ln], { icon: this.pin(c, n, 28) }).addTo(rm).bindPopup(this.popup(t, s));
+      return [la, ln];
+    });
+    L.polyline(rpts, { color: "#10b981", weight: 3, dashArray: "8 8", opacity: 0.85 }).addTo(rm);
+    rm.fitBounds(rpts, { padding: [55, 55] });
+
+    // ── Day map (dark) — Osaka ──
+    const day = [
+      ["Osaka Castle", "9:30 · Sightseeing", 34.6873, 135.5259, CAT.sky, "1"],
+      ["Kuromon Market", "13:00 · Food", 34.6647, 135.5061, CAT.amber, "2"],
+      ["Hotel Nikko Osaka", "Tonight's stay", 34.7025, 135.4959, CAT.emerald, "H"],
+    ];
+    const dm = L.map("map-day", mapOpts);
+    this.tiles(dm, true);
+    const dpts = day.map(([t, s, la, ln, c, n]) => {
+      L.marker([la, ln], { icon: this.pin(c, n, 28) }).addTo(dm).bindPopup(this.popup(t, s));
+      return [la, ln];
+    });
+    L.polyline([dpts[0], dpts[1]], { color: "#f59e0b", weight: 3, dashArray: "6 7", opacity: 0.9 }).addTo(dm);
+    dm.fitBounds(dpts, { padding: [70, 70] });
+
+    // Leaflet sometimes needs a nudge once the container has real size.
+    setTimeout(() => { [gl, gd, rm, dm].forEach((m) => m.invalidateSize()); }, 250);
+  }
+}
+</script>
+</body>
+</html>
