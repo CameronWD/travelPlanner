@@ -54,6 +54,13 @@ describe("GlobeMap theme handling", () => {
     expect(hoisted.leaflet!.tileLayers[0].url).toBe(cartoTiles(false).url);
   });
 
+  it("builds the map with the dark tiles when mounted in dark mode", async () => {
+    hoisted.theme = "dark";
+    render(globeElement());
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    expect(hoisted.leaflet!.tileLayers[0].url).toBe(cartoTiles(true).url);
+  });
+
   it("does NOT destroy and rebuild the map when the theme flips", async () => {
     // Rerender the SAME instance rather than calling render() again — a
     // second render() would mount a second instance, which legitimately

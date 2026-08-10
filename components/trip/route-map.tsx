@@ -7,7 +7,7 @@
  * `{ ssr: false }` from the summary page.
  *
  * Renders:
- *   - OpenStreetMap tile layer
+ *   - CARTO tile layer (Positron / Dark Matter)
  *   - Numbered circle markers for each stop that has coordinates
  *   - Polyline connecting those stops in order
  *   - Popup per marker (name + date range)

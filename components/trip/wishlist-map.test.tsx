@@ -40,6 +40,13 @@ describe("WishlistMap theme handling", () => {
     expect(hoisted.leaflet!.tileLayers[0].url).toBe(cartoTiles(false).url);
   });
 
+  it("builds the map with the dark tiles when mounted in dark mode", async () => {
+    hoisted.theme = "dark";
+    render(<WishlistMap items={ITEMS} onSelect={vi.fn()} />);
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    expect(hoisted.leaflet!.tileLayers[0].url).toBe(cartoTiles(true).url);
+  });
+
   it("does NOT destroy and rebuild the map when the theme flips", async () => {
     const { rerender } = render(<WishlistMap items={ITEMS} onSelect={vi.fn()} />);
     await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));

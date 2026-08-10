@@ -270,7 +270,6 @@ change the render, and disable `exhaustive-deps` with a comment saying why:
 ```tsx
 }, [
   hasEnoughCoords,
-  isDark,
   stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.chapterColour ?? ""}`).join("|"),
   home?.lat, home?.lng, showReturn,
 ]);
@@ -419,7 +418,8 @@ The split in §4 is what makes this testable at all:
 
 - **Pure `lib/` modules have real unit tests** — `geo.test.ts`, `maps.test.ts`,
   `day-map.test.ts`, `map-tiles.test.ts`, `geocode.test.ts`, `nearby.test.ts`,
-  `route-render.test.ts`. This is where the actual logic lives, so this is where
+  `route-render.test.ts`, `escape-html.test.ts`, `map-icons.test.ts`,
+  `map-pins.test.ts`. This is where the actual logic lives, so this is where
   the coverage is.
 - **Real Leaflet never runs in jsdom — but the map components themselves now
   do get rendered there**, with only the `leaflet` package swapped for a test
@@ -463,8 +463,12 @@ The split in §4 is what makes this testable at all:
   of `test/leaflet-mock.ts`). Used by `route-map.test.tsx`, `day-map.test.tsx`,
   `wishlist-map.test.tsx`, and `globe-map.test.tsx`.
 
-- **Visual output is human-verified.** Marker styling, polyline colours, and the
-  home-base bookends carry `VISUAL:` comments saying so explicitly.
+- **Visual output is human-verified.** Marker styling and polyline colours
+  across all four maps get no pixel-level test coverage — Vitest asserts
+  wiring and lifecycle (§8 above), never appearance. Only the route map's
+  home-base marker and its outbound/return polylines carry an explicit
+  `VISUAL:` comment (`route-map.tsx`) calling that out; the rest is human-
+  verified the same way, just without the comment.
 
 `lib/geocode.ts` exports `_resetGeocodeCacheForTests()` — a deliberate test-only
 seam, since the module-level cache would otherwise leak between cases.
