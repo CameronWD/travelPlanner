@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Exported design-tool artefacts (mock HTML + its support bundle), not
+    // app source — linting them reports on generated third-party output.
+    "design_handoff/**",
   ]),
 ]);
 
