@@ -17,6 +17,9 @@ import { MapPin } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
+import { escapeHtml } from "@/lib/escape-html";
+import { pinHex } from "@/lib/map-pins";
+import { applyLeafletIconDefaults } from "@/lib/map-icons";
 
 // Leaflet CSS imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
@@ -39,33 +42,8 @@ export interface WishlistMapProps {
 }
 
 // ---------------------------------------------------------------------------
-// Category colours
-// ---------------------------------------------------------------------------
-
-const CATEGORY_HEX: Record<string, string> = {
-  SIGHTSEEING: "#0ea5e9", // sky
-  FOOD: "#f59e0b",        // amber
-  ACTIVITY: "#10b981",    // emerald
-  NIGHTLIFE: "#8b5cf6",   // violet
-  SHOPPING: "#f43f5e",    // rose
-  OTHER: "#78716c",       // stone
-};
-
-const pinHex = (category: string): string =>
-  CATEGORY_HEX[category] ?? CATEGORY_HEX.OTHER;
-
-// ---------------------------------------------------------------------------
 // Marker style helpers
 // ---------------------------------------------------------------------------
-
-/** Escape user-controlled strings before interpolating into Leaflet popup HTML. */
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!),
-  );
-}
 
 function categoryIcon(
   L: typeof import("leaflet"),
@@ -115,14 +93,7 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
     import("leaflet").then((leaflet) => {
       const L = leaflet.default ?? leaflet;
 
-      // Fix default icon URLs that break under bundlers.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-        iconUrl: "/leaflet/marker-icon.png",
-        shadowUrl: "/leaflet/marker-shadow.png",
-      });
+      applyLeafletIconDefaults(L);
 
       if (!mapRef.current) return;
 
@@ -170,9 +141,11 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
         leafletMapRef.current = null;
       }
     };
+    // `isDark` is deliberately NOT a dependency: this effect's cleanup destroys
+    // the map, so depending on the theme would rebuild it (losing pan/zoom) on
+    // every toggle. The separate setUrl effect below swaps tiles in place.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    isDark,
     items.length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     items.map((p) => `${p.id}:${p.lat},${p.lng}`).join("|"),

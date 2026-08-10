@@ -25,20 +25,13 @@ import {
 } from "@/lib/maps";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
+import { escapeHtml } from "@/lib/escape-html";
+import { applyLeafletIconDefaults } from "@/lib/map-icons";
 
 // Leaflet CSS imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
 
 export type { DayMapModel };
-
-/** Escape user-controlled strings before interpolating into Leaflet popup HTML. */
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!),
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Marker style helpers
@@ -177,14 +170,7 @@ export function DayMap({
     import("leaflet").then((leaflet) => {
       L = leaflet.default ?? leaflet;
 
-      // Fix default icon URLs that break under bundlers.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-        iconUrl: "/leaflet/marker-icon.png",
-        shadowUrl: "/leaflet/marker-shadow.png",
-      });
+      applyLeafletIconDefaults(L);
 
       if (!mapRef.current) return;
 
@@ -246,9 +232,11 @@ export function DayMap({
         leafletMapRef.current = null;
       }
     };
+    // `isDark` is deliberately NOT a dependency: this effect's cleanup destroys
+    // the map, so depending on the theme would rebuild it (losing pan/zoom) on
+    // every toggle. The separate setUrl effect below swaps tiles in place.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    isDark,
     points.length,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     points.map((p) => `${p.id}:${p.lat},${p.lng}`).join("|"),

@@ -14,6 +14,9 @@ import "leaflet/dist/leaflet.css";
 import type { MarkerView } from "@/components/globe/types";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
+import { escapeHtml } from "@/lib/escape-html";
+import { pinHex } from "@/lib/map-pins";
+import { applyLeafletIconDefaults } from "@/lib/map-icons";
 
 export interface GlobeMapProps {
   markers: MarkerView[];
@@ -23,23 +26,6 @@ export interface GlobeMapProps {
   onDelete: (id: string) => void;
   onMapClick: (lat: number, lng: number) => void;
   attachmentsByMarkerId?: Record<string, { id: string }[]>;
-}
-
-const CATEGORY_HEX: Record<string, string> = {
-  SIGHTSEEING: "#0ea5e9",
-  FOOD: "#f59e0b",
-  ACTIVITY: "#10b981",
-  NIGHTLIFE: "#8b5cf6",
-  SHOPPING: "#f43f5e",
-  OTHER: "#78716c",
-};
-const pinHex = (c: string) => CATEGORY_HEX[c] ?? CATEGORY_HEX.OTHER;
-
-function escapeHtml(s: string): string {
-  return s.replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!),
-  );
 }
 
 function categoryIcon(L: typeof import("leaflet"), category: string): import("leaflet").DivIcon {
@@ -106,13 +92,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
 
     import("leaflet").then((leaflet) => {
       const L = leaflet.default ?? leaflet;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-        iconUrl: "/leaflet/marker-icon.png",
-        shadowUrl: "/leaflet/marker-shadow.png",
-      });
+      applyLeafletIconDefaults(L);
       if (!mapRef.current) return;
 
       const map = L.map(mapRef.current, { zoomControl: true, worldCopyJump: true });
@@ -150,8 +130,11 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       }
       setReady(false);
     };
+    // `isDark` is deliberately NOT a dependency: this effect's cleanup destroys
+    // the map, so depending on the theme would rebuild it (losing pan/zoom) on
+    // every toggle. The separate setUrl effect below swaps tiles in place.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDark]);
+  }, []);
 
   // Swap basemap tiles when the theme flips, without rebuilding the map.
   useEffect(() => {

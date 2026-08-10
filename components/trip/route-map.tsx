@@ -7,7 +7,7 @@
  * `{ ssr: false }` from the summary page.
  *
  * Renders:
- *   - OpenStreetMap tile layer
+ *   - CARTO tile layer (Positron / Dark Matter)
  *   - Numbered circle markers for each stop that has coordinates
  *   - Polyline connecting those stops in order
  *   - Popup per marker (name + date range)
@@ -20,6 +20,8 @@ import { formatDateRange } from "@/lib/dates";
 import type { HomeMapPoint } from "@/lib/route-map";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
+import { escapeHtml } from "@/lib/escape-html";
+import { applyLeafletIconDefaults } from "@/lib/map-icons";
 
 // Leaflet CSS is imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
@@ -45,13 +47,6 @@ export interface RouteMapProps {
   home?: HomeMapPoint | null;
   /** When true and home is set, also draw a return leg from last stop → home. */
   showReturn?: boolean;
-}
-
-/**
- * Escape user-controlled strings before interpolating into Leaflet popup HTML.
- */
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 }
 
 /**
@@ -135,16 +130,7 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
     import("leaflet").then((leaflet) => {
       L = leaflet.default ?? leaflet;
 
-      // Fix default icon URLs that break under bundlers.
-      // We use circleMarker instead of the default icon, so this mainly
-      // prevents the "broken tile" icon from ever loading.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      delete (L.Icon.Default.prototype as any)._getIconUrl;
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "/leaflet/marker-icon-2x.png",
-        iconUrl: "/leaflet/marker-icon.png",
-        shadowUrl: "/leaflet/marker-shadow.png",
-      });
+      applyLeafletIconDefaults(L);
 
       if (!mapRef.current) return;
 
@@ -293,8 +279,11 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
   // The effect re-runs only when the set of plotted coords/colours actually
   // changes; we depend on a derived signature string rather than the `stops`
   // array identity, which exhaustive-deps can't verify — hence the disable.
+  // `isDark` is deliberately absent: this effect's cleanup destroys the map, so
+  // depending on the theme would rebuild it (losing pan/zoom) on every toggle.
+  // The separate setUrl effect below swaps tiles in place.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasEnoughCoords, isDark, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.chapterColour ?? ""}:${s.chapterName ?? ""}`).join("|"), home?.lat, home?.lng, home?.name, showReturn]);
+  }, [hasEnoughCoords, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.chapterColour ?? ""}:${s.chapterName ?? ""}`).join("|"), home?.lat, home?.lng, home?.name, showReturn]);
 
   // Swap basemap tiles when the theme flips, without rebuilding the map.
   useEffect(() => {
