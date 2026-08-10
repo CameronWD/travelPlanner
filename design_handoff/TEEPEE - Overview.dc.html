@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Plus Jakarta Sans',sans-serif;background:hsl(36 40% 97%);color:hsl(24 14% 15%);-webkit-font-smoothing:antialiased;}
+  a{color:hsl(12 84% 52%);text-decoration:none;}
+  a:hover{text-decoration:none;}
+  .filecard{transition:transform .12s ease,box-shadow .12s ease;}
+  .filecard:hover{transform:translateY(-3px);box-shadow:0 18px 40px -18px hsl(24 30% 20% / .35),0 0 0 1px hsl(12 84% 60% / .4);}
+</style>
+</helmet>
+
+<div style="max-width:1120px;margin:0 auto;padding:60px 40px 90px;">
+  <!-- hero -->
+  <div style="display:flex;align-items:center;gap:12px;">
+    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="hsl(12 84% 55%)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 21M12 3l8 18M8.5 12h7M10 21l2-5 2 5"/></svg>
+    <span style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;letter-spacing:.02em;color:hsl(24 14% 15%);">TEEPEE</span>
+    <span style="font-size:12px;font-weight:700;letter-spacing:.12em;color:hsl(12 84% 52%);background:hsl(12 84% 60% / .12);padding:5px 11px;border-radius:999px;margin-left:4px;">BOLD MODULAR</span>
+  </div>
+  <h1 style="font-family:'Space Grotesk',sans-serif;font-size:52px;line-height:1.02;letter-spacing:-.03em;font-weight:700;margin:22px 0 14px;color:hsl(24 14% 12%);">The redesign, in one view</h1>
+  <p style="margin:0;max-width:680px;font-size:17px;line-height:1.6;color:hsl(28 8% 40%);">Every screen of the TEEPEE redesign — mobile, desktop, maps and modals — on one consistent system, grounded in the real codebase. Click any card to open that file.</p>
+
+  <!-- system strip -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:36px;">
+    <div style="background:#fff;border:1px solid hsl(30 20% 90%);border-radius:20px;padding:22px;box-shadow:0 1px 2px hsl(24 30% 20% / .04);">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.1em;color:hsl(28 8% 46%);margin-bottom:14px;">TYPE &amp; COLOUR</div>
+      <div style="font-family:'Space Grotesk',sans-serif;font-size:26px;font-weight:700;color:hsl(24 14% 15%);">Space Grotesk</div>
+      <div style="font-size:14px;color:hsl(28 8% 44%);margin-top:2px;">Plus Jakarta Sans for body &amp; UI</div>
+      <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;">
+        <span style="width:34px;height:34px;border-radius:9px;background:hsl(12 84% 60%);" title="primary"></span>
+        <span style="width:34px;height:34px;border-radius:9px;background:hsl(174 60% 38%);" title="accent"></span>
+        <span style="width:34px;height:34px;border-radius:9px;background:hsl(152 52% 40%);" title="success"></span>
+        <span style="width:34px;height:34px;border-radius:9px;background:hsl(35 92% 52%);" title="warning"></span>
+        <span style="width:34px;height:34px;border-radius:9px;background:hsl(350 78% 50%);" title="over"></span>
+        <span style="width:34px;height:34px;border-radius:9px;background:hsl(36 40% 97%);border:1px solid hsl(30 20% 86%);" title="background"></span>
+        <span style="width:34px;height:34px;border-radius:9px;background:hsl(24 14% 15%);" title="foreground"></span>
+      </div>
+    </div>
+    <div style="background:#fff;border:1px solid hsl(30 20% 90%);border-radius:20px;padding:22px;box-shadow:0 1px 2px hsl(24 30% 20% / .04);">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.1em;color:hsl(28 8% 46%);margin-bottom:14px;">SIX CATEGORY HUES</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;align-items:center;gap:20px;"><span style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:hsl(24 14% 25%);"><span style="width:11px;height:11px;border-radius:50%;background:#0ea5e9;"></span>Sightseeing</span><span style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:hsl(24 14% 25%);"><span style="width:11px;height:11px;border-radius:50%;background:#f59e0b;"></span>Food</span><span style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:hsl(24 14% 25%);"><span style="width:11px;height:11px;border-radius:50%;background:#10b981;"></span>Activity</span></div>
+        <div style="display:flex;align-items:center;gap:20px;"><span style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:hsl(24 14% 25%);"><span style="width:11px;height:11px;border-radius:50%;background:#8b5cf6;"></span>Nightlife</span><span style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:hsl(24 14% 25%);"><span style="width:11px;height:11px;border-radius:50%;background:#f43f5e;"></span>Shopping</span><span style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:hsl(24 14% 25%);"><span style="width:11px;height:11px;border-radius:50%;background:#78716c;"></span>Other</span></div>
+        <div style="font-size:12px;color:hsl(28 8% 48%);margin-top:6px;line-height:1.5;">Tokens match <code style="background:hsl(32 26% 92%);padding:1px 5px;border-radius:5px;">globals.css</code> to the channel · radius 1rem · warm shadows · light + dark.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- file cards -->
+  <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;letter-spacing:.06em;color:hsl(28 8% 42%);margin:44px 0 16px;">ALL FILES</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+
+    <a href="TEEPEE%20-%20Bold%20Modular%20App.dc.html" class="filecard" style="display:block;background:#fff;border:1px solid hsl(30 20% 90%);border-radius:20px;padding:22px;box-shadow:0 1px 2px hsl(24 30% 20% / .04),0 6px 16px hsl(24 30% 20% / .06);">
+      <div style="display:flex;align-items:center;justify-content:space-between;"><span style="display:flex;align-items:center;gap:8px;"><span style="width:9px;height:9px;border-radius:50%;background:hsl(12 84% 60%);"></span><span style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:hsl(24 14% 15%);">Mobile · core</span></span><span style="font-size:11px;font-weight:700;color:hsl(28 8% 46%);background:hsl(32 26% 92%);padding:3px 10px;border-radius:999px;">8 screens</span></div>
+      <div style="font-size:13.5px;line-height:1.55;color:hsl(28 8% 44%);margin-top:10px;">Trips · Trip Home · Plan editor · Calendar · Budget · Wishlist · Day · Globe</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:14px;color:hsl(12 84% 52%);font-size:13px;font-weight:700;">Open<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="hsl(12 84% 52%)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    </a>
+
+    <a href="TEEPEE%20-%20Bold%20Modular%20More.dc.html" class="filecard" style="display:block;background:#fff;border:1px solid hsl(30 20% 90%);border-radius:20px;padding:22px;box-shadow:0 1px 2px hsl(24 30% 20% / .04),0 6px 16px hsl(24 30% 20% / .06);">
+      <div style="display:flex;align-items:center;justify-content:space-between;"><span style="display:flex;align-items:center;gap:8px;"><span style="width:9px;height:9px;border-radius:50%;background:#10b981;"></span><span style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:hsl(24 14% 15%);">Mobile · the rest</span></span><span style="font-size:11px;font-weight:700;color:hsl(28 8% 46%);background:hsl(32 26% 92%);padding:3px 10px;border-radius:999px;">6 screens</span></div>
+      <div style="font-size:13.5px;line-height:1.55;color:hsl(28 8% 44%);margin-top:10px;">Home Travelling · Home Past · Journal · Files · Checklists · Settings</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:14px;color:hsl(12 84% 52%);font-size:13px;font-weight:700;">Open<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="hsl(12 84% 52%)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    </a>
+
+    <a href="TEEPEE%20-%20Bold%20Modular%20Desktop.dc.html" class="filecard" style="display:block;background:#fff;border:1px solid hsl(30 20% 90%);border-radius:20px;padding:22px;box-shadow:0 1px 2px hsl(24 30% 20% / .04),0 6px 16px hsl(24 30% 20% / .06);">
+      <div style="display:flex;align-items:center;justify-content:space-between;"><span style="display:flex;align-items:center;gap:8px;"><span style="width:9px;height:9px;border-radius:50%;background:#8b5cf6;"></span><span style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:hsl(24 14% 15%);">Desktop &amp; overlays</span></span><span style="font-size:11px;font-weight:700;color:hsl(28 8% 46%);background:hsl(32 26% 92%);padding:3px 10px;border-radius:999px;">D1–D10</span></div>
+      <div style="font-size:13.5px;line-height:1.55;color:hsl(28 8% 44%);margin-top:10px;">Trips · Home · Plan · Calendar · Budget · Summary · Globe · Compare · Modals · Dark mode + rebuild notes</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:14px;color:hsl(12 84% 52%);font-size:13px;font-weight:700;">Open<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="hsl(12 84% 52%)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    </a>
+
+    <a href="TEEPEE%20-%20Bold%20Modular%20Desktop%202.dc.html" class="filecard" style="display:block;background:#fff;border:1px solid hsl(30 20% 90%);border-radius:20px;padding:22px;box-shadow:0 1px 2px hsl(24 30% 20% / .04),0 6px 16px hsl(24 30% 20% / .06);">
+      <div style="display:flex;align-items:center;justify-content:space-between;"><span style="display:flex;align-items:center;gap:8px;"><span style="width:9px;height:9px;border-radius:50%;background:#f59e0b;"></span><span style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:hsl(24 14% 15%);">Desktop · the rest</span></span><span style="font-size:11px;font-weight:700;color:hsl(28 8% 46%);background:hsl(32 26% 92%);padding:3px 10px;border-radius:999px;">E1–E6</span></div>
+      <div style="font-size:13.5px;line-height:1.55;color:hsl(28 8% 44%);margin-top:10px;">Travelling · Past · Journal · Files · Checklists · Settings</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:14px;color:hsl(12 84% 52%);font-size:13px;font-weight:700;">Open<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="hsl(12 84% 52%)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    </a>
+
+    <a href="TEEPEE%20-%20Leaflet%20Maps.dc.html" class="filecard" style="display:block;background:#fff;border:1px solid hsl(30 20% 90%);border-radius:20px;padding:22px;box-shadow:0 1px 2px hsl(24 30% 20% / .04),0 6px 16px hsl(24 30% 20% / .06);">
+      <div style="display:flex;align-items:center;justify-content:space-between;"><span style="display:flex;align-items:center;gap:8px;"><span style="width:9px;height:9px;border-radius:50%;background:#0ea5e9;"></span><span style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:hsl(24 14% 15%);">Real Leaflet maps</span></span><span style="font-size:11px;font-weight:700;color:hsl(28 8% 46%);background:hsl(32 26% 92%);padding:3px 10px;border-radius:999px;">live</span></div>
+      <div style="font-size:13.5px;line-height:1.55;color:hsl(28 8% 44%);margin-top:10px;">CARTO Positron (light) + Dark Matter (dark) · route &amp; day maps · category divIcon markers</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:14px;color:hsl(12 84% 52%);font-size:13px;font-weight:700;">Open<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="hsl(12 84% 52%)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    </a>
+
+    <a href="Trip%20Home%20-%20Directions.dc.html" class="filecard" style="display:block;background:#fff;border:1px solid hsl(30 20% 90%);border-radius:20px;padding:22px;box-shadow:0 1px 2px hsl(24 30% 20% / .04),0 6px 16px hsl(24 30% 20% / .06);">
+      <div style="display:flex;align-items:center;justify-content:space-between;"><span style="display:flex;align-items:center;gap:8px;"><span style="width:9px;height:9px;border-radius:50%;background:#78716c;"></span><span style="font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:700;color:hsl(24 14% 15%);">Exploration · directions</span></span><span style="font-size:11px;font-weight:700;color:hsl(28 8% 46%);background:hsl(32 26% 92%);padding:3px 10px;border-radius:999px;">archive</span></div>
+      <div style="font-size:13.5px;line-height:1.55;color:hsl(28 8% 44%);margin-top:10px;">The original three Trip Home directions: Warm Refined · Editorial Calm · Bold Modular (chosen)</div>
+      <div style="display:flex;align-items:center;gap:6px;margin-top:14px;color:hsl(12 84% 52%);font-size:13px;font-weight:700;">Open<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="hsl(12 84% 52%)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+    </a>
+
+  </div>
+
+  <!-- rebuild notes -->
+  <div style="background:hsl(24 14% 15%);border-radius:22px;padding:30px 34px;margin-top:36px;color:hsl(36 30% 92%);">
+    <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;color:#fff;">For the Claude Code rebuild</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:18px;">
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.1em;color:hsl(12 84% 66%);">TIER 1 · TOKENS</div>
+        <p style="font-size:13.5px;line-height:1.6;color:hsl(36 20% 78%);margin:8px 0 0;">Values unchanged from <code style="background:hsl(24 10% 24%);padding:1px 5px;border-radius:5px;">globals.css</code>. Only swap the display font to Space Grotesk (<code style="background:hsl(24 10% 24%);padding:1px 5px;border-radius:5px;">--font-display</code>). Light + dark both designed.</p>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.1em;color:hsl(12 84% 66%);">TIER 2 · STRUCTURE</div>
+        <p style="font-size:13.5px;line-height:1.6;color:hsl(36 20% 78%);margin:8px 0 0;">Coral countdown block · route promoted over next-steps · budget as estimated-vs-spent · modular tiles · desktop right-rail on <code style="background:hsl(24 10% 24%);padding:1px 5px;border-radius:5px;">max-w-5xl</code>.</p>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.1em;color:hsl(35 90% 66%);">DONE THIS ROUND</div>
+        <p style="font-size:13.5px;line-height:1.6;color:hsl(36 20% 78%);margin:8px 0 0;">Real Leaflet + CARTO dark tiles (the brief's gap) — lift tile URLs &amp; marker HTML from the Maps file.</p>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.1em;color:hsl(35 90% 66%);">OUT OF SCOPE</div>
+        <p style="font-size:13.5px;line-height:1.6;color:hsl(36 20% 78%);margin:8px 0 0;">Discreet "workspace" reskin — parked at your call. Keep components token-driven so it can be re-added later.</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin-top:40px;font-size:12.5px;color:hsl(28 8% 50%);">TEEPEE redesign · Bold Modular · grounded in CameronWD/travelPlanner</div>
+</div>
+</x-dc>
+</body>
+</html>
