@@ -649,7 +649,18 @@ export function ItineraryManager({
     if (!proceed) return;
 
     setPendingAccommodationStopId(stop.id);
-    await handleFirmUp(stop.chapterId ?? null);
+    // skipConfirm: the nudge above already asked for consent, so a second
+    // "Date this chapter's stops?" dialog would describe one step as two.
+    // handleFirmUp has no other caller relying on that second confirm firing
+    // for this call, so it's safe to bypass it here.
+    const dated = await handleFirmUp(stop.chapterId ?? null, { skipConfirm: true });
+    if (!dated) {
+      // Cancelled, or firmUpSegment didn't actually date this stop (e.g. no
+      // anchor date) — don't leave a stale pending id watching localStops
+      // forever; that would pop the form open for a stop the user isn't
+      // interacting with the next time it gets dated by anything else.
+      setPendingAccommodationStopId(null);
+    }
   }
 
   // Once the leg has been dated, the stop we were asked to add accommodation to
@@ -671,8 +682,16 @@ export function ItineraryManager({
   }, [localStops, pendingAccommodationStopId]);
 
   // Firm up a whole leg — dates every rough stop in a chapter (id) or the
-  // ungrouped run (null). The core rough → scheduled transition.
-  async function handleFirmUp(chapterId: string | null) {
+  // ungrouped run (null). The core rough → scheduled transition. Returns
+  // whether the segment actually got dated, so callers (e.g. the
+  // accommodation nudge) know whether to keep waiting on the result.
+  // skipConfirm lets a caller that already obtained consent of its own
+  // (the accommodation nudge) bypass this function's own confirm dialog,
+  // so the flow reads as one step instead of two.
+  async function handleFirmUp(
+    chapterId: string | null,
+    options?: { skipConfirm?: boolean },
+  ): Promise<boolean> {
     // Compute rough stop count and anchor for the confirm summary.
     // Read localStops directly (not the `stops` alias) so the React Compiler
     // can keep cross-await reads out of the memo dependency analysis.
@@ -702,13 +721,15 @@ export function ItineraryManager({
     }
 
     const stopWord = roughCount === 1 ? "stop" : "stops";
-    const confirmed = await confirm({
-      title: "Date this chapter's stops?",
-      description: `This will date ${roughCount} rough ${stopWord} from ${anchorLabel}. You can make any stop rough again afterwards.`,
-      confirmLabel: "Date stops",
-      destructive: false,
-    });
-    if (!confirmed) return;
+    if (!options?.skipConfirm) {
+      const confirmed = await confirm({
+        title: "Date this chapter's stops?",
+        description: `This will date ${roughCount} rough ${stopWord} from ${anchorLabel}. You can make any stop rough again afterwards.`,
+        confirmLabel: "Date stops",
+        destructive: false,
+      });
+      if (!confirmed) return false;
+    }
 
     setPendingId(`firm-up-${chapterId ?? "ungrouped"}`);
     try {
@@ -718,11 +739,13 @@ export function ItineraryManager({
           variant: "destructive",
           title: r.errors.anchorDate?.[0] ?? "Pick a start date for this leg first.",
         });
+        return false;
       } else if (r.conflicts?.length) {
         toast({
           title: "Heads up — earlier stops run past a pinned date; the pin was kept.",
         });
       }
+      return true;
     } finally {
       setPendingId(null);
     }
