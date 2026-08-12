@@ -14,9 +14,10 @@
 - **Domain vocabulary is fixed by ADR 0037 and CONTEXT.md** (both already written — read them before starting). The two Cost amounts are the **cost amount** and the **paid amount**. The words "estimated" and "actual" must not appear in new user-facing copy for these fields.
 - **On-screen labels:** the cost field is **"Cost"**, the paid field is **"You paid"**. The helper text under Cost is exactly: `Your best number — the real price if it's already booked.`
 - **A Cost cannot be marked paid without a paid amount.** This is the invariant the whole chain exists to establish. No code path may write `paidAt` without a paid amount.
-- **Test command:** `npm test` (Vitest, 808 tests currently passing). Run it after every task; it must stay green.
+- **Test command:** `npm test` (Vitest — 2594 tests across 234 files currently passing; the README's "808" is stale). Run it after every task; it must stay green.
 - **Lint command:** `npm run lint`. Must stay clean.
 - There is no `typecheck` script — use `npx tsc --noEmit` to typecheck.
+- **There is no database in this environment** — no Docker, no reachable Postgres. Never run `prisma migrate dev`/`deploy`; `prisma generate` is fine (schema-only). Every server-action test mocks `lib/db` through a `vi.hoisted` block (pattern: `server/actions/costs.test.ts:9-40`) — write new server-action tests that way, never against a real row.
 - **Codebase helpers you will need** (do not invent alternatives): money conversion is `parseAmountToMinor(raw, currency): number | null` and `formatMinor(amountMinor, currency): string` from `@/lib/money` — there is no `toMinor`/`fromMinor`. Toasts are a direct import, `import { toast } from "@/components/ui/use-toast"`, not a hook. Confirms are `const { confirm, dialog } = useConfirm()` from `@/components/ui/confirm-dialog`.
 - **Commit after every task.** Do not merge to `main` and do not deploy.
 
@@ -262,10 +263,12 @@ WHERE "paidAt" IS NOT NULL
   AND "paidMinor" IS NULL;
 ```
 
-- [ ] **Step 6: Regenerate the client and apply the migration**
+- [ ] **Step 6: Regenerate the Prisma client**
 
-Run: `npx prisma generate && npx prisma migrate dev`
-Expected: migration applies cleanly; the client regenerates with the new field names.
+Run: `npx prisma generate`
+Expected: the client regenerates with the new field names. This reads `schema.prisma` only and needs no database.
+
+**Do not run `npx prisma migrate dev`.** This environment has no Docker and no reachable Postgres, so the migration cannot be applied here — it ships as SQL to be applied wherever the database actually lives. Verify the SQL by inspection instead: column names must match `schema.prisma` exactly (`costMinor`, `paidMinor`), and the backfill must be `WHERE "paidAt" IS NOT NULL AND "paidMinor" IS NULL` so it touches only the broken rows. The test suite never reaches a real database — every server-action test mocks `lib/db` via `vi.hoisted` (see `server/actions/costs.test.ts:9-40`) — so a green suite does **not** prove the migration is correct. Read it twice.
 
 - [ ] **Step 7: Fix the fallout the codemod could not see**
 
@@ -904,21 +907,52 @@ git commit -m "fix(budget): render the paid badge from paid state, not the actua
 
 - [ ] **Step 1: Write the failing action test**
 
-In `server/actions/costs.test.ts`:
+In `server/actions/costs.test.ts`. **There is no live database** — this file already mocks `lib/db`, `lib/guards`, `lib/fx`, `next/cache` and `next/navigation` through a `vi.hoisted` block (see `server/actions/costs.test.ts:9-40`). Reuse the existing `costFindUniqueMock` and `costUpdateMock`; do not introduce a real `db` call or a seeded row.
 
 ```ts
 describe("markCostPaid", () => {
-  it("rejects a zero-or-missing amount", async () => {
+  it("rejects a non-integer amount without touching the database", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1" });
+
     const result = await markCostPaid("c1", Number.NaN, "2026-06-04");
+
     expect(result.success).toBe(false);
+    expect(costUpdateMock).not.toHaveBeenCalled();
   });
 
-  it("sets the paid amount and date", async () => {
-    const result = await markCostPaid(seededCostId, 34000, "2026-06-04");
+  it("rejects an unknown cost", async () => {
+    costFindUniqueMock.mockResolvedValueOnce(null);
+
+    const result = await markCostPaid("nope", 34000, "2026-06-04");
+
+    expect(result.success).toBe(false);
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("writes the paid amount and date", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1" });
+
+    const result = await markCostPaid("c1", 34000, "2026-06-04");
+
     expect(result.success).toBe(true);
-    const row = await db.cost.findUnique({ where: { id: seededCostId } });
-    expect(row?.paidMinor).toBe(34000);
-    expect(row?.paidAt).not.toBeNull();
+    expect(costUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { paidMinor: 34000, paidAt: new Date("2026-06-04") },
+    });
+  });
+});
+
+describe("markCostUnpaid", () => {
+  it("clears the paid date but leaves the amount as history", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1" });
+
+    const result = await markCostUnpaid("c1");
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { paidAt: null },
+    });
   });
 });
 ```
