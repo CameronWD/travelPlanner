@@ -88,7 +88,7 @@ export const costSchema = z
   // A Cost cannot be paid without a paid amount (ADR 0037). The app never
   // records a payment whose size it doesn't know — that produced the
   // "Paid £0 · £340 under estimate" display this rule exists to prevent.
-  .refine((data) => !(data.paidAt && data.paidMinor === undefined), {
+  .refine((data) => !(data.paidAt && data.paidMinor == null), {
     message: "Enter what you paid",
     path: ["paidMinor"],
   });

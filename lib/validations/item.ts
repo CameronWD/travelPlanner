@@ -133,7 +133,14 @@ export const itemSchema = z
       message: "End time must be on or after start time",
       path: ["endTime"],
     },
-  );
+  )
+  // A Cost cannot be paid without a paid amount (ADR 0037). == null (not
+  // === undefined) because paidMinor is nullable — null is how the dialog
+  // signals "clear this".
+  .refine((data) => !(data.paidAt && data.paidMinor == null), {
+    message: "Enter what you paid",
+    path: ["paidMinor"],
+  });
 
 /** The type callers pass in (pre-transform, all optional fields truly optional). */
 export type ItemInput = z.input<typeof itemSchema>;

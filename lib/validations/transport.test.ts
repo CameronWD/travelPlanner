@@ -89,3 +89,27 @@ describe("transportSchema", () => {
     expect(result.success).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// transportSchema — paid invariant (ADR 0037)
+// ---------------------------------------------------------------------------
+
+describe("transportSchema paid invariant", () => {
+  it("rejects a paid date with no paid amount", () => {
+    const result = transportSchema.safeParse({ ...VALID_BASE, paidAt: "2026-07-02" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.includes("paidMinor"));
+      expect(issue?.message).toBe("Enter what you paid");
+    }
+  });
+
+  it("accepts a paid date with a paid amount", () => {
+    const result = transportSchema.safeParse({
+      ...VALID_BASE,
+      paidAt: "2026-07-02",
+      paidMinor: 5000,
+    });
+    expect(result.success).toBe(true);
+  });
+});

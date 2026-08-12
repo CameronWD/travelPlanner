@@ -208,6 +208,30 @@ describe("itemSchema — times dropped when no date", () => {
 // isScheduled
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// itemSchema — paid invariant (ADR 0037)
+// ---------------------------------------------------------------------------
+
+describe("itemSchema paid invariant", () => {
+  it("rejects a paid date with no paid amount", () => {
+    const result = itemSchema.safeParse({ ...VALID_UNSCHEDULED, paidAt: "2026-07-02" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.includes("paidMinor"));
+      expect(issue?.message).toBe("Enter what you paid");
+    }
+  });
+
+  it("accepts a paid date with a paid amount", () => {
+    const result = itemSchema.safeParse({
+      ...VALID_UNSCHEDULED,
+      paidAt: "2026-07-02",
+      paidMinor: 1500,
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("isScheduled", () => {
   it("returns true for an item with a date", () => {
     expect(isScheduled({ date: "2026-07-15" })).toBe(true);

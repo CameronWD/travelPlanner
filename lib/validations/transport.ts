@@ -94,6 +94,13 @@ export const transportSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD")
     .nullable()
     .optional(),
-});
+})
+  // A Cost cannot be paid without a paid amount (ADR 0037). == null (not
+  // === undefined) because paidMinor is nullable — null is how the dialog
+  // signals "clear this".
+  .refine((data) => !(data.paidAt && data.paidMinor == null), {
+    message: "Enter what you paid",
+    path: ["paidMinor"],
+  });
 
 export type TransportInput = z.infer<typeof transportSchema>;

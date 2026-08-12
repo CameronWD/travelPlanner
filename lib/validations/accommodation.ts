@@ -70,6 +70,13 @@ export const accommodationSchema = z
   .refine((data) => data.checkOut >= data.checkIn, {
     message: "Check-out must be on or after check-in",
     path: ["checkOut"],
+  })
+  // A Cost cannot be paid without a paid amount (ADR 0037). == null (not
+  // === undefined) because paidMinor is nullable — null is how the dialog
+  // signals "clear this".
+  .refine((data) => !(data.paidAt && data.paidMinor == null), {
+    message: "Enter what you paid",
+    path: ["paidMinor"],
   });
 
 export type AccommodationInput = z.infer<typeof accommodationSchema>;

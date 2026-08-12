@@ -66,4 +66,27 @@ describe("buildSpendSoFar", () => {
     expect(result.varianceMinor).toBe(0);      // NOT -34000
     expect(result.costTotalMinor).toBe(34000); // still counted as a cost
   });
+
+  it("skips a legacy paid cost with no paid amount even when the currency needs conversion", () => {
+    // The subtle trap: convertCostToHome's foreign-currency branch (a present
+    // rateToHome) coerces a missing paidMinor to actualHome: 0 rather than
+    // null — unlike the same-currency branch, which also coerces to 0, both
+    // look identical downstream. A guard written against `actualHome` instead
+    // of the raw `c.paidMinor` would see 0, not a missing value, and would
+    // silently let this regress. USD 100.00 at rate 0.8 → GBP 80.00 (8000
+    // minor units), so a non-zero, correctly-converted costTotalMinor proves
+    // the cost itself wasn't excluded (that only happens when the rate is
+    // missing) — only its paid bucket was skipped.
+    const result = buildSpendSoFar({
+      costs: [
+        cost({ id: "c1", costMinor: 10000, paidMinor: null, currency: "USD",
+          rateToHome: 0.8, paidAt: "2026-06-04" }),
+      ],
+      homeCurrency: "GBP",
+      today: "2026-06-10",
+    });
+    expect(result.paidSoFarMinor).toBe(0);
+    expect(result.varianceMinor).toBe(0);
+    expect(result.costTotalMinor).toBe(8000);
+  });
 });
