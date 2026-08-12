@@ -308,8 +308,13 @@ Establishes the invariant. `lib/spend-so-far.ts:35` currently reads `paidSoFar +
 
 **Files:**
 - Modify: `lib/validations/cost.ts`
+- Modify: `lib/validations/accommodation.ts`, `lib/validations/transport.ts`, `lib/validations/item.ts`
 - Modify: `lib/spend-so-far.ts:30-37`
 - Test: `lib/validations/cost.test.ts` (create if absent), `lib/spend-so-far.test.ts`
+
+**Four schemas, not one.** `costSchema` guards only the standalone-cost path (`createCost`/`updateCost`, used by the other-cost editor). The accommodation, transport and item dialogs — the paths the Paid toggle in Tasks 4-5 actually writes through — carry their *own* inline cost fields (`lib/validations/accommodation.ts:37-68`, `transport.ts:83-89`, `item.ts:91-97`) and write `db.cost.create` directly (`server/actions/accommodation.ts:129-133`). Each declares `paidMinor: .nullable().optional()` with **no pairing rule**, so putting the refinement only on `costSchema` leaves the £0-paid bug creatable from every dialog in this feature. All four need it.
+
+Note the nullability difference: `costSchema.paidMinor` is `.optional()` (undefined only); the three entity schemas are `.nullable().optional()` (null *or* undefined, since `null` is how the dialogs signal "clear this"). Use the loose `== null` in every refinement so it catches both.
 
 **Interfaces:**
 - Consumes: `costMinor`, `paidMinor`, `paidAt` from Task 2.
@@ -406,13 +411,28 @@ In `lib/validations/cost.ts`, append a third `.refine()` after the existing labe
   // A Cost cannot be paid without a paid amount (ADR 0037). The app never
   // records a payment whose size it doesn't know — that produced the
   // "Paid £0 · £340 under estimate" display this rule exists to prevent.
-  .refine((data) => !(data.paidAt && data.paidMinor === undefined), {
+  .refine((data) => !(data.paidAt && data.paidMinor == null), {
     message: "Enter what you paid",
     path: ["paidMinor"],
   });
 ```
 
 Also update the docblock at the top of the schema: replace the `actualMinor is optional` line with `- \`paidMinor\` is optional, but REQUIRED when \`paidAt\` is set.`
+
+**Then add the identical refinement to the other three schemas** — same predicate, same message, same path, so every write path enforces one rule:
+
+- `lib/validations/accommodation.ts` — chain it after the existing `checkOut >= checkIn` refinement
+- `lib/validations/transport.ts` — chain it after the existing refinement
+- `lib/validations/item.ts` — chain it after the existing refinements
+
+```ts
+  .refine((data) => !(data.paidAt && data.paidMinor == null), {
+    message: "Enter what you paid",
+    path: ["paidMinor"],
+  })
+```
+
+These schemas already end in one or more `.refine()` calls, so append rather than restructuring. Add a covering test per schema asserting that `paidAt` with no `paidMinor` is rejected on path `["paidMinor"]`, and that `paidAt` *with* an amount is accepted — a bare unit test against the schema, no database.
 
 - [ ] **Step 4: Remove the dead fallback**
 
