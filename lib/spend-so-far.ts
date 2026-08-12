@@ -30,9 +30,16 @@ export function buildSpendSoFar(input: {
     if (estimatedHome === null) continue; // missing rate — excluded everywhere
     estimatedTotal += estimatedHome;
     if (c.paidAt != null) {
-      // Cash-flow basis: a cost marked paid with no actual amount contributes 0 to paidSoFar,
-      // but its estimate still counts toward paidEstimate (so variance reflects the gap).
-      paidSoFar += actualHome ?? 0;
+      if (c.paidMinor == null || actualHome === null) {
+        // A paid Cost always carries a paid amount (costSchema enforces it), so
+        // this is only reachable for a legacy row the backfill missed. Skip it:
+        // counting it as zero would understate spending AND inflate the
+        // variance, which is exactly the display bug this rule exists to kill.
+        // NB: testing actualHome instead would be useless — convertCostToHome
+        // has already turned a missing amount into 0 by this point.
+        continue;
+      }
+      paidSoFar += actualHome;
       paidEstimate += estimatedHome;
     }
   }

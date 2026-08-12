@@ -11,7 +11,7 @@ import { CURRENCY_CODES } from "@/lib/currencies";
  *
  * Rules:
  *  - `costMinor` must be a non-negative integer (always required).
- *  - `paidMinor` is optional but must be a non-negative integer if provided.
+ *  - `paidMinor` is optional, but REQUIRED when `paidAt` is set.
  *  - `currency` must be a 3-letter ISO 4217 code from the supported list.
  *  - `paidAt` is optional — accepts an ISO date/datetime string and coerces to Date.
  *  - `ownerType` is one of COST_OWNER_TYPES.
@@ -84,7 +84,14 @@ export const costSchema = z
       message: "label is required for OTHER costs",
       path: ["label"],
     },
-  );
+  )
+  // A Cost cannot be paid without a paid amount (ADR 0037). The app never
+  // records a payment whose size it doesn't know — that produced the
+  // "Paid £0 · £340 under estimate" display this rule exists to prevent.
+  .refine((data) => !(data.paidAt && data.paidMinor === undefined), {
+    message: "Enter what you paid",
+    path: ["paidMinor"],
+  });
 
 /** The type after parsing + transforms. */
 export type CostInput = z.infer<typeof costSchema>;

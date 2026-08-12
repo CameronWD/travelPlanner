@@ -35,4 +35,35 @@ describe("buildSpendSoFar", () => {
     expect(res.paidSoFarMinor).toBe(0);
     expect(res.tripElapsedPct).toBeNull();
   });
+
+  it("counts the full paid amount for every paid cost", () => {
+    const result = buildSpendSoFar({
+      costs: [
+        cost({ id: "c1", costMinor: 34000, paidMinor: 34000, currency: "GBP",
+          rateToHome: null, paidAt: "2026-06-04" }),
+      ],
+      homeCurrency: "GBP",
+      today: "2026-06-10",
+    });
+    expect(result.paidSoFarMinor).toBe(34000);
+    expect(result.varianceMinor).toBe(0);
+  });
+
+  it("skips a legacy paid cost that has no paid amount, rather than counting it as zero", () => {
+    // This is the display bug ADR 0037 exists to kill: the old code added 0 to
+    // paidSoFar but the FULL cost to paidEstimate, so a £340 hotel marked paid
+    // with no amount rendered as "Paid £0 · £340 under estimate". Skipping it
+    // entirely keeps both figures honest.
+    const result = buildSpendSoFar({
+      costs: [
+        cost({ id: "c1", costMinor: 34000, paidMinor: null, currency: "GBP",
+          rateToHome: null, paidAt: "2026-06-04" }),
+      ],
+      homeCurrency: "GBP",
+      today: "2026-06-10",
+    });
+    expect(result.paidSoFarMinor).toBe(0);
+    expect(result.varianceMinor).toBe(0);      // NOT -34000
+    expect(result.costTotalMinor).toBe(34000); // still counted as a cost
+  });
 });

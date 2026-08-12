@@ -97,6 +97,7 @@ describe("costSchema — paidAt handling", () => {
   it("accepts an ISO datetime paidAt and coerces to Date", () => {
     const result = costSchema.safeParse({
       costMinor: 1000,
+      paidMinor: 1000,
       currency: "AUD",
       ownerType: "TRANSPORT",
       ownerId: "t-1",
@@ -111,6 +112,7 @@ describe("costSchema — paidAt handling", () => {
   it("accepts a YYYY-MM-DD paidAt and coerces to Date", () => {
     const result = costSchema.safeParse({
       costMinor: 1000,
+      paidMinor: 1000,
       currency: "AUD",
       ownerType: "TRANSPORT",
       ownerId: "t-1",
@@ -270,5 +272,39 @@ describe("costSchema — rejection cases", () => {
       ownerId: "item-1",
     });
     expect(result.success).toBe(false);
+  });
+});
+
+const base = {
+  costMinor: 34000,
+  currency: "GBP",
+  ownerType: "ACCOMMODATION" as const,
+  ownerId: "a1",
+};
+
+describe("costSchema paid invariant", () => {
+  it("rejects a paid date with no paid amount", () => {
+    const result = costSchema.safeParse({ ...base, paidAt: "2026-06-04" });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const issue = result.error.issues.find((i) => i.path.includes("paidMinor"));
+      expect(issue?.message).toBe("Enter what you paid");
+    }
+  });
+
+  it("accepts a paid date with a paid amount", () => {
+    const result = costSchema.safeParse({
+      ...base,
+      paidAt: "2026-06-04",
+      paidMinor: 34000,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("accepts a paid amount with no paid date", () => {
+    // Recording what something came to without confirming the payment date
+    // stays legal — only the reverse is nonsense.
+    const result = costSchema.safeParse({ ...base, paidMinor: 34000 });
+    expect(result.success).toBe(true);
   });
 });
