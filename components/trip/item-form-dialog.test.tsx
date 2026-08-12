@@ -441,11 +441,13 @@ describe("ItemFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 12e: clearing the paid date while an amount remains defaults the
-  // date to today rather than submitting a null date paired with an amount
-  // (review finding — keeps amount/date paired in both directions)
+  // Case 12e: clearing the paid date while an amount remains sends
+  // `paidAt: null` rather than fabricating a date — the invariant is
+  // one-directional (a date requires an amount; an amount with no date is a
+  // legal, honest, incomplete record) (review round 2 — reverses round 1's
+  // "keep pairing strict" fix, which invented dates the user never saw)
   // -------------------------------------------------------------------------
-  it("clearing the paid date while a paid amount remains defaults the date instead of sending null", async () => {
+  it("clearing the paid date while a paid amount remains sends paidAt: null instead of fabricating a date", async () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} homeCurrency="AUD" />);
 
@@ -465,12 +467,43 @@ describe("ItemFormDialog", () => {
       "trip-1",
       expect.objectContaining({
         paidMinor: 10000,
-        paidAt: expect.any(String),
+        paidAt: null,
       }),
       undefined,
     );
-    const [, payload] = (createItem as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(payload.paidAt).not.toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 12g: an unparseable-but-non-empty paid amount (e.g. pasted with a
+  // currency symbol) must not leak a paidAt through with a null paidMinor
+  // (review round 2 — the guard must check the amount actually *parses*,
+  // not just that the text field is non-blank)
+  // -------------------------------------------------------------------------
+  it("an unparseable paid amount does not submit a paidAt with a null paidMinor", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    const titleInput = screen.getByPlaceholderText(/visit the night market/i);
+    await user.type(titleInput, "Eiffel Tower");
+
+    const costInput = screen.getByLabelText(/^cost amount$/i);
+    await user.type(costInput, "100");
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    const paidInput = screen.getByLabelText(/you paid amount/i);
+    await user.clear(paidInput);
+    await user.type(paidInput, "$150.00");
+
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+
+    expect(createItem).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({
+        paidMinor: null,
+        paidAt: null,
+      }),
+      undefined,
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -504,6 +537,49 @@ describe("ItemFormDialog", () => {
 
     expect(screen.getByRole("checkbox", { name: /paid/i })).toBeChecked();
     expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("99.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 12h: resaving a legacy amount-only cost untouched must not fabricate
+  // a paid date (review round 2 — Important 2: the date input renders blank
+  // for such a row, so silently stamping today's date at submit time would
+  // plant a date the user never saw into a financial record)
+  // -------------------------------------------------------------------------
+  it("saving a legacy amount-only cost without touching payment fields does not fabricate a paid date", async () => {
+    const user = userEvent.setup();
+    const costs = [
+      {
+        id: "cost-1",
+        costMinor: 9900,
+        paidMinor: 9900,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: null,
+        ownerType: "ITEM",
+        ownerId: "item-99",
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <ItemFormDialog
+        {...baseProps}
+        item={existingItem}
+        homeCurrency="AUD"
+        costs={costs}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateItem).toHaveBeenCalledWith(
+      "item-99",
+      expect.objectContaining({
+        paidMinor: 9900,
+        paidAt: null,
+      }),
+    );
   });
 
   // -------------------------------------------------------------------------

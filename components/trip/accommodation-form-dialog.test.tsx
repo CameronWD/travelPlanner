@@ -521,11 +521,13 @@ describe("AccommodationFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 15d: clearing the paid date while an amount remains defaults the
-  // date to today rather than submitting a null date paired with an amount
-  // (review finding — keeps amount/date paired in both directions)
+  // Case 15d: clearing the paid date while an amount remains sends
+  // `paidAt: null` rather than fabricating a date — the invariant is
+  // one-directional (a date requires an amount; an amount with no date is a
+  // legal, honest, incomplete record) (review round 2 — reverses round 1's
+  // "keep pairing strict" fix, which invented dates the user never saw)
   // -------------------------------------------------------------------------
-  it("clearing the paid date while a paid amount remains defaults the date instead of sending null", async () => {
+  it("clearing the paid date while a paid amount remains sends paidAt: null instead of fabricating a date", async () => {
     const user = userEvent.setup();
     render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
 
@@ -546,12 +548,44 @@ describe("AccommodationFormDialog", () => {
     expect(createAccommodation).toHaveBeenCalledWith(
       expect.objectContaining({
         paidMinor: 10000,
-        paidAt: expect.any(String),
+        paidAt: null,
       }),
       undefined,
     );
-    const [payload] = (createAccommodation as ReturnType<typeof vi.fn>).mock.calls[0];
-    expect(payload.paidAt).not.toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 15e: an unparseable-but-non-empty paid amount (e.g. pasted with a
+  // currency symbol) must not leak a paidAt through with a null paidMinor
+  // (review round 2 — the guard must check the amount actually *parses*,
+  // not just that the text field is non-blank)
+  // -------------------------------------------------------------------------
+  it("an unparseable paid amount does not submit a paidAt with a null paidMinor", async () => {
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    const nameInput = screen.getByPlaceholderText(/hilton garden inn/i);
+    await user.type(nameInput, "My Hotel");
+
+    const costInput = screen.getByRole("textbox", { name: /^cost amount$/i });
+    await user.type(costInput, "100");
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    const paidInput = screen.getByRole("textbox", { name: /you paid amount/i });
+    await user.clear(paidInput);
+    await user.type(paidInput, "$150.00");
+
+    await user.click(
+      screen.getByRole("button", { name: /add accommodation/i }),
+    );
+
+    expect(createAccommodation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paidMinor: null,
+        paidAt: null,
+      }),
+      undefined,
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -585,6 +619,49 @@ describe("AccommodationFormDialog", () => {
 
     expect(screen.getByRole("checkbox", { name: /paid/i })).toBeChecked();
     expect(screen.getByRole("textbox", { name: /you paid amount/i })).toHaveValue("250.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14d: resaving a legacy amount-only cost untouched must not fabricate
+  // a paid date (review round 2 — Important 2: the date input renders blank
+  // for such a row, so silently stamping today's date at submit time would
+  // plant a date the user never saw into a financial record)
+  // -------------------------------------------------------------------------
+  it("saving a legacy amount-only cost without touching payment fields does not fabricate a paid date", async () => {
+    const user = userEvent.setup();
+    const legacyPaidCost: CostRow[] = [
+      {
+        id: "c-1",
+        ownerType: "ACCOMMODATION",
+        ownerId: "acc-1",
+        costMinor: 25000,
+        paidMinor: 25000,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: null,
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <AccommodationFormDialog
+        {...baseProps}
+        accommodation={existingAccommodation}
+        costs={legacyPaidCost}
+        homeCurrency="AUD"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateAccommodation).toHaveBeenCalledWith(
+      "acc-1",
+      expect.objectContaining({
+        paidMinor: 25000,
+        paidAt: null,
+      }),
+    );
   });
 
   // -------------------------------------------------------------------------

@@ -22,7 +22,6 @@ import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
 import { createTransport, updateTransport } from "@/server/actions/transport";
 import { parseAmountToMinor, formatMinor } from "@/lib/money";
-import { todayISO } from "@/lib/dates";
 import type { TransportCardTransport } from "./transport-card";
 import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
@@ -361,16 +360,17 @@ function TransportForm({
       const costMinor = costAmount.trim()
         ? (parseAmountToMinor(costAmount, currency) ?? undefined)
         : undefined;
-      // Gated on the amount actually being present (mirrors the costAmount
-      // guard above), not just the checkbox — un-ticking Paid, or ticking it
-      // and then clearing the amount, must both clear the payment. Pairing
-      // is kept strict: when an amount is present the date is never sent as
-      // null, it defaults to today, so a saved Cost never has one without
-      // the other (ADR 0037).
-      const hasPaidAmount = paid && paidAmount.trim().length > 0;
-      const paidMinor = hasPaidAmount
-        ? (parseAmountToMinor(paidAmount, currency) ?? undefined)
-        : undefined;
+      // Gated on the amount actually *parsing*, not just being non-blank —
+      // a pasted "$150.00" or a lone "-" is non-blank text but parses to
+      // null, and un-ticking Paid (or ticking it and then clearing/breaking
+      // the amount) must all clear the payment. The invariant is
+      // one-directional (ADR 0037): a paid *date* requires an amount, but an
+      // amount with no date is a legal, honest, incomplete record — so we
+      // never invent a date here. `todayISO()` is only used for the
+      // interactive pre-fill in InlineCostFields, where the user can see and
+      // edit it before saving; it is never fabricated at submit time.
+      const parsedPaidMinor = paid ? parseAmountToMinor(paidAmount, currency) : null;
+      const hasPaidAmount = parsedPaidMinor !== null;
 
       // The action accepts TransportInput whose depAt/arrAt are Date | undefined
       // (after Zod coercion), but we pass raw strings from the form — Zod's
@@ -416,8 +416,8 @@ function TransportForm({
         ...(costMinor !== undefined && {
           costMinor,
           currency,
-          paidMinor: paidMinor ?? null,
-          paidAt: hasPaidAmount ? paidAt || todayISO() : null,
+          paidMinor: hasPaidAmount ? parsedPaidMinor : null,
+          paidAt: hasPaidAmount ? paidAt || null : null,
         }),
       };
 
