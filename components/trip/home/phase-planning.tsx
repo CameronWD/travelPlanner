@@ -317,8 +317,8 @@ export async function PhasePlanning({
   const money = (
     <BudgetGlance
       key="budget"
-      costMinor={budget.grandTotal.costMinor}
-      paidMinor={budget.grandTotal.paidMinor}
+      costTotalMinor={budget.grandTotal.costTotalMinor}
+      paidTotalMinor={budget.grandTotal.paidTotalMinor}
       homeCurrency={homeCurrency}
       href={`${base}/budget`}
     />

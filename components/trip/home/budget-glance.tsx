@@ -2,15 +2,15 @@ import Link from "next/link";
 import { formatMoneyCompact } from "@/lib/money";
 
 interface BudgetGlanceProps {
-  costMinor: number;
-  paidMinor: number;
+  costTotalMinor: number;
+  paidTotalMinor: number;
   homeCurrency: string;
   href: string;
 }
 
 /** Quiet "spent so far" strip: label + thin success bar + spent/estimated. */
-export function BudgetGlance({ costMinor, paidMinor, homeCurrency, href }: BudgetGlanceProps) {
-  const pct = costMinor > 0 ? Math.min(100, Math.round((paidMinor / costMinor) * 100)) : 0;
+export function BudgetGlance({ costTotalMinor, paidTotalMinor, homeCurrency, href }: BudgetGlanceProps) {
+  const pct = costTotalMinor > 0 ? Math.min(100, Math.round((paidTotalMinor / costTotalMinor) * 100)) : 0;
   return (
     <Link href={href} className="flex items-center gap-3 rounded-full px-1 py-2 transition-colors hover:bg-muted/40">
       <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
@@ -20,8 +20,8 @@ export function BudgetGlance({ costMinor, paidMinor, homeCurrency, href }: Budge
         <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
       </span>
       <span className="shrink-0 text-xs font-semibold tabular-nums text-foreground">
-        {formatMoneyCompact(paidMinor, homeCurrency)}{" "}
-        <span className="font-medium text-muted-foreground">/ {formatMoneyCompact(costMinor, homeCurrency)} est</span>
+        {formatMoneyCompact(paidTotalMinor, homeCurrency)}{" "}
+        <span className="font-medium text-muted-foreground">/ {formatMoneyCompact(costTotalMinor, homeCurrency)} est</span>
       </span>
     </Link>
   );

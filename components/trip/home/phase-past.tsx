@@ -199,7 +199,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   // ---------------------------------------------------------------------------
   const totalNights = nightsBetween(startDate, endDate);
   const { grandTotal } = budget;
-  const hasActual = grandTotal.paidMinor > 0;
+  const hasActual = grandTotal.paidTotalMinor > 0;
 
   // Spend retro: use trip end as "today" so tripElapsedPct reads 100 %
   const spend = buildSpendSoFar({
@@ -228,12 +228,12 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   // Final spend derived values
   // ---------------------------------------------------------------------------
   const stopCount = datedStops.length;
-  const spentMinor = hasActual ? grandTotal.paidMinor : grandTotal.costMinor;
-  const paidMinor = spend.paidSoFarMinor;
-  const costMinor = spend.costTotalMinor;
+  const spentMinor = hasActual ? grandTotal.paidTotalMinor : grandTotal.costTotalMinor;
+  const paidSoFarMinor = spend.paidSoFarMinor;
+  const costTotalMinor = spend.costTotalMinor;
   const varianceMinor = spend.varianceMinor;
   const underBudget = varianceMinor <= 0;
-  const pct = costMinor > 0 ? Math.min(100, Math.round((paidMinor / costMinor) * 100)) : 0;
+  const pct = costTotalMinor > 0 ? Math.min(100, Math.round((paidSoFarMinor / costTotalMinor) * 100)) : 0;
 
   // ---------------------------------------------------------------------------
   // Compose cards
@@ -260,7 +260,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
         </span>
       </div>
       <p className="font-display text-2xl font-bold text-foreground">
-        {formatMoney(paidMinor, trip.homeCurrency)} <span className="text-sm font-medium text-muted-foreground">of {formatMoney(costMinor, trip.homeCurrency)} estimated</span>
+        {formatMoney(paidSoFarMinor, trip.homeCurrency)} <span className="text-sm font-medium text-muted-foreground">of {formatMoney(costTotalMinor, trip.homeCurrency)} estimated</span>
       </p>
       <span className="mt-3 block h-2 overflow-hidden rounded-full bg-muted">
         <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />

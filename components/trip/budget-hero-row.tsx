@@ -1,8 +1,8 @@
 import { formatMoney } from "@/lib/money";
 
 interface BudgetHeroRowProps {
-  /** Estimated grand total in home currency minor units. */
-  costMinor: number;
+  /** Trip-wide cost total in home currency minor units. */
+  costTotalMinor: number;
   /** Trip-wide total paid so far, in home currency minor units. */
   paidTotalMinor: number;
   /** Home currency ISO 4217 code. */
@@ -20,22 +20,22 @@ interface BudgetHeroRowProps {
  * Tiles: ESTIMATED TOTAL · PAID · STILL TO PAY · EST / DAY
  */
 export function BudgetHeroRow({
-  costMinor,
+  costTotalMinor,
   paidTotalMinor,
   homeCurrency,
   tripNights,
 }: BudgetHeroRowProps) {
-  const stillToPayMinor = costMinor - paidTotalMinor;
+  const stillToPayMinor = costTotalMinor - paidTotalMinor;
 
   // Progress bar: paid / estimated (capped at 100%)
   const paidPct =
-    costMinor > 0
-      ? Math.min(100, Math.round((paidTotalMinor / costMinor) * 100))
+    costTotalMinor > 0
+      ? Math.min(100, Math.round((paidTotalMinor / costTotalMinor) * 100))
       : 0;
 
   // Per-day: guard against zero/missing nights
   const hasNights = typeof tripNights === "number" && tripNights > 0;
-  const estPerDayMinor = hasNights ? Math.round(costMinor / tripNights!) : null;
+  const estPerDayMinor = hasNights ? Math.round(costTotalMinor / tripNights!) : null;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -45,7 +45,7 @@ export function BudgetHeroRow({
           Estimated total
         </p>
         <p className="font-display text-3xl sm:text-4xl font-semibold tabular-nums tracking-tight break-words">
-          {formatMoney(costMinor, homeCurrency)}
+          {formatMoney(costTotalMinor, homeCurrency)}
         </p>
         {/* Spent/estimated progress bar */}
         <div className="flex flex-col gap-1">

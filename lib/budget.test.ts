@@ -226,8 +226,8 @@ describe("buildBudget", () => {
 
   it("empty costs → all zeros, no missing rates", () => {
     const result = buildBudget(baseInput);
-    expect(result.grandTotal.costMinor).toBe(0);
-    expect(result.grandTotal.paidMinor).toBe(0);
+    expect(result.grandTotal.costTotalMinor).toBe(0);
+    expect(result.grandTotal.paidTotalMinor).toBe(0);
     expect(result.missingRates).toEqual([]);
     expect(result.hasMissingRates).toBe(false);
     expect(result.byCategory).toEqual([]);
@@ -244,8 +244,8 @@ describe("buildBudget", () => {
       makeCost({ id: "c2", costMinor: 5000, paidMinor: null, currency: "AUD", ownerType: "OTHER", label: "Visa" }),
     ];
     const result = buildBudget({ ...baseInput, costs });
-    expect(result.grandTotal.costMinor).toBe(15000);
-    expect(result.grandTotal.paidMinor).toBe(8000);
+    expect(result.grandTotal.costTotalMinor).toBe(15000);
+    expect(result.grandTotal.paidTotalMinor).toBe(8000);
   });
 
   it("foreign-currency cost with rate → converts correctly", () => {
@@ -254,7 +254,7 @@ describe("buildBudget", () => {
       makeCost({ id: "c1", costMinor: 10000, paidMinor: null, currency: "EUR", rateToHome: 1.65, ownerType: "OTHER", label: "Hotel" }),
     ];
     const result = buildBudget({ ...baseInput, costs });
-    expect(result.grandTotal.costMinor).toBe(16500);
+    expect(result.grandTotal.costTotalMinor).toBe(16500);
     expect(result.hasMissingRates).toBe(false);
   });
 
@@ -265,7 +265,7 @@ describe("buildBudget", () => {
     ];
     const result = buildBudget({ ...baseInput, costs });
     // Only the AUD cost is included
-    expect(result.grandTotal.costMinor).toBe(5000);
+    expect(result.grandTotal.costTotalMinor).toBe(5000);
     expect(result.missingRates).toEqual(["JPY"]);
     expect(result.hasMissingRates).toBe(true);
   });
@@ -278,7 +278,7 @@ describe("buildBudget", () => {
     ];
     const result = buildBudget({ ...baseInput, costs });
     expect(result.missingRates).toEqual(["EUR", "JPY"]);
-    expect(result.grandTotal.costMinor).toBe(0);
+    expect(result.grandTotal.costTotalMinor).toBe(0);
   });
 
   it("byCategory grouping by ownerType", () => {
@@ -291,7 +291,7 @@ describe("buildBudget", () => {
       makeCost({ id: "c3", costMinor: 5000, paidMinor: null, currency: "AUD", ownerType: "OTHER", ownerId: null, label: "Visa", category: "Insurance" }),
     ];
     const result = buildBudget({ ...baseInput, costs, items });
-    const catMap = Object.fromEntries(result.byCategory.map((c) => [c.category, c.costMinor]));
+    const catMap = Object.fromEntries(result.byCategory.map((c) => [c.category, c.costTotalMinor]));
     expect(catMap["Transport"]).toBe(20000);
     expect(catMap["Food & Drink"]).toBe(15000);
     expect(catMap["Insurance"]).toBe(5000);
@@ -304,9 +304,9 @@ describe("buildBudget", () => {
       makeCost({ id: "c3", costMinor: 15000, currency: "AUD", ownerType: "OTHER", label: "Medium", category: "Medium" }),
     ];
     const result = buildBudget({ ...baseInput, costs });
-    expect(result.byCategory[0].costMinor).toBe(30000);
-    expect(result.byCategory[1].costMinor).toBe(15000);
-    expect(result.byCategory[2].costMinor).toBe(5000);
+    expect(result.byCategory[0].costTotalMinor).toBe(30000);
+    expect(result.byCategory[1].costTotalMinor).toBe(15000);
+    expect(result.byCategory[2].costTotalMinor).toBe(5000);
   });
 
   it("byStop: ACCOMMODATION cost assigned to correct stop", () => {
@@ -318,7 +318,7 @@ describe("buildBudget", () => {
     ];
     const result = buildBudget({ ...baseInput, costs, accommodations });
     const londonEntry = result.byStop.find((s) => s.stopId === "stop-london");
-    expect(londonEntry?.costMinor).toBe(12000);
+    expect(londonEntry?.costTotalMinor).toBe(12000);
   });
 
   it("byStop: OTHER cost → trip-wide entry", () => {
@@ -327,7 +327,7 @@ describe("buildBudget", () => {
     ];
     const result = buildBudget({ ...baseInput, costs });
     const tripWide = result.byStop.find((s) => s.stopId === null);
-    expect(tripWide?.costMinor).toBe(8000);
+    expect(tripWide?.costTotalMinor).toBe(8000);
     expect(tripWide?.stopName).toBe("Trip-wide / Other");
   });
 
@@ -349,14 +349,14 @@ describe("buildBudget", () => {
     const day4 = result.byDay.find((d) => d.dateISO === "2026-07-04");
     const day5 = result.byDay.find((d) => d.dateISO === "2026-07-05");
 
-    expect(day2?.costMinor).toBe(3334);
-    expect(day3?.costMinor).toBe(3333);
-    expect(day4?.costMinor).toBe(3333);
+    expect(day2?.costTotalMinor).toBe(3334);
+    expect(day3?.costTotalMinor).toBe(3333);
+    expect(day4?.costTotalMinor).toBe(3333);
     // checkOut day is NOT a night
-    expect(day5?.costMinor).toBe(0);
+    expect(day5?.costTotalMinor).toBe(0);
 
     // Sum exactly equals the total
-    const nightTotal = (day2?.costMinor ?? 0) + (day3?.costMinor ?? 0) + (day4?.costMinor ?? 0);
+    const nightTotal = (day2?.costTotalMinor ?? 0) + (day3?.costTotalMinor ?? 0) + (day4?.costTotalMinor ?? 0);
     expect(nightTotal).toBe(10000);
   });
 
@@ -370,8 +370,8 @@ describe("buildBudget", () => {
     const result = buildBudget({ ...baseInput, costs, accommodations });
     const day1 = result.byDay.find((d) => d.dateISO === "2026-07-01");
     const day2 = result.byDay.find((d) => d.dateISO === "2026-07-02");
-    expect(day1?.costMinor).toBe(3000);
-    expect(day2?.costMinor).toBe(3000);
+    expect(day1?.costTotalMinor).toBe(3000);
+    expect(day2?.costTotalMinor).toBe(3000);
   });
 
   it("accommodation spread: actual amounts also spread correctly", () => {
@@ -384,7 +384,7 @@ describe("buildBudget", () => {
     const result = buildBudget({ ...baseInput, costs, accommodations });
     const totalActual = result.byDay
       .filter((d) => ["2026-07-02", "2026-07-03", "2026-07-04"].includes(d.dateISO))
-      .reduce((sum, d) => sum + d.paidMinor, 0);
+      .reduce((sum, d) => sum + d.paidTotalMinor, 0);
     expect(totalActual).toBe(9900);
   });
 
@@ -400,7 +400,7 @@ describe("buildBudget", () => {
     const nightDays = ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04"];
     const totalFromDays = nightDays.reduce((sum, d) => {
       const dayEntry = result.byDay.find((x) => x.dateISO === d);
-      return sum + (dayEntry?.costMinor ?? 0);
+      return sum + (dayEntry?.costTotalMinor ?? 0);
     }, 0);
     expect(totalFromDays).toBe(99);
   });
@@ -418,10 +418,10 @@ describe("buildBudget", () => {
     const day8 = result.byDay.find((d) => d.dateISO === "2026-07-08");
     const day9 = result.byDay.find((d) => d.dateISO === "2026-07-09");
     const day10 = result.byDay.find((d) => d.dateISO === "2026-07-10");
-    expect(day8?.costMinor).toBe(1000);
-    expect(day9?.costMinor).toBe(1000);
+    expect(day8?.costTotalMinor).toBe(1000);
+    expect(day9?.costTotalMinor).toBe(1000);
     // The night of the trip's final day must NOT be dropped.
-    expect(day10?.costMinor).toBe(1000);
+    expect(day10?.costTotalMinor).toBe(1000);
   });
 
   it("accommodation spread: single-night stay on the trip's final day still appears in byDay", () => {
@@ -433,7 +433,7 @@ describe("buildBudget", () => {
     ];
     const result = buildBudget({ ...baseInput, costs, accommodations });
     const day10 = result.byDay.find((d) => d.dateISO === "2026-07-10");
-    expect(day10?.costMinor).toBe(5000);
+    expect(day10?.costTotalMinor).toBe(5000);
   });
 
   it("accommodation spread: stay straddling trip START puts remainder on the true first night, not the first in-window night", () => {
@@ -450,9 +450,9 @@ describe("buildBudget", () => {
     const jul1 = result.byDay.find((d) => d.dateISO === "2026-07-01");
     const jul2 = result.byDay.find((d) => d.dateISO === "2026-07-02");
     const jul3 = result.byDay.find((d) => d.dateISO === "2026-07-03");
-    expect(jul1?.costMinor).toBe(100);
-    expect(jul2?.costMinor).toBe(100);
-    expect(jul3?.costMinor).toBe(100);
+    expect(jul1?.costTotalMinor).toBe(100);
+    expect(jul2?.costTotalMinor).toBe(100);
+    expect(jul3?.costTotalMinor).toBe(100);
   });
 
   // ---------------------------------------------------------------------------
@@ -468,7 +468,7 @@ describe("buildBudget", () => {
     ];
     const result = buildBudget({ ...baseInput, costs, transports });
     const depDay = result.byDay.find((d) => d.dateISO === "2026-07-04");
-    expect(depDay?.costMinor).toBe(25000);
+    expect(depDay?.costTotalMinor).toBe(25000);
   });
 
   it("transport cost with no depAt → not placed on any day (still counted in grandTotal)", () => {
@@ -480,9 +480,9 @@ describe("buildBudget", () => {
     ];
     const result = buildBudget({ ...baseInput, costs, transports });
     // Still in grandTotal (rate is AUD = home)
-    expect(result.grandTotal.costMinor).toBe(25000);
+    expect(result.grandTotal.costTotalMinor).toBe(25000);
     // But not placed on any day
-    const allDayTotal = result.byDay.reduce((s, d) => s + d.costMinor, 0);
+    const allDayTotal = result.byDay.reduce((s, d) => s + d.costTotalMinor, 0);
     expect(allDayTotal).toBe(0);
   });
 
@@ -499,7 +499,7 @@ describe("buildBudget", () => {
     ];
     const result = buildBudget({ ...baseInput, costs, items });
     const day = result.byDay.find((d) => d.dateISO === "2026-07-06");
-    expect(day?.costMinor).toBe(3500);
+    expect(day?.costTotalMinor).toBe(3500);
   });
 
   it("undated ITEM cost not in byDay but IS in grandTotal", () => {
@@ -510,8 +510,8 @@ describe("buildBudget", () => {
       makeCost({ id: "c1", costMinor: 4000, paidMinor: null, currency: "AUD", ownerType: "ITEM", ownerId: "item-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, items });
-    expect(result.grandTotal.costMinor).toBe(4000);
-    const allDayTotal = result.byDay.reduce((s, d) => s + d.costMinor, 0);
+    expect(result.grandTotal.costTotalMinor).toBe(4000);
+    const allDayTotal = result.byDay.reduce((s, d) => s + d.costTotalMinor, 0);
     expect(allDayTotal).toBe(0);
   });
 
@@ -520,8 +520,8 @@ describe("buildBudget", () => {
       makeCost({ id: "c1", costMinor: 12000, paidMinor: null, currency: "AUD", ownerType: "OTHER", label: "Travel insurance" }),
     ];
     const result = buildBudget({ ...baseInput, costs });
-    expect(result.grandTotal.costMinor).toBe(12000);
-    const allDayTotal = result.byDay.reduce((s, d) => s + d.costMinor, 0);
+    expect(result.grandTotal.costTotalMinor).toBe(12000);
+    const allDayTotal = result.byDay.reduce((s, d) => s + d.costTotalMinor, 0);
     expect(allDayTotal).toBe(0);
   });
 
@@ -533,8 +533,8 @@ describe("buildBudget", () => {
     const result = buildBudget(baseInput);
     expect(result.byDay).toHaveLength(10);
     for (const day of result.byDay) {
-      expect(day.costMinor).toBe(0);
-      expect(day.paidMinor).toBe(0);
+      expect(day.costTotalMinor).toBe(0);
+      expect(day.paidTotalMinor).toBe(0);
     }
   });
 
@@ -559,8 +559,8 @@ describe("buildBudget", () => {
     ];
     const result = buildBudget({ ...baseInput, costs });
 
-    expect(result.grandTotal.costMinor).toBe(10000 + 8250); // 18250
-    expect(result.grandTotal.paidMinor).toBe(9000 + 6600); // 4000 * 1.65 = 6600
+    expect(result.grandTotal.costTotalMinor).toBe(10000 + 8250); // 18250
+    expect(result.grandTotal.paidTotalMinor).toBe(9000 + 6600); // 4000 * 1.65 = 6600
     expect(result.missingRates).toEqual(["USD"]);
     expect(result.hasMissingRates).toBe(true);
   });
@@ -613,31 +613,31 @@ describe("buildBudget", () => {
       tripEnd: "2026-07-04",
     });
 
-    expect(result.grandTotal.costMinor).toBe(60000 + 20000 + 5000 + 10000); // 95000
+    expect(result.grandTotal.costTotalMinor).toBe(60000 + 20000 + 5000 + 10000); // 95000
 
     // Day 1: accommodation night 1 (30000)
     const d1 = result.byDay.find((d) => d.dateISO === "2026-07-01");
-    expect(d1?.costMinor).toBe(30000);
+    expect(d1?.costTotalMinor).toBe(30000);
 
     // Day 2: accommodation night 2 (30000) + item (5000)
     const d2 = result.byDay.find((d) => d.dateISO === "2026-07-02");
-    expect(d2?.costMinor).toBe(35000);
+    expect(d2?.costTotalMinor).toBe(35000);
 
     // Day 3: transport (20000)
     const d3 = result.byDay.find((d) => d.dateISO === "2026-07-03");
-    expect(d3?.costMinor).toBe(20000);
+    expect(d3?.costTotalMinor).toBe(20000);
 
     // Day 4: nothing
     const d4 = result.byDay.find((d) => d.dateISO === "2026-07-04");
-    expect(d4?.costMinor).toBe(0);
+    expect(d4?.costTotalMinor).toBe(0);
 
     // byStop: stop-1 gets acc + transport + item = 85000
     const londonStop = result.byStop.find((s) => s.stopId === "stop-1");
-    expect(londonStop?.costMinor).toBe(85000);
+    expect(londonStop?.costTotalMinor).toBe(85000);
 
     // byStop: trip-wide gets other = 10000
     const tripWide = result.byStop.find((s) => s.stopId === null);
-    expect(tripWide?.costMinor).toBe(10000);
+    expect(tripWide?.costTotalMinor).toBe(10000);
   });
 });
 
@@ -740,55 +740,55 @@ describe("buildBudget — byChapter", () => {
   it("Finland chapter gets the Finland accommodation cost only", () => {
     const result = buildBudget(chapterInput);
     const fi = result.byChapter.find((c) => c.chapterId === "ch-fi")!;
-    expect(fi.costMinor).toBe(10000);
-    expect(fi.paidMinor).toBe(9000);
+    expect(fi.costTotalMinor).toBe(10000);
+    expect(fi.paidTotalMinor).toBe(9000);
   });
 
   it("Italy chapter gets item + accommodation + intra-Italy transport", () => {
     const result = buildBudget(chapterInput);
     const it = result.byChapter.find((c) => c.chapterId === "ch-it")!;
     // 3000 (item) + 8000 (acc) + 2000 (intra-transport) = 13000
-    expect(it.costMinor).toBe(13000);
-    expect(it.paidMinor).toBe(12500); // 2500 + 8000 + 2000
+    expect(it.costTotalMinor).toBe(13000);
+    expect(it.paidTotalMinor).toBe(12500); // 2500 + 8000 + 2000
   });
 
   it("chapterReconciliation.betweenLegs equals the crossing transport cost", () => {
     const result = buildBudget(chapterInput);
-    expect(result.chapterReconciliation.betweenLegs.costMinor).toBe(5000);
-    expect(result.chapterReconciliation.betweenLegs.paidMinor).toBe(4500);
+    expect(result.chapterReconciliation.betweenLegs.costTotalMinor).toBe(5000);
+    expect(result.chapterReconciliation.betweenLegs.paidTotalMinor).toBe(4500);
   });
 
   it("chapterReconciliation.otherCosts equals the OTHER cost", () => {
     const result = buildBudget(chapterInput);
-    expect(result.chapterReconciliation.otherCosts.costMinor).toBe(1500);
-    expect(result.chapterReconciliation.otherCosts.paidMinor).toBe(1000);
+    expect(result.chapterReconciliation.otherCosts.costTotalMinor).toBe(1500);
+    expect(result.chapterReconciliation.otherCosts.paidTotalMinor).toBe(1000);
   });
 
   it("chapterReconciliation.ungrouped equals the ungrouped-stop cost", () => {
     const result = buildBudget(chapterInput);
-    expect(result.chapterReconciliation.ungrouped.costMinor).toBe(4000);
-    expect(result.chapterReconciliation.ungrouped.paidMinor).toBe(3500);
+    expect(result.chapterReconciliation.ungrouped.costTotalMinor).toBe(4000);
+    expect(result.chapterReconciliation.ungrouped.paidTotalMinor).toBe(3500);
   });
 
   it("reconciliation: sum of byChapter + ungrouped + betweenLegs + otherCosts === grandTotal (both estimated and actual)", () => {
     const result = buildBudget(chapterInput);
-    const chapterSumEst = result.byChapter.reduce((s, c) => s + c.costMinor, 0);
-    const chapterSumAct = result.byChapter.reduce((s, c) => s + c.paidMinor, 0);
+    const chapterSumEst = result.byChapter.reduce((s, c) => s + c.costTotalMinor, 0);
+    const chapterSumAct = result.byChapter.reduce((s, c) => s + c.paidTotalMinor, 0);
 
     const totalFromParts_est =
       chapterSumEst +
-      result.chapterReconciliation.ungrouped.costMinor +
-      result.chapterReconciliation.betweenLegs.costMinor +
-      result.chapterReconciliation.otherCosts.costMinor;
+      result.chapterReconciliation.ungrouped.costTotalMinor +
+      result.chapterReconciliation.betweenLegs.costTotalMinor +
+      result.chapterReconciliation.otherCosts.costTotalMinor;
 
     const totalFromParts_act =
       chapterSumAct +
-      result.chapterReconciliation.ungrouped.paidMinor +
-      result.chapterReconciliation.betweenLegs.paidMinor +
-      result.chapterReconciliation.otherCosts.paidMinor;
+      result.chapterReconciliation.ungrouped.paidTotalMinor +
+      result.chapterReconciliation.betweenLegs.paidTotalMinor +
+      result.chapterReconciliation.otherCosts.paidTotalMinor;
 
-    expect(totalFromParts_est).toBe(result.grandTotal.costMinor);
-    expect(totalFromParts_act).toBe(result.grandTotal.paidMinor);
+    expect(totalFromParts_est).toBe(result.grandTotal.costTotalMinor);
+    expect(totalFromParts_act).toBe(result.grandTotal.paidTotalMinor);
   });
 
   it("when chapters is omitted, byChapter is empty and all non-OTHER costs fall into ungrouped, OTHER into otherCosts", () => {
@@ -802,20 +802,20 @@ describe("buildBudget — byChapter", () => {
     const nonOtherEst = allCosts
       .filter((c) => c.ownerType !== "OTHER")
       .reduce((s, c) => s + c.costMinor, 0);
-    expect(result.chapterReconciliation.ungrouped.costMinor).toBe(nonOtherEst);
+    expect(result.chapterReconciliation.ungrouped.costTotalMinor).toBe(nonOtherEst);
     // OTHER costs → otherCosts
     const otherEst = allCosts
       .filter((c) => c.ownerType === "OTHER")
       .reduce((s, c) => s + c.costMinor, 0);
-    expect(result.chapterReconciliation.otherCosts.costMinor).toBe(otherEst);
+    expect(result.chapterReconciliation.otherCosts.costTotalMinor).toBe(otherEst);
     // betweenLegs is zero when no chapters
-    expect(result.chapterReconciliation.betweenLegs.costMinor).toBe(0);
+    expect(result.chapterReconciliation.betweenLegs.costTotalMinor).toBe(0);
     // Reconciliation still holds
     const totalFromParts =
-      result.chapterReconciliation.ungrouped.costMinor +
-      result.chapterReconciliation.betweenLegs.costMinor +
-      result.chapterReconciliation.otherCosts.costMinor;
-    expect(totalFromParts).toBe(result.grandTotal.costMinor);
+      result.chapterReconciliation.ungrouped.costTotalMinor +
+      result.chapterReconciliation.betweenLegs.costTotalMinor +
+      result.chapterReconciliation.otherCosts.costTotalMinor;
+    expect(totalFromParts).toBe(result.grandTotal.costTotalMinor);
   });
 });
 

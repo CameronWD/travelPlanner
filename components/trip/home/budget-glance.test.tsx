@@ -4,7 +4,7 @@ import { BudgetGlance } from "./budget-glance";
 
 describe("BudgetGlance", () => {
   it("shows spent-so-far, estimated, and links to the budget", () => {
-    render(<BudgetGlance costMinor={312000} paidMinor={184000} homeCurrency="JPY" href="/trips/t/budget" />);
+    render(<BudgetGlance costTotalMinor={312000} paidTotalMinor={184000} homeCurrency="JPY" href="/trips/t/budget" />);
     expect(screen.getByText(/spent so far/i)).toBeInTheDocument();
     const link = screen.getByRole("link");
     expect(link).toHaveAttribute("href", "/trips/t/budget");
@@ -13,7 +13,7 @@ describe("BudgetGlance", () => {
   });
 
   it("renders a zero-width bar when nothing is spent", () => {
-    const { container } = render(<BudgetGlance costMinor={312000} paidMinor={0} homeCurrency="JPY" href="/b" />);
+    const { container } = render(<BudgetGlance costTotalMinor={312000} paidTotalMinor={0} homeCurrency="JPY" href="/b" />);
     expect(container.querySelector('[style*="width: 0%"]')).toBeTruthy();
   });
 });

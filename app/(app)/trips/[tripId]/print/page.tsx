@@ -239,7 +239,7 @@ export default async function PrintPage({
 
   const totalNights = nightsBetween(startDate, endDate);
   const { grandTotal } = budget;
-  const hasActual = grandTotal.paidMinor > 0;
+  const hasActual = grandTotal.paidTotalMinor > 0;
 
   return (
     <>
@@ -518,18 +518,18 @@ export default async function PrintPage({
                 </p>
                 <p className="font-mono text-2xl font-bold">
                   {formatMoney(
-                    hasActual ? grandTotal.paidMinor : grandTotal.costMinor,
+                    hasActual ? grandTotal.paidTotalMinor : grandTotal.costTotalMinor,
                     homeCurrency,
                   )}
                 </p>
               </div>
-              {hasActual && grandTotal.costMinor > 0 && (
+              {hasActual && grandTotal.costTotalMinor > 0 && (
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">
                     Original estimate
                   </p>
                   <p className="font-mono text-2xl font-bold text-muted-foreground">
-                    {formatMoney(grandTotal.costMinor, homeCurrency)}
+                    {formatMoney(grandTotal.costTotalMinor, homeCurrency)}
                   </p>
                 </div>
               )}
@@ -547,7 +547,7 @@ export default async function PrintPage({
                       <span className="text-muted-foreground">{bc.category}</span>
                       <span className="font-mono font-medium">
                         {formatMoney(
-                          hasActual && bc.paidMinor > 0 ? bc.paidMinor : bc.costMinor,
+                          hasActual && bc.paidTotalMinor > 0 ? bc.paidTotalMinor : bc.costTotalMinor,
                           homeCurrency,
                         )}
                       </span>

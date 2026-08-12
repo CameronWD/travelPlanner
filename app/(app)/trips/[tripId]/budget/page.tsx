@@ -234,7 +234,7 @@ export default async function BudgetPage({
 
   // Per-day data — only days with non-zero costs for the compact strip
   const daysWithCosts = budget.byDay.filter(
-    (d) => d.costMinor > 0 || d.paidMinor > 0,
+    (d) => d.costTotalMinor > 0 || d.paidTotalMinor > 0,
   );
 
   // Build per-row missing-rate indicators: which categories have costs whose
@@ -292,7 +292,7 @@ export default async function BudgetPage({
 
       {/* 4-up hero: Estimated total · Paid · Still to pay · Est / day */}
       <BudgetHeroRow
-        costMinor={budget.grandTotal.costMinor}
+        costTotalMinor={budget.grandTotal.costTotalMinor}
         paidTotalMinor={spend.paidSoFarMinor}
         homeCurrency={homeCurrency}
         tripNights={nightsBetween(startDate, endDate)}
@@ -323,8 +323,8 @@ export default async function BudgetPage({
                 <div className="flex flex-col gap-3">
                   {budget.byCategory.map((cat) => {
                     const pct =
-                      budget.grandTotal.costMinor > 0
-                        ? Math.round((cat.costMinor / budget.grandTotal.costMinor) * 100)
+                      budget.grandTotal.costTotalMinor > 0
+                        ? Math.round((cat.costTotalMinor / budget.grandTotal.costTotalMinor) * 100)
                         : 0;
                     return (
                       <div key={cat.category} className="flex flex-col gap-1">
@@ -345,8 +345,8 @@ export default async function BudgetPage({
                           <div className="flex items-center gap-3 tabular-nums text-right">
                             <span className="text-muted-foreground text-xs" title="% of estimated">{pct}% est.</span>
                             <CostAmounts
-                              costMinor={cat.costMinor}
-                              paidMinor={cat.paidMinor}
+                              costTotalMinor={cat.costTotalMinor}
+                              paidTotalMinor={cat.paidTotalMinor}
                               currency={homeCurrency}
                             />
                           </div>
@@ -381,8 +381,8 @@ export default async function BudgetPage({
                     >
                       <span className="min-w-0 truncate text-sm font-medium">{stop.stopName}</span>
                       <CostAmounts
-                        costMinor={stop.costMinor}
-                        paidMinor={stop.paidMinor}
+                        costTotalMinor={stop.costTotalMinor}
+                        paidTotalMinor={stop.paidTotalMinor}
                         currency={homeCurrency}
                       />
                     </div>
@@ -407,44 +407,44 @@ export default async function BudgetPage({
                     >
                       <ChapterChip name={row.chapterName} colour={row.colour} />
                       <CostAmounts
-                        costMinor={row.costMinor}
-                        paidMinor={row.paidMinor}
+                        costTotalMinor={row.costTotalMinor}
+                        paidTotalMinor={row.paidTotalMinor}
                         currency={homeCurrency}
                       />
                     </div>
                   ))}
                   {/* Reconciliation rows — shown only when non-zero */}
-                  {(budget.chapterReconciliation.ungrouped.costMinor > 0 ||
-                    budget.chapterReconciliation.ungrouped.paidMinor > 0) && (
+                  {(budget.chapterReconciliation.ungrouped.costTotalMinor > 0 ||
+                    budget.chapterReconciliation.ungrouped.paidTotalMinor > 0) && (
                     <div className="flex items-center justify-between py-2.5 gap-2">
                       <span className="min-w-0 truncate text-sm text-muted-foreground">Ungrouped</span>
                       <CostAmounts
-                        costMinor={budget.chapterReconciliation.ungrouped.costMinor}
-                        paidMinor={budget.chapterReconciliation.ungrouped.paidMinor}
+                        costTotalMinor={budget.chapterReconciliation.ungrouped.costTotalMinor}
+                        paidTotalMinor={budget.chapterReconciliation.ungrouped.paidTotalMinor}
                         currency={homeCurrency}
                         className="text-muted-foreground"
                       />
                     </div>
                   )}
-                  {(budget.chapterReconciliation.betweenLegs.costMinor > 0 ||
-                    budget.chapterReconciliation.betweenLegs.paidMinor > 0) && (
+                  {(budget.chapterReconciliation.betweenLegs.costTotalMinor > 0 ||
+                    budget.chapterReconciliation.betweenLegs.paidTotalMinor > 0) && (
                     <div className="flex items-center justify-between py-2.5 gap-2">
                       <span className="min-w-0 truncate text-sm text-muted-foreground">Between legs</span>
                       <CostAmounts
-                        costMinor={budget.chapterReconciliation.betweenLegs.costMinor}
-                        paidMinor={budget.chapterReconciliation.betweenLegs.paidMinor}
+                        costTotalMinor={budget.chapterReconciliation.betweenLegs.costTotalMinor}
+                        paidTotalMinor={budget.chapterReconciliation.betweenLegs.paidTotalMinor}
                         currency={homeCurrency}
                         className="text-muted-foreground"
                       />
                     </div>
                   )}
-                  {(budget.chapterReconciliation.otherCosts.costMinor > 0 ||
-                    budget.chapterReconciliation.otherCosts.paidMinor > 0) && (
+                  {(budget.chapterReconciliation.otherCosts.costTotalMinor > 0 ||
+                    budget.chapterReconciliation.otherCosts.paidTotalMinor > 0) && (
                     <div className="flex items-center justify-between py-2.5 gap-2">
                       <span className="min-w-0 truncate text-sm text-muted-foreground">Other costs</span>
                       <CostAmounts
-                        costMinor={budget.chapterReconciliation.otherCosts.costMinor}
-                        paidMinor={budget.chapterReconciliation.otherCosts.paidMinor}
+                        costTotalMinor={budget.chapterReconciliation.otherCosts.costTotalMinor}
+                        paidTotalMinor={budget.chapterReconciliation.otherCosts.paidTotalMinor}
                         currency={homeCurrency}
                         className="text-muted-foreground"
                       />
@@ -472,8 +472,8 @@ export default async function BudgetPage({
                         {day.dateISO}
                       </span>
                       <CostAmounts
-                        costMinor={day.costMinor}
-                        paidMinor={day.paidMinor}
+                        costTotalMinor={day.costTotalMinor}
+                        paidTotalMinor={day.paidTotalMinor}
                         currency={homeCurrency}
                       />
                     </div>

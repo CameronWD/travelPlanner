@@ -249,7 +249,7 @@ export function computePlanMetrics(input: PlanMetricsInput): PlanMetrics {
     tripEnd,
   });
 
-  const budgetHomeMinor: number | null = budgetResult.grandTotal.costMinor;
+  const budgetHomeMinor: number | null = budgetResult.grandTotal.costTotalMinor;
 
   // ---------------------------------------------------------------------------
   // flagCounts — delegate to detectFlags

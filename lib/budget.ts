@@ -80,35 +80,35 @@ export interface BudgetTransport {
 // ---------------------------------------------------------------------------
 
 export interface BudgetTotals {
-  costMinor: number;
-  paidMinor: number;
+  costTotalMinor: number;
+  paidTotalMinor: number;
 }
 
 export interface BudgetByCategory {
   category: string;
-  costMinor: number;
-  paidMinor: number;
+  costTotalMinor: number;
+  paidTotalMinor: number;
 }
 
 export interface BudgetByStop {
   stopId: string | null;
   stopName: string;
-  costMinor: number;
-  paidMinor: number;
+  costTotalMinor: number;
+  paidTotalMinor: number;
 }
 
 export interface BudgetByDay {
   dateISO: string;
-  costMinor: number;
-  paidMinor: number;
+  costTotalMinor: number;
+  paidTotalMinor: number;
 }
 
 export interface BudgetByChapter {
   chapterId: string;
   chapterName: string;
   colour: string;
-  costMinor: number;
-  paidMinor: number;
+  costTotalMinor: number;
+  paidTotalMinor: number;
 }
 
 export interface BudgetResult {
@@ -538,12 +538,12 @@ export function buildBudget({
   // Assemble byCategory (sorted desc by estimated)
   // ---------------------------------------------------------------------------
   const byCategory: BudgetByCategory[] = Object.entries(categoryEstimated)
-    .map(([category, costMinor]) => ({
+    .map(([category, costTotalMinor]) => ({
       category,
-      costMinor,
-      paidMinor: categoryActual[category] ?? 0,
+      costTotalMinor,
+      paidTotalMinor: categoryActual[category] ?? 0,
     }))
-    .sort((a, b) => b.costMinor - a.costMinor);
+    .sort((a, b) => b.costTotalMinor - a.costTotalMinor);
 
   // ---------------------------------------------------------------------------
   // Assemble byStop (null stopId = "Trip-wide / Other")
@@ -557,8 +557,8 @@ export function buildBudget({
       byStop.push({
         stopId: stop.id,
         stopName: stop.name,
-        costMinor: est,
-        paidMinor: stopActual[stop.id] ?? 0,
+        costTotalMinor: est,
+        paidTotalMinor: stopActual[stop.id] ?? 0,
       });
     }
   }
@@ -569,8 +569,8 @@ export function buildBudget({
     byStop.push({
       stopId: null,
       stopName: "Trip-wide / Other",
-      costMinor: tripwideEst,
-      paidMinor: stopActual["___TRIPWIDE___"] ?? 0,
+      costTotalMinor: tripwideEst,
+      paidTotalMinor: stopActual["___TRIPWIDE___"] ?? 0,
     });
   }
 
@@ -579,8 +579,8 @@ export function buildBudget({
   // ---------------------------------------------------------------------------
   const byDay: BudgetByDay[] = tripDays.map((dateISO) => ({
     dateISO,
-    costMinor: dayEstimated[dateISO] ?? 0,
-    paidMinor: dayActual[dateISO] ?? 0,
+    costTotalMinor: dayEstimated[dateISO] ?? 0,
+    paidTotalMinor: dayActual[dateISO] ?? 0,
   }));
 
   // ---------------------------------------------------------------------------
@@ -592,8 +592,8 @@ export function buildBudget({
       chapterId: ch.id,
       chapterName: ch.name,
       colour: ch.colour,
-      costMinor: chapterAccEstimated[ch.id] ?? 0,
-      paidMinor: chapterAccActual[ch.id] ?? 0,
+      costTotalMinor: chapterAccEstimated[ch.id] ?? 0,
+      paidTotalMinor: chapterAccActual[ch.id] ?? 0,
     }));
 
   // ---------------------------------------------------------------------------
@@ -601,24 +601,24 @@ export function buildBudget({
   // ---------------------------------------------------------------------------
   const chapterReconciliation = {
     ungrouped: {
-      costMinor: chapterAccEstimated[SENTINEL_UNGROUPED] ?? 0,
-      paidMinor: chapterAccActual[SENTINEL_UNGROUPED] ?? 0,
+      costTotalMinor: chapterAccEstimated[SENTINEL_UNGROUPED] ?? 0,
+      paidTotalMinor: chapterAccActual[SENTINEL_UNGROUPED] ?? 0,
     },
     betweenLegs: {
-      costMinor: chapterAccEstimated[SENTINEL_BETWEEN_LEGS] ?? 0,
-      paidMinor: chapterAccActual[SENTINEL_BETWEEN_LEGS] ?? 0,
+      costTotalMinor: chapterAccEstimated[SENTINEL_BETWEEN_LEGS] ?? 0,
+      paidTotalMinor: chapterAccActual[SENTINEL_BETWEEN_LEGS] ?? 0,
     },
     otherCosts: {
-      costMinor: chapterAccEstimated[SENTINEL_OTHER] ?? 0,
-      paidMinor: chapterAccActual[SENTINEL_OTHER] ?? 0,
+      costTotalMinor: chapterAccEstimated[SENTINEL_OTHER] ?? 0,
+      paidTotalMinor: chapterAccActual[SENTINEL_OTHER] ?? 0,
     },
   };
 
   return {
     homeCurrency,
     grandTotal: {
-      costMinor: grandEstimated,
-      paidMinor: grandActual,
+      costTotalMinor: grandEstimated,
+      paidTotalMinor: grandActual,
     },
     byCategory,
     byStop,
