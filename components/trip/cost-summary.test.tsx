@@ -36,4 +36,14 @@ describe("CostSummary", () => {
     );
     expect(screen.queryByLabelText(/paid/i)).not.toBeInTheDocument();
   });
+
+  it("shows the paid badge for a legacy paid cost with no paid amount (pre-backfill row)", () => {
+    render(
+      <CostSummary
+        cost={{ ...baseCost, paidMinor: null, paidAt: new Date("2026-06-04") }}
+        homeCurrency="GBP"
+      />,
+    );
+    expect(screen.getByLabelText(/paid/i)).toBeInTheDocument();
+  });
 });

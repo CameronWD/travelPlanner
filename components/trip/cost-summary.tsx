@@ -78,15 +78,7 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
           </span>
         )}
 
-        {/* Paid badge — keyed on paid state, independent of whether an amount is shown */}
-        {isPaid && (
-          <CheckCircle2
-            className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
-            aria-label="Paid"
-          />
-        )}
-
-        {/* Actual (if present) */}
+        {/* Actual (if present) — badge sits beside the paid amount it confirms */}
         {actualStr && (
           <>
             <span className="text-muted-foreground/50">·</span>
@@ -96,6 +88,12 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
                 isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-foreground/80",
               )}
             >
+              {isPaid && (
+                <CheckCircle2
+                  className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+                  aria-label="Paid"
+                />
+              )}
               {actualStr}
               {homeEquiv?.actual && (
                 <span className="text-muted-foreground/70 ml-0.5">
@@ -104,6 +102,14 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
               )}
             </span>
           </>
+        )}
+
+        {/* Legacy fallback: paid but no amount string to sit beside (pre-backfill rows) */}
+        {isPaid && !actualStr && (
+          <CheckCircle2
+            className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+            aria-label="Paid"
+          />
         )}
       </div>
     </div>
