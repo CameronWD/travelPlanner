@@ -396,8 +396,8 @@ describe("WishlistBoard — homeCurrency + costs forwarded to edit dialog", () =
     const costs = [
       {
         id: "cost-1",
-        estimatedMinor: 4200,
-        actualMinor: null,
+        costMinor: 4200,
+        paidMinor: null,
         currency: "EUR",
         rateToHome: 0.6,
         paidAt: null,

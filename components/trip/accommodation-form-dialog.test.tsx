@@ -278,25 +278,34 @@ describe("AccommodationFormDialog", () => {
   // -------------------------------------------------------------------------
   // Case 11: cost fields render when no costs prop
   // -------------------------------------------------------------------------
-  it("renders an estimated cost input when no costs are passed (add mode)", () => {
+  it("renders a cost input when no costs are passed (add mode)", () => {
     render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
     expect(
-      screen.getByRole("textbox", { name: /estimated cost amount/i }),
+      screen.getByRole("textbox", { name: /^cost amount$/i }),
     ).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
-  // Case 12: actual cost and paidAt fields appear after entering estimated amount
+  // Case 12: Paid checkbox appears after entering a cost amount; ticking it
+  // reveals the "you paid" amount and date-paid fields
   // -------------------------------------------------------------------------
-  it("shows actual cost and date paid fields after an estimated amount is entered", async () => {
+  it("shows a Paid checkbox after a cost amount is entered, and ticking it reveals paid amount and date paid fields", async () => {
     const user = userEvent.setup();
     render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
 
-    const estimatedInput = screen.getByRole("textbox", { name: /estimated cost amount/i });
-    await user.type(estimatedInput, "100");
+    const costInput = screen.getByRole("textbox", { name: /^cost amount$/i });
+    await user.type(costInput, "100");
+
+    const paidCheckbox = screen.getByRole("checkbox", { name: /paid/i });
+    expect(paidCheckbox).not.toBeChecked();
+    expect(
+      screen.queryByRole("textbox", { name: /you paid amount/i }),
+    ).not.toBeInTheDocument();
+
+    await user.click(paidCheckbox);
 
     expect(
-      screen.getByRole("textbox", { name: /actual cost amount/i }),
+      screen.getByRole("textbox", { name: /you paid amount/i }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/date paid/i)).toBeInTheDocument();
   });
@@ -304,14 +313,14 @@ describe("AccommodationFormDialog", () => {
   // -------------------------------------------------------------------------
   // Case 13: cost fields hidden when >1 costs (CostEditor authoritative)
   // -------------------------------------------------------------------------
-  it("hides the estimated cost field when >1 costs are passed (CostEditor authoritative)", () => {
+  it("hides the cost field when >1 costs are passed (CostEditor authoritative)", () => {
     const multipleCosts: CostRow[] = [
       {
         id: "c-1",
         ownerType: "ACCOMMODATION",
         ownerId: "acc-1",
-        estimatedMinor: 5000,
-        actualMinor: null,
+        costMinor: 5000,
+        paidMinor: null,
         currency: "AUD",
         rateToHome: 1,
         paidAt: null,
@@ -322,8 +331,8 @@ describe("AccommodationFormDialog", () => {
         id: "c-2",
         ownerType: "ACCOMMODATION",
         ownerId: "acc-1",
-        estimatedMinor: 3000,
-        actualMinor: null,
+        costMinor: 3000,
+        paidMinor: null,
         currency: "AUD",
         rateToHome: 1,
         paidAt: null,
@@ -342,21 +351,21 @@ describe("AccommodationFormDialog", () => {
     );
 
     expect(
-      screen.queryByRole("textbox", { name: /estimated cost amount/i }),
+      screen.queryByRole("textbox", { name: /^cost amount$/i }),
     ).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
-  // Case 14: single existing cost prefills the estimated field
+  // Case 14: single existing cost prefills the cost field
   // -------------------------------------------------------------------------
-  it("prefills estimated cost from a single existing cost in edit mode", () => {
+  it("prefills the cost from a single existing cost in edit mode", () => {
     const singleCost: CostRow[] = [
       {
         id: "c-1",
         ownerType: "ACCOMMODATION",
         ownerId: "acc-1",
-        estimatedMinor: 25000,
-        actualMinor: null,
+        costMinor: 25000,
+        paidMinor: null,
         currency: "EUR",
         rateToHome: 0.6,
         paidAt: null,
@@ -374,23 +383,56 @@ describe("AccommodationFormDialog", () => {
       />,
     );
 
-    const estimatedInput = screen.getByRole("textbox", { name: /estimated cost amount/i });
+    const costInput = screen.getByRole("textbox", { name: /^cost amount$/i });
     // 25000 minor units in EUR = 250.00
-    expect(estimatedInput).toHaveValue("250.00");
+    expect(costInput).toHaveValue("250.00");
   });
 
   // -------------------------------------------------------------------------
-  // Case 15: submitting with a cost passes estimatedMinor + currency to the action
+  // Case 14b: editing a cost that's already paid opens with the box ticked
   // -------------------------------------------------------------------------
-  it("submitting with an estimated cost includes estimatedMinor and currency in the payload", async () => {
+  it("opens with the Paid box ticked when editing a cost that has already been paid", () => {
+    const paidCost: CostRow[] = [
+      {
+        id: "c-1",
+        ownerType: "ACCOMMODATION",
+        ownerId: "acc-1",
+        costMinor: 25000,
+        paidMinor: 25000,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: new Date("2026-07-02"),
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <AccommodationFormDialog
+        {...baseProps}
+        accommodation={existingAccommodation}
+        costs={paidCost}
+        homeCurrency="AUD"
+      />,
+    );
+
+    expect(screen.getByRole("checkbox", { name: /paid/i })).toBeChecked();
+    const paidInput = screen.getByRole("textbox", { name: /you paid amount/i });
+    expect(paidInput).toHaveValue("250.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 15: submitting with a cost passes costMinor + currency to the action
+  // -------------------------------------------------------------------------
+  it("submitting with a cost includes costMinor and currency in the payload", async () => {
     const user = userEvent.setup();
     render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
 
     const nameInput = screen.getByPlaceholderText(/hilton garden inn/i);
     await user.type(nameInput, "My Hotel");
 
-    const estimatedInput = screen.getByRole("textbox", { name: /estimated cost amount/i });
-    await user.type(estimatedInput, "150.00");
+    const costInput = screen.getByRole("textbox", { name: /^cost amount$/i });
+    await user.type(costInput, "150.00");
 
     await user.click(
       screen.getByRole("button", { name: /add accommodation/i }),
@@ -398,10 +440,234 @@ describe("AccommodationFormDialog", () => {
 
     expect(createAccommodation).toHaveBeenCalledWith(
       expect.objectContaining({
-        estimatedMinor: 15000,
+        costMinor: 15000,
         currency: "AUD",
       }),
       undefined,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 15b: un-ticking Paid on an already-paid cost clears the paid date
+  // but must NEVER clear the paid amount — it survives as history so
+  // re-ticking can offer back what was actually paid (CONTEXT.md "Paid").
+  // paidMinor is omitted (undefined) rather than sent as null, so the server
+  // leaves the existing amount untouched instead of nulling it out.
+  // -------------------------------------------------------------------------
+  it("un-ticking Paid clears the paid date but preserves the paid amount", async () => {
+    const user = userEvent.setup();
+    const paidCost: CostRow[] = [
+      {
+        id: "c-1",
+        ownerType: "ACCOMMODATION",
+        ownerId: "acc-1",
+        costMinor: 25000,
+        paidMinor: 25000,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: new Date("2026-07-02"),
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <AccommodationFormDialog
+        {...baseProps}
+        accommodation={existingAccommodation}
+        costs={paidCost}
+        homeCurrency="AUD"
+      />,
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateAccommodation).toHaveBeenCalledWith(
+      "acc-1",
+      expect.objectContaining({
+        paidMinor: undefined,
+        paidAt: null,
+      }),
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 15c: ticking Paid then clearing the amount must not submit a date
+  // with no amount (review finding — was previously gated on the checkbox
+  // alone, not on the amount actually being present)
+  // -------------------------------------------------------------------------
+  it("clearing the paid amount after ticking Paid does not submit a paidAt with a null paidMinor", async () => {
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    const nameInput = screen.getByPlaceholderText(/hilton garden inn/i);
+    await user.type(nameInput, "My Hotel");
+
+    const costInput = screen.getByRole("textbox", { name: /^cost amount$/i });
+    await user.type(costInput, "100");
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    const paidInput = screen.getByRole("textbox", { name: /you paid amount/i });
+    await user.clear(paidInput);
+
+    await user.click(
+      screen.getByRole("button", { name: /add accommodation/i }),
+    );
+
+    expect(createAccommodation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paidMinor: undefined,
+        paidAt: null,
+      }),
+      undefined,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 15d: clearing the paid date while an amount remains sends
+  // `paidAt: null` rather than fabricating a date — the invariant is
+  // one-directional (a date requires an amount; an amount with no date is a
+  // legal, honest, incomplete record) (review round 2 — reverses round 1's
+  // "keep pairing strict" fix, which invented dates the user never saw)
+  // -------------------------------------------------------------------------
+  it("clearing the paid date while a paid amount remains sends paidAt: null instead of fabricating a date", async () => {
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    const nameInput = screen.getByPlaceholderText(/hilton garden inn/i);
+    await user.type(nameInput, "My Hotel");
+
+    const costInput = screen.getByRole("textbox", { name: /^cost amount$/i });
+    await user.type(costInput, "100");
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    const dateInput = screen.getByLabelText(/date paid/i);
+    await user.clear(dateInput);
+
+    await user.click(
+      screen.getByRole("button", { name: /add accommodation/i }),
+    );
+
+    expect(createAccommodation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paidMinor: 10000,
+        paidAt: null,
+      }),
+      undefined,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 15e: an unparseable-but-non-empty paid amount (e.g. pasted with a
+  // currency symbol) must not leak a paidAt through with a null paidMinor
+  // (review round 2 — the guard must check the amount actually *parses*,
+  // not just that the text field is non-blank)
+  // -------------------------------------------------------------------------
+  it("an unparseable paid amount does not submit a paidAt with a null paidMinor", async () => {
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    const nameInput = screen.getByPlaceholderText(/hilton garden inn/i);
+    await user.type(nameInput, "My Hotel");
+
+    const costInput = screen.getByRole("textbox", { name: /^cost amount$/i });
+    await user.type(costInput, "100");
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    const paidInput = screen.getByRole("textbox", { name: /you paid amount/i });
+    await user.clear(paidInput);
+    await user.type(paidInput, "$150.00");
+
+    await user.click(
+      screen.getByRole("button", { name: /add accommodation/i }),
+    );
+
+    expect(createAccommodation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paidMinor: undefined,
+        paidAt: null,
+      }),
+      undefined,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14c: `paidAt` is the SOLE "is this paid" signal (CONTEXT.md "Paid").
+  // A legacy cost with a paid amount but no paid date is NOT paid, and must
+  // open with the box unticked — ticking it (and thus requiring the schema's
+  // "Enter what you paid" gate) is now something the user does explicitly.
+  // -------------------------------------------------------------------------
+  it("does not open with the Paid box ticked when editing a legacy cost that has an amount but no paid date", () => {
+    const legacyPaidCost: CostRow[] = [
+      {
+        id: "c-1",
+        ownerType: "ACCOMMODATION",
+        ownerId: "acc-1",
+        costMinor: 25000,
+        paidMinor: 25000,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: null,
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <AccommodationFormDialog
+        {...baseProps}
+        accommodation={existingAccommodation}
+        costs={legacyPaidCost}
+        homeCurrency="AUD"
+      />,
+    );
+
+    expect(screen.getByRole("checkbox", { name: /paid/i })).not.toBeChecked();
+    expect(screen.queryByRole("textbox", { name: /you paid amount/i })).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14d: resaving a legacy amount-only cost untouched leaves it unpaid
+  // and must not clear the paid amount — paidMinor is omitted (undefined),
+  // never resent or nulled, so the existing amount survives as history for
+  // whenever the user does tick Paid (review round 2 — Important 2 origin:
+  // don't fabricate a date the user never saw into a financial record).
+  // -------------------------------------------------------------------------
+  it("saving a legacy amount-only cost without touching payment fields leaves it unpaid and does not clear the amount", async () => {
+    const user = userEvent.setup();
+    const legacyPaidCost: CostRow[] = [
+      {
+        id: "c-1",
+        ownerType: "ACCOMMODATION",
+        ownerId: "acc-1",
+        costMinor: 25000,
+        paidMinor: 25000,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: null,
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <AccommodationFormDialog
+        {...baseProps}
+        accommodation={existingAccommodation}
+        costs={legacyPaidCost}
+        homeCurrency="AUD"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateAccommodation).toHaveBeenCalledWith(
+      "acc-1",
+      expect.objectContaining({
+        paidMinor: undefined,
+        paidAt: null,
+      }),
     );
   });
 

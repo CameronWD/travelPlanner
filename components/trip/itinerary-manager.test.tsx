@@ -6,7 +6,7 @@
  *  4. Optimistic pending state while action is in-flight
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // ── Mock all server actions the component (and its children) import ──────────
@@ -939,6 +939,120 @@ describe("fork-aware createAccommodation", () => {
         FORK_ID,
       );
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 1: Add Accommodation is always visible on rough Stops
+// ---------------------------------------------------------------------------
+
+describe("Add Accommodation on rough stops (Task 1)", () => {
+  it("shows Add Accommodation on a rough stop", () => {
+    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
+
+    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+
+    expect(
+      screen.getByRole("button", { name: /add accommodation/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("nudges to set dates instead of opening the form on a rough stop", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
+
+    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+
+    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
+
+    expect(await screen.findByText(/rome has no dates yet/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /set dates for this leg/i }),
+    ).toBeInTheDocument();
+    // The accommodation form must NOT have opened.
+    expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
+  });
+
+  it("opens the accommodation form directly on a dated stop", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({
+      id: "s2",
+      name: "Paris",
+      arriveDate: "2026-06-04",
+      departDate: "2026-06-07",
+    });
+
+    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+
+    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
+
+    expect(await screen.findByLabelText(/accommodation name/i)).toBeInTheDocument();
+    expect(screen.queryByText(/has no dates yet/i)).not.toBeInTheDocument();
+  });
+
+  it("dates the leg with a single confirm and opens the form once the stop comes back dated", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
+
+    const { rerender } = render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+
+    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
+    await user.click(await screen.findByRole("button", { name: /set dates for this leg/i }));
+
+    // One click, one confirm: handleFirmUp's own "Date this chapter's
+    // stops?" dialog must NOT also appear — the nudge already asked.
+    expect(screen.queryByText(/date this chapter's stops/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^date stops$/i })).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(firmUpSegment).toHaveBeenCalledWith({ tripId: TRIP_ID, chapterId: null, forkId: undefined });
+    });
+
+    // The accommodation form doesn't open yet — the dated stop only exists
+    // once it comes back through props (handleFirmUp revalidates the path).
+    expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
+
+    // Simulate that round-trip: the same stop reappears as a new prop, now dated.
+    const datedStop = { ...stop, arriveDate: "2026-06-04", departDate: "2026-06-07" };
+    rerender(<ItineraryManager {...baseProps} initialStops={[datedStop]} />);
+
+    expect(await screen.findByLabelText(/accommodation name/i)).toBeInTheDocument();
+  });
+
+  it("does not leak the pending marker: a stop dated by unrelated means later does not pop the form open (regression)", async () => {
+    // firmUpSegment fails to date this stop (e.g. no anchor date available)
+    // — handleFirmUp must report that back so the caller stops waiting on it.
+    vi.mocked(firmUpSegment).mockResolvedValueOnce({
+      success: false,
+      errors: { anchorDate: ["Pick a start date for this leg first."] },
+    });
+
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
+
+    const { rerender } = render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+
+    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
+    await user.click(await screen.findByRole("button", { name: /set dates for this leg/i }));
+
+    await waitFor(() => {
+      expect(firmUpSegment).toHaveBeenCalled();
+    });
+    expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
+
+    // The stop is later dated by something entirely unrelated to this click
+    // (a partner's edit, or the "Set dates for all stops" fallback the nudge
+    // itself advertises). If the pending marker had leaked, this is where it
+    // would incorrectly pop the accommodation form open with no click behind it.
+    const datedStop = { ...stop, arriveDate: "2026-06-04", departDate: "2026-06-07" };
+    await act(async () => {
+      rerender(<ItineraryManager {...baseProps} initialStops={[datedStop]} />);
+      // Give the (cleared) pending-effect's microtask a chance to run.
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
   });
 });
 

@@ -308,8 +308,9 @@ async function main() {
     create: {
       id: ids.costEiffel,
       tripId: trip.id,
-      estimatedMinor: 7400, // €74.00
-      actualMinor: 7400,
+      costMinor: 7400, // €74.00
+      paidMinor: 7400,
+      paidAt: new Date("2026-06-15"),
       currency: "EUR",
       ownerType: "ITEM",
       ownerId: ids.itemEiffel,
@@ -322,7 +323,7 @@ async function main() {
     create: {
       id: ids.costColosseum,
       tripId: trip.id,
-      estimatedMinor: 6000, // €60.00
+      costMinor: 6000, // €60.00
       currency: "EUR",
       ownerType: "ITEM",
       ownerId: ids.itemColosseum,
@@ -335,8 +336,9 @@ async function main() {
     create: {
       id: ids.costAccLondon,
       tripId: trip.id,
-      estimatedMinor: 96000, // £960.00
-      actualMinor: 98200, // £982.00
+      costMinor: 96000, // £960.00
+      paidMinor: 98200, // £982.00
+      paidAt: new Date("2026-06-15"),
       currency: "GBP",
       ownerType: "ACCOMMODATION",
       ownerId: ids.accLondon,
@@ -348,7 +350,7 @@ async function main() {
     create: {
       id: ids.costInsurance,
       tripId: trip.id,
-      estimatedMinor: 18000, // A$180.00
+      costMinor: 18000, // A$180.00
       currency: "AUD",
       ownerType: "OTHER",
       ownerId: null,

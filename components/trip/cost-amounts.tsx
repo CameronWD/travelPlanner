@@ -1,18 +1,18 @@
 import { formatMoney } from "@/lib/money";
 
 /**
- * Estimated (and, when spent, actual) amounts rendered with locked alignment,
+ * Cost (and, when paid, the paid amount) rendered with locked alignment,
  * color, and accessible labels. Shared across the budget page sections so the
- * "estimated vs spent" reading is identical everywhere.
+ * "cost vs paid" reading is identical everywhere.
  */
 export function CostAmounts({
-  estimatedMinor,
-  actualMinor,
+  costTotalMinor,
+  paidTotalMinor,
   currency,
   className,
 }: {
-  estimatedMinor: number;
-  actualMinor: number;
+  costTotalMinor: number;
+  paidTotalMinor: number;
   currency: string;
   className?: string;
 }) {
@@ -23,19 +23,19 @@ export function CostAmounts({
         (className ? ` ${className}` : "")
       }
     >
-      <span aria-label="Estimated" className="text-right whitespace-nowrap">
-        {formatMoney(estimatedMinor, currency)}
+      <span aria-label="Cost" className="text-right whitespace-nowrap">
+        {formatMoney(costTotalMinor, currency)}
       </span>
       <span
-        aria-label="Spent"
+        aria-label="Paid"
         className={
           "text-right whitespace-nowrap" +
-          (actualMinor > 0
+          (paidTotalMinor > 0
             ? " text-emerald-600 dark:text-emerald-400"
             : " text-muted-foreground")
         }
       >
-        {actualMinor > 0 ? formatMoney(actualMinor, currency) : "—"}
+        {paidTotalMinor > 0 ? formatMoney(paidTotalMinor, currency) : "—"}
       </span>
     </div>
   );

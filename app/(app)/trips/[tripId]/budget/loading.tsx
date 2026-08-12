@@ -4,8 +4,8 @@ import { Skeleton } from "@/components/ui/skeleton";
  * Loading skeleton for the Budget page.
  *
  * Mirrors the layout produced by [tripId]/budget/page.tsx:
- *   - Grand total hero card (estimated total + spent so far)
- *   - Legend row (Estimated / Spent labels)
+ *   - Grand total hero card (cost total + paid so far)
+ *   - Legend row (Cost / Paid labels)
  *   - "By category" card with progress-bar rows
  *   - "By destination" card with list rows
  */

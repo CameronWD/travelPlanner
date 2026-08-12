@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
-import { costSchema, type CostRawInput } from "@/lib/validations/cost";
+import { costSchema, paidAtStringSchema, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
@@ -159,8 +159,8 @@ export async function createCost(
       data: {
         tripId,
         forkId: forkId ?? null,
-        estimatedMinor: data.estimatedMinor,
-        actualMinor: data.actualMinor ?? null,
+        costMinor: data.costMinor,
+        paidMinor: data.paidMinor ?? null,
         currency: data.currency,
         rateToHome: resolved.rate,
         paidAt: data.paidAt ?? null,
@@ -226,8 +226,7 @@ export async function updateCost(
     return tx.cost.update({
       where: { id: costId },
       data: {
-        estimatedMinor: data.estimatedMinor,
-        actualMinor: data.actualMinor ?? null,
+        costMinor: data.costMinor,
         currency: data.currency,
         rateToHome: resolved.rate,
         paidAt: data.paidAt ?? null,
@@ -235,6 +234,12 @@ export async function updateCost(
         ownerId: data.ownerId ?? null,
         label: data.label ?? null,
         category: data.category ?? null,
+        // paidMinor is included only when the caller actually provided a
+        // value — un-ticking Paid sends paidMinor: undefined (never null) so
+        // the paid amount survives as history (CONTEXT.md "Paid"); omitting
+        // the key here leaves Prisma's existing value untouched instead of
+        // nulling it out.
+        ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
       },
     });
   });
@@ -265,6 +270,76 @@ export async function deleteCost(costId: string): Promise<CostActionResult> {
   return { success: true };
 }
 
+/**
+ * Mark a single Cost paid from the Budget checklist, without opening its
+ * dialog. The amount is required (ADR 0037) — the caller offers it pre-filled
+ * with the cost amount, so the common case is one tap.
+ */
+export async function markCostPaid(
+  costId: string,
+  paidMinor: number,
+  paidAt: string,
+): Promise<CostActionResult> {
+  const cost = await db.cost.findUnique({
+    where: { id: costId },
+    select: { id: true, tripId: true, forkId: true },
+  });
+  if (!cost) return { success: false, errors: { _form: ["Cost not found"] } };
+  await requireTripAccess(cost.tripId);
+
+  if (!Number.isInteger(paidMinor) || paidMinor < 0) {
+    return { success: false, errors: { paidMinor: ["Enter what you paid"] } };
+  }
+
+  const parsedDate = paidAtStringSchema.safeParse(paidAt);
+  if (!parsedDate.success) {
+    return { success: false, errors: { paidAt: ["Enter when you paid"] } };
+  }
+
+  const before = await db.cost.findUnique({ where: { id: costId } });
+
+  const updated = await db.cost.update({
+    where: { id: costId },
+    data: { paidMinor, paidAt: new Date(parsedDate.data) },
+  });
+
+  await recordPlanActivity(cost.forkId, {
+    tripId: cost.tripId,
+    verb: "UPDATED",
+    entityType: "COST",
+    entityId: costId,
+    entityLabel: entityLabel("COST", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("COST", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
+  revalidateTripPaths(cost.tripId);
+  return { success: true };
+}
+
+/** Un-mark a Cost as paid. The paid amount stays as history. */
+export async function markCostUnpaid(costId: string): Promise<CostActionResult> {
+  const cost = await db.cost.findUnique({
+    where: { id: costId },
+    select: { id: true, tripId: true, forkId: true },
+  });
+  if (!cost) return { success: false, errors: { _form: ["Cost not found"] } };
+  await requireTripAccess(cost.tripId);
+
+  const before = await db.cost.findUnique({ where: { id: costId } });
+
+  const updated = await db.cost.update({ where: { id: costId }, data: { paidAt: null } });
+
+  await recordPlanActivity(cost.forkId, {
+    tripId: cost.tripId,
+    verb: "UPDATED",
+    entityType: "COST",
+    entityId: costId,
+    entityLabel: entityLabel("COST", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("COST", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
+  revalidateTripPaths(cost.tripId);
+  return { success: true };
+}
+
 // ---------------------------------------------------------------------------
 // Read helpers
 // ---------------------------------------------------------------------------
@@ -282,8 +357,8 @@ export async function deleteCost(costId: string): Promise<CostActionResult> {
  */
 export type CostRow = {
   id: string;
-  estimatedMinor: number;
-  actualMinor: number | null;
+  costMinor: number;
+  paidMinor: number | null;
   currency: string;
   rateToHome: number | null;
   paidAt: Date | null;

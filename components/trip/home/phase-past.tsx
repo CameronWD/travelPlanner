@@ -25,8 +25,8 @@ import type { RouteMapStop } from "@/components/trip/route-map";
 
 const COST_SELECT = {
   id: true,
-  estimatedMinor: true,
-  actualMinor: true,
+  costMinor: true,
+  paidMinor: true,
   currency: true,
   rateToHome: true,
   paidAt: true,
@@ -199,7 +199,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   // ---------------------------------------------------------------------------
   const totalNights = nightsBetween(startDate, endDate);
   const { grandTotal } = budget;
-  const hasActual = grandTotal.actualMinor > 0;
+  const hasActual = grandTotal.paidTotalMinor > 0;
 
   // Spend retro: use trip end as "today" so tripElapsedPct reads 100 %
   const spend = buildSpendSoFar({
@@ -228,12 +228,12 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   // Final spend derived values
   // ---------------------------------------------------------------------------
   const stopCount = datedStops.length;
-  const spentMinor = hasActual ? grandTotal.actualMinor : grandTotal.estimatedMinor;
-  const paidMinor = spend.paidSoFarMinor;
-  const estimatedMinor = spend.estimatedTotalMinor;
+  const spentMinor = hasActual ? grandTotal.paidTotalMinor : grandTotal.costTotalMinor;
+  const paidSoFarMinor = spend.paidSoFarMinor;
+  const costTotalMinor = spend.costTotalMinor;
   const varianceMinor = spend.varianceMinor;
   const underBudget = varianceMinor <= 0;
-  const pct = estimatedMinor > 0 ? Math.min(100, Math.round((paidMinor / estimatedMinor) * 100)) : 0;
+  const pct = costTotalMinor > 0 ? Math.min(100, Math.round((paidSoFarMinor / costTotalMinor) * 100)) : 0;
 
   // ---------------------------------------------------------------------------
   // Compose cards
@@ -246,7 +246,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
       <div className="mt-4 flex gap-5">
         <div><div className="font-display text-2xl font-bold">{stopCount}</div><div className="text-[11px] text-white/60">stops</div></div>
         <div><div className="font-display text-2xl font-bold">{totalNights}</div><div className="text-[11px] text-white/60">nights</div></div>
-        <div><div className="font-display text-2xl font-bold">{formatMoney(spentMinor, trip.homeCurrency)}</div><div className="text-[11px] text-white/60">{hasActual ? "spent" : "estimated"}</div></div>
+        <div><div className="font-display text-2xl font-bold">{formatMoney(spentMinor, trip.homeCurrency)}</div><div className="text-[11px] text-white/60">{hasActual ? "paid" : "cost"}</div></div>
       </div>
     </section>
   );
@@ -260,7 +260,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
         </span>
       </div>
       <p className="font-display text-2xl font-bold text-foreground">
-        {formatMoney(paidMinor, trip.homeCurrency)} <span className="text-sm font-medium text-muted-foreground">of {formatMoney(estimatedMinor, trip.homeCurrency)} estimated</span>
+        {formatMoney(paidSoFarMinor, trip.homeCurrency)} <span className="text-sm font-medium text-muted-foreground">of {formatMoney(costTotalMinor, trip.homeCurrency)} cost</span>
       </p>
       <span className="mt-3 block h-2 overflow-hidden rounded-full bg-muted">
         <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />

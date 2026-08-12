@@ -7,11 +7,22 @@ import { CURRENCY_CODES } from "@/lib/currencies";
 // ---------------------------------------------------------------------------
 
 /**
+ * Accepts either an ISO datetime (with offset) or a plain YYYY-MM-DD date
+ * string. Shared by `costSchema`'s `paidAt` field and the standalone
+ * `markCostPaid` action (the Budget checklist sends a raw date-input string
+ * that never passes through `costSchema`, so it needs the same shape check).
+ */
+export const paidAtStringSchema = z
+  .string()
+  .datetime({ offset: true, message: "paidAt must be an ISO datetime string" })
+  .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD or ISO datetime"));
+
+/**
  * Zod schema for creating or updating a Cost.
  *
  * Rules:
- *  - `estimatedMinor` must be a non-negative integer (always required).
- *  - `actualMinor` is optional but must be a non-negative integer if provided.
+ *  - `costMinor` must be a non-negative integer (always required).
+ *  - `paidMinor` is optional, but REQUIRED when `paidAt` is set.
  *  - `currency` must be a 3-letter ISO 4217 code from the supported list.
  *  - `paidAt` is optional — accepts an ISO date/datetime string and coerces to Date.
  *  - `ownerType` is one of COST_OWNER_TYPES.
@@ -21,18 +32,18 @@ import { CURRENCY_CODES } from "@/lib/currencies";
  */
 export const costSchema = z
   .object({
-    estimatedMinor: z
+    costMinor: z
       .number()
-      .int("Estimated amount must be a whole number in minor units")
-      .min(0, "Estimated amount must be 0 or greater")
+      .int("Cost must be a whole number in minor units")
+      .min(0, "Cost must be 0 or greater")
       // Cap at 32-bit signed max: Prisma maps Int to Postgres INTEGER which
       // enforces this bound, so we validate it here before attempting an insert.
       .max(2_147_483_647, "Amount is too large"),
 
-    actualMinor: z
+    paidMinor: z
       .number()
-      .int("Actual amount must be a whole number in minor units")
-      .min(0, "Actual amount must be 0 or greater")
+      .int("Paid amount must be a whole number in minor units")
+      .min(0, "Paid amount must be 0 or greater")
       .max(2_147_483_647, "Amount is too large")
       .optional(),
 
@@ -44,12 +55,7 @@ export const costSchema = z
         message: "Unsupported currency code",
       }),
 
-    paidAt: z
-      .string()
-      .datetime({ offset: true, message: "paidAt must be an ISO datetime string" })
-      .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD or ISO datetime"))
-      .transform((s) => new Date(s))
-      .optional(),
+    paidAt: paidAtStringSchema.transform((s) => new Date(s)).optional(),
 
     ownerType: costOwnerTypeSchema,
 
@@ -84,7 +90,14 @@ export const costSchema = z
       message: "label is required for OTHER costs",
       path: ["label"],
     },
-  );
+  )
+  // A Cost cannot be paid without a paid amount (ADR 0037). The app never
+  // records a payment whose size it doesn't know — that produced the
+  // "Paid £0 · £340 under estimate" display this rule exists to prevent.
+  .refine((data) => !(data.paidAt && data.paidMinor == null), {
+    message: "Enter what you paid",
+    path: ["paidMinor"],
+  });
 
 /** The type after parsing + transforms. */
 export type CostInput = z.infer<typeof costSchema>;

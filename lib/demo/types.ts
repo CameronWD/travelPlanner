@@ -6,8 +6,13 @@ export type Key = string;                 // stable cross-ref key, e.g. "eu:stop
 export type Who = "you" | "partner";
 
 export interface DemoVote { user: Who; level: "MUST" | "KEEN" | "MEH"; }
-export interface DemoInlineCost { estimatedMinor: number; actualMinor?: number | null; currency: string; paid?: boolean; category?: string | null; }
-export interface DemoCost extends DemoInlineCost { ownerType: "TRANSPORT" | "ACCOMMODATION" | "ITEM" | "OTHER"; ownerKey?: Key | null; label?: string | null; }
+// A paid cost always carries a paid amount — `paid: true` with no `paidMinor`
+// would write a row violating that invariant, so the union makes it
+// unrepresentable rather than relying on callers to remember the rule.
+export type DemoInlineCost =
+  | { costMinor: number; currency: string; category?: string | null; paid?: false; paidMinor?: number | null }
+  | { costMinor: number; currency: string; category?: string | null; paid: true; paidMinor: number };
+export type DemoCost = DemoInlineCost & { ownerType: "TRANSPORT" | "ACCOMMODATION" | "ITEM" | "OTHER"; ownerKey?: Key | null; label?: string | null; };
 
 export interface DemoStop {
   key: Key; name: string; country?: string | null; countryCode?: string | null;

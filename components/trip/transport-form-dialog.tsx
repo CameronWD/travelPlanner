@@ -49,9 +49,9 @@ interface FormErrors {
   arrAt?: string[];
   reference?: string[];
   notes?: string[];
-  estimatedMinor?: string[];
+  costMinor?: string[];
   currency?: string[];
-  actualMinor?: string[];
+  paidMinor?: string[];
   paidAt?: string[];
   _form?: string[];
 }
@@ -333,29 +333,41 @@ function TransportForm({
   const [notes, setNotes] = React.useState(transport?.notes ?? "");
 
   // Inline cost fields
-  const [estimatedAmount, setEstimatedAmount] = React.useState(
-    singleCost ? formatMinor(singleCost.estimatedMinor, singleCost.currency) : "",
+  const [costAmount, setCostAmount] = React.useState(
+    singleCost ? formatMinor(singleCost.costMinor, singleCost.currency) : "",
   );
   const [currency, setCurrency] = React.useState(
     singleCost?.currency ?? defaultCurrency,
   );
-  const [actualAmount, setActualAmount] = React.useState(
-    singleCost && singleCost.actualMinor !== null && singleCost.actualMinor !== undefined
-      ? formatMinor(singleCost.actualMinor, singleCost.currency)
+  const [paidAmount, setPaidAmount] = React.useState(
+    singleCost && singleCost.paidMinor !== null && singleCost.paidMinor !== undefined
+      ? formatMinor(singleCost.paidMinor, singleCost.currency)
       : "",
   );
   const [paidAt, setPaidAt] = React.useState(
     singleCost?.paidAt ? new Date(singleCost.paidAt).toISOString().slice(0, 10) : "",
   );
+  // Seeded from the existing cost so editing a paid Cost opens with the box
+  // ticked (ADR 0037). `paidAt` is the sole "is this paid" signal — a legacy
+  // row with a paid amount but no date is NOT paid (see CONTEXT.md "Paid").
+  const [paid, setPaid] = React.useState(Boolean(singleCost?.paidAt));
 
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {
-      const estimatedMinor = estimatedAmount.trim()
-        ? (parseAmountToMinor(estimatedAmount, currency) ?? undefined)
+      const costMinor = costAmount.trim()
+        ? (parseAmountToMinor(costAmount, currency) ?? undefined)
         : undefined;
-      const actualMinor = actualAmount.trim()
-        ? (parseAmountToMinor(actualAmount, currency) ?? undefined)
-        : undefined;
+      // Gated on the amount actually *parsing*, not just being non-blank —
+      // a pasted "$150.00" or a lone "-" is non-blank text but parses to
+      // null, and un-ticking Paid (or ticking it and then clearing/breaking
+      // the amount) must all clear the payment. The invariant is
+      // one-directional (ADR 0037): a paid *date* requires an amount, but an
+      // amount with no date is a legal, honest, incomplete record — so we
+      // never invent a date here. `todayISO()` is only used for the
+      // interactive pre-fill in InlineCostFields, where the user can see and
+      // edit it before saving; it is never fabricated at submit time.
+      const parsedPaidMinor = paid ? parseAmountToMinor(paidAmount, currency) : null;
+      const hasPaidAmount = parsedPaidMinor !== null;
 
       // The action accepts TransportInput whose depAt/arrAt are Date | undefined
       // (after Zod coercion), but we pass raw strings from the form — Zod's
@@ -398,11 +410,15 @@ function TransportForm({
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
         anchorStopId: anchorStopId === HEAD_SENTINEL ? "" : (anchorStopId || undefined),
-        ...(estimatedMinor !== undefined && {
-          estimatedMinor,
+        ...(costMinor !== undefined && {
+          costMinor,
           currency,
-          actualMinor: actualMinor ?? null,
-          paidAt: paidAt || null,
+          // Un-ticking (or breaking) Paid must never clear the paid amount —
+          // it survives as history (CONTEXT.md "Paid") — so we omit
+          // paidMinor entirely rather than sending null. Only the date is
+          // explicitly cleared.
+          paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
+          paidAt: hasPaidAmount ? paidAt || null : null,
         }),
       };
 
@@ -569,12 +585,14 @@ function TransportForm({
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
       <InlineCostFields
         hasMultipleCosts={hasMultipleCosts}
-        estimatedAmount={estimatedAmount}
-        onEstimatedChange={setEstimatedAmount}
+        costAmount={costAmount}
+        onCostChange={setCostAmount}
         currency={currency}
         onCurrencyChange={setCurrency}
-        actualAmount={actualAmount}
-        onActualChange={setActualAmount}
+        paid={paid}
+        onPaidChange={setPaid}
+        paidAmount={paidAmount}
+        onPaidAmountChange={setPaidAmount}
         paidAt={paidAt}
         onPaidAtChange={setPaidAt}
         errors={errors}

@@ -198,8 +198,8 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "endDate", label: "End date", format: (v) => dateFormat(v) },
   ],
   COST: [
-    { key: "estimatedMinor", label: "Estimated", format: moneyFormat },
-    { key: "actualMinor", label: "Actual", format: moneyFormat },
+    { key: "costMinor", label: "Cost", format: moneyFormat },
+    { key: "paidMinor", label: "You paid", format: moneyFormat },
     { key: "currency", label: "Currency" },
     { key: "category", label: "Category", format: (v) => categoryFormat(v) },
   ],

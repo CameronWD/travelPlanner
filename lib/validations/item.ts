@@ -69,15 +69,15 @@ export const itemSchema = z
 
     // --- Inline cost fields (all optional) ---
 
-    /** Estimated cost in minor units (e.g. cents). Integer. */
-    estimatedMinor: z
+    /** Cost in minor units (e.g. cents). Integer. */
+    costMinor: z
       .number()
-      .int("Estimated amount must be a whole number in minor units")
-      .min(0, "Estimated amount must be 0 or greater")
+      .int("Cost must be a whole number in minor units")
+      .min(0, "Cost must be 0 or greater")
       .max(2_147_483_647, "Amount is too large")
       .optional(),
 
-    /** ISO 4217 currency code. Required when estimatedMinor is set. */
+    /** ISO 4217 currency code. Required when costMinor is set. */
     currency: z
       .string()
       .length(3, "Currency must be a 3-letter ISO 4217 code")
@@ -87,11 +87,11 @@ export const itemSchema = z
       })
       .optional(),
 
-    /** Actual cost in minor units. Optional. */
-    actualMinor: z
+    /** Amount paid, in minor units. Optional. */
+    paidMinor: z
       .number()
-      .int("Actual amount must be a whole number in minor units")
-      .min(0, "Actual amount must be 0 or greater")
+      .int("Paid amount must be a whole number in minor units")
+      .min(0, "Paid amount must be 0 or greater")
       .max(2_147_483_647, "Amount is too large")
       .nullable()
       .optional(),
@@ -133,7 +133,15 @@ export const itemSchema = z
       message: "End time must be on or after start time",
       path: ["endTime"],
     },
-  );
+  )
+  // A Cost cannot be paid without a paid amount (ADR 0037). == null (not
+  // === undefined) because paidMinor is nullable, and this must catch both:
+  // an explicit `null` (paidMinor cleared) and an absent `undefined`
+  // (paidMinor never set, e.g. a fresh create).
+  .refine((data) => !(data.paidAt && data.paidMinor == null), {
+    message: "Enter what you paid",
+    path: ["paidMinor"],
+  });
 
 /** The type callers pass in (pre-transform, all optional fields truly optional). */
 export type ItemInput = z.input<typeof itemSchema>;

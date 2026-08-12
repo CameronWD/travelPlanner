@@ -5,17 +5,20 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { CURRENCY_CODES } from "@/lib/currencies";
+import { todayISO } from "@/lib/dates";
 import type { FieldErrors } from "@/lib/action-result";
 
 export interface InlineCostFieldsProps {
   /** When true the CostEditor is authoritative — render nothing here. */
   hasMultipleCosts: boolean;
-  estimatedAmount: string;
-  onEstimatedChange: (v: string) => void;
+  costAmount: string;
+  onCostChange: (v: string) => void;
   currency: string;
   onCurrencyChange: (v: string) => void;
-  actualAmount: string;
-  onActualChange: (v: string) => void;
+  paid: boolean;
+  onPaidChange: (v: boolean) => void;
+  paidAmount: string;
+  onPaidAmountChange: (v: string) => void;
   paidAt: string;
   onPaidAtChange: (v: string) => void;
   errors: FieldErrors;
@@ -23,70 +26,96 @@ export interface InlineCostFieldsProps {
 }
 
 /**
- * The inline single-cost editor (estimated + actual + date-paid) shared by the
- * transport / accommodation / item form dialogs. Actual + paid only appear once
- * an estimate is entered. Hidden entirely when >1 costs exist.
+ * The inline single-cost editor (cost + paid toggle) shared by the
+ * transport / accommodation / item form dialogs. Ticking Paid reveals a
+ * paid amount pre-filled with the cost, plus a date defaulting to today
+ * (ADR 0037). Hidden entirely when >1 costs exist.
  */
 export function InlineCostFields({
   hasMultipleCosts,
-  estimatedAmount,
-  onEstimatedChange,
+  costAmount,
+  onCostChange,
   currency,
   onCurrencyChange,
-  actualAmount,
-  onActualChange,
+  paid,
+  onPaidChange,
+  paidAmount,
+  onPaidAmountChange,
   paidAt,
   onPaidAtChange,
   errors,
   disabled,
 }: InlineCostFieldsProps): React.ReactElement | null {
   if (hasMultipleCosts) return null;
+
+  // Ticking Paid pre-fills the amount with the cost, so confirming a thing that
+  // cost what you expected is one gesture — that pre-fill is what keeps the
+  // "paid needs an amount" rule (ADR 0037) from being friction.
+  function handlePaidToggle(next: boolean) {
+    onPaidChange(next);
+    if (next) {
+      if (!paidAmount.trim() && costAmount.trim()) onPaidAmountChange(costAmount);
+      if (!paidAt.trim()) onPaidAtChange(todayISO());
+    }
+  }
+
   return (
     <>
-      <Field label="Estimated cost" error={errors.estimatedMinor?.[0]}>
+      <Field
+        label="Cost"
+        description="Your best number — the real price if it's already booked."
+        error={errors.costMinor?.[0]}
+      >
         <MoneyInput
-          amount={estimatedAmount}
+          amount={costAmount}
           currency={currency}
           currencies={CURRENCY_CODES}
-          onAmountChange={onEstimatedChange}
+          onAmountChange={onCostChange}
           onCurrencyChange={onCurrencyChange}
           disabled={disabled}
-          invalid={Boolean(errors.estimatedMinor)}
-          aria-label="Estimated cost amount"
+          invalid={Boolean(errors.costMinor)}
+          aria-label="Cost amount"
         />
       </Field>
 
-      {estimatedAmount.trim() && (
+      {costAmount.trim() && (
         <>
-          <Field
-            label="Actual cost"
-            description="Leave blank if you haven't paid yet."
-            error={errors.actualMinor?.[0]}
-          >
-            <MoneyInput
-              amount={actualAmount}
-              currency={currency}
-              currencies={CURRENCY_CODES}
-              onAmountChange={onActualChange}
-              onCurrencyChange={onCurrencyChange}
+          <label className="flex items-center gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={paid}
+              onChange={(e) => handlePaidToggle(e.target.checked)}
               disabled={disabled}
-              invalid={Boolean(errors.actualMinor)}
-              aria-label="Actual cost amount"
+              className="size-4 rounded border-input accent-primary"
             />
-          </Field>
+            Paid
+          </label>
 
-          <Field
-            label="Date paid"
-            description="Optional — when the cost was paid."
-            error={errors.paidAt?.[0]}
-          >
-            <Input
-              type="date"
-              value={paidAt}
-              onChange={(e) => onPaidAtChange(e.target.value)}
-              disabled={disabled}
-            />
-          </Field>
+          {paid && (
+            <>
+              <Field label="You paid" error={errors.paidMinor?.[0]}>
+                <MoneyInput
+                  amount={paidAmount}
+                  currency={currency}
+                  currencies={CURRENCY_CODES}
+                  onAmountChange={onPaidAmountChange}
+                  onCurrencyChange={onCurrencyChange}
+                  disabled={disabled}
+                  invalid={Boolean(errors.paidMinor)}
+                  aria-label="You paid amount"
+                />
+              </Field>
+
+              <Field label="Date paid" error={errors.paidAt?.[0]}>
+                <Input
+                  type="date"
+                  value={paidAt}
+                  onChange={(e) => onPaidAtChange(e.target.value)}
+                  disabled={disabled}
+                />
+              </Field>
+            </>
+          )}
         </>
       )}
     </>

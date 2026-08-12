@@ -23,16 +23,16 @@ export interface CostSummaryProps {
  * Compact one-line display of a single Cost row.
  *
  * Shows:
- *  - estimated amount (always)
- *  - actual amount (if present, with a paid checkmark)
+ *  - cost amount (always)
+ *  - paid amount (if present, with a paid checkmark)
  *  - home-currency equivalent in parentheses (if rateToHome is known and
  *    currency !== homeCurrency)
  *  - a "paid" badge when paidAt is set
  */
 export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps) {
-  const estimatedStr = formatMoney(cost.estimatedMinor, cost.currency);
-  const actualStr = cost.actualMinor !== null && cost.actualMinor !== undefined
-    ? formatMoney(cost.actualMinor, cost.currency)
+  const estimatedStr = formatMoney(cost.costMinor, cost.currency);
+  const actualStr = cost.paidMinor !== null && cost.paidMinor !== undefined
+    ? formatMoney(cost.paidMinor, cost.currency)
     : null;
 
   // Home-currency equivalent
@@ -43,13 +43,13 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
     cost.currency.toUpperCase() !== homeCurrency.toUpperCase()
       ? {
           estimated: formatMoney(
-            convertMinor(cost.estimatedMinor, cost.currency, homeCurrency, rate),
+            convertMinor(cost.costMinor, cost.currency, homeCurrency, rate),
             homeCurrency,
           ),
           actual:
-            cost.actualMinor !== null && cost.actualMinor !== undefined
+            cost.paidMinor !== null && cost.paidMinor !== undefined
               ? formatMoney(
-                  convertMinor(cost.actualMinor, cost.currency, homeCurrency, rate),
+                  convertMinor(cost.paidMinor, cost.currency, homeCurrency, rate),
                   homeCurrency,
                 )
               : null,
@@ -68,7 +68,7 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
       <DollarSign className="size-3 shrink-0 text-primary/70" aria-hidden="true" />
 
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
-        {/* Estimated */}
+        {/* Cost */}
         <span className="font-medium text-foreground">
           {estimatedStr}
         </span>
@@ -78,7 +78,7 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
           </span>
         )}
 
-        {/* Actual (if present) */}
+        {/* Paid amount (if present) — badge sits beside the paid amount it confirms */}
         {actualStr && (
           <>
             <span className="text-muted-foreground/50">·</span>
@@ -89,7 +89,10 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
               )}
             >
               {isPaid && (
-                <CheckCircle2 className="size-3 shrink-0" aria-hidden="true" />
+                <CheckCircle2
+                  className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+                  aria-label="Paid"
+                />
               )}
               {actualStr}
               {homeEquiv?.actual && (
@@ -99,6 +102,14 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
               )}
             </span>
           </>
+        )}
+
+        {/* Legacy fallback: paid but no amount string to sit beside (pre-backfill rows) */}
+        {isPaid && !actualStr && (
+          <CheckCircle2
+            className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+            aria-label="Paid"
+          />
         )}
       </div>
     </div>

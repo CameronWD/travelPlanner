@@ -30,7 +30,7 @@ describe("phase trips", () => {
     const t = buildPastTrip(today);
     expect(computeTripPhase({ startDate: t.startDate, endDate: t.endDate, today })).toBe("past");
     const allCosts = [...t.costs, ...t.transports.flatMap((x) => x.cost ? [x.cost] : []), ...t.accommodations.flatMap((a) => a.cost ? [a.cost] : [])];
-    expect(allCosts.some((c) => c.paid && c.actualMinor != null)).toBe(true);
+    expect(allCosts.some((c) => c.paid && c.paidMinor != null)).toBe(true);
     expect((t.journal ?? []).length).toBeGreaterThanOrEqual(2);
   });
   it("across the four phase trips, transport modes include TRAIN, CAR, FERRY, BUS", () => {

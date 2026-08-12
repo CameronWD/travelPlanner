@@ -20,8 +20,15 @@ import { chapterIdForTransport, chapterForStop, chapterForDate, type ChapterLike
 
 export interface BudgetCost {
   id: string;
-  estimatedMinor: number;
-  actualMinor: number | null;
+  costMinor: number;
+  paidMinor: number | null;
+  /**
+   * When this cost was paid; null = not yet paid. This is the SOLE signal for
+   * "is this cost paid" everywhere in the app — `paidMinor` alone (with no
+   * date) is a legacy/incomplete row and must NOT be treated as paid. See
+   * ADR 0037 and the "Paid" entry in CONTEXT.md.
+   */
+  paidAt: Date | string | null;
   currency: string;
   /** Snapshot rate: 1 unit of cost.currency = rateToHome units of homeCurrency. */
   rateToHome: number | null;
@@ -80,35 +87,35 @@ export interface BudgetTransport {
 // ---------------------------------------------------------------------------
 
 export interface BudgetTotals {
-  estimatedMinor: number;
-  actualMinor: number;
+  costTotalMinor: number;
+  paidTotalMinor: number;
 }
 
 export interface BudgetByCategory {
   category: string;
-  estimatedMinor: number;
-  actualMinor: number;
+  costTotalMinor: number;
+  paidTotalMinor: number;
 }
 
 export interface BudgetByStop {
   stopId: string | null;
   stopName: string;
-  estimatedMinor: number;
-  actualMinor: number;
+  costTotalMinor: number;
+  paidTotalMinor: number;
 }
 
 export interface BudgetByDay {
   dateISO: string;
-  estimatedMinor: number;
-  actualMinor: number;
+  costTotalMinor: number;
+  paidTotalMinor: number;
 }
 
 export interface BudgetByChapter {
   chapterId: string;
   chapterName: string;
   colour: string;
-  estimatedMinor: number;
-  actualMinor: number;
+  costTotalMinor: number;
+  paidTotalMinor: number;
 }
 
 export interface BudgetResult {
@@ -153,11 +160,17 @@ export interface BudgetResult {
 // ---------------------------------------------------------------------------
 
 /**
- * Convert a single cost's estimated + actual amounts to home currency minor units.
+ * Convert a single cost's cost + paid amounts to home currency minor units.
  *
  * - Same currency as home → use amounts as-is (rate 1, no conversion).
  * - Foreign currency with a rate → convertMinor.
  * - Foreign currency with null rate → returns null (rate missing).
+ *
+ * `paidAt` is the sole signal for "is this cost paid" (ADR 0037 / CONTEXT.md
+ * "Paid"). A cost with a `paidMinor` but no `paidAt` is not paid — its
+ * `actualHome` is `null`, genuinely excluded, never a fabricated zero. Callers
+ * that sum `actualHome` across costs should treat `null` as "contributes
+ * nothing", exactly like a cost that was never marked paid.
  */
 export function convertCostToHome(
   cost: BudgetCost,
@@ -165,11 +178,12 @@ export function convertCostToHome(
 ): { estimatedHome: number | null; actualHome: number | null } {
   const from = cost.currency.toUpperCase();
   const home = homeCurrency.toUpperCase();
+  const paidMinor = cost.paidAt != null ? cost.paidMinor : null;
 
   if (from === home) {
     return {
-      estimatedHome: cost.estimatedMinor,
-      actualHome: cost.actualMinor ?? 0,
+      estimatedHome: cost.costMinor,
+      actualHome: paidMinor,
     };
   }
 
@@ -179,11 +193,8 @@ export function convertCostToHome(
 
   const rate = cost.rateToHome;
   return {
-    estimatedHome: convertMinor(cost.estimatedMinor, from, home, rate),
-    actualHome:
-      cost.actualMinor !== null && cost.actualMinor !== undefined
-        ? convertMinor(cost.actualMinor, from, home, rate)
-        : 0,
+    estimatedHome: convertMinor(cost.costMinor, from, home, rate),
+    actualHome: paidMinor !== null ? convertMinor(paidMinor, from, home, rate) : null,
   };
 }
 
@@ -196,9 +207,9 @@ export interface ExchangeRateInput { base: string; quote: string; rate: number; 
 /** Raw cost row as selected from the DB (COST_SELECT shape); ownerType is a free
  * string here and is narrowed to BudgetCost's union on the way out. */
 export interface RawCostInput {
-  id: string; estimatedMinor: number; actualMinor: number | null; currency: string;
+  id: string; costMinor: number; paidMinor: number | null; currency: string;
   rateToHome: number | null; ownerType: string; ownerId: string | null;
-  label: string | null; category: string | null;
+  label: string | null; category: string | null; paidAt: Date | string | null;
 }
 
 /**
@@ -538,12 +549,12 @@ export function buildBudget({
   // Assemble byCategory (sorted desc by estimated)
   // ---------------------------------------------------------------------------
   const byCategory: BudgetByCategory[] = Object.entries(categoryEstimated)
-    .map(([category, estimatedMinor]) => ({
+    .map(([category, costTotalMinor]) => ({
       category,
-      estimatedMinor,
-      actualMinor: categoryActual[category] ?? 0,
+      costTotalMinor,
+      paidTotalMinor: categoryActual[category] ?? 0,
     }))
-    .sort((a, b) => b.estimatedMinor - a.estimatedMinor);
+    .sort((a, b) => b.costTotalMinor - a.costTotalMinor);
 
   // ---------------------------------------------------------------------------
   // Assemble byStop (null stopId = "Trip-wide / Other")
@@ -557,8 +568,8 @@ export function buildBudget({
       byStop.push({
         stopId: stop.id,
         stopName: stop.name,
-        estimatedMinor: est,
-        actualMinor: stopActual[stop.id] ?? 0,
+        costTotalMinor: est,
+        paidTotalMinor: stopActual[stop.id] ?? 0,
       });
     }
   }
@@ -569,8 +580,8 @@ export function buildBudget({
     byStop.push({
       stopId: null,
       stopName: "Trip-wide / Other",
-      estimatedMinor: tripwideEst,
-      actualMinor: stopActual["___TRIPWIDE___"] ?? 0,
+      costTotalMinor: tripwideEst,
+      paidTotalMinor: stopActual["___TRIPWIDE___"] ?? 0,
     });
   }
 
@@ -579,8 +590,8 @@ export function buildBudget({
   // ---------------------------------------------------------------------------
   const byDay: BudgetByDay[] = tripDays.map((dateISO) => ({
     dateISO,
-    estimatedMinor: dayEstimated[dateISO] ?? 0,
-    actualMinor: dayActual[dateISO] ?? 0,
+    costTotalMinor: dayEstimated[dateISO] ?? 0,
+    paidTotalMinor: dayActual[dateISO] ?? 0,
   }));
 
   // ---------------------------------------------------------------------------
@@ -592,8 +603,8 @@ export function buildBudget({
       chapterId: ch.id,
       chapterName: ch.name,
       colour: ch.colour,
-      estimatedMinor: chapterAccEstimated[ch.id] ?? 0,
-      actualMinor: chapterAccActual[ch.id] ?? 0,
+      costTotalMinor: chapterAccEstimated[ch.id] ?? 0,
+      paidTotalMinor: chapterAccActual[ch.id] ?? 0,
     }));
 
   // ---------------------------------------------------------------------------
@@ -601,24 +612,24 @@ export function buildBudget({
   // ---------------------------------------------------------------------------
   const chapterReconciliation = {
     ungrouped: {
-      estimatedMinor: chapterAccEstimated[SENTINEL_UNGROUPED] ?? 0,
-      actualMinor: chapterAccActual[SENTINEL_UNGROUPED] ?? 0,
+      costTotalMinor: chapterAccEstimated[SENTINEL_UNGROUPED] ?? 0,
+      paidTotalMinor: chapterAccActual[SENTINEL_UNGROUPED] ?? 0,
     },
     betweenLegs: {
-      estimatedMinor: chapterAccEstimated[SENTINEL_BETWEEN_LEGS] ?? 0,
-      actualMinor: chapterAccActual[SENTINEL_BETWEEN_LEGS] ?? 0,
+      costTotalMinor: chapterAccEstimated[SENTINEL_BETWEEN_LEGS] ?? 0,
+      paidTotalMinor: chapterAccActual[SENTINEL_BETWEEN_LEGS] ?? 0,
     },
     otherCosts: {
-      estimatedMinor: chapterAccEstimated[SENTINEL_OTHER] ?? 0,
-      actualMinor: chapterAccActual[SENTINEL_OTHER] ?? 0,
+      costTotalMinor: chapterAccEstimated[SENTINEL_OTHER] ?? 0,
+      paidTotalMinor: chapterAccActual[SENTINEL_OTHER] ?? 0,
     },
   };
 
   return {
     homeCurrency,
     grandTotal: {
-      estimatedMinor: grandEstimated,
-      actualMinor: grandActual,
+      costTotalMinor: grandEstimated,
+      paidTotalMinor: grandActual,
     },
     byCategory,
     byStop,

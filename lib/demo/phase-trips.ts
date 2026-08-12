@@ -151,7 +151,7 @@ export function buildFinalPrepTrip(today: string): DemoTrip {
       reference: "Blue Mountains Line",
       notes: "Direct — 2h 5m. Buy Opal card at Central.",
       sortOrder: 0,
-      cost: { estimatedMinor: 860, currency: "AUD" },
+      cost: { costMinor: 860, currency: "AUD" },
     },
     {
       key: "fp:tr:katoomba-syd",
@@ -165,7 +165,7 @@ export function buildFinalPrepTrip(today: string): DemoTrip {
       arrAt: `${d.finalPrep.end}T19:01:00+10:00`,
       reference: "Blue Mountains Line",
       sortOrder: 1,
-      cost: { estimatedMinor: 860, currency: "AUD" },
+      cost: { costMinor: 860, currency: "AUD" },
     },
   ];
 
@@ -181,7 +181,7 @@ export function buildFinalPrepTrip(today: string): DemoTrip {
       lat: -33.6814,
       lng: 150.2827,
       notes: "Heritage hotel overlooking the Megalong Valley.",
-      cost: { estimatedMinor: 42000, currency: "AUD" },
+      cost: { costMinor: 42000, currency: "AUD" },
     },
   ];
 
@@ -210,7 +210,7 @@ export function buildFinalPrepTrip(today: string): DemoTrip {
       lat: -33.7274,
       lng: 150.3001,
       booking: "SW-2291",
-      cost: { estimatedMinor: 7400, currency: "AUD" },
+      cost: { costMinor: 7400, currency: "AUD" },
       sortOrder: 1,
     },
     {
@@ -352,7 +352,7 @@ export function buildTravellingTrip(today: string): DemoTrip {
       reference: "Airport Shuttle",
       notes: "Pre-booked shuttle to Torquay — pick up rental car on arrival.",
       sortOrder: 0,
-      cost: { estimatedMinor: 4500, currency: "AUD" },
+      cost: { costMinor: 4500, currency: "AUD" },
     },
     {
       // Long CAR drive on today: Torquay → Nelson (~291km straight-line)
@@ -394,7 +394,7 @@ export function buildTravellingTrip(today: string): DemoTrip {
       checkOut: today,
       lat: -38.3356,
       lng: 144.3278,
-      cost: { estimatedMinor: 22000, currency: "AUD" },
+      cost: { costMinor: 22000, currency: "AUD" },
     },
     {
       // Tonight's accommodation — at the drive's destination (Nelson).
@@ -407,7 +407,7 @@ export function buildTravellingTrip(today: string): DemoTrip {
       checkOut: addDays(today, 4),
       lat: -38.0436,
       lng: 141.0156,
-      cost: { estimatedMinor: 32000, currency: "AUD" },
+      cost: { costMinor: 32000, currency: "AUD" },
     },
   ];
 
@@ -465,7 +465,7 @@ export function buildTravellingTrip(today: string): DemoTrip {
       lat: -38.0100,
       lng: 141.0300,
       booking: "COOR-881",
-      cost: { estimatedMinor: 9500, currency: "AUD" },
+      cost: { costMinor: 9500, currency: "AUD" },
       sortOrder: 3,
     },
   ];
@@ -597,7 +597,7 @@ export function buildPastTrip(today: string): DemoTrip {
       reference: "Spirit of Tasmania I",
       notes: "Overnight crossing — cabin booked. ~11h.",
       sortOrder: 0,
-      cost: { estimatedMinor: 98000, actualMinor: 98000, currency: "AUD", paid: true },
+      cost: { costMinor: 98000, paidMinor: 98000, currency: "AUD", paid: true },
     },
     {
       key: "pa:tr:devonport-launceston",
@@ -673,7 +673,7 @@ export function buildPastTrip(today: string): DemoTrip {
       reference: "Spirit of Tasmania II",
       notes: "Return crossing.",
       sortOrder: 6,
-      cost: { estimatedMinor: 88000, actualMinor: 88000, currency: "AUD", paid: true },
+      cost: { costMinor: 88000, paidMinor: 88000, currency: "AUD", paid: true },
     },
   ];
 
@@ -687,7 +687,7 @@ export function buildPastTrip(today: string): DemoTrip {
       checkOut: addDays(d.past.start, 1),
       lat: -41.1789,
       lng: 146.3561,
-      cost: { estimatedMinor: 14000, actualMinor: 14000, currency: "AUD", paid: true },
+      cost: { costMinor: 14000, paidMinor: 14000, currency: "AUD", paid: true },
     },
     {
       key: "pa:acc:launceston-hotel",
@@ -699,7 +699,7 @@ export function buildPastTrip(today: string): DemoTrip {
       confirmation: "PSH-91041",
       lat: -41.4350,
       lng: 147.1384,
-      cost: { estimatedMinor: 57000, actualMinor: 57000, currency: "AUD", paid: true },
+      cost: { costMinor: 57000, paidMinor: 57000, currency: "AUD", paid: true },
     },
     {
       key: "pa:acc:hobart-salamanca",
@@ -711,7 +711,7 @@ export function buildPastTrip(today: string): DemoTrip {
       confirmation: "SI-30214",
       lat: -42.8830,
       lng: 147.3305,
-      cost: { estimatedMinor: 95000, actualMinor: 95000, currency: "AUD", paid: true },
+      cost: { costMinor: 95000, paidMinor: 95000, currency: "AUD", paid: true },
     },
     {
       key: "pa:acc:port-arthur-lodge",
@@ -722,7 +722,7 @@ export function buildPastTrip(today: string): DemoTrip {
       checkOut: addDays(d.past.start, 11),
       lat: -43.1460,
       lng: 147.8492,
-      cost: { estimatedMinor: 28000, actualMinor: 28000, currency: "AUD", paid: true },
+      cost: { costMinor: 28000, paidMinor: 28000, currency: "AUD", paid: true },
     },
     {
       key: "pa:acc:strahan-village",
@@ -734,7 +734,7 @@ export function buildPastTrip(today: string): DemoTrip {
       confirmation: "SV-51028",
       lat: -42.1540,
       lng: 145.3320,
-      cost: { estimatedMinor: 38000, actualMinor: 38000, currency: "AUD", paid: true },
+      cost: { costMinor: 38000, paidMinor: 38000, currency: "AUD", paid: true },
     },
     {
       key: "pa:acc:devonport-end-inn",
@@ -745,7 +745,7 @@ export function buildPastTrip(today: string): DemoTrip {
       checkOut: d.past.end,
       lat: -41.1789,
       lng: 146.3561,
-      cost: { estimatedMinor: 14000, actualMinor: 14000, currency: "AUD", paid: true },
+      cost: { costMinor: 14000, paidMinor: 14000, currency: "AUD", paid: true },
     },
   ];
 
@@ -772,7 +772,7 @@ export function buildPastTrip(today: string): DemoTrip {
       endTime: "14:00",
       lat: -42.8267,
       lng: 147.2824,
-      cost: { estimatedMinor: 3600, actualMinor: 3600, currency: "AUD" },
+      cost: { costMinor: 3600, paidMinor: 3600, currency: "AUD", paid: true },
       sortOrder: 1,
     },
     {
@@ -799,7 +799,7 @@ export function buildPastTrip(today: string): DemoTrip {
       lat: -42.1530,
       lng: 145.3315,
       booking: "GRC-5512",
-      cost: { estimatedMinor: 22000, actualMinor: 22000, currency: "AUD" },
+      cost: { costMinor: 22000, paidMinor: 22000, currency: "AUD", paid: true },
       sortOrder: 3,
     },
   ];
@@ -810,8 +810,8 @@ export function buildPastTrip(today: string): DemoTrip {
       label: "Rental car — 14 days",
       category: "Transport",
       currency: "AUD",
-      estimatedMinor: 85000,
-      actualMinor: 91500,
+      costMinor: 85000,
+      paidMinor: 91500,
       paid: true,
     },
     {
@@ -819,8 +819,8 @@ export function buildPastTrip(today: string): DemoTrip {
       label: "National park passes",
       category: "Entrance fees",
       currency: "AUD",
-      estimatedMinor: 7200,
-      actualMinor: 7200,
+      costMinor: 7200,
+      paidMinor: 7200,
       paid: true,
     },
     {
@@ -828,8 +828,8 @@ export function buildPastTrip(today: string): DemoTrip {
       label: "Meals & groceries",
       category: "Food",
       currency: "AUD",
-      estimatedMinor: 60000,
-      actualMinor: 67400,
+      costMinor: 60000,
+      paidMinor: 67400,
       paid: true,
     },
   ];

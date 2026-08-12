@@ -4,15 +4,15 @@ import { BudgetHeroRow } from "./budget-hero-row";
 
 describe("BudgetHeroRow", () => {
   const baseProps = {
-    estimatedMinor: 312000,
-    paidMinor: 184000,
+    costTotalMinor: 312000,
+    paidTotalMinor: 184000,
     homeCurrency: "JPY",
     tripNights: 10,
   };
 
-  it("renders the ESTIMATED TOTAL tile label and amount", () => {
+  it("renders the COST TOTAL tile label and amount", () => {
     render(<BudgetHeroRow {...baseProps} />);
-    expect(screen.getByText(/estimated total/i)).toBeInTheDocument();
+    expect(screen.getByText(/cost total/i)).toBeInTheDocument();
     // ¥312,000 (JPY is zero-decimal)
     expect(screen.getAllByText(/312,000/).length).toBeGreaterThan(0);
   });
@@ -23,30 +23,30 @@ describe("BudgetHeroRow", () => {
     expect(screen.getAllByText(/184,000/).length).toBeGreaterThan(0);
   });
 
-  it("renders the STILL TO PAY tile with estimated − paid", () => {
+  it("renders the STILL TO PAY tile with cost − paid", () => {
     render(<BudgetHeroRow {...baseProps} />);
     expect(screen.getByText(/still to pay/i)).toBeInTheDocument();
     // 312000 - 184000 = 128000
     expect(screen.getAllByText(/128,000/).length).toBeGreaterThan(0);
   });
 
-  it("renders the EST / DAY tile with a per-day estimate", () => {
+  it("renders the COST / DAY tile with a per-day cost", () => {
     render(<BudgetHeroRow {...baseProps} />);
-    expect(screen.getByText(/est\s*\/\s*day/i)).toBeInTheDocument();
+    expect(screen.getByText(/cost\s*\/\s*day/i)).toBeInTheDocument();
     // 312000 / 10 = 31200
     expect(screen.getAllByText(/31,200/).length).toBeGreaterThan(0);
   });
 
-  it("shows — for EST / DAY when tripNights is zero (no-dates guard)", () => {
+  it("shows — for COST / DAY when tripNights is zero (no-dates guard)", () => {
     render(<BudgetHeroRow {...baseProps} tripNights={0} />);
-    expect(screen.getByText(/est\s*\/\s*day/i)).toBeInTheDocument();
+    expect(screen.getByText(/cost\s*\/\s*day/i)).toBeInTheDocument();
     // Should show a dash/em-dash rather than a number
     expect(screen.getByTestId("est-per-day-value").textContent).toMatch(/^[—–-]$/);
   });
 
-  it("shows — for EST / DAY when tripNights is undefined", () => {
+  it("shows — for COST / DAY when tripNights is undefined", () => {
     render(<BudgetHeroRow {...baseProps} tripNights={undefined} />);
-    expect(screen.getByText(/est\s*\/\s*day/i)).toBeInTheDocument();
+    expect(screen.getByText(/cost\s*\/\s*day/i)).toBeInTheDocument();
     expect(screen.getByTestId("est-per-day-value").textContent).toMatch(/^[—–-]$/);
   });
 
@@ -56,7 +56,7 @@ describe("BudgetHeroRow", () => {
     expect(tabularEls.length).toBeGreaterThan(0);
   });
 
-  it("renders the spent/estimated progress bar", () => {
+  it("renders the paid/cost progress bar", () => {
     const { container } = render(<BudgetHeroRow {...baseProps} />);
     // Bar container should have bg-muted and inner bar bg-success
     expect(container.querySelector(".bg-success")).toBeInTheDocument();

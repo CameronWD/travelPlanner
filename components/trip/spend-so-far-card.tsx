@@ -11,10 +11,10 @@ interface SpendSoFarCardProps {
 }
 
 export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSoFarCardProps) {
-  const { estimatedTotalMinor, paidSoFarMinor, varianceMinor, estimatedRemainingMinor, tripElapsedPct } = spend;
+  const { costTotalMinor, paidSoFarMinor, varianceMinor, costRemainingMinor, tripElapsedPct } = spend;
 
   // Render a placeholder when there's no spend data at all
-  const noData = estimatedTotalMinor === 0 && paidSoFarMinor === 0;
+  const noData = costTotalMinor === 0 && paidSoFarMinor === 0;
   if (noData) {
     return compact ? null : (
       <EmptyState
@@ -27,12 +27,12 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
 
   if (compact) {
     const paid = formatMoney(paidSoFarMinor, homeCurrency);
-    const est = formatMoney(estimatedTotalMinor, homeCurrency);
+    const est = formatMoney(costTotalMinor, homeCurrency);
     const abs = varianceMinor !== 0 ? formatMoney(Math.abs(varianceMinor), homeCurrency) : null;
     const direction = varianceMinor > 0 ? "over" : "under";
     return (
       <p className="text-sm text-muted-foreground">
-        Paid {paid} of {est} est.{abs ? ` · ${abs} ${direction}` : ""}
+        Paid {paid} of {est} cost{abs ? ` · ${abs} ${direction}` : ""}
       </p>
     );
   }
@@ -48,11 +48,11 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
       </CardHeader>
       <CardContent>
         <div className="flex flex-col gap-3">
-          {/* Estimated total */}
+          {/* Cost total */}
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm text-muted-foreground min-w-0 truncate">Estimated total</span>
+            <span className="text-sm text-muted-foreground min-w-0 truncate">Cost total</span>
             <span className="tabular-nums font-medium">
-              {formatMoney(estimatedTotalMinor, homeCurrency)}
+              {formatMoney(costTotalMinor, homeCurrency)}
             </span>
           </div>
 
@@ -90,11 +90,11 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
             </div>
           </div>
 
-          {/* Estimated remaining */}
+          {/* Cost remaining */}
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm text-muted-foreground min-w-0 truncate">Est. remaining</span>
+            <span className="text-sm text-muted-foreground min-w-0 truncate">Cost remaining</span>
             <span className="tabular-nums font-medium">
-              {formatMoney(estimatedRemainingMinor, homeCurrency)}
+              {formatMoney(costRemainingMinor, homeCurrency)}
             </span>
           </div>
 

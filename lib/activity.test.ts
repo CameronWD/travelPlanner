@@ -110,33 +110,33 @@ describe("describeChanges STOP", () => {
 // ---------------------------------------------------------------------------
 
 describe("describeChanges COST", () => {
-  it("formats estimatedMinor with formatMoney using the row currency", () => {
+  it("formats costMinor with formatMoney using the row currency", () => {
     const changes = describeChanges(
       "COST",
-      { estimatedMinor: 1000, currency: "AUD" },
-      { estimatedMinor: 2500, currency: "AUD" },
+      { costMinor: 1000, currency: "AUD" },
+      { costMinor: 2500, currency: "AUD" },
     );
-    const est = changes.find((c) => c.field === "estimatedMinor");
+    const est = changes.find((c) => c.field === "costMinor");
     expect(est).toBeDefined();
     // A$10.00 → A$25.00 (en-AU locale)
     expect(est!.from).toContain("10.00");
     expect(est!.to).toContain("25.00");
   });
 
-  it("formats actualMinor with formatMoney using the row currency", () => {
+  it("formats paidMinor with formatMoney using the row currency", () => {
     const changes = describeChanges(
       "COST",
-      { actualMinor: 500, currency: "USD" },
-      { actualMinor: 750, currency: "USD" },
+      { paidMinor: 500, currency: "USD" },
+      { paidMinor: 750, currency: "USD" },
     );
-    const act = changes.find((c) => c.field === "actualMinor");
+    const act = changes.find((c) => c.field === "paidMinor");
     expect(act).toBeDefined();
     expect(act!.from).toContain("5.00");
     expect(act!.to).toContain("7.50");
   });
 
   it("returns [] when no COST fields changed", () => {
-    const row = { estimatedMinor: 1000, actualMinor: 500, currency: "AUD", category: "OTHER" };
+    const row = { costMinor: 1000, paidMinor: 500, currency: "AUD", category: "OTHER" };
     expect(describeChanges("COST", row, { ...row })).toHaveLength(0);
   });
 });

@@ -136,10 +136,11 @@ export default async function PrintPage({
         orderBy: { createdAt: "asc" },
         select: {
           id: true,
-          estimatedMinor: true,
-          actualMinor: true,
+          costMinor: true,
+          paidMinor: true,
           currency: true,
           rateToHome: true,
+          paidAt: true,
           ownerType: true,
           ownerId: true,
           label: true,
@@ -239,7 +240,7 @@ export default async function PrintPage({
 
   const totalNights = nightsBetween(startDate, endDate);
   const { grandTotal } = budget;
-  const hasActual = grandTotal.actualMinor > 0;
+  const hasActual = grandTotal.paidTotalMinor > 0;
 
   return (
     <>
@@ -514,22 +515,22 @@ export default async function PrintPage({
             <div className="flex flex-wrap gap-6 mb-4 pb-4 border-b border-border print:border-gray-200">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">
-                  {hasActual ? "Actual spend" : "Estimated budget"}
+                  {hasActual ? "Paid so far" : "Cost budget"}
                 </p>
                 <p className="font-mono text-2xl font-bold">
                   {formatMoney(
-                    hasActual ? grandTotal.actualMinor : grandTotal.estimatedMinor,
+                    hasActual ? grandTotal.paidTotalMinor : grandTotal.costTotalMinor,
                     homeCurrency,
                   )}
                 </p>
               </div>
-              {hasActual && grandTotal.estimatedMinor > 0 && (
+              {hasActual && grandTotal.costTotalMinor > 0 && (
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">
-                    Original estimate
+                    Original cost
                   </p>
                   <p className="font-mono text-2xl font-bold text-muted-foreground">
-                    {formatMoney(grandTotal.estimatedMinor, homeCurrency)}
+                    {formatMoney(grandTotal.costTotalMinor, homeCurrency)}
                   </p>
                 </div>
               )}
@@ -547,7 +548,7 @@ export default async function PrintPage({
                       <span className="text-muted-foreground">{bc.category}</span>
                       <span className="font-mono font-medium">
                         {formatMoney(
-                          hasActual && bc.actualMinor > 0 ? bc.actualMinor : bc.estimatedMinor,
+                          hasActual && bc.paidTotalMinor > 0 ? bc.paidTotalMinor : bc.costTotalMinor,
                           homeCurrency,
                         )}
                       </span>

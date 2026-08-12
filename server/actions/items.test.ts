@@ -999,7 +999,7 @@ describe("fork-silent: deleteItem in a fork does NOT record activity", () => {
 // ---------------------------------------------------------------------------
 
 describe("createItem: inline cost creation", () => {
-  it("creates a Cost with ownerType ITEM and the new item id when estimatedMinor+currency are provided", async () => {
+  it("creates a Cost with ownerType ITEM and the new item id when costMinor+currency are provided", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-cost-1", title: "Visit the Museum" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
@@ -1007,7 +1007,7 @@ describe("createItem: inline cost creation", () => {
 
     const result = await createItem("trip-1", {
       ...VALID_INPUT,
-      estimatedMinor: 12000,
+      costMinor: 12000,
       currency: "EUR",
     });
 
@@ -1027,7 +1027,7 @@ describe("createItem: inline cost creation", () => {
         data: expect.objectContaining({
           ownerType: "ITEM",
           ownerId: "item-cost-1",
-          estimatedMinor: 12000,
+          costMinor: 12000,
           currency: "EUR",
           rateToHome: 0.6,
         }),
@@ -1035,7 +1035,7 @@ describe("createItem: inline cost creation", () => {
     );
   });
 
-  it("does NOT create a Cost when no estimatedMinor is provided", async () => {
+  it("does NOT create a Cost when no costMinor is provided", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-no-cost", title: "Visit the Museum" });
 
@@ -1053,7 +1053,7 @@ describe("createItem: inline cost creation", () => {
 
     await createItem("trip-1", {
       ...VALID_INPUT,
-      estimatedMinor: 5000,
+      costMinor: 5000,
       currency: "AUD",
     });
 
@@ -1075,7 +1075,7 @@ describe("createItem: inline cost creation", () => {
 
     await createItem("trip-1", {
       ...VALID_INPUT,
-      estimatedMinor: 8000,
+      costMinor: 8000,
       currency: "USD",
     });
 
@@ -1092,7 +1092,7 @@ describe("createItem: inline cost creation", () => {
 // ---------------------------------------------------------------------------
 
 describe("updateItem: inline cost update/create", () => {
-  it("creates a Cost when item has 0 existing costs and estimatedMinor is provided", async () => {
+  it("creates a Cost when item has 0 existing costs and costMinor is provided", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "iu-1", tripId: "trip-1", forkId: null }) // requireItemAccess
       .mockResolvedValueOnce({ id: "iu-1", title: "Visit the Museum", category: "SIGHTSEEING" }); // before snapshot
@@ -1103,7 +1103,7 @@ describe("updateItem: inline cost update/create", () => {
 
     const result = await updateItem("iu-1", {
       ...VALID_INPUT,
-      estimatedMinor: 7500,
+      costMinor: 7500,
       currency: "EUR",
     });
 
@@ -1113,14 +1113,14 @@ describe("updateItem: inline cost update/create", () => {
         data: expect.objectContaining({
           ownerType: "ITEM",
           ownerId: "iu-1",
-          estimatedMinor: 7500,
+          costMinor: 7500,
           currency: "EUR",
         }),
       }),
     );
   });
 
-  it("updates the existing Cost when item has exactly 1 cost and estimatedMinor is provided", async () => {
+  it("updates the existing Cost when item has exactly 1 cost and costMinor is provided", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "iu-2", tripId: "trip-1", forkId: null }) // requireItemAccess
       .mockResolvedValueOnce({ id: "iu-2", title: "Visit the Museum", category: "SIGHTSEEING" }); // before snapshot
@@ -1133,7 +1133,7 @@ describe("updateItem: inline cost update/create", () => {
 
     const result = await updateItem("iu-2", {
       ...VALID_INPUT,
-      estimatedMinor: 9900,
+      costMinor: 9900,
       currency: "USD",
     });
 
@@ -1142,13 +1142,42 @@ describe("updateItem: inline cost update/create", () => {
       expect.objectContaining({
         where: { id: "existing-cost-1" },
         data: expect.objectContaining({
-          estimatedMinor: 9900,
+          costMinor: 9900,
           currency: "USD",
           rateToHome: 0.65,
         }),
       }),
     );
     expect(costCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("un-ticking Paid (paidMinor omitted) leaves the existing paid amount untouched rather than nulling it", async () => {
+    // CONTEXT.md "Paid": un-marking leaves the paid amount in place as
+    // history. The dialog now sends paidMinor: undefined (never null) when
+    // Paid is un-ticked — Prisma must not receive a `paidMinor` key at all
+    // here, or it would null out the existing amount on save.
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "iu-2b", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "iu-2b", title: "Visit the Museum", category: "SIGHTSEEING" });
+    itemUpdateMock.mockResolvedValue({ id: "iu-2b", title: "Visit the Museum", category: "SIGHTSEEING" });
+    costFindManyMock.mockResolvedValue([
+      { id: "existing-cost-2b", ownerType: "ITEM", ownerId: "iu-2b" },
+    ]);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.65, persist: null });
+
+    const result = await updateItem("iu-2b", {
+      ...VALID_INPUT,
+      costMinor: 9900,
+      currency: "USD",
+      paidMinor: undefined,
+      paidAt: null,
+    });
+
+    expect(result.success).toBe(true);
+    const call = costUpdateMock.mock.calls[0][0];
+    expect(call.data).not.toHaveProperty("paidMinor");
+    expect(call.data.paidAt).toBeNull();
   });
 
   it("does NOT touch any costs when item has >1 existing costs (CostEditor authoritative)", async () => {
@@ -1163,7 +1192,7 @@ describe("updateItem: inline cost update/create", () => {
 
     const result = await updateItem("iu-3", {
       ...VALID_INPUT,
-      estimatedMinor: 5000,
+      costMinor: 5000,
       currency: "AUD",
     });
 
@@ -1173,7 +1202,7 @@ describe("updateItem: inline cost update/create", () => {
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
-  it("does NOT create or update costs when estimatedMinor is absent (even with 0 existing costs)", async () => {
+  it("does NOT create or update costs when costMinor is absent (even with 0 existing costs)", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "iu-4", tripId: "trip-1", forkId: null }) // requireItemAccess
       .mockResolvedValueOnce({ id: "iu-4", title: "Visit the Museum", category: "SIGHTSEEING" }); // before snapshot

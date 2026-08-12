@@ -23,8 +23,8 @@ const baseProps = {
 
 const sampleCost: CostRow = {
   id: "cost-1",
-  estimatedMinor: 5000,
-  actualMinor: null,
+  costMinor: 5000,
+  paidMinor: null,
   currency: "AUD",
   rateToHome: 1,
   paidAt: null,
@@ -36,8 +36,8 @@ const sampleCost: CostRow = {
 
 const labeledCost: CostRow = {
   id: "cost-2",
-  estimatedMinor: 3500,
-  actualMinor: null,
+  costMinor: 3500,
+  paidMinor: null,
   currency: "AUD",
   rateToHome: 1,
   paidAt: null,
@@ -50,15 +50,15 @@ const labeledCost: CostRow = {
 describe("CostEditor", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("add flow: estimated only -> createCost called with estimatedMinor: 1250 and actualMinor: undefined", async () => {
+  it("add flow: cost only -> createCost called with costMinor: 1250 and paidMinor: undefined", async () => {
     const user = userEvent.setup();
     render(<CostEditor {...baseProps} />);
 
     // Open the add dialog
     await user.click(screen.getByRole("button", { name: /add cost/i }));
 
-    // Type in the estimated amount field
-    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    // Type in the cost amount field
+    const estimatedInput = screen.getByLabelText("Cost amount");
     await user.clear(estimatedInput);
     await user.type(estimatedInput, "12.50");
 
@@ -68,24 +68,27 @@ describe("CostEditor", () => {
     expect(createCost).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({
-        estimatedMinor: 1250,
-        actualMinor: undefined,
+        costMinor: 1250,
+        paidMinor: undefined,
         currency: "AUD",
       }),
     );
   });
 
-  it("typing both estimated and actual produces both as minor units in createCost payload", async () => {
+  it("typing both cost and paid amounts produces both as minor units in createCost payload", async () => {
     const user = userEvent.setup();
     render(<CostEditor {...baseProps} />);
 
     await user.click(screen.getByRole("button", { name: /add cost/i }));
 
-    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    const estimatedInput = screen.getByLabelText("Cost amount");
     await user.clear(estimatedInput);
     await user.type(estimatedInput, "50.00");
 
-    const actualInput = screen.getByLabelText("Actual cost amount");
+    // The paid amount field is hidden until Paid is ticked (ADR 0037).
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+
+    const actualInput = screen.getByLabelText("You paid amount");
     await user.clear(actualInput);
     await user.type(actualInput, "48.75");
 
@@ -94,8 +97,8 @@ describe("CostEditor", () => {
     expect(createCost).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({
-        estimatedMinor: 5000,
-        actualMinor: 4875,
+        costMinor: 5000,
+        paidMinor: 4875,
       }),
     );
   });
@@ -123,8 +126,8 @@ describe("CostEditor", () => {
     // Click the edit (pencil) button on the existing cost row
     await user.click(screen.getByRole("button", { name: /edit cost/i }));
 
-    // The estimated field should be prefilled from sampleCost.estimatedMinor = 5000 -> "50.00"
-    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    // The cost field should be prefilled from sampleCost.costMinor = 5000 -> "50.00"
+    const estimatedInput = screen.getByLabelText("Cost amount");
     expect(estimatedInput).toHaveValue("50.00");
 
     // Submit without changes
@@ -133,27 +136,37 @@ describe("CostEditor", () => {
     expect(updateCost).toHaveBeenCalledWith(
       "cost-1",
       expect.objectContaining({
-        estimatedMinor: 5000,
+        costMinor: 5000,
         currency: "AUD",
       }),
     );
   });
 
-  it("a field error (estimatedMinor) sets aria-invalid on the estimated field and renders via Field error slot", async () => {
-    (createCost as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      success: false,
-      errors: { estimatedMinor: ["Amount is required"] },
-    });
-
+  it("a blank cost amount surfaces a field error without ever calling createCost", async () => {
     const user = userEvent.setup();
     render(<CostEditor {...baseProps} />);
 
     await user.click(screen.getByRole("button", { name: /add cost/i }));
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(await screen.findByText("Amount is required")).toBeInTheDocument();
-    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    expect(await screen.findByText("Enter the cost")).toBeInTheDocument();
+    const estimatedInput = screen.getByLabelText("Cost amount");
     expect(estimatedInput).toHaveAttribute("aria-invalid", "true");
+    // The blank amount must never reach the server as a coerced 0.
+    expect(createCost).not.toHaveBeenCalled();
+  });
+
+  it("an unparseable cost amount ($150.00) surfaces a field error without calling createCost", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    const estimatedInput = screen.getByLabelText("Cost amount");
+    await user.type(estimatedInput, "$150.00");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByText("Enter the cost")).toBeInTheDocument();
+    expect(createCost).not.toHaveBeenCalled();
   });
 
   it("a _form error appears with role=alert via FormError", async () => {
@@ -167,7 +180,7 @@ describe("CostEditor", () => {
 
     await user.click(screen.getByRole("button", { name: /add cost/i }));
 
-    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    const estimatedInput = screen.getByLabelText("Cost amount");
     await user.clear(estimatedInput);
     await user.type(estimatedInput, "10.00");
 

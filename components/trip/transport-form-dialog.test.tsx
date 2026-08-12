@@ -342,21 +342,21 @@ describe("TransportFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 11: Estimated cost field is rendered
+  // Case 11: Cost field is rendered
   // -------------------------------------------------------------------------
-  it("renders an Estimated cost field", () => {
+  it("renders a Cost field", () => {
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
-    expect(screen.getByLabelText(/estimated cost amount/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^cost amount$/i)).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
-  // Case 12: filling estimated amount sends it in the payload
+  // Case 12: filling the cost amount sends it in the payload
   // -------------------------------------------------------------------------
-  it("submitting with an estimated amount sends estimatedMinor and currency in the payload", async () => {
+  it("submitting with a cost amount sends costMinor and currency in the payload", async () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
 
-    const amountInput = screen.getByLabelText(/estimated cost amount/i);
+    const amountInput = screen.getByLabelText(/^cost amount$/i);
     await user.type(amountInput, "120.50");
 
     await user.click(screen.getByRole("button", { name: /add transport/i }));
@@ -364,7 +364,7 @@ describe("TransportFormDialog", () => {
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({
-        estimatedMinor: 12050,
+        costMinor: 12050,
         currency: "AUD",
       }),
       undefined,
@@ -372,9 +372,9 @@ describe("TransportFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 13: no estimatedMinor when amount field is empty
+  // Case 13: no costMinor when amount field is empty
   // -------------------------------------------------------------------------
-  it("does NOT include estimatedMinor in the payload when the amount field is empty", async () => {
+  it("does NOT include costMinor in the payload when the amount field is empty", async () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
 
@@ -382,7 +382,7 @@ describe("TransportFormDialog", () => {
 
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
-      expect.not.objectContaining({ estimatedMinor: expect.anything() }),
+      expect.not.objectContaining({ costMinor: expect.anything() }),
       undefined,
     );
   });
@@ -390,12 +390,12 @@ describe("TransportFormDialog", () => {
   // -------------------------------------------------------------------------
   // Case 14: edit mode prefills cost fields from single existing cost
   // -------------------------------------------------------------------------
-  it("in edit mode, prefills the estimated amount from the single existing cost", () => {
+  it("in edit mode, prefills the cost amount from the single existing cost", () => {
     const costs = [
       {
         id: "cost-1",
-        estimatedMinor: 9900,
-        actualMinor: null,
+        costMinor: 9900,
+        paidMinor: null,
         currency: "EUR",
         rateToHome: 0.6,
         paidAt: null,
@@ -416,7 +416,249 @@ describe("TransportFormDialog", () => {
     );
 
     // 9900 minor EUR = 99.00
-    expect(screen.getByLabelText(/estimated cost amount/i)).toHaveValue("99.00");
+    expect(screen.getByLabelText(/^cost amount$/i)).toHaveValue("99.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14b: editing a cost that's already paid opens with the box ticked
+  // -------------------------------------------------------------------------
+  it("opens with the Paid box ticked when editing a cost that has already been paid", () => {
+    const costs = [
+      {
+        id: "cost-1",
+        costMinor: 9900,
+        paidMinor: 9900,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: new Date("2026-07-02"),
+        ownerType: "TRANSPORT",
+        ownerId: "transport-99",
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={existingTransport}
+        homeCurrency="AUD"
+        costs={costs}
+      />,
+    );
+
+    expect(screen.getByRole("checkbox", { name: /paid/i })).toBeChecked();
+    expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("99.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14c: un-ticking Paid clears the paid date but must NEVER clear the
+  // paid amount — it survives as history so re-ticking can offer back what
+  // was actually paid (CONTEXT.md "Paid"). paidMinor is omitted (undefined)
+  // rather than sent as null, so the server leaves the existing amount alone.
+  // -------------------------------------------------------------------------
+  it("un-ticking Paid clears the paid date but preserves the paid amount", async () => {
+    const user = userEvent.setup();
+    const costs = [
+      {
+        id: "cost-1",
+        costMinor: 9900,
+        paidMinor: 9900,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: new Date("2026-07-02"),
+        ownerType: "TRANSPORT",
+        ownerId: "transport-99",
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={existingTransport}
+        homeCurrency="AUD"
+        costs={costs}
+      />,
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateTransport).toHaveBeenCalledWith(
+      "transport-99",
+      expect.objectContaining({
+        paidMinor: undefined,
+        paidAt: null,
+      }),
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14d: ticking Paid then clearing the amount must not submit a date
+  // with no amount (review finding — was previously gated on the checkbox
+  // alone, not on the amount actually being present)
+  // -------------------------------------------------------------------------
+  it("clearing the paid amount after ticking Paid does not submit a paidAt with a null paidMinor", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    const costInput = screen.getByLabelText(/^cost amount$/i);
+    await user.type(costInput, "100");
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    const paidInput = screen.getByLabelText(/you paid amount/i);
+    await user.clear(paidInput);
+
+    await user.click(screen.getByRole("button", { name: /add transport/i }));
+
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({
+        paidMinor: undefined,
+        paidAt: null,
+      }),
+      undefined,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14e: clearing the paid date while an amount remains sends
+  // `paidAt: null` rather than fabricating a date — the invariant is
+  // one-directional (a date requires an amount; an amount with no date is a
+  // legal, honest, incomplete record) (review round 2 — reverses round 1's
+  // "keep pairing strict" fix, which invented dates the user never saw)
+  // -------------------------------------------------------------------------
+  it("clearing the paid date while a paid amount remains sends paidAt: null instead of fabricating a date", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    const costInput = screen.getByLabelText(/^cost amount$/i);
+    await user.type(costInput, "100");
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    const dateInput = screen.getByLabelText(/date paid/i);
+    await user.clear(dateInput);
+
+    await user.click(screen.getByRole("button", { name: /add transport/i }));
+
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({
+        paidMinor: 10000,
+        paidAt: null,
+      }),
+      undefined,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14g: an unparseable-but-non-empty paid amount (e.g. pasted with a
+  // currency symbol) must not leak a paidAt through with a null paidMinor
+  // (review round 2 — the guard must check the amount actually *parses*,
+  // not just that the text field is non-blank)
+  // -------------------------------------------------------------------------
+  it("an unparseable paid amount does not submit a paidAt with a null paidMinor", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    const costInput = screen.getByLabelText(/^cost amount$/i);
+    await user.type(costInput, "100");
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    const paidInput = screen.getByLabelText(/you paid amount/i);
+    await user.clear(paidInput);
+    await user.type(paidInput, "$150.00");
+
+    await user.click(screen.getByRole("button", { name: /add transport/i }));
+
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({
+        paidMinor: undefined,
+        paidAt: null,
+      }),
+      undefined,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14f: `paidAt` is the SOLE "is this paid" signal (CONTEXT.md "Paid").
+  // A legacy cost with a paid amount but no paid date is NOT paid, and must
+  // open with the box unticked.
+  // -------------------------------------------------------------------------
+  it("does not open with the Paid box ticked when editing a legacy cost that has an amount but no paid date", () => {
+    const costs = [
+      {
+        id: "cost-1",
+        costMinor: 9900,
+        paidMinor: 9900,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: null,
+        ownerType: "TRANSPORT",
+        ownerId: "transport-99",
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={existingTransport}
+        homeCurrency="AUD"
+        costs={costs}
+      />,
+    );
+
+    expect(screen.getByRole("checkbox", { name: /paid/i })).not.toBeChecked();
+    expect(screen.queryByLabelText(/you paid amount/i)).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14h: resaving a legacy amount-only cost untouched leaves it unpaid
+  // and must not clear the paid amount — paidMinor is omitted (undefined),
+  // never resent or nulled, so the existing amount survives as history
+  // (review round 2 — Important 2 origin: don't fabricate a date the user
+  // never saw into a financial record).
+  // -------------------------------------------------------------------------
+  it("saving a legacy amount-only cost without touching payment fields leaves it unpaid and does not clear the amount", async () => {
+    const user = userEvent.setup();
+    const costs = [
+      {
+        id: "cost-1",
+        costMinor: 9900,
+        paidMinor: 9900,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: null,
+        ownerType: "TRANSPORT",
+        ownerId: "transport-99",
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={existingTransport}
+        homeCurrency="AUD"
+        costs={costs}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateTransport).toHaveBeenCalledWith(
+      "transport-99",
+      expect.objectContaining({
+        paidMinor: undefined,
+        paidAt: null,
+      }),
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -426,8 +668,8 @@ describe("TransportFormDialog", () => {
     const costs = [
       {
         id: "cost-1",
-        estimatedMinor: 5000,
-        actualMinor: null,
+        costMinor: 5000,
+        paidMinor: null,
         currency: "AUD",
         rateToHome: 1,
         paidAt: null,
@@ -438,8 +680,8 @@ describe("TransportFormDialog", () => {
       },
       {
         id: "cost-2",
-        estimatedMinor: 3000,
-        actualMinor: null,
+        costMinor: 3000,
+        paidMinor: null,
         currency: "AUD",
         rateToHome: 1,
         paidAt: null,
@@ -459,7 +701,7 @@ describe("TransportFormDialog", () => {
       />,
     );
 
-    expect(screen.queryByLabelText(/estimated cost amount/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^cost amount$/i)).not.toBeInTheDocument();
   });
 });
 

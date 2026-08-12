@@ -12,8 +12,8 @@ import { VariantBanner } from "@/components/trip/variant-banner";
 
 const COST_SELECT = {
   id: true,
-  estimatedMinor: true,
-  actualMinor: true,
+  costMinor: true,
+  paidMinor: true,
   currency: true,
   rateToHome: true,
   paidAt: true,

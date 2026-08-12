@@ -566,7 +566,7 @@ describe("fork-silent: deleteAccommodation in a fork does NOT record activity", 
 // ---------------------------------------------------------------------------
 
 describe("createAccommodation: inline cost creation", () => {
-  it("creates a Cost with ownerType ACCOMMODATION and the new accommodation id when estimatedMinor+currency are provided", async () => {
+  it("creates a Cost with ownerType ACCOMMODATION and the new accommodation id when costMinor+currency are provided", async () => {
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
     accCreateMock.mockResolvedValue({ id: "acc-cost-1", name: "Grand Hotel" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
@@ -574,7 +574,7 @@ describe("createAccommodation: inline cost creation", () => {
 
     const result = await createAccommodation({
       ...VALID_INPUT,
-      estimatedMinor: 15000,
+      costMinor: 15000,
       currency: "EUR",
     });
 
@@ -598,7 +598,7 @@ describe("createAccommodation: inline cost creation", () => {
         data: expect.objectContaining({
           ownerType: "ACCOMMODATION",
           ownerId: "acc-cost-1",
-          estimatedMinor: 15000,
+          costMinor: 15000,
           currency: "EUR",
           rateToHome: 0.6,
         }),
@@ -606,7 +606,7 @@ describe("createAccommodation: inline cost creation", () => {
     );
   });
 
-  it("does NOT create a Cost when no estimatedMinor is provided", async () => {
+  it("does NOT create a Cost when no costMinor is provided", async () => {
     stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
     accCreateMock.mockResolvedValue({ id: "acc-no-cost", name: "Grand Hotel" });
 
@@ -627,7 +627,7 @@ describe("createAccommodation: inline cost creation", () => {
 
     await createAccommodation({
       ...VALID_INPUT,
-      estimatedMinor: 8000,
+      costMinor: 8000,
       currency: "USD",
     });
 
@@ -644,7 +644,7 @@ describe("createAccommodation: inline cost creation", () => {
 // ---------------------------------------------------------------------------
 
 describe("updateAccommodation: inline cost update/create", () => {
-  it("creates a Cost when accommodation has 0 existing costs and estimatedMinor is provided", async () => {
+  it("creates a Cost when accommodation has 0 existing costs and costMinor is provided", async () => {
     accFindUniqueMock
       .mockResolvedValueOnce({ id: "au-1", tripId: "trip-1", forkId: null }) // requireAccommodationAccess
       .mockResolvedValueOnce({ id: "au-1", name: "Grand Hotel" }); // before snapshot
@@ -656,7 +656,7 @@ describe("updateAccommodation: inline cost update/create", () => {
 
     const result = await updateAccommodation("au-1", {
       ...VALID_INPUT,
-      estimatedMinor: 7500,
+      costMinor: 7500,
       currency: "EUR",
     });
 
@@ -666,14 +666,14 @@ describe("updateAccommodation: inline cost update/create", () => {
         data: expect.objectContaining({
           ownerType: "ACCOMMODATION",
           ownerId: "au-1",
-          estimatedMinor: 7500,
+          costMinor: 7500,
           currency: "EUR",
         }),
       }),
     );
   });
 
-  it("updates the existing Cost when accommodation has exactly 1 cost and estimatedMinor is provided", async () => {
+  it("updates the existing Cost when accommodation has exactly 1 cost and costMinor is provided", async () => {
     accFindUniqueMock
       .mockResolvedValueOnce({ id: "au-2", tripId: "trip-1", forkId: null }) // requireAccommodationAccess
       .mockResolvedValueOnce({ id: "au-2", name: "Grand Hotel" }); // before snapshot
@@ -687,7 +687,7 @@ describe("updateAccommodation: inline cost update/create", () => {
 
     const result = await updateAccommodation("au-2", {
       ...VALID_INPUT,
-      estimatedMinor: 9900,
+      costMinor: 9900,
       currency: "USD",
     });
 
@@ -696,13 +696,70 @@ describe("updateAccommodation: inline cost update/create", () => {
       expect.objectContaining({
         where: { id: "existing-cost-1" },
         data: expect.objectContaining({
-          estimatedMinor: 9900,
+          costMinor: 9900,
           currency: "USD",
           rateToHome: 0.65,
         }),
       }),
     );
     expect(costCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("un-ticking Paid (paidMinor omitted) leaves the existing paid amount untouched rather than nulling it", async () => {
+    // CONTEXT.md "Paid": un-marking leaves the paid amount in place as
+    // history. The dialog now sends paidMinor: undefined (never null) when
+    // Paid is un-ticked — Prisma must not receive a `paidMinor` key at all
+    // here, or it would null out the existing amount on save.
+    accFindUniqueMock
+      .mockResolvedValueOnce({ id: "au-2b", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "au-2b", name: "Grand Hotel" });
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    accUpdateMock.mockResolvedValue({ id: "au-2b", name: "Grand Hotel" });
+    costFindManyMock.mockResolvedValue([
+      { id: "existing-cost-2b", ownerType: "ACCOMMODATION", ownerId: "au-2b" },
+    ]);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.65, persist: null });
+
+    const result = await updateAccommodation("au-2b", {
+      ...VALID_INPUT,
+      costMinor: 9900,
+      currency: "USD",
+      paidMinor: undefined,
+      paidAt: null,
+    });
+
+    expect(result.success).toBe(true);
+    const call = costUpdateMock.mock.calls[0][0];
+    expect(call.data).not.toHaveProperty("paidMinor");
+    expect(call.data.paidAt).toBeNull();
+  });
+
+  it("re-ticking Paid (paidMinor provided) writes the new paid amount", async () => {
+    accFindUniqueMock
+      .mockResolvedValueOnce({ id: "au-2c", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "au-2c", name: "Grand Hotel" });
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    accUpdateMock.mockResolvedValue({ id: "au-2c", name: "Grand Hotel" });
+    costFindManyMock.mockResolvedValue([
+      { id: "existing-cost-2c", ownerType: "ACCOMMODATION", ownerId: "au-2c" },
+    ]);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.65, persist: null });
+
+    await updateAccommodation("au-2c", {
+      ...VALID_INPUT,
+      costMinor: 9900,
+      currency: "USD",
+      paidMinor: 9900,
+      paidAt: "2026-07-02",
+    });
+
+    expect(costUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ paidMinor: 9900 }),
+      }),
+    );
   });
 
   it("does NOT touch any costs when accommodation has >1 existing costs (CostEditor authoritative)", async () => {
@@ -718,7 +775,7 @@ describe("updateAccommodation: inline cost update/create", () => {
 
     const result = await updateAccommodation("au-3", {
       ...VALID_INPUT,
-      estimatedMinor: 5000,
+      costMinor: 5000,
       currency: "AUD",
     });
 
@@ -729,7 +786,7 @@ describe("updateAccommodation: inline cost update/create", () => {
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
-  it("does NOT create/update a Cost when estimatedMinor is not provided (no cost fields)", async () => {
+  it("does NOT create/update a Cost when costMinor is not provided (no cost fields)", async () => {
     accFindUniqueMock
       .mockResolvedValueOnce({ id: "au-4", tripId: "trip-1", forkId: null }) // requireAccommodationAccess
       .mockResolvedValueOnce({ id: "au-4", name: "Grand Hotel" }); // before snapshot

@@ -5,7 +5,7 @@
  *
  * Rules (compare with buildDuplicatePlan in duplicate-trip.ts):
  *   KEEP  — dates, pinned, accommodations, estimated Costs, rateToHome
- *   DROP  — paidAt, actualMinor from Costs; votes/notes/attachments (trip-wide)
+ *   DROP  — paidAt, paidMinor from Costs; votes/notes/attachments (trip-wide)
  *   NULL  — sourceItemId (items) and ownerId (costs, remapped by the tx)
  *
  * No db, no id minting, no network — Task 7's server action mints ids and
@@ -100,8 +100,8 @@ export interface ForkSourceItem {
 
 export interface ForkSourceCost {
   id: string;
-  estimatedMinor: number;
-  actualMinor: number | null;
+  costMinor: number;
+  paidMinor: number | null;
   currency: string;
   rateToHome: number | null;
   paidAt: Date | null;
@@ -206,8 +206,8 @@ export interface ForkPlan {
     sourceOwnerType: string;
     sourceOwnerId: string | null;
     data: {
-      estimatedMinor: number;
-      actualMinor: null;
+      costMinor: number;
+      paidMinor: null;
       currency: string;
       rateToHome: number | null;
       paidAt: null;
@@ -264,7 +264,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
     costs: source.costs.map((c) => ({
       sourceOwnerType: c.ownerType, sourceOwnerId: c.ownerId,
       data: {
-        estimatedMinor: c.estimatedMinor, actualMinor: null, currency: c.currency, rateToHome: c.rateToHome,
+        costMinor: c.costMinor, paidMinor: null, currency: c.currency, rateToHome: c.rateToHome,
         paidAt: null, ownerType: c.ownerType, ownerId: null /* remapped in tx */, label: c.label, category: c.category,
       },
     })),

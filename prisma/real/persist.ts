@@ -145,7 +145,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
       await db.cost.create({
         data: {
           tripId, ownerType: "TRANSPORT", ownerId: dbT.id,
-          estimatedMinor: t.cost.estimatedMinor, actualMinor: t.cost.actualMinor ?? null,
+          costMinor: t.cost.costMinor, paidMinor: t.cost.paidMinor ?? null,
           currency: t.cost.currency, rateToHome: rateToHome(t.cost.currency),
           paidAt: paidAt(t.cost.paid), category: t.cost.category ?? null,
         },
@@ -169,7 +169,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
       await db.cost.create({
         data: {
           tripId, ownerType: "ACCOMMODATION", ownerId: dbA.id,
-          estimatedMinor: a.cost.estimatedMinor, actualMinor: a.cost.actualMinor ?? null,
+          costMinor: a.cost.costMinor, paidMinor: a.cost.paidMinor ?? null,
           currency: a.cost.currency, rateToHome: rateToHome(a.cost.currency),
           paidAt: paidAt(a.cost.paid), category: a.cost.category ?? null,
         },
@@ -194,7 +194,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
       await db.cost.create({
         data: {
           tripId, ownerType: "ITEM", ownerId: dbItem.id,
-          estimatedMinor: it.cost.estimatedMinor, actualMinor: it.cost.actualMinor ?? null,
+          costMinor: it.cost.costMinor, paidMinor: it.cost.paidMinor ?? null,
           currency: it.cost.currency, rateToHome: rateToHome(it.cost.currency),
           paidAt: paidAt(it.cost.paid), category: it.cost.category ?? null,
         },
@@ -211,7 +211,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
     await db.cost.create({
       data: {
         tripId, ownerType: c.ownerType, ownerId,
-        estimatedMinor: c.estimatedMinor, actualMinor: c.actualMinor ?? null,
+        costMinor: c.costMinor, paidMinor: c.paidMinor ?? null,
         currency: c.currency, rateToHome: rateToHome(c.currency),
         paidAt: paidAt(c.paid), label: c.label ?? null, category: c.category ?? null,
       },

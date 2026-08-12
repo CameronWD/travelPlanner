@@ -22,6 +22,7 @@ import type { SpendCost } from "@/lib/spend-so-far";
 import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
 import { todayISO, nightsBetween } from "@/lib/dates";
 import { BudgetHeroRow } from "@/components/trip/budget-hero-row";
+import { CostChecklist, type CostChecklistRow } from "@/components/trip/cost-checklist";
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -29,8 +30,8 @@ import { BudgetHeroRow } from "@/components/trip/budget-hero-row";
 
 const COST_SELECT = {
   id: true,
-  estimatedMinor: true,
-  actualMinor: true,
+  costMinor: true,
+  paidMinor: true,
   currency: true,
   rateToHome: true,
   paidAt: true,
@@ -93,15 +94,15 @@ export default async function BudgetPage({
     }),
     db.item.findMany({
       where: { tripId, forkId: null },
-      select: { id: true, stopId: true, category: true, date: true },
+      select: { id: true, stopId: true, category: true, date: true, title: true },
     }),
     db.accommodation.findMany({
       where: { tripId, forkId: null },
-      select: { id: true, stopId: true, checkIn: true, checkOut: true },
+      select: { id: true, stopId: true, checkIn: true, checkOut: true, name: true },
     }),
     db.transport.findMany({
       where: { tripId, forkId: null },
-      select: { id: true, fromStopId: true, toStopId: true, depAt: true },
+      select: { id: true, fromStopId: true, toStopId: true, depAt: true, mode: true },
     }),
     db.exchangeRate.findMany({
       where: { tripId },
@@ -119,11 +120,42 @@ export default async function BudgetPage({
   // Separate OTHER costs for the editor
   const otherCosts = allCosts.filter((c) => c.ownerType === "OTHER");
 
+  const stopName = new Map(stops.map((s) => [s.id, s.name] as const));
+
+  /** Transport has no name — label it by mode, with endpoints when they resolve. */
+  function transportLabel(t: {
+    mode: string;
+    fromStopId: string | null;
+    toStopId: string | null;
+  }): string {
+    const mode = t.mode.charAt(0).toUpperCase() + t.mode.slice(1).toLowerCase();
+    const from = t.fromStopId ? stopName.get(t.fromStopId) : null;
+    const to = t.toStopId ? stopName.get(t.toStopId) : null;
+    if (from && to) return `${mode} · ${from} → ${to}`;
+    return mode;
+  }
+
+  const ownerName = new Map<string, string>([
+    ...accommodations.map((a) => [a.id, a.name] as const),
+    ...transports.map((t) => [t.id, transportLabel(t)] as const),
+    ...items.map((i) => [i.id, i.title] as const),
+  ]);
+
+  const checklistRows: CostChecklistRow[] = allCosts.map((c) => ({
+    id: c.id,
+    label: c.label ?? ownerName.get(c.ownerId ?? "") ?? "Cost",
+    costMinor: c.costMinor,
+    paidMinor: c.paidMinor,
+    currency: c.currency,
+    paidAt: c.paidAt,
+  }));
+
   // Build budget input
   const budgetCosts: BudgetCost[] = allCosts.map((c) => ({
     id: c.id,
-    estimatedMinor: c.estimatedMinor,
-    actualMinor: c.actualMinor,
+    costMinor: c.costMinor,
+    paidMinor: c.paidMinor,
+    paidAt: c.paidAt,
     currency: c.currency,
     rateToHome: c.rateToHome,
     ownerType: c.ownerType as BudgetCost["ownerType"],
@@ -178,8 +210,8 @@ export default async function BudgetPage({
   // Build SpendCost[] — same as budgetCosts but with paidAt from allCosts
   const spendCosts: SpendCost[] = allCosts.map((c) => ({
     id: c.id,
-    estimatedMinor: c.estimatedMinor,
-    actualMinor: c.actualMinor,
+    costMinor: c.costMinor,
+    paidMinor: c.paidMinor,
     currency: c.currency,
     rateToHome: c.rateToHome,
     ownerType: c.ownerType as SpendCost["ownerType"],
@@ -234,7 +266,7 @@ export default async function BudgetPage({
 
   // Per-day data — only days with non-zero costs for the compact strip
   const daysWithCosts = budget.byDay.filter(
-    (d) => d.estimatedMinor > 0 || d.actualMinor > 0,
+    (d) => d.costTotalMinor > 0 || d.paidTotalMinor > 0,
   );
 
   // Build per-row missing-rate indicators: which categories have costs whose
@@ -290,10 +322,10 @@ export default async function BudgetPage({
         </div>
       )}
 
-      {/* 4-up hero: Estimated total · Paid · Still to pay · Est / day */}
+      {/* 4-up hero: Cost total · Paid · Still to pay · Cost / day */}
       <BudgetHeroRow
-        estimatedMinor={budget.grandTotal.estimatedMinor}
-        paidMinor={spend.paidSoFarMinor}
+        costTotalMinor={budget.grandTotal.costTotalMinor}
+        paidTotalMinor={spend.paidSoFarMinor}
         homeCurrency={homeCurrency}
         tripNights={nightsBetween(startDate, endDate)}
       />
@@ -301,10 +333,10 @@ export default async function BudgetPage({
       {/* Spend so far card */}
       <SpendSoFarCard spend={spend} homeCurrency={homeCurrency} />
 
-      {/* Legend for the estimated-vs-spent columns shown in the sections below */}
+      {/* Legend for the cost-vs-paid columns shown in the sections below */}
       <div className="flex items-center justify-end gap-4 px-1 text-xs text-muted-foreground">
-        <span>Estimated</span>
-        <span className="text-emerald-600 dark:text-emerald-400">Spent</span>
+        <span>Cost</span>
+        <span className="text-emerald-600 dark:text-emerald-400">Paid</span>
       </div>
 
       {/* Two-column grid: main roll-up | right rail (rates + other costs) */}
@@ -312,6 +344,18 @@ export default async function BudgetPage({
 
         {/* ── Main column ── */}
         <div className="flex flex-col gap-6 lg:order-1">
+
+          {/* Mark off what you've paid */}
+          {checklistRows.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Mark off what you&apos;ve paid</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CostChecklist rows={checklistRows} />
+              </CardContent>
+            </Card>
+          )}
 
           {/* By category */}
           {budget.byCategory.length > 0 && (
@@ -323,8 +367,8 @@ export default async function BudgetPage({
                 <div className="flex flex-col gap-3">
                   {budget.byCategory.map((cat) => {
                     const pct =
-                      budget.grandTotal.estimatedMinor > 0
-                        ? Math.round((cat.estimatedMinor / budget.grandTotal.estimatedMinor) * 100)
+                      budget.grandTotal.costTotalMinor > 0
+                        ? Math.round((cat.costTotalMinor / budget.grandTotal.costTotalMinor) * 100)
                         : 0;
                     return (
                       <div key={cat.category} className="flex flex-col gap-1">
@@ -343,10 +387,10 @@ export default async function BudgetPage({
                             )}
                           </span>
                           <div className="flex items-center gap-3 tabular-nums text-right">
-                            <span className="text-muted-foreground text-xs" title="% of estimated">{pct}% est.</span>
+                            <span className="text-muted-foreground text-xs" title="% of cost">{pct}% cost</span>
                             <CostAmounts
-                              estimatedMinor={cat.estimatedMinor}
-                              actualMinor={cat.actualMinor}
+                              costTotalMinor={cat.costTotalMinor}
+                              paidTotalMinor={cat.paidTotalMinor}
                               currency={homeCurrency}
                             />
                           </div>
@@ -381,8 +425,8 @@ export default async function BudgetPage({
                     >
                       <span className="min-w-0 truncate text-sm font-medium">{stop.stopName}</span>
                       <CostAmounts
-                        estimatedMinor={stop.estimatedMinor}
-                        actualMinor={stop.actualMinor}
+                        costTotalMinor={stop.costTotalMinor}
+                        paidTotalMinor={stop.paidTotalMinor}
                         currency={homeCurrency}
                       />
                     </div>
@@ -407,44 +451,44 @@ export default async function BudgetPage({
                     >
                       <ChapterChip name={row.chapterName} colour={row.colour} />
                       <CostAmounts
-                        estimatedMinor={row.estimatedMinor}
-                        actualMinor={row.actualMinor}
+                        costTotalMinor={row.costTotalMinor}
+                        paidTotalMinor={row.paidTotalMinor}
                         currency={homeCurrency}
                       />
                     </div>
                   ))}
                   {/* Reconciliation rows — shown only when non-zero */}
-                  {(budget.chapterReconciliation.ungrouped.estimatedMinor > 0 ||
-                    budget.chapterReconciliation.ungrouped.actualMinor > 0) && (
+                  {(budget.chapterReconciliation.ungrouped.costTotalMinor > 0 ||
+                    budget.chapterReconciliation.ungrouped.paidTotalMinor > 0) && (
                     <div className="flex items-center justify-between py-2.5 gap-2">
                       <span className="min-w-0 truncate text-sm text-muted-foreground">Ungrouped</span>
                       <CostAmounts
-                        estimatedMinor={budget.chapterReconciliation.ungrouped.estimatedMinor}
-                        actualMinor={budget.chapterReconciliation.ungrouped.actualMinor}
+                        costTotalMinor={budget.chapterReconciliation.ungrouped.costTotalMinor}
+                        paidTotalMinor={budget.chapterReconciliation.ungrouped.paidTotalMinor}
                         currency={homeCurrency}
                         className="text-muted-foreground"
                       />
                     </div>
                   )}
-                  {(budget.chapterReconciliation.betweenLegs.estimatedMinor > 0 ||
-                    budget.chapterReconciliation.betweenLegs.actualMinor > 0) && (
+                  {(budget.chapterReconciliation.betweenLegs.costTotalMinor > 0 ||
+                    budget.chapterReconciliation.betweenLegs.paidTotalMinor > 0) && (
                     <div className="flex items-center justify-between py-2.5 gap-2">
                       <span className="min-w-0 truncate text-sm text-muted-foreground">Between legs</span>
                       <CostAmounts
-                        estimatedMinor={budget.chapterReconciliation.betweenLegs.estimatedMinor}
-                        actualMinor={budget.chapterReconciliation.betweenLegs.actualMinor}
+                        costTotalMinor={budget.chapterReconciliation.betweenLegs.costTotalMinor}
+                        paidTotalMinor={budget.chapterReconciliation.betweenLegs.paidTotalMinor}
                         currency={homeCurrency}
                         className="text-muted-foreground"
                       />
                     </div>
                   )}
-                  {(budget.chapterReconciliation.otherCosts.estimatedMinor > 0 ||
-                    budget.chapterReconciliation.otherCosts.actualMinor > 0) && (
+                  {(budget.chapterReconciliation.otherCosts.costTotalMinor > 0 ||
+                    budget.chapterReconciliation.otherCosts.paidTotalMinor > 0) && (
                     <div className="flex items-center justify-between py-2.5 gap-2">
                       <span className="min-w-0 truncate text-sm text-muted-foreground">Other costs</span>
                       <CostAmounts
-                        estimatedMinor={budget.chapterReconciliation.otherCosts.estimatedMinor}
-                        actualMinor={budget.chapterReconciliation.otherCosts.actualMinor}
+                        costTotalMinor={budget.chapterReconciliation.otherCosts.costTotalMinor}
+                        paidTotalMinor={budget.chapterReconciliation.otherCosts.paidTotalMinor}
                         currency={homeCurrency}
                         className="text-muted-foreground"
                       />
@@ -472,8 +516,8 @@ export default async function BudgetPage({
                         {day.dateISO}
                       </span>
                       <CostAmounts
-                        estimatedMinor={day.estimatedMinor}
-                        actualMinor={day.actualMinor}
+                        costTotalMinor={day.costTotalMinor}
+                        paidTotalMinor={day.paidTotalMinor}
                         currency={homeCurrency}
                       />
                     </div>

@@ -10,13 +10,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { Field } from "@/components/ui/field";
 import { FormError } from "@/components/ui/form-error";
-import { Input } from "@/components/ui/input";
-import { MoneyInput } from "@/components/ui/money-input";
 import { CostSummary } from "./cost-summary";
+import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
-import { CURRENCIES } from "@/lib/currencies";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import { cn } from "@/lib/cn";
 import type { CostOwnerType } from "@/lib/enums";
@@ -49,30 +46,36 @@ export interface CostEditorProps {
 // ---------------------------------------------------------------------------
 
 interface FormState {
-  estimatedAmount: string;
+  costAmount: string;
   // A cost has a single currency (the DB model has one `currency` field).
-  // Both the estimated and actual inputs share this value.
+  // Both the cost and paid inputs share this value.
   currency: string;
-  actualAmount: string;
+  paid: boolean;
+  paidAmount: string;
   paidAt: string;
 }
 
 function defaultFormState(defaultCurrency: string): FormState {
   return {
-    estimatedAmount: "",
+    costAmount: "",
     currency: defaultCurrency,
-    actualAmount: "",
+    paid: false,
+    paidAmount: "",
     paidAt: "",
   };
 }
 
 function costToFormState(cost: CostRow): FormState {
   return {
-    estimatedAmount: formatMinor(cost.estimatedMinor, cost.currency),
+    costAmount: formatMinor(cost.costMinor, cost.currency),
     currency: cost.currency,
-    actualAmount:
-      cost.actualMinor !== null && cost.actualMinor !== undefined
-        ? formatMinor(cost.actualMinor, cost.currency)
+    // `paidAt` is the sole "is this paid" signal (CONTEXT.md "Paid") — a
+    // legacy row with a paid amount but no date is NOT paid, and must open
+    // with the box unticked so re-saving it doesn't fabricate a payment.
+    paid: Boolean(cost.paidAt),
+    paidAmount:
+      cost.paidMinor !== null && cost.paidMinor !== undefined
+        ? formatMinor(cost.paidMinor, cost.currency)
         : "",
     paidAt: cost.paidAt
       ? new Date(cost.paidAt).toISOString().slice(0, 10)
@@ -94,8 +97,6 @@ interface CostDialogProps {
   errors: Record<string, string[]>;
   onCancel: () => void;
 }
-
-const CURRENCY_CODES = CURRENCIES.map((c) => c.code);
 
 /**
  * Inner form, mounted fresh each time (via `key` in CostEditor).
@@ -126,58 +127,35 @@ function CostDialogForm({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {/* Estimated */}
-          <Field
-            label="Estimated cost"
-            required
-            error={errors.estimatedMinor?.[0]}
-          >
-            <MoneyInput
-              amount={form.estimatedAmount}
-              currency={form.currency}
-              currencies={CURRENCY_CODES}
-              onAmountChange={(v) => setForm((f) => ({ ...f, estimatedAmount: v }))}
-              onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
-              disabled={submitting}
-              invalid={Boolean(errors.estimatedMinor)}
-              aria-label="Estimated cost amount"
-            />
-          </Field>
-
-          {/* Actual */}
-          <Field
-            label="Actual cost"
-            description="Leave blank if you haven't paid yet."
-            error={errors.actualMinor?.[0]}
-          >
-            <MoneyInput
-              amount={form.actualAmount}
-              currency={form.currency}
-              currencies={CURRENCY_CODES}
-              onAmountChange={(v) => setForm((f) => ({ ...f, actualAmount: v }))}
-              onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
-              disabled={submitting}
-              invalid={Boolean(errors.actualMinor)}
-              aria-label="Actual cost amount"
-            />
-          </Field>
-
-          {/* Paid date */}
-          <Field
-            label="Date paid"
-            description="Optional — when the cost was paid."
-            error={errors.paidAt?.[0]}
-          >
-            <Input
-              type="date"
-              value={form.paidAt}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, paidAt: e.target.value }))
-              }
-              disabled={submitting}
-              className="w-full"
-            />
-          </Field>
+          {/* Cost + Paid toggle — same shape as the other three cost forms
+              (InlineCostFields / other-cost-editor.tsx). Ticking Paid reveals
+              and requires the paid amount, pre-filled with the cost so
+              confirming a thing that cost what you expected is one gesture
+              (ADR 0037). */}
+          <InlineCostFields
+            hasMultipleCosts={false}
+            costAmount={form.costAmount}
+            onCostChange={(v) =>
+              setForm((f) => ({
+                ...f,
+                costAmount: v,
+                // Clearing the Cost box hides the Paid block, but state would
+                // otherwise persist invisibly — clear it too so a blank cost
+                // can never save alongside a stale paid amount.
+                ...(v.trim() === "" ? { paid: false, paidAmount: "", paidAt: "" } : {}),
+              }))
+            }
+            currency={form.currency}
+            onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+            paid={form.paid}
+            onPaidChange={(v) => setForm((f) => ({ ...f, paid: v }))}
+            paidAmount={form.paidAmount}
+            onPaidAmountChange={(v) => setForm((f) => ({ ...f, paidAmount: v }))}
+            paidAt={form.paidAt}
+            onPaidAtChange={(v) => setForm((f) => ({ ...f, paidAt: v }))}
+            errors={errors}
+            disabled={submitting}
+          />
 
           {/* Form-level error */}
           <FormError>{errors._form?.[0]}</FormError>
@@ -239,19 +217,34 @@ export function CostEditor({
   // Helpers
   // ---------------------------------------------------------------------------
 
-  function parseFormToInput(form: FormState): CostRawInput {
-    // Parse estimated amount → minor units
-    const estimatedMinor = parseAmountToMinor(form.estimatedAmount, form.currency) ?? 0;
-    const actualMinor =
-      form.actualAmount.trim() !== ""
-        ? (parseAmountToMinor(form.actualAmount, form.currency) ?? undefined)
-        : undefined;
+  /**
+   * Validate + map form state to the server action's input shape.
+   *
+   * Returns `null` (with no side effect) when the cost amount is blank or
+   * unparseable — the Cost field is required, and a blank/invalid entry must
+   * surface a field error rather than silently coercing to 0 (that coercion
+   * is exactly the bug ADR 0037 exists to kill, run in reverse: a paid
+   * amount would then survive alongside a fabricated £0 cost).
+   */
+  function parseFormToInput(form: FormState): CostRawInput | null {
+    const costMinor = parseAmountToMinor(form.costAmount, form.currency);
+    if (costMinor === null) return null;
+
+    // Gated on the amount actually *parsing*, not just being non-blank — a
+    // pasted "$150.00" or a lone "-" is non-blank text but parses to null.
+    // The invariant is one-directional (ADR 0037): a paid *date* requires an
+    // amount, but an amount with no date is a legal, honest, incomplete
+    // record — so we never invent a date here.
+    const parsedPaidMinor = form.paid
+      ? parseAmountToMinor(form.paidAmount, form.currency)
+      : null;
+    const hasPaidAmount = parsedPaidMinor !== null;
 
     return {
-      estimatedMinor,
-      actualMinor,
+      costMinor,
+      paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
       currency: form.currency,
-      paidAt: form.paidAt || undefined,
+      paidAt: hasPaidAmount ? form.paidAt || undefined : undefined,
       ownerType,
       ownerId,
     };
@@ -262,10 +255,15 @@ export function CostEditor({
   // ---------------------------------------------------------------------------
 
   async function handleAddSubmit(form: FormState) {
+    const input = parseFormToInput(form);
+    if (!input) {
+      setErrors({ costMinor: ["Enter the cost"] });
+      return;
+    }
     setSubmitting(true);
     setErrors({});
     try {
-      const result = await createCost(tripId, parseFormToInput(form));
+      const result = await createCost(tripId, input);
       if (result.success) {
         setAddOpen(false);
       } else {
@@ -278,10 +276,15 @@ export function CostEditor({
 
   async function handleEditSubmit(form: FormState) {
     if (!editingCost) return;
+    const input = parseFormToInput(form);
+    if (!input) {
+      setErrors({ costMinor: ["Enter the cost"] });
+      return;
+    }
     setSubmitting(true);
     setErrors({});
     try {
-      const result = await updateCost(editingCost.id, parseFormToInput(form));
+      const result = await updateCost(editingCost.id, input);
       if (result.success) {
         setEditingCost(null);
       } else {

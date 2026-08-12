@@ -474,7 +474,7 @@ describe("createFork", () => {
       costFindManyMock.mockResolvedValue([
         {
           id: "cost-idea",
-          estimatedMinor: 5000, actualMinor: null,
+          costMinor: 5000, paidMinor: null,
           currency: "AUD", rateToHome: 1,
           paidAt: null, ownerType: "ITEM", ownerId: "idea-999",
           label: "Idea cost", category: null,
@@ -634,8 +634,8 @@ describe("createFork", () => {
       costFindManyMock.mockResolvedValue([
         {
           id: "cost-src",
-          estimatedMinor: 150000,
-          actualMinor: null,
+          costMinor: 150000,
+          paidMinor: null,
           currency: "AUD",
           rateToHome: 1,
           paidAt: null,
@@ -691,7 +691,7 @@ describe("createFork", () => {
       costFindManyMock.mockResolvedValue([
         {
           id: "cost-acc-src",
-          estimatedMinor: 50000, actualMinor: null,
+          costMinor: 50000, paidMinor: null,
           currency: "EUR", rateToHome: 1.6,
           paidAt: null, ownerType: "ACCOMMODATION", ownerId: "acc-src",
           label: "Hotel cost", category: "ACCOMMODATION",
@@ -721,7 +721,7 @@ describe("createFork", () => {
       costFindManyMock.mockResolvedValue([
         {
           id: "cost-other",
-          estimatedMinor: 10000, actualMinor: null,
+          costMinor: 10000, paidMinor: null,
           currency: "AUD", rateToHome: 1,
           paidAt: null, ownerType: "OTHER", ownerId: null,
           label: "Misc", category: null,

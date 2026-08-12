@@ -25,6 +25,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 import { CURRENCIES } from "@/lib/currencies";
 import { formatMoney, formatMinor, parseAmountToMinor, convertMinor } from "@/lib/money";
+import { todayISO } from "@/lib/dates";
 import { cn } from "@/lib/cn";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
@@ -68,9 +69,10 @@ export interface OtherCostEditorProps {
 interface FormState {
   label: string;
   category: string;
-  estimatedAmount: string;
-  actualAmount: string;
+  costAmount: string;
+  paidAmount: string;
   currency: string;
+  paid: boolean;
   paidAt: string;
 }
 
@@ -78,9 +80,10 @@ function defaultFormState(defaultCurrency: string): FormState {
   return {
     label: "",
     category: "",
-    estimatedAmount: "",
-    actualAmount: "",
+    costAmount: "",
+    paidAmount: "",
     currency: defaultCurrency,
+    paid: false,
     paidAt: "",
   };
 }
@@ -89,27 +92,50 @@ function costToFormState(cost: CostRow): FormState {
   return {
     label: cost.label ?? "",
     category: cost.category ?? "",
-    estimatedAmount: formatMinor(cost.estimatedMinor, cost.currency),
-    actualAmount:
-      cost.actualMinor !== null && cost.actualMinor !== undefined
-        ? formatMinor(cost.actualMinor, cost.currency)
+    costAmount: formatMinor(cost.costMinor, cost.currency),
+    paidAmount:
+      cost.paidMinor !== null && cost.paidMinor !== undefined
+        ? formatMinor(cost.paidMinor, cost.currency)
         : "",
     currency: cost.currency,
+    // `paidAt` is the sole "is this paid" signal (CONTEXT.md "Paid") — a
+    // legacy row with a paid amount but no date is NOT paid, and must open
+    // with the box unticked so re-saving it doesn't fabricate a payment.
+    paid: Boolean(cost.paidAt),
     paidAt: cost.paidAt ? new Date(cost.paidAt).toISOString().slice(0, 10) : "",
   };
 }
 
-function parseFormToInput(form: FormState): CostRawInput {
-  const estimatedMinor = parseAmountToMinor(form.estimatedAmount, form.currency) ?? 0;
-  const actualMinor =
-    form.actualAmount.trim() !== ""
-      ? (parseAmountToMinor(form.actualAmount, form.currency) ?? undefined)
-      : undefined;
+/**
+ * Validate + map form state to the server action's input shape.
+ *
+ * Returns `null` (with no side effect) when the cost amount is blank or
+ * unparseable — the Cost field is required, and a blank/invalid entry must
+ * surface a field error rather than silently coercing to 0 (that coercion is
+ * exactly the bug ADR 0037 exists to kill, run in reverse: a paid amount
+ * would then survive alongside a fabricated £0 cost).
+ */
+function parseFormToInput(form: FormState): CostRawInput | null {
+  const costMinor = parseAmountToMinor(form.costAmount, form.currency);
+  if (costMinor === null) return null;
+  // Gated on the amount actually *parsing*, not just being non-blank — a
+  // pasted "$150.00" or a lone "-" is non-blank text but parses to null.
+  // The invariant is one-directional (ADR 0037): a paid *date* requires an
+  // amount, but an amount with no date is a legal, honest, incomplete
+  // record — so we never invent a date here. `todayISO()` is only used for
+  // the interactive pre-fill when the Paid box is ticked, where the user can
+  // see and edit it before saving; it is never fabricated at submit time.
+  // `costSchema.paidMinor`/`paidAt` are `.optional()` (not `.nullable()`),
+  // so clearing sends `undefined`, never `null`.
+  const parsedPaidMinor = form.paid
+    ? parseAmountToMinor(form.paidAmount, form.currency)
+    : null;
+  const hasPaidAmount = parsedPaidMinor !== null;
   return {
-    estimatedMinor,
-    actualMinor,
+    costMinor,
+    paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
     currency: form.currency,
-    paidAt: form.paidAt || undefined,
+    paidAt: hasPaidAmount ? form.paidAt || undefined : undefined,
     ownerType: "OTHER",
     label: form.label,
     category: form.category || undefined,
@@ -187,52 +213,90 @@ function OtherCostDialog({
             </Select>
           </Field>
 
-          {/* Estimated */}
-          <Field label="Estimated cost" required error={errors.estimatedMinor?.[0]}>
+          {/* Cost */}
+          <Field
+            label="Cost"
+            description="Your best number — the real price if it's already booked."
+            required
+            error={errors.costMinor?.[0]}
+          >
             <MoneyInput
-              amount={form.estimatedAmount}
+              amount={form.costAmount}
               currency={form.currency}
               currencies={CURRENCY_CODES}
-              onAmountChange={(v) => setForm((f) => ({ ...f, estimatedAmount: v }))}
+              onAmountChange={(v) =>
+                setForm((f) => ({
+                  ...f,
+                  costAmount: v,
+                  // Clearing the Cost box hides the Paid block (below), but
+                  // state would otherwise persist invisibly — clear it too so
+                  // a blank cost can never save alongside a stale paid amount.
+                  ...(v.trim() === "" ? { paid: false, paidAmount: "", paidAt: "" } : {}),
+                }))
+              }
               onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
               disabled={submitting}
-              invalid={Boolean(errors.estimatedMinor)}
-              aria-label="Estimated cost amount"
+              invalid={Boolean(errors.costMinor)}
+              aria-label="Cost amount"
             />
           </Field>
 
-          {/* Actual */}
-          <Field
-            label="Actual cost"
-            description="Leave blank if you haven't paid yet."
-            error={errors.actualMinor?.[0]}
-          >
-            <MoneyInput
-              amount={form.actualAmount}
-              currency={form.currency}
-              currencies={CURRENCY_CODES}
-              onAmountChange={(v) => setForm((f) => ({ ...f, actualAmount: v }))}
-              onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
-              disabled={submitting}
-              invalid={Boolean(errors.actualMinor)}
-              aria-label="Actual cost amount"
-            />
-          </Field>
+          {form.costAmount.trim() && (
+            <>
+              <label className="flex items-center gap-2 text-sm font-medium">
+                <input
+                  type="checkbox"
+                  checked={form.paid}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setForm((f) => ({
+                      ...f,
+                      paid: checked,
+                      // Prefill both so confirming a cost that came to what
+                      // you expected is a single tick (ADR 0037). Only on
+                      // the interactive tick — never fabricated at submit
+                      // time (see parseFormToInput).
+                      paidAmount:
+                        checked && !f.paidAmount.trim() && f.costAmount.trim()
+                          ? f.costAmount
+                          : f.paidAmount,
+                      paidAt: checked && !f.paidAt.trim() ? todayISO() : f.paidAt,
+                    }));
+                  }}
+                  disabled={submitting}
+                  className="size-4 rounded border-input accent-primary"
+                />
+                Paid
+              </label>
 
-          {/* Paid date */}
-          <Field
-            label="Date paid"
-            description="Optional — when the cost was paid."
-            error={errors.paidAt?.[0]}
-          >
-            <Input
-              type="date"
-              value={form.paidAt}
-              onChange={(e) => setForm((f) => ({ ...f, paidAt: e.target.value }))}
-              disabled={submitting}
-              className="w-full"
-            />
-          </Field>
+              {form.paid && (
+                <>
+                  <Field label="You paid" error={errors.paidMinor?.[0]}>
+                    <MoneyInput
+                      amount={form.paidAmount}
+                      currency={form.currency}
+                      currencies={CURRENCY_CODES}
+                      onAmountChange={(v) => setForm((f) => ({ ...f, paidAmount: v }))}
+                      onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
+                      disabled={submitting}
+                      invalid={Boolean(errors.paidMinor)}
+                      aria-label="You paid amount"
+                    />
+                  </Field>
+
+                  <Field label="Date paid" error={errors.paidAt?.[0]}>
+                    <Input
+                      type="date"
+                      value={form.paidAt}
+                      onChange={(e) => setForm((f) => ({ ...f, paidAt: e.target.value }))}
+                      disabled={submitting}
+                      className="w-full"
+                    />
+                  </Field>
+                </>
+              )}
+            </>
+          )}
 
           <FormError>{errors._form?.[0]}</FormError>
 
@@ -280,10 +344,15 @@ export function OtherCostEditor({
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
 
   async function handleAddSubmit(form: FormState) {
+    const input = parseFormToInput(form);
+    if (!input) {
+      setErrors({ costMinor: ["Enter the cost"] });
+      return;
+    }
     setSubmitting(true);
     setErrors({});
     try {
-      const result = await createCost(tripId, parseFormToInput(form));
+      const result = await createCost(tripId, input);
       if (result.success) {
         setAddOpen(false);
       } else {
@@ -296,10 +365,15 @@ export function OtherCostEditor({
 
   async function handleEditSubmit(form: FormState) {
     if (!editingCost) return;
+    const input = parseFormToInput(form);
+    if (!input) {
+      setErrors({ costMinor: ["Enter the cost"] });
+      return;
+    }
     setSubmitting(true);
     setErrors({});
     try {
-      const result = await updateCost(editingCost.id, parseFormToInput(form));
+      const result = await updateCost(editingCost.id, input);
       if (result.success) {
         setEditingCost(null);
       } else {
@@ -371,12 +445,12 @@ export function OtherCostEditor({
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{formatMoney(cost.estimatedMinor, cost.currency)}</span>
-                  {cost.actualMinor !== null && cost.actualMinor !== undefined && (
+                  <span>{formatMoney(cost.costMinor, cost.currency)}</span>
+                  {cost.paidMinor !== null && cost.paidMinor !== undefined && (
                     <>
                       <span className="text-muted-foreground/40">→</span>
                       <span className="text-emerald-600 dark:text-emerald-400">
-                        {formatMoney(cost.actualMinor, cost.currency)} paid
+                        {formatMoney(cost.paidMinor, cost.currency)} paid
                       </span>
                     </>
                   )}
@@ -386,7 +460,7 @@ export function OtherCostEditor({
                       <span className="text-muted-foreground/60">
                         ≈&nbsp;
                         {formatMoney(
-                          convertMinor(cost.estimatedMinor, cost.currency, homeCurrency, cost.rateToHome),
+                          convertMinor(cost.costMinor, cost.currency, homeCurrency, cost.rateToHome),
                           homeCurrency,
                         )}
                       </span>

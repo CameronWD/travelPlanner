@@ -1,18 +1,18 @@
 import { convertCostToHome, type BudgetCost } from "@/lib/budget";
 import { daysBetween } from "@/lib/dates";
 
-export interface SpendCost extends BudgetCost {
-  /** When the cost was paid; null = not yet paid (excluded from "paid so far"). */
-  paidAt: Date | string | null;
-}
+// `paidAt` (the sole "is this paid" signal) now lives on BudgetCost itself —
+// SpendCost is kept as a distinct name for callers that build spend-so-far
+// input, but no longer needs to redeclare the field.
+export type SpendCost = BudgetCost;
 
 export interface SpendSoFar {
-  estimatedTotalMinor: number;
+  costTotalMinor: number;
   paidSoFarMinor: number;
-  paidEstimateMinor: number;
+  paidCostMinor: number;
   /** paidSoFar − paidEstimate; > 0 = over your estimates on what you've paid. */
   varianceMinor: number;
-  estimatedRemainingMinor: number;
+  costRemainingMinor: number;
   /** 0–100, or null when the trip has no/invalid dates. */
   tripElapsedPct: number | null;
 }
@@ -30,9 +30,17 @@ export function buildSpendSoFar(input: {
     if (estimatedHome === null) continue; // missing rate — excluded everywhere
     estimatedTotal += estimatedHome;
     if (c.paidAt != null) {
-      // Cash-flow basis: a cost marked paid with no actual amount contributes 0 to paidSoFar,
-      // but its estimate still counts toward paidEstimate (so variance reflects the gap).
-      paidSoFar += actualHome ?? 0;
+      if (c.paidMinor == null || actualHome === null) {
+        // A paid Cost always carries a paid amount (costSchema enforces it), so
+        // this is only reachable for a legacy row the backfill missed. Skip it:
+        // counting it as zero would understate spending AND inflate the
+        // variance, which is exactly the display bug this rule exists to kill.
+        // NB: we check the raw `c.paidMinor` rather than relying on
+        // `actualHome` alone, so this missing-amount case stays explicit even
+        // if convertCostToHome's null-handling changes.
+        continue;
+      }
+      paidSoFar += actualHome;
       paidEstimate += estimatedHome;
     }
   }
@@ -49,11 +57,11 @@ export function buildSpendSoFar(input: {
   }
 
   return {
-    estimatedTotalMinor: estimatedTotal,
+    costTotalMinor: estimatedTotal,
     paidSoFarMinor: paidSoFar,
-    paidEstimateMinor: paidEstimate,
+    paidCostMinor: paidEstimate,
     varianceMinor: paidSoFar - paidEstimate,
-    estimatedRemainingMinor: estimatedTotal - paidEstimate,
+    costRemainingMinor: estimatedTotal - paidEstimate,
     tripElapsedPct,
   };
 }
