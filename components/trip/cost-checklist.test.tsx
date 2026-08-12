@@ -26,7 +26,7 @@ const rows = [
 
 describe("CostChecklist", () => {
   it("lists every cost with its paid state", () => {
-    render(<CostChecklist rows={rows} homeCurrency="GBP" />);
+    render(<CostChecklist rows={rows} />);
     expect(screen.getByText("Hotel Ibis")).toBeInTheDocument();
     expect(screen.getByRole("checkbox", { name: /hotel ibis/i })).not.toBeChecked();
     expect(screen.getByRole("checkbox", { name: /pensione roma/i })).toBeChecked();
@@ -34,7 +34,7 @@ describe("CostChecklist", () => {
 
   it("asks how much before marking paid, prefilled with the cost", async () => {
     const user = userEvent.setup();
-    render(<CostChecklist rows={rows} homeCurrency="GBP" />);
+    render(<CostChecklist rows={rows} />);
 
     await user.click(screen.getByRole("checkbox", { name: /hotel ibis/i }));
 
@@ -45,7 +45,7 @@ describe("CostChecklist", () => {
 
   it("marks paid on confirm", async () => {
     const user = userEvent.setup();
-    render(<CostChecklist rows={rows} homeCurrency="GBP" />);
+    render(<CostChecklist rows={rows} />);
 
     await user.click(screen.getByRole("checkbox", { name: /hotel ibis/i }));
     await user.click(screen.getByRole("button", { name: /confirm/i }));
@@ -55,7 +55,7 @@ describe("CostChecklist", () => {
 
   it("refuses to confirm an unparseable amount, and never calls markCostPaid", async () => {
     const user = userEvent.setup();
-    render(<CostChecklist rows={rows} homeCurrency="GBP" />);
+    render(<CostChecklist rows={rows} />);
 
     await user.click(screen.getByRole("checkbox", { name: /hotel ibis/i }));
     const amountInput = screen.getByLabelText(/you paid amount/i);
@@ -69,7 +69,7 @@ describe("CostChecklist", () => {
 
   it("confirms a genuine zero paid amount", async () => {
     const user = userEvent.setup();
-    render(<CostChecklist rows={rows} homeCurrency="GBP" />);
+    render(<CostChecklist rows={rows} />);
 
     await user.click(screen.getByRole("checkbox", { name: /hotel ibis/i }));
     const amountInput = screen.getByLabelText(/you paid amount/i);
@@ -80,16 +80,20 @@ describe("CostChecklist", () => {
     expect(markCostPaid).toHaveBeenCalledWith("c1", 0, expect.any(String));
   });
 
-  it("un-marking a paid row calls markCostUnpaid, leaving the amount untouched", async () => {
+  it("clicking a paid row un-marks it and does not open the popover", async () => {
     const user = userEvent.setup();
-    render(<CostChecklist rows={rows} homeCurrency="GBP" />);
+    render(<CostChecklist rows={rows} />);
 
     await user.click(screen.getByRole("checkbox", { name: /pensione roma/i }));
 
     expect(markCostUnpaid).toHaveBeenCalledWith("c2");
     expect(markCostPaid).not.toHaveBeenCalled();
-    // No amount popover should be involved in un-marking.
+    // Radix's PopoverTrigger composes its own click-to-toggle onto the
+    // checkbox regardless of our handler, so un-marking must preventDefault
+    // that click — otherwise the confirm pops open right after un-marking.
     expect(screen.queryByText(/paid how much/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/you paid amount/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /confirm/i })).not.toBeInTheDocument();
   });
 
   it("shows every owner-type label, including a standalone other cost", () => {
@@ -98,7 +102,7 @@ describe("CostChecklist", () => {
       { id: "c3", label: "Travel insurance", costMinor: 5000, paidMinor: null,
         currency: "GBP", paidAt: null },
     ];
-    render(<CostChecklist rows={mixedRows} homeCurrency="GBP" />);
+    render(<CostChecklist rows={mixedRows} />);
     expect(screen.getByText("Travel insurance")).toBeInTheDocument();
   });
 });

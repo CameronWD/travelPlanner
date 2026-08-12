@@ -23,16 +23,18 @@ export interface CostChecklistRow {
 
 interface CostChecklistProps {
   rows: CostChecklistRow[];
-  homeCurrency: string;
 }
 
 /**
  * The reconciling gesture: tick down the list marking things paid. Ticking an
  * unpaid row opens a small confirm pre-filled with the cost amount — required
  * because a Cost can't be paid without an amount (ADR 0037), pre-filled so the
- * common case ("it cost what I thought") stays one tap.
+ * common case ("it cost what I thought") stays one tap. Each row formats in
+ * its own currency (`formatMoney(row.costMinor, row.currency)`) — this is a
+ * reconciling checklist, so you're ticking off what you actually paid in the
+ * currency you actually paid it, not a home-currency total.
  */
-export function CostChecklist({ rows, homeCurrency }: CostChecklistProps) {
+export function CostChecklist({ rows }: CostChecklistProps) {
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [pendingId, setPendingId] = React.useState<string | null>(null);
 

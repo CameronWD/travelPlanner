@@ -350,7 +350,7 @@ export default async function BudgetPage({
               <CardTitle>Mark off what you&apos;ve paid</CardTitle>
             </CardHeader>
             <CardContent>
-              <CostChecklist rows={checklistRows} homeCurrency={homeCurrency} />
+              <CostChecklist rows={checklistRows} />
             </CardContent>
           </Card>
 
