@@ -78,6 +78,14 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
           </span>
         )}
 
+        {/* Paid badge — keyed on paid state, independent of whether an amount is shown */}
+        {isPaid && (
+          <CheckCircle2
+            className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+            aria-label="Paid"
+          />
+        )}
+
         {/* Actual (if present) */}
         {actualStr && (
           <>
@@ -88,9 +96,6 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
                 isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-foreground/80",
               )}
             >
-              {isPaid && (
-                <CheckCircle2 className="size-3 shrink-0" aria-hidden="true" />
-              )}
               {actualStr}
               {homeEquiv?.actual && (
                 <span className="text-muted-foreground/70 ml-0.5">
