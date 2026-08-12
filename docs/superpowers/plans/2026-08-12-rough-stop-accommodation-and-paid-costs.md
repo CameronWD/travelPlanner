@@ -1371,12 +1371,16 @@ The rename covered identifiers; several user-facing strings still say "Estimated
 **Files:**
 - Modify: `app/(app)/trips/[tripId]/budget/page.tsx:304-318` (the "Estimated / Spent" legend)
 - Modify: `components/trip/budget-hero-row.tsx`, `components/trip/spend-so-far-card.tsx`, `components/trip/cost-editor.tsx`, `components/trip/cost-amounts.tsx`, `components/trip/compare-table.tsx`, `app/(app)/trips/[tripId]/print/page.tsx`, `app/(app)/trips/[tripId]/summary/page.tsx`
+- Modify: `lib/activity.ts:201-202` — the **Activity feed** labels `{ key: "costMinor", label: "Estimated" }` / `{ key: "paidMinor", label: "Actual" }`. These render to users in the activity feed and notifications, so they are screen copy despite living in `lib/`. Change the `label` values to `"Cost"` and `"You paid"`; **do not touch the `key` values** — those must keep matching the Prisma field names or the diffing breaks.
+- Modify: `lib/validations/cost.ts`, `lib/validations/accommodation.ts`, `lib/validations/transport.ts`, `lib/validations/item.ts` — the Zod messages (`"Estimated amount must be a whole number in minor units"`, `"Estimated amount must be 0 or greater"`, and the `"Actual amount …"` pair) surface directly as field errors under the inputs. Rewrite to the new vocabulary: `"Cost must be a whole number in minor units"` / `"Cost must be 0 or greater"` / `"Paid amount must be a whole number in minor units"` / `"Paid amount must be 0 or greater"`. **Leave the `Enter what you paid` message exactly as it is** — later code and tests depend on that string.
 
 - [ ] **Step 1: Find every remaining occurrence**
 
+Search the app *and* `lib/`, because user-facing copy lives in both:
+
 ```bash
-grep -rn -i 'estimated\|actual cost\|est\.' \
-  --include='*.tsx' components app | grep -v '\.test\.'
+grep -rn -i 'estimated\|actual cost\|actual amount\|est\.' \
+  --include='*.tsx' --include='*.ts' components app lib | grep -v '\.test\.'
 ```
 
 - [ ] **Step 2: Rewrite each string**
