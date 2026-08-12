@@ -22,6 +22,7 @@ import type { SpendCost } from "@/lib/spend-so-far";
 import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
 import { todayISO, nightsBetween } from "@/lib/dates";
 import { BudgetHeroRow } from "@/components/trip/budget-hero-row";
+import { CostChecklist, type CostChecklistRow } from "@/components/trip/cost-checklist";
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -93,15 +94,15 @@ export default async function BudgetPage({
     }),
     db.item.findMany({
       where: { tripId, forkId: null },
-      select: { id: true, stopId: true, category: true, date: true },
+      select: { id: true, stopId: true, category: true, date: true, title: true },
     }),
     db.accommodation.findMany({
       where: { tripId, forkId: null },
-      select: { id: true, stopId: true, checkIn: true, checkOut: true },
+      select: { id: true, stopId: true, checkIn: true, checkOut: true, name: true },
     }),
     db.transport.findMany({
       where: { tripId, forkId: null },
-      select: { id: true, fromStopId: true, toStopId: true, depAt: true },
+      select: { id: true, fromStopId: true, toStopId: true, depAt: true, mode: true },
     }),
     db.exchangeRate.findMany({
       where: { tripId },
@@ -118,6 +119,36 @@ export default async function BudgetPage({
 
   // Separate OTHER costs for the editor
   const otherCosts = allCosts.filter((c) => c.ownerType === "OTHER");
+
+  const stopName = new Map(stops.map((s) => [s.id, s.name] as const));
+
+  /** Transport has no name — label it by mode, with endpoints when they resolve. */
+  function transportLabel(t: {
+    mode: string;
+    fromStopId: string | null;
+    toStopId: string | null;
+  }): string {
+    const mode = t.mode.charAt(0).toUpperCase() + t.mode.slice(1).toLowerCase();
+    const from = t.fromStopId ? stopName.get(t.fromStopId) : null;
+    const to = t.toStopId ? stopName.get(t.toStopId) : null;
+    if (from && to) return `${mode} · ${from} → ${to}`;
+    return mode;
+  }
+
+  const ownerName = new Map<string, string>([
+    ...accommodations.map((a) => [a.id, a.name] as const),
+    ...transports.map((t) => [t.id, transportLabel(t)] as const),
+    ...items.map((i) => [i.id, i.title] as const),
+  ]);
+
+  const checklistRows: CostChecklistRow[] = allCosts.map((c) => ({
+    id: c.id,
+    label: c.label ?? ownerName.get(c.ownerId ?? "") ?? "Cost",
+    costMinor: c.costMinor,
+    paidMinor: c.paidMinor,
+    currency: c.currency,
+    paidAt: c.paidAt,
+  }));
 
   // Build budget input
   const budgetCosts: BudgetCost[] = allCosts.map((c) => ({
@@ -312,6 +343,16 @@ export default async function BudgetPage({
 
         {/* ── Main column ── */}
         <div className="flex flex-col gap-6 lg:order-1">
+
+          {/* Mark off what you've paid */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Mark off what you&apos;ve paid</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CostChecklist rows={checklistRows} homeCurrency={homeCurrency} />
+            </CardContent>
+          </Card>
 
           {/* By category */}
           {budget.byCategory.length > 0 && (

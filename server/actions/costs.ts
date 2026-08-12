@@ -265,6 +265,49 @@ export async function deleteCost(costId: string): Promise<CostActionResult> {
   return { success: true };
 }
 
+/**
+ * Mark a single Cost paid from the Budget checklist, without opening its
+ * dialog. The amount is required (ADR 0037) — the caller offers it pre-filled
+ * with the cost amount, so the common case is one tap.
+ */
+export async function markCostPaid(
+  costId: string,
+  paidMinor: number,
+  paidAt: string,
+): Promise<CostActionResult> {
+  const cost = await db.cost.findUnique({
+    where: { id: costId },
+    select: { id: true, tripId: true },
+  });
+  if (!cost) return { success: false, errors: { _form: ["Cost not found"] } };
+  await requireTripAccess(cost.tripId);
+
+  if (!Number.isInteger(paidMinor) || paidMinor < 0) {
+    return { success: false, errors: { paidMinor: ["Enter what you paid"] } };
+  }
+
+  await db.cost.update({
+    where: { id: costId },
+    data: { paidMinor, paidAt: new Date(paidAt) },
+  });
+  revalidatePath(`/trips/${cost.tripId}`);
+  return { success: true };
+}
+
+/** Un-mark a Cost as paid. The paid amount stays as history. */
+export async function markCostUnpaid(costId: string): Promise<CostActionResult> {
+  const cost = await db.cost.findUnique({
+    where: { id: costId },
+    select: { id: true, tripId: true },
+  });
+  if (!cost) return { success: false, errors: { _form: ["Cost not found"] } };
+  await requireTripAccess(cost.tripId);
+
+  await db.cost.update({ where: { id: costId }, data: { paidAt: null } });
+  revalidatePath(`/trips/${cost.tripId}`);
+  return { success: true };
+}
+
 // ---------------------------------------------------------------------------
 // Read helpers
 // ---------------------------------------------------------------------------

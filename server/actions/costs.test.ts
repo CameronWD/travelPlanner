@@ -86,7 +86,7 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 
-import { createCost, updateCost, deleteCost } from "./costs";
+import { createCost, updateCost, deleteCost, markCostPaid, markCostUnpaid } from "./costs";
 import { recordActivity } from "@/server/actions/activity";
 
 // ---------------------------------------------------------------------------
@@ -599,6 +599,110 @@ describe("fork-silent: updateCost in a fork does NOT record activity", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "UPDATED", entityType: "COST" }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// markCostPaid / markCostUnpaid
+// ---------------------------------------------------------------------------
+
+describe("markCostPaid", () => {
+  it("rejects a non-integer amount without touching the database", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1" });
+
+    const result = await markCostPaid("c1", Number.NaN, "2026-06-04");
+
+    expect(result.success).toBe(false);
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a negative amount without touching the database", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1" });
+
+    const result = await markCostPaid("c1", -100, "2026-06-04");
+
+    expect(result.success).toBe(false);
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts a genuine zero amount", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1" });
+
+    const result = await markCostPaid("c1", 0, "2026-06-04");
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { paidMinor: 0, paidAt: new Date("2026-06-04") },
+    });
+  });
+
+  it("rejects an unknown cost", async () => {
+    costFindUniqueMock.mockResolvedValueOnce(null);
+
+    const result = await markCostPaid("nope", 34000, "2026-06-04");
+
+    expect(result.success).toBe(false);
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("writes the paid amount and date", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1" });
+
+    const result = await markCostPaid("c1", 34000, "2026-06-04");
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { paidMinor: 34000, paidAt: new Date("2026-06-04") },
+    });
+  });
+
+  it("access-checks via requireTripAccess", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "trip-42" });
+
+    await markCostPaid("c1", 34000, "2026-06-04");
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-42");
+  });
+
+  it("revalidates the trip path", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "trip-1" });
+
+    await markCostPaid("c1", 34000, "2026-06-04");
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+  });
+});
+
+describe("markCostUnpaid", () => {
+  it("clears the paid date but leaves the amount as history", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1" });
+
+    const result = await markCostUnpaid("c1");
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { paidAt: null },
+    });
+  });
+
+  it("rejects an unknown cost without touching the database", async () => {
+    costFindUniqueMock.mockResolvedValueOnce(null);
+
+    const result = await markCostUnpaid("nope");
+
+    expect(result.success).toBe(false);
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("access-checks via requireTripAccess", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "trip-42" });
+
+    await markCostUnpaid("c1");
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-42");
   });
 });
 
