@@ -943,6 +943,55 @@ describe("fork-aware createAccommodation", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Task 1: Add Accommodation is always visible on rough Stops
+// ---------------------------------------------------------------------------
+
+describe("Add Accommodation on rough stops (Task 1)", () => {
+  it("shows Add Accommodation on a rough stop", () => {
+    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
+
+    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+
+    expect(
+      screen.getByRole("button", { name: /add accommodation/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("nudges to set dates instead of opening the form on a rough stop", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
+
+    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+
+    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
+
+    expect(await screen.findByText(/rome has no dates yet/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /set dates for this leg/i }),
+    ).toBeInTheDocument();
+    // The accommodation form must NOT have opened.
+    expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
+  });
+
+  it("opens the accommodation form directly on a dated stop", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({
+      id: "s2",
+      name: "Paris",
+      arriveDate: "2026-06-04",
+      departDate: "2026-06-07",
+    });
+
+    render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+
+    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
+
+    expect(await screen.findByLabelText(/accommodation name/i)).toBeInTheDocument();
+    expect(screen.queryByText(/has no dates yet/i)).not.toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 12. Delete/remove chapter — empty chapter card
 // ---------------------------------------------------------------------------
 

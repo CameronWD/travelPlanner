@@ -498,6 +498,10 @@ export function ItineraryManager({
     React.useState<ItineraryStop | null>(null);
   const [addAccommodationStop, setAddAccommodationStop] =
     React.useState<ItineraryStop | null>(null);
+  // Set while we're waiting for a rough stop's leg to be dated so we can open
+  // the accommodation form the user originally asked for once it reappears.
+  const [pendingAccommodationStopId, setPendingAccommodationStopId] =
+    React.useState<string | null>(null);
 
   // ── Chapter dialog state ──
   const [chapterDialogOpen, setChapterDialogOpen] = React.useState(false);
@@ -615,6 +619,56 @@ export function ItineraryManager({
   function handleAdjustDates(stop: StopCardStop) {
     setAdjustingStop(stop);
   }
+
+  // Accommodation needs a real check-in and check-out, so a rough stop can't
+  // hold one yet. Rather than hiding the button (ADR-less UI decision recorded
+  // in the plan: a hidden control reads as a missing feature), explain the
+  // blocker and offer the fix. Primary action dates just this leg; the trip-wide
+  // control is named as the fallback for when the leg has no anchor to flow from.
+  async function handleAddAccommodationClick(stop: ItineraryStop) {
+    if (stop.arriveDate && stop.departDate) {
+      setAddAccommodationStop(stop);
+      return;
+    }
+
+    const proceed = await confirm({
+      title: `${stop.name} has no dates yet`,
+      description: (
+        <>
+          Accommodation needs a check-in and check-out. Set dates for this leg
+          first and we&apos;ll take you straight to the form.
+          <br />
+          <br />
+          No start date to work from? Use{" "}
+          <strong>Set dates for all stops</strong> at the top of the plan.
+        </>
+      ),
+      confirmLabel: "Set dates for this leg",
+      destructive: false,
+    });
+    if (!proceed) return;
+
+    setPendingAccommodationStopId(stop.id);
+    await handleFirmUp(stop.chapterId ?? null);
+  }
+
+  // Once the leg has been dated, the stop we were asked to add accommodation to
+  // comes back with real dates — that's our cue to open the form the user
+  // originally asked for, so the nudge isn't a dead end. The setState calls
+  // are deferred inside a microtask (never synchronously in the effect body)
+  // so react-hooks/set-state-in-effect is satisfied — same idiom used
+  // elsewhere in this codebase (e.g. promote-fork-dialog.tsx).
+  React.useEffect(() => {
+    if (!pendingAccommodationStopId) return;
+    const dated = localStops.find(
+      (s) => s.id === pendingAccommodationStopId && s.arriveDate && s.departDate,
+    );
+    if (!dated) return;
+    void Promise.resolve().then(() => {
+      setAddAccommodationStop(dated);
+      setPendingAccommodationStopId(null);
+    });
+  }, [localStops, pendingAccommodationStopId]);
 
   // Firm up a whole leg — dates every rough stop in a chapter (id) or the
   // ungrouped run (null). The core rough → scheduled transition.
@@ -1392,21 +1446,20 @@ export function ItineraryManager({
           </div>
         )}
 
-        {/* Add accommodation for this stop (scheduled stops only — accommodations
-            need real dates, so a rough stop's accommodation would be hidden). */}
-        {stop.arriveDate && stop.departDate && (
-          <div className="ml-4 pl-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs text-muted-foreground hover:text-foreground"
-              onClick={() => setAddAccommodationStop(stop)}
-            >
-              <Plus className="size-3.5" aria-hidden="true" />
-              Add Accommodation
-            </Button>
-          </div>
-        )}
+        {/* Add accommodation — always offered. On a rough stop the click explains
+            that accommodation needs dates and offers to date the leg, rather than
+            the button being hidden (which read as "the feature isn't there"). */}
+        <div className="ml-4 pl-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => handleAddAccommodationClick(stop)}
+          >
+            <Plus className="size-3.5" aria-hidden="true" />
+            Add Accommodation
+          </Button>
+        </div>
 
         {/* Anchor-slot transport legs + the single context-aware Add transport
             button. The SortableContext for legs is guarded: the slot only exists
