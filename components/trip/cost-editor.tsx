@@ -68,11 +68,11 @@ function defaultFormState(defaultCurrency: string): FormState {
 
 function costToFormState(cost: CostRow): FormState {
   return {
-    estimatedAmount: formatMinor(cost.estimatedMinor, cost.currency),
+    estimatedAmount: formatMinor(cost.costMinor, cost.currency),
     currency: cost.currency,
     actualAmount:
-      cost.actualMinor !== null && cost.actualMinor !== undefined
-        ? formatMinor(cost.actualMinor, cost.currency)
+      cost.paidMinor !== null && cost.paidMinor !== undefined
+        ? formatMinor(cost.paidMinor, cost.currency)
         : "",
     paidAt: cost.paidAt
       ? new Date(cost.paidAt).toISOString().slice(0, 10)
@@ -130,7 +130,7 @@ function CostDialogForm({
           <Field
             label="Estimated cost"
             required
-            error={errors.estimatedMinor?.[0]}
+            error={errors.costMinor?.[0]}
           >
             <MoneyInput
               amount={form.estimatedAmount}
@@ -139,7 +139,7 @@ function CostDialogForm({
               onAmountChange={(v) => setForm((f) => ({ ...f, estimatedAmount: v }))}
               onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
               disabled={submitting}
-              invalid={Boolean(errors.estimatedMinor)}
+              invalid={Boolean(errors.costMinor)}
               aria-label="Estimated cost amount"
             />
           </Field>
@@ -148,7 +148,7 @@ function CostDialogForm({
           <Field
             label="Actual cost"
             description="Leave blank if you haven't paid yet."
-            error={errors.actualMinor?.[0]}
+            error={errors.paidMinor?.[0]}
           >
             <MoneyInput
               amount={form.actualAmount}
@@ -157,7 +157,7 @@ function CostDialogForm({
               onAmountChange={(v) => setForm((f) => ({ ...f, actualAmount: v }))}
               onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
               disabled={submitting}
-              invalid={Boolean(errors.actualMinor)}
+              invalid={Boolean(errors.paidMinor)}
               aria-label="Actual cost amount"
             />
           </Field>
@@ -241,15 +241,15 @@ export function CostEditor({
 
   function parseFormToInput(form: FormState): CostRawInput {
     // Parse estimated amount → minor units
-    const estimatedMinor = parseAmountToMinor(form.estimatedAmount, form.currency) ?? 0;
-    const actualMinor =
+    const costMinor = parseAmountToMinor(form.estimatedAmount, form.currency) ?? 0;
+    const paidMinor =
       form.actualAmount.trim() !== ""
         ? (parseAmountToMinor(form.actualAmount, form.currency) ?? undefined)
         : undefined;
 
     return {
-      estimatedMinor,
-      actualMinor,
+      costMinor,
+      paidMinor,
       currency: form.currency,
       paidAt: form.paidAt || undefined,
       ownerType,

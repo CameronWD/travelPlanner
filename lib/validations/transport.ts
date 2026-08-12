@@ -24,7 +24,7 @@ const isoDatetime = z.preprocess((val) => {
  * All fields are intentionally lenient — a transport may be partially filled
  * while a trip is being planned.
  *
- * The optional cost fields (estimatedMinor, currency, actualMinor, paidAt)
+ * The optional cost fields (costMinor, currency, paidMinor, paidAt)
  * let callers capture a single transport-owned Cost in one step, without
  * requiring a separate CostEditor interaction. All cost fields are optional —
  * a transport with no cost still validates.
@@ -62,14 +62,14 @@ export const transportSchema = z.object({
   // --- Inline cost fields (all optional) ---
 
   /** Estimated cost in minor units (e.g. cents). Integer. */
-  estimatedMinor: z
+  costMinor: z
     .number()
     .int("Estimated amount must be a whole number in minor units")
     .min(0, "Estimated amount must be 0 or greater")
     .max(2_147_483_647, "Amount is too large")
     .optional(),
 
-  /** ISO 4217 currency code. Required when estimatedMinor is set. */
+  /** ISO 4217 currency code. Required when costMinor is set. */
   currency: z
     .string()
     .length(3, "Currency must be a 3-letter ISO 4217 code")
@@ -80,7 +80,7 @@ export const transportSchema = z.object({
     .optional(),
 
   /** Actual cost in minor units. Optional. */
-  actualMinor: z
+  paidMinor: z
     .number()
     .int("Actual amount must be a whole number in minor units")
     .min(0, "Actual amount must be 0 or greater")

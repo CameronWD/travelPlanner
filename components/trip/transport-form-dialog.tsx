@@ -49,9 +49,9 @@ interface FormErrors {
   arrAt?: string[];
   reference?: string[];
   notes?: string[];
-  estimatedMinor?: string[];
+  costMinor?: string[];
   currency?: string[];
-  actualMinor?: string[];
+  paidMinor?: string[];
   paidAt?: string[];
   _form?: string[];
 }
@@ -334,14 +334,14 @@ function TransportForm({
 
   // Inline cost fields
   const [estimatedAmount, setEstimatedAmount] = React.useState(
-    singleCost ? formatMinor(singleCost.estimatedMinor, singleCost.currency) : "",
+    singleCost ? formatMinor(singleCost.costMinor, singleCost.currency) : "",
   );
   const [currency, setCurrency] = React.useState(
     singleCost?.currency ?? defaultCurrency,
   );
   const [actualAmount, setActualAmount] = React.useState(
-    singleCost && singleCost.actualMinor !== null && singleCost.actualMinor !== undefined
-      ? formatMinor(singleCost.actualMinor, singleCost.currency)
+    singleCost && singleCost.paidMinor !== null && singleCost.paidMinor !== undefined
+      ? formatMinor(singleCost.paidMinor, singleCost.currency)
       : "",
   );
   const [paidAt, setPaidAt] = React.useState(
@@ -350,10 +350,10 @@ function TransportForm({
 
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {
-      const estimatedMinor = estimatedAmount.trim()
+      const costMinor = estimatedAmount.trim()
         ? (parseAmountToMinor(estimatedAmount, currency) ?? undefined)
         : undefined;
-      const actualMinor = actualAmount.trim()
+      const paidMinor = actualAmount.trim()
         ? (parseAmountToMinor(actualAmount, currency) ?? undefined)
         : undefined;
 
@@ -398,10 +398,10 @@ function TransportForm({
         reference: reference.trim() || undefined,
         notes: notes.trim() || undefined,
         anchorStopId: anchorStopId === HEAD_SENTINEL ? "" : (anchorStopId || undefined),
-        ...(estimatedMinor !== undefined && {
-          estimatedMinor,
+        ...(costMinor !== undefined && {
+          costMinor,
           currency,
-          actualMinor: actualMinor ?? null,
+          paidMinor: paidMinor ?? null,
           paidAt: paidAt || null,
         }),
       };

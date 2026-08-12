@@ -487,8 +487,8 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
           where,
           select: {
             id: true,
-            estimatedMinor: true,
-            actualMinor: true,
+            costMinor: true,
+            paidMinor: true,
             currency: true,
             rateToHome: true,
             ownerType: true,
@@ -579,12 +579,12 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
     db.transport.findMany({ where: realWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true, reference: true } }),
     db.accommodation.findMany({ where: realWhere, select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true, confirmation: true } }),
     db.item.findMany({ where: { ...realWhere, ...PLAN_PLACEMENT_WHERE }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true } }),
-    db.cost.findMany({ where: realWhere, select: { id: true, estimatedMinor: true, actualMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
+    db.cost.findMany({ where: realWhere, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true, paidAt: true } }),
     db.stop.findMany({ where: forkWhere, select: { id: true, name: true, country: true, nights: true, sortOrder: true, arriveDate: true, departDate: true, pinned: true, lat: true, lng: true, timezone: true } }),
     db.transport.findMany({ where: forkWhere, select: { id: true, mode: true, fromStopId: true, toStopId: true, depAt: true, arrAt: true } }),
     db.accommodation.findMany({ where: forkWhere, select: { id: true, stopId: true, name: true, checkIn: true, checkOut: true } }),
     db.item.findMany({ where: { ...forkWhere, ...PLAN_PLACEMENT_WHERE }, select: { id: true, stopId: true, date: true, startTime: true, endTime: true, lat: true, lng: true, category: true } }),
-    db.cost.findMany({ where: forkWhere, select: { id: true, estimatedMinor: true, actualMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true } }),
+    db.cost.findMany({ where: forkWhere, select: { id: true, costMinor: true, paidMinor: true, currency: true, rateToHome: true, ownerType: true, ownerId: true, label: true, category: true } }),
   ]);
 
   // 3. Collect real-plan entity IDs for attachment lookup

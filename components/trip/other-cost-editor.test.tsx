@@ -21,8 +21,8 @@ const baseProps = {
 
 const sampleCost: CostRow = {
   id: "cost-1",
-  estimatedMinor: 1250,
-  actualMinor: null,
+  costMinor: 1250,
+  paidMinor: null,
   currency: "AUD",
   rateToHome: 1,
   paidAt: null,
@@ -35,7 +35,7 @@ const sampleCost: CostRow = {
 describe("OtherCostEditor", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("add flow: estimated only -> createCost called with estimatedMinor: 1250 and actualMinor: undefined", async () => {
+  it("add flow: estimated only -> createCost called with costMinor: 1250 and paidMinor: undefined", async () => {
     const user = userEvent.setup();
     render(<OtherCostEditor {...baseProps} />);
 
@@ -60,8 +60,8 @@ describe("OtherCostEditor", () => {
     expect(createCost).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({
-        estimatedMinor: 1250,
-        actualMinor: undefined,
+        costMinor: 1250,
+        paidMinor: undefined,
         currency: "AUD",
         ownerType: "OTHER",
       }),
@@ -91,14 +91,14 @@ describe("OtherCostEditor", () => {
     expect(createCost).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({
-        estimatedMinor: 5000,
-        actualMinor: 4875,
+        costMinor: 5000,
+        paidMinor: 4875,
         currency: "AUD",
       }),
     );
   });
 
-  it("editing an existing cost prefills from estimatedMinor (1250 -> '12.50') and calls updateCost", async () => {
+  it("editing an existing cost prefills from costMinor (1250 -> '12.50') and calls updateCost", async () => {
     const user = userEvent.setup();
     render(<OtherCostEditor {...baseProps} costs={[sampleCost]} />);
 
@@ -107,7 +107,7 @@ describe("OtherCostEditor", () => {
       screen.getByRole("button", { name: /edit travel insurance/i }),
     );
 
-    // The estimated field should be prefilled from sampleCost.estimatedMinor = 1250 -> "12.50"
+    // The estimated field should be prefilled from sampleCost.costMinor = 1250 -> "12.50"
     const estimatedInput = screen.getByLabelText("Estimated cost amount");
     expect(estimatedInput).toHaveValue("12.50");
 
@@ -117,7 +117,7 @@ describe("OtherCostEditor", () => {
     expect(updateCost).toHaveBeenCalledWith(
       "cost-1",
       expect.objectContaining({
-        estimatedMinor: 1250,
+        costMinor: 1250,
         currency: "AUD",
         ownerType: "OTHER",
       }),
@@ -156,8 +156,8 @@ describe("OtherCostEditor", () => {
     // NOT A$11.00 (the wrong raw-multiply result: Math.round(100000 * 0.011) = 1100 minor AUD).
     const jpyCost: CostRow = {
       id: "cost-jpy",
-      estimatedMinor: 100000,
-      actualMinor: null,
+      costMinor: 100000,
+      paidMinor: null,
       currency: "JPY",
       rateToHome: 0.011,
       paidAt: null,

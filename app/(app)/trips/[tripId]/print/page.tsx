@@ -136,8 +136,8 @@ export default async function PrintPage({
         orderBy: { createdAt: "asc" },
         select: {
           id: true,
-          estimatedMinor: true,
-          actualMinor: true,
+          costMinor: true,
+          paidMinor: true,
           currency: true,
           rateToHome: true,
           ownerType: true,
@@ -239,7 +239,7 @@ export default async function PrintPage({
 
   const totalNights = nightsBetween(startDate, endDate);
   const { grandTotal } = budget;
-  const hasActual = grandTotal.actualMinor > 0;
+  const hasActual = grandTotal.paidMinor > 0;
 
   return (
     <>
@@ -518,18 +518,18 @@ export default async function PrintPage({
                 </p>
                 <p className="font-mono text-2xl font-bold">
                   {formatMoney(
-                    hasActual ? grandTotal.actualMinor : grandTotal.estimatedMinor,
+                    hasActual ? grandTotal.paidMinor : grandTotal.costMinor,
                     homeCurrency,
                   )}
                 </p>
               </div>
-              {hasActual && grandTotal.estimatedMinor > 0 && (
+              {hasActual && grandTotal.costMinor > 0 && (
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">
                     Original estimate
                   </p>
                   <p className="font-mono text-2xl font-bold text-muted-foreground">
-                    {formatMoney(grandTotal.estimatedMinor, homeCurrency)}
+                    {formatMoney(grandTotal.costMinor, homeCurrency)}
                   </p>
                 </div>
               )}
@@ -547,7 +547,7 @@ export default async function PrintPage({
                       <span className="text-muted-foreground">{bc.category}</span>
                       <span className="font-mono font-medium">
                         {formatMoney(
-                          hasActual && bc.actualMinor > 0 ? bc.actualMinor : bc.estimatedMinor,
+                          hasActual && bc.paidMinor > 0 ? bc.paidMinor : bc.costMinor,
                           homeCurrency,
                         )}
                       </span>

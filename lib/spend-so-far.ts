@@ -7,12 +7,12 @@ export interface SpendCost extends BudgetCost {
 }
 
 export interface SpendSoFar {
-  estimatedTotalMinor: number;
+  costTotalMinor: number;
   paidSoFarMinor: number;
-  paidEstimateMinor: number;
+  paidCostMinor: number;
   /** paidSoFar − paidEstimate; > 0 = over your estimates on what you've paid. */
   varianceMinor: number;
-  estimatedRemainingMinor: number;
+  costRemainingMinor: number;
   /** 0–100, or null when the trip has no/invalid dates. */
   tripElapsedPct: number | null;
 }
@@ -49,11 +49,11 @@ export function buildSpendSoFar(input: {
   }
 
   return {
-    estimatedTotalMinor: estimatedTotal,
+    costTotalMinor: estimatedTotal,
     paidSoFarMinor: paidSoFar,
-    paidEstimateMinor: paidEstimate,
+    paidCostMinor: paidEstimate,
     varianceMinor: paidSoFar - paidEstimate,
-    estimatedRemainingMinor: estimatedTotal - paidEstimate,
+    costRemainingMinor: estimatedTotal - paidEstimate,
     tripElapsedPct,
   };
 }

@@ -25,8 +25,8 @@ import {
 function makeCost(overrides: Partial<BudgetCost> = {}): BudgetCost {
   return {
     id: "cost-1",
-    estimatedMinor: 5000,
-    actualMinor: null,
+    costMinor: 5000,
+    paidMinor: null,
     currency: "AUD",
     rateToHome: null,
     ownerType: "OTHER",
@@ -43,14 +43,14 @@ function makeCost(overrides: Partial<BudgetCost> = {}): BudgetCost {
 
 describe("convertCostToHome", () => {
   it("same currency → passthrough (no conversion needed)", () => {
-    const cost = makeCost({ estimatedMinor: 10000, actualMinor: 8000, currency: "AUD", rateToHome: null });
+    const cost = makeCost({ costMinor: 10000, paidMinor: 8000, currency: "AUD", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
     expect(result.estimatedHome).toBe(10000);
     expect(result.actualHome).toBe(8000);
   });
 
   it("same currency, null actual → actualHome is 0", () => {
-    const cost = makeCost({ estimatedMinor: 5000, actualMinor: null, currency: "AUD", rateToHome: null });
+    const cost = makeCost({ costMinor: 5000, paidMinor: null, currency: "AUD", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
     expect(result.estimatedHome).toBe(5000);
     expect(result.actualHome).toBe(0);
@@ -58,35 +58,35 @@ describe("convertCostToHome", () => {
 
   it("foreign currency with rate → converts both amounts", () => {
     // EUR → AUD at rate 1.65: €12.50 = 1250 minor EUR → A$20.625 → 2063 minor AUD
-    const cost = makeCost({ estimatedMinor: 1250, actualMinor: 800, currency: "EUR", rateToHome: 1.65 });
+    const cost = makeCost({ costMinor: 1250, paidMinor: 800, currency: "EUR", rateToHome: 1.65 });
     const result = convertCostToHome(cost, "AUD");
     expect(result.estimatedHome).toBe(2063); // round-half-up
     expect(result.actualHome).toBe(1320);   // 800 * 1.65 = 1320
   });
 
   it("foreign currency with rate, null actual → actualHome is 0", () => {
-    const cost = makeCost({ estimatedMinor: 1000, actualMinor: null, currency: "USD", rateToHome: 1.5 });
+    const cost = makeCost({ costMinor: 1000, paidMinor: null, currency: "USD", rateToHome: 1.5 });
     const result = convertCostToHome(cost, "AUD");
     expect(result.estimatedHome).toBe(1500);
     expect(result.actualHome).toBe(0);
   });
 
   it("foreign currency with null rate → both null", () => {
-    const cost = makeCost({ estimatedMinor: 5000, actualMinor: 3000, currency: "JPY", rateToHome: null });
+    const cost = makeCost({ costMinor: 5000, paidMinor: 3000, currency: "JPY", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
     expect(result.estimatedHome).toBeNull();
     expect(result.actualHome).toBeNull();
   });
 
   it("case-insensitive currency comparison", () => {
-    const cost = makeCost({ estimatedMinor: 2000, actualMinor: null, currency: "aud", rateToHome: null });
+    const cost = makeCost({ costMinor: 2000, paidMinor: null, currency: "aud", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
     expect(result.estimatedHome).toBe(2000);
   });
 
   it("JPY (zero-decimal) conversion", () => {
     // ¥1000 * 0.011 AUD/JPY = A$11 = 1100 AUD minor
-    const cost = makeCost({ estimatedMinor: 1000, actualMinor: null, currency: "JPY", rateToHome: 0.011 });
+    const cost = makeCost({ costMinor: 1000, paidMinor: null, currency: "JPY", rateToHome: 0.011 });
     const result = convertCostToHome(cost, "AUD");
     expect(result.estimatedHome).toBe(1100);
   });
@@ -226,8 +226,8 @@ describe("buildBudget", () => {
 
   it("empty costs → all zeros, no missing rates", () => {
     const result = buildBudget(baseInput);
-    expect(result.grandTotal.estimatedMinor).toBe(0);
-    expect(result.grandTotal.actualMinor).toBe(0);
+    expect(result.grandTotal.costMinor).toBe(0);
+    expect(result.grandTotal.paidMinor).toBe(0);
     expect(result.missingRates).toEqual([]);
     expect(result.hasMissingRates).toBe(false);
     expect(result.byCategory).toEqual([]);
@@ -240,45 +240,45 @@ describe("buildBudget", () => {
 
   it("same-currency costs → correct grandTotal", () => {
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 10000, actualMinor: 8000, currency: "AUD", ownerType: "OTHER", label: "Insurance" }),
-      makeCost({ id: "c2", estimatedMinor: 5000, actualMinor: null, currency: "AUD", ownerType: "OTHER", label: "Visa" }),
+      makeCost({ id: "c1", costMinor: 10000, paidMinor: 8000, currency: "AUD", ownerType: "OTHER", label: "Insurance" }),
+      makeCost({ id: "c2", costMinor: 5000, paidMinor: null, currency: "AUD", ownerType: "OTHER", label: "Visa" }),
     ];
     const result = buildBudget({ ...baseInput, costs });
-    expect(result.grandTotal.estimatedMinor).toBe(15000);
-    expect(result.grandTotal.actualMinor).toBe(8000);
+    expect(result.grandTotal.costMinor).toBe(15000);
+    expect(result.grandTotal.paidMinor).toBe(8000);
   });
 
   it("foreign-currency cost with rate → converts correctly", () => {
     const costs: BudgetCost[] = [
       // €100 = 10000 minor EUR at rate 1.65 = AUD 16500 minor
-      makeCost({ id: "c1", estimatedMinor: 10000, actualMinor: null, currency: "EUR", rateToHome: 1.65, ownerType: "OTHER", label: "Hotel" }),
+      makeCost({ id: "c1", costMinor: 10000, paidMinor: null, currency: "EUR", rateToHome: 1.65, ownerType: "OTHER", label: "Hotel" }),
     ];
     const result = buildBudget({ ...baseInput, costs });
-    expect(result.grandTotal.estimatedMinor).toBe(16500);
+    expect(result.grandTotal.costMinor).toBe(16500);
     expect(result.hasMissingRates).toBe(false);
   });
 
   it("missing-rate cost excluded from totals and reported in missingRates", () => {
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 5000, actualMinor: null, currency: "AUD", rateToHome: null, ownerType: "OTHER", label: "AUD cost" }),
-      makeCost({ id: "c2", estimatedMinor: 3000, actualMinor: null, currency: "JPY", rateToHome: null, ownerType: "OTHER", label: "JPY cost (no rate)" }),
+      makeCost({ id: "c1", costMinor: 5000, paidMinor: null, currency: "AUD", rateToHome: null, ownerType: "OTHER", label: "AUD cost" }),
+      makeCost({ id: "c2", costMinor: 3000, paidMinor: null, currency: "JPY", rateToHome: null, ownerType: "OTHER", label: "JPY cost (no rate)" }),
     ];
     const result = buildBudget({ ...baseInput, costs });
     // Only the AUD cost is included
-    expect(result.grandTotal.estimatedMinor).toBe(5000);
+    expect(result.grandTotal.costMinor).toBe(5000);
     expect(result.missingRates).toEqual(["JPY"]);
     expect(result.hasMissingRates).toBe(true);
   });
 
   it("multiple missing-rate currencies are deduplicated and sorted", () => {
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 100, actualMinor: null, currency: "JPY", rateToHome: null, ownerType: "OTHER", label: "JPY 1" }),
-      makeCost({ id: "c2", estimatedMinor: 200, actualMinor: null, currency: "JPY", rateToHome: null, ownerType: "OTHER", label: "JPY 2" }),
-      makeCost({ id: "c3", estimatedMinor: 300, actualMinor: null, currency: "EUR", rateToHome: null, ownerType: "OTHER", label: "EUR" }),
+      makeCost({ id: "c1", costMinor: 100, paidMinor: null, currency: "JPY", rateToHome: null, ownerType: "OTHER", label: "JPY 1" }),
+      makeCost({ id: "c2", costMinor: 200, paidMinor: null, currency: "JPY", rateToHome: null, ownerType: "OTHER", label: "JPY 2" }),
+      makeCost({ id: "c3", costMinor: 300, paidMinor: null, currency: "EUR", rateToHome: null, ownerType: "OTHER", label: "EUR" }),
     ];
     const result = buildBudget({ ...baseInput, costs });
     expect(result.missingRates).toEqual(["EUR", "JPY"]);
-    expect(result.grandTotal.estimatedMinor).toBe(0);
+    expect(result.grandTotal.costMinor).toBe(0);
   });
 
   it("byCategory grouping by ownerType", () => {
@@ -286,12 +286,12 @@ describe("buildBudget", () => {
       { id: "item-1", stopId: null, category: "FOOD", date: "2026-07-03" },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 20000, actualMinor: null, currency: "AUD", ownerType: "TRANSPORT", ownerId: null, label: null }),
-      makeCost({ id: "c2", estimatedMinor: 15000, actualMinor: null, currency: "AUD", ownerType: "ITEM", ownerId: "item-1", label: null }),
-      makeCost({ id: "c3", estimatedMinor: 5000, actualMinor: null, currency: "AUD", ownerType: "OTHER", ownerId: null, label: "Visa", category: "Insurance" }),
+      makeCost({ id: "c1", costMinor: 20000, paidMinor: null, currency: "AUD", ownerType: "TRANSPORT", ownerId: null, label: null }),
+      makeCost({ id: "c2", costMinor: 15000, paidMinor: null, currency: "AUD", ownerType: "ITEM", ownerId: "item-1", label: null }),
+      makeCost({ id: "c3", costMinor: 5000, paidMinor: null, currency: "AUD", ownerType: "OTHER", ownerId: null, label: "Visa", category: "Insurance" }),
     ];
     const result = buildBudget({ ...baseInput, costs, items });
-    const catMap = Object.fromEntries(result.byCategory.map((c) => [c.category, c.estimatedMinor]));
+    const catMap = Object.fromEntries(result.byCategory.map((c) => [c.category, c.costMinor]));
     expect(catMap["Transport"]).toBe(20000);
     expect(catMap["Food & Drink"]).toBe(15000);
     expect(catMap["Insurance"]).toBe(5000);
@@ -299,14 +299,14 @@ describe("buildBudget", () => {
 
   it("byCategory sorted descending by estimated", () => {
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 5000, currency: "AUD", ownerType: "OTHER", label: "Small", category: "Small" }),
-      makeCost({ id: "c2", estimatedMinor: 30000, currency: "AUD", ownerType: "OTHER", label: "Big", category: "Big" }),
-      makeCost({ id: "c3", estimatedMinor: 15000, currency: "AUD", ownerType: "OTHER", label: "Medium", category: "Medium" }),
+      makeCost({ id: "c1", costMinor: 5000, currency: "AUD", ownerType: "OTHER", label: "Small", category: "Small" }),
+      makeCost({ id: "c2", costMinor: 30000, currency: "AUD", ownerType: "OTHER", label: "Big", category: "Big" }),
+      makeCost({ id: "c3", costMinor: 15000, currency: "AUD", ownerType: "OTHER", label: "Medium", category: "Medium" }),
     ];
     const result = buildBudget({ ...baseInput, costs });
-    expect(result.byCategory[0].estimatedMinor).toBe(30000);
-    expect(result.byCategory[1].estimatedMinor).toBe(15000);
-    expect(result.byCategory[2].estimatedMinor).toBe(5000);
+    expect(result.byCategory[0].costMinor).toBe(30000);
+    expect(result.byCategory[1].costMinor).toBe(15000);
+    expect(result.byCategory[2].costMinor).toBe(5000);
   });
 
   it("byStop: ACCOMMODATION cost assigned to correct stop", () => {
@@ -314,20 +314,20 @@ describe("buildBudget", () => {
       { id: "acc-1", stopId: "stop-london", checkIn: "2026-07-01", checkOut: "2026-07-04" },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 12000, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
+      makeCost({ id: "c1", costMinor: 12000, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, accommodations });
     const londonEntry = result.byStop.find((s) => s.stopId === "stop-london");
-    expect(londonEntry?.estimatedMinor).toBe(12000);
+    expect(londonEntry?.costMinor).toBe(12000);
   });
 
   it("byStop: OTHER cost → trip-wide entry", () => {
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 8000, currency: "AUD", ownerType: "OTHER", label: "Insurance" }),
+      makeCost({ id: "c1", costMinor: 8000, currency: "AUD", ownerType: "OTHER", label: "Insurance" }),
     ];
     const result = buildBudget({ ...baseInput, costs });
     const tripWide = result.byStop.find((s) => s.stopId === null);
-    expect(tripWide?.estimatedMinor).toBe(8000);
+    expect(tripWide?.costMinor).toBe(8000);
     expect(tripWide?.stopName).toBe("Trip-wide / Other");
   });
 
@@ -340,7 +340,7 @@ describe("buildBudget", () => {
       { id: "acc-1", stopId: "stop-london", checkIn: "2026-07-02", checkOut: "2026-07-05" },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 10000, actualMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
+      makeCost({ id: "c1", costMinor: 10000, paidMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, accommodations });
 
@@ -349,14 +349,14 @@ describe("buildBudget", () => {
     const day4 = result.byDay.find((d) => d.dateISO === "2026-07-04");
     const day5 = result.byDay.find((d) => d.dateISO === "2026-07-05");
 
-    expect(day2?.estimatedMinor).toBe(3334);
-    expect(day3?.estimatedMinor).toBe(3333);
-    expect(day4?.estimatedMinor).toBe(3333);
+    expect(day2?.costMinor).toBe(3334);
+    expect(day3?.costMinor).toBe(3333);
+    expect(day4?.costMinor).toBe(3333);
     // checkOut day is NOT a night
-    expect(day5?.estimatedMinor).toBe(0);
+    expect(day5?.costMinor).toBe(0);
 
     // Sum exactly equals the total
-    const nightTotal = (day2?.estimatedMinor ?? 0) + (day3?.estimatedMinor ?? 0) + (day4?.estimatedMinor ?? 0);
+    const nightTotal = (day2?.costMinor ?? 0) + (day3?.costMinor ?? 0) + (day4?.costMinor ?? 0);
     expect(nightTotal).toBe(10000);
   });
 
@@ -365,13 +365,13 @@ describe("buildBudget", () => {
       { id: "acc-1", stopId: "stop-london", checkIn: "2026-07-01", checkOut: "2026-07-03" },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 6000, actualMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
+      makeCost({ id: "c1", costMinor: 6000, paidMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, accommodations });
     const day1 = result.byDay.find((d) => d.dateISO === "2026-07-01");
     const day2 = result.byDay.find((d) => d.dateISO === "2026-07-02");
-    expect(day1?.estimatedMinor).toBe(3000);
-    expect(day2?.estimatedMinor).toBe(3000);
+    expect(day1?.costMinor).toBe(3000);
+    expect(day2?.costMinor).toBe(3000);
   });
 
   it("accommodation spread: actual amounts also spread correctly", () => {
@@ -379,12 +379,12 @@ describe("buildBudget", () => {
       { id: "acc-1", stopId: "stop-london", checkIn: "2026-07-02", checkOut: "2026-07-05" },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 10000, actualMinor: 9900, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
+      makeCost({ id: "c1", costMinor: 10000, paidMinor: 9900, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, accommodations });
     const totalActual = result.byDay
       .filter((d) => ["2026-07-02", "2026-07-03", "2026-07-04"].includes(d.dateISO))
-      .reduce((sum, d) => sum + d.actualMinor, 0);
+      .reduce((sum, d) => sum + d.paidMinor, 0);
     expect(totalActual).toBe(9900);
   });
 
@@ -394,13 +394,13 @@ describe("buildBudget", () => {
       { id: "acc-1", stopId: "stop-london", checkIn: "2026-07-01", checkOut: "2026-07-05" },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 99, actualMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
+      makeCost({ id: "c1", costMinor: 99, paidMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, accommodations });
     const nightDays = ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04"];
     const totalFromDays = nightDays.reduce((sum, d) => {
       const dayEntry = result.byDay.find((x) => x.dateISO === d);
-      return sum + (dayEntry?.estimatedMinor ?? 0);
+      return sum + (dayEntry?.costMinor ?? 0);
     }, 0);
     expect(totalFromDays).toBe(99);
   });
@@ -412,16 +412,16 @@ describe("buildBudget", () => {
       { id: "acc-1", stopId: "stop-london", checkIn: "2026-07-08", checkOut: "2026-07-18" },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 10000, actualMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
+      makeCost({ id: "c1", costMinor: 10000, paidMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, accommodations });
     const day8 = result.byDay.find((d) => d.dateISO === "2026-07-08");
     const day9 = result.byDay.find((d) => d.dateISO === "2026-07-09");
     const day10 = result.byDay.find((d) => d.dateISO === "2026-07-10");
-    expect(day8?.estimatedMinor).toBe(1000);
-    expect(day9?.estimatedMinor).toBe(1000);
+    expect(day8?.costMinor).toBe(1000);
+    expect(day9?.costMinor).toBe(1000);
     // The night of the trip's final day must NOT be dropped.
-    expect(day10?.estimatedMinor).toBe(1000);
+    expect(day10?.costMinor).toBe(1000);
   });
 
   it("accommodation spread: single-night stay on the trip's final day still appears in byDay", () => {
@@ -429,11 +429,11 @@ describe("buildBudget", () => {
       { id: "acc-1", stopId: "stop-london", checkIn: "2026-07-10", checkOut: "2026-07-11" },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 5000, actualMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
+      makeCost({ id: "c1", costMinor: 5000, paidMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, accommodations });
     const day10 = result.byDay.find((d) => d.dateISO === "2026-07-10");
-    expect(day10?.estimatedMinor).toBe(5000);
+    expect(day10?.costMinor).toBe(5000);
   });
 
   it("accommodation spread: stay straddling trip START puts remainder on the true first night, not the first in-window night", () => {
@@ -444,15 +444,15 @@ describe("buildBudget", () => {
       { id: "acc-1", stopId: "stop-london", checkIn: "2026-06-28", checkOut: "2026-07-04" },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 601, actualMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
+      makeCost({ id: "c1", costMinor: 601, paidMinor: null, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, accommodations });
     const jul1 = result.byDay.find((d) => d.dateISO === "2026-07-01");
     const jul2 = result.byDay.find((d) => d.dateISO === "2026-07-02");
     const jul3 = result.byDay.find((d) => d.dateISO === "2026-07-03");
-    expect(jul1?.estimatedMinor).toBe(100);
-    expect(jul2?.estimatedMinor).toBe(100);
-    expect(jul3?.estimatedMinor).toBe(100);
+    expect(jul1?.costMinor).toBe(100);
+    expect(jul2?.costMinor).toBe(100);
+    expect(jul3?.costMinor).toBe(100);
   });
 
   // ---------------------------------------------------------------------------
@@ -464,11 +464,11 @@ describe("buildBudget", () => {
       { id: "t-1", fromStopId: "stop-london", toStopId: "stop-paris", depAt: new Date("2026-07-04T08:00:00Z") },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 25000, actualMinor: null, currency: "AUD", ownerType: "TRANSPORT", ownerId: "t-1", label: null }),
+      makeCost({ id: "c1", costMinor: 25000, paidMinor: null, currency: "AUD", ownerType: "TRANSPORT", ownerId: "t-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, transports });
     const depDay = result.byDay.find((d) => d.dateISO === "2026-07-04");
-    expect(depDay?.estimatedMinor).toBe(25000);
+    expect(depDay?.costMinor).toBe(25000);
   });
 
   it("transport cost with no depAt → not placed on any day (still counted in grandTotal)", () => {
@@ -476,13 +476,13 @@ describe("buildBudget", () => {
       { id: "t-1", fromStopId: "stop-london", toStopId: "stop-paris", depAt: null },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 25000, actualMinor: null, currency: "AUD", ownerType: "TRANSPORT", ownerId: "t-1", label: null }),
+      makeCost({ id: "c1", costMinor: 25000, paidMinor: null, currency: "AUD", ownerType: "TRANSPORT", ownerId: "t-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, transports });
     // Still in grandTotal (rate is AUD = home)
-    expect(result.grandTotal.estimatedMinor).toBe(25000);
+    expect(result.grandTotal.costMinor).toBe(25000);
     // But not placed on any day
-    const allDayTotal = result.byDay.reduce((s, d) => s + d.estimatedMinor, 0);
+    const allDayTotal = result.byDay.reduce((s, d) => s + d.costMinor, 0);
     expect(allDayTotal).toBe(0);
   });
 
@@ -495,11 +495,11 @@ describe("buildBudget", () => {
       { id: "item-1", stopId: "stop-paris", category: "SIGHTSEEING", date: "2026-07-06" },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 3500, actualMinor: null, currency: "AUD", ownerType: "ITEM", ownerId: "item-1", label: null }),
+      makeCost({ id: "c1", costMinor: 3500, paidMinor: null, currency: "AUD", ownerType: "ITEM", ownerId: "item-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, items });
     const day = result.byDay.find((d) => d.dateISO === "2026-07-06");
-    expect(day?.estimatedMinor).toBe(3500);
+    expect(day?.costMinor).toBe(3500);
   });
 
   it("undated ITEM cost not in byDay but IS in grandTotal", () => {
@@ -507,21 +507,21 @@ describe("buildBudget", () => {
       { id: "item-1", stopId: null, category: "ACTIVITY", date: null },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 4000, actualMinor: null, currency: "AUD", ownerType: "ITEM", ownerId: "item-1", label: null }),
+      makeCost({ id: "c1", costMinor: 4000, paidMinor: null, currency: "AUD", ownerType: "ITEM", ownerId: "item-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, items });
-    expect(result.grandTotal.estimatedMinor).toBe(4000);
-    const allDayTotal = result.byDay.reduce((s, d) => s + d.estimatedMinor, 0);
+    expect(result.grandTotal.costMinor).toBe(4000);
+    const allDayTotal = result.byDay.reduce((s, d) => s + d.costMinor, 0);
     expect(allDayTotal).toBe(0);
   });
 
   it("OTHER cost not in byDay but IS in grandTotal", () => {
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", estimatedMinor: 12000, actualMinor: null, currency: "AUD", ownerType: "OTHER", label: "Travel insurance" }),
+      makeCost({ id: "c1", costMinor: 12000, paidMinor: null, currency: "AUD", ownerType: "OTHER", label: "Travel insurance" }),
     ];
     const result = buildBudget({ ...baseInput, costs });
-    expect(result.grandTotal.estimatedMinor).toBe(12000);
-    const allDayTotal = result.byDay.reduce((s, d) => s + d.estimatedMinor, 0);
+    expect(result.grandTotal.costMinor).toBe(12000);
+    const allDayTotal = result.byDay.reduce((s, d) => s + d.costMinor, 0);
     expect(allDayTotal).toBe(0);
   });
 
@@ -533,8 +533,8 @@ describe("buildBudget", () => {
     const result = buildBudget(baseInput);
     expect(result.byDay).toHaveLength(10);
     for (const day of result.byDay) {
-      expect(day.estimatedMinor).toBe(0);
-      expect(day.actualMinor).toBe(0);
+      expect(day.costMinor).toBe(0);
+      expect(day.paidMinor).toBe(0);
     }
   });
 
@@ -551,16 +551,16 @@ describe("buildBudget", () => {
   it("mixed currencies: converts and sums correctly, excludes missing-rate", () => {
     const costs: BudgetCost[] = [
       // AUD 100 = 10000 minor
-      makeCost({ id: "c1", estimatedMinor: 10000, actualMinor: 9000, currency: "AUD", rateToHome: null, ownerType: "OTHER", label: "AUD cost" }),
+      makeCost({ id: "c1", costMinor: 10000, paidMinor: 9000, currency: "AUD", rateToHome: null, ownerType: "OTHER", label: "AUD cost" }),
       // EUR 50 = 5000 minor at 1.65 = AUD 8250 minor
-      makeCost({ id: "c2", estimatedMinor: 5000, actualMinor: 4000, currency: "EUR", rateToHome: 1.65, ownerType: "OTHER", label: "EUR cost" }),
+      makeCost({ id: "c2", costMinor: 5000, paidMinor: 4000, currency: "EUR", rateToHome: 1.65, ownerType: "OTHER", label: "EUR cost" }),
       // USD 30 = 3000 minor, no rate → excluded
-      makeCost({ id: "c3", estimatedMinor: 3000, actualMinor: null, currency: "USD", rateToHome: null, ownerType: "OTHER", label: "USD cost" }),
+      makeCost({ id: "c3", costMinor: 3000, paidMinor: null, currency: "USD", rateToHome: null, ownerType: "OTHER", label: "USD cost" }),
     ];
     const result = buildBudget({ ...baseInput, costs });
 
-    expect(result.grandTotal.estimatedMinor).toBe(10000 + 8250); // 18250
-    expect(result.grandTotal.actualMinor).toBe(9000 + 6600); // 4000 * 1.65 = 6600
+    expect(result.grandTotal.costMinor).toBe(10000 + 8250); // 18250
+    expect(result.grandTotal.paidMinor).toBe(9000 + 6600); // 4000 * 1.65 = 6600
     expect(result.missingRates).toEqual(["USD"]);
     expect(result.hasMissingRates).toBe(true);
   });
@@ -593,13 +593,13 @@ describe("buildBudget", () => {
     ];
     const costs: BudgetCost[] = [
       // Accommodation: AUD 600 over 2 nights = 300/night
-      makeCost({ id: "c1", estimatedMinor: 60000, actualMinor: 60000, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
+      makeCost({ id: "c1", costMinor: 60000, paidMinor: 60000, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
       // Transport: AUD 200
-      makeCost({ id: "c2", estimatedMinor: 20000, actualMinor: null, currency: "AUD", ownerType: "TRANSPORT", ownerId: "t-1", label: null }),
+      makeCost({ id: "c2", costMinor: 20000, paidMinor: null, currency: "AUD", ownerType: "TRANSPORT", ownerId: "t-1", label: null }),
       // Item: AUD 50
-      makeCost({ id: "c3", estimatedMinor: 5000, actualMinor: null, currency: "AUD", ownerType: "ITEM", ownerId: "item-1", label: null }),
+      makeCost({ id: "c3", costMinor: 5000, paidMinor: null, currency: "AUD", ownerType: "ITEM", ownerId: "item-1", label: null }),
       // Other: AUD 100
-      makeCost({ id: "c4", estimatedMinor: 10000, actualMinor: null, currency: "AUD", ownerType: "OTHER", label: "Insurance" }),
+      makeCost({ id: "c4", costMinor: 10000, paidMinor: null, currency: "AUD", ownerType: "OTHER", label: "Insurance" }),
     ];
 
     const result = buildBudget({
@@ -613,31 +613,31 @@ describe("buildBudget", () => {
       tripEnd: "2026-07-04",
     });
 
-    expect(result.grandTotal.estimatedMinor).toBe(60000 + 20000 + 5000 + 10000); // 95000
+    expect(result.grandTotal.costMinor).toBe(60000 + 20000 + 5000 + 10000); // 95000
 
     // Day 1: accommodation night 1 (30000)
     const d1 = result.byDay.find((d) => d.dateISO === "2026-07-01");
-    expect(d1?.estimatedMinor).toBe(30000);
+    expect(d1?.costMinor).toBe(30000);
 
     // Day 2: accommodation night 2 (30000) + item (5000)
     const d2 = result.byDay.find((d) => d.dateISO === "2026-07-02");
-    expect(d2?.estimatedMinor).toBe(35000);
+    expect(d2?.costMinor).toBe(35000);
 
     // Day 3: transport (20000)
     const d3 = result.byDay.find((d) => d.dateISO === "2026-07-03");
-    expect(d3?.estimatedMinor).toBe(20000);
+    expect(d3?.costMinor).toBe(20000);
 
     // Day 4: nothing
     const d4 = result.byDay.find((d) => d.dateISO === "2026-07-04");
-    expect(d4?.estimatedMinor).toBe(0);
+    expect(d4?.costMinor).toBe(0);
 
     // byStop: stop-1 gets acc + transport + item = 85000
     const londonStop = result.byStop.find((s) => s.stopId === "stop-1");
-    expect(londonStop?.estimatedMinor).toBe(85000);
+    expect(londonStop?.costMinor).toBe(85000);
 
     // byStop: trip-wide gets other = 10000
     const tripWide = result.byStop.find((s) => s.stopId === null);
-    expect(tripWide?.estimatedMinor).toBe(10000);
+    expect(tripWide?.costMinor).toBe(10000);
   });
 });
 
@@ -694,20 +694,20 @@ describe("buildBudget — byChapter", () => {
 
   // Costs — all AUD so conversion is identity
   // Finland: accommodation cost
-  const costFinlandAcc = makeCost({ id: "cost-fi-acc", estimatedMinor: 10000, actualMinor: 9000,  currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-fi",      label: null });
+  const costFinlandAcc = makeCost({ id: "cost-fi-acc", costMinor: 10000, paidMinor: 9000,  currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-fi",      label: null });
   // Italy: item cost
-  const costItalyItem  = makeCost({ id: "cost-it-item", estimatedMinor: 3000,  actualMinor: 2500,  currency: "AUD", ownerType: "ITEM",          ownerId: "item-it",    label: null });
+  const costItalyItem  = makeCost({ id: "cost-it-item", costMinor: 3000,  paidMinor: 2500,  currency: "AUD", ownerType: "ITEM",          ownerId: "item-it",    label: null });
   // Italy: accommodation cost
-  const costItalyAcc   = makeCost({ id: "cost-it-acc",  estimatedMinor: 8000,  actualMinor: 8000,  currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-it",     label: null });
+  const costItalyAcc   = makeCost({ id: "cost-it-acc",  costMinor: 8000,  paidMinor: 8000,  currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-it",     label: null });
   // Italy: intra-Italy transport cost
-  const costIntraItaly = makeCost({ id: "cost-intra-it", estimatedMinor: 2000, actualMinor: 2000,  currency: "AUD", ownerType: "TRANSPORT",     ownerId: "t-intra-it", label: null });
+  const costIntraItaly = makeCost({ id: "cost-intra-it", costMinor: 2000, paidMinor: 2000,  currency: "AUD", ownerType: "TRANSPORT",     ownerId: "t-intra-it", label: null });
   // Between-legs: crossing transport cost
-  const costCrossing   = makeCost({ id: "cost-cross",   estimatedMinor: 5000,  actualMinor: 4500,  currency: "AUD", ownerType: "TRANSPORT",     ownerId: "t-cross",    label: null });
+  const costCrossing   = makeCost({ id: "cost-cross",   costMinor: 5000,  paidMinor: 4500,  currency: "AUD", ownerType: "TRANSPORT",     ownerId: "t-cross",    label: null });
   // OTHER cost (no chapter)
-  const costOther      = makeCost({ id: "cost-other",   estimatedMinor: 1500,  actualMinor: 1000,  currency: "AUD", ownerType: "OTHER",          ownerId: null,         label: "Visa" });
+  const costOther      = makeCost({ id: "cost-other",   costMinor: 1500,  paidMinor: 1000,  currency: "AUD", ownerType: "OTHER",          ownerId: null,         label: "Visa" });
   // Ungrouped-stop cost (accommodation on the ungrouped stop)
   const accUngrouped: BudgetAccommodation = { id: "acc-ung", stopId: "stop-ung", checkIn: "2026-07-05", checkOut: "2026-07-08" };
-  const costUngrouped  = makeCost({ id: "cost-ung",    estimatedMinor: 4000,  actualMinor: 3500,  currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-ung",    label: null });
+  const costUngrouped  = makeCost({ id: "cost-ung",    costMinor: 4000,  paidMinor: 3500,  currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-ung",    label: null });
 
   const allCosts = [costFinlandAcc, costItalyItem, costItalyAcc, costIntraItaly, costCrossing, costOther, costUngrouped];
   const allAccommodations = [accFinland, accItaly, accUngrouped];
@@ -740,55 +740,55 @@ describe("buildBudget — byChapter", () => {
   it("Finland chapter gets the Finland accommodation cost only", () => {
     const result = buildBudget(chapterInput);
     const fi = result.byChapter.find((c) => c.chapterId === "ch-fi")!;
-    expect(fi.estimatedMinor).toBe(10000);
-    expect(fi.actualMinor).toBe(9000);
+    expect(fi.costMinor).toBe(10000);
+    expect(fi.paidMinor).toBe(9000);
   });
 
   it("Italy chapter gets item + accommodation + intra-Italy transport", () => {
     const result = buildBudget(chapterInput);
     const it = result.byChapter.find((c) => c.chapterId === "ch-it")!;
     // 3000 (item) + 8000 (acc) + 2000 (intra-transport) = 13000
-    expect(it.estimatedMinor).toBe(13000);
-    expect(it.actualMinor).toBe(12500); // 2500 + 8000 + 2000
+    expect(it.costMinor).toBe(13000);
+    expect(it.paidMinor).toBe(12500); // 2500 + 8000 + 2000
   });
 
   it("chapterReconciliation.betweenLegs equals the crossing transport cost", () => {
     const result = buildBudget(chapterInput);
-    expect(result.chapterReconciliation.betweenLegs.estimatedMinor).toBe(5000);
-    expect(result.chapterReconciliation.betweenLegs.actualMinor).toBe(4500);
+    expect(result.chapterReconciliation.betweenLegs.costMinor).toBe(5000);
+    expect(result.chapterReconciliation.betweenLegs.paidMinor).toBe(4500);
   });
 
   it("chapterReconciliation.otherCosts equals the OTHER cost", () => {
     const result = buildBudget(chapterInput);
-    expect(result.chapterReconciliation.otherCosts.estimatedMinor).toBe(1500);
-    expect(result.chapterReconciliation.otherCosts.actualMinor).toBe(1000);
+    expect(result.chapterReconciliation.otherCosts.costMinor).toBe(1500);
+    expect(result.chapterReconciliation.otherCosts.paidMinor).toBe(1000);
   });
 
   it("chapterReconciliation.ungrouped equals the ungrouped-stop cost", () => {
     const result = buildBudget(chapterInput);
-    expect(result.chapterReconciliation.ungrouped.estimatedMinor).toBe(4000);
-    expect(result.chapterReconciliation.ungrouped.actualMinor).toBe(3500);
+    expect(result.chapterReconciliation.ungrouped.costMinor).toBe(4000);
+    expect(result.chapterReconciliation.ungrouped.paidMinor).toBe(3500);
   });
 
   it("reconciliation: sum of byChapter + ungrouped + betweenLegs + otherCosts === grandTotal (both estimated and actual)", () => {
     const result = buildBudget(chapterInput);
-    const chapterSumEst = result.byChapter.reduce((s, c) => s + c.estimatedMinor, 0);
-    const chapterSumAct = result.byChapter.reduce((s, c) => s + c.actualMinor, 0);
+    const chapterSumEst = result.byChapter.reduce((s, c) => s + c.costMinor, 0);
+    const chapterSumAct = result.byChapter.reduce((s, c) => s + c.paidMinor, 0);
 
     const totalFromParts_est =
       chapterSumEst +
-      result.chapterReconciliation.ungrouped.estimatedMinor +
-      result.chapterReconciliation.betweenLegs.estimatedMinor +
-      result.chapterReconciliation.otherCosts.estimatedMinor;
+      result.chapterReconciliation.ungrouped.costMinor +
+      result.chapterReconciliation.betweenLegs.costMinor +
+      result.chapterReconciliation.otherCosts.costMinor;
 
     const totalFromParts_act =
       chapterSumAct +
-      result.chapterReconciliation.ungrouped.actualMinor +
-      result.chapterReconciliation.betweenLegs.actualMinor +
-      result.chapterReconciliation.otherCosts.actualMinor;
+      result.chapterReconciliation.ungrouped.paidMinor +
+      result.chapterReconciliation.betweenLegs.paidMinor +
+      result.chapterReconciliation.otherCosts.paidMinor;
 
-    expect(totalFromParts_est).toBe(result.grandTotal.estimatedMinor);
-    expect(totalFromParts_act).toBe(result.grandTotal.actualMinor);
+    expect(totalFromParts_est).toBe(result.grandTotal.costMinor);
+    expect(totalFromParts_act).toBe(result.grandTotal.paidMinor);
   });
 
   it("when chapters is omitted, byChapter is empty and all non-OTHER costs fall into ungrouped, OTHER into otherCosts", () => {
@@ -801,21 +801,21 @@ describe("buildBudget — byChapter", () => {
     // All non-OTHER costs → ungrouped
     const nonOtherEst = allCosts
       .filter((c) => c.ownerType !== "OTHER")
-      .reduce((s, c) => s + c.estimatedMinor, 0);
-    expect(result.chapterReconciliation.ungrouped.estimatedMinor).toBe(nonOtherEst);
+      .reduce((s, c) => s + c.costMinor, 0);
+    expect(result.chapterReconciliation.ungrouped.costMinor).toBe(nonOtherEst);
     // OTHER costs → otherCosts
     const otherEst = allCosts
       .filter((c) => c.ownerType === "OTHER")
-      .reduce((s, c) => s + c.estimatedMinor, 0);
-    expect(result.chapterReconciliation.otherCosts.estimatedMinor).toBe(otherEst);
+      .reduce((s, c) => s + c.costMinor, 0);
+    expect(result.chapterReconciliation.otherCosts.costMinor).toBe(otherEst);
     // betweenLegs is zero when no chapters
-    expect(result.chapterReconciliation.betweenLegs.estimatedMinor).toBe(0);
+    expect(result.chapterReconciliation.betweenLegs.costMinor).toBe(0);
     // Reconciliation still holds
     const totalFromParts =
-      result.chapterReconciliation.ungrouped.estimatedMinor +
-      result.chapterReconciliation.betweenLegs.estimatedMinor +
-      result.chapterReconciliation.otherCosts.estimatedMinor;
-    expect(totalFromParts).toBe(result.grandTotal.estimatedMinor);
+      result.chapterReconciliation.ungrouped.costMinor +
+      result.chapterReconciliation.betweenLegs.costMinor +
+      result.chapterReconciliation.otherCosts.costMinor;
+    expect(totalFromParts).toBe(result.grandTotal.costMinor);
   });
 });
 
@@ -825,7 +825,7 @@ describe("buildBudget — byChapter", () => {
 
 describe("applyFxRatesToCosts", () => {
   const raw = (over: Partial<Parameters<typeof applyFxRatesToCosts>[0]["costs"][number]> = {}) => ({
-    id: "c1", estimatedMinor: 1000, actualMinor: null, currency: "EUR",
+    id: "c1", costMinor: 1000, paidMinor: null, currency: "EUR",
     rateToHome: null, ownerType: "OTHER", ownerId: null, label: "x", category: null, ...over,
   });
   it("keeps an existing snapshot rateToHome untouched", () => {

@@ -119,8 +119,8 @@ export default async function WishlistPage({
           orderBy: { createdAt: "asc" },
           select: {
             id: true,
-            estimatedMinor: true,
-            actualMinor: true,
+            costMinor: true,
+            paidMinor: true,
             currency: true,
             rateToHome: true,
             paidAt: true,

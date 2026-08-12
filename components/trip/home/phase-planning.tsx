@@ -30,8 +30,8 @@ import type { RouteMapStop } from "@/components/trip/route-map";
 
 const COST_SELECT = {
   id: true,
-  estimatedMinor: true,
-  actualMinor: true,
+  costMinor: true,
+  paidMinor: true,
   currency: true,
   rateToHome: true,
   ownerType: true,
@@ -317,8 +317,8 @@ export async function PhasePlanning({
   const money = (
     <BudgetGlance
       key="budget"
-      estimatedMinor={budget.grandTotal.estimatedMinor}
-      actualMinor={budget.grandTotal.actualMinor}
+      costMinor={budget.grandTotal.costMinor}
+      paidMinor={budget.grandTotal.paidMinor}
       homeCurrency={homeCurrency}
       href={`${base}/budget`}
     />

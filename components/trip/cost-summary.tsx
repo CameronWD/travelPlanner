@@ -30,9 +30,9 @@ export interface CostSummaryProps {
  *  - a "paid" badge when paidAt is set
  */
 export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps) {
-  const estimatedStr = formatMoney(cost.estimatedMinor, cost.currency);
-  const actualStr = cost.actualMinor !== null && cost.actualMinor !== undefined
-    ? formatMoney(cost.actualMinor, cost.currency)
+  const estimatedStr = formatMoney(cost.costMinor, cost.currency);
+  const actualStr = cost.paidMinor !== null && cost.paidMinor !== undefined
+    ? formatMoney(cost.paidMinor, cost.currency)
     : null;
 
   // Home-currency equivalent
@@ -43,13 +43,13 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
     cost.currency.toUpperCase() !== homeCurrency.toUpperCase()
       ? {
           estimated: formatMoney(
-            convertMinor(cost.estimatedMinor, cost.currency, homeCurrency, rate),
+            convertMinor(cost.costMinor, cost.currency, homeCurrency, rate),
             homeCurrency,
           ),
           actual:
-            cost.actualMinor !== null && cost.actualMinor !== undefined
+            cost.paidMinor !== null && cost.paidMinor !== undefined
               ? formatMoney(
-                  convertMinor(cost.actualMinor, cost.currency, homeCurrency, rate),
+                  convertMinor(cost.paidMinor, cost.currency, homeCurrency, rate),
                   homeCurrency,
                 )
               : null,

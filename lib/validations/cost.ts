@@ -10,8 +10,8 @@ import { CURRENCY_CODES } from "@/lib/currencies";
  * Zod schema for creating or updating a Cost.
  *
  * Rules:
- *  - `estimatedMinor` must be a non-negative integer (always required).
- *  - `actualMinor` is optional but must be a non-negative integer if provided.
+ *  - `costMinor` must be a non-negative integer (always required).
+ *  - `paidMinor` is optional but must be a non-negative integer if provided.
  *  - `currency` must be a 3-letter ISO 4217 code from the supported list.
  *  - `paidAt` is optional — accepts an ISO date/datetime string and coerces to Date.
  *  - `ownerType` is one of COST_OWNER_TYPES.
@@ -21,7 +21,7 @@ import { CURRENCY_CODES } from "@/lib/currencies";
  */
 export const costSchema = z
   .object({
-    estimatedMinor: z
+    costMinor: z
       .number()
       .int("Estimated amount must be a whole number in minor units")
       .min(0, "Estimated amount must be 0 or greater")
@@ -29,7 +29,7 @@ export const costSchema = z
       // enforces this bound, so we validate it here before attempting an insert.
       .max(2_147_483_647, "Amount is too large"),
 
-    actualMinor: z
+    paidMinor: z
       .number()
       .int("Actual amount must be a whole number in minor units")
       .min(0, "Actual amount must be 0 or greater")

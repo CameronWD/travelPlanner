@@ -150,7 +150,7 @@ const TRANSPORTS: DemoTransport[] = [
     arrLng: 7.7521,
     notes: "~3.5h via A8/A5 through the Black Forest.",
     sortOrder: 0,
-    cost: { estimatedMinor: 4500, currency: "EUR" },
+    cost: { costMinor: 4500, currency: "EUR" },
   },
   {
     key: "alp:tr:strasbourg-freiburg",
@@ -163,7 +163,7 @@ const TRANSPORTS: DemoTransport[] = [
     arrLng: 7.842,
     notes: "~1h via D83 along the Rhine plain.",
     sortOrder: 1,
-    cost: { estimatedMinor: 1500, currency: "EUR" },
+    cost: { costMinor: 1500, currency: "EUR" },
   },
   {
     key: "alp:tr:freiburg-colmar",
@@ -176,7 +176,7 @@ const TRANSPORTS: DemoTransport[] = [
     arrLng: 7.3585,
     notes: "~45 min back across the Rhine.",
     sortOrder: 2,
-    cost: { estimatedMinor: 1200, currency: "EUR" },
+    cost: { costMinor: 1200, currency: "EUR" },
   },
   {
     key: "alp:tr:colmar-lucerne",
@@ -189,7 +189,7 @@ const TRANSPORTS: DemoTransport[] = [
     arrLng: 8.3093,
     notes: "~2.5h south through the Jura into Switzerland.",
     sortOrder: 3,
-    cost: { estimatedMinor: 3500, currency: "EUR" },
+    cost: { costMinor: 3500, currency: "EUR" },
   },
   {
     key: "alp:tr:lucerne-como",
@@ -204,7 +204,7 @@ const TRANSPORTS: DemoTransport[] = [
     arrPlace: "Airolo / Lugano → Lake Como",
     notes: "Gotthard car-carrying auto-train through the base tunnel — car on board, no mountain pass.",
     sortOrder: 4,
-    cost: { estimatedMinor: 6000, currency: "EUR" },
+    cost: { costMinor: 6000, currency: "EUR" },
   },
 ];
 
@@ -249,7 +249,7 @@ const ITEMS: DemoItem[] = [
     category: "ACTIVITY",
     stopKey: SK.lucerne,
     notes: "Aerial gondola up from Kriens, world's steepest rack railway down — full loop.",
-    cost: { estimatedMinor: 7200, currency: "EUR" },
+    cost: { costMinor: 7200, currency: "EUR" },
     sortOrder: 4,
   },
   {
@@ -299,7 +299,7 @@ const COSTS: DemoCost[] = [
     ownerType: "OTHER",
     ownerKey: null,
     label: "Highway vignette — Switzerland",
-    estimatedMinor: 4400,
+    costMinor: 4400,
     currency: "CHF",
     category: "OTHER",
   },
@@ -307,7 +307,7 @@ const COSTS: DemoCost[] = [
     ownerType: "OTHER",
     ownerKey: null,
     label: "Petrol budget (entire route)",
-    estimatedMinor: 18000,
+    costMinor: 18000,
     currency: "EUR",
     category: "OTHER",
   },

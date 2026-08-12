@@ -137,7 +137,7 @@ export async function createItem(
   // If an inline cost was supplied, create a single item-owned Cost.
   // Resolve the FX rate BEFORE opening a transaction (network must not hold a
   // DB transaction open — ADR 0007).
-  if (data.estimatedMinor !== undefined && data.currency) {
+  if (data.costMinor !== undefined && data.currency) {
     const trip = await db.trip.findUnique({
       where: { id: tripId },
       select: { homeCurrency: true },
@@ -154,8 +154,8 @@ export async function createItem(
             forkId: forkId ?? null,
             ownerType: "ITEM",
             ownerId: created.id,
-            estimatedMinor: data.estimatedMinor!,
-            actualMinor: data.actualMinor ?? null,
+            costMinor: data.costMinor!,
+            paidMinor: data.paidMinor ?? null,
             currency: data.currency!,
             rateToHome: resolved.rate,
             paidAt: data.paidAt ? new Date(data.paidAt) : null,
@@ -316,7 +316,7 @@ export async function updateItem(
   // 1 existing cost + amount provided → update it
   // >1 existing costs → leave CostEditor authoritative (never clobber)
   // No amount provided → skip
-  if (data.estimatedMinor !== undefined && data.currency) {
+  if (data.costMinor !== undefined && data.currency) {
     const existingCosts = await db.cost.findMany({
       where: { ownerType: "ITEM", ownerId: itemId },
       select: { id: true },
@@ -340,8 +340,8 @@ export async function updateItem(
                 forkId: item.forkId ?? null,
                 ownerType: "ITEM",
                 ownerId: itemId,
-                estimatedMinor: data.estimatedMinor!,
-                actualMinor: data.actualMinor ?? null,
+                costMinor: data.costMinor!,
+                paidMinor: data.paidMinor ?? null,
                 currency: data.currency!,
                 rateToHome: resolved.rate,
                 paidAt: data.paidAt ? new Date(data.paidAt) : null,
@@ -354,8 +354,8 @@ export async function updateItem(
             await (tx as typeof db).cost.update({
               where: { id: existingCosts[0].id },
               data: {
-                estimatedMinor: data.estimatedMinor!,
-                actualMinor: data.actualMinor ?? null,
+                costMinor: data.costMinor!,
+                paidMinor: data.paidMinor ?? null,
                 currency: data.currency!,
                 rateToHome: resolved.rate,
                 paidAt: data.paidAt ? new Date(data.paidAt) : null,

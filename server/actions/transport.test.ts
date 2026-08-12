@@ -648,7 +648,7 @@ describe("fork-silent: deleteTransport in a fork does NOT record activity", () =
 // ---------------------------------------------------------------------------
 
 describe("createTransport: inline cost creation", () => {
-  it("creates a Cost with ownerType TRANSPORT and the new transport id when estimatedMinor+currency are provided", async () => {
+  it("creates a Cost with ownerType TRANSPORT and the new transport id when costMinor+currency are provided", async () => {
     transportFindFirstMock.mockResolvedValue(null);
     transportCreateMock.mockResolvedValue({ id: "t-cost-1", mode: "FLIGHT" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
@@ -657,7 +657,7 @@ describe("createTransport: inline cost creation", () => {
 
     const result = await createTransport("trip-1", {
       mode: "FLIGHT",
-      estimatedMinor: 12000,
+      costMinor: 12000,
       currency: "EUR",
     });
 
@@ -681,7 +681,7 @@ describe("createTransport: inline cost creation", () => {
         data: expect.objectContaining({
           ownerType: "TRANSPORT",
           ownerId: "t-cost-1",
-          estimatedMinor: 12000,
+          costMinor: 12000,
           currency: "EUR",
           rateToHome: 0.6,
         }),
@@ -689,7 +689,7 @@ describe("createTransport: inline cost creation", () => {
     );
   });
 
-  it("does NOT create a Cost when no estimatedMinor is provided", async () => {
+  it("does NOT create a Cost when no costMinor is provided", async () => {
     transportFindFirstMock.mockResolvedValue(null);
     transportCreateMock.mockResolvedValue({ id: "t-no-cost", mode: "TRAIN" });
 
@@ -707,7 +707,7 @@ describe("createTransport: inline cost creation", () => {
 
     await createTransport("trip-1", {
       mode: "BUS",
-      estimatedMinor: 5000,
+      costMinor: 5000,
       currency: "AUD",
     });
 
@@ -729,7 +729,7 @@ describe("createTransport: inline cost creation", () => {
 
     await createTransport("trip-1", {
       mode: "FLIGHT",
-      estimatedMinor: 8000,
+      costMinor: 8000,
       currency: "USD",
     });
 
@@ -746,7 +746,7 @@ describe("createTransport: inline cost creation", () => {
 // ---------------------------------------------------------------------------
 
 describe("updateTransport: inline cost update/create", () => {
-  it("creates a Cost when transport has 0 existing costs and estimatedMinor is provided", async () => {
+  it("creates a Cost when transport has 0 existing costs and costMinor is provided", async () => {
     transportFindUniqueMock
       .mockResolvedValueOnce({ id: "tu-1", tripId: "trip-1", forkId: null }) // requireTransportAccess
       .mockResolvedValueOnce({ id: "tu-1", mode: "FLIGHT" }); // before snapshot
@@ -757,7 +757,7 @@ describe("updateTransport: inline cost update/create", () => {
 
     const result = await updateTransport("tu-1", {
       mode: "TRAIN",
-      estimatedMinor: 7500,
+      costMinor: 7500,
       currency: "EUR",
     });
 
@@ -767,14 +767,14 @@ describe("updateTransport: inline cost update/create", () => {
         data: expect.objectContaining({
           ownerType: "TRANSPORT",
           ownerId: "tu-1",
-          estimatedMinor: 7500,
+          costMinor: 7500,
           currency: "EUR",
         }),
       }),
     );
   });
 
-  it("updates the existing Cost when transport has exactly 1 cost and estimatedMinor is provided", async () => {
+  it("updates the existing Cost when transport has exactly 1 cost and costMinor is provided", async () => {
     transportFindUniqueMock
       .mockResolvedValueOnce({ id: "tu-2", tripId: "trip-1", forkId: null }) // requireTransportAccess
       .mockResolvedValueOnce({ id: "tu-2", mode: "FLIGHT" }); // before snapshot
@@ -787,7 +787,7 @@ describe("updateTransport: inline cost update/create", () => {
 
     const result = await updateTransport("tu-2", {
       mode: "FLIGHT",
-      estimatedMinor: 9900,
+      costMinor: 9900,
       currency: "USD",
     });
 
@@ -796,7 +796,7 @@ describe("updateTransport: inline cost update/create", () => {
       expect.objectContaining({
         where: { id: "existing-cost-1" },
         data: expect.objectContaining({
-          estimatedMinor: 9900,
+          costMinor: 9900,
           currency: "USD",
           rateToHome: 0.65,
         }),
@@ -817,7 +817,7 @@ describe("updateTransport: inline cost update/create", () => {
 
     const result = await updateTransport("tu-3", {
       mode: "FLIGHT",
-      estimatedMinor: 5000,
+      costMinor: 5000,
       currency: "AUD",
     });
 
@@ -828,7 +828,7 @@ describe("updateTransport: inline cost update/create", () => {
     expect(transactionMock).not.toHaveBeenCalled();
   });
 
-  it("does NOT create or update costs when estimatedMinor is absent (even with 0 existing costs)", async () => {
+  it("does NOT create or update costs when costMinor is absent (even with 0 existing costs)", async () => {
     transportFindUniqueMock
       .mockResolvedValueOnce({ id: "tu-4", tripId: "trip-1", forkId: null }) // requireTransportAccess
       .mockResolvedValueOnce({ id: "tu-4", mode: "FLIGHT" }); // before snapshot

@@ -6,7 +6,7 @@ export type Key = string;                 // stable cross-ref key, e.g. "eu:stop
 export type Who = "you" | "partner";
 
 export interface DemoVote { user: Who; level: "MUST" | "KEEN" | "MEH"; }
-export interface DemoInlineCost { estimatedMinor: number; actualMinor?: number | null; currency: string; paid?: boolean; category?: string | null; }
+export interface DemoInlineCost { costMinor: number; paidMinor?: number | null; currency: string; paid?: boolean; category?: string | null; }
 export interface DemoCost extends DemoInlineCost { ownerType: "TRANSPORT" | "ACCOMMODATION" | "ITEM" | "OTHER"; ownerKey?: Key | null; label?: string | null; }
 
 export interface DemoStop {

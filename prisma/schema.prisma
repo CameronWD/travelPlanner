@@ -370,8 +370,8 @@ model Cost {
   id             String    @id @default(cuid())
   tripId         String
   forkId         String?
-  estimatedMinor Int // minor units, always present
-  actualMinor    Int? // minor units, optional
+  costMinor      Int // minor units, always present
+  paidMinor      Int? // minor units — what was actually charged; null until paid
   currency       String // ISO 4217
   rateToHome     Float? // snapshotted FX rate at entry, or null if same currency
   paidAt         DateTime?

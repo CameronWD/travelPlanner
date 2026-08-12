@@ -4,8 +4,8 @@ import { BudgetHeroRow } from "./budget-hero-row";
 
 describe("BudgetHeroRow", () => {
   const baseProps = {
-    estimatedMinor: 312000,
-    paidMinor: 184000,
+    costMinor: 312000,
+    paidTotalMinor: 184000,
     homeCurrency: "JPY",
     tripNights: 10,
   };

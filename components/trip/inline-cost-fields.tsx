@@ -43,7 +43,7 @@ export function InlineCostFields({
   if (hasMultipleCosts) return null;
   return (
     <>
-      <Field label="Estimated cost" error={errors.estimatedMinor?.[0]}>
+      <Field label="Estimated cost" error={errors.costMinor?.[0]}>
         <MoneyInput
           amount={estimatedAmount}
           currency={currency}
@@ -51,7 +51,7 @@ export function InlineCostFields({
           onAmountChange={onEstimatedChange}
           onCurrencyChange={onCurrencyChange}
           disabled={disabled}
-          invalid={Boolean(errors.estimatedMinor)}
+          invalid={Boolean(errors.costMinor)}
           aria-label="Estimated cost amount"
         />
       </Field>
@@ -61,7 +61,7 @@ export function InlineCostFields({
           <Field
             label="Actual cost"
             description="Leave blank if you haven't paid yet."
-            error={errors.actualMinor?.[0]}
+            error={errors.paidMinor?.[0]}
           >
             <MoneyInput
               amount={actualAmount}
@@ -70,7 +70,7 @@ export function InlineCostFields({
               onAmountChange={onActualChange}
               onCurrencyChange={onCurrencyChange}
               disabled={disabled}
-              invalid={Boolean(errors.actualMinor)}
+              invalid={Boolean(errors.paidMinor)}
               aria-label="Actual cost amount"
             />
           </Field>

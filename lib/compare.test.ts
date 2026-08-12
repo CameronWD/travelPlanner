@@ -107,8 +107,8 @@ const makeItem = (
 const makeCost = (
   id: string,
   overrides: Partial<{
-    estimatedMinor: number;
-    actualMinor: number | null;
+    costMinor: number;
+    paidMinor: number | null;
     currency: string;
     rateToHome: number | null;
     ownerType: "TRANSPORT" | "ACCOMMODATION" | "ITEM" | "OTHER";
@@ -118,8 +118,8 @@ const makeCost = (
   }> = {},
 ) => ({
   id,
-  estimatedMinor: overrides.estimatedMinor ?? 10000,
-  actualMinor: overrides.actualMinor ?? null,
+  costMinor: overrides.costMinor ?? 10000,
+  paidMinor: overrides.paidMinor ?? null,
   currency: overrides.currency ?? "USD",
   rateToHome: overrides.rateToHome ?? 1,
   ownerType: overrides.ownerType ?? ("OTHER" as const),
@@ -483,8 +483,8 @@ describe("budgetHomeMinor", () => {
       trip: makeTrip({ homeCurrency: "USD", startDate: "2026-07-01" }),
       stops: [makeStop("a", { sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-03" })],
       costs: [
-        makeCost("c1", { estimatedMinor: 5000, currency: "USD", rateToHome: 1, ownerType: "OTHER" }),
-        makeCost("c2", { estimatedMinor: 3000, currency: "USD", rateToHome: 1, ownerType: "OTHER" }),
+        makeCost("c1", { costMinor: 5000, currency: "USD", rateToHome: 1, ownerType: "OTHER" }),
+        makeCost("c2", { costMinor: 3000, currency: "USD", rateToHome: 1, ownerType: "OTHER" }),
       ],
     };
     const m = computePlanMetrics(input);

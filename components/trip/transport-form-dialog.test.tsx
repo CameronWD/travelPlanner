@@ -352,7 +352,7 @@ describe("TransportFormDialog", () => {
   // -------------------------------------------------------------------------
   // Case 12: filling estimated amount sends it in the payload
   // -------------------------------------------------------------------------
-  it("submitting with an estimated amount sends estimatedMinor and currency in the payload", async () => {
+  it("submitting with an estimated amount sends costMinor and currency in the payload", async () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
 
@@ -364,7 +364,7 @@ describe("TransportFormDialog", () => {
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({
-        estimatedMinor: 12050,
+        costMinor: 12050,
         currency: "AUD",
       }),
       undefined,
@@ -372,9 +372,9 @@ describe("TransportFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 13: no estimatedMinor when amount field is empty
+  // Case 13: no costMinor when amount field is empty
   // -------------------------------------------------------------------------
-  it("does NOT include estimatedMinor in the payload when the amount field is empty", async () => {
+  it("does NOT include costMinor in the payload when the amount field is empty", async () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
 
@@ -382,7 +382,7 @@ describe("TransportFormDialog", () => {
 
     expect(createTransport).toHaveBeenCalledWith(
       "trip-1",
-      expect.not.objectContaining({ estimatedMinor: expect.anything() }),
+      expect.not.objectContaining({ costMinor: expect.anything() }),
       undefined,
     );
   });
@@ -394,8 +394,8 @@ describe("TransportFormDialog", () => {
     const costs = [
       {
         id: "cost-1",
-        estimatedMinor: 9900,
-        actualMinor: null,
+        costMinor: 9900,
+        paidMinor: null,
         currency: "EUR",
         rateToHome: 0.6,
         paidAt: null,
@@ -426,8 +426,8 @@ describe("TransportFormDialog", () => {
     const costs = [
       {
         id: "cost-1",
-        estimatedMinor: 5000,
-        actualMinor: null,
+        costMinor: 5000,
+        paidMinor: null,
         currency: "AUD",
         rateToHome: 1,
         paidAt: null,
@@ -438,8 +438,8 @@ describe("TransportFormDialog", () => {
       },
       {
         id: "cost-2",
-        estimatedMinor: 3000,
-        actualMinor: null,
+        costMinor: 3000,
+        paidMinor: null,
         currency: "AUD",
         rateToHome: 1,
         paidAt: null,

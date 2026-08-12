@@ -310,8 +310,8 @@ describe("AccommodationFormDialog", () => {
         id: "c-1",
         ownerType: "ACCOMMODATION",
         ownerId: "acc-1",
-        estimatedMinor: 5000,
-        actualMinor: null,
+        costMinor: 5000,
+        paidMinor: null,
         currency: "AUD",
         rateToHome: 1,
         paidAt: null,
@@ -322,8 +322,8 @@ describe("AccommodationFormDialog", () => {
         id: "c-2",
         ownerType: "ACCOMMODATION",
         ownerId: "acc-1",
-        estimatedMinor: 3000,
-        actualMinor: null,
+        costMinor: 3000,
+        paidMinor: null,
         currency: "AUD",
         rateToHome: 1,
         paidAt: null,
@@ -355,8 +355,8 @@ describe("AccommodationFormDialog", () => {
         id: "c-1",
         ownerType: "ACCOMMODATION",
         ownerId: "acc-1",
-        estimatedMinor: 25000,
-        actualMinor: null,
+        costMinor: 25000,
+        paidMinor: null,
         currency: "EUR",
         rateToHome: 0.6,
         paidAt: null,
@@ -380,9 +380,9 @@ describe("AccommodationFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 15: submitting with a cost passes estimatedMinor + currency to the action
+  // Case 15: submitting with a cost passes costMinor + currency to the action
   // -------------------------------------------------------------------------
-  it("submitting with an estimated cost includes estimatedMinor and currency in the payload", async () => {
+  it("submitting with an estimated cost includes costMinor and currency in the payload", async () => {
     const user = userEvent.setup();
     render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
 
@@ -398,7 +398,7 @@ describe("AccommodationFormDialog", () => {
 
     expect(createAccommodation).toHaveBeenCalledWith(
       expect.objectContaining({
-        estimatedMinor: 15000,
+        costMinor: 15000,
         currency: "AUD",
       }),
       undefined,

@@ -70,14 +70,14 @@ export const itemSchema = z
     // --- Inline cost fields (all optional) ---
 
     /** Estimated cost in minor units (e.g. cents). Integer. */
-    estimatedMinor: z
+    costMinor: z
       .number()
       .int("Estimated amount must be a whole number in minor units")
       .min(0, "Estimated amount must be 0 or greater")
       .max(2_147_483_647, "Amount is too large")
       .optional(),
 
-    /** ISO 4217 currency code. Required when estimatedMinor is set. */
+    /** ISO 4217 currency code. Required when costMinor is set. */
     currency: z
       .string()
       .length(3, "Currency must be a 3-letter ISO 4217 code")
@@ -88,7 +88,7 @@ export const itemSchema = z
       .optional(),
 
     /** Actual cost in minor units. Optional. */
-    actualMinor: z
+    paidMinor: z
       .number()
       .int("Actual amount must be a whole number in minor units")
       .min(0, "Actual amount must be 0 or greater")

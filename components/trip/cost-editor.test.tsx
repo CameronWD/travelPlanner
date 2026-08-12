@@ -23,8 +23,8 @@ const baseProps = {
 
 const sampleCost: CostRow = {
   id: "cost-1",
-  estimatedMinor: 5000,
-  actualMinor: null,
+  costMinor: 5000,
+  paidMinor: null,
   currency: "AUD",
   rateToHome: 1,
   paidAt: null,
@@ -36,8 +36,8 @@ const sampleCost: CostRow = {
 
 const labeledCost: CostRow = {
   id: "cost-2",
-  estimatedMinor: 3500,
-  actualMinor: null,
+  costMinor: 3500,
+  paidMinor: null,
   currency: "AUD",
   rateToHome: 1,
   paidAt: null,
@@ -50,7 +50,7 @@ const labeledCost: CostRow = {
 describe("CostEditor", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("add flow: estimated only -> createCost called with estimatedMinor: 1250 and actualMinor: undefined", async () => {
+  it("add flow: estimated only -> createCost called with costMinor: 1250 and paidMinor: undefined", async () => {
     const user = userEvent.setup();
     render(<CostEditor {...baseProps} />);
 
@@ -68,8 +68,8 @@ describe("CostEditor", () => {
     expect(createCost).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({
-        estimatedMinor: 1250,
-        actualMinor: undefined,
+        costMinor: 1250,
+        paidMinor: undefined,
         currency: "AUD",
       }),
     );
@@ -94,8 +94,8 @@ describe("CostEditor", () => {
     expect(createCost).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({
-        estimatedMinor: 5000,
-        actualMinor: 4875,
+        costMinor: 5000,
+        paidMinor: 4875,
       }),
     );
   });
@@ -123,7 +123,7 @@ describe("CostEditor", () => {
     // Click the edit (pencil) button on the existing cost row
     await user.click(screen.getByRole("button", { name: /edit cost/i }));
 
-    // The estimated field should be prefilled from sampleCost.estimatedMinor = 5000 -> "50.00"
+    // The estimated field should be prefilled from sampleCost.costMinor = 5000 -> "50.00"
     const estimatedInput = screen.getByLabelText("Estimated cost amount");
     expect(estimatedInput).toHaveValue("50.00");
 
@@ -133,16 +133,16 @@ describe("CostEditor", () => {
     expect(updateCost).toHaveBeenCalledWith(
       "cost-1",
       expect.objectContaining({
-        estimatedMinor: 5000,
+        costMinor: 5000,
         currency: "AUD",
       }),
     );
   });
 
-  it("a field error (estimatedMinor) sets aria-invalid on the estimated field and renders via Field error slot", async () => {
+  it("a field error (costMinor) sets aria-invalid on the estimated field and renders via Field error slot", async () => {
     (createCost as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       success: false,
-      errors: { estimatedMinor: ["Amount is required"] },
+      errors: { costMinor: ["Amount is required"] },
     });
 
     const user = userEvent.setup();

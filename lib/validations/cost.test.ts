@@ -8,8 +8,8 @@ import { costSchema } from "./cost";
 describe("costSchema — valid entity cost (TRANSPORT)", () => {
   it("accepts a valid TRANSPORT cost with all fields", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 5000,
-      actualMinor: 4850,
+      costMinor: 5000,
+      paidMinor: 4850,
       currency: "AUD",
       ownerType: "TRANSPORT",
       ownerId: "transport-123",
@@ -18,30 +18,30 @@ describe("costSchema — valid entity cost (TRANSPORT)", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.estimatedMinor).toBe(5000);
-      expect(result.data.actualMinor).toBe(4850);
+      expect(result.data.costMinor).toBe(5000);
+      expect(result.data.paidMinor).toBe(4850);
       expect(result.data.currency).toBe("AUD");
       expect(result.data.ownerType).toBe("TRANSPORT");
       expect(result.data.ownerId).toBe("transport-123");
     }
   });
 
-  it("accepts a valid ACCOMMODATION cost without actualMinor", () => {
+  it("accepts a valid ACCOMMODATION cost without paidMinor", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 20000,
+      costMinor: 20000,
       currency: "USD",
       ownerType: "ACCOMMODATION",
       ownerId: "acc-456",
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.actualMinor).toBeUndefined();
+      expect(result.data.paidMinor).toBeUndefined();
     }
   });
 
   it("accepts a valid ITEM cost", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 1500,
+      costMinor: 1500,
       currency: "EUR",
       ownerType: "ITEM",
       ownerId: "item-789",
@@ -53,7 +53,7 @@ describe("costSchema — valid entity cost (TRANSPORT)", () => {
 describe("costSchema — valid OTHER cost", () => {
   it("accepts a valid OTHER cost with label and no ownerId", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 7500,
+      costMinor: 7500,
       currency: "GBP",
       ownerType: "OTHER",
       label: "Travel insurance",
@@ -68,7 +68,7 @@ describe("costSchema — valid OTHER cost", () => {
 
   it("accepts OTHER cost with optional category", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 3000,
+      costMinor: 3000,
       currency: "JPY",
       ownerType: "OTHER",
       label: "Visa fees",
@@ -82,7 +82,7 @@ describe("costSchema — valid OTHER cost", () => {
 
   it("accepts OTHER cost with ownerId present (it's ignored but not rejected)", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 1000,
+      costMinor: 1000,
       currency: "AUD",
       ownerType: "OTHER",
       label: "Misc",
@@ -96,7 +96,7 @@ describe("costSchema — valid OTHER cost", () => {
 describe("costSchema — paidAt handling", () => {
   it("accepts an ISO datetime paidAt and coerces to Date", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 1000,
+      costMinor: 1000,
       currency: "AUD",
       ownerType: "TRANSPORT",
       ownerId: "t-1",
@@ -110,7 +110,7 @@ describe("costSchema — paidAt handling", () => {
 
   it("accepts a YYYY-MM-DD paidAt and coerces to Date", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 1000,
+      costMinor: 1000,
       currency: "AUD",
       ownerType: "TRANSPORT",
       ownerId: "t-1",
@@ -124,7 +124,7 @@ describe("costSchema — paidAt handling", () => {
 
   it("accepts absent paidAt", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 500,
+      costMinor: 500,
       currency: "AUD",
       ownerType: "ITEM",
       ownerId: "item-1",
@@ -143,7 +143,7 @@ describe("costSchema — paidAt handling", () => {
 describe("costSchema — rejection cases", () => {
   it("rejects entity cost missing ownerId", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 1000,
+      costMinor: 1000,
       currency: "AUD",
       ownerType: "TRANSPORT",
       // no ownerId
@@ -157,7 +157,7 @@ describe("costSchema — rejection cases", () => {
 
   it("rejects ACCOMMODATION cost missing ownerId", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 5000,
+      costMinor: 5000,
       currency: "USD",
       ownerType: "ACCOMMODATION",
     });
@@ -170,7 +170,7 @@ describe("costSchema — rejection cases", () => {
 
   it("rejects OTHER cost missing label", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 1000,
+      costMinor: 1000,
       currency: "AUD",
       ownerType: "OTHER",
       // no label
@@ -182,9 +182,9 @@ describe("costSchema — rejection cases", () => {
     }
   });
 
-  it("rejects negative estimatedMinor", () => {
+  it("rejects negative costMinor", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: -100,
+      costMinor: -100,
       currency: "AUD",
       ownerType: "ITEM",
       ownerId: "item-1",
@@ -192,13 +192,13 @@ describe("costSchema — rejection cases", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const flat = result.error.flatten();
-      expect(flat.fieldErrors.estimatedMinor).toBeDefined();
+      expect(flat.fieldErrors.costMinor).toBeDefined();
     }
   });
 
-  it("rejects an estimatedMinor above the 32-bit signed max (Postgres INTEGER)", () => {
+  it("rejects an costMinor above the 32-bit signed max (Postgres INTEGER)", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 2_147_483_648,
+      costMinor: 2_147_483_648,
       currency: "AUD",
       ownerType: "ITEM",
       ownerId: "item-1",
@@ -206,14 +206,14 @@ describe("costSchema — rejection cases", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const flat = result.error.flatten();
-      expect(flat.fieldErrors.estimatedMinor).toBeDefined();
+      expect(flat.fieldErrors.costMinor).toBeDefined();
     }
   });
 
-  it("rejects negative actualMinor", () => {
+  it("rejects negative paidMinor", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 1000,
-      actualMinor: -50,
+      costMinor: 1000,
+      paidMinor: -50,
       currency: "AUD",
       ownerType: "ITEM",
       ownerId: "item-1",
@@ -221,13 +221,13 @@ describe("costSchema — rejection cases", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const flat = result.error.flatten();
-      expect(flat.fieldErrors.actualMinor).toBeDefined();
+      expect(flat.fieldErrors.paidMinor).toBeDefined();
     }
   });
 
-  it("accepts zero estimatedMinor (free item)", () => {
+  it("accepts zero costMinor (free item)", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 0,
+      costMinor: 0,
       currency: "AUD",
       ownerType: "ITEM",
       ownerId: "item-1",
@@ -235,22 +235,22 @@ describe("costSchema — rejection cases", () => {
     expect(result.success).toBe(true);
   });
 
-  it("actualMinor is optional — omitting it is valid", () => {
+  it("paidMinor is optional — omitting it is valid", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 1000,
+      costMinor: 1000,
       currency: "AUD",
       ownerType: "ITEM",
       ownerId: "item-1",
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.actualMinor).toBeUndefined();
+      expect(result.data.paidMinor).toBeUndefined();
     }
   });
 
   it("rejects unknown currency code", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 1000,
+      costMinor: 1000,
       currency: "XYZ",
       ownerType: "ITEM",
       ownerId: "item-1",
@@ -264,7 +264,7 @@ describe("costSchema — rejection cases", () => {
 
   it("rejects invalid ownerType", () => {
     const result = costSchema.safeParse({
-      estimatedMinor: 1000,
+      costMinor: 1000,
       currency: "AUD",
       ownerType: "INVALID",
       ownerId: "item-1",

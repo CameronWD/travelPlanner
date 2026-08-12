@@ -6,13 +6,13 @@ import { formatMoney } from "@/lib/money";
  * "estimated vs spent" reading is identical everywhere.
  */
 export function CostAmounts({
-  estimatedMinor,
-  actualMinor,
+  costMinor,
+  paidMinor,
   currency,
   className,
 }: {
-  estimatedMinor: number;
-  actualMinor: number;
+  costMinor: number;
+  paidMinor: number;
   currency: string;
   className?: string;
 }) {
@@ -24,18 +24,18 @@ export function CostAmounts({
       }
     >
       <span aria-label="Estimated" className="text-right whitespace-nowrap">
-        {formatMoney(estimatedMinor, currency)}
+        {formatMoney(costMinor, currency)}
       </span>
       <span
         aria-label="Spent"
         className={
           "text-right whitespace-nowrap" +
-          (actualMinor > 0
+          (paidMinor > 0
             ? " text-emerald-600 dark:text-emerald-400"
             : " text-muted-foreground")
         }
       >
-        {actualMinor > 0 ? formatMoney(actualMinor, currency) : "—"}
+        {paidMinor > 0 ? formatMoney(paidMinor, currency) : "—"}
       </span>
     </div>
   );

@@ -29,8 +29,8 @@ import { BudgetHeroRow } from "@/components/trip/budget-hero-row";
 
 const COST_SELECT = {
   id: true,
-  estimatedMinor: true,
-  actualMinor: true,
+  costMinor: true,
+  paidMinor: true,
   currency: true,
   rateToHome: true,
   paidAt: true,
@@ -122,8 +122,8 @@ export default async function BudgetPage({
   // Build budget input
   const budgetCosts: BudgetCost[] = allCosts.map((c) => ({
     id: c.id,
-    estimatedMinor: c.estimatedMinor,
-    actualMinor: c.actualMinor,
+    costMinor: c.costMinor,
+    paidMinor: c.paidMinor,
     currency: c.currency,
     rateToHome: c.rateToHome,
     ownerType: c.ownerType as BudgetCost["ownerType"],
@@ -178,8 +178,8 @@ export default async function BudgetPage({
   // Build SpendCost[] — same as budgetCosts but with paidAt from allCosts
   const spendCosts: SpendCost[] = allCosts.map((c) => ({
     id: c.id,
-    estimatedMinor: c.estimatedMinor,
-    actualMinor: c.actualMinor,
+    costMinor: c.costMinor,
+    paidMinor: c.paidMinor,
     currency: c.currency,
     rateToHome: c.rateToHome,
     ownerType: c.ownerType as SpendCost["ownerType"],
@@ -234,7 +234,7 @@ export default async function BudgetPage({
 
   // Per-day data — only days with non-zero costs for the compact strip
   const daysWithCosts = budget.byDay.filter(
-    (d) => d.estimatedMinor > 0 || d.actualMinor > 0,
+    (d) => d.costMinor > 0 || d.paidMinor > 0,
   );
 
   // Build per-row missing-rate indicators: which categories have costs whose
@@ -292,8 +292,8 @@ export default async function BudgetPage({
 
       {/* 4-up hero: Estimated total · Paid · Still to pay · Est / day */}
       <BudgetHeroRow
-        estimatedMinor={budget.grandTotal.estimatedMinor}
-        paidMinor={spend.paidSoFarMinor}
+        costMinor={budget.grandTotal.costMinor}
+        paidTotalMinor={spend.paidSoFarMinor}
         homeCurrency={homeCurrency}
         tripNights={nightsBetween(startDate, endDate)}
       />
@@ -323,8 +323,8 @@ export default async function BudgetPage({
                 <div className="flex flex-col gap-3">
                   {budget.byCategory.map((cat) => {
                     const pct =
-                      budget.grandTotal.estimatedMinor > 0
-                        ? Math.round((cat.estimatedMinor / budget.grandTotal.estimatedMinor) * 100)
+                      budget.grandTotal.costMinor > 0
+                        ? Math.round((cat.costMinor / budget.grandTotal.costMinor) * 100)
                         : 0;
                     return (
                       <div key={cat.category} className="flex flex-col gap-1">
@@ -345,8 +345,8 @@ export default async function BudgetPage({
                           <div className="flex items-center gap-3 tabular-nums text-right">
                             <span className="text-muted-foreground text-xs" title="% of estimated">{pct}% est.</span>
                             <CostAmounts
-                              estimatedMinor={cat.estimatedMinor}
-                              actualMinor={cat.actualMinor}
+                              costMinor={cat.costMinor}
+                              paidMinor={cat.paidMinor}
                               currency={homeCurrency}
                             />
                           </div>
@@ -381,8 +381,8 @@ export default async function BudgetPage({
                     >
                       <span className="min-w-0 truncate text-sm font-medium">{stop.stopName}</span>
                       <CostAmounts
-                        estimatedMinor={stop.estimatedMinor}
-                        actualMinor={stop.actualMinor}
+                        costMinor={stop.costMinor}
+                        paidMinor={stop.paidMinor}
                         currency={homeCurrency}
                       />
                     </div>
@@ -407,44 +407,44 @@ export default async function BudgetPage({
                     >
                       <ChapterChip name={row.chapterName} colour={row.colour} />
                       <CostAmounts
-                        estimatedMinor={row.estimatedMinor}
-                        actualMinor={row.actualMinor}
+                        costMinor={row.costMinor}
+                        paidMinor={row.paidMinor}
                         currency={homeCurrency}
                       />
                     </div>
                   ))}
                   {/* Reconciliation rows — shown only when non-zero */}
-                  {(budget.chapterReconciliation.ungrouped.estimatedMinor > 0 ||
-                    budget.chapterReconciliation.ungrouped.actualMinor > 0) && (
+                  {(budget.chapterReconciliation.ungrouped.costMinor > 0 ||
+                    budget.chapterReconciliation.ungrouped.paidMinor > 0) && (
                     <div className="flex items-center justify-between py-2.5 gap-2">
                       <span className="min-w-0 truncate text-sm text-muted-foreground">Ungrouped</span>
                       <CostAmounts
-                        estimatedMinor={budget.chapterReconciliation.ungrouped.estimatedMinor}
-                        actualMinor={budget.chapterReconciliation.ungrouped.actualMinor}
+                        costMinor={budget.chapterReconciliation.ungrouped.costMinor}
+                        paidMinor={budget.chapterReconciliation.ungrouped.paidMinor}
                         currency={homeCurrency}
                         className="text-muted-foreground"
                       />
                     </div>
                   )}
-                  {(budget.chapterReconciliation.betweenLegs.estimatedMinor > 0 ||
-                    budget.chapterReconciliation.betweenLegs.actualMinor > 0) && (
+                  {(budget.chapterReconciliation.betweenLegs.costMinor > 0 ||
+                    budget.chapterReconciliation.betweenLegs.paidMinor > 0) && (
                     <div className="flex items-center justify-between py-2.5 gap-2">
                       <span className="min-w-0 truncate text-sm text-muted-foreground">Between legs</span>
                       <CostAmounts
-                        estimatedMinor={budget.chapterReconciliation.betweenLegs.estimatedMinor}
-                        actualMinor={budget.chapterReconciliation.betweenLegs.actualMinor}
+                        costMinor={budget.chapterReconciliation.betweenLegs.costMinor}
+                        paidMinor={budget.chapterReconciliation.betweenLegs.paidMinor}
                         currency={homeCurrency}
                         className="text-muted-foreground"
                       />
                     </div>
                   )}
-                  {(budget.chapterReconciliation.otherCosts.estimatedMinor > 0 ||
-                    budget.chapterReconciliation.otherCosts.actualMinor > 0) && (
+                  {(budget.chapterReconciliation.otherCosts.costMinor > 0 ||
+                    budget.chapterReconciliation.otherCosts.paidMinor > 0) && (
                     <div className="flex items-center justify-between py-2.5 gap-2">
                       <span className="min-w-0 truncate text-sm text-muted-foreground">Other costs</span>
                       <CostAmounts
-                        estimatedMinor={budget.chapterReconciliation.otherCosts.estimatedMinor}
-                        actualMinor={budget.chapterReconciliation.otherCosts.actualMinor}
+                        costMinor={budget.chapterReconciliation.otherCosts.costMinor}
+                        paidMinor={budget.chapterReconciliation.otherCosts.paidMinor}
                         currency={homeCurrency}
                         className="text-muted-foreground"
                       />
@@ -472,8 +472,8 @@ export default async function BudgetPage({
                         {day.dateISO}
                       </span>
                       <CostAmounts
-                        estimatedMinor={day.estimatedMinor}
-                        actualMinor={day.actualMinor}
+                        costMinor={day.costMinor}
+                        paidMinor={day.paidMinor}
                         currency={homeCurrency}
                       />
                     </div>

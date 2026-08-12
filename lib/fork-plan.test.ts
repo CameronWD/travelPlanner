@@ -15,7 +15,7 @@ const source = {
   items: [{ id: "i1", stopId: "s1", title: "Colosseum", category: "SIGHTSEEING", date: "2026-07-02",
             startTime: "10:00", endTime: null, lat: null, lng: null, address: null, link: null,
             booking: "BK1", notes: null, sortOrder: 0 }],
-  costs: [{ id: "co1", estimatedMinor: 5000, actualMinor: 4000, currency: "EUR", rateToHome: 1.6,
+  costs: [{ id: "co1", costMinor: 5000, paidMinor: 4000, currency: "EUR", rateToHome: 1.6,
             paidAt: new Date("2026-06-01T00:00:00Z"), ownerType: "ACCOMMODATION", ownerId: "a1",
             label: null, category: null }],
 };
@@ -25,8 +25,8 @@ it("keeps dates, pinned, accommodation and estimated cost; drops paid/actual", (
   expect(plan.stops[0].data.arriveDate).toBe("2026-07-01");
   expect(plan.stops[0].data.pinned).toBe(true);
   expect(plan.accommodations[0].data.confirmation).toBe("ABC");
-  expect(plan.costs[0].data.estimatedMinor).toBe(5000);
-  expect(plan.costs[0].data.actualMinor).toBeNull();   // dropped
+  expect(plan.costs[0].data.costMinor).toBe(5000);
+  expect(plan.costs[0].data.paidMinor).toBeNull();   // dropped
   expect(plan.costs[0].data.paidAt).toBeNull();         // dropped
   expect(plan.costs[0].data.rateToHome).toBe(1.6);      // kept for conversion
 });

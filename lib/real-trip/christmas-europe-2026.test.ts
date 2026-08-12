@@ -76,9 +76,9 @@ describe("buildChristmasEurope2026", () => {
     expect(withCost).toHaveLength(3);
     for (const tr of withCost) {
       expect(tr.cost!.paid).toBe(true);
-      expect(tr.cost!.actualMinor).toBe(tr.cost!.estimatedMinor);
+      expect(tr.cost!.paidMinor).toBe(tr.cost!.costMinor);
     }
-    expect(withCost.map((tr) => tr.cost!.estimatedMinor).sort((a, b) => a - b)).toEqual([
+    expect(withCost.map((tr) => tr.cost!.costMinor).sort((a, b) => a - b)).toEqual([
       23521, 41438, 186752,
     ]);
     expect(withCost.filter((tr) => tr.cost!.currency === "AUD")).toHaveLength(2);

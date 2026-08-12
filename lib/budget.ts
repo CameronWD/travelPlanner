@@ -20,8 +20,8 @@ import { chapterIdForTransport, chapterForStop, chapterForDate, type ChapterLike
 
 export interface BudgetCost {
   id: string;
-  estimatedMinor: number;
-  actualMinor: number | null;
+  costMinor: number;
+  paidMinor: number | null;
   currency: string;
   /** Snapshot rate: 1 unit of cost.currency = rateToHome units of homeCurrency. */
   rateToHome: number | null;
@@ -80,35 +80,35 @@ export interface BudgetTransport {
 // ---------------------------------------------------------------------------
 
 export interface BudgetTotals {
-  estimatedMinor: number;
-  actualMinor: number;
+  costMinor: number;
+  paidMinor: number;
 }
 
 export interface BudgetByCategory {
   category: string;
-  estimatedMinor: number;
-  actualMinor: number;
+  costMinor: number;
+  paidMinor: number;
 }
 
 export interface BudgetByStop {
   stopId: string | null;
   stopName: string;
-  estimatedMinor: number;
-  actualMinor: number;
+  costMinor: number;
+  paidMinor: number;
 }
 
 export interface BudgetByDay {
   dateISO: string;
-  estimatedMinor: number;
-  actualMinor: number;
+  costMinor: number;
+  paidMinor: number;
 }
 
 export interface BudgetByChapter {
   chapterId: string;
   chapterName: string;
   colour: string;
-  estimatedMinor: number;
-  actualMinor: number;
+  costMinor: number;
+  paidMinor: number;
 }
 
 export interface BudgetResult {
@@ -168,8 +168,8 @@ export function convertCostToHome(
 
   if (from === home) {
     return {
-      estimatedHome: cost.estimatedMinor,
-      actualHome: cost.actualMinor ?? 0,
+      estimatedHome: cost.costMinor,
+      actualHome: cost.paidMinor ?? 0,
     };
   }
 
@@ -179,10 +179,10 @@ export function convertCostToHome(
 
   const rate = cost.rateToHome;
   return {
-    estimatedHome: convertMinor(cost.estimatedMinor, from, home, rate),
+    estimatedHome: convertMinor(cost.costMinor, from, home, rate),
     actualHome:
-      cost.actualMinor !== null && cost.actualMinor !== undefined
-        ? convertMinor(cost.actualMinor, from, home, rate)
+      cost.paidMinor !== null && cost.paidMinor !== undefined
+        ? convertMinor(cost.paidMinor, from, home, rate)
         : 0,
   };
 }
@@ -196,7 +196,7 @@ export interface ExchangeRateInput { base: string; quote: string; rate: number; 
 /** Raw cost row as selected from the DB (COST_SELECT shape); ownerType is a free
  * string here and is narrowed to BudgetCost's union on the way out. */
 export interface RawCostInput {
-  id: string; estimatedMinor: number; actualMinor: number | null; currency: string;
+  id: string; costMinor: number; paidMinor: number | null; currency: string;
   rateToHome: number | null; ownerType: string; ownerId: string | null;
   label: string | null; category: string | null;
 }
@@ -538,12 +538,12 @@ export function buildBudget({
   // Assemble byCategory (sorted desc by estimated)
   // ---------------------------------------------------------------------------
   const byCategory: BudgetByCategory[] = Object.entries(categoryEstimated)
-    .map(([category, estimatedMinor]) => ({
+    .map(([category, costMinor]) => ({
       category,
-      estimatedMinor,
-      actualMinor: categoryActual[category] ?? 0,
+      costMinor,
+      paidMinor: categoryActual[category] ?? 0,
     }))
-    .sort((a, b) => b.estimatedMinor - a.estimatedMinor);
+    .sort((a, b) => b.costMinor - a.costMinor);
 
   // ---------------------------------------------------------------------------
   // Assemble byStop (null stopId = "Trip-wide / Other")
@@ -557,8 +557,8 @@ export function buildBudget({
       byStop.push({
         stopId: stop.id,
         stopName: stop.name,
-        estimatedMinor: est,
-        actualMinor: stopActual[stop.id] ?? 0,
+        costMinor: est,
+        paidMinor: stopActual[stop.id] ?? 0,
       });
     }
   }
@@ -569,8 +569,8 @@ export function buildBudget({
     byStop.push({
       stopId: null,
       stopName: "Trip-wide / Other",
-      estimatedMinor: tripwideEst,
-      actualMinor: stopActual["___TRIPWIDE___"] ?? 0,
+      costMinor: tripwideEst,
+      paidMinor: stopActual["___TRIPWIDE___"] ?? 0,
     });
   }
 
@@ -579,8 +579,8 @@ export function buildBudget({
   // ---------------------------------------------------------------------------
   const byDay: BudgetByDay[] = tripDays.map((dateISO) => ({
     dateISO,
-    estimatedMinor: dayEstimated[dateISO] ?? 0,
-    actualMinor: dayActual[dateISO] ?? 0,
+    costMinor: dayEstimated[dateISO] ?? 0,
+    paidMinor: dayActual[dateISO] ?? 0,
   }));
 
   // ---------------------------------------------------------------------------
@@ -592,8 +592,8 @@ export function buildBudget({
       chapterId: ch.id,
       chapterName: ch.name,
       colour: ch.colour,
-      estimatedMinor: chapterAccEstimated[ch.id] ?? 0,
-      actualMinor: chapterAccActual[ch.id] ?? 0,
+      costMinor: chapterAccEstimated[ch.id] ?? 0,
+      paidMinor: chapterAccActual[ch.id] ?? 0,
     }));
 
   // ---------------------------------------------------------------------------
@@ -601,24 +601,24 @@ export function buildBudget({
   // ---------------------------------------------------------------------------
   const chapterReconciliation = {
     ungrouped: {
-      estimatedMinor: chapterAccEstimated[SENTINEL_UNGROUPED] ?? 0,
-      actualMinor: chapterAccActual[SENTINEL_UNGROUPED] ?? 0,
+      costMinor: chapterAccEstimated[SENTINEL_UNGROUPED] ?? 0,
+      paidMinor: chapterAccActual[SENTINEL_UNGROUPED] ?? 0,
     },
     betweenLegs: {
-      estimatedMinor: chapterAccEstimated[SENTINEL_BETWEEN_LEGS] ?? 0,
-      actualMinor: chapterAccActual[SENTINEL_BETWEEN_LEGS] ?? 0,
+      costMinor: chapterAccEstimated[SENTINEL_BETWEEN_LEGS] ?? 0,
+      paidMinor: chapterAccActual[SENTINEL_BETWEEN_LEGS] ?? 0,
     },
     otherCosts: {
-      estimatedMinor: chapterAccEstimated[SENTINEL_OTHER] ?? 0,
-      actualMinor: chapterAccActual[SENTINEL_OTHER] ?? 0,
+      costMinor: chapterAccEstimated[SENTINEL_OTHER] ?? 0,
+      paidMinor: chapterAccActual[SENTINEL_OTHER] ?? 0,
     },
   };
 
   return {
     homeCurrency,
     grandTotal: {
-      estimatedMinor: grandEstimated,
-      actualMinor: grandActual,
+      costMinor: grandEstimated,
+      paidMinor: grandActual,
     },
     byCategory,
     byStop,

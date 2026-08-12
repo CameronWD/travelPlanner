@@ -53,8 +53,8 @@ import type { FitStop } from "@/lib/make-it-fit";
 
 const COST_SELECT = {
   id: true,
-  estimatedMinor: true,
-  actualMinor: true,
+  costMinor: true,
+  paidMinor: true,
   currency: true,
   rateToHome: true,
   ownerType: true,
@@ -381,13 +381,13 @@ export default async function SummaryPage({
   }
 
   // Budget by stop as a map
-  const budgetByStopId = new Map<string, { estimatedMinor: number; actualMinor: number }>();
+  const budgetByStopId = new Map<string, { costMinor: number; paidMinor: number }>();
   for (const bs of budget.byStop) {
     if (bs.stopId) budgetByStopId.set(bs.stopId, bs);
   }
 
   // Budget by chapter as a map (for chapter subtotals in headers)
-  const budgetByChapterId = new Map<string, { estimatedMinor: number; actualMinor: number }>();
+  const budgetByChapterId = new Map<string, { costMinor: number; paidMinor: number }>();
   for (const bc of budget.byChapter) {
     budgetByChapterId.set(bc.chapterId, bc);
   }
@@ -416,7 +416,7 @@ export default async function SummaryPage({
 
   // Grand total values
   const { grandTotal } = budget;
-  const hasActual = grandTotal.actualMinor > 0;
+  const hasActual = grandTotal.paidMinor > 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -438,7 +438,7 @@ export default async function SummaryPage({
           icon={DollarSign}
           label={hasActual ? "Actual spend" : "Est. budget"}
           value={formatMoney(
-            hasActual ? grandTotal.actualMinor : grandTotal.estimatedMinor,
+            hasActual ? grandTotal.paidMinor : grandTotal.costMinor,
             homeCurrency,
           )}
         />
@@ -530,8 +530,8 @@ export default async function SummaryPage({
                         </div>
                         {chapterBudget && (
                           <CostAmounts
-                            estimatedMinor={chapterBudget.estimatedMinor}
-                            actualMinor={chapterBudget.actualMinor}
+                            costMinor={chapterBudget.costMinor}
+                            paidMinor={chapterBudget.paidMinor}
                             currency={homeCurrency}
                             className="text-muted-foreground"
                           />
@@ -588,18 +588,18 @@ export default async function SummaryPage({
                                 <div className="text-right">
                                   <p className="font-mono text-sm font-semibold text-foreground">
                                     {formatMoney(
-                                      stopBudget.actualMinor > 0
-                                        ? stopBudget.actualMinor
-                                        : stopBudget.estimatedMinor,
+                                      stopBudget.paidMinor > 0
+                                        ? stopBudget.paidMinor
+                                        : stopBudget.costMinor,
                                       homeCurrency,
                                     )}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    {stopBudget.actualMinor > 0 ? "actual" : "est."}
+                                    {stopBudget.paidMinor > 0 ? "actual" : "est."}
                                     {nights > 0 &&
-                                      stopBudget.estimatedMinor > 0 &&
+                                      stopBudget.costMinor > 0 &&
                                       ` · ${formatMoney(
-                                        Math.round(stopBudget.estimatedMinor / nights),
+                                        Math.round(stopBudget.costMinor / nights),
                                         homeCurrency,
                                       )}/night`}
                                   </p>
@@ -678,12 +678,12 @@ export default async function SummaryPage({
               <CardContent className="flex flex-wrap gap-6">
                 <Stat
                   label="Estimated"
-                  value={formatMoney(grandTotal.estimatedMinor, homeCurrency)}
+                  value={formatMoney(grandTotal.costMinor, homeCurrency)}
                 />
-                {grandTotal.actualMinor > 0 && (
+                {grandTotal.paidMinor > 0 && (
                   <Stat
                     label="Actual"
-                    value={formatMoney(grandTotal.actualMinor, homeCurrency)}
+                    value={formatMoney(grandTotal.paidMinor, homeCurrency)}
                   />
                 )}
                 {budget.hasMissingRates && (
@@ -706,7 +706,7 @@ export default async function SummaryPage({
                         >
                           <span className="text-muted-foreground">{bc.category}</span>
                           <span className="font-mono font-medium">
-                            {formatMoney(bc.estimatedMinor, homeCurrency)}
+                            {formatMoney(bc.costMinor, homeCurrency)}
                           </span>
                         </div>
                       ))}

@@ -159,8 +159,8 @@ export async function createCost(
       data: {
         tripId,
         forkId: forkId ?? null,
-        estimatedMinor: data.estimatedMinor,
-        actualMinor: data.actualMinor ?? null,
+        costMinor: data.costMinor,
+        paidMinor: data.paidMinor ?? null,
         currency: data.currency,
         rateToHome: resolved.rate,
         paidAt: data.paidAt ?? null,
@@ -226,8 +226,8 @@ export async function updateCost(
     return tx.cost.update({
       where: { id: costId },
       data: {
-        estimatedMinor: data.estimatedMinor,
-        actualMinor: data.actualMinor ?? null,
+        costMinor: data.costMinor,
+        paidMinor: data.paidMinor ?? null,
         currency: data.currency,
         rateToHome: resolved.rate,
         paidAt: data.paidAt ?? null,
@@ -282,8 +282,8 @@ export async function deleteCost(costId: string): Promise<CostActionResult> {
  */
 export type CostRow = {
   id: string;
-  estimatedMinor: number;
-  actualMinor: number | null;
+  costMinor: number;
+  paidMinor: number | null;
   currency: string;
   rateToHome: number | null;
   paidAt: Date | null;

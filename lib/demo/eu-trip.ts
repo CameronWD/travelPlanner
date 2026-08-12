@@ -193,7 +193,7 @@ const TRANSPORTS: DemoTransport[] = [
     reference: "QF / AY (via HEL)",
     notes: "Brisbane → Helsinki → Rovaniemi. ~24h door to door.",
     sortOrder: 0,
-    cost: { estimatedMinor: 220000, actualMinor: 226400, currency: "AUD" },
+    cost: { costMinor: 220000, paidMinor: 226400, currency: "AUD" },
   },
   // Rovaniemi → Munich
   {
@@ -207,7 +207,7 @@ const TRANSPORTS: DemoTransport[] = [
     arrAt: "2026-12-11T12:30:00Z",
     reference: "AY1234 / LH (via HEL)",
     sortOrder: 1,
-    cost: { estimatedMinor: 46000, currency: "EUR" },
+    cost: { costMinor: 46000, currency: "EUR" },
   },
   // Munich → London
   {
@@ -221,7 +221,7 @@ const TRANSPORTS: DemoTransport[] = [
     arrAt: "2026-12-15T12:00:00Z",
     reference: "LH2476",
     sortOrder: 2,
-    cost: { estimatedMinor: 32000, currency: "EUR" },
+    cost: { costMinor: 32000, currency: "EUR" },
   },
   // London → Dublin
   {
@@ -235,7 +235,7 @@ const TRANSPORTS: DemoTransport[] = [
     arrAt: "2026-12-21T10:55:00Z",
     reference: "EI155",
     sortOrder: 3,
-    cost: { estimatedMinor: 18000, currency: "GBP" },
+    cost: { costMinor: 18000, currency: "GBP" },
   },
   // Dublin → Paris
   {
@@ -249,7 +249,7 @@ const TRANSPORTS: DemoTransport[] = [
     arrAt: "2026-12-29T14:10:00Z",
     reference: "EI520",
     sortOrder: 4,
-    cost: { estimatedMinor: 24000, currency: "EUR" },
+    cost: { costMinor: 24000, currency: "EUR" },
   },
   // Paris → Rome
   {
@@ -263,7 +263,7 @@ const TRANSPORTS: DemoTransport[] = [
     arrAt: "2027-01-03T11:35:00Z",
     reference: "AF1004",
     sortOrder: 5,
-    cost: { estimatedMinor: 29000, currency: "EUR" },
+    cost: { costMinor: 29000, currency: "EUR" },
   },
   // Homeward: Rome → Brisbane
   {
@@ -279,7 +279,7 @@ const TRANSPORTS: DemoTransport[] = [
     reference: "EK / QF (via DXB)",
     notes: "The long way home. Rome → Dubai → Brisbane.",
     sortOrder: 99,
-    cost: { estimatedMinor: 240000, currency: "AUD" },
+    cost: { costMinor: 240000, currency: "AUD" },
   },
 ];
 
@@ -299,7 +299,7 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
     lat: 66.5436,
     lng: 25.8472,
     notes: "Glass roof for aurora-watching from bed.",
-    cost: { estimatedMinor: 185000, actualMinor: 189000, currency: "EUR" },
+    cost: { costMinor: 185000, paidMinor: 189000, currency: "EUR" },
   },
   {
     key: "eu:acc:platzl",
@@ -311,7 +311,7 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
     confirmation: "PLATZL-3392",
     lat: 48.1374,
     lng: 11.5786,
-    cost: { estimatedMinor: 88000, actualMinor: 88000, currency: "EUR" },
+    cost: { costMinor: 88000, paidMinor: 88000, currency: "EUR" },
   },
   {
     key: "eu:acc:bloomsbury",
@@ -323,7 +323,7 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
     confirmation: "BLM-44192",
     lat: 51.5169,
     lng: -0.1267,
-    cost: { estimatedMinor: 156000, actualMinor: 160500, currency: "GBP" },
+    cost: { costMinor: 156000, paidMinor: 160500, currency: "GBP" },
   },
   {
     key: "eu:acc:westbury",
@@ -335,7 +335,7 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
     confirmation: "WST-55120",
     lat: 53.3412,
     lng: -6.2603,
-    cost: { estimatedMinor: 176000, actualMinor: 181200, currency: "EUR" },
+    cost: { costMinor: 176000, paidMinor: 181200, currency: "EUR" },
   },
   {
     key: "eu:acc:grands-boulevards",
@@ -348,7 +348,7 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
     lat: 48.8709,
     lng: 2.3453,
     notes: "NYE rates — booked early.",
-    cost: { estimatedMinor: 165000, actualMinor: 168000, currency: "EUR" },
+    cost: { costMinor: 165000, paidMinor: 168000, currency: "EUR" },
   },
   {
     key: "eu:acc:artemide",
@@ -360,7 +360,7 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
     confirmation: "ART-30551",
     lat: 41.9009,
     lng: 12.4925,
-    cost: { estimatedMinor: 114000, actualMinor: 114000, currency: "EUR" },
+    cost: { costMinor: 114000, paidMinor: 114000, currency: "EUR" },
   },
 ];
 
@@ -391,31 +391,31 @@ const ITEMS: DemoItem[] = [
     startTime: "09:00", endTime: "12:00",
     booking: "HUSKY-2208",
     notes: "Meeting point pickup 08:45 from the resort.",
-    cost: { estimatedMinor: 32000, currency: "EUR" },
+    cost: { costMinor: 32000, currency: "EUR" },
   }),
   makeItem("eu:item:reindeer-farm", "Reindeer farm visit & sleigh ride", "ACTIVITY", SK.rovaniemi, "2026-12-08", {
     startTime: "14:00", endTime: "16:00",
-    cost: { estimatedMinor: 9000, currency: "EUR" },
+    cost: { costMinor: 9000, currency: "EUR" },
   }),
   makeItem("eu:item:arktikum", "Arktikum — Arctic science & Lapland museum", "SIGHTSEEING", SK.rovaniemi, "2026-12-09", {
     startTime: "11:00", endTime: "13:00",
     lat: 66.5108, lng: 25.7242,
-    cost: { estimatedMinor: 3600, currency: "EUR" },
+    cost: { costMinor: 3600, currency: "EUR" },
   }),
   makeItem("eu:item:aurora-snowmobile", "Northern Lights snowmobile hunt", "ACTIVITY", SK.rovaniemi, "2026-12-09", {
     startTime: "20:00", endTime: "23:00",
     booking: "AURORA-1209",
     notes: "Thermal suits provided. Cross fingers for clear skies.",
-    cost: { estimatedMinor: 26000, currency: "EUR" },
+    cost: { costMinor: 26000, currency: "EUR" },
   }),
   makeItem("eu:item:snowshoe-trek", "Snowshoe trek through the boreal forest", "ACTIVITY", SK.rovaniemi, "2026-12-10", {
     startTime: "10:00", endTime: "13:00",
-    cost: { estimatedMinor: 11000, currency: "EUR" },
+    cost: { costMinor: 11000, currency: "EUR" },
   }),
   makeItem("eu:item:smoke-sauna", "Smoke sauna & ice-hole swim", "ACTIVITY", SK.rovaniemi, "2026-12-10", {
     startTime: "18:00", endTime: "20:00",
     notes: "Very Finnish. Very cold. Very worth it.",
-    cost: { estimatedMinor: 7000, currency: "EUR" },
+    cost: { costMinor: 7000, currency: "EUR" },
   }),
 
   // ---- Munich scheduled ---------------------------------------------------
@@ -430,7 +430,7 @@ const ITEMS: DemoItem[] = [
     booking: "NEU-1212",
     link: "https://neuschwanstein.de",
     notes: "Snow-covered fairytale castle. Book the timed entry slot.",
-    cost: { estimatedMinor: 15000, currency: "EUR" },
+    cost: { costMinor: 15000, currency: "EUR" },
   }),
   makeItem("eu:item:glockenspiel", "Glockenspiel, Viktualienmarkt & Frauenkirche", "SIGHTSEEING", SK.munich, "2026-12-13", {
     startTime: "10:00", endTime: "12:30",
@@ -442,7 +442,7 @@ const ITEMS: DemoItem[] = [
   makeItem("eu:item:hofbrauhaus", "Hofbräuhaus dinner & a stein", "FOOD", SK.munich, "2026-12-13", {
     startTime: "19:00", endTime: "21:00",
     lat: 48.1376, lng: 11.5797,
-    cost: { estimatedMinor: 11000, currency: "EUR" },
+    cost: { costMinor: 11000, currency: "EUR" },
   }),
   makeItem("eu:item:dachau", "Dachau Memorial Site", "SIGHTSEEING", SK.munich, "2026-12-14", {
     startTime: "10:00", endTime: "13:00",
@@ -462,14 +462,14 @@ const ITEMS: DemoItem[] = [
     startTime: "10:00", endTime: "12:30",
     lat: 51.5081, lng: -0.0759,
     booking: "TOL-1216",
-    cost: { estimatedMinor: 7800, currency: "GBP" },
+    cost: { costMinor: 7800, currency: "GBP" },
   }),
   makeItem("eu:item:lion-king", "The Lion King — Lyceum Theatre", "NIGHTLIFE", SK.london, "2026-12-16", {
     startTime: "19:30", endTime: "22:00",
     lat: 51.5115, lng: -0.1199,
     booking: "WE-LK-882",
     notes: "Booked row F, aisle seats.",
-    cost: { estimatedMinor: 18000, actualMinor: 18000, currency: "GBP" },
+    cost: { costMinor: 18000, paidMinor: 18000, currency: "GBP" },
   }),
   makeItem("eu:item:british-museum", "British Museum (Rosetta Stone, Egypt)", "SIGHTSEEING", SK.london, "2026-12-17", {
     startTime: "10:00", endTime: "13:00",
@@ -484,7 +484,7 @@ const ITEMS: DemoItem[] = [
     startTime: "09:00", endTime: "13:00",
     lat: 51.6907, lng: -0.4197,
     booking: "WB-HP-1218",
-    cost: { estimatedMinor: 11000, currency: "GBP" },
+    cost: { costMinor: 11000, currency: "GBP" },
   }),
   // Placed copy of the Ritz wishlist idea — scheduled for Dec 18 afternoon
   makeItem("eu:item:ritz-tea-scheduled", "Afternoon tea at The Ritz", "FOOD", SK.london, "2026-12-18", {
@@ -504,7 +504,7 @@ const ITEMS: DemoItem[] = [
     startTime: "08:00", endTime: "18:00",
     lat: 51.1789, lng: -1.8262,
     booking: "BATH-1220",
-    cost: { estimatedMinor: 16000, currency: "GBP" },
+    cost: { costMinor: 16000, currency: "GBP" },
   }),
 
   // ---- Dublin scheduled ---------------------------------------------------
@@ -516,25 +516,25 @@ const ITEMS: DemoItem[] = [
     startTime: "11:00", endTime: "13:00",
     lat: 53.3419, lng: -6.2867,
     booking: "GUIN-1222",
-    cost: { estimatedMinor: 6000, currency: "EUR" },
+    cost: { costMinor: 6000, currency: "EUR" },
   }),
   makeItem("eu:item:book-of-kells", "Trinity College & the Book of Kells", "SIGHTSEEING", SK.dublin, "2026-12-22", {
     startTime: "14:30", endTime: "16:00",
     lat: 53.3438, lng: -6.2546,
     booking: "TCD-1222",
-    cost: { estimatedMinor: 5000, currency: "EUR" },
+    cost: { costMinor: 5000, currency: "EUR" },
   }),
   makeItem("eu:item:cliffs-of-moher", "Cliffs of Moher & Galway day trip", "SIGHTSEEING", SK.dublin, "2026-12-23", {
     startTime: "07:30", endTime: "19:00",
     lat: 52.9719, lng: -9.4262,
     booking: "MOHER-1223",
     notes: "Long coach day; includes a stop in Galway.",
-    cost: { estimatedMinor: 13000, currency: "EUR" },
+    cost: { costMinor: 13000, currency: "EUR" },
   }),
   makeItem("eu:item:christmas-eve-dinner", "Christmas Eve dinner", "FOOD", SK.dublin, "2026-12-24", {
     startTime: "19:00", endTime: "21:30",
     notes: "Book ahead — most kitchens close early on the 24th.",
-    cost: { estimatedMinor: 16000, currency: "EUR" },
+    cost: { costMinor: 16000, currency: "EUR" },
   }),
   makeItem("eu:item:stephens-green-walk", "Christmas morning stroll — St Stephen's Green", "SIGHTSEEING", SK.dublin, "2026-12-25", {
     startTime: "11:00", endTime: "12:30",
@@ -549,7 +549,7 @@ const ITEMS: DemoItem[] = [
     startTime: "15:00", endTime: "16:30",
     lat: 53.3486, lng: -6.2784,
     booking: "JAM-1226",
-    cost: { estimatedMinor: 5600, currency: "EUR" },
+    cost: { costMinor: 5600, currency: "EUR" },
   }),
   makeItem("eu:item:howth-cliff-walk", "Howth cliff walk & seafood lunch", "ACTIVITY", SK.dublin, "2026-12-27", {
     startTime: "10:00", endTime: "14:00",
@@ -559,7 +559,7 @@ const ITEMS: DemoItem[] = [
     startTime: "10:00", endTime: "11:30",
     lat: 53.3419, lng: -6.3098,
     booking: "KIL-1228",
-    cost: { estimatedMinor: 1600, currency: "EUR" },
+    cost: { costMinor: 1600, currency: "EUR" },
   }),
   makeItem("eu:item:farewell-pub-crawl", "Farewell-to-Ireland pub crawl", "NIGHTLIFE", SK.dublin, "2026-12-28", {
     startTime: "20:00", endTime: "23:00",
@@ -575,7 +575,7 @@ const ITEMS: DemoItem[] = [
     startTime: "10:00", endTime: "13:00",
     lat: 48.8606, lng: 2.3376,
     booking: "LOUVRE-1230",
-    cost: { estimatedMinor: 4400, currency: "EUR" },
+    cost: { costMinor: 4400, currency: "EUR" },
   }),
   makeItem("eu:item:champs-elysees", "Champs-Élysées Christmas lights & Arc de Triomphe", "SIGHTSEEING", SK.paris, "2026-12-30", {
     startTime: "18:00", endTime: "19:30",
@@ -585,14 +585,14 @@ const ITEMS: DemoItem[] = [
     startTime: "14:00", endTime: "16:00",
     lat: 48.8584, lng: 2.2945,
     booking: "ET-558210",
-    cost: { estimatedMinor: 7400, currency: "EUR" },
+    cost: { costMinor: 7400, currency: "EUR" },
   }),
   makeItem("eu:item:nye-cruise", "New Year's Eve dinner cruise on the Seine", "NIGHTLIFE", SK.paris, "2026-12-31", {
     startTime: "20:00", endTime: "23:30",
     lat: 48.8635, lng: 2.314,
     booking: "NYE-CRUISE-31",
     notes: "Bring a warm coat for the open deck at midnight.",
-    cost: { estimatedMinor: 34000, actualMinor: 34000, currency: "EUR" },
+    cost: { costMinor: 34000, paidMinor: 34000, currency: "EUR" },
   }),
   makeItem("eu:item:sacre-coeur", "Sacré-Cœur & Montmartre (New Year's recovery)", "SIGHTSEEING", SK.paris, "2027-01-01", {
     startTime: "12:00", endTime: "14:00",
@@ -606,7 +606,7 @@ const ITEMS: DemoItem[] = [
   makeItem("eu:item:le-marais-food", "Le Marais food & pastry tour", "FOOD", SK.paris, "2027-01-02", {
     startTime: "16:00", endTime: "18:00",
     lat: 48.8575, lng: 2.3622,
-    cost: { estimatedMinor: 13000, currency: "EUR" },
+    cost: { costMinor: 13000, currency: "EUR" },
   }),
 
   // ---- Rome scheduled -----------------------------------------------------
@@ -619,7 +619,7 @@ const ITEMS: DemoItem[] = [
     startTime: "09:00", endTime: "12:00",
     lat: 41.8902, lng: 12.4922,
     booking: "COL-91002",
-    cost: { estimatedMinor: 11000, currency: "EUR" },
+    cost: { costMinor: 11000, currency: "EUR" },
   }),
   makeItem("eu:item:gelato-trastevere", "Gelato in Trastevere", "FOOD", SK.rome, "2027-01-04", {
     startTime: "16:00", endTime: "16:45",
@@ -629,7 +629,7 @@ const ITEMS: DemoItem[] = [
     startTime: "09:00", endTime: "12:30",
     lat: 41.9065, lng: 12.4536,
     booking: "VAT-0105",
-    cost: { estimatedMinor: 9000, currency: "EUR" },
+    cost: { costMinor: 9000, currency: "EUR" },
   }),
   makeItem("eu:item:st-peters", "St Peter's Basilica & the dome climb", "SIGHTSEEING", SK.rome, "2027-01-05", {
     startTime: "14:00", endTime: "15:30",
@@ -642,13 +642,13 @@ const ITEMS: DemoItem[] = [
   makeItem("eu:item:roman-food-tour", "Roman evening food tour", "FOOD", SK.rome, "2027-01-06", {
     startTime: "18:00", endTime: "20:30",
     booking: "FOOD-0106",
-    cost: { estimatedMinor: 16000, currency: "EUR" },
+    cost: { costMinor: 16000, currency: "EUR" },
   }),
   makeItem("eu:item:pompeii", "Pompeii day trip", "SIGHTSEEING", SK.rome, "2027-01-07", {
     startTime: "07:30", endTime: "18:00",
     lat: 40.7497, lng: 14.4869,
     booking: "POMP-0107",
-    cost: { estimatedMinor: 24000, currency: "EUR" },
+    cost: { costMinor: 24000, currency: "EUR" },
   }),
   makeItem("eu:item:borghese", "Borghese Gallery & Gardens", "SIGHTSEEING", SK.rome, "2027-01-08", {
     startTime: "10:00", endTime: "12:00",
@@ -657,7 +657,7 @@ const ITEMS: DemoItem[] = [
   }),
   makeItem("eu:item:final-roman-dinner", "Final Roman dinner — cacio e pepe", "FOOD", SK.rome, "2027-01-08", {
     startTime: "19:30", endTime: "21:30",
-    cost: { estimatedMinor: 14000, currency: "EUR" },
+    cost: { costMinor: 14000, currency: "EUR" },
   }),
 
   // ---- Wishlist (trip-wide, no stopKey, no date) --------------------------
@@ -710,12 +710,12 @@ const ITEMS: DemoItem[] = [
 // ---------------------------------------------------------------------------
 
 const COSTS: DemoCost[] = [
-  { ownerType: "OTHER", label: "Travel insurance (winter-sports add-on)", category: "Insurance", currency: "AUD", estimatedMinor: 48000, actualMinor: 48000 },
-  { ownerType: "OTHER", label: "eSIM data — EU + UK", category: "Connectivity", currency: "AUD", estimatedMinor: 12000 },
-  { ownerType: "OTHER", label: "ETIAS authorisation (×2)", category: "Visas & docs", currency: "EUR", estimatedMinor: 1400, actualMinor: 1400 },
-  { ownerType: "OTHER", label: "Airport transfers & local transit", category: "Transport", currency: "AUD", estimatedMinor: 40000 },
-  { ownerType: "OTHER", label: "Spending money / meals buffer", category: "Food & misc", currency: "AUD", estimatedMinor: 150000 },
-  { ownerType: "OTHER", label: "Christmas gifts for each other", category: "Gifts", currency: "AUD", estimatedMinor: 30000 },
+  { ownerType: "OTHER", label: "Travel insurance (winter-sports add-on)", category: "Insurance", currency: "AUD", costMinor: 48000, paidMinor: 48000 },
+  { ownerType: "OTHER", label: "eSIM data — EU + UK", category: "Connectivity", currency: "AUD", costMinor: 12000 },
+  { ownerType: "OTHER", label: "ETIAS authorisation (×2)", category: "Visas & docs", currency: "EUR", costMinor: 1400, paidMinor: 1400 },
+  { ownerType: "OTHER", label: "Airport transfers & local transit", category: "Transport", currency: "AUD", costMinor: 40000 },
+  { ownerType: "OTHER", label: "Spending money / meals buffer", category: "Food & misc", currency: "AUD", costMinor: 150000 },
+  { ownerType: "OTHER", label: "Christmas gifts for each other", category: "Gifts", currency: "AUD", costMinor: 30000 },
 ];
 
 // ---------------------------------------------------------------------------
@@ -726,23 +726,23 @@ const COSTS: DemoCost[] = [
 const FORK_ITALY_FIRST_ITEMS: DemoItem[] = [
   makeItem("eu:fork:if:item:husky-safari", "Husky sled safari", "ACTIVITY", "eu:fork:if:stop:rovaniemi", "2026-12-08", {
     startTime: "09:00", endTime: "12:00",
-    cost: { estimatedMinor: 32000, currency: "EUR" },
+    cost: { costMinor: 32000, currency: "EUR" },
   }),
   makeItem("eu:fork:if:item:neuschwanstein", "Neuschwanstein Castle day trip", "SIGHTSEEING", "eu:fork:if:stop:munich", "2026-12-12", {
     startTime: "08:30", endTime: "17:00",
-    cost: { estimatedMinor: 15000, currency: "EUR" },
+    cost: { costMinor: 15000, currency: "EUR" },
   }),
   makeItem("eu:fork:if:item:colosseum", "Colosseum & Roman Forum", "SIGHTSEEING", "eu:fork:if:stop:rome", "2026-12-30", {
     startTime: "09:00", endTime: "12:00",
-    cost: { estimatedMinor: 11000, currency: "EUR" },
+    cost: { costMinor: 11000, currency: "EUR" },
   }),
   makeItem("eu:fork:if:item:eiffel-summit", "Eiffel Tower summit", "SIGHTSEEING", "eu:fork:if:stop:paris", "2027-01-05", {
     startTime: "14:00", endTime: "16:00",
-    cost: { estimatedMinor: 7400, currency: "EUR" },
+    cost: { costMinor: 7400, currency: "EUR" },
   }),
   makeItem("eu:fork:if:item:nye-cruise", "New Year's Eve dinner cruise on the Seine", "NIGHTLIFE", "eu:fork:if:stop:paris", "2027-01-05", {
     startTime: "20:00", endTime: "23:30",
-    cost: { estimatedMinor: 34000, currency: "EUR" },
+    cost: { costMinor: 34000, currency: "EUR" },
   }),
 ];
 
@@ -855,7 +855,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       reference: "QF / AY (via HEL)",
       notes: "Brisbane → Helsinki → Rovaniemi. ~24h door to door.",
       sortOrder: 0,
-      cost: { estimatedMinor: 220000, actualMinor: 226400, currency: "AUD" },
+      cost: { costMinor: 220000, paidMinor: 226400, currency: "AUD" },
     },
     // Rovaniemi → Munich
     {
@@ -869,7 +869,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       arrAt: "2026-12-11T12:30:00Z",
       reference: "AY1234 / LH (via HEL)",
       sortOrder: 1,
-      cost: { estimatedMinor: 46000, currency: "EUR" },
+      cost: { costMinor: 46000, currency: "EUR" },
     },
     // Munich → London
     {
@@ -883,7 +883,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       arrAt: "2026-12-15T12:00:00Z",
       reference: "LH2476",
       sortOrder: 2,
-      cost: { estimatedMinor: 32000, currency: "EUR" },
+      cost: { costMinor: 32000, currency: "EUR" },
     },
     // London → Dublin
     {
@@ -897,7 +897,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       arrAt: "2026-12-21T10:55:00Z",
       reference: "EI155",
       sortOrder: 3,
-      cost: { estimatedMinor: 18000, currency: "GBP" },
+      cost: { costMinor: 18000, currency: "GBP" },
     },
     // Dublin → Rome (reordered)
     {
@@ -911,7 +911,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       arrAt: "2026-12-29T17:00:00Z",
       reference: "EI / AZ",
       sortOrder: 4,
-      cost: { estimatedMinor: 27000, currency: "EUR" },
+      cost: { costMinor: 27000, currency: "EUR" },
     },
     // Rome → Paris
     {
@@ -925,7 +925,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       arrAt: "2027-01-04T10:30:00Z",
       reference: "AF1003",
       sortOrder: 5,
-      cost: { estimatedMinor: 29000, currency: "EUR" },
+      cost: { costMinor: 29000, currency: "EUR" },
     },
     // Homeward from Paris
     {
@@ -941,7 +941,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       reference: "EK / QF (via DXB)",
       notes: "Home via Dubai.",
       sortOrder: 99,
-      cost: { estimatedMinor: 240000, currency: "AUD" },
+      cost: { costMinor: 240000, currency: "AUD" },
     },
   ],
   accommodations: [
@@ -957,7 +957,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       lat: 66.5436,
       lng: 25.8472,
       notes: "Glass roof for aurora-watching from bed.",
-      cost: { estimatedMinor: 185000, actualMinor: 189000, currency: "EUR" },
+      cost: { costMinor: 185000, paidMinor: 189000, currency: "EUR" },
     },
     // Munich
     {
@@ -970,7 +970,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       confirmation: "PLATZL-3392",
       lat: 48.1374,
       lng: 11.5786,
-      cost: { estimatedMinor: 88000, actualMinor: 88000, currency: "EUR" },
+      cost: { costMinor: 88000, paidMinor: 88000, currency: "EUR" },
     },
     // London
     {
@@ -983,7 +983,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       confirmation: "BLM-44192",
       lat: 51.5169,
       lng: -0.1267,
-      cost: { estimatedMinor: 156000, actualMinor: 160500, currency: "GBP" },
+      cost: { costMinor: 156000, paidMinor: 160500, currency: "GBP" },
     },
     // Dublin
     {
@@ -996,7 +996,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       confirmation: "WST-55120",
       lat: 53.3412,
       lng: -6.2603,
-      cost: { estimatedMinor: 176000, actualMinor: 181200, currency: "EUR" },
+      cost: { costMinor: 176000, paidMinor: 181200, currency: "EUR" },
     },
     // Rome first (Dec 29 – Jan 4)
     {
@@ -1009,7 +1009,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       confirmation: "ART-IF-30551",
       lat: 41.9009,
       lng: 12.4925,
-      cost: { estimatedMinor: 114000, currency: "EUR" },
+      cost: { costMinor: 114000, currency: "EUR" },
     },
     // Paris (Jan 4 – Jan 9)
     {
@@ -1022,7 +1022,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       confirmation: "HGB-IF-7781",
       lat: 48.8709,
       lng: 2.3453,
-      cost: { estimatedMinor: 165000, currency: "EUR" },
+      cost: { costMinor: 165000, currency: "EUR" },
     },
   ],
   items: FORK_ITALY_FIRST_ITEMS,
@@ -1038,23 +1038,23 @@ const FORK_ITALY_FIRST: DemoFork = {
 const FORK_PLUS_CH_ITEMS: DemoItem[] = [
   makeItem("eu:fork:ch:item:husky-safari", "Husky sled safari", "ACTIVITY", "eu:fork:ch:stop:rovaniemi", "2026-12-08", {
     startTime: "09:00", endTime: "12:00",
-    cost: { estimatedMinor: 32000, currency: "EUR" },
+    cost: { costMinor: 32000, currency: "EUR" },
   }),
   makeItem("eu:fork:ch:item:eiffel-summit", "Eiffel Tower summit", "SIGHTSEEING", "eu:fork:ch:stop:paris", "2026-12-31", {
     startTime: "14:00", endTime: "16:00",
-    cost: { estimatedMinor: 7400, currency: "EUR" },
+    cost: { costMinor: 7400, currency: "EUR" },
   }),
   makeItem("eu:fork:ch:item:zermatt-ski", "Ski Zermatt — Matterhorn panorama run", "ACTIVITY", "eu:fork:ch:stop:zermatt", null, {
     notes: "Full-day ski with gondola pass.",
-    cost: { estimatedMinor: 22000, currency: "CHF" },
+    cost: { costMinor: 22000, currency: "CHF" },
   }),
   makeItem("eu:fork:ch:item:interlaken-paraglide", "Tandem paragliding over Interlaken", "ACTIVITY", "eu:fork:ch:stop:interlaken", null, {
     notes: "Weather-dependent — check forecast the night before.",
-    cost: { estimatedMinor: 19000, currency: "CHF" },
+    cost: { costMinor: 19000, currency: "CHF" },
   }),
   makeItem("eu:fork:ch:item:colosseum", "Colosseum & Roman Forum", "SIGHTSEEING", "eu:fork:ch:stop:rome", null, {
     notes: "Book skip-the-line entry in advance.",
-    cost: { estimatedMinor: 11000, currency: "EUR" },
+    cost: { costMinor: 11000, currency: "EUR" },
   }),
 ];
 
@@ -1197,7 +1197,7 @@ const FORK_PLUS_CH: DemoFork = {
       reference: "QF / AY (via HEL)",
       notes: "Brisbane → Helsinki → Rovaniemi. ~24h door to door.",
       sortOrder: 0,
-      cost: { estimatedMinor: 220000, actualMinor: 226400, currency: "AUD" },
+      cost: { costMinor: 220000, paidMinor: 226400, currency: "AUD" },
     },
     // Rovaniemi → Munich
     {
@@ -1211,7 +1211,7 @@ const FORK_PLUS_CH: DemoFork = {
       arrAt: "2026-12-11T12:30:00Z",
       reference: "AY1234 / LH (via HEL)",
       sortOrder: 1,
-      cost: { estimatedMinor: 46000, currency: "EUR" },
+      cost: { costMinor: 46000, currency: "EUR" },
     },
     // Munich → London
     {
@@ -1225,7 +1225,7 @@ const FORK_PLUS_CH: DemoFork = {
       arrAt: "2026-12-15T12:00:00Z",
       reference: "LH2476",
       sortOrder: 2,
-      cost: { estimatedMinor: 32000, currency: "EUR" },
+      cost: { costMinor: 32000, currency: "EUR" },
     },
     // London → Dublin
     {
@@ -1239,7 +1239,7 @@ const FORK_PLUS_CH: DemoFork = {
       arrAt: "2026-12-21T10:55:00Z",
       reference: "EI155",
       sortOrder: 3,
-      cost: { estimatedMinor: 18000, currency: "GBP" },
+      cost: { costMinor: 18000, currency: "GBP" },
     },
     // Dublin → Paris
     {
@@ -1253,7 +1253,7 @@ const FORK_PLUS_CH: DemoFork = {
       arrAt: "2026-12-29T14:10:00Z",
       reference: "EI520",
       sortOrder: 4,
-      cost: { estimatedMinor: 24000, currency: "EUR" },
+      cost: { costMinor: 24000, currency: "EUR" },
     },
   ],
   accommodations: [
@@ -1269,7 +1269,7 @@ const FORK_PLUS_CH: DemoFork = {
       lat: 66.5436,
       lng: 25.8472,
       notes: "Glass roof for aurora-watching from bed.",
-      cost: { estimatedMinor: 185000, actualMinor: 189000, currency: "EUR" },
+      cost: { costMinor: 185000, paidMinor: 189000, currency: "EUR" },
     },
     // Munich
     {
@@ -1282,7 +1282,7 @@ const FORK_PLUS_CH: DemoFork = {
       confirmation: "PLATZL-3392",
       lat: 48.1374,
       lng: 11.5786,
-      cost: { estimatedMinor: 88000, actualMinor: 88000, currency: "EUR" },
+      cost: { costMinor: 88000, paidMinor: 88000, currency: "EUR" },
     },
     // London
     {
@@ -1295,7 +1295,7 @@ const FORK_PLUS_CH: DemoFork = {
       confirmation: "BLM-44192",
       lat: 51.5169,
       lng: -0.1267,
-      cost: { estimatedMinor: 156000, actualMinor: 160500, currency: "GBP" },
+      cost: { costMinor: 156000, paidMinor: 160500, currency: "GBP" },
     },
     // Dublin
     {
@@ -1308,7 +1308,7 @@ const FORK_PLUS_CH: DemoFork = {
       confirmation: "WST-55120",
       lat: 53.3412,
       lng: -6.2603,
-      cost: { estimatedMinor: 176000, actualMinor: 181200, currency: "EUR" },
+      cost: { costMinor: 176000, paidMinor: 181200, currency: "EUR" },
     },
     // Paris
     {
@@ -1322,7 +1322,7 @@ const FORK_PLUS_CH: DemoFork = {
       lat: 48.8709,
       lng: 2.3453,
       notes: "NYE rates — booked early.",
-      cost: { estimatedMinor: 165000, actualMinor: 168000, currency: "EUR" },
+      cost: { costMinor: 165000, paidMinor: 168000, currency: "EUR" },
     },
   ],
   items: FORK_PLUS_CH_ITEMS,
@@ -1334,14 +1334,14 @@ const FORK_PLUS_CH: DemoFork = {
       label: "Zermatt ski pass & gondola",
       category: "Activity",
       currency: "CHF",
-      estimatedMinor: 45000,
+      costMinor: 45000,
     },
     {
       ownerType: "OTHER",
       label: "Interlaken adventure activities",
       category: "Activity",
       currency: "CHF",
-      estimatedMinor: 32000,
+      costMinor: 32000,
     },
   ],
 };
@@ -1592,7 +1592,7 @@ export function buildEuTrip(): DemoTrip {
         entityType: "COST",
         entityKey: "eu:tr:bne-rvn",
         entityLabel: "Outbound flight",
-        changes: [{ field: "actualMinor", label: "Actual", from: "", to: "$2,264.00" }],
+        changes: [{ field: "paidMinor", label: "Actual", from: "", to: "$2,264.00" }],
         at: "2026-06-10T14:30:00Z",
       },
       {
