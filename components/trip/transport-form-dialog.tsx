@@ -333,13 +333,13 @@ function TransportForm({
   const [notes, setNotes] = React.useState(transport?.notes ?? "");
 
   // Inline cost fields
-  const [estimatedAmount, setEstimatedAmount] = React.useState(
+  const [costAmount, setCostAmount] = React.useState(
     singleCost ? formatMinor(singleCost.costMinor, singleCost.currency) : "",
   );
   const [currency, setCurrency] = React.useState(
     singleCost?.currency ?? defaultCurrency,
   );
-  const [actualAmount, setActualAmount] = React.useState(
+  const [paidAmount, setPaidAmount] = React.useState(
     singleCost && singleCost.paidMinor !== null && singleCost.paidMinor !== undefined
       ? formatMinor(singleCost.paidMinor, singleCost.currency)
       : "",
@@ -347,14 +347,19 @@ function TransportForm({
   const [paidAt, setPaidAt] = React.useState(
     singleCost?.paidAt ? new Date(singleCost.paidAt).toISOString().slice(0, 10) : "",
   );
+  // Seeded from the existing cost so editing a paid Cost opens with the box
+  // ticked (ADR 0037).
+  const [paid, setPaid] = React.useState(Boolean(singleCost?.paidAt));
 
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {
-      const costMinor = estimatedAmount.trim()
-        ? (parseAmountToMinor(estimatedAmount, currency) ?? undefined)
+      const costMinor = costAmount.trim()
+        ? (parseAmountToMinor(costAmount, currency) ?? undefined)
         : undefined;
-      const paidMinor = actualAmount.trim()
-        ? (parseAmountToMinor(actualAmount, currency) ?? undefined)
+      // Un-ticking Paid clears the payment — no path may send paidAt without
+      // an amount (ADR 0037).
+      const paidMinor = paid
+        ? (parseAmountToMinor(paidAmount, currency) ?? undefined)
         : undefined;
 
       // The action accepts TransportInput whose depAt/arrAt are Date | undefined
@@ -402,7 +407,7 @@ function TransportForm({
           costMinor,
           currency,
           paidMinor: paidMinor ?? null,
-          paidAt: paidAt || null,
+          paidAt: paid ? paidAt || null : null,
         }),
       };
 
@@ -569,12 +574,14 @@ function TransportForm({
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
       <InlineCostFields
         hasMultipleCosts={hasMultipleCosts}
-        estimatedAmount={estimatedAmount}
-        onEstimatedChange={setEstimatedAmount}
+        costAmount={costAmount}
+        onCostChange={setCostAmount}
         currency={currency}
         onCurrencyChange={setCurrency}
-        actualAmount={actualAmount}
-        onActualChange={setActualAmount}
+        paid={paid}
+        onPaidChange={setPaid}
+        paidAmount={paidAmount}
+        onPaidAmountChange={setPaidAmount}
         paidAt={paidAt}
         onPaidAtChange={setPaidAt}
         errors={errors}

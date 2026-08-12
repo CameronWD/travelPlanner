@@ -253,24 +253,24 @@ describe("ItemFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 9: Estimated cost field is rendered when homeCurrency is provided
+  // Case 9: Cost field is rendered when homeCurrency is provided
   // -------------------------------------------------------------------------
-  it("renders an Estimated cost field", () => {
+  it("renders a Cost field", () => {
     render(<ItemFormDialog {...baseProps} homeCurrency="AUD" />);
-    expect(screen.getByLabelText(/estimated cost amount/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^cost amount$/i)).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
-  // Case 10: filling estimated amount sends it in the payload
+  // Case 10: filling the cost amount sends it in the payload
   // -------------------------------------------------------------------------
-  it("submitting with an estimated amount sends costMinor and currency in the payload", async () => {
+  it("submitting with a cost amount sends costMinor and currency in the payload", async () => {
     const user = userEvent.setup();
     render(<ItemFormDialog {...baseProps} homeCurrency="AUD" />);
 
     const titleInput = screen.getByPlaceholderText(/visit the night market/i);
     await user.type(titleInput, "Eiffel Tower");
 
-    const amountInput = screen.getByLabelText(/estimated cost amount/i);
+    const amountInput = screen.getByLabelText(/^cost amount$/i);
     await user.type(amountInput, "120.50");
 
     await user.click(screen.getByRole("button", { name: /add item/i }));
@@ -307,7 +307,7 @@ describe("ItemFormDialog", () => {
   // -------------------------------------------------------------------------
   // Case 12: edit mode prefills cost fields from single existing cost
   // -------------------------------------------------------------------------
-  it("in edit mode, prefills the estimated amount from the single existing cost", () => {
+  it("in edit mode, prefills the cost amount from the single existing cost", () => {
     const costs = [
       {
         id: "cost-1",
@@ -333,7 +333,80 @@ describe("ItemFormDialog", () => {
     );
 
     // 9900 minor EUR = 99.00
-    expect(screen.getByLabelText(/estimated cost amount/i)).toHaveValue("99.00");
+    expect(screen.getByLabelText(/^cost amount$/i)).toHaveValue("99.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 12b: editing a cost that's already paid opens with the box ticked
+  // -------------------------------------------------------------------------
+  it("opens with the Paid box ticked when editing a cost that has already been paid", () => {
+    const costs = [
+      {
+        id: "cost-1",
+        costMinor: 9900,
+        paidMinor: 9900,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: new Date("2026-07-02"),
+        ownerType: "ITEM",
+        ownerId: "item-99",
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <ItemFormDialog
+        {...baseProps}
+        item={existingItem}
+        homeCurrency="AUD"
+        costs={costs}
+      />,
+    );
+
+    expect(screen.getByRole("checkbox", { name: /paid/i })).toBeChecked();
+    expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("99.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 12c: un-ticking Paid clears the payment in the submitted payload
+  // -------------------------------------------------------------------------
+  it("un-ticking Paid clears paidMinor and paidAt in the submitted payload", async () => {
+    const user = userEvent.setup();
+    const costs = [
+      {
+        id: "cost-1",
+        costMinor: 9900,
+        paidMinor: 9900,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: new Date("2026-07-02"),
+        ownerType: "ITEM",
+        ownerId: "item-99",
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <ItemFormDialog
+        {...baseProps}
+        item={existingItem}
+        homeCurrency="AUD"
+        costs={costs}
+      />,
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateItem).toHaveBeenCalledWith(
+      "item-99",
+      expect.objectContaining({
+        paidMinor: null,
+        paidAt: null,
+      }),
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -376,7 +449,7 @@ describe("ItemFormDialog", () => {
       />,
     );
 
-    expect(screen.queryByLabelText(/estimated cost amount/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^cost amount$/i)).not.toBeInTheDocument();
   });
 });
 
@@ -387,7 +460,7 @@ describe("ItemFormDialog", () => {
 describe("AddItemButton — homeCurrency forwarding", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("renders the Estimated cost field inside the dialog when homeCurrency is passed", async () => {
+  it("renders the Cost field inside the dialog when homeCurrency is passed", async () => {
     const user = userEvent.setup();
     render(
       <AddItemButton
@@ -401,7 +474,7 @@ describe("AddItemButton — homeCurrency forwarding", () => {
     await user.click(screen.getByRole("button", { name: /add item/i }));
 
     // homeCurrency="EUR" should make the cost field appear
-    expect(screen.getByLabelText(/estimated cost amount/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^cost amount$/i)).toBeInTheDocument();
   });
 
   it("defaults the currency picker to AUD when homeCurrency is omitted", async () => {
@@ -427,7 +500,7 @@ describe("AddItemButton — homeCurrency forwarding", () => {
 describe("EditItemButton — homeCurrency + costs forwarding", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("renders the Estimated cost field when homeCurrency is passed", async () => {
+  it("renders the Cost field when homeCurrency is passed", async () => {
     const user = userEvent.setup();
     render(
       <EditItemButton
@@ -440,7 +513,7 @@ describe("EditItemButton — homeCurrency + costs forwarding", () => {
 
     await user.click(screen.getByRole("button", { name: /edit museum visit/i }));
 
-    expect(screen.getByLabelText(/estimated cost amount/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^cost amount$/i)).toBeInTheDocument();
   });
 
   it("defaults the currency picker to homeCurrency when no costs are given", async () => {
@@ -460,7 +533,7 @@ describe("EditItemButton — homeCurrency + costs forwarding", () => {
     expect(screen.getByRole("combobox", { name: /currency/i })).toHaveTextContent("GBP");
   });
 
-  it("prefills estimated amount from single cost when costs are forwarded", async () => {
+  it("prefills the cost amount from single cost when costs are forwarded", async () => {
     const user = userEvent.setup();
     const costs = [
       {
@@ -490,6 +563,6 @@ describe("EditItemButton — homeCurrency + costs forwarding", () => {
     await user.click(screen.getByRole("button", { name: /edit museum visit/i }));
 
     // 5500 minor EUR = 55.00
-    expect(screen.getByLabelText(/estimated cost amount/i)).toHaveValue("55.00");
+    expect(screen.getByLabelText(/^cost amount$/i)).toHaveValue("55.00");
   });
 });

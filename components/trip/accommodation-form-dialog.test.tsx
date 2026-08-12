@@ -278,25 +278,34 @@ describe("AccommodationFormDialog", () => {
   // -------------------------------------------------------------------------
   // Case 11: cost fields render when no costs prop
   // -------------------------------------------------------------------------
-  it("renders an estimated cost input when no costs are passed (add mode)", () => {
+  it("renders a cost input when no costs are passed (add mode)", () => {
     render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
     expect(
-      screen.getByRole("textbox", { name: /estimated cost amount/i }),
+      screen.getByRole("textbox", { name: /^cost amount$/i }),
     ).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
-  // Case 12: actual cost and paidAt fields appear after entering estimated amount
+  // Case 12: Paid checkbox appears after entering a cost amount; ticking it
+  // reveals the "you paid" amount and date-paid fields
   // -------------------------------------------------------------------------
-  it("shows actual cost and date paid fields after an estimated amount is entered", async () => {
+  it("shows a Paid checkbox after a cost amount is entered, and ticking it reveals paid amount and date paid fields", async () => {
     const user = userEvent.setup();
     render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
 
-    const estimatedInput = screen.getByRole("textbox", { name: /estimated cost amount/i });
-    await user.type(estimatedInput, "100");
+    const costInput = screen.getByRole("textbox", { name: /^cost amount$/i });
+    await user.type(costInput, "100");
+
+    const paidCheckbox = screen.getByRole("checkbox", { name: /paid/i });
+    expect(paidCheckbox).not.toBeChecked();
+    expect(
+      screen.queryByRole("textbox", { name: /you paid amount/i }),
+    ).not.toBeInTheDocument();
+
+    await user.click(paidCheckbox);
 
     expect(
-      screen.getByRole("textbox", { name: /actual cost amount/i }),
+      screen.getByRole("textbox", { name: /you paid amount/i }),
     ).toBeInTheDocument();
     expect(screen.getByLabelText(/date paid/i)).toBeInTheDocument();
   });
@@ -304,7 +313,7 @@ describe("AccommodationFormDialog", () => {
   // -------------------------------------------------------------------------
   // Case 13: cost fields hidden when >1 costs (CostEditor authoritative)
   // -------------------------------------------------------------------------
-  it("hides the estimated cost field when >1 costs are passed (CostEditor authoritative)", () => {
+  it("hides the cost field when >1 costs are passed (CostEditor authoritative)", () => {
     const multipleCosts: CostRow[] = [
       {
         id: "c-1",
@@ -342,14 +351,14 @@ describe("AccommodationFormDialog", () => {
     );
 
     expect(
-      screen.queryByRole("textbox", { name: /estimated cost amount/i }),
+      screen.queryByRole("textbox", { name: /^cost amount$/i }),
     ).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
-  // Case 14: single existing cost prefills the estimated field
+  // Case 14: single existing cost prefills the cost field
   // -------------------------------------------------------------------------
-  it("prefills estimated cost from a single existing cost in edit mode", () => {
+  it("prefills the cost from a single existing cost in edit mode", () => {
     const singleCost: CostRow[] = [
       {
         id: "c-1",
@@ -374,23 +383,56 @@ describe("AccommodationFormDialog", () => {
       />,
     );
 
-    const estimatedInput = screen.getByRole("textbox", { name: /estimated cost amount/i });
+    const costInput = screen.getByRole("textbox", { name: /^cost amount$/i });
     // 25000 minor units in EUR = 250.00
-    expect(estimatedInput).toHaveValue("250.00");
+    expect(costInput).toHaveValue("250.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14b: editing a cost that's already paid opens with the box ticked
+  // -------------------------------------------------------------------------
+  it("opens with the Paid box ticked when editing a cost that has already been paid", () => {
+    const paidCost: CostRow[] = [
+      {
+        id: "c-1",
+        ownerType: "ACCOMMODATION",
+        ownerId: "acc-1",
+        costMinor: 25000,
+        paidMinor: 25000,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: new Date("2026-07-02"),
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <AccommodationFormDialog
+        {...baseProps}
+        accommodation={existingAccommodation}
+        costs={paidCost}
+        homeCurrency="AUD"
+      />,
+    );
+
+    expect(screen.getByRole("checkbox", { name: /paid/i })).toBeChecked();
+    const paidInput = screen.getByRole("textbox", { name: /you paid amount/i });
+    expect(paidInput).toHaveValue("250.00");
   });
 
   // -------------------------------------------------------------------------
   // Case 15: submitting with a cost passes costMinor + currency to the action
   // -------------------------------------------------------------------------
-  it("submitting with an estimated cost includes costMinor and currency in the payload", async () => {
+  it("submitting with a cost includes costMinor and currency in the payload", async () => {
     const user = userEvent.setup();
     render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
 
     const nameInput = screen.getByPlaceholderText(/hilton garden inn/i);
     await user.type(nameInput, "My Hotel");
 
-    const estimatedInput = screen.getByRole("textbox", { name: /estimated cost amount/i });
-    await user.type(estimatedInput, "150.00");
+    const costInput = screen.getByRole("textbox", { name: /^cost amount$/i });
+    await user.type(costInput, "150.00");
 
     await user.click(
       screen.getByRole("button", { name: /add accommodation/i }),
@@ -402,6 +444,47 @@ describe("AccommodationFormDialog", () => {
         currency: "AUD",
       }),
       undefined,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 15b: un-ticking Paid on an already-paid cost clears the payment
+  // -------------------------------------------------------------------------
+  it("un-ticking Paid clears paidMinor and paidAt in the submitted payload", async () => {
+    const user = userEvent.setup();
+    const paidCost: CostRow[] = [
+      {
+        id: "c-1",
+        ownerType: "ACCOMMODATION",
+        ownerId: "acc-1",
+        costMinor: 25000,
+        paidMinor: 25000,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: new Date("2026-07-02"),
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <AccommodationFormDialog
+        {...baseProps}
+        accommodation={existingAccommodation}
+        costs={paidCost}
+        homeCurrency="AUD"
+      />,
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateAccommodation).toHaveBeenCalledWith(
+      "acc-1",
+      expect.objectContaining({
+        paidMinor: null,
+        paidAt: null,
+      }),
     );
   });
 

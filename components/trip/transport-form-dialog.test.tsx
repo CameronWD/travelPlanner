@@ -342,21 +342,21 @@ describe("TransportFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 11: Estimated cost field is rendered
+  // Case 11: Cost field is rendered
   // -------------------------------------------------------------------------
-  it("renders an Estimated cost field", () => {
+  it("renders a Cost field", () => {
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
-    expect(screen.getByLabelText(/estimated cost amount/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^cost amount$/i)).toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
-  // Case 12: filling estimated amount sends it in the payload
+  // Case 12: filling the cost amount sends it in the payload
   // -------------------------------------------------------------------------
-  it("submitting with an estimated amount sends costMinor and currency in the payload", async () => {
+  it("submitting with a cost amount sends costMinor and currency in the payload", async () => {
     const user = userEvent.setup();
     render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
 
-    const amountInput = screen.getByLabelText(/estimated cost amount/i);
+    const amountInput = screen.getByLabelText(/^cost amount$/i);
     await user.type(amountInput, "120.50");
 
     await user.click(screen.getByRole("button", { name: /add transport/i }));
@@ -390,7 +390,7 @@ describe("TransportFormDialog", () => {
   // -------------------------------------------------------------------------
   // Case 14: edit mode prefills cost fields from single existing cost
   // -------------------------------------------------------------------------
-  it("in edit mode, prefills the estimated amount from the single existing cost", () => {
+  it("in edit mode, prefills the cost amount from the single existing cost", () => {
     const costs = [
       {
         id: "cost-1",
@@ -416,7 +416,80 @@ describe("TransportFormDialog", () => {
     );
 
     // 9900 minor EUR = 99.00
-    expect(screen.getByLabelText(/estimated cost amount/i)).toHaveValue("99.00");
+    expect(screen.getByLabelText(/^cost amount$/i)).toHaveValue("99.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14b: editing a cost that's already paid opens with the box ticked
+  // -------------------------------------------------------------------------
+  it("opens with the Paid box ticked when editing a cost that has already been paid", () => {
+    const costs = [
+      {
+        id: "cost-1",
+        costMinor: 9900,
+        paidMinor: 9900,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: new Date("2026-07-02"),
+        ownerType: "TRANSPORT",
+        ownerId: "transport-99",
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={existingTransport}
+        homeCurrency="AUD"
+        costs={costs}
+      />,
+    );
+
+    expect(screen.getByRole("checkbox", { name: /paid/i })).toBeChecked();
+    expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("99.00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14c: un-ticking Paid clears the payment in the submitted payload
+  // -------------------------------------------------------------------------
+  it("un-ticking Paid clears paidMinor and paidAt in the submitted payload", async () => {
+    const user = userEvent.setup();
+    const costs = [
+      {
+        id: "cost-1",
+        costMinor: 9900,
+        paidMinor: 9900,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: new Date("2026-07-02"),
+        ownerType: "TRANSPORT",
+        ownerId: "transport-99",
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        transport={existingTransport}
+        homeCurrency="AUD"
+        costs={costs}
+      />,
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(updateTransport).toHaveBeenCalledWith(
+      "transport-99",
+      expect.objectContaining({
+        paidMinor: null,
+        paidAt: null,
+      }),
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -459,7 +532,7 @@ describe("TransportFormDialog", () => {
       />,
     );
 
-    expect(screen.queryByLabelText(/estimated cost amount/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^cost amount$/i)).not.toBeInTheDocument();
   });
 });
 
