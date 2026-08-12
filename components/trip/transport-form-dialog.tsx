@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
 import { createTransport, updateTransport } from "@/server/actions/transport";
 import { parseAmountToMinor, formatMinor } from "@/lib/money";
+import { todayISO } from "@/lib/dates";
 import type { TransportCardTransport } from "./transport-card";
 import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
@@ -348,17 +349,26 @@ function TransportForm({
     singleCost?.paidAt ? new Date(singleCost.paidAt).toISOString().slice(0, 10) : "",
   );
   // Seeded from the existing cost so editing a paid Cost opens with the box
-  // ticked (ADR 0037).
-  const [paid, setPaid] = React.useState(Boolean(singleCost?.paidAt));
+  // ticked (ADR 0037). Either field alone counts: legacy rows from before
+  // this rule existed can carry a paid amount with no date.
+  const [paid, setPaid] = React.useState(
+    Boolean(singleCost?.paidAt) ||
+      (singleCost?.paidMinor !== null && singleCost?.paidMinor !== undefined),
+  );
 
   const { errors, isPending, onSubmit } = useEntityForm({
     submit: () => {
       const costMinor = costAmount.trim()
         ? (parseAmountToMinor(costAmount, currency) ?? undefined)
         : undefined;
-      // Un-ticking Paid clears the payment — no path may send paidAt without
-      // an amount (ADR 0037).
-      const paidMinor = paid
+      // Gated on the amount actually being present (mirrors the costAmount
+      // guard above), not just the checkbox — un-ticking Paid, or ticking it
+      // and then clearing the amount, must both clear the payment. Pairing
+      // is kept strict: when an amount is present the date is never sent as
+      // null, it defaults to today, so a saved Cost never has one without
+      // the other (ADR 0037).
+      const hasPaidAmount = paid && paidAmount.trim().length > 0;
+      const paidMinor = hasPaidAmount
         ? (parseAmountToMinor(paidAmount, currency) ?? undefined)
         : undefined;
 
@@ -407,7 +417,7 @@ function TransportForm({
           costMinor,
           currency,
           paidMinor: paidMinor ?? null,
-          paidAt: paid ? paidAt || null : null,
+          paidAt: hasPaidAmount ? paidAt || todayISO() : null,
         }),
       };
 

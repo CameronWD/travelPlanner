@@ -54,7 +54,22 @@ describe("InlineCostFields", () => {
   });
 
   it("renders nothing when multiple costs exist", () => {
-    renderFields({ hasMultipleCosts: true });
-    expect(screen.queryByLabelText(/^cost amount$/i)).not.toBeInTheDocument();
+    const { container } = render(
+      <InlineCostFields
+        hasMultipleCosts
+        costAmount="340.00"
+        onCostChange={vi.fn()}
+        currency="GBP"
+        onCurrencyChange={vi.fn()}
+        paid={false}
+        onPaidChange={vi.fn()}
+        paidAmount=""
+        onPaidAmountChange={vi.fn()}
+        paidAt=""
+        onPaidAtChange={vi.fn()}
+        errors={{}}
+      />,
+    );
+    expect(container).toBeEmptyDOMElement();
   });
 });

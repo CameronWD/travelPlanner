@@ -410,6 +410,103 @@ describe("ItemFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
+  // Case 12d: ticking Paid then clearing the amount must not submit a date
+  // with no amount (review finding — was previously gated on the checkbox
+  // alone, not on the amount actually being present)
+  // -------------------------------------------------------------------------
+  it("clearing the paid amount after ticking Paid does not submit a paidAt with a null paidMinor", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    const titleInput = screen.getByPlaceholderText(/visit the night market/i);
+    await user.type(titleInput, "Eiffel Tower");
+
+    const costInput = screen.getByLabelText(/^cost amount$/i);
+    await user.type(costInput, "100");
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    const paidInput = screen.getByLabelText(/you paid amount/i);
+    await user.clear(paidInput);
+
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+
+    expect(createItem).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({
+        paidMinor: null,
+        paidAt: null,
+      }),
+      undefined,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 12e: clearing the paid date while an amount remains defaults the
+  // date to today rather than submitting a null date paired with an amount
+  // (review finding — keeps amount/date paired in both directions)
+  // -------------------------------------------------------------------------
+  it("clearing the paid date while a paid amount remains defaults the date instead of sending null", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} homeCurrency="AUD" />);
+
+    const titleInput = screen.getByPlaceholderText(/visit the night market/i);
+    await user.type(titleInput, "Eiffel Tower");
+
+    const costInput = screen.getByLabelText(/^cost amount$/i);
+    await user.type(costInput, "100");
+
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    const dateInput = screen.getByLabelText(/date paid/i);
+    await user.clear(dateInput);
+
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+
+    expect(createItem).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({
+        paidMinor: 10000,
+        paidAt: expect.any(String),
+      }),
+      undefined,
+    );
+    const [, payload] = (createItem as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(payload.paidAt).not.toBeNull();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 12f: a legacy cost with a paid amount but no paid date still opens
+  // with the box ticked (review finding — seed must not require paidAt alone)
+  // -------------------------------------------------------------------------
+  it("opens with the Paid box ticked when editing a legacy cost that has an amount but no paid date", () => {
+    const costs = [
+      {
+        id: "cost-1",
+        costMinor: 9900,
+        paidMinor: 9900,
+        currency: "EUR",
+        rateToHome: 0.6,
+        paidAt: null,
+        ownerType: "ITEM",
+        ownerId: "item-99",
+        label: null,
+        category: null,
+      },
+    ];
+
+    render(
+      <ItemFormDialog
+        {...baseProps}
+        item={existingItem}
+        homeCurrency="AUD"
+        costs={costs}
+      />,
+    );
+
+    expect(screen.getByRole("checkbox", { name: /paid/i })).toBeChecked();
+    expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("99.00");
+  });
+
+  // -------------------------------------------------------------------------
   // Case 13: >1 costs — cost fields are hidden (CostEditor authoritative)
   // -------------------------------------------------------------------------
   it("hides the inline cost field when the item has more than one existing cost", () => {

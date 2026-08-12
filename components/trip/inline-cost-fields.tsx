@@ -5,6 +5,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { CURRENCY_CODES } from "@/lib/currencies";
+import { todayISO } from "@/lib/dates";
 import type { FieldErrors } from "@/lib/action-result";
 
 export interface InlineCostFieldsProps {
@@ -22,11 +23,6 @@ export interface InlineCostFieldsProps {
   onPaidAtChange: (v: string) => void;
   errors: FieldErrors;
   disabled?: boolean;
-}
-
-/** Today in YYYY-MM-DD, for defaulting the paid date. */
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 /**
