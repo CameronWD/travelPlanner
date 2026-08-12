@@ -51,7 +51,7 @@ export interface CostEditorProps {
 interface FormState {
   estimatedAmount: string;
   // A cost has a single currency (the DB model has one `currency` field).
-  // Both the estimated and actual inputs share this value.
+  // Both the cost and paid inputs share this value.
   currency: string;
   actualAmount: string;
   paidAt: string;
@@ -126,9 +126,9 @@ function CostDialogForm({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {/* Estimated */}
+          {/* Cost */}
           <Field
-            label="Estimated cost"
+            label="Cost"
             required
             error={errors.costMinor?.[0]}
           >
@@ -140,13 +140,13 @@ function CostDialogForm({
               onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
               disabled={submitting}
               invalid={Boolean(errors.costMinor)}
-              aria-label="Estimated cost amount"
+              aria-label="Cost amount"
             />
           </Field>
 
-          {/* Actual */}
+          {/* Paid */}
           <Field
-            label="Actual cost"
+            label="You paid"
             description="Leave blank if you haven't paid yet."
             error={errors.paidMinor?.[0]}
           >
@@ -158,7 +158,7 @@ function CostDialogForm({
               onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
               disabled={submitting}
               invalid={Boolean(errors.paidMinor)}
-              aria-label="Actual cost amount"
+              aria-label="You paid amount"
             />
           </Field>
 
@@ -240,7 +240,7 @@ export function CostEditor({
   // ---------------------------------------------------------------------------
 
   function parseFormToInput(form: FormState): CostRawInput {
-    // Parse estimated amount → minor units
+    // Parse cost amount → minor units
     const costMinor = parseAmountToMinor(form.estimatedAmount, form.currency) ?? 0;
     const paidMinor =
       form.actualAmount.trim() !== ""

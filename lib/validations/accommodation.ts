@@ -33,11 +33,11 @@ export const accommodationSchema = z
 
     // --- Inline cost fields (all optional) ---
 
-    /** Estimated cost in minor units (e.g. cents). Integer. */
+    /** Cost in minor units (e.g. cents). Integer. */
     costMinor: z
       .number()
-      .int("Estimated amount must be a whole number in minor units")
-      .min(0, "Estimated amount must be 0 or greater")
+      .int("Cost must be a whole number in minor units")
+      .min(0, "Cost must be 0 or greater")
       .max(2_147_483_647, "Amount is too large")
       .optional(),
 
@@ -51,11 +51,11 @@ export const accommodationSchema = z
       })
       .optional(),
 
-    /** Actual cost in minor units. Optional. */
+    /** Amount paid, in minor units. Optional. */
     paidMinor: z
       .number()
-      .int("Actual amount must be a whole number in minor units")
-      .min(0, "Actual amount must be 0 or greater")
+      .int("Paid amount must be a whole number in minor units")
+      .min(0, "Paid amount must be 0 or greater")
       .max(2_147_483_647, "Amount is too large")
       .nullable()
       .optional(),

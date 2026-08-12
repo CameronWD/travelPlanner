@@ -50,15 +50,15 @@ const labeledCost: CostRow = {
 describe("CostEditor", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("add flow: estimated only -> createCost called with costMinor: 1250 and paidMinor: undefined", async () => {
+  it("add flow: cost only -> createCost called with costMinor: 1250 and paidMinor: undefined", async () => {
     const user = userEvent.setup();
     render(<CostEditor {...baseProps} />);
 
     // Open the add dialog
     await user.click(screen.getByRole("button", { name: /add cost/i }));
 
-    // Type in the estimated amount field
-    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    // Type in the cost amount field
+    const estimatedInput = screen.getByLabelText("Cost amount");
     await user.clear(estimatedInput);
     await user.type(estimatedInput, "12.50");
 
@@ -75,17 +75,17 @@ describe("CostEditor", () => {
     );
   });
 
-  it("typing both estimated and actual produces both as minor units in createCost payload", async () => {
+  it("typing both cost and paid amounts produces both as minor units in createCost payload", async () => {
     const user = userEvent.setup();
     render(<CostEditor {...baseProps} />);
 
     await user.click(screen.getByRole("button", { name: /add cost/i }));
 
-    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    const estimatedInput = screen.getByLabelText("Cost amount");
     await user.clear(estimatedInput);
     await user.type(estimatedInput, "50.00");
 
-    const actualInput = screen.getByLabelText("Actual cost amount");
+    const actualInput = screen.getByLabelText("You paid amount");
     await user.clear(actualInput);
     await user.type(actualInput, "48.75");
 
@@ -123,8 +123,8 @@ describe("CostEditor", () => {
     // Click the edit (pencil) button on the existing cost row
     await user.click(screen.getByRole("button", { name: /edit cost/i }));
 
-    // The estimated field should be prefilled from sampleCost.costMinor = 5000 -> "50.00"
-    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    // The cost field should be prefilled from sampleCost.costMinor = 5000 -> "50.00"
+    const estimatedInput = screen.getByLabelText("Cost amount");
     expect(estimatedInput).toHaveValue("50.00");
 
     // Submit without changes
@@ -139,7 +139,7 @@ describe("CostEditor", () => {
     );
   });
 
-  it("a field error (costMinor) sets aria-invalid on the estimated field and renders via Field error slot", async () => {
+  it("a field error (costMinor) sets aria-invalid on the cost field and renders via Field error slot", async () => {
     (createCost as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       success: false,
       errors: { costMinor: ["Amount is required"] },
@@ -152,7 +152,7 @@ describe("CostEditor", () => {
     await user.click(screen.getByRole("button", { name: /save/i }));
 
     expect(await screen.findByText("Amount is required")).toBeInTheDocument();
-    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    const estimatedInput = screen.getByLabelText("Cost amount");
     expect(estimatedInput).toHaveAttribute("aria-invalid", "true");
   });
 
@@ -167,7 +167,7 @@ describe("CostEditor", () => {
 
     await user.click(screen.getByRole("button", { name: /add cost/i }));
 
-    const estimatedInput = screen.getByLabelText("Estimated cost amount");
+    const estimatedInput = screen.getByLabelText("Cost amount");
     await user.clear(estimatedInput);
     await user.type(estimatedInput, "10.00");
 

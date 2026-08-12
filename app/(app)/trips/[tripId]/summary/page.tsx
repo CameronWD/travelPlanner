@@ -436,7 +436,7 @@ export default async function SummaryPage({
         />
         <StatCard
           icon={DollarSign}
-          label={hasActual ? "Actual spend" : "Est. budget"}
+          label={hasActual ? "Paid so far" : "Cost budget"}
           value={formatMoney(
             hasActual ? grandTotal.paidTotalMinor : grandTotal.costTotalMinor,
             homeCurrency,
@@ -595,7 +595,7 @@ export default async function SummaryPage({
                                     )}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
-                                    {stopBudget.paidTotalMinor > 0 ? "actual" : "est."}
+                                    {stopBudget.paidTotalMinor > 0 ? "paid" : "cost"}
                                     {nights > 0 &&
                                       stopBudget.costTotalMinor > 0 &&
                                       ` · ${formatMoney(
@@ -677,12 +677,12 @@ export default async function SummaryPage({
               </CardHeader>
               <CardContent className="flex flex-wrap gap-6">
                 <Stat
-                  label="Estimated"
+                  label="Cost"
                   value={formatMoney(grandTotal.costTotalMinor, homeCurrency)}
                 />
                 {grandTotal.paidTotalMinor > 0 && (
                   <Stat
-                    label="Actual"
+                    label="Paid"
                     value={formatMoney(grandTotal.paidTotalMinor, homeCurrency)}
                   />
                 )}

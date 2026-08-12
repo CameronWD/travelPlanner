@@ -23,8 +23,8 @@ export interface CostSummaryProps {
  * Compact one-line display of a single Cost row.
  *
  * Shows:
- *  - estimated amount (always)
- *  - actual amount (if present, with a paid checkmark)
+ *  - cost amount (always)
+ *  - paid amount (if present, with a paid checkmark)
  *  - home-currency equivalent in parentheses (if rateToHome is known and
  *    currency !== homeCurrency)
  *  - a "paid" badge when paidAt is set
@@ -68,7 +68,7 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
       <DollarSign className="size-3 shrink-0 text-primary/70" aria-hidden="true" />
 
       <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
-        {/* Estimated */}
+        {/* Cost */}
         <span className="font-medium text-foreground">
           {estimatedStr}
         </span>
@@ -78,7 +78,7 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
           </span>
         )}
 
-        {/* Actual (if present) — badge sits beside the paid amount it confirms */}
+        {/* Paid amount (if present) — badge sits beside the paid amount it confirms */}
         {actualStr && (
           <>
             <span className="text-muted-foreground/50">·</span>

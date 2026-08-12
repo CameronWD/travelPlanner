@@ -34,16 +34,16 @@ export const costSchema = z
   .object({
     costMinor: z
       .number()
-      .int("Estimated amount must be a whole number in minor units")
-      .min(0, "Estimated amount must be 0 or greater")
+      .int("Cost must be a whole number in minor units")
+      .min(0, "Cost must be 0 or greater")
       // Cap at 32-bit signed max: Prisma maps Int to Postgres INTEGER which
       // enforces this bound, so we validate it here before attempting an insert.
       .max(2_147_483_647, "Amount is too large"),
 
     paidMinor: z
       .number()
-      .int("Actual amount must be a whole number in minor units")
-      .min(0, "Actual amount must be 0 or greater")
+      .int("Paid amount must be a whole number in minor units")
+      .min(0, "Paid amount must be 0 or greater")
       .max(2_147_483_647, "Amount is too large")
       .optional(),
 

@@ -246,7 +246,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
       <div className="mt-4 flex gap-5">
         <div><div className="font-display text-2xl font-bold">{stopCount}</div><div className="text-[11px] text-white/60">stops</div></div>
         <div><div className="font-display text-2xl font-bold">{totalNights}</div><div className="text-[11px] text-white/60">nights</div></div>
-        <div><div className="font-display text-2xl font-bold">{formatMoney(spentMinor, trip.homeCurrency)}</div><div className="text-[11px] text-white/60">{hasActual ? "spent" : "estimated"}</div></div>
+        <div><div className="font-display text-2xl font-bold">{formatMoney(spentMinor, trip.homeCurrency)}</div><div className="text-[11px] text-white/60">{hasActual ? "paid" : "cost"}</div></div>
       </div>
     </section>
   );
@@ -260,7 +260,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
         </span>
       </div>
       <p className="font-display text-2xl font-bold text-foreground">
-        {formatMoney(paidSoFarMinor, trip.homeCurrency)} <span className="text-sm font-medium text-muted-foreground">of {formatMoney(costTotalMinor, trip.homeCurrency)} estimated</span>
+        {formatMoney(paidSoFarMinor, trip.homeCurrency)} <span className="text-sm font-medium text-muted-foreground">of {formatMoney(costTotalMinor, trip.homeCurrency)} cost</span>
       </p>
       <span className="mt-3 block h-2 overflow-hidden rounded-full bg-muted">
         <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />

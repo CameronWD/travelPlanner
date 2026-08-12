@@ -321,7 +321,7 @@ export default async function BudgetPage({
         </div>
       )}
 
-      {/* 4-up hero: Estimated total · Paid · Still to pay · Est / day */}
+      {/* 4-up hero: Cost total · Paid · Still to pay · Cost / day */}
       <BudgetHeroRow
         costTotalMinor={budget.grandTotal.costTotalMinor}
         paidTotalMinor={spend.paidSoFarMinor}
@@ -332,10 +332,10 @@ export default async function BudgetPage({
       {/* Spend so far card */}
       <SpendSoFarCard spend={spend} homeCurrency={homeCurrency} />
 
-      {/* Legend for the estimated-vs-spent columns shown in the sections below */}
+      {/* Legend for the cost-vs-paid columns shown in the sections below */}
       <div className="flex items-center justify-end gap-4 px-1 text-xs text-muted-foreground">
-        <span>Estimated</span>
-        <span className="text-emerald-600 dark:text-emerald-400">Spent</span>
+        <span>Cost</span>
+        <span className="text-emerald-600 dark:text-emerald-400">Paid</span>
       </div>
 
       {/* Two-column grid: main roll-up | right rail (rates + other costs) */}
@@ -386,7 +386,7 @@ export default async function BudgetPage({
                             )}
                           </span>
                           <div className="flex items-center gap-3 tabular-nums text-right">
-                            <span className="text-muted-foreground text-xs" title="% of estimated">{pct}% est.</span>
+                            <span className="text-muted-foreground text-xs" title="% of cost">{pct}% cost</span>
                             <CostAmounts
                               costTotalMinor={cat.costTotalMinor}
                               paidTotalMinor={cat.paidTotalMinor}
