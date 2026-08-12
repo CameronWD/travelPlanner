@@ -660,7 +660,7 @@ export function InlineCostFields({
 
 In each of `accommodation-form-dialog.tsx`, `transport-form-dialog.tsx` and `item-form-dialog.tsx`:
 
-1. Rename the local state `actualAmount` → `paidAmount` (the Task 2 codemod did not touch local variable names, only the `Minor` identifiers).
+1. Rename **both** local state variables — `estimatedAmount` → `costAmount` and `actualAmount` → `paidAmount`, along with their setters (`setEstimatedAmount` → `setCostAmount`, `setActualAmount` → `setPaidAmount`). Task 2's codemod deliberately left these alone: it only matched the `*Minor` identifiers, and these locals contain neither. Verify by grepping each file for `estimatedAmount` and `actualAmount` before and after — the new `InlineCostFields` props are `costAmount`/`paidAmount`, so missing this rename is a compile error, not a style nit.
 2. Add paid state, seeded from the existing cost so editing a paid Cost opens with the box ticked:
 
 ```tsx
@@ -737,7 +737,12 @@ Expected: FAIL — there is no Paid checkbox.
 
 - [ ] **Step 3: Add paid to the form state**
 
-In the `FormState` interface at `components/trip/other-cost-editor.tsx:74`, add `paid: boolean;` and rename `actualAmount` → `paidAmount`. Update the blank initial state (`:84`) with `paid: false` and the edit-seeding block (`:98`) with `paid: Boolean(cost.paidAt)`.
+In the `FormState` interface at `components/trip/other-cost-editor.tsx:70-75`, add `paid: boolean;` and rename **both** amount fields: `estimatedAmount` → `costAmount` and `actualAmount` → `paidAmount`. Task 2's codemod left these untouched (it matched only `*Minor` identifiers), so all four consumers need updating together or Step 4's code will not compile:
+
+- `defaultFormState()` (`:78-87`) — add `paid: false`
+- `costToFormState()` (`:89-101`) — add `paid: Boolean(cost.paidAt)`, and note it already reads `cost.costMinor`/`cost.paidMinor` post-rename
+- `parseFormToInput()` (`:103-118`) — reads `form.estimatedAmount`/`form.actualAmount` today; update both
+- the JSX in Step 4
 
 - [ ] **Step 4: Replace the three Field blocks**
 
@@ -1273,9 +1278,41 @@ Note the money helpers are `parseAmountToMinor(raw, currency): number | null` (s
 
 - [ ] **Step 7: Render it on the Budget page**
 
-In `app/(app)/trips/[tripId]/budget/page.tsx`, build the rows after `allCosts` is loaded, resolving each cost's label from the already-loaded collections:
+**First widen the Prisma selects — they currently fetch no name fields at all.** In `app/(app)/trips/[tripId]/budget/page.tsx:94-105`, the three `findMany` calls select only ids and dates, so `a.name`, `i.title` and `t.mode` do not exist on those objects and would fail to compile. Add exactly the fields the labels need, nothing more:
 
 ```tsx
+    db.item.findMany({
+      where: { tripId, forkId: null },
+      select: { id: true, stopId: true, category: true, date: true, title: true },
+    }),
+    db.accommodation.findMany({
+      where: { tripId, forkId: null },
+      select: { id: true, stopId: true, checkIn: true, checkOut: true, name: true },
+    }),
+    db.transport.findMany({
+      where: { tripId, forkId: null },
+      select: { id: true, fromStopId: true, toStopId: true, depAt: true, mode: true },
+    }),
+```
+
+Then build the rows after `allCosts` is loaded. `Transport` has no name of its own — it carries a `mode` plus endpoint stop ids — so derive its label from the mode and whatever endpoint names resolve from the already-loaded `stops`:
+
+```tsx
+const stopName = new Map(stops.map((s) => [s.id, s.name] as const));
+
+/** Transport has no name — label it by mode, with endpoints when they resolve. */
+function transportLabel(t: {
+  mode: string;
+  fromStopId: string | null;
+  toStopId: string | null;
+}): string {
+  const mode = t.mode.charAt(0).toUpperCase() + t.mode.slice(1).toLowerCase();
+  const from = t.fromStopId ? stopName.get(t.fromStopId) : null;
+  const to = t.toStopId ? stopName.get(t.toStopId) : null;
+  if (from && to) return `${mode} · ${from} → ${to}`;
+  return mode;
+}
+
 const ownerName = new Map<string, string>([
   ...accommodations.map((a) => [a.id, a.name] as const),
   ...transports.map((t) => [t.id, transportLabel(t)] as const),
@@ -1292,7 +1329,9 @@ const checklistRows: CostChecklistRow[] = allCosts.map((c) => ({
 }));
 ```
 
-Render `<CostChecklist rows={checklistRows} homeCurrency={homeCurrency} />` in a `Card` titled **"Mark off what you've paid"**, placed in the main column directly below `SpendSoFarCard`. If `transportLabel` does not already exist, derive the label inline from the transport's mode and reference.
+Note `stops` is filtered to dated stops only (`arriveDate: { not: null }`), so an endpoint on a rough stop simply won't resolve and the label falls back to the bare mode — acceptable, not a bug to fix here.
+
+Render `<CostChecklist rows={checklistRows} homeCurrency={homeCurrency} />` in a `Card` titled **"Mark off what you've paid"**, placed in the main column directly below `SpendSoFarCard`.
 
 - [ ] **Step 8: Run the tests, the suite, then commit**
 
