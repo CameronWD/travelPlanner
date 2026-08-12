@@ -193,7 +193,7 @@ const TRANSPORTS: DemoTransport[] = [
     reference: "QF / AY (via HEL)",
     notes: "Brisbane → Helsinki → Rovaniemi. ~24h door to door.",
     sortOrder: 0,
-    cost: { costMinor: 220000, paidMinor: 226400, currency: "AUD" },
+    cost: { costMinor: 220000, paidMinor: 226400, currency: "AUD", paid: true },
   },
   // Rovaniemi → Munich
   {
@@ -299,7 +299,7 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
     lat: 66.5436,
     lng: 25.8472,
     notes: "Glass roof for aurora-watching from bed.",
-    cost: { costMinor: 185000, paidMinor: 189000, currency: "EUR" },
+    cost: { costMinor: 185000, paidMinor: 189000, currency: "EUR", paid: true },
   },
   {
     key: "eu:acc:platzl",
@@ -311,7 +311,7 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
     confirmation: "PLATZL-3392",
     lat: 48.1374,
     lng: 11.5786,
-    cost: { costMinor: 88000, paidMinor: 88000, currency: "EUR" },
+    cost: { costMinor: 88000, paidMinor: 88000, currency: "EUR", paid: true },
   },
   {
     key: "eu:acc:bloomsbury",
@@ -323,7 +323,7 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
     confirmation: "BLM-44192",
     lat: 51.5169,
     lng: -0.1267,
-    cost: { costMinor: 156000, paidMinor: 160500, currency: "GBP" },
+    cost: { costMinor: 156000, paidMinor: 160500, currency: "GBP", paid: true },
   },
   {
     key: "eu:acc:westbury",
@@ -335,7 +335,7 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
     confirmation: "WST-55120",
     lat: 53.3412,
     lng: -6.2603,
-    cost: { costMinor: 176000, paidMinor: 181200, currency: "EUR" },
+    cost: { costMinor: 176000, paidMinor: 181200, currency: "EUR", paid: true },
   },
   {
     key: "eu:acc:grands-boulevards",
@@ -348,7 +348,7 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
     lat: 48.8709,
     lng: 2.3453,
     notes: "NYE rates — booked early.",
-    cost: { costMinor: 165000, paidMinor: 168000, currency: "EUR" },
+    cost: { costMinor: 165000, paidMinor: 168000, currency: "EUR", paid: true },
   },
   {
     key: "eu:acc:artemide",
@@ -360,7 +360,7 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
     confirmation: "ART-30551",
     lat: 41.9009,
     lng: 12.4925,
-    cost: { costMinor: 114000, paidMinor: 114000, currency: "EUR" },
+    cost: { costMinor: 114000, paidMinor: 114000, currency: "EUR", paid: true },
   },
 ];
 
@@ -469,7 +469,7 @@ const ITEMS: DemoItem[] = [
     lat: 51.5115, lng: -0.1199,
     booking: "WE-LK-882",
     notes: "Booked row F, aisle seats.",
-    cost: { costMinor: 18000, paidMinor: 18000, currency: "GBP" },
+    cost: { costMinor: 18000, paidMinor: 18000, currency: "GBP", paid: true },
   }),
   makeItem("eu:item:british-museum", "British Museum (Rosetta Stone, Egypt)", "SIGHTSEEING", SK.london, "2026-12-17", {
     startTime: "10:00", endTime: "13:00",
@@ -592,7 +592,7 @@ const ITEMS: DemoItem[] = [
     lat: 48.8635, lng: 2.314,
     booking: "NYE-CRUISE-31",
     notes: "Bring a warm coat for the open deck at midnight.",
-    cost: { costMinor: 34000, paidMinor: 34000, currency: "EUR" },
+    cost: { costMinor: 34000, paidMinor: 34000, currency: "EUR", paid: true },
   }),
   makeItem("eu:item:sacre-coeur", "Sacré-Cœur & Montmartre (New Year's recovery)", "SIGHTSEEING", SK.paris, "2027-01-01", {
     startTime: "12:00", endTime: "14:00",
@@ -710,9 +710,9 @@ const ITEMS: DemoItem[] = [
 // ---------------------------------------------------------------------------
 
 const COSTS: DemoCost[] = [
-  { ownerType: "OTHER", label: "Travel insurance (winter-sports add-on)", category: "Insurance", currency: "AUD", costMinor: 48000, paidMinor: 48000 },
+  { ownerType: "OTHER", label: "Travel insurance (winter-sports add-on)", category: "Insurance", currency: "AUD", costMinor: 48000, paidMinor: 48000, paid: true },
   { ownerType: "OTHER", label: "eSIM data — EU + UK", category: "Connectivity", currency: "AUD", costMinor: 12000 },
-  { ownerType: "OTHER", label: "ETIAS authorisation (×2)", category: "Visas & docs", currency: "EUR", costMinor: 1400, paidMinor: 1400 },
+  { ownerType: "OTHER", label: "ETIAS authorisation (×2)", category: "Visas & docs", currency: "EUR", costMinor: 1400, paidMinor: 1400, paid: true },
   { ownerType: "OTHER", label: "Airport transfers & local transit", category: "Transport", currency: "AUD", costMinor: 40000 },
   { ownerType: "OTHER", label: "Spending money / meals buffer", category: "Food & misc", currency: "AUD", costMinor: 150000 },
   { ownerType: "OTHER", label: "Christmas gifts for each other", category: "Gifts", currency: "AUD", costMinor: 30000 },
@@ -855,7 +855,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       reference: "QF / AY (via HEL)",
       notes: "Brisbane → Helsinki → Rovaniemi. ~24h door to door.",
       sortOrder: 0,
-      cost: { costMinor: 220000, paidMinor: 226400, currency: "AUD" },
+      cost: { costMinor: 220000, paidMinor: 226400, currency: "AUD", paid: true },
     },
     // Rovaniemi → Munich
     {
@@ -957,7 +957,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       lat: 66.5436,
       lng: 25.8472,
       notes: "Glass roof for aurora-watching from bed.",
-      cost: { costMinor: 185000, paidMinor: 189000, currency: "EUR" },
+      cost: { costMinor: 185000, paidMinor: 189000, currency: "EUR", paid: true },
     },
     // Munich
     {
@@ -970,7 +970,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       confirmation: "PLATZL-3392",
       lat: 48.1374,
       lng: 11.5786,
-      cost: { costMinor: 88000, paidMinor: 88000, currency: "EUR" },
+      cost: { costMinor: 88000, paidMinor: 88000, currency: "EUR", paid: true },
     },
     // London
     {
@@ -983,7 +983,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       confirmation: "BLM-44192",
       lat: 51.5169,
       lng: -0.1267,
-      cost: { costMinor: 156000, paidMinor: 160500, currency: "GBP" },
+      cost: { costMinor: 156000, paidMinor: 160500, currency: "GBP", paid: true },
     },
     // Dublin
     {
@@ -996,7 +996,7 @@ const FORK_ITALY_FIRST: DemoFork = {
       confirmation: "WST-55120",
       lat: 53.3412,
       lng: -6.2603,
-      cost: { costMinor: 176000, paidMinor: 181200, currency: "EUR" },
+      cost: { costMinor: 176000, paidMinor: 181200, currency: "EUR", paid: true },
     },
     // Rome first (Dec 29 – Jan 4)
     {
@@ -1197,7 +1197,7 @@ const FORK_PLUS_CH: DemoFork = {
       reference: "QF / AY (via HEL)",
       notes: "Brisbane → Helsinki → Rovaniemi. ~24h door to door.",
       sortOrder: 0,
-      cost: { costMinor: 220000, paidMinor: 226400, currency: "AUD" },
+      cost: { costMinor: 220000, paidMinor: 226400, currency: "AUD", paid: true },
     },
     // Rovaniemi → Munich
     {
@@ -1269,7 +1269,7 @@ const FORK_PLUS_CH: DemoFork = {
       lat: 66.5436,
       lng: 25.8472,
       notes: "Glass roof for aurora-watching from bed.",
-      cost: { costMinor: 185000, paidMinor: 189000, currency: "EUR" },
+      cost: { costMinor: 185000, paidMinor: 189000, currency: "EUR", paid: true },
     },
     // Munich
     {
@@ -1282,7 +1282,7 @@ const FORK_PLUS_CH: DemoFork = {
       confirmation: "PLATZL-3392",
       lat: 48.1374,
       lng: 11.5786,
-      cost: { costMinor: 88000, paidMinor: 88000, currency: "EUR" },
+      cost: { costMinor: 88000, paidMinor: 88000, currency: "EUR", paid: true },
     },
     // London
     {
@@ -1295,7 +1295,7 @@ const FORK_PLUS_CH: DemoFork = {
       confirmation: "BLM-44192",
       lat: 51.5169,
       lng: -0.1267,
-      cost: { costMinor: 156000, paidMinor: 160500, currency: "GBP" },
+      cost: { costMinor: 156000, paidMinor: 160500, currency: "GBP", paid: true },
     },
     // Dublin
     {
@@ -1308,7 +1308,7 @@ const FORK_PLUS_CH: DemoFork = {
       confirmation: "WST-55120",
       lat: 53.3412,
       lng: -6.2603,
-      cost: { costMinor: 176000, paidMinor: 181200, currency: "EUR" },
+      cost: { costMinor: 176000, paidMinor: 181200, currency: "EUR", paid: true },
     },
     // Paris
     {
@@ -1322,7 +1322,7 @@ const FORK_PLUS_CH: DemoFork = {
       lat: 48.8709,
       lng: 2.3453,
       notes: "NYE rates — booked early.",
-      cost: { costMinor: 165000, paidMinor: 168000, currency: "EUR" },
+      cost: { costMinor: 165000, paidMinor: 168000, currency: "EUR", paid: true },
     },
   ],
   items: FORK_PLUS_CH_ITEMS,

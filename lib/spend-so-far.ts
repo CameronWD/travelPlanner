@@ -35,8 +35,9 @@ export function buildSpendSoFar(input: {
         // this is only reachable for a legacy row the backfill missed. Skip it:
         // counting it as zero would understate spending AND inflate the
         // variance, which is exactly the display bug this rule exists to kill.
-        // NB: testing actualHome instead would be useless — convertCostToHome
-        // has already turned a missing amount into 0 by this point.
+        // NB: we check the raw `c.paidMinor` rather than relying on
+        // `actualHome` alone, so this missing-amount case stays explicit even
+        // if convertCostToHome's null-handling changes.
         continue;
       }
       paidSoFar += actualHome;

@@ -772,7 +772,7 @@ export function buildPastTrip(today: string): DemoTrip {
       endTime: "14:00",
       lat: -42.8267,
       lng: 147.2824,
-      cost: { costMinor: 3600, paidMinor: 3600, currency: "AUD" },
+      cost: { costMinor: 3600, paidMinor: 3600, currency: "AUD", paid: true },
       sortOrder: 1,
     },
     {
@@ -799,7 +799,7 @@ export function buildPastTrip(today: string): DemoTrip {
       lat: -42.1530,
       lng: 145.3315,
       booking: "GRC-5512",
-      cost: { costMinor: 22000, paidMinor: 22000, currency: "AUD" },
+      cost: { costMinor: 22000, paidMinor: 22000, currency: "AUD", paid: true },
       sortOrder: 3,
     },
   ];

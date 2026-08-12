@@ -135,8 +135,9 @@ export const itemSchema = z
     },
   )
   // A Cost cannot be paid without a paid amount (ADR 0037). == null (not
-  // === undefined) because paidMinor is nullable — null is how the dialog
-  // signals "clear this".
+  // === undefined) because paidMinor is nullable, and this must catch both:
+  // an explicit `null` (paidMinor cleared) and an absent `undefined`
+  // (paidMinor never set, e.g. a fresh create).
   .refine((data) => !(data.paidAt && data.paidMinor == null), {
     message: "Enter what you paid",
     path: ["paidMinor"],

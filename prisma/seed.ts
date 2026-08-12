@@ -310,6 +310,7 @@ async function main() {
       tripId: trip.id,
       costMinor: 7400, // €74.00
       paidMinor: 7400,
+      paidAt: new Date("2026-06-15"),
       currency: "EUR",
       ownerType: "ITEM",
       ownerId: ids.itemEiffel,
@@ -337,6 +338,7 @@ async function main() {
       tripId: trip.id,
       costMinor: 96000, // £960.00
       paidMinor: 98200, // £982.00
+      paidAt: new Date("2026-06-15"),
       currency: "GBP",
       ownerType: "ACCOMMODATION",
       ownerId: ids.accLondon,
