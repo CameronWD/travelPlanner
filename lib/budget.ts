@@ -22,6 +22,13 @@ export interface BudgetCost {
   id: string;
   costMinor: number;
   paidMinor: number | null;
+  /**
+   * When this cost was paid; null = not yet paid. This is the SOLE signal for
+   * "is this cost paid" everywhere in the app — `paidMinor` alone (with no
+   * date) is a legacy/incomplete row and must NOT be treated as paid. See
+   * ADR 0037 and the "Paid" entry in CONTEXT.md.
+   */
+  paidAt: Date | string | null;
   currency: string;
   /** Snapshot rate: 1 unit of cost.currency = rateToHome units of homeCurrency. */
   rateToHome: number | null;
@@ -153,11 +160,17 @@ export interface BudgetResult {
 // ---------------------------------------------------------------------------
 
 /**
- * Convert a single cost's estimated + actual amounts to home currency minor units.
+ * Convert a single cost's cost + paid amounts to home currency minor units.
  *
  * - Same currency as home → use amounts as-is (rate 1, no conversion).
  * - Foreign currency with a rate → convertMinor.
  * - Foreign currency with null rate → returns null (rate missing).
+ *
+ * `paidAt` is the sole signal for "is this cost paid" (ADR 0037 / CONTEXT.md
+ * "Paid"). A cost with a `paidMinor` but no `paidAt` is not paid — its
+ * `actualHome` is `null`, genuinely excluded, never a fabricated zero. Callers
+ * that sum `actualHome` across costs should treat `null` as "contributes
+ * nothing", exactly like a cost that was never marked paid.
  */
 export function convertCostToHome(
   cost: BudgetCost,
@@ -165,11 +178,12 @@ export function convertCostToHome(
 ): { estimatedHome: number | null; actualHome: number | null } {
   const from = cost.currency.toUpperCase();
   const home = homeCurrency.toUpperCase();
+  const paidMinor = cost.paidAt != null ? cost.paidMinor : null;
 
   if (from === home) {
     return {
       estimatedHome: cost.costMinor,
-      actualHome: cost.paidMinor ?? 0,
+      actualHome: paidMinor,
     };
   }
 
@@ -180,10 +194,7 @@ export function convertCostToHome(
   const rate = cost.rateToHome;
   return {
     estimatedHome: convertMinor(cost.costMinor, from, home, rate),
-    actualHome:
-      cost.paidMinor !== null && cost.paidMinor !== undefined
-        ? convertMinor(cost.paidMinor, from, home, rate)
-        : 0,
+    actualHome: paidMinor !== null ? convertMinor(paidMinor, from, home, rate) : null,
   };
 }
 
@@ -198,7 +209,7 @@ export interface ExchangeRateInput { base: string; quote: string; rate: number; 
 export interface RawCostInput {
   id: string; costMinor: number; paidMinor: number | null; currency: string;
   rateToHome: number | null; ownerType: string; ownerId: string | null;
-  label: string | null; category: string | null;
+  label: string | null; category: string | null; paidAt: Date | string | null;
 }
 
 /**

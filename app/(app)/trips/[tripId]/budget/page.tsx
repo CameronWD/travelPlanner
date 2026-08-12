@@ -155,6 +155,7 @@ export default async function BudgetPage({
     id: c.id,
     costMinor: c.costMinor,
     paidMinor: c.paidMinor,
+    paidAt: c.paidAt,
     currency: c.currency,
     rateToHome: c.rateToHome,
     ownerType: c.ownerType as BudgetCost["ownerType"],

@@ -115,6 +115,7 @@ const makeCost = (
     ownerId: string | null;
     label: string | null;
     category: string | null;
+    paidAt: Date | string | null;
   }> = {},
 ) => ({
   id,
@@ -126,6 +127,7 @@ const makeCost = (
   ownerId: overrides.ownerId ?? null,
   label: overrides.label ?? null,
   category: overrides.category ?? null,
+  paidAt: overrides.paidAt ?? null,
 });
 
 const makeTrip = (overrides: Partial<{

@@ -85,6 +85,9 @@ describe("CostEditor", () => {
     await user.clear(estimatedInput);
     await user.type(estimatedInput, "50.00");
 
+    // The paid amount field is hidden until Paid is ticked (ADR 0037).
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+
     const actualInput = screen.getByLabelText("You paid amount");
     await user.clear(actualInput);
     await user.type(actualInput, "48.75");
@@ -139,21 +142,31 @@ describe("CostEditor", () => {
     );
   });
 
-  it("a field error (costMinor) sets aria-invalid on the cost field and renders via Field error slot", async () => {
-    (createCost as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      success: false,
-      errors: { costMinor: ["Amount is required"] },
-    });
-
+  it("a blank cost amount surfaces a field error without ever calling createCost", async () => {
     const user = userEvent.setup();
     render(<CostEditor {...baseProps} />);
 
     await user.click(screen.getByRole("button", { name: /add cost/i }));
     await user.click(screen.getByRole("button", { name: /save/i }));
 
-    expect(await screen.findByText("Amount is required")).toBeInTheDocument();
+    expect(await screen.findByText("Enter the cost")).toBeInTheDocument();
     const estimatedInput = screen.getByLabelText("Cost amount");
     expect(estimatedInput).toHaveAttribute("aria-invalid", "true");
+    // The blank amount must never reach the server as a coerced 0.
+    expect(createCost).not.toHaveBeenCalled();
+  });
+
+  it("an unparseable cost amount ($150.00) surfaces a field error without calling createCost", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    const estimatedInput = screen.getByLabelText("Cost amount");
+    await user.type(estimatedInput, "$150.00");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(await screen.findByText("Enter the cost")).toBeInTheDocument();
+    expect(createCost).not.toHaveBeenCalled();
   });
 
   it("a _form error appears with role=alert via FormError", async () => {

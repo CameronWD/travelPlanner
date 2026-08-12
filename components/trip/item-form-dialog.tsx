@@ -331,12 +331,9 @@ function ItemForm({
     singleCost?.paidAt ? new Date(singleCost.paidAt).toISOString().slice(0, 10) : "",
   );
   // Seeded from the existing cost so editing a paid Cost opens with the box
-  // ticked (ADR 0037). Either field alone counts: legacy rows from before
-  // this rule existed can carry a paid amount with no date.
-  const [paid, setPaid] = React.useState(
-    Boolean(singleCost?.paidAt) ||
-      (singleCost?.paidMinor !== null && singleCost?.paidMinor !== undefined),
-  );
+  // ticked (ADR 0037). `paidAt` is the sole "is this paid" signal — a legacy
+  // row with a paid amount but no date is NOT paid (see CONTEXT.md "Paid").
+  const [paid, setPaid] = React.useState(Boolean(singleCost?.paidAt));
 
   // Disable time inputs when no date is set
   const timesDisabled = !date;
@@ -373,7 +370,11 @@ function ItemForm({
         ...(costMinor !== undefined && {
           costMinor,
           currency,
-          paidMinor: hasPaidAmount ? parsedPaidMinor : null,
+          // Un-ticking (or breaking) Paid must never clear the paid amount —
+          // it survives as history (CONTEXT.md "Paid") — so we omit
+          // paidMinor entirely rather than sending null. Only the date is
+          // explicitly cleared.
+          paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
           paidAt: hasPaidAmount ? paidAt || null : null,
         }),
       };

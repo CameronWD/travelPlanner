@@ -369,9 +369,12 @@ describe("ItemFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 12c: un-ticking Paid clears the payment in the submitted payload
+  // Case 12c: un-ticking Paid clears the paid date but must NEVER clear the
+  // paid amount — it survives as history so re-ticking can offer back what
+  // was actually paid (CONTEXT.md "Paid"). paidMinor is omitted (undefined)
+  // rather than sent as null, so the server leaves the existing amount alone.
   // -------------------------------------------------------------------------
-  it("un-ticking Paid clears paidMinor and paidAt in the submitted payload", async () => {
+  it("un-ticking Paid clears the paid date but preserves the paid amount", async () => {
     const user = userEvent.setup();
     const costs = [
       {
@@ -403,7 +406,7 @@ describe("ItemFormDialog", () => {
     expect(updateItem).toHaveBeenCalledWith(
       "item-99",
       expect.objectContaining({
-        paidMinor: null,
+        paidMinor: undefined,
         paidAt: null,
       }),
     );
@@ -433,7 +436,7 @@ describe("ItemFormDialog", () => {
     expect(createItem).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({
-        paidMinor: null,
+        paidMinor: undefined,
         paidAt: null,
       }),
       undefined,
@@ -499,7 +502,7 @@ describe("ItemFormDialog", () => {
     expect(createItem).toHaveBeenCalledWith(
       "trip-1",
       expect.objectContaining({
-        paidMinor: null,
+        paidMinor: undefined,
         paidAt: null,
       }),
       undefined,
@@ -507,10 +510,11 @@ describe("ItemFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 12f: a legacy cost with a paid amount but no paid date still opens
-  // with the box ticked (review finding — seed must not require paidAt alone)
+  // Case 12f: `paidAt` is the SOLE "is this paid" signal (CONTEXT.md "Paid").
+  // A legacy cost with a paid amount but no paid date is NOT paid, and must
+  // open with the box unticked.
   // -------------------------------------------------------------------------
-  it("opens with the Paid box ticked when editing a legacy cost that has an amount but no paid date", () => {
+  it("does not open with the Paid box ticked when editing a legacy cost that has an amount but no paid date", () => {
     const costs = [
       {
         id: "cost-1",
@@ -535,17 +539,18 @@ describe("ItemFormDialog", () => {
       />,
     );
 
-    expect(screen.getByRole("checkbox", { name: /paid/i })).toBeChecked();
-    expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("99.00");
+    expect(screen.getByRole("checkbox", { name: /paid/i })).not.toBeChecked();
+    expect(screen.queryByLabelText(/you paid amount/i)).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
-  // Case 12h: resaving a legacy amount-only cost untouched must not fabricate
-  // a paid date (review round 2 — Important 2: the date input renders blank
-  // for such a row, so silently stamping today's date at submit time would
-  // plant a date the user never saw into a financial record)
+  // Case 12h: resaving a legacy amount-only cost untouched leaves it unpaid
+  // and must not clear the paid amount — paidMinor is omitted (undefined),
+  // never resent or nulled, so the existing amount survives as history
+  // (review round 2 — Important 2 origin: don't fabricate a date the user
+  // never saw into a financial record).
   // -------------------------------------------------------------------------
-  it("saving a legacy amount-only cost without touching payment fields does not fabricate a paid date", async () => {
+  it("saving a legacy amount-only cost without touching payment fields leaves it unpaid and does not clear the amount", async () => {
     const user = userEvent.setup();
     const costs = [
       {
@@ -576,7 +581,7 @@ describe("ItemFormDialog", () => {
     expect(updateItem).toHaveBeenCalledWith(
       "item-99",
       expect.objectContaining({
-        paidMinor: 9900,
+        paidMinor: undefined,
         paidAt: null,
       }),
     );

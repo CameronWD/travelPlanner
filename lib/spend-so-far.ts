@@ -1,10 +1,10 @@
 import { convertCostToHome, type BudgetCost } from "@/lib/budget";
 import { daysBetween } from "@/lib/dates";
 
-export interface SpendCost extends BudgetCost {
-  /** When the cost was paid; null = not yet paid (excluded from "paid so far"). */
-  paidAt: Date | string | null;
-}
+// `paidAt` (the sole "is this paid" signal) now lives on BudgetCost itself —
+// SpendCost is kept as a distinct name for callers that build spend-so-far
+// input, but no longer needs to redeclare the field.
+export type SpendCost = BudgetCost;
 
 export interface SpendSoFar {
   costTotalMinor: number;

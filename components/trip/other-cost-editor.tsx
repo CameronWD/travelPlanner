@@ -98,19 +98,26 @@ function costToFormState(cost: CostRow): FormState {
         ? formatMinor(cost.paidMinor, cost.currency)
         : "",
     currency: cost.currency,
-    // Either field alone counts: legacy rows from before ADR 0037 can carry a
-    // paid amount with no date (or vice versa isn't possible — see the
-    // schema refinement), so editing one must open with the box already
-    // ticked rather than requiring paidAt specifically.
-    paid:
-      Boolean(cost.paidAt) ||
-      (cost.paidMinor !== null && cost.paidMinor !== undefined),
+    // `paidAt` is the sole "is this paid" signal (CONTEXT.md "Paid") — a
+    // legacy row with a paid amount but no date is NOT paid, and must open
+    // with the box unticked so re-saving it doesn't fabricate a payment.
+    paid: Boolean(cost.paidAt),
     paidAt: cost.paidAt ? new Date(cost.paidAt).toISOString().slice(0, 10) : "",
   };
 }
 
-function parseFormToInput(form: FormState): CostRawInput {
-  const costMinor = parseAmountToMinor(form.costAmount, form.currency) ?? 0;
+/**
+ * Validate + map form state to the server action's input shape.
+ *
+ * Returns `null` (with no side effect) when the cost amount is blank or
+ * unparseable — the Cost field is required, and a blank/invalid entry must
+ * surface a field error rather than silently coercing to 0 (that coercion is
+ * exactly the bug ADR 0037 exists to kill, run in reverse: a paid amount
+ * would then survive alongside a fabricated £0 cost).
+ */
+function parseFormToInput(form: FormState): CostRawInput | null {
+  const costMinor = parseAmountToMinor(form.costAmount, form.currency);
+  if (costMinor === null) return null;
   // Gated on the amount actually *parsing*, not just being non-blank — a
   // pasted "$150.00" or a lone "-" is non-blank text but parses to null.
   // The invariant is one-directional (ADR 0037): a paid *date* requires an
@@ -217,7 +224,16 @@ function OtherCostDialog({
               amount={form.costAmount}
               currency={form.currency}
               currencies={CURRENCY_CODES}
-              onAmountChange={(v) => setForm((f) => ({ ...f, costAmount: v }))}
+              onAmountChange={(v) =>
+                setForm((f) => ({
+                  ...f,
+                  costAmount: v,
+                  // Clearing the Cost box hides the Paid block (below), but
+                  // state would otherwise persist invisibly — clear it too so
+                  // a blank cost can never save alongside a stale paid amount.
+                  ...(v.trim() === "" ? { paid: false, paidAmount: "", paidAt: "" } : {}),
+                }))
+              }
               onCurrencyChange={(v) => setForm((f) => ({ ...f, currency: v }))}
               disabled={submitting}
               invalid={Boolean(errors.costMinor)}
@@ -328,10 +344,15 @@ export function OtherCostEditor({
   const [errors, setErrors] = React.useState<Record<string, string[]>>({});
 
   async function handleAddSubmit(form: FormState) {
+    const input = parseFormToInput(form);
+    if (!input) {
+      setErrors({ costMinor: ["Enter the cost"] });
+      return;
+    }
     setSubmitting(true);
     setErrors({});
     try {
-      const result = await createCost(tripId, parseFormToInput(form));
+      const result = await createCost(tripId, input);
       if (result.success) {
         setAddOpen(false);
       } else {
@@ -344,10 +365,15 @@ export function OtherCostEditor({
 
   async function handleEditSubmit(form: FormState) {
     if (!editingCost) return;
+    const input = parseFormToInput(form);
+    if (!input) {
+      setErrors({ costMinor: ["Enter the cost"] });
+      return;
+    }
     setSubmitting(true);
     setErrors({});
     try {
-      const result = await updateCost(editingCost.id, parseFormToInput(form));
+      const result = await updateCost(editingCost.id, input);
       if (result.success) {
         setEditingCost(null);
       } else {

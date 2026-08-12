@@ -140,6 +140,7 @@ export default async function PrintPage({
           paidMinor: true,
           currency: true,
           rateToHome: true,
+          paidAt: true,
           ownerType: true,
           ownerId: true,
           label: true,

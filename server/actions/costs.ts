@@ -227,7 +227,6 @@ export async function updateCost(
       where: { id: costId },
       data: {
         costMinor: data.costMinor,
-        paidMinor: data.paidMinor ?? null,
         currency: data.currency,
         rateToHome: resolved.rate,
         paidAt: data.paidAt ?? null,
@@ -235,6 +234,12 @@ export async function updateCost(
         ownerId: data.ownerId ?? null,
         label: data.label ?? null,
         category: data.category ?? null,
+        // paidMinor is included only when the caller actually provided a
+        // value — un-ticking Paid sends paidMinor: undefined (never null) so
+        // the paid amount survives as history (CONTEXT.md "Paid"); omitting
+        // the key here leaves Prisma's existing value untouched instead of
+        // nulling it out.
+        ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
       },
     });
   });

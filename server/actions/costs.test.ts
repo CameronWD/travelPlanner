@@ -432,6 +432,28 @@ describe("updateCost", () => {
     expect(costUpdateMock).not.toHaveBeenCalled();
   });
 
+  it("un-ticking Paid (paidMinor omitted) leaves the existing paid amount untouched rather than nulling it", async () => {
+    // CONTEXT.md "Paid": un-marking leaves the paid amount in place as
+    // history. other-cost-editor.tsx sends paidMinor: undefined (never null)
+    // when Paid is un-ticked — Prisma must not receive a `paidMinor` key at
+    // all here, or it would null out the existing amount on save.
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1" });
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costUpdateMock.mockResolvedValue({});
+
+    const result = await updateCost("cost-1", {
+      ...VALID_TRANSPORT_INPUT,
+      currency: "AUD",
+      paidMinor: undefined,
+    });
+
+    expect(result.success).toBe(true);
+    const call = costUpdateMock.mock.calls[0][0];
+    expect(call.data).not.toHaveProperty("paidMinor");
+  });
+
   it("re-snapshots rate = 1 when updating to same currency as home", async () => {
     costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1" });
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });

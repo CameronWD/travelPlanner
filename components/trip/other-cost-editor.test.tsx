@@ -219,7 +219,9 @@ describe("OtherCostEditor", () => {
   // Trap: a legacy row with a paid amount but no paid date must open with
   // Paid already ticked, and resaving untouched must not invent a date.
   // ---------------------------------------------------------------------
-  it("editing a legacy cost (paid amount, no paid date) opens with Paid ticked and resaving does not invent a date", async () => {
+  it("editing a legacy cost (paid amount, no paid date) opens with Paid unticked, and resaving leaves it unpaid without clearing the amount", async () => {
+    // `paidAt` is the sole "is this paid" signal (CONTEXT.md "Paid") — a
+    // legacy row with a paid amount but no date is NOT paid.
     const user = userEvent.setup();
     const legacyCost: CostRow = {
       ...sampleCost,
@@ -231,16 +233,18 @@ describe("OtherCostEditor", () => {
     await user.click(screen.getByRole("button", { name: /edit travel insurance/i }));
 
     const paidCheckbox = screen.getByRole("checkbox", { name: /paid/i });
-    expect(paidCheckbox).toBeChecked();
-    expect(screen.getByLabelText(/you paid amount/i)).toHaveValue("12.50");
+    expect(paidCheckbox).not.toBeChecked();
+    expect(screen.queryByLabelText(/you paid amount/i)).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /save/i }));
 
+    // paidMinor is omitted (undefined), never resent or nulled, so the
+    // existing amount survives as history for whenever Paid is ticked.
     expect(updateCost).toHaveBeenCalledWith(
       "cost-1",
       expect.objectContaining({
         costMinor: 1250,
-        paidMinor: 1250,
+        paidMinor: undefined,
         paidAt: undefined,
       }),
     );

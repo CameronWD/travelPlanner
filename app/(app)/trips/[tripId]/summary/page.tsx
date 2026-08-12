@@ -57,6 +57,7 @@ const COST_SELECT = {
   paidMinor: true,
   currency: true,
   rateToHome: true,
+  paidAt: true,
   ownerType: true,
   ownerId: true,
   label: true,

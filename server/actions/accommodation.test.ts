@@ -705,6 +705,63 @@ describe("updateAccommodation: inline cost update/create", () => {
     expect(costCreateMock).not.toHaveBeenCalled();
   });
 
+  it("un-ticking Paid (paidMinor omitted) leaves the existing paid amount untouched rather than nulling it", async () => {
+    // CONTEXT.md "Paid": un-marking leaves the paid amount in place as
+    // history. The dialog now sends paidMinor: undefined (never null) when
+    // Paid is un-ticked — Prisma must not receive a `paidMinor` key at all
+    // here, or it would null out the existing amount on save.
+    accFindUniqueMock
+      .mockResolvedValueOnce({ id: "au-2b", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "au-2b", name: "Grand Hotel" });
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    accUpdateMock.mockResolvedValue({ id: "au-2b", name: "Grand Hotel" });
+    costFindManyMock.mockResolvedValue([
+      { id: "existing-cost-2b", ownerType: "ACCOMMODATION", ownerId: "au-2b" },
+    ]);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.65, persist: null });
+
+    const result = await updateAccommodation("au-2b", {
+      ...VALID_INPUT,
+      costMinor: 9900,
+      currency: "USD",
+      paidMinor: undefined,
+      paidAt: null,
+    });
+
+    expect(result.success).toBe(true);
+    const call = costUpdateMock.mock.calls[0][0];
+    expect(call.data).not.toHaveProperty("paidMinor");
+    expect(call.data.paidAt).toBeNull();
+  });
+
+  it("re-ticking Paid (paidMinor provided) writes the new paid amount", async () => {
+    accFindUniqueMock
+      .mockResolvedValueOnce({ id: "au-2c", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "au-2c", name: "Grand Hotel" });
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", tripId: "trip-1", forkId: null });
+    accUpdateMock.mockResolvedValue({ id: "au-2c", name: "Grand Hotel" });
+    costFindManyMock.mockResolvedValue([
+      { id: "existing-cost-2c", ownerType: "ACCOMMODATION", ownerId: "au-2c" },
+    ]);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.65, persist: null });
+
+    await updateAccommodation("au-2c", {
+      ...VALID_INPUT,
+      costMinor: 9900,
+      currency: "USD",
+      paidMinor: 9900,
+      paidAt: "2026-07-02",
+    });
+
+    expect(costUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ paidMinor: 9900 }),
+      }),
+    );
+  });
+
   it("does NOT touch any costs when accommodation has >1 existing costs (CostEditor authoritative)", async () => {
     accFindUniqueMock
       .mockResolvedValueOnce({ id: "au-3", tripId: "trip-1", forkId: null }) // requireAccommodationAccess

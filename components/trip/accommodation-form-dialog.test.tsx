@@ -448,9 +448,13 @@ describe("AccommodationFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 15b: un-ticking Paid on an already-paid cost clears the payment
+  // Case 15b: un-ticking Paid on an already-paid cost clears the paid date
+  // but must NEVER clear the paid amount — it survives as history so
+  // re-ticking can offer back what was actually paid (CONTEXT.md "Paid").
+  // paidMinor is omitted (undefined) rather than sent as null, so the server
+  // leaves the existing amount untouched instead of nulling it out.
   // -------------------------------------------------------------------------
-  it("un-ticking Paid clears paidMinor and paidAt in the submitted payload", async () => {
+  it("un-ticking Paid clears the paid date but preserves the paid amount", async () => {
     const user = userEvent.setup();
     const paidCost: CostRow[] = [
       {
@@ -482,7 +486,7 @@ describe("AccommodationFormDialog", () => {
     expect(updateAccommodation).toHaveBeenCalledWith(
       "acc-1",
       expect.objectContaining({
-        paidMinor: null,
+        paidMinor: undefined,
         paidAt: null,
       }),
     );
@@ -513,7 +517,7 @@ describe("AccommodationFormDialog", () => {
 
     expect(createAccommodation).toHaveBeenCalledWith(
       expect.objectContaining({
-        paidMinor: null,
+        paidMinor: undefined,
         paidAt: null,
       }),
       undefined,
@@ -581,7 +585,7 @@ describe("AccommodationFormDialog", () => {
 
     expect(createAccommodation).toHaveBeenCalledWith(
       expect.objectContaining({
-        paidMinor: null,
+        paidMinor: undefined,
         paidAt: null,
       }),
       undefined,
@@ -589,10 +593,12 @@ describe("AccommodationFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Case 14c: a legacy cost with a paid amount but no paid date still opens
-  // with the box ticked (review finding — seed must not require paidAt alone)
+  // Case 14c: `paidAt` is the SOLE "is this paid" signal (CONTEXT.md "Paid").
+  // A legacy cost with a paid amount but no paid date is NOT paid, and must
+  // open with the box unticked — ticking it (and thus requiring the schema's
+  // "Enter what you paid" gate) is now something the user does explicitly.
   // -------------------------------------------------------------------------
-  it("opens with the Paid box ticked when editing a legacy cost that has an amount but no paid date", () => {
+  it("does not open with the Paid box ticked when editing a legacy cost that has an amount but no paid date", () => {
     const legacyPaidCost: CostRow[] = [
       {
         id: "c-1",
@@ -617,17 +623,18 @@ describe("AccommodationFormDialog", () => {
       />,
     );
 
-    expect(screen.getByRole("checkbox", { name: /paid/i })).toBeChecked();
-    expect(screen.getByRole("textbox", { name: /you paid amount/i })).toHaveValue("250.00");
+    expect(screen.getByRole("checkbox", { name: /paid/i })).not.toBeChecked();
+    expect(screen.queryByRole("textbox", { name: /you paid amount/i })).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
-  // Case 14d: resaving a legacy amount-only cost untouched must not fabricate
-  // a paid date (review round 2 — Important 2: the date input renders blank
-  // for such a row, so silently stamping today's date at submit time would
-  // plant a date the user never saw into a financial record)
+  // Case 14d: resaving a legacy amount-only cost untouched leaves it unpaid
+  // and must not clear the paid amount — paidMinor is omitted (undefined),
+  // never resent or nulled, so the existing amount survives as history for
+  // whenever the user does tick Paid (review round 2 — Important 2 origin:
+  // don't fabricate a date the user never saw into a financial record).
   // -------------------------------------------------------------------------
-  it("saving a legacy amount-only cost without touching payment fields does not fabricate a paid date", async () => {
+  it("saving a legacy amount-only cost without touching payment fields leaves it unpaid and does not clear the amount", async () => {
     const user = userEvent.setup();
     const legacyPaidCost: CostRow[] = [
       {
@@ -658,7 +665,7 @@ describe("AccommodationFormDialog", () => {
     expect(updateAccommodation).toHaveBeenCalledWith(
       "acc-1",
       expect.objectContaining({
-        paidMinor: 25000,
+        paidMinor: undefined,
         paidAt: null,
       }),
     );

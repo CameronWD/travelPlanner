@@ -805,6 +805,35 @@ describe("updateTransport: inline cost update/create", () => {
     expect(costCreateMock).not.toHaveBeenCalled();
   });
 
+  it("un-ticking Paid (paidMinor omitted) leaves the existing paid amount untouched rather than nulling it", async () => {
+    // CONTEXT.md "Paid": un-marking leaves the paid amount in place as
+    // history. The dialog now sends paidMinor: undefined (never null) when
+    // Paid is un-ticked — Prisma must not receive a `paidMinor` key at all
+    // here, or it would null out the existing amount on save.
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tu-2b", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "tu-2b", mode: "FLIGHT" });
+    transportUpdateMock.mockResolvedValue({ id: "tu-2b", mode: "FLIGHT" });
+    costFindManyMock.mockResolvedValue([
+      { id: "existing-cost-2b", ownerType: "TRANSPORT", ownerId: "tu-2b" },
+    ]);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.65, persist: null });
+
+    const result = await updateTransport("tu-2b", {
+      mode: "FLIGHT",
+      costMinor: 9900,
+      currency: "USD",
+      paidMinor: undefined,
+      paidAt: null,
+    });
+
+    expect(result.success).toBe(true);
+    const call = costUpdateMock.mock.calls[0][0];
+    expect(call.data).not.toHaveProperty("paidMinor");
+    expect(call.data.paidAt).toBeNull();
+  });
+
   it("does NOT touch any costs when transport has >1 existing costs (CostEditor authoritative)", async () => {
     transportFindUniqueMock
       .mockResolvedValueOnce({ id: "tu-3", tripId: "trip-1", forkId: null }) // requireTransportAccess

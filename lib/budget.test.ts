@@ -27,6 +27,7 @@ function makeCost(overrides: Partial<BudgetCost> = {}): BudgetCost {
     id: "cost-1",
     costMinor: 5000,
     paidMinor: null,
+    paidAt: null,
     currency: "AUD",
     rateToHome: null,
     ownerType: "OTHER",
@@ -42,37 +43,62 @@ function makeCost(overrides: Partial<BudgetCost> = {}): BudgetCost {
 // ---------------------------------------------------------------------------
 
 describe("convertCostToHome", () => {
-  it("same currency → passthrough (no conversion needed)", () => {
-    const cost = makeCost({ costMinor: 10000, paidMinor: 8000, currency: "AUD", rateToHome: null });
+  it("same currency, paid → passthrough (no conversion needed)", () => {
+    const cost = makeCost({ costMinor: 10000, paidMinor: 8000, paidAt: "2026-06-04", currency: "AUD", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
     expect(result.estimatedHome).toBe(10000);
     expect(result.actualHome).toBe(8000);
   });
 
-  it("same currency, null actual → actualHome is 0", () => {
-    const cost = makeCost({ costMinor: 5000, paidMinor: null, currency: "AUD", rateToHome: null });
+  it("same currency, never marked paid (paidAt null) → actualHome is null, not 0", () => {
+    const cost = makeCost({ costMinor: 5000, paidMinor: null, paidAt: null, currency: "AUD", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
     expect(result.estimatedHome).toBe(5000);
-    expect(result.actualHome).toBe(0);
+    expect(result.actualHome).toBeNull();
   });
 
-  it("foreign currency with rate → converts both amounts", () => {
+  // ADR 0037 / CONTEXT.md "Paid": paidAt is the SOLE signal for "is this
+  // paid". A paidMinor with no paidAt (a legacy row the backfill missed, or a
+  // Cost created directly with an amount but never ticked Paid) must read as
+  // unpaid — genuinely excluded, never a fabricated zero.
+  it("same currency, paidMinor set but paidAt null → actualHome is null (amount alone does not mean paid)", () => {
+    const cost = makeCost({ costMinor: 34000, paidMinor: 34000, paidAt: null, currency: "AUD", rateToHome: null });
+    const result = convertCostToHome(cost, "AUD");
+    expect(result.estimatedHome).toBe(34000);
+    expect(result.actualHome).toBeNull();
+  });
+
+  it("same currency, paidAt set but paidMinor null (legacy row the backfill missed) → actualHome is null", () => {
+    const cost = makeCost({ costMinor: 34000, paidMinor: null, paidAt: "2026-06-04", currency: "AUD", rateToHome: null });
+    const result = convertCostToHome(cost, "AUD");
+    expect(result.estimatedHome).toBe(34000);
+    expect(result.actualHome).toBeNull();
+  });
+
+  it("foreign currency with rate, paid → converts both amounts", () => {
     // EUR → AUD at rate 1.65: €12.50 = 1250 minor EUR → A$20.625 → 2063 minor AUD
-    const cost = makeCost({ costMinor: 1250, paidMinor: 800, currency: "EUR", rateToHome: 1.65 });
+    const cost = makeCost({ costMinor: 1250, paidMinor: 800, paidAt: "2026-06-04", currency: "EUR", rateToHome: 1.65 });
     const result = convertCostToHome(cost, "AUD");
     expect(result.estimatedHome).toBe(2063); // round-half-up
     expect(result.actualHome).toBe(1320);   // 800 * 1.65 = 1320
   });
 
-  it("foreign currency with rate, null actual → actualHome is 0", () => {
-    const cost = makeCost({ costMinor: 1000, paidMinor: null, currency: "USD", rateToHome: 1.5 });
+  it("foreign currency with rate, not paid → actualHome is null, not 0", () => {
+    const cost = makeCost({ costMinor: 1000, paidMinor: null, paidAt: null, currency: "USD", rateToHome: 1.5 });
     const result = convertCostToHome(cost, "AUD");
     expect(result.estimatedHome).toBe(1500);
-    expect(result.actualHome).toBe(0);
+    expect(result.actualHome).toBeNull();
+  });
+
+  it("foreign currency with rate, paidMinor set but paidAt null → actualHome is null", () => {
+    const cost = makeCost({ costMinor: 1000, paidMinor: 1000, paidAt: null, currency: "USD", rateToHome: 1.5 });
+    const result = convertCostToHome(cost, "AUD");
+    expect(result.estimatedHome).toBe(1500);
+    expect(result.actualHome).toBeNull();
   });
 
   it("foreign currency with null rate → both null", () => {
-    const cost = makeCost({ costMinor: 5000, paidMinor: 3000, currency: "JPY", rateToHome: null });
+    const cost = makeCost({ costMinor: 5000, paidMinor: 3000, paidAt: "2026-06-04", currency: "JPY", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
     expect(result.estimatedHome).toBeNull();
     expect(result.actualHome).toBeNull();
@@ -240,12 +266,26 @@ describe("buildBudget", () => {
 
   it("same-currency costs → correct grandTotal", () => {
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", costMinor: 10000, paidMinor: 8000, currency: "AUD", ownerType: "OTHER", label: "Insurance" }),
+      makeCost({ id: "c1", costMinor: 10000, paidMinor: 8000, paidAt: "2026-07-02", currency: "AUD", ownerType: "OTHER", label: "Insurance" }),
       makeCost({ id: "c2", costMinor: 5000, paidMinor: null, currency: "AUD", ownerType: "OTHER", label: "Visa" }),
     ];
     const result = buildBudget({ ...baseInput, costs });
     expect(result.grandTotal.costTotalMinor).toBe(15000);
     expect(result.grandTotal.paidTotalMinor).toBe(8000);
+  });
+
+  it("a cost with a paidMinor but no paidAt contributes nothing to paidTotalMinor (its cost still counts)", () => {
+    const costs: BudgetCost[] = [
+      // Not paid — despite carrying an amount, e.g. a Cost created directly
+      // with a paid amount but never ticked Paid, or a legacy row.
+      makeCost({ id: "c1", costMinor: 10000, paidMinor: 8000, paidAt: null, currency: "AUD", ownerType: "OTHER", label: "Insurance" }),
+    ];
+    const result = buildBudget({ ...baseInput, costs });
+    expect(result.grandTotal.costTotalMinor).toBe(10000);
+    expect(result.grandTotal.paidTotalMinor).toBe(0);
+    expect(result.byCategory[0].paidTotalMinor).toBe(0);
+    const tripWide = result.byStop.find((s) => s.stopId === null);
+    expect(tripWide?.paidTotalMinor).toBe(0);
   });
 
   it("foreign-currency cost with rate → converts correctly", () => {
@@ -379,7 +419,7 @@ describe("buildBudget", () => {
       { id: "acc-1", stopId: "stop-london", checkIn: "2026-07-02", checkOut: "2026-07-05" },
     ];
     const costs: BudgetCost[] = [
-      makeCost({ id: "c1", costMinor: 10000, paidMinor: 9900, currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
+      makeCost({ id: "c1", costMinor: 10000, paidMinor: 9900, paidAt: "2026-07-02", currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-1", label: null }),
     ];
     const result = buildBudget({ ...baseInput, costs, accommodations });
     const totalActual = result.byDay
@@ -551,9 +591,9 @@ describe("buildBudget", () => {
   it("mixed currencies: converts and sums correctly, excludes missing-rate", () => {
     const costs: BudgetCost[] = [
       // AUD 100 = 10000 minor
-      makeCost({ id: "c1", costMinor: 10000, paidMinor: 9000, currency: "AUD", rateToHome: null, ownerType: "OTHER", label: "AUD cost" }),
+      makeCost({ id: "c1", costMinor: 10000, paidMinor: 9000, paidAt: "2026-07-02", currency: "AUD", rateToHome: null, ownerType: "OTHER", label: "AUD cost" }),
       // EUR 50 = 5000 minor at 1.65 = AUD 8250 minor
-      makeCost({ id: "c2", costMinor: 5000, paidMinor: 4000, currency: "EUR", rateToHome: 1.65, ownerType: "OTHER", label: "EUR cost" }),
+      makeCost({ id: "c2", costMinor: 5000, paidMinor: 4000, paidAt: "2026-07-03", currency: "EUR", rateToHome: 1.65, ownerType: "OTHER", label: "EUR cost" }),
       // USD 30 = 3000 minor, no rate → excluded
       makeCost({ id: "c3", costMinor: 3000, paidMinor: null, currency: "USD", rateToHome: null, ownerType: "OTHER", label: "USD cost" }),
     ];
@@ -692,22 +732,23 @@ describe("buildBudget — byChapter", () => {
     depAt: new Date("2026-07-03T08:00:00Z"),
   };
 
-  // Costs — all AUD so conversion is identity
+  // Costs — all AUD so conversion is identity, and all paid (paidAt set) so
+  // paidTotalMinor sums below reflect the paidMinor amounts.
   // Finland: accommodation cost
-  const costFinlandAcc = makeCost({ id: "cost-fi-acc", costMinor: 10000, paidMinor: 9000,  currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-fi",      label: null });
+  const costFinlandAcc = makeCost({ id: "cost-fi-acc", costMinor: 10000, paidMinor: 9000,  paidAt: "2026-06-27", currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-fi",      label: null });
   // Italy: item cost
-  const costItalyItem  = makeCost({ id: "cost-it-item", costMinor: 3000,  paidMinor: 2500,  currency: "AUD", ownerType: "ITEM",          ownerId: "item-it",    label: null });
+  const costItalyItem  = makeCost({ id: "cost-it-item", costMinor: 3000,  paidMinor: 2500,  paidAt: "2026-07-12", currency: "AUD", ownerType: "ITEM",          ownerId: "item-it",    label: null });
   // Italy: accommodation cost
-  const costItalyAcc   = makeCost({ id: "cost-it-acc",  costMinor: 8000,  paidMinor: 8000,  currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-it",     label: null });
+  const costItalyAcc   = makeCost({ id: "cost-it-acc",  costMinor: 8000,  paidMinor: 8000,  paidAt: "2026-07-11", currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-it",     label: null });
   // Italy: intra-Italy transport cost
-  const costIntraItaly = makeCost({ id: "cost-intra-it", costMinor: 2000, paidMinor: 2000,  currency: "AUD", ownerType: "TRANSPORT",     ownerId: "t-intra-it", label: null });
+  const costIntraItaly = makeCost({ id: "cost-intra-it", costMinor: 2000, paidMinor: 2000,  paidAt: "2026-07-14", currency: "AUD", ownerType: "TRANSPORT",     ownerId: "t-intra-it", label: null });
   // Between-legs: crossing transport cost
-  const costCrossing   = makeCost({ id: "cost-cross",   costMinor: 5000,  paidMinor: 4500,  currency: "AUD", ownerType: "TRANSPORT",     ownerId: "t-cross",    label: null });
+  const costCrossing   = makeCost({ id: "cost-cross",   costMinor: 5000,  paidMinor: 4500,  paidAt: "2026-07-03", currency: "AUD", ownerType: "TRANSPORT",     ownerId: "t-cross",    label: null });
   // OTHER cost (no chapter)
-  const costOther      = makeCost({ id: "cost-other",   costMinor: 1500,  paidMinor: 1000,  currency: "AUD", ownerType: "OTHER",          ownerId: null,         label: "Visa" });
+  const costOther      = makeCost({ id: "cost-other",   costMinor: 1500,  paidMinor: 1000,  paidAt: "2026-07-01", currency: "AUD", ownerType: "OTHER",          ownerId: null,         label: "Visa" });
   // Ungrouped-stop cost (accommodation on the ungrouped stop)
   const accUngrouped: BudgetAccommodation = { id: "acc-ung", stopId: "stop-ung", checkIn: "2026-07-05", checkOut: "2026-07-08" };
-  const costUngrouped  = makeCost({ id: "cost-ung",    costMinor: 4000,  paidMinor: 3500,  currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-ung",    label: null });
+  const costUngrouped  = makeCost({ id: "cost-ung",    costMinor: 4000,  paidMinor: 3500,  paidAt: "2026-07-05", currency: "AUD", ownerType: "ACCOMMODATION", ownerId: "acc-ung",    label: null });
 
   const allCosts = [costFinlandAcc, costItalyItem, costItalyAcc, costIntraItaly, costCrossing, costOther, costUngrouped];
   const allAccommodations = [accFinland, accItaly, accUngrouped];
@@ -826,7 +867,8 @@ describe("buildBudget — byChapter", () => {
 describe("applyFxRatesToCosts", () => {
   const raw = (over: Partial<Parameters<typeof applyFxRatesToCosts>[0]["costs"][number]> = {}) => ({
     id: "c1", costMinor: 1000, paidMinor: null, currency: "EUR",
-    rateToHome: null, ownerType: "OTHER", ownerId: null, label: "x", category: null, ...over,
+    rateToHome: null, ownerType: "OTHER", ownerId: null, label: "x", category: null,
+    paidAt: null, ...over,
   });
   it("keeps an existing snapshot rateToHome untouched", () => {
     const [c] = applyFxRatesToCosts({ costs: [raw({ rateToHome: 1.7 })], exchangeRates: [{ base: "EUR", quote: "AUD", rate: 1.6 }], homeCurrency: "AUD" });

@@ -350,15 +350,19 @@ export async function updateItem(
               },
             });
           } else {
-            // exactly 1 existing cost
+            // exactly 1 existing cost. paidMinor is included only when the
+            // caller actually provided a value — un-ticking Paid sends
+            // paidMinor: undefined (never null) so the paid amount survives
+            // as history (CONTEXT.md "Paid"); omitting the key here leaves
+            // Prisma's existing value untouched instead of nulling it out.
             await (tx as typeof db).cost.update({
               where: { id: existingCosts[0].id },
               data: {
                 costMinor: data.costMinor!,
-                paidMinor: data.paidMinor ?? null,
                 currency: data.currency!,
                 rateToHome: resolved.rate,
                 paidAt: data.paidAt ? new Date(data.paidAt) : null,
+                ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
               },
             });
           }

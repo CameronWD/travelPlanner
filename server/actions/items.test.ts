@@ -1151,6 +1151,35 @@ describe("updateItem: inline cost update/create", () => {
     expect(costCreateMock).not.toHaveBeenCalled();
   });
 
+  it("un-ticking Paid (paidMinor omitted) leaves the existing paid amount untouched rather than nulling it", async () => {
+    // CONTEXT.md "Paid": un-marking leaves the paid amount in place as
+    // history. The dialog now sends paidMinor: undefined (never null) when
+    // Paid is un-ticked — Prisma must not receive a `paidMinor` key at all
+    // here, or it would null out the existing amount on save.
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "iu-2b", tripId: "trip-1", forkId: null })
+      .mockResolvedValueOnce({ id: "iu-2b", title: "Visit the Museum", category: "SIGHTSEEING" });
+    itemUpdateMock.mockResolvedValue({ id: "iu-2b", title: "Visit the Museum", category: "SIGHTSEEING" });
+    costFindManyMock.mockResolvedValue([
+      { id: "existing-cost-2b", ownerType: "ITEM", ownerId: "iu-2b" },
+    ]);
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 0.65, persist: null });
+
+    const result = await updateItem("iu-2b", {
+      ...VALID_INPUT,
+      costMinor: 9900,
+      currency: "USD",
+      paidMinor: undefined,
+      paidAt: null,
+    });
+
+    expect(result.success).toBe(true);
+    const call = costUpdateMock.mock.calls[0][0];
+    expect(call.data).not.toHaveProperty("paidMinor");
+    expect(call.data.paidAt).toBeNull();
+  });
+
   it("does NOT touch any costs when item has >1 existing costs (CostEditor authoritative)", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "iu-3", tripId: "trip-1", forkId: null }) // requireItemAccess
