@@ -345,14 +345,16 @@ export default async function BudgetPage({
         <div className="flex flex-col gap-6 lg:order-1">
 
           {/* Mark off what you've paid */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Mark off what you&apos;ve paid</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CostChecklist rows={checklistRows} />
-            </CardContent>
-          </Card>
+          {checklistRows.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Mark off what you&apos;ve paid</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CostChecklist rows={checklistRows} />
+              </CardContent>
+            </Card>
+          )}
 
           {/* By category */}
           {budget.byCategory.length > 0 && (

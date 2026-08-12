@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
-import { costSchema, type CostRawInput } from "@/lib/validations/cost";
+import { costSchema, paidAtStringSchema, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
@@ -277,7 +277,7 @@ export async function markCostPaid(
 ): Promise<CostActionResult> {
   const cost = await db.cost.findUnique({
     where: { id: costId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, forkId: true },
   });
   if (!cost) return { success: false, errors: { _form: ["Cost not found"] } };
   await requireTripAccess(cost.tripId);
@@ -286,11 +286,27 @@ export async function markCostPaid(
     return { success: false, errors: { paidMinor: ["Enter what you paid"] } };
   }
 
-  await db.cost.update({
+  const parsedDate = paidAtStringSchema.safeParse(paidAt);
+  if (!parsedDate.success) {
+    return { success: false, errors: { paidAt: ["Enter when you paid"] } };
+  }
+
+  const before = await db.cost.findUnique({ where: { id: costId } });
+
+  const updated = await db.cost.update({
     where: { id: costId },
-    data: { paidMinor, paidAt: new Date(paidAt) },
+    data: { paidMinor, paidAt: new Date(parsedDate.data) },
   });
-  revalidatePath(`/trips/${cost.tripId}`);
+
+  await recordPlanActivity(cost.forkId, {
+    tripId: cost.tripId,
+    verb: "UPDATED",
+    entityType: "COST",
+    entityId: costId,
+    entityLabel: entityLabel("COST", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("COST", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
+  revalidateTripPaths(cost.tripId);
   return { success: true };
 }
 
@@ -298,13 +314,24 @@ export async function markCostPaid(
 export async function markCostUnpaid(costId: string): Promise<CostActionResult> {
   const cost = await db.cost.findUnique({
     where: { id: costId },
-    select: { id: true, tripId: true },
+    select: { id: true, tripId: true, forkId: true },
   });
   if (!cost) return { success: false, errors: { _form: ["Cost not found"] } };
   await requireTripAccess(cost.tripId);
 
-  await db.cost.update({ where: { id: costId }, data: { paidAt: null } });
-  revalidatePath(`/trips/${cost.tripId}`);
+  const before = await db.cost.findUnique({ where: { id: costId } });
+
+  const updated = await db.cost.update({ where: { id: costId }, data: { paidAt: null } });
+
+  await recordPlanActivity(cost.forkId, {
+    tripId: cost.tripId,
+    verb: "UPDATED",
+    entityType: "COST",
+    entityId: costId,
+    entityLabel: entityLabel("COST", updated as unknown as Record<string, unknown>),
+    changes: describeChanges("COST", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
+  });
+  revalidateTripPaths(cost.tripId);
   return { success: true };
 }
 

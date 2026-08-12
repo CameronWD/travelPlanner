@@ -608,7 +608,7 @@ describe("fork-silent: updateCost in a fork does NOT record activity", () => {
 
 describe("markCostPaid", () => {
   it("rejects a non-integer amount without touching the database", async () => {
-    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1" });
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1", forkId: null });
 
     const result = await markCostPaid("c1", Number.NaN, "2026-06-04");
 
@@ -617,7 +617,7 @@ describe("markCostPaid", () => {
   });
 
   it("rejects a negative amount without touching the database", async () => {
-    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1" });
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1", forkId: null });
 
     const result = await markCostPaid("c1", -100, "2026-06-04");
 
@@ -625,8 +625,21 @@ describe("markCostPaid", () => {
     expect(costUpdateMock).not.toHaveBeenCalled();
   });
 
+  it("rejects an empty or malformed paidAt without touching the database", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1", forkId: null });
+
+    const result = await markCostPaid("c1", 34000, "");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors.paidAt).toBeDefined();
+    }
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
   it("accepts a genuine zero amount", async () => {
-    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1" });
+    costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "t1", forkId: null });
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "t1", label: null, paidMinor: 0 });
 
     const result = await markCostPaid("c1", 0, "2026-06-04");
 
@@ -647,7 +660,8 @@ describe("markCostPaid", () => {
   });
 
   it("writes the paid amount and date", async () => {
-    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1" });
+    costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "t1", forkId: null });
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "t1", label: null, paidMinor: 34000 });
 
     const result = await markCostPaid("c1", 34000, "2026-06-04");
 
@@ -659,25 +673,49 @@ describe("markCostPaid", () => {
   });
 
   it("access-checks via requireTripAccess", async () => {
-    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "trip-42" });
+    costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "trip-42", forkId: null });
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "trip-42", label: null });
 
     await markCostPaid("c1", 34000, "2026-06-04");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-42");
   });
 
-  it("revalidates the trip path", async () => {
-    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "trip-1" });
+  it("revalidates both the trip overview and the budget path", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "trip-1", forkId: null });
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "trip-1", label: null });
 
     await markCostPaid("c1", 34000, "2026-06-04");
 
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/budget");
+  });
+
+  it("records UPDATED activity after a successful mark-paid", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "trip-1", forkId: null });
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "trip-1", label: "Hotel Ibis", paidMinor: 34000 });
+
+    await markCostPaid("c1", 34000, "2026-06-04");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ tripId: "trip-1", verb: "UPDATED", entityType: "COST", entityId: "c1" }),
+    );
+  });
+
+  it("does not record activity when marking paid inside a fork (fork-silent)", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "trip-1", forkId: "fork-x" });
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "trip-1", label: "Hotel Ibis", paidMinor: 34000 });
+
+    await markCostPaid("c1", 34000, "2026-06-04");
+
+    expect(recordActivity).not.toHaveBeenCalled();
   });
 });
 
 describe("markCostUnpaid", () => {
   it("clears the paid date but leaves the amount as history", async () => {
-    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1" });
+    costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "t1", forkId: null });
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "t1", label: null });
 
     const result = await markCostUnpaid("c1");
 
@@ -698,11 +736,42 @@ describe("markCostUnpaid", () => {
   });
 
   it("access-checks via requireTripAccess", async () => {
-    costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "trip-42" });
+    costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "trip-42", forkId: null });
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "trip-42", label: null });
 
     await markCostUnpaid("c1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-42");
+  });
+
+  it("revalidates both the trip overview and the budget path", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "trip-1", forkId: null });
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "trip-1", label: null });
+
+    await markCostUnpaid("c1");
+
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/budget");
+  });
+
+  it("records UPDATED activity after a successful un-mark", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "trip-1", forkId: null });
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "trip-1", label: "Hotel Ibis" });
+
+    await markCostUnpaid("c1");
+
+    expect(recordActivity).toHaveBeenCalledWith(
+      expect.objectContaining({ tripId: "trip-1", verb: "UPDATED", entityType: "COST", entityId: "c1" }),
+    );
+  });
+
+  it("does not record activity when un-marking inside a fork (fork-silent)", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "c1", tripId: "trip-1", forkId: "fork-x" });
+    costUpdateMock.mockResolvedValue({ id: "c1", tripId: "trip-1", label: "Hotel Ibis" });
+
+    await markCostUnpaid("c1");
+
+    expect(recordActivity).not.toHaveBeenCalled();
   });
 });
 

@@ -7,6 +7,17 @@ import { CURRENCY_CODES } from "@/lib/currencies";
 // ---------------------------------------------------------------------------
 
 /**
+ * Accepts either an ISO datetime (with offset) or a plain YYYY-MM-DD date
+ * string. Shared by `costSchema`'s `paidAt` field and the standalone
+ * `markCostPaid` action (the Budget checklist sends a raw date-input string
+ * that never passes through `costSchema`, so it needs the same shape check).
+ */
+export const paidAtStringSchema = z
+  .string()
+  .datetime({ offset: true, message: "paidAt must be an ISO datetime string" })
+  .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD or ISO datetime"));
+
+/**
  * Zod schema for creating or updating a Cost.
  *
  * Rules:
@@ -44,12 +55,7 @@ export const costSchema = z
         message: "Unsupported currency code",
       }),
 
-    paidAt: z
-      .string()
-      .datetime({ offset: true, message: "paidAt must be an ISO datetime string" })
-      .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD or ISO datetime"))
-      .transform((s) => new Date(s))
-      .optional(),
+    paidAt: paidAtStringSchema.transform((s) => new Date(s)).optional(),
 
     ownerType: costOwnerTypeSchema,
 

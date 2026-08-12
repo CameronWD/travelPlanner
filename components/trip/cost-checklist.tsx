@@ -40,51 +40,71 @@ export function CostChecklist({ rows }: CostChecklistProps) {
 
   if (rows.length === 0) return null;
 
+  async function handleUnmark(row: CostChecklistRow) {
+    setPendingId(row.id);
+    try {
+      const r = await markCostUnpaid(row.id);
+      if (!r.success) {
+        toast({ variant: "destructive", title: "Couldn't update that cost." });
+      }
+    } catch {
+      toast({ variant: "destructive", title: "Couldn't update that cost." });
+    } finally {
+      setPendingId(null);
+    }
+  }
+
   return (
     <ul className="flex flex-col divide-y divide-border">
       {rows.map((row) => {
         const isPaid = row.paidAt != null;
+        const checkbox = isPaid ? (
+          // Paid rows never open a confirm (un-marking needs no amount — the
+          // paid amount stays as history), so they render a plain checkbox,
+          // not a PopoverTrigger — otherwise screen readers would announce a
+          // dialog that can never open. preventDefault stops the native
+          // checked-attribute flicker before the controlled re-render lands
+          // (isPaid only flips once fresh data arrives from the server).
+          <input
+            type="checkbox"
+            checked
+            aria-label={row.label}
+            disabled={pendingId === row.id}
+            onClick={(e) => {
+              e.preventDefault();
+              void handleUnmark(row);
+            }}
+            onChange={() => {}}
+            className="size-4 shrink-0 rounded border-input accent-primary"
+          />
+        ) : (
+          <Popover
+            open={openId === row.id}
+            onOpenChange={(o) => setOpenId(o ? row.id : null)}
+          >
+            <PopoverTrigger asChild>
+              <input
+                type="checkbox"
+                checked={false}
+                aria-label={row.label}
+                disabled={pendingId === row.id}
+                onChange={() => {}}
+                className="size-4 shrink-0 rounded border-input accent-primary"
+              />
+            </PopoverTrigger>
+            <PopoverContent className="w-64">
+              <PaidConfirm
+                row={row}
+                onCancel={() => setOpenId(null)}
+                onDone={() => setOpenId(null)}
+              />
+            </PopoverContent>
+          </Popover>
+        );
+
         return (
           <li key={row.id} className="flex items-center gap-3 py-2">
-            <Popover
-              open={openId === row.id}
-              onOpenChange={(o) => setOpenId(o ? row.id : null)}
-            >
-              <PopoverTrigger asChild>
-                <input
-                  type="checkbox"
-                  checked={isPaid}
-                  aria-label={row.label}
-                  disabled={pendingId === row.id}
-                  // PopoverTrigger always composes its own click-to-toggle onto
-                  // this element (Radix), so un-marking must intercept via
-                  // onClick + preventDefault rather than onChange — otherwise
-                  // the click still reaches Radix's toggle underneath and pops
-                  // the "Paid how much?" confirm open for an already-paid row.
-                  onClick={(e) => {
-                    if (!isPaid) return; // let the default click open the popover
-                    e.preventDefault();
-                    setPendingId(row.id);
-                    // Un-marking needs no amount — the paid amount stays as history.
-                    void markCostUnpaid(row.id).then((r) => {
-                      setPendingId(null);
-                      if (!r.success) {
-                        toast({ variant: "destructive", title: "Couldn't update that cost." });
-                      }
-                    });
-                  }}
-                  onChange={() => {}}
-                  className="size-4 shrink-0 rounded border-input accent-primary"
-                />
-              </PopoverTrigger>
-              <PopoverContent className="w-64">
-                <PaidConfirm
-                  row={row}
-                  onCancel={() => setOpenId(null)}
-                  onDone={() => setOpenId(null)}
-                />
-              </PopoverContent>
-            </Popover>
+            {checkbox}
 
             <span className="flex-1 truncate text-sm">{row.label}</span>
 
@@ -95,7 +115,7 @@ export function CostChecklist({ rows }: CostChecklistProps) {
             {isPaid && (
               <CheckCircle2
                 className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400"
-                aria-label="Paid"
+                aria-hidden="true"
               />
             )}
           </li>
@@ -120,6 +140,7 @@ function PaidConfirm({
   const [date, setDate] = React.useState(new Date().toISOString().slice(0, 10));
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  const [dateError, setDateError] = React.useState<string | null>(null);
 
   async function handleConfirm() {
     const minor = parseAmountToMinor(amount, row.currency);
@@ -127,14 +148,27 @@ function PaidConfirm({
       setError("Enter what you paid");
       return;
     }
-    setSubmitting(true);
-    const r = await markCostPaid(row.id, minor, date);
-    setSubmitting(false);
-    if (!r.success) {
-      toast({ variant: "destructive", title: "Couldn't mark that paid." });
+    setError(null);
+
+    if (!date) {
+      setDateError("Enter when you paid");
       return;
     }
-    onDone();
+    setDateError(null);
+
+    setSubmitting(true);
+    try {
+      const r = await markCostPaid(row.id, minor, date);
+      if (!r.success) {
+        toast({ variant: "destructive", title: "Couldn't mark that paid." });
+        return;
+      }
+      onDone();
+    } catch {
+      toast({ variant: "destructive", title: "Couldn't mark that paid." });
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -154,12 +188,14 @@ function PaidConfirm({
         />
       </Field>
 
-      <Field label="Date paid">
+      <Field label="Date paid" error={dateError ?? undefined}>
         <Input
           type="date"
+          required
           value={date}
           onChange={(e) => setDate(e.target.value)}
           disabled={submitting}
+          invalid={Boolean(dateError)}
         />
       </Field>
 
