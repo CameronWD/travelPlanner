@@ -79,19 +79,25 @@ The single currency a Trip's totals are reported in (e.g. AUD). Set per Trip.
 _Avoid_: Base currency, local currency
 
 **Cost**:
-A money amount attached to a Transport, Accommodation, or Item — recorded in its own currency, with an **estimated** amount (always) and an optional **actual** amount. Converted to the Home currency for totals.
-_Avoid_: Price, expense, spend
+A money amount attached to a Transport, Accommodation, or Item — recorded in its own currency, with a **cost amount** (always) and, once money has moved, a **paid amount**. Converted to the Home currency for totals.
+
+The cost amount is the Traveller's best number for what the thing costs *today*: a guess while sketching, the real price once it is booked. A known price is therefore not a special case needing a fictional estimate — it simply *is* the cost amount, and a Cost paid at exactly its cost amount shows no variance because none occurred. The paid amount is what was actually charged. Every Cost has a cost amount, because a Cost with no number is not a Cost.
+_Avoid_: Price, expense, spend; "estimated"/"actual" for the two amounts (the cost amount covers known prices, not just guesses)
+
+**Paid**:
+The state of a Cost whose money has actually left the Traveller's account, carrying both a **paid amount** and the date it was paid. Marking a Cost paid *requires* the paid amount — the app never records a payment whose size it does not know — but the amount is offered pre-filled with the **cost amount**, so confirming a thing that cost what you expected is a single gesture. Paid Costs are what **Spend so far** counts, and what drops out of "still to pay". The reverse — un-marking — leaves the paid amount in place as history.
+_Avoid_: Settled, cleared, reconciled, booked (booking is not paying)
 
 **Other cost**:
 A standalone Cost not attached to any timeline thing — travel insurance, visas, eSIM, spending-money buffers. Still rolls into the budget.
 _Avoid_: Misc, extra
 
 **Budget**:
-The read-only roll-up view: grand total (in Home currency), and breakdowns by Category, by Stop, and by day, each showing estimated vs actual. No target/cap — totals only.
+The read-only roll-up view: grand total (in Home currency), and breakdowns by Category, by Stop, and by day, each showing cost vs paid. It is also where a Cost is marked **paid** in bulk — ticking down the list is the reconciling gesture the view is built for. No target/cap — totals only.
 _Avoid_: Budget cap, limit (there is no limit feature)
 
 **Spend so far**:
-A read-only money lens, distinct from the **Budget** roll-up, tracking how actual spending compares with estimates: the **estimated** total, what's been **paid** to date (Costs carrying a paid date), how those paid Costs' actuals run over/under their own estimates, and the estimated amount still to come. Cash-flow basis — a Cost counts once it's marked paid. Surfaced on the Budget view and the Travelling/Past **Home**. Like the Budget it has no target or cap; over-estimate spending is shown here only, never raised as a **Flag**.
+A read-only money lens, distinct from the **Budget** roll-up, tracking how real spending compares with what things were reckoned to cost: the total cost amount, what's been **paid** to date, how those paid Costs' paid amounts run over/under their own cost amounts, and the cost amount still to come. Cash-flow basis — a Cost counts once it's marked paid. Because a Cost cannot be paid without a paid amount, every figure here is real money; nothing paid ever counts as zero. Surfaced on the Budget view and the Travelling/Past **Home**. Like the Budget it has no target or cap; over-estimate spending is shown here only, never raised as a **Flag**.
 _Avoid_: Burn-down (implies a cap we don't have), budget pace, remaining budget, overspend alert
 
 **Exchange rate**:
