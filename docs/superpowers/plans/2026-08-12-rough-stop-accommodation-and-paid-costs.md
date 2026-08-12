@@ -373,6 +373,24 @@ it("counts the full paid amount for every paid cost", () => {
   expect(result.paidSoFarMinor).toBe(34000);
   expect(result.varianceMinor).toBe(0);
 });
+
+it("skips a legacy paid cost that has no paid amount, rather than counting it as zero", () => {
+  // This is the display bug ADR 0037 exists to kill: the old code added 0 to
+  // paidSoFar but the FULL cost to paidEstimate, so a £340 hotel marked paid
+  // with no amount rendered as "Paid £0 · £340 under estimate". Skipping it
+  // entirely keeps both figures honest.
+  const result = buildSpendSoFar({
+    costs: [
+      { id: "c1", costMinor: 34000, paidMinor: null, currency: "GBP",
+        rateToHome: null, paidAt: "2026-06-04" },
+    ],
+    homeCurrency: "GBP",
+    today: "2026-06-10",
+  });
+  expect(result.paidSoFarMinor).toBe(0);
+  expect(result.varianceMinor).toBe(0);      // NOT -34000
+  expect(result.costTotalMinor).toBe(34000); // still counted as a cost
+});
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -398,23 +416,27 @@ Also update the docblock at the top of the schema: replace the `actualMinor is o
 
 - [ ] **Step 4: Remove the dead fallback**
 
-In `lib/spend-so-far.ts`, replace the whole paid branch with exactly this — the `?? 0` fallback is the bug, and an explicit skip replaces it so a legacy row can never be silently counted as zero:
+**Read this carefully — the obvious fix does not work.** `convertCostToHome` (`lib/budget.ts:162-188`) destructures to `{ estimatedHome, actualHome }`, *not* `paidHome`, and it **already coerces the missing amount to zero internally**: `actualHome: cost.paidMinor ?? 0` at `lib/budget.ts:172`, and the same `: 0` in the foreign-currency branch at `:185`. So `actualHome` is `null` only when the exchange rate is missing — never because the cost has no paid amount. Guarding on the converted value would therefore catch nothing, and the £0-paid bug would survive the fix.
+
+The guard must test the raw `c.paidMinor`. Replace the whole paid branch with exactly this:
 
 ```ts
     if (c.paidAt != null) {
-      if (paidHome === null) {
+      if (c.paidMinor == null || actualHome === null) {
         // A paid Cost always carries a paid amount (costSchema enforces it), so
         // this is only reachable for a legacy row the backfill missed. Skip it:
         // counting it as zero would understate spending AND inflate the
         // variance, which is exactly the display bug this rule exists to kill.
+        // NB: testing actualHome instead would be useless — convertCostToHome
+        // has already turned a missing amount into 0 by this point.
         continue;
       }
-      paidSoFar += paidHome;
-      paidCost += costHome;
+      paidSoFar += actualHome;
+      paidEstimate += estimatedHome;
     }
 ```
 
-Note `convertCostToHome` returns `paidHome` as `number | null`, so the guard is required for the types as well as the behaviour. Do not reintroduce `?? 0` anywhere in this file.
+Do not reintroduce `?? 0` anywhere in this file. Leave the local accumulator names (`estimatedTotal`, `paidEstimate`) and the `convertCostToHome` destructuring names alone — renaming those is out of scope here.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
