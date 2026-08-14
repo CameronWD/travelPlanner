@@ -20,7 +20,8 @@ import type { BudgetCost, BudgetStopWithDates, BudgetItem, BudgetAccommodation, 
 import { buildSpendSoFar } from "@/lib/spend-so-far";
 import type { SpendCost } from "@/lib/spend-so-far";
 import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
-import { todayISO, nightsBetween } from "@/lib/dates";
+import { nightsBetween } from "@/lib/dates";
+import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { BudgetHeroRow } from "@/components/trip/budget-hero-row";
 import { CostChecklist, type CostChecklistRow } from "@/components/trip/cost-checklist";
 
@@ -226,7 +227,7 @@ export default async function BudgetPage({
     homeCurrency,
     tripStart: startDate,
     tripEnd: endDate,
-    today: todayISO(),
+    today: todayISOInZone(currentTripTimezone(stops)),
   });
 
   // Build rates data for the panel

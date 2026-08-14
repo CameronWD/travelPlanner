@@ -9,6 +9,7 @@ import { TripCard } from "@/components/trip/trip-card";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { describePhase, compareForTripList } from "@/lib/trip-phase";
 import { todayISO } from "@/lib/dates";
+import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: "Your trips · TEEPEE" };
@@ -24,6 +25,11 @@ export default async function TripsPage() {
       trip: {
         include: {
           _count: { select: { stops: true } },
+          stops: {
+            where: { forkId: null, arriveDate: { not: null } },
+            orderBy: { sortOrder: "asc" },
+            select: { timezone: true, arriveDate: true, departDate: true },
+          },
         },
       },
     },
@@ -75,7 +81,10 @@ export default async function TripsPage() {
   });
 
   const today = todayISO();
-  const sorted = [...trips].sort((a, b) => compareForTripList(a, b, today));
+  const todayByTripId = new Map(
+    trips.map((t) => [t.id, todayISOInZone(currentTripTimezone(t.stops))]),
+  );
+  const sorted = [...trips].sort((a, b) => compareForTripList(a, b, today, todayByTripId));
 
   return (
     <div className="space-y-8">
@@ -111,7 +120,7 @@ export default async function TripsPage() {
                 startDate={trip.startDate}
                 endDate={trip.endDate}
                 stopCount={trip._count.stops}
-                phase={describePhase({ startDate: trip.startDate, endDate: trip.endDate, today })}
+                phase={describePhase({ startDate: trip.startDate, endDate: trip.endDate, today: todayByTripId.get(trip.id) ?? today })}
                 unreadCount={unreadByTrip[trip.id] ?? 0}
                 hasCover={hasCoverByTrip.get(trip.id) ?? false}
                 coverStops={coverStopsByTrip.get(trip.id) ?? []}

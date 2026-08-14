@@ -7,6 +7,7 @@ import { buildItinerary } from "@/lib/itinerary";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CalendarViews } from "@/components/trip/calendar-views";
 import type { TransportMode } from "@/lib/enums";
+import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 
 export default async function CalendarPage({
   params,
@@ -181,6 +182,8 @@ export default async function CalendarPage({
     })),
   });
 
+  const agendaToday = todayISOInZone(currentTripTimezone(stops));
+
   return (
     <CalendarViews
       tripId={tripId}
@@ -188,6 +191,7 @@ export default async function CalendarPage({
       tripStart={trip.startDate}
       tripEnd={trip.endDate}
       wishlistItems={wishlistItems}
+      todayISO={agendaToday}
     />
   );
 }

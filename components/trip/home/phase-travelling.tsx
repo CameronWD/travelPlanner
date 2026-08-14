@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, MapPin, Bed, ArrowRight } from "lucide-react";
 import { db } from "@/lib/db";
-import { todayISO, formatLongDate, dayNumberInTrip } from "@/lib/dates";
+import { formatLongDate, dayNumberInTrip } from "@/lib/dates";
+import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import {
   buildItinerary,
   effectiveTodayISO,
@@ -54,13 +55,6 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
 
   const startDate = trip.startDate;
   const endDate = trip.endDate ?? trip.startDate;
-
-  const today = todayISO();
-  const effectiveDate = effectiveTodayISO(today, startDate, endDate);
-
-  const isBeforeTrip = today < startDate;
-  const isAfterTrip = today > endDate;
-  const isWithinTrip = today >= startDate && today <= endDate;
 
   // Fetch all itinerary data (plus costs + reminders + chapters + located wishlist candidates)
   const [stops, items, transports, accommodations, costs, reminders, chapters, wishlistLocated, allAttachments] = await Promise.all([
@@ -196,6 +190,15 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       },
     }),
   ]);
+
+  // Trip's reference-timezone "today" (things-to-fix P0-2) — the fetched
+  // stops already carry timezone/arriveDate/departDate, in sortOrder order.
+  const today = todayISOInZone(currentTripTimezone(stops));
+  const effectiveDate = effectiveTodayISO(today, startDate, endDate);
+
+  const isBeforeTrip = today < startDate;
+  const isAfterTrip = today > endDate;
+  const isWithinTrip = today >= startDate && today <= endDate;
 
   const currentChapter = chapterForDate(effectiveDate, chapters);
   const dayNum = dayNumberInTrip(effectiveDate, startDate);
