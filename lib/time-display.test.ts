@@ -41,6 +41,21 @@ describe("transportTimeDisplay", () => {
     expect(td.arr).toBeNull();
     expect(td.dayDelta).toBe(0);
   });
+  it("labels the dep zone with the arrival stop's zone on a home-departure leg (fromTimezone null)", () => {
+    // Regression: depTz falls back to toTimezone, but the zone LABEL must too —
+    // otherwise a home-departure leg renders the arrival stop's local time
+    // mislabelled "UTC".
+    const td = transportTimeDisplay({
+      depAt: new Date("2026-07-01T06:00:00Z"), // 08:00 in Europe/Paris (CEST)
+      arrAt: null,
+      fromTimezone: null,
+      toTimezone: "Europe/Paris",
+    });
+    // Zone abbreviation text is ICU-data-dependent (this runtime emits "GMT+2"
+    // rather than "CEST" for Europe/Paris); what matters for the regression is
+    // that it reflects Paris, not the "UTC" fallback the bug produced.
+    expect(td.dep).toMatchObject({ time: "08:00", zone: "GMT+2" });
+  });
 });
 
 describe("resolveEndpointZones", () => {

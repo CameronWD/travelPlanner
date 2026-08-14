@@ -19,4 +19,7 @@ describe("wallTimeToInstant", () => {
     expect(wallTimeToInstant(undefined, "UTC")).toBeNull();
     expect(wallTimeToInstant("not-a-time", "UTC")).toBeNull();
   });
+  it("returns null for a shape-valid but calendrically-invalid wall time instead of an Invalid Date", () => {
+    expect(wallTimeToInstant("2026-13-45T99:99", "UTC")).toBeNull();
+  });
 });

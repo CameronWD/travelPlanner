@@ -47,7 +47,7 @@ export function transportTimeDisplay(input: {
   let dep: ZonedEndpoint | null = null;
   if (depAt) {
     const dateISO = instantToZonedDateISO(depAt, depTz);
-    dep = { time: instantToZonedTime(depAt, depTz), zone: zoneLabel(fromTimezone, dateISO), dateISO };
+    dep = { time: instantToZonedTime(depAt, depTz), zone: zoneLabel(fromTimezone ?? toTimezone, dateISO), dateISO };
   }
   let arr: ZonedEndpoint | null = null;
   if (arrAt) {

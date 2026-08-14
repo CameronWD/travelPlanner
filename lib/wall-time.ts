@@ -20,5 +20,6 @@ export function wallTimeToInstant(
   if (value instanceof Date) return value;
   const m = WALL_TIME_RE.exec(value.trim());
   if (!m) return null;
-  return zonedWallTimeToInstant(m[1], m[2], timeZone);
+  const d = zonedWallTimeToInstant(m[1], m[2], timeZone);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
