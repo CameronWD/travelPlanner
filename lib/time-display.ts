@@ -25,6 +25,16 @@ export interface TransportTimeDisplay {
   dayDelta: number;
 }
 
+/** Timezone for each transport endpoint: its own stop's zone, else the other
+ * endpoint's (home/free-text legs), else UTC. Shared by display AND the write
+ * path so a typed wall time round-trips exactly (things-to-fix P0-1). */
+export function resolveEndpointZones(
+  fromTz: string | null | undefined,
+  toTz: string | null | undefined,
+): { depTz: string; arrTz: string } {
+  return { depTz: fromTz ?? toTz ?? "UTC", arrTz: toTz ?? fromTz ?? "UTC" };
+}
+
 export function transportTimeDisplay(input: {
   depAt: Date | null | undefined;
   arrAt: Date | null | undefined;
@@ -32,8 +42,7 @@ export function transportTimeDisplay(input: {
   toTimezone: string | null | undefined;
 }): TransportTimeDisplay {
   const { depAt, arrAt, fromTimezone, toTimezone } = input;
-  const depTz = fromTimezone ?? "UTC";
-  const arrTz = toTimezone ?? fromTimezone ?? "UTC";
+  const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone);
 
   let dep: ZonedEndpoint | null = null;
   if (depAt) {

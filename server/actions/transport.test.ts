@@ -414,6 +414,31 @@ describe("createTransport", () => {
 });
 
 // ---------------------------------------------------------------------------
+// P0-1: wall-time strings are interpreted in the endpoint stop's timezone
+// ---------------------------------------------------------------------------
+
+describe("createTransport: wall-time tz interpretation (P0-1)", () => {
+  it("stores a wall-time string interpreted in the from-stop's timezone", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    stopFindManyMock.mockResolvedValue([
+      { id: "s-paris", tripId: "trip-1", forkId: null, timezone: "Europe/Paris" },
+      { id: "s-rome", tripId: "trip-1", forkId: null, timezone: "Europe/Rome" },
+    ]);
+    transportCreateMock.mockResolvedValue({ id: "t-wt-1" });
+
+    await createTransport("trip-1", {
+      mode: "TRAIN",
+      fromStopId: "s-paris",
+      toStopId: "s-rome",
+      depAt: "2026-07-01T08:00",
+    });
+
+    const createArg = transportCreateMock.mock.calls[0][0];
+    expect(createArg.data.depAt.toISOString()).toBe("2026-07-01T06:00:00.000Z");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // updateTransport
 // ---------------------------------------------------------------------------
 

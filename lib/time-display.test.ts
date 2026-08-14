@@ -1,6 +1,6 @@
 // lib/time-display.test.ts
 import { describe, it, expect } from "vitest";
-import { zoneLabel, shortDate, transportTimeDisplay } from "./time-display";
+import { zoneLabel, shortDate, transportTimeDisplay, resolveEndpointZones } from "./time-display";
 
 describe("zoneLabel", () => {
   it("falls back to UTC when the zone is missing/invalid", () => {
@@ -40,5 +40,17 @@ describe("transportTimeDisplay", () => {
     expect(td.dep).toMatchObject({ zone: "UTC" });
     expect(td.arr).toBeNull();
     expect(td.dayDelta).toBe(0);
+  });
+});
+
+describe("resolveEndpointZones", () => {
+  it("uses each endpoint's own zone, falling back to the other, then UTC", () => {
+    expect(resolveEndpointZones("Europe/Paris", "Europe/Rome"))
+      .toEqual({ depTz: "Europe/Paris", arrTz: "Europe/Rome" });
+    expect(resolveEndpointZones(null, "Europe/Rome"))
+      .toEqual({ depTz: "Europe/Rome", arrTz: "Europe/Rome" }); // home → first stop leg
+    expect(resolveEndpointZones("Europe/Paris", null))
+      .toEqual({ depTz: "Europe/Paris", arrTz: "Europe/Paris" }); // return leg
+    expect(resolveEndpointZones(null, null)).toEqual({ depTz: "UTC", arrTz: "UTC" });
   });
 });

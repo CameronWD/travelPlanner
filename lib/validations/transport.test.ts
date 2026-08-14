@@ -25,19 +25,21 @@ describe("transportSchema", () => {
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.depAt).toBeInstanceOf(Date);
-      expect(result.data.arrAt).toBeInstanceOf(Date);
+      // Offset-less wall-time strings are kept AS STRINGS — tz interpretation
+      // happens in the server action via the endpoint Stop's timezone (P0-1).
+      expect(result.data.depAt).toBe("2026-07-01T08:00");
+      expect(result.data.arrAt).toBe("2026-07-01T10:30");
     }
   });
 
-  it("coerces datetime-local string to Date", () => {
+  it("keeps an offset-less datetime-local string as a string for later tz interpretation (P0-1)", () => {
     const result = transportSchema.safeParse({
       mode: "BUS",
       depAt: "2026-07-01T14:00",
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.depAt).toBeInstanceOf(Date);
+      expect(result.data.depAt).toBe("2026-07-01T14:00");
     }
   });
 
