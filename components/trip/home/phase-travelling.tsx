@@ -60,6 +60,10 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
   const [stops, items, transports, accommodations, costs, reminders, chapters, wishlistLocated, allAttachments] = await Promise.all([
     db.stop.findMany({
       // Rough (date-less) stops don't appear on a dated "today" view.
+      // NOTE: intentionally NOT scoped to forkId: null here — this whole
+      // component is fork-blind (items/transports/etc. below share the same
+      // gap, tracked separately as P1-2). `forkId` is selected only so the
+      // "today" computation below can filter fork stops back out itself.
       where: { tripId, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: {
@@ -72,6 +76,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         arriveDate: true,
         departDate: true,
         sortOrder: true,
+        forkId: true,
       },
     }),
     db.item.findMany({
@@ -193,7 +198,10 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
 
   // Trip's reference-timezone "today" (things-to-fix P0-2) — the fetched
   // stops already carry timezone/arriveDate/departDate, in sortOrder order.
-  const today = todayISOInZone(currentTripTimezone(stops));
+  // Filter to the real plan's stops (forkId === null) so a fork's stops
+  // (same tripId) can't steer this clock; the `stops` array itself stays
+  // unfiltered for the rest of the component (fork-blind — P1-2 territory).
+  const today = todayISOInZone(currentTripTimezone(stops.filter((s) => s.forkId === null)));
   const effectiveDate = effectiveTodayISO(today, startDate, endDate);
 
   const isBeforeTrip = today < startDate;
