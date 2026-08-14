@@ -1308,3 +1308,20 @@ For each fixed item add a line `**Status: FIXED** (fix/audit-backlog, <commit sh
 git add docs/things-to-fix.md
 git commit -m "docs: mark audited backlog items fixed on fix/audit-backlog"
 ```
+
+---
+
+### Task 20: NEW FINDING — fork entities leak into the Travelling Home / Today view
+
+**Files:**
+- Modify: `components/trip/home/phase-travelling.tsx` (every plan-entity query: stops, items, transports, accommodations, costs, chapters — NOT the wishlist-idea query, which `WISHLIST_IDEA_WHERE` already bounds, and NOT reminders/attachments if they are trip-wide)
+- Modify: `app/(app)/trips/[tripId]/today/page.tsx` and `components/trip/home/phase-planning.tsx` / `phase-past.tsx` / `phase-sketching.tsx` IF they query plan entities unscoped (read them; scope what needs scoping, report what didn't)
+- Test: `components/trip/home/phase-travelling.test.tsx` (or the component's covering test file)
+
+**Interfaces:** none new. Discovered during Task 5's review: fork rows persist into the travelling phase (`assertForkingAllowed` gates create/promote only), and phase-travelling queries plan entities by bare `tripId`, so a variant's stops/items/transports render mixed into the live Today view. CONTEXT.md: dated views always follow the real plan. Calendar/day/print/summary already scope `forkId: null` — make the Home phases consistent.
+
+- [ ] **Step 1: Write a failing test** asserting the queries are fork-scoped (mock db; assert `expect.objectContaining({ forkId: null })` in each plan-entity findMany where-clause, following the file's existing test scaffolding).
+- [ ] **Step 2: Run it, see it fail.**
+- [ ] **Step 3: Add `forkId: null`** to every plan-entity where-clause in phase-travelling (stops included — now safe because ALL sibling queries scope together; then `currentTripTimezone(stops)` no longer needs its `.filter(s => s.forkId === null)` — simplify it and drop `forkId` from the select, updating the Task 5 comments). Sweep the other Home phase components and the today page the same way.
+- [ ] **Step 4: Run** the covering tests, `npx tsc --noEmit`, full `npx vitest run`. Expected: green.
+- [ ] **Step 5: Commit** `fix(home): today view and home phases read the real plan only — fork entities no longer leak`
