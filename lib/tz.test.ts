@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   TIMEZONES,
   guessTimezoneForCountry,
   instantToZonedDateISO,
   instantToZonedTime,
   zonedWallTimeToInstant,
+  todayISOInZone,
+  currentTripTimezone,
 } from "./tz";
 
 describe("TIMEZONES", () => {
@@ -167,5 +169,39 @@ describe("zonedWallTimeToInstant", () => {
   it("converts a New York summer wall time (UTC-4) to UTC", () => {
     const d = zonedWallTimeToInstant("2026-07-09", "10:00", "America/New_York");
     expect(d.toISOString()).toBe("2026-07-09T14:00:00.000Z");
+  });
+});
+
+afterEach(() => vi.useRealTimers());
+
+describe("todayISOInZone", () => {
+  it("returns the zone's calendar day, not UTC's", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-14T22:00:00Z")); // 15 Aug 08:00 in Sydney
+    expect(todayISOInZone("Australia/Sydney")).toBe("2026-08-15");
+    expect(todayISOInZone("UTC")).toBe("2026-08-14");
+  });
+});
+
+describe("currentTripTimezone", () => {
+  const stops = [
+    { timezone: "Europe/Paris", arriveDate: "2026-08-10", departDate: "2026-08-13" },
+    { timezone: "Europe/Rome", arriveDate: "2026-08-13", departDate: "2026-08-18" },
+  ];
+  it("picks the stop the trip is currently at", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-14T22:00:00Z")); // mid-Rome
+    expect(currentTripTimezone(stops)).toBe("Europe/Rome");
+  });
+  it("picks the first stop before departure and the last after the trip", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-01T00:00:00Z"));
+    expect(currentTripTimezone(stops)).toBe("Europe/Paris");
+    vi.setSystemTime(new Date("2026-09-01T00:00:00Z"));
+    expect(currentTripTimezone(stops)).toBe("Europe/Rome");
+  });
+  it("falls back to UTC with no dated stops", () => {
+    expect(currentTripTimezone([])).toBe("UTC");
+    expect(currentTripTimezone([{ timezone: "Europe/Paris", arriveDate: null, departDate: null }])).toBe("UTC");
   });
 });

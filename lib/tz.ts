@@ -343,3 +343,25 @@ export function instantToZonedTime(
     return format("UTC");
   }
 }
+
+/** Today's calendar date (YYYY-MM-DD) in an IANA timezone (things-to-fix P0-2). */
+export function todayISOInZone(timeZone: string): string {
+  return instantToZonedDateISO(new Date(), timeZone);
+}
+
+/**
+ * The trip's reference timezone for "what day is it now" questions: the zone
+ * of the stop the trip is currently at — the first dated stop whose depart
+ * date hasn't passed, judged in that stop's own zone. Before the trip that's
+ * the first stop; after it, the last. UTC when nothing is dated.
+ * Pass dated stops in sortOrder order (rough stops are ignored).
+ */
+export function currentTripTimezone(
+  stops: Array<{ timezone: string | null; arriveDate: string | null; departDate: string | null }>,
+): string {
+  const dated = stops.filter((s) => s.timezone && s.arriveDate && s.departDate);
+  for (const s of dated) {
+    if (todayISOInZone(s.timezone!) <= s.departDate!) return s.timezone!;
+  }
+  return dated.length ? dated[dated.length - 1].timezone! : "UTC";
+}

@@ -171,10 +171,21 @@ export function isDateWithin(date: string, start: string, end: string): boolean 
 }
 
 /**
- * Today's date as a YYYY-MM-DD string (UTC calendar date).
+ * Today as a UTC calendar date. WARNING (things-to-fix P0-2): in UTC+X zones
+ * this is *yesterday* every morning. For user-facing "today" use
+ * `todayLocalISO()` (client, device zone) or `todayISOInZone`/
+ * `currentTripTimezone` (`@/lib/tz`, trip zone). Keep this only for
+ * server-side aggregation that genuinely wants UTC.
  */
 export function todayISO(): string {
   return formatISODate(new Date());
+}
+
+/** Today on the DEVICE's clock (local getters). Client components only —
+ * on the server this is the server's zone, which is the bug this exists to fix. */
+export function todayLocalISO(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 /**
