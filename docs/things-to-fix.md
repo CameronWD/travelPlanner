@@ -19,6 +19,20 @@ So nothing below is a build/test failure. These are logic, UX, and operational
 defects the suite doesn't catch — mostly because unit tests mock `@/lib/db` and run
 in a fixed timezone.
 
+**Verification status (2026-08-14).** Every item carries one of:
+
+- **Verified: executable repro** — proven by running the app's real modules in a
+  scratch test under pinned timezones (`TZ=Australia/Sydney` and `TZ=UTC`). The
+  exact repro snippets are in the appendix; a fix must flip its snippet's
+  assertions.
+- **Verified: code read** — confirmed by direct reading of the cited lines on
+  current `main`; unambiguous from the source (e.g. a hardcoded `forkId: null`).
+
+Decisions the owner has signed off (2026-08-14): the **P0-2 "today" semantics
+split**, the **P1-3 "Firm up" UI rename**, and the **P1-2 fork-aware Budget**
+approach. Items marked *decision approved* need no further confirmation — build
+as prescribed.
+
 ## How to work on an item (read this first, agent)
 
 1. **Read `CONTEXT.md` before touching anything.** It is the vocabulary contract.
@@ -46,6 +60,11 @@ Severity: **P0** = wrong data/behaviour for real users in production ·
 
 **Severity:** P0 — every Transport time entered in production is displayed shifted.
 **Area:** plan editor / transport. **Effort:** M.
+**Verified: executable repro** (appendix A1). Measured: under `TZ=Australia/Sydney`
+the typed string `"2026-07-01T08:00"` is stored as `2026-06-30T22:00:00Z`; under
+`TZ=UTC` as `2026-07-01T08:00:00Z`. Displaying the UTC-parsed instant for a
+`Europe/Paris` stop renders **10:00**, and the Sydney-parsed one renders
+**00:00** — the user typed **08:00** in both cases.
 
 **Symptom.** In production (Vercel servers run UTC), a Traveller types a departure
 of `08:00` for a Paris → Rome train. The transport card then shows `10:00 CEST`.
@@ -111,8 +130,10 @@ The correct machinery already exists and is used elsewhere:
 ## P0-2 · "Today" is the UTC calendar day — wrong every morning in the home timezone
 
 **Severity:** P0 — the Travelling Home ("what's happening now") targets the wrong
-day until ~10–11 am for AU users. **Area:** dates, app-wide. **Effort:** M–L
-(one decision + a mechanical sweep).
+day until ~10–11 am for AU users. **Area:** dates, app-wide. **Effort:** M–L.
+**Verified: executable repro** (appendix A2). Measured: with the clock at
+`2026-08-14T22:00:00Z` — which is 8 am on **15 Aug** in Sydney — `todayISO()`
+returns `2026-08-14`.
 
 **Symptom.** `todayISO()` (`lib/dates.ts:176`) formats `new Date()` with **UTC**
 getters. TEEPEE defaults to en-AU; in UTC+10/11 it returns *yesterday* until
@@ -132,8 +153,11 @@ the recorded date is yesterday.
 This was flagged in `docs/follow-ups/2026-08-12-cost-paid-remodel.md` as "wants
 its own plan" — this entry is that plan.
 
-**Decision (recommended, confirm with owner before building):** "today" is a
-*viewer-context* question, answered per surface:
+**Decision (approved 2026-08-14):** "today" is a *viewer-context* question,
+answered per surface. There is no single correct timezone for "today" in a travel
+app — the traveller's device, the trip's current stop, and the server can all be
+on different days at once — so each surface uses the timezone of the question it
+answers:
 
 - **Travelling surfaces** (Today view, agenda highlight, day nav): today in the
   **current Stop's timezone** — the stop whose arrive/depart covers now; fall back
@@ -166,6 +190,9 @@ confirm the Travelling Home shows the correct day.
 **Severity:** P0 — operational, blocks the next deploy. **Area:** deployment.
 **Effort:** S (procedure), not code.
 
+**Verified: code read** (`vercel.json:4` + the migration SQL; nothing here is
+executable without a database — that is the finding).
+
 `prisma/migrations/20260812000000_cost_and_paid_amounts` renames columns and has
 **never executed** anywhere (no Postgres in the dev sandbox; verified only by
 reading against the `0_init` DDL). `vercel.json:4` runs
@@ -190,6 +217,9 @@ correctly; the reverse migration also applies cleanly on a copy.
 
 **Severity:** P1 — work lands in the wrong Plan. **Area:** forks / navigation.
 **Effort:** M.
+
+**Verified: executable repro** (appendix A3) — every href `primaryNav`/`moreNav`
+emits is query-string-free — plus code read of the switcher's param-based state.
 
 **Symptom.** `ForkSwitcher` activates a variant by pushing
 `/trips/{id}/plan?plan=<forkId>` (`components/trip/fork-switcher.tsx:265-275`).
@@ -225,6 +255,9 @@ it lands in the variant, real plan untouched.
 
 **Severity:** P1 — CONTEXT.md promises it ("a Fork … has its own projected end,
 Flags and Budget", CONTEXT.md:192). **Area:** budget / forks. **Effort:** M.
+**Verified: code read** (the hardcoded `forkId: null` block below is unambiguous).
+**Decision approved:** implement `?plan=` support on Budget as prescribed — do
+not amend CONTEXT.md instead.
 
 **Symptom.** `app/(app)/trips/[tripId]/budget/page.tsx:85-114` hardcodes
 `forkId: null` in every query and never reads the `?plan=` search param. The only
@@ -262,18 +295,20 @@ every visible control says "Set dates" ("Set dates for all stops"
 rename over a glossary→UI mapping table precisely because this kind of drift
 compounds; the same argument applies to the model's most central verb.
 
-**Fix.** Decide direction with a one-liner to the owner, but the ADR-consistent
-default is: adopt **Firm up** in the UI. "Firm up this leg" / "Firm up all stops"
-/ "Firm up from start date". Sweep `itinerary-manager.tsx`, `stop-form-dialog`,
-`phase-sketching.tsx`, `next-steps-card`, and any toasts; keep "Set dates" only
-where it's literally a date input. Update `COMPONENTS.md` copy references.
-(Alternative if the owner prefers the current labels: change CONTEXT.md's
-canonical term instead. Either way the drift closes.)
+**Fix (decision approved: adopt "Firm up" in the UI).** "Firm up this leg" /
+"Firm up all stops" / "Firm up from start date". Sweep `itinerary-manager.tsx`,
+`stop-form-dialog`, `phase-sketching.tsx`, `next-steps-card`, and any toasts;
+keep "Set dates" only where it's literally a date input. Update `COMPONENTS.md`
+copy references.
 
 **Verify.** `grep -rn "Set dates" components app` returns only date-field labels;
 component tests updated; CONTEXT.md and UI agree.
 
 ---
+
+*All P2 and P3 items below are **Verified: code read** at the cited lines on
+current `main` (re-checked 2026-08-14, not carried blindly from the follow-ups
+doc); P2-3 additionally has an executable repro.*
 
 ## P2-1 · `handleFirmUp`'s `try/finally` swallows rejections — a pending nudge marker leaks
 
@@ -304,7 +339,9 @@ error and never calls `db.cost.update`.
 
 ## P2-3 · Un-marking a cost paid writes an activity entry with an empty change list
 
-**Area:** activity feed. **Effort:** S.
+**Area:** activity feed. **Effort:** S. **Verified: executable repro**
+(appendix A4) — a paidAt-only change returns `[]` while a costMinor control
+change returns one entry.
 `describeChanges`'s COST field list (`lib/activity.ts:200-205`) covers
 `costMinor`/`paidMinor`/`currency`/`category` but not `paidAt` — so
 `markCostUnpaid` (which only changes `paidAt`) records an Activity whose changes
@@ -461,12 +498,75 @@ ADRs, and in-code documentation.
 | `markCostPaid`/`markCostUnpaid` re-implement the cost access check inline | Deliberate — they return a result where `requireCostAccess` throws `notFound()`. |
 | The dev-login provider exists in `lib/auth.ts` | Env-gated behind `ALLOW_DEV_LOGIN === "true"`; verified off unless explicitly enabled. Not a backdoor. |
 
+## Appendix — executable repros
+
+These snippets were run against current `main` (2026-08-14) with the app's real
+modules and **passed** — i.e. they assert the *buggy* behaviour. Recreate the
+relevant one as a scratch test before fixing; your fix is done when the
+assertion **flips** (then rewrite it as the correct-behaviour test that lands
+with the fix). Run tz-sensitive ones under both `TZ=Australia/Sydney` and
+`TZ=UTC`:
+
+```bash
+TZ=Australia/Sydney npx vitest run test/<scratch>.test.ts
+TZ=UTC              npx vitest run test/<scratch>.test.ts
+```
+
+### A1 · P0-1 — transport times
+
+```ts
+import { transportSchema } from "@/lib/validations/transport";
+import { transportTimeDisplay } from "@/lib/time-display";
+
+const parsed = transportSchema.parse({ mode: "TRAIN", depAt: "2026-07-01T08:00" });
+// TZ=Australia/Sydney → "2026-06-30T22:00:00.000Z"
+// TZ=UTC              → "2026-07-01T08:00:00.000Z"   ← proves server-tz parse
+
+const td = transportTimeDisplay({
+  depAt: parsed.depAt!, arrAt: null,
+  fromTimezone: "Europe/Paris", toTimezone: null,
+});
+// User typed 08:00. Card shows:
+//   TZ=UTC              → "10:00"  (prod scenario: Vercel)
+//   TZ=Australia/Sydney → "00:00"
+// After the fix, td.dep.time === "08:00" under BOTH TZ values.
+```
+
+### A2 · P0-2 — todayISO
+
+```ts
+import { todayISO } from "@/lib/dates";
+vi.useFakeTimers();
+vi.setSystemTime(new Date("2026-08-14T22:00:00Z")); // = 8am 15 Aug in Sydney
+expect(todayISO()).toBe("2026-08-14"); // BUG — Sydney's today is the 15th
+// After the fix, the Sydney-context helper returns "2026-08-15" here.
+```
+
+### A3 · P1-1 — nav drops ?plan=
+
+```ts
+import { primaryNav, moreNav } from "@/components/trip/trip-nav";
+for (const item of [...primaryNav("t1"), ...moreNav("t1")])
+  expect(item.href).not.toContain("?"); // BUG — passes today
+// After the fix, Plan/Wishlist/Budget hrefs carry ?plan=<forkId> when active.
+```
+
+### A4 · P2-3 — activity blind to paidAt
+
+```ts
+import { describeChanges } from "@/lib/activity";
+expect(
+  describeChanges("COST", { paidAt: new Date("2026-08-01T00:00:00Z") }, { paidAt: null }),
+).toEqual([]); // BUG — un-marking paid describes no change
+expect(describeChanges("COST", { costMinor: 1000 }, { costMinor: 2000 }).length).toBe(1); // control
+```
+
 ## Suggested order
 
 1. **P0-3** (deploy procedure — unblocks everything touching prod data)
 2. **P0-1** (transport timezones; biggest correctness payoff, self-contained)
 3. **P1-1 + P1-2** together (sticky variant + fork-aware Budget share a branch well)
-4. **P0-2** (today-timezone; needs the owner's sign-off on the semantics first)
+4. **P0-2** (today-timezone; semantics approved — see the decision block)
 5. The P2 block — each is a small, independent branch; P2-5 (rename) last of the
    P2s so it doesn't conflict with the others' diffs.
 6. P1-3 (copy sweep) and P3s whenever convenient.
