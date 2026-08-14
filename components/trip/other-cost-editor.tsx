@@ -25,7 +25,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 import { CURRENCIES } from "@/lib/currencies";
 import { formatMoney, formatMinor, parseAmountToMinor, convertMinor } from "@/lib/money";
-import { todayISO } from "@/lib/dates";
+import { todayLocalISO } from "@/lib/dates";
 import { cn } from "@/lib/cn";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
@@ -122,7 +122,7 @@ function parseFormToInput(form: FormState): CostRawInput | null {
   // pasted "$150.00" or a lone "-" is non-blank text but parses to null.
   // The invariant is one-directional (ADR 0037): a paid *date* requires an
   // amount, but an amount with no date is a legal, honest, incomplete
-  // record — so we never invent a date here. `todayISO()` is only used for
+  // record — so we never invent a date here. `todayLocalISO()` is only used for
   // the interactive pre-fill when the Paid box is ticked, where the user can
   // see and edit it before saving; it is never fabricated at submit time.
   // `costSchema.paidMinor`/`paidAt` are `.optional()` (not `.nullable()`),
@@ -260,7 +260,7 @@ function OtherCostDialog({
                         checked && !f.paidAmount.trim() && f.costAmount.trim()
                           ? f.costAmount
                           : f.paidAmount,
-                      paidAt: checked && !f.paidAt.trim() ? todayISO() : f.paidAt,
+                      paidAt: checked && !f.paidAt.trim() ? todayLocalISO() : f.paidAt,
                     }));
                   }}
                   disabled={submitting}

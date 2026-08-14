@@ -15,7 +15,7 @@ import { toggleChecklistItem, addChecklistItem, deleteChecklistItem } from "@/se
 const FIXED_TODAY = "2026-07-14";
 vi.mock("@/lib/dates", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/dates")>();
-  return { ...real, todayISO: () => FIXED_TODAY };
+  return { ...real, todayISO: () => FIXED_TODAY, todayLocalISO: () => FIXED_TODAY };
 });
 
 import { Checklist } from "./checklist";

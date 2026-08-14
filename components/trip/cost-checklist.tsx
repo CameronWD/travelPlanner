@@ -9,7 +9,7 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { Field } from "@/components/ui/field";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { formatMoney, formatMinor, parseAmountToMinor } from "@/lib/money";
-import { todayISO } from "@/lib/dates";
+import { todayLocalISO } from "@/lib/dates";
 import { markCostPaid, markCostUnpaid } from "@/server/actions/costs";
 import { toast } from "@/components/ui/use-toast";
 
@@ -138,7 +138,7 @@ function PaidConfirm({
   const [amount, setAmount] = React.useState(
     formatMinor(row.costMinor, row.currency),
   );
-  const [date, setDate] = React.useState(todayISO());
+  const [date, setDate] = React.useState(todayLocalISO());
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [dateError, setDateError] = React.useState<string | null>(null);

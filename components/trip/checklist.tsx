@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { EmptyState } from "@/components/ui/empty-state";
-import { todayISO } from "@/lib/dates";
+import { todayLocalISO } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -112,7 +112,7 @@ function dueDateStatus(
   done: boolean,
 ): { label: string; variant: "overdue" | "soon" | "normal" } | null {
   if (!dueDate || done) return null;
-  const today = todayISO();
+  const today = todayLocalISO();
   const formatted = formatShortDueDate(dueDate);
   if (dueDate < today)
     return { label: `Overdue · ${formatted}`, variant: "overdue" };

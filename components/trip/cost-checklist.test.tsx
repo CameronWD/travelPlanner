@@ -169,4 +169,18 @@ describe("CostChecklist", () => {
     render(<CostChecklist rows={mixedRows} />);
     expect(screen.getByText("Travel insurance")).toBeInTheDocument();
   });
+
+  it("prefills Date paid with the device-local today", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-14T22:00:00Z")); // next local day in TZ=Australia/Sydney
+    const user = userEvent.setup();
+    render(<CostChecklist rows={rows} />);
+
+    await user.click(screen.getByRole("checkbox", { name: /hotel ibis/i }));
+
+    const d = new Date();
+    const expected = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    expect(screen.getByLabelText("Date paid")).toHaveValue(expected);
+    vi.useRealTimers();
+  });
 });
