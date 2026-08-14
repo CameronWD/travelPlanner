@@ -22,6 +22,8 @@ import { Badge } from "@/components/ui/badge";
 import { FormError } from "@/components/ui/form-error";
 import { createTransport, updateTransport } from "@/server/actions/transport";
 import { parseAmountToMinor, formatMinor } from "@/lib/money";
+import { resolveEndpointZones, instantToWallTimeInput } from "@/lib/time-display";
+import { zonedWallTimeToInstant } from "@/lib/tz";
 import type { TransportCardTransport } from "./transport-card";
 import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
@@ -37,6 +39,7 @@ import { LocationCombobox, type LocationValue } from "@/components/trip/location
 export interface StopOption {
   id: string;
   name: string;
+  timezone?: string | null;
 }
 
 interface FormErrors {
@@ -236,21 +239,6 @@ export const HOME_ENDPOINT = "__home__";
  */
 const HEAD_SENTINEL = "__head__";
 
-/**
- * Format a Date to datetime-local input value (YYYY-MM-DDTHH:mm).
- * Uses local (wall-clock) getters so the displayed value matches what the user
- * originally entered — not the UTC equivalent.
- */
-function toDatetimeLocal(dt: Date | null | undefined): string {
-  if (!dt) return "";
-  const y = dt.getFullYear();
-  const mo = String(dt.getMonth() + 1).padStart(2, "0");
-  const d = String(dt.getDate()).padStart(2, "0");
-  const h = String(dt.getHours()).padStart(2, "0");
-  const mi = String(dt.getMinutes()).padStart(2, "0");
-  return `${y}-${mo}-${d}T${h}:${mi}`;
-}
-
 function TransportForm({
   tripId,
   stops,
@@ -327,8 +315,15 @@ function TransportForm({
   const [anchorStopId, setAnchorStopId] = React.useState<string>(
     transport?.anchorStopId ?? defaultAnchorStopId ?? "",
   );
-  const [depAt, setDepAt] = React.useState(toDatetimeLocal(transport?.depAt));
-  const [arrAt, setArrAt] = React.useState(toDatetimeLocal(transport?.arrAt));
+  // Render the stored instants in the endpoint stops' own timezones (P0-1
+  // client) — not the device's local timezone — so editing shows back what
+  // was typed, even when the device and the leg are in different zones.
+  const initialZones = resolveEndpointZones(
+    stops.find((s) => s.id === transport?.fromStopId)?.timezone ?? null,
+    stops.find((s) => s.id === transport?.toStopId)?.timezone ?? null,
+  );
+  const [depAt, setDepAt] = React.useState(instantToWallTimeInput(transport?.depAt, initialZones.depTz));
+  const [arrAt, setArrAt] = React.useState(instantToWallTimeInput(transport?.arrAt, initialZones.arrTz));
   const [reference, setReference] = React.useState(transport?.reference ?? "");
   const [notes, setNotes] = React.useState(transport?.notes ?? "");
 
@@ -369,9 +364,10 @@ function TransportForm({
       const parsedPaidMinor = paid ? parseAmountToMinor(paidAmount, currency) : null;
       const hasPaidAmount = parsedPaidMinor !== null;
 
-      // The action accepts TransportInput whose depAt/arrAt are Date | undefined
-      // (after Zod coercion), but we pass raw strings from the form — Zod's
-      // preprocess in transportSchema handles the coercion server-side.
+      // depAt/arrAt stay offset-less "YYYY-MM-DDTHH:mm" wall-time strings —
+      // we submit the raw datetime-local value exactly as typed; the server
+      // converts it to an instant using the endpoint stop's timezone
+      // (things-to-fix P0-1). Never coerce these to Date here.
       // Map LocationValue → endpoint fields for From
       const fromFields = (() => {
         switch (fromValue.kind) {
@@ -429,6 +425,17 @@ function TransportForm({
     onClose,
     onSaved,
   });
+
+  // Soft date-order warning: compare real instants in the *currently
+  // selected* endpoints' timezones, not the raw datetime-local strings — a
+  // cross-zone leg can have an earlier wall-clock arrival string while still
+  // landing later in absolute time (things-to-fix P0-1).
+  const currentZones = resolveEndpointZones(
+    fromValue.kind === "stop" ? (stops.find((s) => s.id === fromValue.stopId)?.timezone ?? null) : null,
+    toValue.kind === "stop" ? (stops.find((s) => s.id === toValue.stopId)?.timezone ?? null) : null,
+  );
+  const depInstant = depAt ? zonedWallTimeToInstant(depAt.slice(0, 10), depAt.slice(11, 16), currentZones.depTz) : null;
+  const arrInstant = arrAt ? zonedWallTimeToInstant(arrAt.slice(0, 10), arrAt.slice(11, 16), currentZones.arrTz) : null;
 
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
@@ -535,7 +542,7 @@ function TransportForm({
       </div>
 
       {/* Soft date-order warning */}
-      {depAt && arrAt && depAt >= arrAt && (
+      {depInstant && arrInstant && depInstant >= arrInstant && (
         <Badge
           role="status"
           variant="warning"

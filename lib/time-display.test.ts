@@ -1,6 +1,6 @@
 // lib/time-display.test.ts
 import { describe, it, expect } from "vitest";
-import { zoneLabel, shortDate, transportTimeDisplay, resolveEndpointZones } from "./time-display";
+import { zoneLabel, shortDate, transportTimeDisplay, resolveEndpointZones, instantToWallTimeInput } from "./time-display";
 
 describe("zoneLabel", () => {
   it("falls back to UTC when the zone is missing/invalid", () => {
@@ -67,5 +67,13 @@ describe("resolveEndpointZones", () => {
     expect(resolveEndpointZones("Europe/Paris", null))
       .toEqual({ depTz: "Europe/Paris", arrTz: "Europe/Paris" }); // return leg
     expect(resolveEndpointZones(null, null)).toEqual({ depTz: "UTC", arrTz: "UTC" });
+  });
+});
+
+describe("instantToWallTimeInput", () => {
+  it("formats an instant as the zone's wall clock regardless of process TZ", () => {
+    expect(instantToWallTimeInput(new Date("2026-07-01T06:00:00Z"), "Europe/Paris"))
+      .toBe("2026-07-01T08:00");
+    expect(instantToWallTimeInput(null, "Europe/Paris")).toBe("");
   });
 });

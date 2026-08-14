@@ -58,6 +58,16 @@ export function transportTimeDisplay(input: {
   return { dep, arr, dayDelta };
 }
 
+/** Format an instant as a datetime-local input value (YYYY-MM-DDTHH:mm) in the
+ * given zone — the inverse of the wall-time write path (things-to-fix P0-1). */
+export function instantToWallTimeInput(
+  instant: Date | null | undefined,
+  timeZone: string,
+): string {
+  if (!instant) return "";
+  return `${instantToZonedDateISO(instant, timeZone)}T${instantToZonedTime(instant, timeZone)}`;
+}
+
 /** Render the "+1 day" / "−1 day" suffix for a cross-zone arrival; "" when same day. */
 export function dayDeltaSuffix(dayDelta: number): string {
   if (dayDelta === 0) return "";

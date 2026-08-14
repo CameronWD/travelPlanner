@@ -917,7 +917,7 @@ export function ItineraryManager({
 
   // ── Derived data ── (reads from local copies so drags update instantly)
   const stops = localStops;
-  const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
+  const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone }));
   const hasChapters = localChapters.length > 0;
 
   // ── Home base bookends (see ADR 0032) ──

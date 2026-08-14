@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/transport", () => ({
@@ -302,6 +302,49 @@ describe("TransportFormDialog", () => {
     expect(
       screen.queryByText(/departure is on or after arrival/i),
     ).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 8b: edit mode renders the stored instant in the from-stop's timezone
+  // (P0-1 client) — not the device's local timezone.
+  // -------------------------------------------------------------------------
+  it("shows the stored time in the from-stop's timezone when editing", () => {
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={[{ id: "s1", name: "Paris", timezone: "Europe/Paris" }]}
+        transport={{
+          ...existingTransport,
+          fromStopId: "s1",
+          toStopId: undefined,
+          depAt: new Date("2026-07-01T06:00:00Z"),
+        }}
+      />,
+    );
+    expect(screen.getByLabelText("Departure time")).toHaveValue("2026-07-01T08:00");
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 8c: the soft warning compares instants in each endpoint's own
+  // timezone, not the raw datetime-local strings (P0-1 client) — a real
+  // cross-zone flight that lands "earlier" by wall clock must not warn.
+  // -------------------------------------------------------------------------
+  it("does not warn on a cross-zone leg that lands at an earlier wall-clock time", () => {
+    render(
+      <TransportFormDialog
+        {...baseProps}
+        stops={[
+          { id: "syd", name: "Sydney", timezone: "Australia/Sydney" },
+          { id: "lax", name: "LA", timezone: "America/Los_Angeles" },
+        ]}
+        defaultFromStopId="syd"
+        defaultToStopId="lax"
+      />,
+    );
+    // Dep 10:00 Sydney = 00:00Z; arr 06:05 LA same date = 13:05Z — a real flight.
+    fireEvent.change(screen.getByLabelText("Departure time"), { target: { value: "2026-07-01T10:00" } });
+    fireEvent.change(screen.getByLabelText("Arrival time"), { target: { value: "2026-07-01T06:05" } });
+    expect(screen.queryByText(/double-check these times/i)).not.toBeInTheDocument();
   });
 
   // -------------------------------------------------------------------------
