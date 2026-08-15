@@ -62,4 +62,29 @@ describe("BudgetHeroRow", () => {
     expect(container.querySelector(".bg-success")).toBeInTheDocument();
     expect(container.querySelector(".bg-muted")).toBeInTheDocument();
   });
+
+  describe("showPaid", () => {
+    it("defaults to showing the Paid / Still-to-pay tiles and the paid progress bar", () => {
+      const { container } = render(<BudgetHeroRow {...baseProps} />);
+      expect(screen.getByText(/^paid$/i)).toBeInTheDocument();
+      expect(screen.getByText(/still to pay/i)).toBeInTheDocument();
+      expect(container.querySelector(".bg-success")).toBeInTheDocument();
+    });
+
+    it("hides the Paid / Still-to-pay tiles and the paid progress bar when showPaid is false", () => {
+      const { container } = render(<BudgetHeroRow {...baseProps} showPaid={false} />);
+      expect(screen.queryByText(/^paid$/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/still to pay/i)).not.toBeInTheDocument();
+      expect(container.querySelector(".bg-success")).not.toBeInTheDocument();
+      expect(screen.queryByText(/paid so far/i)).not.toBeInTheDocument();
+    });
+
+    it("still renders the Cost total and Cost / day tiles when showPaid is false", () => {
+      render(<BudgetHeroRow {...baseProps} showPaid={false} />);
+      expect(screen.getByText(/cost total/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/312,000/).length).toBeGreaterThan(0);
+      expect(screen.getByText(/cost\s*\/\s*day/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/31,200/).length).toBeGreaterThan(0);
+    });
+  });
 });

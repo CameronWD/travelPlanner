@@ -360,6 +360,7 @@ export default async function BudgetPage({
         paidTotalMinor={spend.paidSoFarMinor}
         homeCurrency={homeCurrency}
         tripNights={nightsBetween(startDate, endDate)}
+        showPaid={!activeFork}
       />
 
       {/* Spend so far card — paid tracking is real-plan-only */}

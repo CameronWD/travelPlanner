@@ -56,7 +56,18 @@ vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: () => null }));
 vi.mock("@/components/trip/spend-so-far-card", () => ({
   SpendSoFarCard: () => <div data-testid="spend-so-far-card" />,
 }));
-vi.mock("@/components/trip/budget-hero-row", () => ({ BudgetHeroRow: () => null }));
+// Marker-mocked (rather than passed through) so we can assert on the
+// `showPaid` wiring without depending on the component's internal markup —
+// this is what the fork/real-plan tests below use to prove paid claims are
+// dropped on a fork but kept on the real plan.
+vi.mock("@/components/trip/budget-hero-row", () => ({
+  BudgetHeroRow: ({ showPaid }: { showPaid?: boolean }) => (
+    <div data-testid="budget-hero-row">
+      <div data-testid="hero-cost-tile">cost tile</div>
+      {showPaid !== false && <div data-testid="hero-paid-tiles">paid tiles</div>}
+    </div>
+  ),
+}));
 vi.mock("@/components/trip/cost-checklist", () => ({ CostChecklist: () => null }));
 // Pass `action` through so the "No costs yet" branch's conditional editor slot
 // is actually observable in the rendered tree (children/title are not needed
@@ -161,6 +172,10 @@ describe("BudgetPage plan scoping", () => {
     expect(screen.queryByText("Mark off what you've paid")).not.toBeInTheDocument();
     expect(screen.queryByTestId("spend-so-far-card")).not.toBeInTheDocument();
 
+    // Budget hero row: cost tile stays, but paid claims are dropped on a fork.
+    expect(screen.getByTestId("hero-cost-tile")).toBeInTheDocument();
+    expect(screen.queryByTestId("hero-paid-tiles")).not.toBeInTheDocument();
+
     // Other-cost creation writes to the real plan (no fork context) — hide
     // the editor on a variant rather than silently misfiling data.
     expect(screen.queryByTestId("other-cost-editor")).not.toBeInTheDocument();
@@ -188,6 +203,10 @@ describe("BudgetPage plan scoping", () => {
 
     // Real plan: Other-cost editor renders normally.
     expect(screen.getByTestId("other-cost-editor")).toBeInTheDocument();
+
+    // Budget hero row: paid tiles are kept on the real plan.
+    expect(screen.getByTestId("hero-cost-tile")).toBeInTheDocument();
+    expect(screen.getByTestId("hero-paid-tiles")).toBeInTheDocument();
   });
 
   it("falls back to the real plan when the requested fork doesn't belong to this trip", async () => {
