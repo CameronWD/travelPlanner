@@ -3,6 +3,13 @@ import { COST_OWNER_TYPES, costOwnerTypeSchema } from "@/lib/enums";
 import { CURRENCY_CODES } from "@/lib/currencies";
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Max amount in minor units (32-bit signed int cap for Prisma Int type). */
+export const MAX_AMOUNT_MINOR = 2_147_483_647;
+
+// ---------------------------------------------------------------------------
 // Cost schema
 // ---------------------------------------------------------------------------
 
@@ -38,13 +45,13 @@ export const costSchema = z
       .min(0, "Cost must be 0 or greater")
       // Cap at 32-bit signed max: Prisma maps Int to Postgres INTEGER which
       // enforces this bound, so we validate it here before attempting an insert.
-      .max(2_147_483_647, "Amount is too large"),
+      .max(MAX_AMOUNT_MINOR, "Amount is too large"),
 
     paidMinor: z
       .number()
       .int("Paid amount must be a whole number in minor units")
       .min(0, "Paid amount must be 0 or greater")
-      .max(2_147_483_647, "Amount is too large")
+      .max(MAX_AMOUNT_MINOR, "Amount is too large")
       .optional(),
 
     currency: z

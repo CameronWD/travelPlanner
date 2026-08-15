@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
-import { costSchema, paidAtStringSchema, type CostRawInput } from "@/lib/validations/cost";
+import { costSchema, paidAtStringSchema, MAX_AMOUNT_MINOR, type CostRawInput } from "@/lib/validations/cost";
 import type { Cost } from "@prisma/client";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
@@ -289,6 +289,10 @@ export async function markCostPaid(
 
   if (!Number.isInteger(paidMinor) || paidMinor < 0) {
     return { success: false, errors: { paidMinor: ["Enter what you paid"] } };
+  }
+
+  if (paidMinor > MAX_AMOUNT_MINOR) {
+    return { success: false, errors: { paidMinor: ["Amount is too large"] } };
   }
 
   const parsedDate = paidAtStringSchema.safeParse(paidAt);

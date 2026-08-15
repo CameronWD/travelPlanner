@@ -647,6 +647,15 @@ describe("markCostPaid", () => {
     expect(costUpdateMock).not.toHaveBeenCalled();
   });
 
+  it("rejects a paid amount above the int cap with a field error", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "cost-1", tripId: "trip-1", forkId: null });
+
+    const r = await markCostPaid("cost-1", 2_147_483_648, "2026-08-14");
+
+    expect(r).toEqual({ success: false, errors: { paidMinor: ["Amount is too large"] } });
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
   it("rejects an empty or malformed paidAt without touching the database", async () => {
     costFindUniqueMock.mockResolvedValueOnce({ id: "c1", tripId: "t1", forkId: null });
 
