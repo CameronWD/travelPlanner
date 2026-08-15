@@ -825,6 +825,10 @@ export function ItineraryManager({
     setPendingId(`delete-chapter-${chapterId}`);
     try {
       await deleteChapter(chapterId);
+    } catch {
+      // A rejected action (network, thrown server error) must not surface as
+      // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }
@@ -881,6 +885,10 @@ export function ItineraryManager({
     setPendingId(accId);
     try {
       await deleteAccommodation(accId);
+    } catch {
+      // A rejected action (network, thrown server error) must not surface as
+      // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }
@@ -940,6 +948,10 @@ export function ItineraryManager({
           title: "Heads up — earlier stops run past a pinned date; the pin was kept.",
         });
       }
+    } catch {
+      // A rejected action (network, thrown server error) must not surface as
+      // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
       setAdjustingStop(null);

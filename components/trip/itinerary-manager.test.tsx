@@ -1164,6 +1164,34 @@ describe("empty chapter remove control", () => {
       expect(deleteChapter).toHaveBeenCalledWith("ch-empty");
     });
   });
+
+  it("shows an error toast instead of crashing when deleteChapter rejects (P2-1 regression)", async () => {
+    vi.mocked(deleteChapter).mockRejectedValueOnce(new Error("network"));
+    const user = userEvent.setup();
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[]}
+        chapters={[emptyChapter]}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Remove Asia chapter" }));
+
+    const removeBtn = await screen.findByRole("button", { name: "Remove" });
+    await user.click(removeBtn);
+
+    await waitFor(() => {
+      expect(deleteChapter).toHaveBeenCalledWith("ch-empty");
+    });
+    expect(vi.mocked(toast)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: "destructive",
+        title: expect.stringMatching(/nothing was changed/i),
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
