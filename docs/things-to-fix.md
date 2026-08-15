@@ -123,7 +123,10 @@ The correct machinery already exists and is used elsewhere:
 - Test the edit-dialog formatting helper: instant → `"2026-07-01T08:00"` given the
   Paris tz, regardless of `TZ`.
 - Manual verify (needs DB): create a transport, confirm card + reopened dialog +
-  ICS feed all show the typed time.
+  ICS feed all show the typed time. **This manual verify (needs DB) is still
+  owed — run after the next deploy rehearsal.**
+
+**Status: FIXED** (fix/audit-backlog, c46bfb1+321c5f7 server; 29b449c dialog).
 
 ---
 
@@ -183,6 +186,8 @@ component tests for agenda highlight and paid-date prefill under that clock.
 Manual verify (needs DB): set system tz to `Australia/Sydney`, morning hours, and
 confirm the Travelling Home shows the correct day.
 
+**Status: FIXED** (fix/audit-backlog, 0b7ba83 helpers; 761ef3c+3d494a0 server sweep; 7e4ec41 client sweep).
+
 ---
 
 ## P0-3 · The cost/paid column-rename migration has never run, and the deploy pipeline guarantees a downtime window
@@ -210,6 +215,11 @@ reverse migration.
 
 **Verify.** Migration applied on a snapshot DB without error; app reads costs
 correctly; the reverse migration also applies cleanly on a copy.
+
+**Status: DONE as procedure** (fix/audit-backlog, e0606e1 — docs/DEPLOY.md
+section 4b). The migration itself still needs the rehearsal run against a
+staging/local Postgres restored from a prod snapshot — this sandbox has no
+Postgres, so that step remains outstanding.
 
 ---
 
@@ -249,6 +259,8 @@ idea — and the copy lands in the **real plan**, because `activeForkId` resolve
 a variant → tab to Wishlist → banner still shows the variant → schedule an idea →
 it lands in the variant, real plan untouched.
 
+**Status: FIXED** (fix/audit-backlog, b312ad5).
+
 ---
 
 ## P1-2 · The Budget page can't show a Fork's budget at all — contradicting the documented model
@@ -281,6 +293,37 @@ where-clauses and the banner; no param produces `forkId: null` and shows the
 checklist. Manual verify (needs DB): add a cost in a variant → Budget tab (with
 variant active) shows it; real plan's Budget doesn't.
 
+**Status: FIXED** (fix/audit-backlog, 5f51406+dec4efb).
+
+---
+
+## P1-4 · Fork entities leaked into the Travelling Home / Today view
+
+**Severity:** P1 — dated "real plan only" views showed variant data as if it were
+committed. **Area:** forks / dates. **Effort:** S. **Verified: code read**
+(discovered during this build's Task 5 review, re-verified against current code).
+
+**Symptom.** The Travelling **Home** phase query and the **Today** view's
+current-Stop timezone lookup (`components/trip/home/phase-travelling.tsx`) were
+fork-blind: they selected Stops without excluding `forkId`, so a fork's stops —
+which should never surface outside Plan/Wishlist/Budget (CONTEXT.md Fork entry)
+— could be picked as "the current stop" and leak fork data (including its
+timezone) into a dated, real-plan-only surface.
+
+**Root cause.** The query building "what stop covers now" didn't scope on
+`forkId: null`, unlike Calendar/Summary/Day/Today/ICS which deliberately hardcode
+it (see the *Deliberate behaviour* table above).
+
+**Fix applied.** Scope the phase-travelling / current-stop lookup to the real
+plan (`forkId: null`); `3d494a0` added an interim guard excluding fork stops from
+the timezone lookup specifically, ahead of the fuller fix.
+
+**Verify.** Unit test: a fork stop whose date range covers "now" is not selected
+as the current stop / does not affect the reported timezone; real-plan stops
+still resolve correctly.
+
+**Status: FIXED** (fix/audit-backlog, cf62e41, plus 3d494a0's interim clock guard).
+
 ---
 
 ## P1-3 · "Firm up" is canonical in the glossary but appears nowhere in the UI
@@ -304,6 +347,8 @@ copy references.
 **Verify.** `grep -rn "Set dates" components app` returns only date-field labels;
 component tests updated; CONTEXT.md and UI agree.
 
+**Status: FIXED** (fix/audit-backlog, fd9fb5c).
+
 ---
 
 *All P2 and P3 items below are **Verified: code read** at the cited lines on
@@ -324,6 +369,8 @@ error (ADR 0027 result shape); factor the repeated pattern into a small helper i
 it stays readable. **Verify.** Component test: mock the action to reject → no
 dialog opens on the next render, an error toast fires, marker state is clean.
 
+**Status: FIXED** (fix/audit-backlog, 2ff3db7+91f390d).
+
 ## P2-2 · `markCostPaid` accepts amounts above the DB int cap → unhandled throw
 
 **Area:** costs. **Effort:** S.
@@ -336,6 +383,8 @@ the int4 column, and surfaces as a generic toast.
 `costSchema`) and return `{ success: false, errors: { paidMinor: ["Amount is too large"] } }`.
 **Verify.** Unit test: `markCostPaid(..., 2_147_483_648, ...)` returns the field
 error and never calls `db.cost.update`.
+
+**Status: FIXED** (fix/audit-backlog, d595b2e).
 
 ## P2-3 · Un-marking a cost paid writes an activity entry with an empty change list
 
@@ -351,6 +400,11 @@ array is empty, and the partner's notification says nothing moved.
 COST list (format `null` as "not paid"). **Verify.** Unit test on
 `describeChanges("COST", { paidAt: [date, null] })` returns one change; feed
 renders "Paid: 14 Aug → not paid".
+
+**Status: FIXED** (fix/audit-backlog, cd75a72+a58218c). Note: the landed fix
+formats via `dateFormat` on an ISO-sliced string (`v.toISOString().slice(0, 10)`)
+rather than the appendix's `dateFormat`-as-written, which was wrong for a
+`DateTime` value — `dateFormat` expects a date-only string.
 
 ## P2-4 · Marking paid from a Stop dialog leaves the Budget page stale
 
@@ -369,6 +423,8 @@ transport) or append the explicit `/budget` path in both files.
 **Verify.** Unit test asserting the revalidate calls; manual (needs DB): mark
 paid in an accommodation dialog → Budget shows it without a hard refresh.
 
+**Status: FIXED** (fix/audit-backlog, bf3b40b).
+
 ## P2-5 · `convertCostToHome` still speaks the pre-ADR-0037 vocabulary in its exported shape
 
 **Area:** budget lib. **Effort:** S–M (mechanical, wide).
@@ -383,6 +439,8 @@ all consumers (`budget/page.tsx`, `cost-summary`, `budget-hero-row`,
 `spend-so-far`, compare). Pure rename, no behaviour change — typecheck is the
 safety net. **Verify.** `tsc` clean; `grep -rn "estimatedHome\|actualHome\|grandEstimated\|grandActual" lib app components` → 0 hits; suite green.
 
+**Status: FIXED** (fix/audit-backlog, 0ac6f34).
+
 ## P2-6 · The paid-checklist confirm popover shows a currency picker that discards your choice
 
 **Area:** budget UI. **Effort:** S.
@@ -394,6 +452,10 @@ only ever uses `row.currency`; a changed selection is silently ignored.
 checklist confirms a payment in the cost's own currency by design.
 **Verify.** Component test: the popover's currency control is not interactive /
 shows only the row currency.
+
+**Status: FIXED** (fix/audit-backlog, 9a7f04e). Note: implemented as a plain
+`Input` plus a static currency span rather than `MoneyInput` with a
+single-entry `currencies` list — `MoneyInput` has no read-only mode.
 
 ## P2-7 · Checklist "Paid how much?" prefills the cost amount; the five dialogs prefill the preserved paid amount
 
@@ -407,6 +469,8 @@ screens.
 `costMinor`** (history beats guess). Apply to the checklist; audit the dialogs
 already match. **Verify.** Component test: a row with preserved `paidMinor`
 prefills it; a never-paid row prefills the cost amount.
+
+**Status: FIXED** (fix/audit-backlog, 9a7f04e).
 
 ## P2-8 · Legacy paid-without-date rows silently read as unpaid (production data)
 
@@ -424,6 +488,11 @@ recorded payment but no date — confirm them in the checklist," filtering the
 checklist to those rows. **Verify.** Notice renders when mocked rows match the
 predicate, links to the checklist, dismisses persistently.
 
+**Status:** (b) notice **FIXED** (fix/audit-backlog, bd03a2f+d361a73). (a) row
+count: **Status: NOT DONE — needs prod DB / running app / condition not met**
+(see Global Constraints) — the count query can only be run against production
+data.
+
 ## P2-9 · Un-marking paid from the checklist strands keyboard focus on `<body>`
 
 **Area:** a11y. **Effort:** S.
@@ -436,6 +505,8 @@ on the screen built for rapid ticking.
 on the row + ignore clicks while pending), or restore focus after settle.
 **Verify.** Component test: after toggling, `document.activeElement` is still the
 checkbox (jsdom supports this); axe-style manual pass.
+
+**Status: FIXED** (fix/audit-backlog, 9a7f04e).
 
 ## P2-10 · Server-side `paidMinor` field errors are flattened into a generic toast
 
@@ -450,6 +521,8 @@ state (it already renders one for local validation). **Verify.** Component test:
 action resolves `{ success:false, errors:{ paidMinor:["Amount is too large"] } }`
 → that text appears at the field, no generic toast.
 
+**Status: FIXED** (fix/audit-backlog, 9a7f04e).
+
 ---
 
 ## P3 · Small / docs
@@ -460,23 +533,32 @@ action resolves `{ success:false, errors:{ paidMinor:["Amount is too large"] } }
   sqlite adapter and `docker-compose.yml` provides the DB. Update the table (and
   delete the stale `dev.db` at the repo root — it's gitignored, just confusing).
   *Verify:* doc matches README's quickstart; fresh-clone steps work.
+  **Status: FIXED** (fix/audit-backlog, 87e5b72).
 - **P3-2 `paidAtStringSchema` accepts impossible dates.** `"2026-02-30"` passes
   the shape regex and becomes `Invalid Date` (fails safe into a toast; unreachable
   from a native date input). Tighten with a real calendar-validity check if
   touching that file anyway. *Verify:* unit test rejects `2026-02-30`.
+  **Status: FIXED** (fix/audit-backlog, e42ba70).
 - **P3-3 Preserved `paidMinor` isn't currency-tagged.** Un-tick a paid cost, then
   change the cost's currency → the historic amount silently re-reads in the new
   currency. Low value; fix opportunistically by clearing preserved `paidMinor`
   on currency change. *Verify:* unit test on the update action.
+  **Status: FIXED** (fix/audit-backlog, e42ba70).
 - **P3-4 `cost-amounts.tsx` gates labels on `paidTotalMinor > 0`** — a truthiness
   gate in a codebase whose stated rule is "zero is legal." Harmless for
   aggregates today; switch to a null-check if the component ever receives
   per-cost values.
+  **Status: NOT DONE — needs prod DB / running app / condition not met**
+  (see Global Constraints) — the component only ever receives aggregate values
+  today, so the condition that would trigger the bug hasn't occurred.
 - **P3-5 The `.verify/` screenshot set predates the current design** (June–July
   captures; the Bold-Modular/D3 pass landed in August). Re-run
   `.verify/shoot.mjs` against a seeded dev DB and re-check
   `docs/mobile-pwa-checklist.md` — its checklist is the acceptance list for any
   UI-affecting fix above. *(needs DB)*
+  **Status: NOT DONE — needs prod DB / running app / condition not met**
+  (see Global Constraints) — needs a running app with a seeded dev DB, which
+  this sandbox does not have.
 
 ---
 
