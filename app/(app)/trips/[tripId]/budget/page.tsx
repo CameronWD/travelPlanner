@@ -298,21 +298,29 @@ export default async function BudgetPage({
 
   if (!hasAnyCosts) {
     return (
-      <EmptyState
-        icon={Wallet}
-        title="No costs yet"
-        description="Costs appear here as you add them to flights, hotels, and activities. Use 'Other costs' below for everything else — insurance, visas, eSIMs, and spending money."
-        action={
-          <div className="w-full max-w-md">
-            <OtherCostEditor
-              tripId={tripId}
-              costs={otherCosts}
-              homeCurrency={homeCurrency}
-              defaultCurrency={homeCurrency}
-            />
-          </div>
-        }
-      />
+      <div className="flex flex-col gap-6">
+        {activeFork && <VariantBanner tripId={tripId} variantName={activeFork.name} />}
+        <EmptyState
+          icon={Wallet}
+          title="No costs yet"
+          description="Costs appear here as you add them to flights, hotels, and activities. Use 'Other costs' below for everything else — insurance, visas, eSIMs, and spending money."
+          // Other-cost creation writes to the real plan (createCost carries no
+          // fork context) — hide the editor action on a variant rather than
+          // misfile data; threading forkId through is tracked as a follow-up.
+          action={
+            !activeFork ? (
+              <div className="w-full max-w-md">
+                <OtherCostEditor
+                  tripId={tripId}
+                  costs={otherCosts}
+                  homeCurrency={homeCurrency}
+                  defaultCurrency={homeCurrency}
+                />
+              </div>
+            ) : undefined
+          }
+        />
+      </div>
     );
   }
 
@@ -571,20 +579,24 @@ export default async function BudgetPage({
             </Card>
           )}
 
-          {/* Other costs */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Other costs</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <OtherCostEditor
-                tripId={tripId}
-                costs={otherCosts}
-                homeCurrency={homeCurrency}
-                defaultCurrency={homeCurrency}
-              />
-            </CardContent>
-          </Card>
+          {/* Other costs — creation writes to the real plan (createCost
+              carries no fork context) — hide on a variant rather than
+              misfile data; threading forkId is tracked as a follow-up. */}
+          {!activeFork && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Other costs</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <OtherCostEditor
+                  tripId={tripId}
+                  costs={otherCosts}
+                  homeCurrency={homeCurrency}
+                  defaultCurrency={homeCurrency}
+                />
+              </CardContent>
+            </Card>
+          )}
 
         </div>{/* end right rail */}
 
