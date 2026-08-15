@@ -202,6 +202,7 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "paidMinor", label: "You paid", format: moneyFormat },
     { key: "currency", label: "Currency" },
     { key: "category", label: "Category", format: (v) => categoryFormat(v) },
+    { key: "paidAt", label: "Paid", format: (v) => (v == null ? "not paid" : dateFormat(v)) },
   ],
   // NOTE carries an excerpt, not field diffs
   NOTE: [],
