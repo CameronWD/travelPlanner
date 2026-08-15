@@ -19,7 +19,7 @@ import { isRateStale } from "@/lib/fx";
 import type { RateEntry } from "@/components/trip/rates-panel";
 import { ChapterChip } from "@/components/trip/chapter-chip";
 import type { BudgetCost, BudgetStopWithDates, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
-import { buildSpendSoFar } from "@/lib/spend-so-far";
+import { buildSpendSoFar, legacyPaidCount } from "@/lib/spend-so-far";
 import type { SpendCost } from "@/lib/spend-so-far";
 import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
 import { nightsBetween } from "@/lib/dates";
@@ -277,6 +277,7 @@ export default async function BudgetPage({
   });
 
   const hasAnyCosts = allCosts.length > 0;
+  const legacyCount = legacyPaidCount(allCosts);
 
   // Per-day data — only days with non-zero costs for the compact strip
   const daysWithCosts = budget.byDay.filter(
@@ -375,6 +376,17 @@ export default async function BudgetPage({
 
         {/* ── Main column ── */}
         <div className="flex flex-col gap-6 lg:order-1">
+
+          {/* Legacy paid-without-date costs notice */}
+          {!activeFork && legacyCount > 0 && (
+            <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm">
+              <AlertTriangle className="size-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+              <p className="text-amber-800 dark:text-amber-300">
+                {legacyCount} {legacyCount === 1 ? "cost has" : "costs have"} a recorded payment but no date —
+                tick {legacyCount === 1 ? "it" : "them"} off below to confirm; the amount you paid is offered back.
+              </p>
+            </div>
+          )}
 
           {/* Mark off what you've paid — paid tracking is real-plan-only */}
           {!activeFork && checklistRows.length > 0 && (

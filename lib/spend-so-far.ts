@@ -6,6 +6,15 @@ import { daysBetween } from "@/lib/dates";
 // input, but no longer needs to redeclare the field.
 export type SpendCost = BudgetCost;
 
+/** Costs whose payment predates the paidAt-as-sole-signal remodel (ADR 0037):
+ * an amount was recorded but no date, so they read as unpaid everywhere.
+ * The Budget checklist is the remediation path (things-to-fix P2-8). */
+export function legacyPaidCount(
+  costs: Array<{ paidMinor: number | null; paidAt: Date | null }>,
+): number {
+  return costs.filter((c) => c.paidMinor !== null && c.paidAt === null).length;
+}
+
 export interface SpendSoFar {
   costTotalMinor: number;
   paidSoFarMinor: number;

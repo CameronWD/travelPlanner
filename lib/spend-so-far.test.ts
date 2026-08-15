@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildSpendSoFar, type SpendCost } from "./spend-so-far";
+import { buildSpendSoFar, legacyPaidCount, type SpendCost } from "./spend-so-far";
 
 const cost = (o: Partial<SpendCost>): SpendCost => ({
   id: "c", costMinor: 0, paidMinor: null, currency: "AUD", rateToHome: null,
@@ -88,5 +88,16 @@ describe("buildSpendSoFar", () => {
     expect(result.paidSoFarMinor).toBe(0);
     expect(result.varianceMinor).toBe(0);
     expect(result.costTotalMinor).toBe(8000);
+  });
+});
+
+describe("legacyPaidCount", () => {
+  it("counts costs with a preserved paid amount but no paid date", () => {
+    expect(legacyPaidCount([
+      { paidMinor: 5000, paidAt: null },            // legacy — counts
+      { paidMinor: 5000, paidAt: new Date() },       // paid — no
+      { paidMinor: null, paidAt: null },             // never paid — no
+      { paidMinor: 0, paidAt: null },                // zero is legal — counts
+    ])).toBe(2);
   });
 });

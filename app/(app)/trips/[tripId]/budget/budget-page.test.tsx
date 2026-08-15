@@ -43,6 +43,7 @@ vi.mock("@/lib/budget", () => ({
 }));
 vi.mock("@/lib/spend-so-far", () => ({
   buildSpendSoFar: vi.fn(() => ({ paidSoFarMinor: 0 })),
+  legacyPaidCount: vi.fn(() => 0),
 }));
 vi.mock("@/lib/fx", () => ({ isRateStale: vi.fn(() => false) }));
 vi.mock("@/lib/dates", () => ({ nightsBetween: vi.fn(() => 5) }));
