@@ -77,6 +77,7 @@ vi.mock("@/components/trip/variant-banner", () => ({
 }));
 
 const { default: BudgetPage } = await import("./page");
+const { legacyPaidCount } = await import("@/lib/spend-so-far");
 
 const ONE_COST = [
   {
@@ -232,5 +233,70 @@ describe("BudgetPage 'No costs yet' empty state and Other-costs editor", () => {
 
     expect(screen.queryByTestId("variant-banner")).not.toBeInTheDocument();
     expect(screen.getByTestId("other-cost-editor")).toBeInTheDocument();
+  });
+});
+
+describe("BudgetPage legacy paid-without-date notice", () => {
+  it("does not show the notice when legacyCount is 0", async () => {
+    vi.mocked(legacyPaidCount).mockReturnValue(0);
+
+    const jsx = await BudgetPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(
+      screen.queryByText(/cost.*has.*recorded payment but no date/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the notice with singular 'cost has' when legacyCount is 1", async () => {
+    vi.mocked(legacyPaidCount).mockReturnValue(1);
+
+    const jsx = await BudgetPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(
+      screen.getByText(/1 cost has a recorded payment but no date/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/tick it off below to confirm/i),
+    ).toBeInTheDocument();
+  });
+
+  it("shows the notice with plural 'costs have' when legacyCount is 2", async () => {
+    vi.mocked(legacyPaidCount).mockReturnValue(2);
+
+    const jsx = await BudgetPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(
+      screen.getByText(/2 costs have a recorded payment but no date/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/tick them off below to confirm/i),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show the notice on a fork even when legacyCount > 0", async () => {
+    vi.mocked(legacyPaidCount).mockReturnValue(3);
+    mockDb.fork.findFirst.mockResolvedValue({ id: "fork-9", name: "Plus Switzerland" });
+
+    const jsx = await BudgetPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({ plan: "fork-9" }),
+    });
+    render(jsx);
+
+    expect(
+      screen.queryByText(/cost.*has.*recorded payment but no date/i),
+    ).not.toBeInTheDocument();
   });
 });
