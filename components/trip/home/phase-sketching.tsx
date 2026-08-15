@@ -14,12 +14,14 @@ interface PhaseSketchingProps {
 export async function PhaseSketching({ tripId, tripName }: PhaseSketchingProps) {
   const [stops, chapters] = await Promise.all([
     db.stop.findMany({
-      where: { tripId },
+      // Dated views follow the real plan — CONTEXT.md; consistent with
+      // calendar/day/print/summary.
+      where: { tripId, forkId: null },
       orderBy: [{ chapterSortOrder: "asc" }, { sortOrder: "asc" }],
       select: { id: true, name: true, country: true, nights: true, chapterId: true, arriveDate: true },
     }),
     db.chapter.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { name: "asc" },
       select: { id: true, name: true, colour: true },
     }),

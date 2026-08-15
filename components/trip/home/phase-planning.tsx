@@ -94,7 +94,9 @@ export async function PhasePlanning({
     pretripCount,
   ] = await Promise.all([
     db.stop.findMany({
-      where: { tripId, arriveDate: { not: null } },
+      // Dated views follow the real plan — CONTEXT.md; consistent with
+      // calendar/day/print/summary.
+      where: { tripId, forkId: null, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -108,14 +110,14 @@ export async function PhasePlanning({
         sortOrder: true,
       },
     }),
-    db.stop.count({ where: { tripId, arriveDate: null } }),
+    db.stop.count({ where: { tripId, forkId: null, arriveDate: null } }),
     db.stop.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { sortOrder: "asc" },
       select: { id: true, name: true, sortOrder: true },
     }),
     db.transport.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -129,7 +131,7 @@ export async function PhasePlanning({
       },
     }),
     db.accommodation.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       select: {
         id: true,
         stopId: true,
@@ -139,7 +141,7 @@ export async function PhasePlanning({
       },
     }),
     db.item.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       select: {
         id: true,
         stopId: true,
@@ -152,7 +154,7 @@ export async function PhasePlanning({
       },
     }),
     db.cost.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { createdAt: "asc" },
       select: COST_SELECT,
     }),
@@ -161,7 +163,7 @@ export async function PhasePlanning({
       select: { base: true, quote: true, rate: true },
     }),
     db.chapter.findMany({
-      where: { tripId, startDate: { not: null } },
+      where: { tripId, forkId: null, startDate: { not: null } },
       orderBy: { startDate: "asc" },
       select: {
         id: true,
@@ -171,7 +173,7 @@ export async function PhasePlanning({
         endDate: true,
       },
     }),
-    db.chapter.count({ where: { tripId, startDate: null } }),
+    db.chapter.count({ where: { tripId, forkId: null, startDate: null } }),
     db.checklistItem.count({ where: { tripId, kind: "PACKING" } }),
     db.checklistItem.count({ where: { tripId, kind: "PRETRIP" } }),
   ]);

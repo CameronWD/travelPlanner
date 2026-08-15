@@ -82,7 +82,9 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
     journalCount,
   ] = await Promise.all([
     db.stop.findMany({
-      where: { tripId, arriveDate: { not: null } },
+      // Dated views follow the real plan — CONTEXT.md; consistent with
+      // calendar/day/print/summary.
+      where: { tripId, forkId: null, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -96,7 +98,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
       },
     }),
     db.transport.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       select: {
         id: true,
         mode: true,
@@ -107,7 +109,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
       },
     }),
     db.accommodation.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       select: {
         id: true,
         stopId: true,
@@ -117,7 +119,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
       },
     }),
     db.item.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       select: {
         id: true,
         stopId: true,
@@ -128,7 +130,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
       },
     }),
     db.cost.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { createdAt: "asc" },
       select: COST_SELECT,
     }),
@@ -137,7 +139,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
       select: { base: true, quote: true, rate: true },
     }),
     db.chapter.findMany({
-      where: { tripId, startDate: { not: null } },
+      where: { tripId, forkId: null, startDate: { not: null } },
       orderBy: { startDate: "asc" },
       select: {
         id: true,
