@@ -14,6 +14,17 @@ export const MAX_AMOUNT_MINOR = 2_147_483_647;
 // ---------------------------------------------------------------------------
 
 /**
+ * True if `s` (already known to match YYYY-MM-DD) is a real calendar date —
+ * rejects overflow like 2026-02-30, which `Date`'s constructor would
+ * otherwise silently roll forward into March.
+ */
+const isRealCalendarDate = (s: string): boolean => {
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+};
+
+/**
  * Accepts either an ISO datetime (with offset) or a plain YYYY-MM-DD date
  * string. Shared by `costSchema`'s `paidAt` field and the standalone
  * `markCostPaid` action (the Budget checklist sends a raw date-input string
@@ -22,7 +33,11 @@ export const MAX_AMOUNT_MINOR = 2_147_483_647;
 export const paidAtStringSchema = z
   .string()
   .datetime({ offset: true, message: "paidAt must be an ISO datetime string" })
-  .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD or ISO datetime"));
+  .or(
+    z.string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD or ISO datetime")
+      .refine(isRealCalendarDate, "paidAt must be a real calendar date"),
+  );
 
 /**
  * Zod schema for creating or updating a Cost.

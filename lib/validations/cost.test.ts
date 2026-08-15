@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { costSchema } from "./cost";
+import { costSchema, paidAtStringSchema } from "./cost";
 
 // ---------------------------------------------------------------------------
 // Valid cases
@@ -135,6 +135,23 @@ describe("costSchema — paidAt handling", () => {
     if (result.success) {
       expect(result.data.paidAt).toBeUndefined();
     }
+  });
+});
+
+describe("paidAtStringSchema — calendar validity", () => {
+  it("rejects an impossible calendar date", () => {
+    expect(paidAtStringSchema.safeParse("2026-02-30").success).toBe(false);
+    expect(paidAtStringSchema.safeParse("2026-02-28").success).toBe(true);
+  });
+
+  it("still accepts a valid ISO datetime string", () => {
+    expect(paidAtStringSchema.safeParse("2026-07-15T10:30:00Z").success).toBe(true);
+  });
+
+  it("rejects other impossible dates (April 31, leap-year Feb 29 on a non-leap year)", () => {
+    expect(paidAtStringSchema.safeParse("2026-04-31").success).toBe(false);
+    expect(paidAtStringSchema.safeParse("2026-02-29").success).toBe(false); // 2026 is not a leap year
+    expect(paidAtStringSchema.safeParse("2024-02-29").success).toBe(true); // 2024 is a leap year
   });
 });
 

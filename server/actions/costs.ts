@@ -30,10 +30,11 @@ async function requireCostAccess(costId: string): Promise<{
   id: string;
   tripId: string;
   forkId: string | null;
+  currency: string;
 }> {
   const cost = await db.cost.findUnique({
     where: { id: costId },
-    select: { id: true, tripId: true, forkId: true },
+    select: { id: true, tripId: true, forkId: true, currency: true },
   });
   if (!cost) {
     notFound();
@@ -240,6 +241,11 @@ export async function updateCost(
         // the key here leaves Prisma's existing value untouched instead of
         // nulling it out.
         ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
+        // A preserved (history) paid amount is denominated in the OLD currency; a
+        // currency change with no accompanying payment invalidates it (P3-3).
+        ...(data.currency !== existing.currency && data.paidMinor === undefined && !data.paidAt
+          ? { paidMinor: null }
+          : {}),
       },
     });
   });
