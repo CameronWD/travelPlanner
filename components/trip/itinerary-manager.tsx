@@ -576,6 +576,11 @@ export function ItineraryManager({
     setPendingId(stopId);
     try {
       await deleteStop(stopId);
+    } catch {
+      // A rejected action (network, thrown server error) must behave like a
+      // failed one: report, and tell callers nothing was dated so pending
+      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }
@@ -585,6 +590,11 @@ export function ItineraryManager({
     setPendingId(stopId);
     try {
       await moveStop(stopId, direction);
+    } catch {
+      // A rejected action (network, thrown server error) must behave like a
+      // failed one: report, and tell callers nothing was dated so pending
+      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }
@@ -594,6 +604,11 @@ export function ItineraryManager({
     setPendingId(stopId);
     try {
       await toggleStopPin(stopId);
+    } catch {
+      // A rejected action (network, thrown server error) must behave like a
+      // failed one: report, and tell callers nothing was dated so pending
+      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }
@@ -611,6 +626,11 @@ export function ItineraryManager({
     setPendingId(stopId);
     try {
       await makeStopRough(stopId);
+    } catch {
+      // A rejected action (network, thrown server error) must behave like a
+      // failed one: report, and tell callers nothing was dated so pending
+      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }
@@ -746,6 +766,12 @@ export function ItineraryManager({
         });
       }
       return true;
+    } catch {
+      // A rejected action (network, thrown server error) must behave like a
+      // failed one: report, and tell callers nothing was dated so pending
+      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      return false;
     } finally {
       setPendingId(null);
     }
@@ -776,6 +802,11 @@ export function ItineraryManager({
       } else if (r.conflicts?.length) {
         toast({ title: "Heads up — some stops run past a pinned date; the pins were kept." });
       }
+    } catch {
+      // A rejected action (network, thrown server error) must behave like a
+      // failed one: report, and tell callers nothing was dated so pending
+      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }

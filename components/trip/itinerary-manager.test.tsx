@@ -1054,6 +1054,47 @@ describe("Add Accommodation on rough stops (Task 1)", () => {
 
     expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
   });
+
+  it("clears the pending accommodation nudge and shows an error toast when firm-up rejects (P2-1 regression)", async () => {
+    // A rejected action (network failure, thrown server error) must behave
+    // like a failed one: report via toast, and tell the caller nothing was
+    // dated so the pending accommodation marker gets cleared instead of
+    // leaking past the unhandled rejection.
+    vi.mocked(firmUpSegment).mockRejectedValueOnce(new Error("network"));
+
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s1", name: "Rome", arriveDate: null, departDate: null });
+
+    const { rerender } = render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
+
+    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
+    await user.click(await screen.findByRole("button", { name: /set dates for this leg/i }));
+
+    await waitFor(() => {
+      expect(firmUpSegment).toHaveBeenCalled();
+    });
+    expect(vi.mocked(toast)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        variant: "destructive",
+        title: expect.stringMatching(/nothing was changed/i),
+      }),
+    );
+    expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
+
+    // The stop is later dated by something entirely unrelated to this click
+    // (a partner's edit, or the "Set dates for all stops" fallback). If the
+    // pending marker had leaked past the rejection, this is where it would
+    // incorrectly pop the accommodation form open with no click behind it.
+    const datedStop = { ...stop, arriveDate: "2026-06-04", departDate: "2026-06-07" };
+    await act(async () => {
+      rerender(<ItineraryManager {...baseProps} initialStops={[datedStop]} />);
+      // Give the (cleared) pending-effect's microtask a chance to run.
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
+  });
 });
 
 // ---------------------------------------------------------------------------
