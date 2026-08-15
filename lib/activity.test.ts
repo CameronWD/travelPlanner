@@ -144,6 +144,7 @@ describe("describeChanges COST", () => {
     const changes = describeChanges("COST", { paidAt: new Date("2026-08-01T00:00:00Z") }, { paidAt: null });
     expect(changes).toHaveLength(1);
     expect(changes[0].label).toBe("Paid");
+    expect(changes[0].from).toBe("Sat 1 Aug 2026");
     expect(changes[0].to).toBe("not paid");
   });
 
@@ -151,6 +152,7 @@ describe("describeChanges COST", () => {
     const changes = describeChanges("COST", { paidAt: null }, { paidAt: new Date("2026-08-14T00:00:00Z") });
     expect(changes).toHaveLength(1);
     expect(changes[0].from).toBe("not paid");
+    expect(changes[0].to).toBe("Fri 14 Aug 2026");
   });
 });
 
