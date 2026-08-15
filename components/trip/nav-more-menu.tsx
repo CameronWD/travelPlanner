@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import {
   DropdownMenu,
@@ -12,10 +12,12 @@ import {
 import { moreNav, isNavActive } from "@/components/trip/trip-nav";
 import { cn } from "@/lib/cn";
 
+// Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
 export function NavMoreMenu({ tripId }: { tripId: string }) {
   const pathname = usePathname();
+  const planParam = useSearchParams().get("plan");
   const base = `/trips/${tripId}`;
-  const items = moreNav(tripId);
+  const items = moreNav(tripId, planParam);
   const anyActive = items.some((i) => isNavActive(i.href, pathname, base));
 
   return (

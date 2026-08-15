@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render } from "@testing-library/react";
-import { TripNav } from "./trip-nav";
+import { TripNav, primaryNav, moreNav, isNavActive } from "./trip-nav";
 
 // Use a vi.fn() so individual tests can override the return value per-test.
 const mockUsePathname = vi.fn(() => "/trips/t1");
+const mockUseSearchParams = vi.fn(() => new URLSearchParams());
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockUsePathname(),
+  useSearchParams: () => mockUseSearchParams(),
 }));
 
 vi.mock("next/link", () => ({
@@ -30,6 +32,7 @@ vi.mock("@/components/trip/nav-more-menu", () => ({
 
 beforeEach(() => {
   mockUsePathname.mockReturnValue("/trips/t1");
+  mockUseSearchParams.mockReturnValue(new URLSearchParams());
 });
 
 describe("TripNav", () => {
@@ -63,5 +66,21 @@ describe("TripNav", () => {
     const underline = activeLink?.querySelector('[aria-hidden="true"]');
     expect(underline).toBeTruthy();
     expect(underline?.className).toContain("bg-primary");
+  });
+
+  it("carries ?plan= on plan-scoped surfaces only", () => {
+    const hrefs = Object.fromEntries(
+      [...primaryNav("t1", "fork-9"), ...moreNav("t1", "fork-9")].map((i) => [i.label, i.href]),
+    );
+    expect(hrefs["Plan"]).toBe("/trips/t1/plan?plan=fork-9");
+    expect(hrefs["Budget"]).toBe("/trips/t1/budget?plan=fork-9");
+    expect(hrefs["Wishlist"]).toBe("/trips/t1/wishlist?plan=fork-9");
+    expect(hrefs["Calendar"]).toBe("/trips/t1/calendar");
+    expect(hrefs["Summary"]).toBe("/trips/t1/summary");
+    expect(hrefs["Home"]).toBe("/trips/t1");
+  });
+
+  it("stays active when the href carries a query string", () => {
+    expect(isNavActive("/trips/t1/plan?plan=fork-9", "/trips/t1/plan", "/trips/t1")).toBe(true);
   });
 });

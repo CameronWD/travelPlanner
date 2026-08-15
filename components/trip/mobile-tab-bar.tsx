@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Home, Map, CalendarDays, Wallet, Menu } from "lucide-react";
 import {
   Sheet,
@@ -21,22 +21,25 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   Budget: Wallet,
 };
 
+// Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
 export function MobileTabBar({ tripId }: { tripId: string }) {
   const pathname = usePathname();
+  const planParam = useSearchParams().get("plan");
   const base = `/trips/${tripId}`;
   const [open, setOpen] = React.useState(false);
+  const plan = planParam ? `?plan=${encodeURIComponent(planParam)}` : "";
 
   const primary = [
     { label: "Home", href: base },
-    { label: "Plan", href: `${base}/plan` },
+    { label: "Plan", href: `${base}/plan${plan}` },
     { label: "Calendar", href: `${base}/calendar` },
-    { label: "Budget", href: `${base}/budget` },
+    { label: "Budget", href: `${base}/budget${plan}` },
   ];
 
   // Summary lives under More on mobile.
   const more = [
     { label: "Summary", href: `${base}/summary` },
-    ...moreNav(tripId),
+    ...moreNav(tripId, planParam),
   ];
 
   return (
