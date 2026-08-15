@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { EmptyState } from "@/components/ui/empty-state";
-import { todayLocalISO } from "@/lib/dates";
+import { todayISO, todayLocalISO } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field } from "@/components/ui/field";
@@ -79,6 +79,32 @@ interface ChecklistProps {
 }
 
 // ---------------------------------------------------------------------------
+// "Today" — SSR-safe client-local calendar day.
+//
+// Mirrors the CalendarViews view-toggle pattern (components/trip/calendar-views.tsx):
+// useSyncExternalStore gives the server (and pre-hydration client) a stable
+// snapshot — the UTC day — so both sides agree and hydration never mismatches.
+// After hydration the device-local day (todayLocalISO) takes over. No
+// setState-in-an-effect involved.
+// ---------------------------------------------------------------------------
+
+function subscribeToday(): () => void {
+  // The device-local day doesn't need live updates within a mounted session
+  // (a day boundary crossing mid-session re-resolves on the next render
+  // anyway) — a no-op subscribe is the correct shape here, same as any
+  // useSyncExternalStore source that only needs to resolve once on the client.
+  return () => {};
+}
+
+function getTodaySnapshot(): string {
+  return todayLocalISO();
+}
+
+function getTodayServerSnapshot(): string {
+  return todayISO();
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -106,13 +132,15 @@ function formatShortDueDate(dueDate: string): string {
 
 /**
  * Returns a due-date status hint for display. Returns null if no dueDate.
+ * `today` is the caller-resolved "today" (see subscribeToday/getTodaySnapshot
+ * above) — SSR-safe (UTC day) until hydration, device-local day after.
  */
 function dueDateStatus(
   dueDate: string | null | undefined,
   done: boolean,
+  today: string,
 ): { label: string; variant: "overdue" | "soon" | "normal" } | null {
   if (!dueDate || done) return null;
-  const today = todayLocalISO();
   const formatted = formatShortDueDate(dueDate);
   if (dueDate < today)
     return { label: `Overdue · ${formatted}`, variant: "overdue" };
@@ -405,6 +433,7 @@ function ChecklistRow({
   members,
   showDueDate,
   showAssignee,
+  today,
 }: {
   item: ChecklistItemRow;
   isFirst: boolean;
@@ -412,6 +441,7 @@ function ChecklistRow({
   members?: ChecklistMember[];
   showDueDate?: boolean;
   showAssignee?: boolean;
+  today: string;
 }) {
   const reduce = useReducedMotion();
   const [pending, startTransition] = useTransition();
@@ -426,7 +456,7 @@ function ChecklistRow({
     }),
   });
 
-  const status = dueDateStatus(item.dueDate, item.done);
+  const status = dueDateStatus(item.dueDate, item.done, today);
 
   function toggle() {
     startTransition(async () => {
@@ -639,6 +669,14 @@ export function Checklist({
 }: ChecklistProps) {
   const doneCount = items.filter((i) => i.done).length;
 
+  // Resolved once here (not per-row) and threaded down to ChecklistRow —
+  // SSR-safe via useSyncExternalStore, see subscribeToday/getTodaySnapshot above.
+  const today = React.useSyncExternalStore(
+    subscribeToday,
+    getTodaySnapshot,
+    getTodayServerSnapshot,
+  );
+
   if (items.length === 0) {
     return (
       <div className="flex flex-col gap-4">
@@ -678,6 +716,7 @@ export function Checklist({
             members={members}
             showDueDate={showDueDate}
             showAssignee={showAssignee}
+            today={today}
           />
         ))}
       </AnimatedList>
