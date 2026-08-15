@@ -35,7 +35,7 @@ export async function PhaseSketching({ tripId, tripName }: PhaseSketchingProps) 
       <EmptyState
         icon={Compass}
         title="Let's shape this trip."
-        description="Add a place or a chapter to start sketching. Set dates whenever you're ready."
+        description="Add a place or a chapter to start sketching. Firm up whenever you're ready."
         action={
           <Button asChild>
             <Link href={`/trips/${tripId}/plan`}>Open the canvas</Link>
@@ -55,7 +55,7 @@ export async function PhaseSketching({ tripId, tripName }: PhaseSketchingProps) 
         </p>
         <div className="mt-3">
           <Button asChild>
-            <Link href={`/trips/${tripId}/plan`}>Set dates / firm up →</Link>
+            <Link href={`/trips/${tripId}/plan`}>Firm up →</Link>
           </Button>
         </div>
       </section>

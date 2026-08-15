@@ -655,22 +655,22 @@ export function ItineraryManager({
       title: `${stop.name} has no dates yet`,
       description: (
         <>
-          Accommodation needs a check-in and check-out. Set dates for this leg
+          Accommodation needs a check-in and check-out. Firm up this leg
           first and we&apos;ll take you straight to the form.
           <br />
           <br />
           No start date to work from? Use{" "}
-          <strong>Set dates for all stops</strong> at the top of the plan.
+          <strong>Firm up all stops</strong> at the top of the plan.
         </>
       ),
-      confirmLabel: "Set dates for this leg",
+      confirmLabel: "Firm up this leg",
       destructive: false,
     });
     if (!proceed) return;
 
     setPendingAccommodationStopId(stop.id);
     // skipConfirm: the nudge above already asked for consent, so a second
-    // "Date this chapter's stops?" dialog would describe one step as two.
+    // "Firm up this chapter's stops?" dialog would describe one step as two.
     // handleFirmUp has no other caller relying on that second confirm firing
     // for this call, so it's safe to bypass it here.
     const dated = await handleFirmUp(stop.chapterId ?? null, { skipConfirm: true });
@@ -743,9 +743,9 @@ export function ItineraryManager({
     const stopWord = roughCount === 1 ? "stop" : "stops";
     if (!options?.skipConfirm) {
       const confirmed = await confirm({
-        title: "Date this chapter's stops?",
+        title: "Firm up this chapter's stops?",
         description: `This will date ${roughCount} rough ${stopWord} from ${anchorLabel}. You can make any stop rough again afterwards.`,
-        confirmLabel: "Date stops",
+        confirmLabel: "Firm up",
         destructive: false,
       });
       if (!confirmed) return false;
@@ -784,9 +784,9 @@ export function ItineraryManager({
     const stopWord = roughCount === 1 ? "stop" : "stops";
 
     const confirmed = await confirm({
-      title: "Date all stops from start?",
+      title: "Firm up the whole trip?",
       description: `This will date ${roughCount} rough ${stopWord} from ${anchorLabel}. You can make any stop rough again afterwards.`,
-      confirmLabel: "Date stops",
+      confirmLabel: "Firm up",
       destructive: false,
     });
     if (!confirmed) return;
@@ -1599,7 +1599,7 @@ export function ItineraryManager({
             onClick={handleFirmUpTrip}
             loading={pendingId === "firm-up-trip"}
           >
-            Set dates for all stops
+            Firm up all stops
           </Button>
         </div>
       )}
@@ -1650,7 +1650,7 @@ export function ItineraryManager({
                       onClick={() => handleFirmUp(null)}
                     >
                       <CalendarClock className="size-3.5" aria-hidden="true" />
-                      Set dates
+                      Firm up
                     </Button>
                   </div>
                 )}
@@ -1725,7 +1725,7 @@ export function ItineraryManager({
                                     }}
                                   >
                                     <CalendarClock className="size-3.5" aria-hidden="true" />
-                                    Set dates
+                                    Firm up
                                   </Button>
                                   <span className="text-sm text-muted-foreground select-none" aria-hidden="true">
                                     {isCollapsed ? "▸" : "▾"}
@@ -1826,7 +1826,7 @@ export function ItineraryManager({
                                 onClick={() => handleFirmUp(null)}
                               >
                                 <CalendarClock className="size-3.5" aria-hidden="true" />
-                                Set dates
+                                Firm up
                               </Button>
                             )}
                           </div>
@@ -1903,7 +1903,7 @@ export function ItineraryManager({
                             }}
                           >
                             <CalendarClock className="size-3.5" aria-hidden="true" />
-                            Set dates
+                            Firm up
                           </Button>
                         )}
                         <Button
@@ -1995,7 +1995,7 @@ export function ItineraryManager({
                   loading={pendingId === "firm-up-trip"}
                 >
                   <CalendarClock className="size-4" aria-hidden="true" />
-                  Date all stops from start
+                  Firm up the whole trip
                 </Button>
               )}
               <Button

@@ -2,11 +2,11 @@
  * Focused tests for ItineraryManager — highest-risk flows only:
  *  1. Delete confirmation gating (stop)
  *  2. Reorder wiring (moveStop up/down)
- *  3. Firm-up "Set dates" → firmUpSegment + conflict toast
+ *  3. Firm-up "Firm up" → firmUpSegment + conflict toast
  *  4. Optimistic pending state while action is in-flight
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // ── Mock all server actions the component (and its children) import ──────────
@@ -267,21 +267,23 @@ describe("reorder controls", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. Firm-up / Set dates → firmUpSegment + conflict path
+// 3. Firm up → firmUpSegment + conflict path
 // ---------------------------------------------------------------------------
 
-describe("firm-up (Set dates)", () => {
+describe("firm-up (Firm up)", () => {
   it("calls firmUpSegment with tripId and chapterId=null for ungrouped rough stops", async () => {
     const user = userEvent.setup();
-    // A rough stop (no dates) triggers the per-segment "Set dates" button
+    // A rough stop (no dates) triggers the per-segment "Firm up" button
     const stop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
     render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    // Use exact match to distinguish from the prominent "Set dates for all stops" button
-    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
-    // Confirm the dialog
-    await user.click(await screen.findByRole("button", { name: /date stops/i }));
+    // Use exact match to distinguish from the prominent "Firm up all stops" button
+    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
+    // Confirm the dialog — scope to it since its confirm button shares the
+    // trigger's "Firm up" text
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
 
     await waitFor(() => {
       expect(firmUpSegment).toHaveBeenCalledWith({ tripId: TRIP_ID, chapterId: null, forkId: undefined });
@@ -300,10 +302,12 @@ describe("firm-up (Set dates)", () => {
 
     render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    // Use exact match to distinguish from the prominent "Set dates for all stops" button
-    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
-    // Confirm the dialog
-    await user.click(await screen.findByRole("button", { name: /date stops/i }));
+    // Use exact match to distinguish from the prominent "Firm up all stops" button
+    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
+    // Confirm the dialog — scope to it since its confirm button shares the
+    // trigger's "Firm up" text
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
 
     await waitFor(() => {
       expect(firmUpSegment).toHaveBeenCalled();
@@ -328,10 +332,12 @@ describe("firm-up (Set dates)", () => {
 
     render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    // Use exact match to distinguish from the prominent "Set dates for all stops" button
-    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
-    // Confirm the dialog
-    await user.click(await screen.findByRole("button", { name: /date stops/i }));
+    // Use exact match to distinguish from the prominent "Firm up all stops" button
+    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
+    // Confirm the dialog — scope to it since its confirm button shares the
+    // trigger's "Firm up" text
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
 
     await waitFor(() => {
       expect(firmUpSegment).toHaveBeenCalled();
@@ -362,24 +368,26 @@ describe("optimistic pending state", () => {
 
     render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
-    // Use exact match to target the per-segment "Set dates" (not "Set dates for all stops")
-    const setDatesBtn = screen.getByRole("button", { name: /^set dates$/i });
-    expect(setDatesBtn).not.toBeDisabled();
+    // Use exact match to target the per-segment "Firm up" (not "Firm up all stops")
+    const firmUpBtn = screen.getByRole("button", { name: /^firm up$/i });
+    expect(firmUpBtn).not.toBeDisabled();
 
-    await user.click(setDatesBtn);
-    // Confirm the dialog so the action begins
-    await user.click(await screen.findByRole("button", { name: /date stops/i }));
+    await user.click(firmUpBtn);
+    // Confirm the dialog so the action begins — scope to it since its confirm
+    // button shares the trigger's "Firm up" text
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
 
     // While in-flight, button should be disabled
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /^set dates$/i })).toBeDisabled();
+      expect(screen.getByRole("button", { name: /^firm up$/i })).toBeDisabled();
     });
 
     // Resolve and check it's re-enabled
     resolveAction({ success: true });
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /^set dates$/i })).not.toBeDisabled();
+      expect(screen.getByRole("button", { name: /^firm up$/i })).not.toBeDisabled();
     });
   });
 
@@ -544,7 +552,7 @@ describe("drag handle rendering", () => {
 // ---------------------------------------------------------------------------
 
 describe("whole-trip firm-up confirm dialog", () => {
-  it("opens a confirm dialog with rough-stop count when 'Date all stops from start' is clicked", async () => {
+  it("opens a confirm dialog with rough-stop count when 'Firm up the whole trip' is clicked", async () => {
     const user = userEvent.setup();
     const roughStop1 = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
     const roughStop2 = makeStop({ id: "s-2", name: "Berlin", arriveDate: null, departDate: null, sortOrder: 1 });
@@ -557,7 +565,7 @@ describe("whole-trip firm-up confirm dialog", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /date all stops from start/i }));
+    await user.click(screen.getByRole("button", { name: /firm up the whole trip/i }));
 
     // Dialog should appear with rough count in its content
     expect(await screen.findByText(/2 rough stop/i)).toBeInTheDocument();
@@ -575,13 +583,15 @@ describe("whole-trip firm-up confirm dialog", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /date all stops from start/i }));
+    await user.click(screen.getByRole("button", { name: /firm up the whole trip/i }));
 
     // firmUpTrip should NOT have been called yet
     expect(firmUpTrip).not.toHaveBeenCalled();
 
-    // Confirm the dialog
-    const confirmBtn = await screen.findByRole("button", { name: /date stops/i });
+    // Confirm the dialog — scope to it since its confirm button shares the
+    // "Firm up" wording with the triggers still on the page
+    const dialog = await screen.findByRole("dialog");
+    const confirmBtn = within(dialog).getByRole("button", { name: /^firm up$/i });
     await user.click(confirmBtn);
 
     await waitFor(() => {
@@ -601,7 +611,7 @@ describe("whole-trip firm-up confirm dialog", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /date all stops from start/i }));
+    await user.click(screen.getByRole("button", { name: /firm up the whole trip/i }));
 
     const cancelBtn = await screen.findByRole("button", { name: /cancel/i });
     await user.click(cancelBtn);
@@ -666,7 +676,7 @@ describe("chapter collapse localStorage persistence", () => {
 // ---------------------------------------------------------------------------
 
 describe("per-chapter firm-up confirm dialog", () => {
-  it("opens a confirm dialog with the chapter rough-stop count when 'Set dates' is clicked on a rough chapter", async () => {
+  it("opens a confirm dialog with the chapter rough-stop count when 'Firm up' is clicked on a rough chapter", async () => {
     const user = userEvent.setup();
     const roughStop = makeStop({
       id: "s-1",
@@ -684,8 +694,8 @@ describe("per-chapter firm-up confirm dialog", () => {
       />,
     );
 
-    // The chapter header has a "Set dates" button (exact match, not the prominent "Set dates for all stops")
-    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
+    // The chapter header has a "Firm up" button (exact match, not the prominent "Firm up all stops")
+    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
 
     // Dialog should appear with rough count
     expect(await screen.findByText(/1 rough stop/i)).toBeInTheDocument();
@@ -709,13 +719,16 @@ describe("per-chapter firm-up confirm dialog", () => {
       />,
     );
 
-    // Use exact match to target the per-chapter "Set dates" (not "Set dates for all stops")
-    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
+    // Use exact match to target the per-chapter "Firm up" (not "Firm up all stops")
+    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
 
     // Not called yet
     expect(firmUpSegment).not.toHaveBeenCalled();
 
-    const confirmBtn = await screen.findByRole("button", { name: /date stops/i });
+    // Confirm the dialog — scope to it since its confirm button shares the
+    // trigger's "Firm up" text
+    const dialog = await screen.findByRole("dialog");
+    const confirmBtn = within(dialog).getByRole("button", { name: /^firm up$/i });
     await user.click(confirmBtn);
 
     await waitFor(() => {
@@ -741,8 +754,8 @@ describe("per-chapter firm-up confirm dialog", () => {
       />,
     );
 
-    // Use exact match to target the per-chapter "Set dates" (not "Set dates for all stops")
-    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
+    // Use exact match to target the per-chapter "Firm up" (not "Firm up all stops")
+    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
 
     const cancelBtn = await screen.findByRole("button", { name: /cancel/i });
     await user.click(cancelBtn);
@@ -770,9 +783,12 @@ describe("fork-aware firmUpSegment", () => {
       />,
     );
 
-    // Use exact match to target the per-segment "Set dates" (not "Set dates for all stops")
-    await user.click(screen.getByRole("button", { name: /^set dates$/i }));
-    await user.click(await screen.findByRole("button", { name: /date stops/i }));
+    // Use exact match to target the per-segment "Firm up" (not "Firm up all stops")
+    await user.click(screen.getByRole("button", { name: /^firm up$/i }));
+    // Confirm the dialog — scope to it since its confirm button shares the
+    // trigger's "Firm up" text
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
 
     await waitFor(() => {
       expect(firmUpSegment).toHaveBeenCalledWith({
@@ -798,8 +814,11 @@ describe("fork-aware firmUpTrip", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /date all stops from start/i }));
-    await user.click(await screen.findByRole("button", { name: /date stops/i }));
+    await user.click(screen.getByRole("button", { name: /firm up the whole trip/i }));
+    // Confirm the dialog — scope to it since its confirm button shares the
+    // "Firm up" wording with the triggers still on the page
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: /^firm up$/i }));
 
     await waitFor(() => {
       expect(firmUpTrip).toHaveBeenCalledWith(TRIP_ID, undefined, FORK_ID);
@@ -967,7 +986,7 @@ describe("Add Accommodation on rough stops (Task 1)", () => {
 
     expect(await screen.findByText(/rome has no dates yet/i)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /set dates for this leg/i }),
+      screen.getByRole("button", { name: /firm up this leg/i }),
     ).toBeInTheDocument();
     // The accommodation form must NOT have opened.
     expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
@@ -997,12 +1016,15 @@ describe("Add Accommodation on rough stops (Task 1)", () => {
     const { rerender } = render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
     await user.click(screen.getByRole("button", { name: /add accommodation/i }));
-    await user.click(await screen.findByRole("button", { name: /set dates for this leg/i }));
+    await user.click(await screen.findByRole("button", { name: /firm up this leg/i }));
 
-    // One click, one confirm: handleFirmUp's own "Date this chapter's
-    // stops?" dialog must NOT also appear — the nudge already asked.
-    expect(screen.queryByText(/date this chapter's stops/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /^date stops$/i })).not.toBeInTheDocument();
+    // One click, one confirm: handleFirmUp's own "Firm up this chapter's
+    // stops?" dialog must NOT also appear — the nudge already asked. Check for
+    // absence of any open dialog (rather than a specific button name) since
+    // the segment's own "Firm up" trigger button remains on the page and
+    // shares its text with that dialog's would-be confirm button.
+    expect(screen.queryByText(/firm up this chapter's stops/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     await waitFor(() => {
       expect(firmUpSegment).toHaveBeenCalledWith({ tripId: TRIP_ID, chapterId: null, forkId: undefined });
@@ -1033,7 +1055,7 @@ describe("Add Accommodation on rough stops (Task 1)", () => {
     const { rerender } = render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
     await user.click(screen.getByRole("button", { name: /add accommodation/i }));
-    await user.click(await screen.findByRole("button", { name: /set dates for this leg/i }));
+    await user.click(await screen.findByRole("button", { name: /firm up this leg/i }));
 
     await waitFor(() => {
       expect(firmUpSegment).toHaveBeenCalled();
@@ -1041,7 +1063,7 @@ describe("Add Accommodation on rough stops (Task 1)", () => {
     expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
 
     // The stop is later dated by something entirely unrelated to this click
-    // (a partner's edit, or the "Set dates for all stops" fallback the nudge
+    // (a partner's edit, or the "Firm up all stops" fallback the nudge
     // itself advertises). If the pending marker had leaked, this is where it
     // would incorrectly pop the accommodation form open with no click behind it.
     const datedStop = { ...stop, arriveDate: "2026-06-04", departDate: "2026-06-07" };
@@ -1068,7 +1090,7 @@ describe("Add Accommodation on rough stops (Task 1)", () => {
     const { rerender } = render(<ItineraryManager {...baseProps} initialStops={[stop]} />);
 
     await user.click(screen.getByRole("button", { name: /add accommodation/i }));
-    await user.click(await screen.findByRole("button", { name: /set dates for this leg/i }));
+    await user.click(await screen.findByRole("button", { name: /firm up this leg/i }));
 
     await waitFor(() => {
       expect(firmUpSegment).toHaveBeenCalled();
@@ -1082,7 +1104,7 @@ describe("Add Accommodation on rough stops (Task 1)", () => {
     expect(screen.queryByLabelText(/accommodation name/i)).not.toBeInTheDocument();
 
     // The stop is later dated by something entirely unrelated to this click
-    // (a partner's edit, or the "Set dates for all stops" fallback). If the
+    // (a partner's edit, or the "Firm up all stops" fallback). If the
     // pending marker had leaked past the rejection, this is where it would
     // incorrectly pop the accommodation form open with no click behind it.
     const datedStop = { ...stop, arriveDate: "2026-06-04", departDate: "2026-06-07" };
@@ -1307,7 +1329,7 @@ describe("Task 10: summariseReorder (Undo toast copy)", () => {
 // ---------------------------------------------------------------------------
 
 describe("Task 12: prominent firm-up control at top of plan editor", () => {
-  it("renders a prominent 'Set dates for all stops' button at the top when rough stops exist", () => {
+  it("renders a prominent 'Firm up all stops' button at the top when rough stops exist", () => {
     const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
 
     render(
@@ -1316,11 +1338,11 @@ describe("Task 12: prominent firm-up control at top of plan editor", () => {
 
     // The prominent button must be present in the DOM
     expect(
-      screen.getByRole("button", { name: /set dates for all stops/i }),
+      screen.getByRole("button", { name: /firm up all stops/i }),
     ).toBeInTheDocument();
   });
 
-  it("does NOT render the prominent 'Set dates for all stops' button when all stops are dated", () => {
+  it("does NOT render the prominent 'Firm up all stops' button when all stops are dated", () => {
     const datedStop = makeStop({
       id: "s-1",
       name: "Paris",
@@ -1333,7 +1355,7 @@ describe("Task 12: prominent firm-up control at top of plan editor", () => {
     );
 
     expect(
-      screen.queryByRole("button", { name: /set dates for all stops/i }),
+      screen.queryByRole("button", { name: /firm up all stops/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -1349,12 +1371,15 @@ describe("Task 12: prominent firm-up control at top of plan editor", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: /set dates for all stops/i }));
+    await user.click(screen.getByRole("button", { name: /firm up all stops/i }));
 
     // Not called yet — confirm dialog gates the action
     expect(firmUpTrip).not.toHaveBeenCalled();
 
-    const confirmBtn = await screen.findByRole("button", { name: /date stops/i });
+    // Confirm the dialog — scope to it since its confirm button shares the
+    // "Firm up" wording with the triggers still on the page
+    const dialog = await screen.findByRole("dialog");
+    const confirmBtn = within(dialog).getByRole("button", { name: /^firm up$/i });
     await user.click(confirmBtn);
 
     await waitFor(() => {
@@ -1370,7 +1395,7 @@ describe("Task 12: prominent firm-up control at top of plan editor", () => {
       <ItineraryManager {...baseProps} initialStops={[roughStop]} />,
     );
 
-    await user.click(screen.getByRole("button", { name: /set dates for all stops/i }));
+    await user.click(screen.getByRole("button", { name: /firm up all stops/i }));
 
     const cancelBtn = await screen.findByRole("button", { name: /cancel/i });
     await user.click(cancelBtn);
