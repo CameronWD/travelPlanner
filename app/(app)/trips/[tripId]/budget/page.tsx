@@ -2,6 +2,8 @@ import { notFound } from "next/navigation";
 import { Wallet, AlertTriangle } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { planScope } from "@/lib/plan-scope";
+import { VariantBanner } from "@/components/trip/variant-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   Card,
@@ -55,11 +57,21 @@ export const BUDGET_DESKTOP_GRID_CLASS =
 
 export default async function BudgetPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ tripId: string }>;
+  searchParams: Promise<{ plan?: string }>;
 }) {
   const { tripId } = await params;
+  const { plan } = await searchParams;
+  const selectedForkId = plan ?? null;
   await requireTripAccess(tripId);
+
+  // Validate the fork exists for this trip; fall back to real plan if not.
+  const activeFork = selectedForkId
+    ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
+    : null;
+  const activeForkId = activeFork ? activeFork.id : null;
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -83,36 +95,37 @@ export default async function BudgetPage({
   // Fetch everything in parallel
   const [allCosts, stops, items, accommodations, transports, exchangeRates, chapters] = await Promise.all([
     db.cost.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...planScope(activeForkId) },
       orderBy: { createdAt: "asc" },
       select: COST_SELECT,
     }),
     db.stop.findMany({
       // Rough (date-less) stops carry no costs onto the dated budget.
-      where: { tripId, forkId: null, arriveDate: { not: null } },
+      where: { tripId, ...planScope(activeForkId), arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
     }),
     db.item.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...planScope(activeForkId) },
       select: { id: true, stopId: true, category: true, date: true, title: true },
     }),
     db.accommodation.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...planScope(activeForkId) },
       select: { id: true, stopId: true, checkIn: true, checkOut: true, name: true },
     }),
     db.transport.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...planScope(activeForkId) },
       select: { id: true, fromStopId: true, toStopId: true, depAt: true, mode: true },
     }),
     db.exchangeRate.findMany({
+      // Exchange rates are trip-wide, not plan-scoped (CONTEXT.md).
       where: { tripId },
       select: { base: true, quote: true, rate: true, manual: true, fetchedAt: true },
     }),
     db.chapter.findMany({
       // Rough (date-less) chapters have no dated window, so buildBudget would
       // emit a blank $0 row for each — match the summary page and exclude them.
-      where: { tripId, forkId: null, startDate: { not: null } },
+      where: { tripId, ...planScope(activeForkId), startDate: { not: null } },
       orderBy: { startDate: "asc" },
       select: { id: true, name: true, colour: true, startDate: true, endDate: true },
     }),
@@ -307,6 +320,15 @@ export default async function BudgetPage({
     <div className="flex flex-col gap-6">
       <h2 className="sr-only">Budget</h2>
 
+      {activeFork && (
+        <>
+          <VariantBanner tripId={tripId} variantName={activeFork.name} />
+          <p className="text-sm text-muted-foreground">
+            Paid tracking lives on the real plan — this shows the variant&apos;s costs only.
+          </p>
+        </>
+      )}
+
       {/* Missing rates warning */}
       {budget.hasMissingRates && (
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-3">
@@ -331,8 +353,8 @@ export default async function BudgetPage({
         tripNights={nightsBetween(startDate, endDate)}
       />
 
-      {/* Spend so far card */}
-      <SpendSoFarCard spend={spend} homeCurrency={homeCurrency} />
+      {/* Spend so far card — paid tracking is real-plan-only */}
+      {!activeFork && <SpendSoFarCard spend={spend} homeCurrency={homeCurrency} />}
 
       {/* Legend for the cost-vs-paid columns shown in the sections below */}
       <div className="flex items-center justify-end gap-4 px-1 text-xs text-muted-foreground">
@@ -346,8 +368,8 @@ export default async function BudgetPage({
         {/* ── Main column ── */}
         <div className="flex flex-col gap-6 lg:order-1">
 
-          {/* Mark off what you've paid */}
-          {checklistRows.length > 0 && (
+          {/* Mark off what you've paid — paid tracking is real-plan-only */}
+          {!activeFork && checklistRows.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Mark off what you&apos;ve paid</CardTitle>
