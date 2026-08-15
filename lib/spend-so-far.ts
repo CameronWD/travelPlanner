@@ -35,22 +35,22 @@ export function buildSpendSoFar(input: {
 }): SpendSoFar {
   let estimatedTotal = 0, paidSoFar = 0, paidEstimate = 0;
   for (const c of input.costs) {
-    const { estimatedHome, actualHome } = convertCostToHome(c, input.homeCurrency);
-    if (estimatedHome === null) continue; // missing rate — excluded everywhere
-    estimatedTotal += estimatedHome;
+    const { costHome, paidHome } = convertCostToHome(c, input.homeCurrency);
+    if (costHome === null) continue; // missing rate — excluded everywhere
+    estimatedTotal += costHome;
     if (c.paidAt != null) {
-      if (c.paidMinor == null || actualHome === null) {
+      if (c.paidMinor == null || paidHome === null) {
         // A paid Cost always carries a paid amount (costSchema enforces it), so
         // this is only reachable for a legacy row the backfill missed. Skip it:
         // counting it as zero would understate spending AND inflate the
         // variance, which is exactly the display bug this rule exists to kill.
         // NB: we check the raw `c.paidMinor` rather than relying on
-        // `actualHome` alone, so this missing-amount case stays explicit even
+        // `paidHome` alone, so this missing-amount case stays explicit even
         // if convertCostToHome's null-handling changes.
         continue;
       }
-      paidSoFar += actualHome;
-      paidEstimate += estimatedHome;
+      paidSoFar += paidHome;
+      paidEstimate += costHome;
     }
   }
 

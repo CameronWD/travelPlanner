@@ -69,9 +69,9 @@ describe("buildSpendSoFar", () => {
 
   it("skips a legacy paid cost with no paid amount even when the currency needs conversion", () => {
     // The subtle trap: convertCostToHome's foreign-currency branch (a present
-    // rateToHome) coerces a missing paidMinor to actualHome: 0 rather than
+    // rateToHome) coerces a missing paidMinor to paidHome: 0 rather than
     // null — unlike the same-currency branch, which also coerces to 0, both
-    // look identical downstream. A guard written against `actualHome` instead
+    // look identical downstream. A guard written against `paidHome` instead
     // of the raw `c.paidMinor` would see 0, not a missing value, and would
     // silently let this regress. USD 100.00 at rate 0.8 → GBP 80.00 (8000
     // minor units), so a non-zero, correctly-converted costTotalMinor proves

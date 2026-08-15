@@ -46,75 +46,75 @@ describe("convertCostToHome", () => {
   it("same currency, paid → passthrough (no conversion needed)", () => {
     const cost = makeCost({ costMinor: 10000, paidMinor: 8000, paidAt: "2026-06-04", currency: "AUD", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
-    expect(result.estimatedHome).toBe(10000);
-    expect(result.actualHome).toBe(8000);
+    expect(result.costHome).toBe(10000);
+    expect(result.paidHome).toBe(8000);
   });
 
-  it("same currency, never marked paid (paidAt null) → actualHome is null, not 0", () => {
+  it("same currency, never marked paid (paidAt null) → paidHome is null, not 0", () => {
     const cost = makeCost({ costMinor: 5000, paidMinor: null, paidAt: null, currency: "AUD", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
-    expect(result.estimatedHome).toBe(5000);
-    expect(result.actualHome).toBeNull();
+    expect(result.costHome).toBe(5000);
+    expect(result.paidHome).toBeNull();
   });
 
   // ADR 0037 / CONTEXT.md "Paid": paidAt is the SOLE signal for "is this
   // paid". A paidMinor with no paidAt (a legacy row the backfill missed, or a
   // Cost created directly with an amount but never ticked Paid) must read as
   // unpaid — genuinely excluded, never a fabricated zero.
-  it("same currency, paidMinor set but paidAt null → actualHome is null (amount alone does not mean paid)", () => {
+  it("same currency, paidMinor set but paidAt null → paidHome is null (amount alone does not mean paid)", () => {
     const cost = makeCost({ costMinor: 34000, paidMinor: 34000, paidAt: null, currency: "AUD", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
-    expect(result.estimatedHome).toBe(34000);
-    expect(result.actualHome).toBeNull();
+    expect(result.costHome).toBe(34000);
+    expect(result.paidHome).toBeNull();
   });
 
-  it("same currency, paidAt set but paidMinor null (legacy row the backfill missed) → actualHome is null", () => {
+  it("same currency, paidAt set but paidMinor null (legacy row the backfill missed) → paidHome is null", () => {
     const cost = makeCost({ costMinor: 34000, paidMinor: null, paidAt: "2026-06-04", currency: "AUD", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
-    expect(result.estimatedHome).toBe(34000);
-    expect(result.actualHome).toBeNull();
+    expect(result.costHome).toBe(34000);
+    expect(result.paidHome).toBeNull();
   });
 
   it("foreign currency with rate, paid → converts both amounts", () => {
     // EUR → AUD at rate 1.65: €12.50 = 1250 minor EUR → A$20.625 → 2063 minor AUD
     const cost = makeCost({ costMinor: 1250, paidMinor: 800, paidAt: "2026-06-04", currency: "EUR", rateToHome: 1.65 });
     const result = convertCostToHome(cost, "AUD");
-    expect(result.estimatedHome).toBe(2063); // round-half-up
-    expect(result.actualHome).toBe(1320);   // 800 * 1.65 = 1320
+    expect(result.costHome).toBe(2063); // round-half-up
+    expect(result.paidHome).toBe(1320);   // 800 * 1.65 = 1320
   });
 
-  it("foreign currency with rate, not paid → actualHome is null, not 0", () => {
+  it("foreign currency with rate, not paid → paidHome is null, not 0", () => {
     const cost = makeCost({ costMinor: 1000, paidMinor: null, paidAt: null, currency: "USD", rateToHome: 1.5 });
     const result = convertCostToHome(cost, "AUD");
-    expect(result.estimatedHome).toBe(1500);
-    expect(result.actualHome).toBeNull();
+    expect(result.costHome).toBe(1500);
+    expect(result.paidHome).toBeNull();
   });
 
-  it("foreign currency with rate, paidMinor set but paidAt null → actualHome is null", () => {
+  it("foreign currency with rate, paidMinor set but paidAt null → paidHome is null", () => {
     const cost = makeCost({ costMinor: 1000, paidMinor: 1000, paidAt: null, currency: "USD", rateToHome: 1.5 });
     const result = convertCostToHome(cost, "AUD");
-    expect(result.estimatedHome).toBe(1500);
-    expect(result.actualHome).toBeNull();
+    expect(result.costHome).toBe(1500);
+    expect(result.paidHome).toBeNull();
   });
 
   it("foreign currency with null rate → both null", () => {
     const cost = makeCost({ costMinor: 5000, paidMinor: 3000, paidAt: "2026-06-04", currency: "JPY", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
-    expect(result.estimatedHome).toBeNull();
-    expect(result.actualHome).toBeNull();
+    expect(result.costHome).toBeNull();
+    expect(result.paidHome).toBeNull();
   });
 
   it("case-insensitive currency comparison", () => {
     const cost = makeCost({ costMinor: 2000, paidMinor: null, currency: "aud", rateToHome: null });
     const result = convertCostToHome(cost, "AUD");
-    expect(result.estimatedHome).toBe(2000);
+    expect(result.costHome).toBe(2000);
   });
 
   it("JPY (zero-decimal) conversion", () => {
     // ¥1000 * 0.011 AUD/JPY = A$11 = 1100 AUD minor
     const cost = makeCost({ costMinor: 1000, paidMinor: null, currency: "JPY", rateToHome: 0.011 });
     const result = convertCostToHome(cost, "AUD");
-    expect(result.estimatedHome).toBe(1100);
+    expect(result.costHome).toBe(1100);
   });
 });
 
