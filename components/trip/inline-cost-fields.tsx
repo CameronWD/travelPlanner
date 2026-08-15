@@ -5,7 +5,7 @@ import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { CURRENCY_CODES } from "@/lib/currencies";
-import { todayISO } from "@/lib/dates";
+import { todayLocalISO } from "@/lib/dates";
 import type { FieldErrors } from "@/lib/action-result";
 
 export interface InlineCostFieldsProps {
@@ -55,7 +55,7 @@ export function InlineCostFields({
     onPaidChange(next);
     if (next) {
       if (!paidAmount.trim() && costAmount.trim()) onPaidAmountChange(costAmount);
-      if (!paidAt.trim()) onPaidAtChange(todayISO());
+      if (!paidAt.trim()) onPaidAtChange(todayLocalISO());
     }
   }
 

@@ -227,7 +227,7 @@ describe("createAccommodation", () => {
         checkOut: "2026-07-04",
       }),
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
   });
 
   it("access-checks via the stop's tripId", async () => {
@@ -356,7 +356,7 @@ describe("updateAccommodation", () => {
       where: { id: "acc-1" },
       data: expect.objectContaining({ name: "Updated Hotel" }),
     });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
   });
 
   it("returns validation error and does not write", async () => {
@@ -459,7 +459,7 @@ describe("deleteAccommodation", () => {
 
     expect(result.success).toBe(true);
     expect(accDeleteMock).toHaveBeenCalledWith({ where: { id: "acc-1" } });
-    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1");
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1", "layout");
   });
 
   it("access-checks via accommodation's tripId", async () => {

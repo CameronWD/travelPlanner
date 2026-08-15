@@ -414,6 +414,31 @@ describe("createTransport", () => {
 });
 
 // ---------------------------------------------------------------------------
+// P0-1: wall-time strings are interpreted in the endpoint stop's timezone
+// ---------------------------------------------------------------------------
+
+describe("createTransport: wall-time tz interpretation (P0-1)", () => {
+  it("stores a wall-time string interpreted in the from-stop's timezone", async () => {
+    transportFindFirstMock.mockResolvedValue(null);
+    stopFindManyMock.mockResolvedValue([
+      { id: "s-paris", tripId: "trip-1", forkId: null, timezone: "Europe/Paris" },
+      { id: "s-rome", tripId: "trip-1", forkId: null, timezone: "Europe/Rome" },
+    ]);
+    transportCreateMock.mockResolvedValue({ id: "t-wt-1" });
+
+    await createTransport("trip-1", {
+      mode: "TRAIN",
+      fromStopId: "s-paris",
+      toStopId: "s-rome",
+      depAt: "2026-07-01T08:00",
+    });
+
+    const createArg = transportCreateMock.mock.calls[0][0];
+    expect(createArg.data.depAt.toISOString()).toBe("2026-07-01T06:00:00.000Z");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // updateTransport
 // ---------------------------------------------------------------------------
 
@@ -508,6 +533,74 @@ describe("updateTransport", () => {
     expect(stopFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P0-1: updateTransport wall-time tz interpretation
+// ---------------------------------------------------------------------------
+
+describe("updateTransport: wall-time tz interpretation (P0-1)", () => {
+  it("converts a wall-time string via the NEW endpoint's timezone (not a stale/previous one)", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tu-tz-1", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "tu-tz-1", mode: "TRAIN" }); // before row
+    stopFindManyMock.mockResolvedValue([
+      { id: "s-sydney", tripId: "trip-1", forkId: null, timezone: "Australia/Sydney" },
+    ]);
+    transportUpdateMock.mockResolvedValue({ id: "tu-tz-1", mode: "TRAIN" });
+
+    await updateTransport("tu-tz-1", {
+      mode: "TRAIN",
+      fromStopId: "s-sydney",
+      depAt: "2026-07-01T08:00",
+    });
+
+    const updateArg = transportUpdateMock.mock.calls[0][0];
+    expect(updateArg.data.depAt.toISOString()).toBe("2026-06-30T22:00:00.000Z"); // AEST = UTC+10
+  });
+
+  it("converts arrAt via the to-stop's zone, independent of a differently-zoned dep stop", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tu-tz-2", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "tu-tz-2", mode: "TRAIN" }); // before row
+    stopFindManyMock.mockResolvedValue([
+      { id: "s-paris", tripId: "trip-1", forkId: null, timezone: "Europe/Paris" },
+      { id: "s-tokyo", tripId: "trip-1", forkId: null, timezone: "Asia/Tokyo" },
+    ]);
+    transportUpdateMock.mockResolvedValue({ id: "tu-tz-2", mode: "TRAIN" });
+
+    await updateTransport("tu-tz-2", {
+      mode: "TRAIN",
+      fromStopId: "s-paris",
+      toStopId: "s-tokyo",
+      depAt: "2026-07-01T08:00",
+      arrAt: "2026-07-01T20:00",
+    });
+
+    const updateArg = transportUpdateMock.mock.calls[0][0];
+    expect(updateArg.data.depAt.toISOString()).toBe("2026-07-01T06:00:00.000Z"); // Paris CEST = UTC+2
+    expect(updateArg.data.arrAt.toISOString()).toBe("2026-07-01T11:00:00.000Z"); // Tokyo JST = UTC+9
+  });
+
+  it("interprets the dep wall time in the to-stop's zone on a home-departure leg (no from-stop)", async () => {
+    transportFindUniqueMock
+      .mockResolvedValueOnce({ id: "tu-tz-3", tripId: "trip-1", forkId: null }) // requireTransportAccess
+      .mockResolvedValueOnce({ id: "tu-tz-3", mode: "TRAIN" }); // before row
+    stopFindManyMock.mockResolvedValue([
+      { id: "s-paris", tripId: "trip-1", forkId: null, timezone: "Europe/Paris" },
+    ]);
+    transportUpdateMock.mockResolvedValue({ id: "tu-tz-3", mode: "TRAIN" });
+
+    await updateTransport("tu-tz-3", {
+      mode: "TRAIN",
+      depIsHome: true,
+      toStopId: "s-paris",
+      depAt: "2026-07-01T08:00",
+    });
+
+    const updateArg = transportUpdateMock.mock.calls[0][0];
+    expect(updateArg.data.depAt.toISOString()).toBe("2026-07-01T06:00:00.000Z"); // Paris CEST = UTC+2
   });
 });
 

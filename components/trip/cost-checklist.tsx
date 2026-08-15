@@ -5,11 +5,9 @@ import { CheckCircle2 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { MoneyInput } from "@/components/ui/money-input";
 import { Field } from "@/components/ui/field";
-import { CURRENCY_CODES } from "@/lib/currencies";
 import { formatMoney, formatMinor, parseAmountToMinor } from "@/lib/money";
-import { todayISO } from "@/lib/dates";
+import { todayLocalISO } from "@/lib/dates";
 import { markCostPaid, markCostUnpaid } from "@/server/actions/costs";
 import { toast } from "@/components/ui/use-toast";
 
@@ -42,6 +40,7 @@ export function CostChecklist({ rows }: CostChecklistProps) {
   if (rows.length === 0) return null;
 
   async function handleUnmark(row: CostChecklistRow) {
+    if (pendingId) return;
     setPendingId(row.id);
     try {
       const r = await markCostUnpaid(row.id);
@@ -70,7 +69,6 @@ export function CostChecklist({ rows }: CostChecklistProps) {
             type="checkbox"
             checked
             aria-label={row.label}
-            disabled={pendingId === row.id}
             onClick={(e) => {
               e.preventDefault();
               void handleUnmark(row);
@@ -81,14 +79,18 @@ export function CostChecklist({ rows }: CostChecklistProps) {
         ) : (
           <Popover
             open={openId === row.id}
-            onOpenChange={(o) => setOpenId(o ? row.id : null)}
+            onOpenChange={(o) => {
+              // Don't let a different row's in-flight unmark be interrupted
+              // by opening a new confirm here (P2-9).
+              if (o && pendingId) return;
+              setOpenId(o ? row.id : null);
+            }}
           >
             <PopoverTrigger asChild>
               <input
                 type="checkbox"
                 checked={false}
                 aria-label={row.label}
-                disabled={pendingId === row.id}
                 onChange={() => {}}
                 className="size-4 shrink-0 rounded border-input accent-primary"
               />
@@ -104,7 +106,11 @@ export function CostChecklist({ rows }: CostChecklistProps) {
         );
 
         return (
-          <li key={row.id} className="flex items-center gap-3 py-2">
+          <li
+            key={row.id}
+            className="flex items-center gap-3 py-2"
+            aria-busy={pendingId === row.id}
+          >
             {checkbox}
 
             <span className="flex-1 truncate text-sm">{row.label}</span>
@@ -135,10 +141,12 @@ function PaidConfirm({
   onCancel: () => void;
   onDone: () => void;
 }) {
+  // History beats guess: an un-ticked payment's preserved amount is the best
+  // answer to "how much did I pay?" (things-to-fix P2-7).
   const [amount, setAmount] = React.useState(
-    formatMinor(row.costMinor, row.currency),
+    formatMinor(row.paidMinor ?? row.costMinor, row.currency),
   );
-  const [date, setDate] = React.useState(todayISO());
+  const [date, setDate] = React.useState(todayLocalISO());
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [dateError, setDateError] = React.useState<string | null>(null);
@@ -161,7 +169,14 @@ function PaidConfirm({
     try {
       const r = await markCostPaid(row.id, minor, date);
       if (!r.success) {
-        toast({ variant: "destructive", title: "Couldn't mark that paid." });
+        const fieldError = r.errors.paidMinor?.[0] ?? null;
+        const dateFieldError = r.errors.paidAt?.[0] ?? null;
+        if (fieldError || dateFieldError) {
+          setError(fieldError);
+          setDateError(dateFieldError);
+        } else {
+          toast({ variant: "destructive", title: "Couldn't mark that paid." });
+        }
         return;
       }
       onDone();
@@ -176,17 +191,32 @@ function PaidConfirm({
     <div className="flex flex-col gap-3">
       <p className="text-sm font-medium">Paid how much?</p>
 
+      {/*
+        This confirm reconciles a single Cost in its own currency (see the
+        module doc) — there's nothing to pick, so it must not offer a
+        currency dropdown (things-to-fix P2-6). MoneyInput's currency Select
+        always renders an interactive combobox — even fed a one-entry
+        `currencies` list, Radix still gives it role="combobox" — so it has
+        no read-only mode we can opt into here. We render the amount input
+        directly instead, with the row's currency as a static suffix.
+      */}
       <Field label="You paid" error={error ?? undefined}>
-        <MoneyInput
-          amount={amount}
-          currency={row.currency}
-          currencies={CURRENCY_CODES}
-          onAmountChange={setAmount}
-          onCurrencyChange={() => {}}
-          disabled={submitting}
-          invalid={Boolean(error)}
-          aria-label="You paid amount"
-        />
+        <div className="flex items-stretch gap-2">
+          <Input
+            inputMode="decimal"
+            autoComplete="off"
+            placeholder="0.00"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            disabled={submitting}
+            invalid={Boolean(error)}
+            aria-label="You paid amount"
+            className="min-w-0 flex-1"
+          />
+          <span className="flex h-11 w-20 shrink-0 items-center justify-center rounded-md border border-input bg-muted text-sm text-muted-foreground sm:w-24">
+            {row.currency}
+          </span>
+        </div>
       </Field>
 
       <Field label="Date paid" error={dateError ?? undefined}>

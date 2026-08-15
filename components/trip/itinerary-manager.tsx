@@ -576,6 +576,11 @@ export function ItineraryManager({
     setPendingId(stopId);
     try {
       await deleteStop(stopId);
+    } catch {
+      // A rejected action (network, thrown server error) must behave like a
+      // failed one: report, and tell callers nothing was dated so pending
+      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }
@@ -585,6 +590,11 @@ export function ItineraryManager({
     setPendingId(stopId);
     try {
       await moveStop(stopId, direction);
+    } catch {
+      // A rejected action (network, thrown server error) must behave like a
+      // failed one: report, and tell callers nothing was dated so pending
+      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }
@@ -594,6 +604,11 @@ export function ItineraryManager({
     setPendingId(stopId);
     try {
       await toggleStopPin(stopId);
+    } catch {
+      // A rejected action (network, thrown server error) must behave like a
+      // failed one: report, and tell callers nothing was dated so pending
+      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }
@@ -611,6 +626,11 @@ export function ItineraryManager({
     setPendingId(stopId);
     try {
       await makeStopRough(stopId);
+    } catch {
+      // A rejected action (network, thrown server error) must behave like a
+      // failed one: report, and tell callers nothing was dated so pending
+      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }
@@ -635,22 +655,22 @@ export function ItineraryManager({
       title: `${stop.name} has no dates yet`,
       description: (
         <>
-          Accommodation needs a check-in and check-out. Set dates for this leg
+          Accommodation needs a check-in and check-out. Firm up this leg
           first and we&apos;ll take you straight to the form.
           <br />
           <br />
           No start date to work from? Use{" "}
-          <strong>Set dates for all stops</strong> at the top of the plan.
+          <strong>Firm up all stops</strong> at the top of the plan.
         </>
       ),
-      confirmLabel: "Set dates for this leg",
+      confirmLabel: "Firm up this leg",
       destructive: false,
     });
     if (!proceed) return;
 
     setPendingAccommodationStopId(stop.id);
     // skipConfirm: the nudge above already asked for consent, so a second
-    // "Date this chapter's stops?" dialog would describe one step as two.
+    // "Firm up this chapter's stops?" dialog would describe one step as two.
     // handleFirmUp has no other caller relying on that second confirm firing
     // for this call, so it's safe to bypass it here.
     const dated = await handleFirmUp(stop.chapterId ?? null, { skipConfirm: true });
@@ -723,9 +743,9 @@ export function ItineraryManager({
     const stopWord = roughCount === 1 ? "stop" : "stops";
     if (!options?.skipConfirm) {
       const confirmed = await confirm({
-        title: "Date this chapter's stops?",
+        title: "Firm up this chapter's stops?",
         description: `This will date ${roughCount} rough ${stopWord} from ${anchorLabel}. You can make any stop rough again afterwards.`,
-        confirmLabel: "Date stops",
+        confirmLabel: "Firm up",
         destructive: false,
       });
       if (!confirmed) return false;
@@ -746,6 +766,12 @@ export function ItineraryManager({
         });
       }
       return true;
+    } catch {
+      // A rejected action (network, thrown server error) must behave like a
+      // failed one: report, and tell callers nothing was dated so pending
+      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+      return false;
     } finally {
       setPendingId(null);
     }
@@ -758,9 +784,9 @@ export function ItineraryManager({
     const stopWord = roughCount === 1 ? "stop" : "stops";
 
     const confirmed = await confirm({
-      title: "Date all stops from start?",
+      title: "Firm up the whole trip?",
       description: `This will date ${roughCount} rough ${stopWord} from ${anchorLabel}. You can make any stop rough again afterwards.`,
-      confirmLabel: "Date stops",
+      confirmLabel: "Firm up",
       destructive: false,
     });
     if (!confirmed) return;
@@ -776,6 +802,11 @@ export function ItineraryManager({
       } else if (r.conflicts?.length) {
         toast({ title: "Heads up — some stops run past a pinned date; the pins were kept." });
       }
+    } catch {
+      // A rejected action (network, thrown server error) must behave like a
+      // failed one: report, and tell callers nothing was dated so pending
+      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }
@@ -794,6 +825,10 @@ export function ItineraryManager({
     setPendingId(`delete-chapter-${chapterId}`);
     try {
       await deleteChapter(chapterId);
+    } catch {
+      // A rejected action (network, thrown server error) must not surface as
+      // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }
@@ -850,6 +885,10 @@ export function ItineraryManager({
     setPendingId(accId);
     try {
       await deleteAccommodation(accId);
+    } catch {
+      // A rejected action (network, thrown server error) must not surface as
+      // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
     }
@@ -909,6 +948,10 @@ export function ItineraryManager({
           title: "Heads up — earlier stops run past a pinned date; the pin was kept.",
         });
       }
+    } catch {
+      // A rejected action (network, thrown server error) must not surface as
+      // an unhandled rejection — report it like any other failure (things-to-fix P2-1).
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
     } finally {
       setPendingId(null);
       setAdjustingStop(null);
@@ -917,7 +960,7 @@ export function ItineraryManager({
 
   // ── Derived data ── (reads from local copies so drags update instantly)
   const stops = localStops;
-  const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name }));
+  const stopOptions: StopOption[] = stops.map((s) => ({ id: s.id, name: s.name, timezone: s.timezone }));
   const hasChapters = localChapters.length > 0;
 
   // ── Home base bookends (see ADR 0032) ──
@@ -1556,7 +1599,7 @@ export function ItineraryManager({
             onClick={handleFirmUpTrip}
             loading={pendingId === "firm-up-trip"}
           >
-            Set dates for all stops
+            Firm up all stops
           </Button>
         </div>
       )}
@@ -1607,7 +1650,7 @@ export function ItineraryManager({
                       onClick={() => handleFirmUp(null)}
                     >
                       <CalendarClock className="size-3.5" aria-hidden="true" />
-                      Set dates
+                      Firm up
                     </Button>
                   </div>
                 )}
@@ -1682,7 +1725,7 @@ export function ItineraryManager({
                                     }}
                                   >
                                     <CalendarClock className="size-3.5" aria-hidden="true" />
-                                    Set dates
+                                    Firm up
                                   </Button>
                                   <span className="text-sm text-muted-foreground select-none" aria-hidden="true">
                                     {isCollapsed ? "▸" : "▾"}
@@ -1783,7 +1826,7 @@ export function ItineraryManager({
                                 onClick={() => handleFirmUp(null)}
                               >
                                 <CalendarClock className="size-3.5" aria-hidden="true" />
-                                Set dates
+                                Firm up
                               </Button>
                             )}
                           </div>
@@ -1860,7 +1903,7 @@ export function ItineraryManager({
                             }}
                           >
                             <CalendarClock className="size-3.5" aria-hidden="true" />
-                            Set dates
+                            Firm up
                           </Button>
                         )}
                         <Button
@@ -1952,7 +1995,7 @@ export function ItineraryManager({
                   loading={pendingId === "firm-up-trip"}
                 >
                   <CalendarClock className="size-4" aria-hidden="true" />
-                  Date all stops from start
+                  Firm up the whole trip
                 </Button>
               )}
               <Button

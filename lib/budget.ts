@@ -168,33 +168,33 @@ export interface BudgetResult {
  *
  * `paidAt` is the sole signal for "is this cost paid" (ADR 0037 / CONTEXT.md
  * "Paid"). A cost with a `paidMinor` but no `paidAt` is not paid — its
- * `actualHome` is `null`, genuinely excluded, never a fabricated zero. Callers
- * that sum `actualHome` across costs should treat `null` as "contributes
+ * `paidHome` is `null`, genuinely excluded, never a fabricated zero. Callers
+ * that sum `paidHome` across costs should treat `null` as "contributes
  * nothing", exactly like a cost that was never marked paid.
  */
 export function convertCostToHome(
   cost: BudgetCost,
   homeCurrency: string,
-): { estimatedHome: number | null; actualHome: number | null } {
+): { costHome: number | null; paidHome: number | null } {
   const from = cost.currency.toUpperCase();
   const home = homeCurrency.toUpperCase();
   const paidMinor = cost.paidAt != null ? cost.paidMinor : null;
 
   if (from === home) {
     return {
-      estimatedHome: cost.costMinor,
-      actualHome: paidMinor,
+      costHome: cost.costMinor,
+      paidHome: paidMinor,
     };
   }
 
   if (typeof cost.rateToHome !== "number") {
-    return { estimatedHome: null, actualHome: null };
+    return { costHome: null, paidHome: null };
   }
 
   const rate = cost.rateToHome;
   return {
-    estimatedHome: convertMinor(cost.costMinor, from, home, rate),
-    actualHome: paidMinor !== null ? convertMinor(paidMinor, from, home, rate) : null,
+    costHome: convertMinor(cost.costMinor, from, home, rate),
+    paidHome: paidMinor !== null ? convertMinor(paidMinor, from, home, rate) : null,
   };
 }
 
@@ -473,11 +473,11 @@ export function buildBudget({
   const tripDays = enumerateTripDays(tripStart, tripEnd);
 
   // Initialize per-day accumulators
-  const dayEstimated: Record<string, number> = {};
-  const dayActual: Record<string, number> = {};
+  const dayCost: Record<string, number> = {};
+  const dayPaid: Record<string, number> = {};
   for (const day of tripDays) {
-    dayEstimated[day] = 0;
-    dayActual[day] = 0;
+    dayCost[day] = 0;
+    dayPaid[day] = 0;
   }
 
   // Category accumulators
@@ -489,8 +489,8 @@ export function buildBudget({
   const stopActual: Record<string, number> = {};
 
   // Grand totals
-  let grandEstimated = 0;
-  let grandActual = 0;
+  let grandCost = 0;
+  let grandPaid = 0;
 
   // Chapter accumulators (keyed by chapter id or sentinel)
   const chapterAccEstimated: Record<string, number> = {};
@@ -503,45 +503,45 @@ export function buildBudget({
   // Process each cost
   // ---------------------------------------------------------------------------
   for (const cost of costs) {
-    const { estimatedHome, actualHome } = convertCostToHome(cost, homeCurrency);
+    const { costHome, paidHome } = convertCostToHome(cost, homeCurrency);
 
     // If home values are null (missing rate) → exclude from all totals
-    if (estimatedHome === null) {
+    if (costHome === null) {
       missingRateSet.add(cost.currency.toUpperCase());
       continue;
     }
 
-    const actualVal = actualHome ?? 0;
+    const actualVal = paidHome ?? 0;
 
     // Grand total
-    grandEstimated += estimatedHome;
-    grandActual += actualVal;
+    grandCost += costHome;
+    grandPaid += actualVal;
 
     // Category breakdown
     const cat = effectiveCategory(cost, itemCategoryById);
-    categoryEstimated[cat] = (categoryEstimated[cat] ?? 0) + estimatedHome;
+    categoryEstimated[cat] = (categoryEstimated[cat] ?? 0) + costHome;
     categoryActual[cat] = (categoryActual[cat] ?? 0) + actualVal;
 
     // Stop breakdown
     const sid = stopIdForCost(cost, lookups);
     const stopKey = sid ?? "___TRIPWIDE___";
-    stopEstimated[stopKey] = (stopEstimated[stopKey] ?? 0) + estimatedHome;
+    stopEstimated[stopKey] = (stopEstimated[stopKey] ?? 0) + costHome;
     stopActual[stopKey] = (stopActual[stopKey] ?? 0) + actualVal;
 
     // Chapter breakdown
     const chKey = chapterKeyForCost(cost, lookups, chapters, stopsLikeById);
-    chapterAccEstimated[chKey] = (chapterAccEstimated[chKey] ?? 0) + estimatedHome;
+    chapterAccEstimated[chKey] = (chapterAccEstimated[chKey] ?? 0) + costHome;
     chapterAccActual[chKey] = (chapterAccActual[chKey] ?? 0) + actualVal;
 
     // Day breakdown
-    placeCostOnDays(cost, estimatedHome, actualVal, {
+    placeCostOnDays(cost, costHome, actualVal, {
       itemById,
       accommodationById,
       transportById,
       stopById,
       tripDays,
-      dayEstimated,
-      dayActual,
+      dayCost,
+      dayPaid,
     });
   }
 
@@ -590,8 +590,8 @@ export function buildBudget({
   // ---------------------------------------------------------------------------
   const byDay: BudgetByDay[] = tripDays.map((dateISO) => ({
     dateISO,
-    costTotalMinor: dayEstimated[dateISO] ?? 0,
-    paidTotalMinor: dayActual[dateISO] ?? 0,
+    costTotalMinor: dayCost[dateISO] ?? 0,
+    paidTotalMinor: dayPaid[dateISO] ?? 0,
   }));
 
   // ---------------------------------------------------------------------------
@@ -628,8 +628,8 @@ export function buildBudget({
   return {
     homeCurrency,
     grandTotal: {
-      costTotalMinor: grandEstimated,
-      paidTotalMinor: grandActual,
+      costTotalMinor: grandCost,
+      paidTotalMinor: grandPaid,
     },
     byCategory,
     byStop,
@@ -651,17 +651,17 @@ interface PlaceCostContext {
   transportById: Record<string, BudgetTransport>;
   stopById: Record<string, BudgetStop>;
   tripDays: string[];
-  dayEstimated: Record<string, number>;
-  dayActual: Record<string, number>;
+  dayCost: Record<string, number>;
+  dayPaid: Record<string, number>;
 }
 
 function placeCostOnDays(
   cost: BudgetCost,
-  estimatedHome: number,
-  actualHome: number,
+  costHome: number,
+  paidHome: number,
   ctx: PlaceCostContext,
 ): void {
-  const { itemById, accommodationById, transportById, stopById, tripDays, dayEstimated, dayActual } = ctx;
+  const { itemById, accommodationById, transportById, stopById, tripDays, dayCost, dayPaid } = ctx;
   const tripStart = tripDays[0];
   const tripEnd = tripDays[tripDays.length - 1];
 
@@ -673,8 +673,8 @@ function placeCostOnDays(
 
       const dateISO = item.date;
       if (dateISO >= tripStart && dateISO <= tripEnd) {
-        dayEstimated[dateISO] = (dayEstimated[dateISO] ?? 0) + estimatedHome;
-        dayActual[dateISO] = (dayActual[dateISO] ?? 0) + actualHome;
+        dayCost[dateISO] = (dayCost[dateISO] ?? 0) + costHome;
+        dayPaid[dateISO] = (dayPaid[dateISO] ?? 0) + paidHome;
       }
       break;
     }
@@ -691,8 +691,8 @@ function placeCostOnDays(
       );
 
       if (dateISO >= tripStart && dateISO <= tripEnd) {
-        dayEstimated[dateISO] = (dayEstimated[dateISO] ?? 0) + estimatedHome;
-        dayActual[dateISO] = (dayActual[dateISO] ?? 0) + actualHome;
+        dayCost[dateISO] = (dayCost[dateISO] ?? 0) + costHome;
+        dayPaid[dateISO] = (dayPaid[dateISO] ?? 0) + paidHome;
       }
       break;
     }
@@ -703,11 +703,11 @@ function placeCostOnDays(
       if (!acc) return;
 
       // Spread across nights between checkIn and checkOut
-      spreadAcrossNights(acc.checkIn, acc.checkOut, estimatedHome, actualHome, {
+      spreadAcrossNights(acc.checkIn, acc.checkOut, costHome, paidHome, {
         tripStart,
         tripEnd,
-        dayEstimated,
-        dayActual,
+        dayCost,
+        dayPaid,
       });
       break;
     }
@@ -734,8 +734,8 @@ function getTransportTimezone(
 interface SpreadContext {
   tripStart: string;
   tripEnd: string;
-  dayEstimated: Record<string, number>;
-  dayActual: Record<string, number>;
+  dayCost: Record<string, number>;
+  dayPaid: Record<string, number>;
 }
 
 /**
@@ -751,11 +751,11 @@ interface SpreadContext {
 function spreadAcrossNights(
   checkIn: string,
   checkOut: string,
-  estimatedHome: number,
-  actualHome: number,
+  costHome: number,
+  paidHome: number,
   ctx: SpreadContext,
 ): void {
-  const { tripStart, tripEnd, dayEstimated, dayActual } = ctx;
+  const { tripStart, tripEnd, dayCost, dayPaid } = ctx;
 
   const totalNights = nightsBetween(checkIn, checkOut);
   if (totalNights <= 0) return;
@@ -783,11 +783,11 @@ function spreadAcrossNights(
   if (numNights === 0) return;
 
   // Distribute evenly with remainder on first nights
-  const baseEst = Math.floor(estimatedHome / totalNights);
-  const remainderEst = estimatedHome - baseEst * totalNights;
+  const baseEst = Math.floor(costHome / totalNights);
+  const remainderEst = costHome - baseEst * totalNights;
 
-  const baseAct = Math.floor(actualHome / totalNights);
-  const remainderAct = actualHome - baseAct * totalNights;
+  const baseAct = Math.floor(paidHome / totalNights);
+  const remainderAct = paidHome - baseAct * totalNights;
 
   for (let i = 0; i < numNights; i++) {
     const day = nights[i];
@@ -799,7 +799,7 @@ function spreadAcrossNights(
     const estForNight = baseEst + (nightIndex < remainderEst ? 1 : 0);
     const actForNight = baseAct + (nightIndex < remainderAct ? 1 : 0);
 
-    dayEstimated[day] = (dayEstimated[day] ?? 0) + estForNight;
-    dayActual[day] = (dayActual[day] ?? 0) + actForNight;
+    dayCost[day] = (dayCost[day] ?? 0) + estForNight;
+    dayPaid[day] = (dayPaid[day] ?? 0) + actForNight;
   }
 }

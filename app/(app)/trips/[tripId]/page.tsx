@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { todayISO } from "@/lib/dates";
+import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { PhaseSketching } from "@/components/trip/home/phase-sketching";
 import { PhasePlanning } from "@/components/trip/home/phase-planning";
@@ -19,7 +19,26 @@ export default async function TripHomePage({
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { id: true, name: true, startDate: true, endDate: true, homeCurrency: true, drivingWindingFactor: true, drivingAvgSpeedKph: true, coverImageKey: true, homeName: true, homeLat: true, homeLng: true, homeCountryCode: true, roundTrip: true },
+    select: {
+      id: true,
+      name: true,
+      startDate: true,
+      endDate: true,
+      homeCurrency: true,
+      drivingWindingFactor: true,
+      drivingAvgSpeedKph: true,
+      coverImageKey: true,
+      homeName: true,
+      homeLat: true,
+      homeLng: true,
+      homeCountryCode: true,
+      roundTrip: true,
+      stops: {
+        where: { forkId: null, arriveDate: { not: null } },
+        orderBy: { sortOrder: "asc" },
+        select: { timezone: true, arriveDate: true, departDate: true },
+      },
+    },
   });
   if (!trip) notFound();
 
@@ -29,7 +48,7 @@ export default async function TripHomePage({
     select: { lat: true, lng: true },
   });
 
-  const today = todayISO();
+  const today = todayISOInZone(currentTripTimezone(trip.stops));
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
 
   const cover = (

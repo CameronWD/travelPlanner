@@ -52,10 +52,9 @@ async function requireItemAccess(itemId: string): Promise<{
  * Revalidate all relevant trip pages after mutating an item.
  */
 function revalidateItemPaths(tripId: string) {
-  revalidatePath(`/trips/${tripId}`);
-  revalidatePath(`/trips/${tripId}/wishlist`);
-  revalidatePath(`/trips/${tripId}/calendar`);
-  revalidatePath(`/trips/${tripId}/plan`);
+  // "layout" revalidates every nested trip route — including /budget, which
+  // inline cost edits reach through this action (things-to-fix P2-4).
+  revalidatePath(`/trips/${tripId}`, "layout");
 }
 
 // ---------------------------------------------------------------------------

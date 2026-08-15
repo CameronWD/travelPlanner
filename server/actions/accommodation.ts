@@ -140,7 +140,7 @@ export async function createAccommodation(
   }
 
   await recordPlanActivity(forkId, { tripId: stop.tripId, verb: "CREATED", entityType: "ACCOMMODATION", entityId: created.id, entityLabel: entityLabel("ACCOMMODATION", created as unknown as Record<string, unknown>) });
-  revalidatePath(`/trips/${stop.tripId}`);
+  revalidatePath(`/trips/${stop.tripId}`, "layout");
   return { success: true };
 }
 
@@ -269,7 +269,7 @@ export async function updateAccommodation(
     entityLabel: entityLabel("ACCOMMODATION", updated as unknown as Record<string, unknown>),
     changes: describeChanges("ACCOMMODATION", (before ?? {}) as Record<string, unknown>, updated as unknown as Record<string, unknown>),
   });
-  revalidatePath(`/trips/${acc.tripId}`);
+  revalidatePath(`/trips/${acc.tripId}`, "layout");
   return { success: true };
 }
 
@@ -287,6 +287,6 @@ export async function deleteAccommodation(
 
   await cleanupTargetSideData(acc.tripId, "ACCOMMODATION", accommodationId);
 
-  revalidatePath(`/trips/${acc.tripId}`);
+  revalidatePath(`/trips/${acc.tripId}`, "layout");
   return { success: true };
 }

@@ -14,12 +14,14 @@ interface PhaseSketchingProps {
 export async function PhaseSketching({ tripId, tripName }: PhaseSketchingProps) {
   const [stops, chapters] = await Promise.all([
     db.stop.findMany({
-      where: { tripId },
+      // Dated views follow the real plan — CONTEXT.md; consistent with
+      // calendar/day/print/summary.
+      where: { tripId, forkId: null },
       orderBy: [{ chapterSortOrder: "asc" }, { sortOrder: "asc" }],
       select: { id: true, name: true, country: true, nights: true, chapterId: true, arriveDate: true },
     }),
     db.chapter.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { name: "asc" },
       select: { id: true, name: true, colour: true },
     }),
@@ -33,7 +35,7 @@ export async function PhaseSketching({ tripId, tripName }: PhaseSketchingProps) 
       <EmptyState
         icon={Compass}
         title="Let's shape this trip."
-        description="Add a place or a chapter to start sketching. Set dates whenever you're ready."
+        description="Add a place or a chapter to start sketching. Firm up whenever you're ready."
         action={
           <Button asChild>
             <Link href={`/trips/${tripId}/plan`}>Open the canvas</Link>
@@ -53,7 +55,7 @@ export async function PhaseSketching({ tripId, tripName }: PhaseSketchingProps) 
         </p>
         <div className="mt-3">
           <Button asChild>
-            <Link href={`/trips/${tripId}/plan`}>Set dates / firm up →</Link>
+            <Link href={`/trips/${tripId}/plan`}>Firm up →</Link>
           </Button>
         </div>
       </section>

@@ -81,9 +81,11 @@ export interface CalendarViewsProps {
   tripStart: string;
   tripEnd: string;
   wishlistItems: WishlistRailItem[];
+  /** Trip-reference-timezone "today" (YYYY-MM-DD), computed by the caller. */
+  todayISO: string;
 }
 
-export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems }: CalendarViewsProps) {
+export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems, todayISO }: CalendarViewsProps) {
   const reduce = useReducedMotion();
 
   // useSyncExternalStore gives us the SSR-safe default (agenda on server) and
@@ -243,7 +245,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems 
               )}
             </div>
           ) : (
-            <AgendaView tripId={tripId} days={days} />
+            <AgendaView tripId={tripId} days={days} todayISO={todayISO} />
           )}
         </motion.div>
       </AnimatePresence>

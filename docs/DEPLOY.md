@@ -66,6 +66,32 @@ npx web-push generate-vapid-keys   # VAPID public/private pair
    schema on Neon, then `next build`.
 4. Add your final Vercel domain to the Google OAuth redirect URI (step 3) if you didn't already, then redeploy.
 
+## 4b. Deploying a column-RENAME migration (read before the next deploy)
+
+The pending migration `prisma/migrations/20260812000000_cost_and_paid_amounts`
+RENAMES columns. `vercel.json` runs `prisma migrate deploy && next build`, so the
+old columns disappear while the previous deployment is still serving traffic:
+**every cost read 500s for the length of the build**, and indefinitely if the
+build fails. (Additive migrations have no such window — this section applies to
+renames/drops only.)
+
+Procedure for this (and any future destructive) migration:
+
+1. **Rehearse on a copy.** Restore the latest Neon snapshot to a branch database
+   (Neon → Branches → New branch from snapshot). Run
+   `DATABASE_URL=<branch-url> npx prisma migrate deploy` against it. Record the
+   row count the backfill touches:
+   `SELECT count(*) FROM "Cost" WHERE "paidMinor" IS NOT NULL AND "paidAt" IS NULL;`
+2. **Write the reverse migration first.** A rename reverses mechanically —
+   keep the `ALTER TABLE ... RENAME COLUMN` inverse SQL in your pocket before
+   deploying, so rollback is copy-paste, not composition under pressure.
+3. **Deploy at a quiet moment** and watch the Vercel build to completion. The
+   error window = migrate-finish → build-finish. If the build fails, either fix
+   forward immediately or apply the reverse migration.
+4. **Afterwards**, re-run the count from step 1 in prod and reconcile any
+   legacy paid-without-date rows via the Budget page checklist (the app
+   surfaces them — see `docs/things-to-fix.md` P2-8).
+
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:

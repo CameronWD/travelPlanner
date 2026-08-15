@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { MapPin } from "lucide-react";
-import { formatLongDate, todayISO } from "@/lib/dates";
+import { formatLongDate } from "@/lib/dates";
 import type { DayPlan } from "@/lib/itinerary";
 import { Badge } from "@/components/ui/badge";
 import { Timeline } from "@/components/trip/timeline";
@@ -9,11 +9,11 @@ import { cn } from "@/lib/cn";
 export interface AgendaViewProps {
   tripId: string;
   days: DayPlan[];
+  /** Trip-reference-timezone "today" (YYYY-MM-DD), computed by the caller. */
+  todayISO: string;
 }
 
-export function AgendaView({ tripId, days }: AgendaViewProps) {
-  const today = todayISO();
-
+export function AgendaView({ tripId, days, todayISO: today }: AgendaViewProps) {
   return (
     <div className="flex flex-col gap-0 divide-y divide-border/50">
       {days.map((day) => {

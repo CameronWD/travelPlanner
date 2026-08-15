@@ -25,6 +25,16 @@ export interface TransportTimeDisplay {
   dayDelta: number;
 }
 
+/** Timezone for each transport endpoint: its own stop's zone, else the other
+ * endpoint's (home/free-text legs), else UTC. Shared by display AND the write
+ * path so a typed wall time round-trips exactly (things-to-fix P0-1). */
+export function resolveEndpointZones(
+  fromTz: string | null | undefined,
+  toTz: string | null | undefined,
+): { depTz: string; arrTz: string } {
+  return { depTz: fromTz ?? toTz ?? "UTC", arrTz: toTz ?? fromTz ?? "UTC" };
+}
+
 export function transportTimeDisplay(input: {
   depAt: Date | null | undefined;
   arrAt: Date | null | undefined;
@@ -32,13 +42,12 @@ export function transportTimeDisplay(input: {
   toTimezone: string | null | undefined;
 }): TransportTimeDisplay {
   const { depAt, arrAt, fromTimezone, toTimezone } = input;
-  const depTz = fromTimezone ?? "UTC";
-  const arrTz = toTimezone ?? fromTimezone ?? "UTC";
+  const { depTz, arrTz } = resolveEndpointZones(fromTimezone, toTimezone);
 
   let dep: ZonedEndpoint | null = null;
   if (depAt) {
     const dateISO = instantToZonedDateISO(depAt, depTz);
-    dep = { time: instantToZonedTime(depAt, depTz), zone: zoneLabel(fromTimezone, dateISO), dateISO };
+    dep = { time: instantToZonedTime(depAt, depTz), zone: zoneLabel(fromTimezone ?? toTimezone, dateISO), dateISO };
   }
   let arr: ZonedEndpoint | null = null;
   if (arrAt) {
@@ -47,6 +56,16 @@ export function transportTimeDisplay(input: {
   }
   const dayDelta = dep && arr ? daysBetween(dep.dateISO, arr.dateISO) : 0;
   return { dep, arr, dayDelta };
+}
+
+/** Format an instant as a datetime-local input value (YYYY-MM-DDTHH:mm) in the
+ * given zone — the inverse of the wall-time write path (things-to-fix P0-1). */
+export function instantToWallTimeInput(
+  instant: Date | null | undefined,
+  timeZone: string,
+): string {
+  if (!instant) return "";
+  return `${instantToZonedDateISO(instant, timeZone)}T${instantToZonedTime(instant, timeZone)}`;
 }
 
 /** Render the "+1 day" / "−1 day" suffix for a cross-zone arrival; "" when same day. */

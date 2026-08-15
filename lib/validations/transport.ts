@@ -1,22 +1,25 @@
 import { z } from "zod";
 import { TRANSPORT_MODES } from "@/lib/enums";
 import { CURRENCY_CODES } from "@/lib/currencies";
+import { WALL_TIME_RE } from "@/lib/wall-time";
 
 /**
- * Accept a datetime-local string ("2026-07-01T08:00") or a full ISO string
- * and coerce it to a Date. Returns z.date() on success.
- *
- * We use z.preprocess so the form can pass the raw datetime-local string and
- * the action can pass a Date interchangeably.
+ * A transport time as submitted. Two shapes survive parsing:
+ *  - a Date, or a string WITH an explicit offset/Z → an instant, coerced to Date;
+ *  - an offset-less "YYYY-MM-DDTHH:mm(:ss)?" string → kept AS A STRING: a
+ *    wall-clock time the action interprets in the endpoint Stop's timezone
+ *    via wallTimeToInstant (never new Date() — process-tz dependent, P0-1).
  */
 const isoDatetime = z.preprocess((val) => {
   if (val instanceof Date) return val;
   if (typeof val === "string" && val.trim() !== "") {
-    const d = new Date(val);
+    const s = val.trim();
+    if (WALL_TIME_RE.test(s)) return s; // wall time — defer tz interpretation
+    const d = new Date(s); // explicit offset — safe to parse
     if (!isNaN(d.getTime())) return d;
   }
   return undefined;
-}, z.date().optional());
+}, z.union([z.date(), z.string().regex(WALL_TIME_RE)]).optional());
 
 /**
  * Zod schema for creating or updating a Transport.

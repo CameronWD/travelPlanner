@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, MapPin, Bed, ArrowRight } from "lucide-react";
 import { db } from "@/lib/db";
-import { todayISO, formatLongDate, dayNumberInTrip } from "@/lib/dates";
+import { formatLongDate, dayNumberInTrip } from "@/lib/dates";
+import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import {
   buildItinerary,
   effectiveTodayISO,
@@ -55,18 +56,13 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
   const startDate = trip.startDate;
   const endDate = trip.endDate ?? trip.startDate;
 
-  const today = todayISO();
-  const effectiveDate = effectiveTodayISO(today, startDate, endDate);
-
-  const isBeforeTrip = today < startDate;
-  const isAfterTrip = today > endDate;
-  const isWithinTrip = today >= startDate && today <= endDate;
-
   // Fetch all itinerary data (plus costs + reminders + chapters + located wishlist candidates)
   const [stops, items, transports, accommodations, costs, reminders, chapters, wishlistLocated, allAttachments] = await Promise.all([
     db.stop.findMany({
       // Rough (date-less) stops don't appear on a dated "today" view.
-      where: { tripId, arriveDate: { not: null } },
+      // Dated views follow the real plan — CONTEXT.md; consistent with
+      // calendar/day/print/summary.
+      where: { tripId, forkId: null, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -81,7 +77,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       },
     }),
     db.item.findMany({
-      where: { tripId, date: { not: null } },
+      where: { tripId, forkId: null, date: { not: null } },
       orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
       select: {
         id: true,
@@ -101,7 +97,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       },
     }),
     db.transport.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -121,7 +117,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       },
     }),
     db.accommodation.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { checkIn: "asc" },
       select: {
         id: true,
@@ -137,7 +133,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       },
     }),
     db.cost.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       select: {
         id: true,
         costMinor: true,
@@ -162,7 +158,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       },
     }),
     db.chapter.findMany({
-      where: { tripId },
+      where: { tripId, forkId: null },
       orderBy: { startDate: "asc" },
       select: {
         id: true,
@@ -196,6 +192,18 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       },
     }),
   ]);
+
+  // Trip's reference-timezone "today" (things-to-fix P0-2) — the fetched
+  // stops already carry timezone/arriveDate/departDate, in sortOrder order.
+  // Every plan-entity query above is scoped to the real plan (forkId: null)
+  // — dated views follow the real plan (CONTEXT.md; consistent with
+  // calendar/day/print/summary) — so `stops` is already fork-free here.
+  const today = todayISOInZone(currentTripTimezone(stops));
+  const effectiveDate = effectiveTodayISO(today, startDate, endDate);
+
+  const isBeforeTrip = today < startDate;
+  const isAfterTrip = today > endDate;
+  const isWithinTrip = today >= startDate && today <= endDate;
 
   const currentChapter = chapterForDate(effectiveDate, chapters);
   const dayNum = dayNumberInTrip(effectiveDate, startDate);

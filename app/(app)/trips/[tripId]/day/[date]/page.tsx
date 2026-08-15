@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import { BookOpen, CalendarDays } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { formatLongDate, todayISO } from "@/lib/dates";
+import { formatLongDate } from "@/lib/dates";
+import { todayISOInZone } from "@/lib/tz";
 import { buildItinerary } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
 import { nearbyWishlistItems } from "@/lib/nearby";
@@ -358,7 +359,7 @@ export default async function DayPage({
           lat: dayStop.lat,
           lng: dayStop.lng,
           dateISO: effectiveDate,
-          today: todayISO(),
+          today: todayISOInZone(stopTimezone ?? "UTC"),
         })
       : null;
 

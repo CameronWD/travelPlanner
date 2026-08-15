@@ -169,4 +169,119 @@ describe("CostChecklist", () => {
     render(<CostChecklist rows={mixedRows} />);
     expect(screen.getByText("Travel insurance")).toBeInTheDocument();
   });
+
+  it("locks the confirm to the row's currency instead of offering a picker", async () => {
+    const user = userEvent.setup();
+    const rowInAud = [
+      { id: "c-aud", label: "Onsen entry", costMinor: 5000, paidMinor: null,
+        currency: "AUD", paidAt: null },
+    ];
+    render(<CostChecklist rows={rowInAud} />);
+
+    await user.click(screen.getByRole("checkbox", { name: /onsen entry/i }));
+
+    expect(screen.getByText(/paid how much/i)).toBeInTheDocument();
+    // MoneyInput's currency picker always renders an interactive combobox,
+    // even with a single-entry `currencies` list — so a locked-currency
+    // confirm must not use it at all; it shows the code as static text.
+    expect(screen.queryByRole("combobox", { name: /currency/i })).not.toBeInTheDocument();
+    expect(screen.getByText("AUD")).toBeInTheDocument();
+  });
+
+  it("prefills the preserved paid amount over the cost amount", async () => {
+    const user = userEvent.setup();
+    const untickedRow = [
+      { id: "c-untick", label: "Ferry", costMinor: 10000, paidMinor: 9500,
+        currency: "GBP", paidAt: null },
+    ];
+    render(<CostChecklist rows={untickedRow} />);
+
+    await user.click(screen.getByRole("checkbox", { name: /ferry/i }));
+
+    expect(screen.getByLabelText("You paid amount")).toHaveValue("95.00");
+  });
+
+  it("keeps focus on the checkbox while un-marking", async () => {
+    let resolveUnmark: (v: { success: true }) => void = () => {};
+    markCostUnpaid.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveUnmark = resolve; }),
+    );
+    const user = userEvent.setup();
+    render(<CostChecklist rows={rows} />);
+
+    const cb = screen.getByRole("checkbox", { name: /pensione roma/i });
+    cb.focus();
+    await user.click(cb);
+
+    // While the unmark is still in flight, the checkbox must stay enabled
+    // and focused — disabling it here bounces focus to <body> mid-gesture.
+    expect(cb).not.toBeDisabled();
+    expect(document.activeElement).toBe(cb);
+
+    resolveUnmark({ success: true });
+    await waitFor(() => expect(cb).not.toBeDisabled());
+  });
+
+  it("surfaces a server amount field error on the field, not a toast", async () => {
+    markCostPaid.mockResolvedValueOnce({
+      success: false,
+      errors: { paidMinor: ["Amount is too large"] },
+    });
+    const user = userEvent.setup();
+    render(<CostChecklist rows={rows} />);
+
+    await user.click(screen.getByRole("checkbox", { name: /hotel ibis/i }));
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+
+    expect(await screen.findByText("Amount is too large")).toBeInTheDocument();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces a server date field error on the field, not a toast", async () => {
+    markCostPaid.mockResolvedValueOnce({
+      success: false,
+      errors: { paidAt: ["Enter when you paid"] },
+    });
+    const user = userEvent.setup();
+    render(<CostChecklist rows={rows} />);
+
+    await user.click(screen.getByRole("checkbox", { name: /hotel ibis/i }));
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+
+    expect(await screen.findByText(/enter when you paid/i)).toBeInTheDocument();
+    expect(toastMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to a generic toast when the server fails without field errors", async () => {
+    markCostPaid.mockResolvedValueOnce({
+      success: false,
+      errors: { _: ["Something else broke"] },
+    });
+    const user = userEvent.setup();
+    render(<CostChecklist rows={rows} />);
+
+    await user.click(screen.getByRole("checkbox", { name: /hotel ibis/i }));
+    await user.click(screen.getByRole("button", { name: /confirm/i }));
+
+    await waitFor(() =>
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive" }),
+      ),
+    );
+    expect(screen.queryByText("Something else broke")).not.toBeInTheDocument();
+  });
+
+  it("prefills Date paid with the device-local today", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-08-14T22:00:00Z")); // next local day in TZ=Australia/Sydney
+    const user = userEvent.setup();
+    render(<CostChecklist rows={rows} />);
+
+    await user.click(screen.getByRole("checkbox", { name: /hotel ibis/i }));
+
+    const d = new Date();
+    const expected = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    expect(screen.getByLabelText("Date paid")).toHaveValue(expected);
+    vi.useRealTimers();
+  });
 });

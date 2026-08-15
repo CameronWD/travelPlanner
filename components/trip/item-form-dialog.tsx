@@ -349,7 +349,7 @@ function ItemForm({
       // the amount) must all clear the payment. The invariant is
       // one-directional (ADR 0037): a paid *date* requires an amount, but an
       // amount with no date is a legal, honest, incomplete record — so we
-      // never invent a date here. `todayISO()` is only used for the
+      // never invent a date here. `todayLocalISO()` is only used for the
       // interactive pre-fill in InlineCostFields, where the user can see and
       // edit it before saving; it is never fabricated at submit time.
       const parsedPaidMinor = paid ? parseAmountToMinor(paidAmount, currency) : null;

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   parseISODate,
   formatISODate,
@@ -19,7 +19,10 @@ import {
   tzAbbrev,
   dayNumberInTrip,
   formatNights,
+  todayLocalISO,
 } from "./dates";
+
+afterEach(() => vi.useRealTimers());
 
 describe("parseISODate", () => {
   it("parses a valid YYYY-MM-DD string to midnight UTC", () => {
@@ -312,5 +315,16 @@ describe("formatNights", () => {
   it("prefixes a tilde for rough estimates", () => {
     expect(formatNights(2, { rough: true })).toBe("~2 nights");
     expect(formatNights(1, { rough: true })).toBe("~1 night");
+  });
+});
+
+describe("todayLocalISO", () => {
+  it("returns the device-local calendar day", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-14T22:00:00Z"));
+    const d = new Date();
+    const expected = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    expect(todayLocalISO()).toBe(expected); // differs from todayISO() when TZ≠UTC
+    vi.useRealTimers();
   });
 });

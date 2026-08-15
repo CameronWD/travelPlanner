@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { NavMoreMenu } from "@/components/trip/nav-more-menu";
 
@@ -10,21 +10,25 @@ export interface NavItem {
   href: string;
 }
 
-export function primaryNav(tripId: string): NavItem[] {
+// Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
+export function primaryNav(tripId: string, planParam?: string | null): NavItem[] {
   const base = `/trips/${tripId}`;
+  const plan = planParam ? `?plan=${encodeURIComponent(planParam)}` : "";
   return [
     { label: "Home", href: base },
-    { label: "Plan", href: `${base}/plan` },
+    { label: "Plan", href: `${base}/plan${plan}` },
     { label: "Calendar", href: `${base}/calendar` },
-    { label: "Budget", href: `${base}/budget` },
+    { label: "Budget", href: `${base}/budget${plan}` },
     { label: "Summary", href: `${base}/summary` },
   ];
 }
 
-export function moreNav(tripId: string): NavItem[] {
+// Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
+export function moreNav(tripId: string, planParam?: string | null): NavItem[] {
   const base = `/trips/${tripId}`;
+  const plan = planParam ? `?plan=${encodeURIComponent(planParam)}` : "";
   return [
-    { label: "Wishlist", href: `${base}/wishlist` },
+    { label: "Wishlist", href: `${base}/wishlist${plan}` },
     { label: "Journal", href: `${base}/journal` },
     { label: "Checklists", href: `${base}/checklists` },
     { label: "Files", href: `${base}/files` },
@@ -33,14 +37,15 @@ export function moreNav(tripId: string): NavItem[] {
   ];
 }
 
-/** Exact-match for Home (base), prefix-match for everything else. */
+/** Exact-match for Home (base), prefix-match for everything else. Ignores query strings. */
 export function isNavActive(
   href: string,
   pathname: string,
   base: string,
 ): boolean {
-  if (href === base) return pathname === base;
-  return pathname === href || pathname.startsWith(href + "/");
+  const path = href.split("?")[0];
+  if (path === base) return pathname === base;
+  return pathname === path || pathname.startsWith(path + "/");
 }
 
 interface TripNavProps {
@@ -54,8 +59,9 @@ interface TripNavProps {
  */
 export function TripNav({ tripId }: TripNavProps) {
   const pathname = usePathname();
+  const planParam = useSearchParams().get("plan");
   const base = `/trips/${tripId}`;
-  const items = primaryNav(tripId);
+  const items = primaryNav(tripId, planParam);
 
   return (
     <nav

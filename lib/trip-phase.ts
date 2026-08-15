@@ -109,6 +109,7 @@ export const PHASE_RANK: Record<TripPhase, number> = {
 };
 
 export interface TripListItem {
+  id: string;
   startDate: string | null;
   endDate: string | null;
   /** Date object as returned by Prisma — unlike the string dates above. */
@@ -119,10 +120,21 @@ export interface TripListItem {
  * Comparator for the trips list: active/upcoming first, then sketching, then
  * past. Within the dated upcoming/active groups, soonest start first; within
  * sketching/past, newest first.
+ *
+ * `today` is the fallback "today" (e.g. UTC). `todayByTripId`, when given,
+ * supplies each trip's own reference-timezone "today" (things-to-fix P0-2) —
+ * this matters because two trips with identical dates can be in different
+ * phases depending on how far each trip's zone has already turned over.
  */
-export function compareForTripList(a: TripListItem, b: TripListItem, today: string): number {
-  const pa = computeTripPhase({ startDate: a.startDate, endDate: a.endDate, today });
-  const pb = computeTripPhase({ startDate: b.startDate, endDate: b.endDate, today });
+export function compareForTripList(
+  a: TripListItem,
+  b: TripListItem,
+  today: string,
+  todayByTripId?: Map<string, string>,
+): number {
+  const todayFor = (t: TripListItem) => todayByTripId?.get(t.id) ?? today;
+  const pa = computeTripPhase({ startDate: a.startDate, endDate: a.endDate, today: todayFor(a) });
+  const pb = computeTripPhase({ startDate: b.startDate, endDate: b.endDate, today: todayFor(b) });
   if (PHASE_RANK[pa] !== PHASE_RANK[pb]) return PHASE_RANK[pa] - PHASE_RANK[pb];
 
   // Same phase group.

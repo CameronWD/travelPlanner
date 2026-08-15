@@ -3,8 +3,26 @@ import { COST_OWNER_TYPES, costOwnerTypeSchema } from "@/lib/enums";
 import { CURRENCY_CODES } from "@/lib/currencies";
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Max amount in minor units (32-bit signed int cap for Prisma Int type). */
+export const MAX_AMOUNT_MINOR = 2_147_483_647;
+
+// ---------------------------------------------------------------------------
 // Cost schema
 // ---------------------------------------------------------------------------
+
+/**
+ * True if `s` (already known to match YYYY-MM-DD) is a real calendar date —
+ * rejects overflow like 2026-02-30, which `Date`'s constructor would
+ * otherwise silently roll forward into March.
+ */
+const isRealCalendarDate = (s: string): boolean => {
+  const [y, m, d] = s.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+};
 
 /**
  * Accepts either an ISO datetime (with offset) or a plain YYYY-MM-DD date
@@ -15,7 +33,11 @@ import { CURRENCY_CODES } from "@/lib/currencies";
 export const paidAtStringSchema = z
   .string()
   .datetime({ offset: true, message: "paidAt must be an ISO datetime string" })
-  .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD or ISO datetime"));
+  .or(
+    z.string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD or ISO datetime")
+      .refine(isRealCalendarDate, "paidAt must be a real calendar date"),
+  );
 
 /**
  * Zod schema for creating or updating a Cost.
@@ -38,13 +60,13 @@ export const costSchema = z
       .min(0, "Cost must be 0 or greater")
       // Cap at 32-bit signed max: Prisma maps Int to Postgres INTEGER which
       // enforces this bound, so we validate it here before attempting an insert.
-      .max(2_147_483_647, "Amount is too large"),
+      .max(MAX_AMOUNT_MINOR, "Amount is too large"),
 
     paidMinor: z
       .number()
       .int("Paid amount must be a whole number in minor units")
       .min(0, "Paid amount must be 0 or greater")
-      .max(2_147_483_647, "Amount is too large")
+      .max(MAX_AMOUNT_MINOR, "Amount is too large")
       .optional(),
 
     currency: z

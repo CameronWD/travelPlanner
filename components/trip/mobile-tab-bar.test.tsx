@@ -4,14 +4,17 @@ import { MobileTabBar } from "./mobile-tab-bar";
 
 // Use a vi.fn() so individual tests can override the return value per-test.
 const mockUsePathname = vi.fn(() => "/trips/t1");
+const mockUseSearchParams = vi.fn(() => new URLSearchParams());
 
 vi.mock("next/navigation", () => ({
   usePathname: () => mockUsePathname(),
+  useSearchParams: () => mockUseSearchParams(),
 }));
 
 beforeEach(() => {
   // Reset to a base (non-More) route before each test.
   mockUsePathname.mockReturnValue("/trips/t1");
+  mockUseSearchParams.mockReturnValue(new URLSearchParams());
 });
 
 describe("MobileTabBar", () => {

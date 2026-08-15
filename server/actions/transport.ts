@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { transportSchema, type TransportInput } from "@/lib/validations/transport";
+import { wallTimeToInstant } from "@/lib/wall-time";
+import { resolveEndpointZones } from "@/lib/time-display";
 import { geocodePlace, searchPlacesWithStatus, type PlaceSearchOutcome } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
@@ -115,6 +117,17 @@ export async function createTransport(
   const stopError = await validateStopBelongsToTrip(tripId, [fromStopId, toStopId, anchorStopId], forkId);
   if (stopError) return stopError;
 
+  // Interpret wall-time strings in the endpoint Stop's timezone (P0-1).
+  const endpointIds = [fromStopId, toStopId].filter((v): v is string => v !== null);
+  const endpointStops = endpointIds.length
+    ? await db.stop.findMany({ where: { id: { in: endpointIds } }, select: { id: true, timezone: true } })
+    : [];
+  const tzOf = (id: string | null) =>
+    id ? endpointStops.find((s) => s.id === id)?.timezone ?? null : null;
+  const { depTz, arrTz } = resolveEndpointZones(tzOf(fromStopId), tzOf(toStopId));
+  const depAtInstant = wallTimeToInstant(data.depAt, depTz);
+  const arrAtInstant = wallTimeToInstant(data.arrAt, arrTz);
+
   // Determine sort order
   const maxTransport = await db.transport.findFirst({
     where: { tripId, ...planScope(forkId) },
@@ -152,9 +165,9 @@ export async function createTransport(
       toStopId,
       anchorStopId,
       depPlace,
-      depAt: data.depAt ?? null,
+      depAt: depAtInstant,
       arrPlace,
-      arrAt: data.arrAt ?? null,
+      arrAt: arrAtInstant,
       reference: data.reference ?? null,
       notes: data.notes ?? null,
       sortOrder,
@@ -240,6 +253,17 @@ export async function updateTransport(
   );
   if (stopError) return stopError;
 
+  // Interpret wall-time strings in the endpoint Stop's timezone (P0-1).
+  const endpointIds = [fromStopId, toStopId].filter((v): v is string => v !== null);
+  const endpointStops = endpointIds.length
+    ? await db.stop.findMany({ where: { id: { in: endpointIds } }, select: { id: true, timezone: true } })
+    : [];
+  const tzOf = (id: string | null) =>
+    id ? endpointStops.find((s) => s.id === id)?.timezone ?? null : null;
+  const { depTz, arrTz } = resolveEndpointZones(tzOf(fromStopId), tzOf(toStopId));
+  const depAtInstant = wallTimeToInstant(data.depAt, depTz);
+  const arrAtInstant = wallTimeToInstant(data.arrAt, arrTz);
+
   const before = await db.transport.findUnique({ where: { id: transportId } });
 
   // Best-effort geocode for departure and arrival places.
@@ -270,9 +294,9 @@ export async function updateTransport(
       toStopId,
       anchorStopId,
       depPlace,
-      depAt: data.depAt ?? null,
+      depAt: depAtInstant,
       arrPlace,
-      arrAt: data.arrAt ?? null,
+      arrAt: arrAtInstant,
       reference: data.reference ?? null,
       notes: data.notes ?? null,
       depLat,

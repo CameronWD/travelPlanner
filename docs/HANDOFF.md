@@ -10,7 +10,7 @@ The following work out of the box in local development with no external accounts
 
 | Feature | Local default |
 |---|---|
-| Database | SQLite (`file:./dev.db`) via Prisma + better-sqlite3 |
+| Database | Postgres in Docker (`docker-compose.yml`) via `@prisma/adapter-pg` — see ADR 0005 |
 | Auth | Dev-login shim (`ALLOW_DEV_LOGIN="true"`) — no OAuth required |
 | FX rates | Frankfurter public API — no key |
 | Maps / geocoding | Leaflet + OpenStreetMap + Nominatim — no key |

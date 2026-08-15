@@ -4,6 +4,7 @@ import {
   describePhase,
   PHASE_RANK,
   compareForTripList,
+  type TripListItem,
 } from "./trip-phase";
 
 describe("computeTripPhase", () => {
@@ -116,5 +117,13 @@ describe("compareForTripList", () => {
   it("exposes a stable phase rank", () => {
     expect(PHASE_RANK.travelling).toBeLessThan(PHASE_RANK.planning);
     expect(PHASE_RANK.sketching).toBeLessThan(PHASE_RANK.past);
+  });
+
+  it("uses a per-trip today when provided", () => {
+    const a: TripListItem = { id: "a", startDate: "2026-08-15", endDate: "2026-08-20", createdAt: new Date("2026-01-01") };
+    const b: TripListItem = { id: "b", startDate: "2026-08-15", endDate: "2026-08-20", createdAt: new Date("2026-01-01") };
+    // Same dates; but trip a's zone has already reached the 15th → travelling ranks first.
+    const todays = new Map([["a", "2026-08-15"], ["b", "2026-08-14"]]);
+    expect(compareForTripList(a, b, "2026-08-14", todays)).toBeLessThan(0);
   });
 });

@@ -437,7 +437,7 @@ describe("updateCost", () => {
     // history. other-cost-editor.tsx sends paidMinor: undefined (never null)
     // when Paid is un-ticked — Prisma must not receive a `paidMinor` key at
     // all here, or it would null out the existing amount on save.
-    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1" });
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", currency: "AUD" });
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
     tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
     resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
@@ -445,8 +445,61 @@ describe("updateCost", () => {
 
     const result = await updateCost("cost-1", {
       ...VALID_TRANSPORT_INPUT,
-      currency: "AUD",
+      currency: "AUD", // unchanged from existing — paidMinor omission must survive
       paidMinor: undefined,
+    });
+
+    expect(result.success).toBe(true);
+    const call = costUpdateMock.mock.calls[0][0];
+    expect(call.data).not.toHaveProperty("paidMinor");
+  });
+
+  it("clears a preserved paid amount when the currency changes without a payment (P3-3)", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", currency: "EUR" });
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1.5, persist: null });
+    costUpdateMock.mockResolvedValue({});
+
+    const result = await updateCost("cost-1", {
+      ...VALID_OTHER_INPUT,
+      currency: "USD", // changed from EUR; no paidMinor, no paidAt in input
+    });
+
+    expect(result.success).toBe(true);
+    const call = costUpdateMock.mock.calls[0][0];
+    expect(call.data.paidMinor).toBeNull();
+  });
+
+  it("does NOT clear paidMinor when the currency changes but the caller re-marks paid in the same update", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", currency: "EUR" });
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1.5, persist: null });
+    costUpdateMock.mockResolvedValue({});
+
+    const result = await updateCost("cost-1", {
+      ...VALID_OTHER_INPUT,
+      currency: "USD",
+      paidMinor: 2000,
+      paidAt: "2026-06-04",
+    });
+
+    expect(result.success).toBe(true);
+    const call = costUpdateMock.mock.calls[0][0];
+    expect(call.data.paidMinor).toBe(2000);
+  });
+
+  it("does NOT clear paidMinor when the currency is unchanged", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", currency: "USD" });
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1.5, persist: null });
+    costUpdateMock.mockResolvedValue({});
+
+    const result = await updateCost("cost-1", {
+      ...VALID_OTHER_INPUT,
+      currency: "USD", // same as existing
     });
 
     expect(result.success).toBe(true);
@@ -644,6 +697,15 @@ describe("markCostPaid", () => {
     const result = await markCostPaid("c1", -100, "2026-06-04");
 
     expect(result.success).toBe(false);
+    expect(costUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a paid amount above the int cap with a field error", async () => {
+    costFindUniqueMock.mockResolvedValueOnce({ id: "cost-1", tripId: "trip-1", forkId: null });
+
+    const r = await markCostPaid("cost-1", 2_147_483_648, "2026-08-14");
+
+    expect(r).toEqual({ success: false, errors: { paidMinor: ["Amount is too large"] } });
     expect(costUpdateMock).not.toHaveBeenCalled();
   });
 

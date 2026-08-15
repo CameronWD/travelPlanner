@@ -54,6 +54,7 @@ const baseProps = {
   days: [],
   tripStart: "2026-08-01",
   tripEnd: "2026-08-14",
+  todayISO: "2026-08-05",
 };
 
 describe("CalendarViews wishlist rail width", () => {

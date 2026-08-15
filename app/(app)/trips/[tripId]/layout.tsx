@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { formatDateRange, todayISO } from "@/lib/dates";
+import { formatDateRange } from "@/lib/dates";
+import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -54,6 +55,11 @@ export default async function TripLayout({
           },
         },
       },
+      stops: {
+        where: { forkId: null, arriveDate: { not: null } },
+        orderBy: { sortOrder: "asc" },
+        select: { timezone: true, arriveDate: true, departDate: true },
+      },
     },
   });
 
@@ -67,10 +73,11 @@ export default async function TripLayout({
     listForks(tripId),
   ]);
 
+  const today = todayISOInZone(currentTripTimezone(trip.stops));
   const tripPhase = computeTripPhase({
     startDate: trip.startDate,
     endDate: trip.endDate,
-    today: todayISO(),
+    today,
   });
 
   // Forking is allowed in sketching / planning / final-prep (not travelling/past)
