@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 // trip-nav.tsx is a client component that imports next/navigation at module
@@ -14,6 +14,7 @@ import {
   HELP_SECTIONS,
   GUIDE_NAV_LABELS,
   GUIDE_TRIP_SEGMENTS,
+  GUIDE_UI_STRINGS,
   sectionsInGroup,
   guideTripHref,
 } from "./help-guide";
@@ -122,4 +123,66 @@ describe("drift guard: linked routes", () => {
       expect(existsSync(p), `route /trips/[tripId]/${seg} is missing`).toBe(true);
     }
   });
+});
+
+// ── Drift guard: quoted control labels ───────────────────────────────────────
+// The guide tells the reader to tap specific buttons by name. This walks the
+// real UI source and proves each of those names is still on screen somewhere.
+//
+// The guide's own files are excluded on purpose: help-guide.tsx quotes every
+// one of these strings, so scanning it would make the guard self-satisfying and
+// unable to fail. Tests are excluded for the same reason.
+const UI_SOURCE_ROOTS = ["components", "app"];
+const EXCLUDED_SOURCE = /help-guide|help-legend|\.test\./;
+
+/** Entities used in JSX text, so a label reads the same as it renders. */
+function decodeEntities(source: string): string {
+  return source
+    .replaceAll("&apos;", "'")
+    .replaceAll("&#39;", "'")
+    .replaceAll("&rsquo;", "’")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&amp;", "&");
+}
+
+function collectSourceFiles(dir: string, out: string[] = []): string[] {
+  for (const entry of readdirSync(dir)) {
+    const p = path.join(dir, entry);
+    if (statSync(p).isDirectory()) collectSourceFiles(p, out);
+    else if (/\.tsx?$/.test(p) && !EXCLUDED_SOURCE.test(p)) out.push(p);
+  }
+  return out;
+}
+
+describe("drift guard: quoted control labels", () => {
+  const files = UI_SOURCE_ROOTS.flatMap((root) =>
+    collectSourceFiles(path.join(process.cwd(), root)),
+  );
+  const sources = files.map((f) => ({
+    file: path.relative(process.cwd(), f),
+    text: decodeEntities(readFileSync(f, "utf8")),
+  }));
+
+  it("scans a real body of UI source", () => {
+    // If the walk silently returned nothing, every assertion below would be
+    // vacuous rather than failing.
+    expect(files.length).toBeGreaterThan(50);
+    expect(sources.some((s) => s.file.includes("stop-card.tsx"))).toBe(true);
+    expect(sources.every((s) => !s.file.includes("help-guide"))).toBe(true);
+  });
+
+  it.each(GUIDE_UI_STRINGS)(
+    "the guide quotes %s, and it is still on screen",
+    (label) => {
+      // Curly apostrophes render identically; accept either form.
+      const curly = label.replaceAll("'", "’");
+      const found = sources.some(
+        (s) => s.text.includes(label) || s.text.includes(curly),
+      );
+      expect(
+        found,
+        `the guide quotes "${label}" but no file under components/ or app/ contains it — either the control was renamed, or the guide should stop quoting it`,
+      ).toBe(true);
+    },
+  );
 });

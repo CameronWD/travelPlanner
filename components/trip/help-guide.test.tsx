@@ -121,6 +121,15 @@ describe("HELP_PRINT_STYLE", () => {
     expect(HELP_PRINT_STYLE).toContain("display: block");
   });
 
+  it("is actually rendered into the page, not just exported", () => {
+    // Deleting <style>{HELP_PRINT_STYLE}</style> from the component left the
+    // two assertions below green, because they only inspect the string.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const style = container.querySelector("style");
+    expect(style, "the guide renders no <style> element at all").not.toBeNull();
+    expect(style?.textContent).toContain("@media print");
+  });
+
   it("also opens sections in engines that hide ::details-content", () => {
     // Chromium >= 131 / Safari >= 18.4 / Firefox >= 139 put a closed <details>
     // content in a ::details-content box with content-visibility: hidden, where

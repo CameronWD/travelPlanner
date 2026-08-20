@@ -32,21 +32,104 @@ import { ChapterChip } from "@/components/trip/chapter-chip";
  * pencil/trash pair is replicated here with bare Buttons instead.
  */
 
+/** Which block of the key a row belongs to. */
+export type LegendGroup = "button" | "marker";
+
 export interface LegendEntry {
+  /** Which block of the key this row sits in. */
+  group: LegendGroup;
+  /** The app's real control, rendered as an inert illustration. */
+  specimen: React.ReactNode;
   /** Plain-English description of what the control does. */
   meaning: string;
 }
 
-/** One entry per specimen row, in render order. */
+/** A non-interactive replica of a ghost icon button. */
+function IconSpecimen({ children }: { children: React.ReactNode }) {
+  return (
+    <Button variant="ghost" size="icon" className="size-8" tabIndex={-1}>
+      {children}
+    </Button>
+  );
+}
+
+/**
+ * One entry per specimen row, in render order.
+ *
+ * The specimen and its meaning live in the SAME object deliberately. They used
+ * to be paired by index across two places, which meant a mis-pairing — a green
+ * tick captioned "shows on the map" — was invisible to every test. Now the
+ * component just maps over this array, so the pairing cannot drift.
+ */
 export const LEGEND_ENTRIES: readonly LegendEntry[] = [
-  { meaning: "Add something new" },
-  { meaning: "Edit what's there" },
-  { meaning: "Delete it — you'll get an undo for a few seconds" },
-  { meaning: "Done, or already in this plan" },
-  { meaning: "Has a location, so it shows on the map" },
-  { meaning: "Has a file attached — a ticket or booking" },
-  { meaning: "Something needs your attention" },
-  { meaning: "Has a set time, not just a day" },
+  {
+    group: "button",
+    specimen: (
+      <Button variant="primary" size="sm" tabIndex={-1}>
+        <Plus />
+        Add
+      </Button>
+    ),
+    meaning: "Add something new",
+  },
+  {
+    group: "button",
+    specimen: (
+      <IconSpecimen>
+        <Pencil className="size-4" />
+      </IconSpecimen>
+    ),
+    meaning: "Edit what's there",
+  },
+  {
+    group: "button",
+    specimen: (
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-8 text-destructive"
+        tabIndex={-1}
+      >
+        <Trash2 className="size-4" />
+      </Button>
+    ),
+    // Deleting is never undoable: every delete opens a confirm dialog whose own
+    // copy says "This can't be undone." The undo toast belongs to two other
+    // actions entirely, so promising an undo here would be dangerous.
+    meaning: "Delete it — you'll be asked to confirm first",
+  },
+  {
+    group: "marker",
+    specimen: <Check className="size-4 text-success" />,
+    meaning: "Done, or already in this plan",
+  },
+  {
+    group: "marker",
+    specimen: <MapPin className="size-4 text-primary" />,
+    meaning: "Has a location, so it shows on the map",
+  },
+  {
+    // The paperclip button itself sits on every card. The NUMBER beside it is
+    // the actual signal, so the specimen carries one.
+    group: "marker",
+    specimen: (
+      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Paperclip className="size-3.5" />
+        <span className="font-medium">2</span>
+      </span>
+    ),
+    meaning: "A number beside the paperclip — that many files attached",
+  },
+  {
+    group: "marker",
+    specimen: <AlertTriangle className="size-4 text-warning" />,
+    meaning: "Something needs your attention",
+  },
+  {
+    group: "marker",
+    specimen: <Clock className="size-4 text-muted-foreground" />,
+    meaning: "Has a set time, not just a day",
+  },
 ];
 
 function Row({
@@ -70,12 +153,18 @@ function Row({
   );
 }
 
-/** A non-interactive replica of a ghost icon button. */
-function IconSpecimen({ children }: { children: React.ReactNode }) {
+/** Every row in one block of the key, in LEGEND_ENTRIES order. */
+function LegendRows({ group }: { group: LegendGroup }) {
   return (
-    <Button variant="ghost" size="icon" className="size-8" tabIndex={-1}>
-      {children}
-    </Button>
+    <ul className="flex flex-col gap-2.5">
+      {LEGEND_ENTRIES.filter((entry) => entry.group === group).map((entry) => (
+        <Row
+          key={entry.meaning}
+          specimen={entry.specimen}
+          meaning={entry.meaning}
+        />
+      ))}
+    </ul>
   );
 }
 
@@ -87,38 +176,7 @@ export function HelpLegend() {
         <h3 className="mb-3 font-display text-base font-semibold text-foreground">
           Buttons you&rsquo;ll tap
         </h3>
-        <ul className="flex flex-col gap-2.5">
-          <Row
-            specimen={
-              <Button variant="primary" size="sm" tabIndex={-1}>
-                <Plus />
-                Add
-              </Button>
-            }
-            meaning={LEGEND_ENTRIES[0].meaning}
-          />
-          <Row
-            specimen={
-              <IconSpecimen>
-                <Pencil className="size-4" />
-              </IconSpecimen>
-            }
-            meaning={LEGEND_ENTRIES[1].meaning}
-          />
-          <Row
-            specimen={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8 text-destructive"
-                tabIndex={-1}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            }
-            meaning={LEGEND_ENTRIES[2].meaning}
-          />
-        </ul>
+        <LegendRows group="button" />
       </div>
 
       {/* ── Little markers on things ── */}
@@ -126,28 +184,7 @@ export function HelpLegend() {
         <h3 className="mb-3 font-display text-base font-semibold text-foreground">
           Little markers you&rsquo;ll see
         </h3>
-        <ul className="flex flex-col gap-2.5">
-          <Row
-            specimen={<Check className="size-4 text-success" />}
-            meaning={LEGEND_ENTRIES[3].meaning}
-          />
-          <Row
-            specimen={<MapPin className="size-4 text-primary" />}
-            meaning={LEGEND_ENTRIES[4].meaning}
-          />
-          <Row
-            specimen={<Paperclip className="size-4 text-muted-foreground" />}
-            meaning={LEGEND_ENTRIES[5].meaning}
-          />
-          <Row
-            specimen={<AlertTriangle className="size-4 text-warning" />}
-            meaning={LEGEND_ENTRIES[6].meaning}
-          />
-          <Row
-            specimen={<Clock className="size-4 text-muted-foreground" />}
-            meaning={LEGEND_ENTRIES[7].meaning}
-          />
-        </ul>
+        <LegendRows group="marker" />
       </div>
 
       {/* ── Colour-coded labels ── */}
@@ -170,8 +207,14 @@ export function HelpLegend() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="warning">Needs attention</Badge>
+            {/* Red is reserved for the hard-end overrun (plan-overview.tsx
+                `over` tone, the Make it fit dialog, the "Over hard end" badge
+                on Compare). Flags themselves are only ever amber or blue —
+                keep this consistent with the "When something looks off"
+                section of the guide. */}
             <span className="text-sm text-muted-foreground">
-              Amber means have a look. Red means something&rsquo;s wrong.
+              Amber means have a look. Red turns up in one place only: when the
+              plan runs past the day you have to be home.
             </span>
           </div>
         </div>
@@ -182,6 +225,9 @@ export function HelpLegend() {
         <h3 className="mb-3 font-display text-base font-semibold text-foreground">
           The bar along the bottom (on your phone)
         </h3>
+        {/* Icon/label pairs are hand-copied from the real tab bar —
+            components/trip/mobile-tab-bar.tsx:17-22 (its icon map is
+            module-private). Keep the two in step. */}
         <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
           {[
             { icon: <Home className="size-5" />, label: "Home" },

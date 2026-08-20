@@ -263,8 +263,8 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <li>
                 <strong className="font-semibold">Address</strong> — worth
                 filling in, because an address will usually put the thing on that
-                day&rsquo;s map. The app looks the address up in the background,
-                and only what it can place gets plotted.
+                day&rsquo;s map. The app looks the address up as it saves, and
+                only what it can place gets plotted.
               </li>
               <li>
                 <strong className="font-semibold">Link</strong> — the page you
@@ -333,8 +333,11 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 </Go>{" "}
                 appears alongside it, as long as you&rsquo;ve put something on it
                 — in a column beside the grid on a wide screen, stacked
-                underneath on a phone. Drag an idea straight onto a day, or tap
-                the little calendar button next to it if dragging is fiddly.
+                underneath on a phone. Drag an idea onto a day and it{" "}
+                <strong className="font-semibold">moves</strong> there: the idea
+                now has that date, so it leaves the board. If you&rsquo;d rather keep it on the board, tap the
+                little calendar button beside it instead — that puts a copy on
+                the day and leaves the idea where it is.
               </li>
               <li>
                 <strong className="font-semibold">
@@ -398,13 +401,20 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               don&rsquo;t have to remember what you saved two years ago.
             </p>
             <p>
-              One thing that catches people out: scheduling a Wishlist idea{" "}
-              <strong className="font-semibold">copies</strong> it into the plan.
-              The idea itself stays on the board with a tick and &ldquo;in this
-              plan&rdquo; beside it. That&rsquo;s deliberate — the Wishlist is
-              shared by every version of the plan, so the same idea can sit on
-              day three of one and day five of another. Unscheduling removes the
-              copy, never the idea.
+              One thing that catches people out: there are two ways an idea gets
+              onto a day, and they behave differently.{" "}
+              <strong className="font-semibold">Schedule this</strong> on an
+              idea&rsquo;s card — and the little calendar button on the Wishlist
+              column beside the Calendar — puts a{" "}
+              <strong className="font-semibold">copy</strong> on the day you
+              pick. The idea itself stays on the board, now with a tick and{" "}
+              &ldquo;in this plan&rdquo; beside it. That&rsquo;s the one to reach
+              for, because the Wishlist is shared by every version of the plan,
+              so the same idea can sit on day three of one and day five of
+              another. Dragging an idea onto a day instead{" "}
+              <strong className="font-semibold">moves</strong> it: the idea takes
+              that date, so it leaves the board and gets no tick. It isn&rsquo;t
+              lost — it&rsquo;s on the day you dropped it on.
             </p>
           </Section>
 
@@ -479,10 +489,15 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <Go tripId={tripId} segment="budget">
                 Budget
               </Go>{" "}
-              is where it all adds up: one grand total, then the same money
-              broken down by category, by place, by chapter, and day by day —
-              cost down one side, paid down the other. There&rsquo;s no limit or
-              target to set. It only ever tells you where you are.
+              is where it all adds up: a row of totals along the top — what the
+              trip costs, what you&rsquo;ve paid, what&rsquo;s still to pay and
+              what it comes to a day — then the same money broken down{" "}
+              <strong className="font-semibold">By category</strong>,{" "}
+              <strong className="font-semibold">By destination</strong>,{" "}
+              <strong className="font-semibold">By chapter</strong> and{" "}
+              <strong className="font-semibold">Day by day</strong> — cost down
+              one side, paid down the other. There&rsquo;s no limit or target to
+              set. It only ever tells you where you are.
             </p>
             <p>
               It&rsquo;s also the quickest way to catch up on a batch of
@@ -491,9 +506,13 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 Mark off what you&rsquo;ve paid
               </strong>{" "}
               lists everything and lets you tick down it in one sitting.{" "}
-              <strong className="font-semibold">Other costs</strong> at the
-              bottom is for money that isn&rsquo;t attached to anything on the
-              plan — insurance, visas, a travel SIM, spending money.
+              <strong className="font-semibold">Other costs</strong> — off to the
+              side on a wide screen, further down the page on a phone — is for
+              money that isn&rsquo;t attached to anything on the plan:
+              insurance, visas, a travel SIM, spending money. Both of those
+              belong to the real plan, so neither shows while you&rsquo;re
+              editing a variant — a second version of the plan, which has a
+              section of its own further down.
             </p>
           </Section>
 
@@ -508,7 +527,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               can carry a due date and whichever of you is doing it.{" "}
               <strong className="font-semibold">Packing</strong> is the packing
               list, and you can save one as a template to pull into your next
-              trip instead of starting from nothing.
+              trip instead of starting from nothing. There&rsquo;s a third tab,{" "}
+              <strong className="font-semibold">Booking parser</strong>, for
+              pulling the details out of a booking email.
             </p>
             <p>
               <Go tripId={tripId} segment="files">
@@ -516,9 +537,11 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               </Go>{" "}
               is where tickets, confirmations and passport scans go. Upload them
               here and they&rsquo;re grouped by what they belong to. You can also
-              attach a file directly to a place, a booking or a thing to do — a
-              paperclip on a card means something&rsquo;s attached — and it turns
-              up here as well.
+              attach a file directly to a place, a booking or a thing to do —
+              the paperclip button sits on every card, so it&rsquo;s the number
+              next to it that
+              tells you something&rsquo;s attached — and it turns up here as
+              well.
             </p>
           </Section>
 
@@ -529,12 +552,20 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
             <p>
               <strong className="font-semibold">Notes</strong> are for talking
-              about one specific thing. You can leave one on any place, booking or
-              thing to do, and what you write stays attached to it — so
-              &ldquo;the 6am one is cheaper but brutal&rdquo; sits next to the
-              flight it&rsquo;s about instead of scrolling away in a chat. On a
-              wide screen the speech-bubble button is on the card itself; on a
-              phone, look under the card&rsquo;s ⋯ menu.
+              about one specific thing. You can leave one on any place, on any
+              booking, and on any idea on the{" "}
+              <Go tripId={tripId} segment="wishlist">
+                Wishlist
+              </Go>
+              , and what you write stays attached to it — so &ldquo;the 6am one
+              is cheaper but brutal&rdquo; sits next to the flight it&rsquo;s
+              about instead of scrolling away in a chat. On a wide screen the
+              speech-bubble button is on the card itself; on a phone, look under
+              the card&rsquo;s ⋯ menu. A thing to do parked under a place has no
+              speech bubble of its own — it has the plain{" "}
+              <strong className="font-semibold">Notes</strong> box in its own
+              form, and it&rsquo;s ideas on the Wishlist that take the
+              back-and-forth.
             </p>
             <p>
               <Go tripId={tripId} segment="activity">
@@ -545,18 +576,18 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               &ldquo;did you move those nights, or did I?&rdquo;.
             </p>
             <p>
-              The bell at the top of the screen is the short version — what the
-              other one has done since you last looked. You&rsquo;re never
-              notified about your own changes, and reading the feed clears it.
+              The bell at the top of the screen is the short version. Its count
+              only ever counts the other one&rsquo;s changes, so you&rsquo;re
+              never nudged about your own — though the list you open from it
+              shows the most recent changes from both of you. Reading it clears
+              the count.
             </p>
           </Section>
 
           <Section section={sectionById("away")}>
             <p>
               Once you&rsquo;re travelling, the trip&rsquo;s{" "}
-              <Go tripId={tripId} segment="today">
-                Home
-              </Go>{" "}
+              <strong className="font-semibold text-foreground">Home</strong>{" "}
               screen changes job. It stops counting down and starts showing
               today: what&rsquo;s on and in what order, how long until your next
               flight or train, where you&rsquo;re sleeping tonight, and what
@@ -568,8 +599,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 Journal
               </Go>{" "}
               is the other half of being away. Every day page has a box to write
-              in and somewhere to drop photos, and the Journal tab gathers every
-              day you&rsquo;ve written into one thread to read back afterwards.
+              in and a dashed <strong className="font-semibold">+</strong> tile
+              that opens your photos, and the Journal tab gathers every day
+              you&rsquo;ve written into one thread to read back afterwards.
             </p>
             <p>
               You won&rsquo;t always have signal. Pages you&rsquo;ve already
@@ -580,9 +612,13 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
             <p>
               If you&rsquo;d rather see the trip alongside the rest of your life,
-              it publishes a private calendar feed your phone&rsquo;s calendar
-              app can follow. It runs one way only: your plans appear in your
-              calendar, and nothing you do in your calendar comes back.
+              the trip can publish a private calendar feed your phone&rsquo;s
+              calendar app follows. Nothing is published until you ask for it:
+              you&rsquo;ll find it in the trip&rsquo;s settings, where{" "}
+              <strong className="font-semibold">Create calendar feed</strong>{" "}
+              gives you the link to subscribe to. It runs one way only — your
+              plans appear in your calendar, and nothing you do in your calendar
+              comes back.
             </p>
           </Section>
 
@@ -616,11 +652,16 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               A Flag is always something you can do something about, and they come
               in two strengths. Amber is the loud one — the app thinks this wants
               fixing. Blue is just for information, worth knowing but not a
-              problem. The Summary lists the amber ones first. Nothing is ever
-              red: a Flag is a nudge, not a failure.
+              problem. The Summary lists the amber ones first. A Flag is never
+              red: it&rsquo;s a nudge, not a failure. Red is saved for one thing
+              only — the plan running past the day you have to be home. That
+              shows in red on the Plan, again in the Make it fit dialog, and as
+              an <strong className="font-semibold">Over hard end</strong> badge
+              when you compare plans.
             </p>
             <p>
-              On the trip&rsquo;s Home screen the same information turns up as{" "}
+              Once your trip has dates, and up until the day you set off, the
+              trip&rsquo;s Home screen carries the same information as{" "}
               <strong className="font-semibold">Next steps</strong> — a short
               ranked list of what to deal with next, mixing the Flags in with
               gentler nudges like places that still have no dates or a packing
@@ -688,7 +729,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <Go tripId={tripId} segment="plan">
                 Plan
               </Go>
-              : <strong className="font-semibold">Add Chapter</strong> draws one
+              : <strong className="font-semibold">New Chapter</strong> draws one
               by hand, and{" "}
               <strong className="font-semibold">Suggest from countries</strong>{" "}
               proposes a set based on where you&rsquo;re going. Either way you
@@ -697,9 +738,10 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
             <p>
               A leg that crosses from one Chapter into the next belongs to
-              neither. It shows on the seam between them and gets its own line on
-              the Budget, rather than being counted inside either band&rsquo;s
-              total.
+              neither. You&rsquo;ll find it on the card of the place it leaves
+              from, and on the Budget it sits on its own{" "}
+              <strong className="font-semibold">Between legs</strong> line rather
+              than being counted inside either band&rsquo;s total.
             </p>
             <p>
               While a stretch has no dates yet, a Chapter works differently: you
@@ -728,8 +770,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <Go tripId={tripId} segment="plan">
                 Plan
               </Go>{" "}
-              does the whole trip in one pass; there&rsquo;s a Firm up on each
-              Chapter and each place too, if you&rsquo;d rather go leg by leg.
+              does the whole trip in one pass; each Chapter has its own{" "}
+              <strong className="font-semibold">Firm up</strong> as well, if
+              you&rsquo;d rather go a leg at a time.
             </p>
             <p>
               Nothing is locked afterwards. Change one place from three nights to
@@ -743,14 +786,18 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               &ldquo;don&rsquo;t move this&rdquo;. Pin the place with the
               non-refundable hotel, or the one built around a fixed date, and the
               ripple flows the flexible places around it and stops dead at the
-              pin. If what comes before a pin can no longer fit, you get a Flag
-              rather than a quietly overwritten booking, and any slack left in
-              front of a pin simply sits there as free days.
+              pin. If what comes before a pin can no longer fit, the app says so
+              on the spot — a message telling you the pin was kept — rather than
+              quietly overwriting the booking, and any slack left in front of a
+              pin simply sits there as free days.
             </p>
             <p>
-              The reverse of firming up is{" "}
-              <strong className="font-semibold">Clear dates</strong>, which makes
-              a place rough again so you can go back to sketching it.
+              The reverse of firming up makes a place rough again so you can go
+              back to sketching it. On a wide screen it&rsquo;s the{" "}
+              <strong className="font-semibold">Clear dates</strong> button on
+              the place&rsquo;s card; on a phone it&rsquo;s{" "}
+              <strong className="font-semibold">Make rough</strong> in that
+              card&rsquo;s ⋯ menu. Same thing either way.
             </p>
           </Section>
 
@@ -765,13 +812,15 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <li>
                 <strong className="font-semibold">Trim nights</strong> — take
                 nights off the places that aren&rsquo;t pinned, split in
-                proportion to how long you&rsquo;re staying at each and never
-                below one night. The suggested split is editable, so you can
-                shuffle which place gives up what before you commit.
+                proportion to how long you&rsquo;re staying at each. What it
+                suggests never takes a place below one night, but the numbers are
+                yours to edit, so you can shuffle which place gives up what — and
+                take one down to nothing — before you commit.
               </li>
               <li>
-                <strong className="font-semibold">Drop a stop</strong> — take one
-                place out altogether. Each candidate shows the day the plan would
+                <strong className="font-semibold">Or drop a stop</strong> — take
+                one place out altogether. Each candidate shows the day the plan
+                would
                 then end on, so you can see which one actually closes the gap.
               </li>
             </ul>
@@ -790,16 +839,26 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
 
           <Section section={sectionById("forks")}>
             <p>
-              A <strong className="font-semibold">Fork</strong> is a second
+              A <strong className="font-semibold">variant</strong> is a second
               version of the plan, kept beside the real one. Italy first, or
-              Switzerland bolted on the end? Make a Fork of each and look at them
-              next to each other instead of arguing in the abstract.
+              Switzerland bolted on the end?{" "}
+              <strong className="font-semibold">New variant</strong> on the{" "}
+              <Go tripId={tripId} segment="plan">
+                Plan
+              </Go>{" "}
+              gives you one of each to look at side by side instead of arguing in
+              the abstract. (You&rsquo;ll see this called a Fork here and there —
+              same thing.)
             </p>
             <p>
-              A Fork is a full plan, not a sketch. You edit it with exactly the
+              A variant is a full plan, not a sketch. You edit it with exactly the
               same tools, and it gets its own dates, its own Flags and its own
-              total. The one thing it doesn&rsquo;t do is go live: editing a Fork
-              never touches the real plan, the dated screens, the{" "}
+              total. While you&rsquo;re in one, a banner along the top says{" "}
+              <strong className="font-semibold">
+                Editing variant &mdash; not live
+              </strong>
+              , and that&rsquo;s the whole point: editing a variant never touches
+              the real plan, the dated screens, the{" "}
               <Go tripId={tripId} segment="summary">
                 Summary
               </Go>{" "}
@@ -809,25 +868,25 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
             <p>
               <Go tripId={tripId} segment="compare">
-                Compare
+                Compare plans
               </Go>{" "}
               puts them in columns with the real plan on the left, and shows each
-              Fork as a difference against it: which places were added, dropped,
-              re-nighted or reordered, and how the end date, the total and the
-              number of Flags move.
+              variant as a difference against it: which places were added,
+              dropped, re-nighted or reordered, and how the end date, the total
+              and the number of Flags move.
             </p>
             <p>
               When you&rsquo;ve decided,{" "}
-              <strong className="font-semibold">Promote</strong> makes that Fork
-              the real plan — and discards every other version, including the one
-              it replaces. It can&rsquo;t be undone, so the confirmation spells
-              out what the swap would lose: payments you&rsquo;ve recorded,
-              confirmation numbers, and files attached to the plan being replaced.
-              Read that list before you tap it.
+              <strong className="font-semibold">Promote</strong> makes that
+              variant the real plan — and discards every other version, including
+              the one it replaces. It can&rsquo;t be undone, so the confirmation
+              spells out what the swap would lose: payments you&rsquo;ve
+              recorded, confirmation numbers, and files attached to the plan being
+              replaced. Read that list before you tap it.
             </p>
             <p>
-              Forks are only offered before you leave. Once the trip is under way
-              there&rsquo;s nothing left to compare.
+              Variants are only offered before you leave. Once the trip is under
+              way there&rsquo;s nothing left to compare.
             </p>
           </Section>
         </div>
@@ -937,15 +996,16 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <div>
                 <dt className="font-semibold text-foreground">Next steps</dt>
                 <dd className="text-muted-foreground">
-                  The ranked list on the trip&rsquo;s Home screen of what to deal
-                  with next: Flags plus gentler nudges.
+                  The ranked list of what to deal with next — Flags plus gentler
+                  nudges — on the trip&rsquo;s Home screen while you&rsquo;re
+                  still planning.
                 </dd>
               </div>
               <div>
-                <dt className="font-semibold text-foreground">Fork</dt>
+                <dt className="font-semibold text-foreground">Variant</dt>
                 <dd className="text-muted-foreground">
                   A what-if version of the plan, kept beside the real one for
-                  comparison. Not live until you promote it.
+                  comparison. Not live until you promote it. Also called a Fork.
                 </dd>
               </div>
               <div>
@@ -979,7 +1039,6 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 <dt className="font-semibold text-foreground">Activity</dt>
                 <dd className="text-muted-foreground">
                   The change log: who added, edited or deleted what, and when.
-                  This is the only thing that word means in here.
                 </dd>
               </div>
             </dl>

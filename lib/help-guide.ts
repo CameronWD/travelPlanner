@@ -112,7 +112,10 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
   },
   {
     id: "forks",
-    title: "Forks and comparing plans",
+    // Titled for the word the UI actually uses ("New variant", "Compare
+    // plans"). The id stays "forks" — it is the anchor slug, and Fork is the
+    // domain noun in CONTEXT.md.
+    title: "Variants and comparing plans",
     blurb: "Trying two versions of the trip side by side.",
     group: "advanced",
   },
@@ -127,6 +130,10 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
 /**
  * Trip route segments the guide links to. Asserted to exist as real pages —
  * add a segment here only when the guide actually links to it.
+ *
+ * "today" is deliberately absent: that route is a bare redirect to the trip
+ * root, so a link labelled "Home" pointing at /today was a label that did not
+ * match its href. The guide names the Home screen in plain text instead.
  */
 export const GUIDE_TRIP_SEGMENTS = [
   "plan",
@@ -138,7 +145,6 @@ export const GUIDE_TRIP_SEGMENTS = [
   "checklists",
   "files",
   "activity",
-  "today",
   "compare",
 ] as const;
 
@@ -159,6 +165,63 @@ export const GUIDE_NAV_LABELS = [
   "Checklists",
   "Files",
   "Activity",
+] as const;
+
+/**
+ * On-screen control labels the guide quotes back to the reader.
+ *
+ * The nav-label and route guards below cover tab names and page paths — the
+ * parts least likely to move. Button labels are the parts most likely to move,
+ * and a renamed button turns a confident instruction ("tap Add Chapter") into
+ * one that cannot be followed. Every string here is asserted to appear
+ * literally in some file under components/ or app/, excluding the guide's own
+ * files, so a rename fails the suite instead of silently making the guide lie.
+ *
+ * Add a string here when the guide starts quoting a control, and remove it
+ * when the guide stops. Deliberately excluded: single generic words ("Month",
+ * "Promote", "Firm up", "Paid") whose last occurrence would survive a rename,
+ * so the entry could not fail.
+ */
+export const GUIDE_UI_STRINGS = [
+  // Adding things
+  "Add Thing to Do",
+  "Add to this day",
+  "Show day map",
+  "Add from Globe",
+  "Add Accommodation",
+  "Add transport",
+  "Schedule this",
+  "in this plan",
+  // Budget
+  "Mark off what you've paid",
+  "By category",
+  "By destination",
+  "By chapter",
+  "Day by day",
+  "Other costs",
+  "Between legs",
+  // Getting ready
+  "Pre-trip",
+  "Packing",
+  "Booking parser",
+  "Create calendar feed",
+  // Flags, fitting and the home screen
+  "Next steps",
+  "Make it fit",
+  "Over hard end",
+  "Trim nights",
+  "Or drop a stop",
+  "Apply trim",
+  // Chapters, dates and pins
+  "New Chapter",
+  "Suggest from countries",
+  "Firm up all stops",
+  "Clear dates",
+  "Make rough",
+  // Variants
+  "New variant",
+  "Compare plans",
+  "Editing variant",
 ] as const;
 
 /** Sections in one group, in document order. */
