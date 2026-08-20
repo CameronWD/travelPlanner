@@ -56,6 +56,136 @@ Severity: **P0** = wrong data/behaviour for real users in production ·
 
 ---
 
+# Open items added 2026-08-20
+
+Everything in the 2026-08-14 audit below is now marked **Status: FIXED**. The two
+items in this section are *newer* and **open**. Both were surfaced by the
+`feat/in-app-user-guide` build — writing a user-facing description of the Wishlist
+forced a line-by-line read of what those screens actually do, and the prose and the
+code disagreed. Both are verified by code read on `feat/in-app-user-guide`
+(the guide branch changed no app code, so they are equally true of `main`).
+
+They share a root cause worth naming: **ADR 0019 says scheduling is copy-in
+placement, and two of the three paths that move an Item between the Wishlist and a
+plan don't implement it.** Fixing them together is sensible — one branch, one mental
+model, and the Wishlist's copy-in invariant either holds everywhere afterwards or it
+doesn't.
+
+## P0-4 · Dragging a Wishlist idea onto a day *moves* it, silently emptying the board — contradicting ADR 0019
+
+**Severity:** P0 — a deliberate, discoverable drag destroys a shared Wishlist idea.
+**Area:** calendar / wishlist / items. **Effort:** S.
+**Verified: code read** (`components/trip/calendar-views.tsx:111-125`,
+`server/actions/items.ts:637-640`, `app/(app)/trips/[tripId]/wishlist/page.tsx:55`).
+
+**Symptom.** On the Calendar, a Traveller drags an idea from the Wishlist rail onto a
+day. It lands on the day — and vanishes from the Wishlist, with no "✓ in this plan"
+tick and no undo. The other Traveller's shared shortlist just lost an entry. Doing
+the *same thing* with the little calendar button next to the idea behaves correctly:
+the idea stays, and a copy is placed. Two adjacent affordances, opposite semantics.
+
+**Root cause.** `handleDropItem` (`components/trip/calendar-views.tsx:111-125`) calls
+`rescheduleItem`, which does a plain `db.item.update` setting `date` (and `stopId`) on
+the existing row (`server/actions/items.ts:637-640`). That is the correct action for
+an item already on the Timeline — it is what month-grid drag-to-reschedule is for —
+but it is the wrong action for a Wishlist idea. The rail is fed
+`{ forkId: null, date: null, stopId: null }`
+(`app/(app)/trips/[tripId]/wishlist/page.tsx:55`, and the equivalent query on the
+Calendar page), i.e. Wishlist ideas only, so mutating `date` in place is precisely
+what drops the row out of every Wishlist query.
+
+The correct machinery already exists and is used by the neighbouring control:
+`ScheduleItemDialog` → `scheduleItem` (`server/actions/items.ts:476-520`), whose
+copy-in branch creates a new row with `sourceItemId` pointing at the idea and leaves
+the idea untouched. See `docs/adr/0019-scheduling-is-copy-in-placement.md`, which
+exists specifically to forbid the move semantics: *"Changes prior behaviour where
+scheduling was a one-entity move that emptied the Wishlist."*
+
+**Fix.**
+
+1. Make the drop path branch the same way `scheduleItem` does. The cheapest correct
+   change is for `handleDropItem` to call `scheduleItem(itemId, { date })` rather
+   than `rescheduleItem` **when the dragged row is a Wishlist idea**, and keep
+   `rescheduleItem` for drags that originate in the month grid (an item that already
+   has a date). The rail and the grid are different drag sources in the same
+   component, so decide by source rather than by re-querying the row.
+2. Do not change `rescheduleItem` itself — month-grid drag-to-reschedule depends on
+   its in-place semantics, and `server/actions/items.ts:637-640` is correct for that
+   caller.
+3. `scheduleItem`'s copy-in branch already sets `sourceItemId`, which is what makes
+   the "✓ in this plan" marker appear (`components/trip/wishlist-board.tsx:377-384`),
+   so the tick comes for free once the right action is called.
+4. Check the same bug class on any other `onDropItem` consumer before closing.
+
+**Verify.** A test asserting that dropping a Wishlist idea (`date: null`,
+`stopId: null`) onto a day leaves the original row present and unmodified and creates
+a second row with `sourceItemId` set — and a control asserting that dropping an
+already-dated item still updates in place and creates nothing. Both are logic-level
+and need no DB (the suite mocks `@/lib/db`).
+
+## P1-5 · `unscheduleItem` deletes the row, its undo is broken, and the only control that calls it never renders
+
+**Severity:** P1 — a documented capability is entirely missing, and the code behind
+it is a data-loss landmine wired to a button that happens not to render.
+**Area:** wishlist / items. **Effort:** S–M.
+**Verified: code read** (`server/actions/items.ts:555-576`,
+`components/trip/item-card.tsx:143-157`, `components/trip/wishlist-board.tsx:137-167`,
+`:362-364`, `:406-408`).
+
+**Symptom.** Three compounding problems in one path:
+
+- **The control is unreachable.** `ItemCard` renders its **Unschedule** button only in
+  the `mode !== "wishlist"` branch (`components/trip/item-card.tsx:143-157`), but both
+  `<ItemCard>` call sites pass `mode="wishlist"`
+  (`components/trip/wishlist-board.tsx:362-364` and `:406-408`). `onUnschedule` is
+  wired at both (`:369`, `:413`) and can never fire. So the app has no way to take
+  something off a day and put it back on the shortlist — a capability `CONTEXT.md`
+  describes under **Wishlist** ("Un-scheduling removes only the current Plan's copy;
+  the idea remains in the pool").
+- **If it were reachable it would destroy data.** `unscheduleItem` calls
+  `db.item.delete` (`server/actions/items.ts:565`). Per ADR 0019 un-scheduling should
+  remove the *placement*; deleting the row is correct only for a directly-created
+  timeline item with no `sourceItemId`. The handler's own toast says **"Moved to
+  Wishlist"** (`components/trip/wishlist-board.tsx:151`) — nothing moved anywhere.
+- **The undo is broken by construction.** The undo callback calls
+  `scheduleItem(itemId, …)` on the id that was just deleted
+  (`components/trip/wishlist-board.tsx:154-160`); `requireItemAccess` will
+  `notFound()`. The user is offered an undo that cannot work.
+
+**Interaction with P0-4 — this is why they belong on one branch.** If P0-4 is fixed
+by making drag place a copy, this path becomes reachable-adjacent and must be correct
+before anyone wires the button up. And *today*, the two together describe a route
+where a dragged idea is the only surviving row and an unschedule would delete it
+outright.
+
+**Fix.**
+
+1. Decide the semantics from ADR 0019 and make `unscheduleItem` match: if the row has
+   a `sourceItemId`, delete only that placement (the idea survives in the pool, which
+   is already what the function's doc comment claims). If it has no `sourceItemId` it
+   was created straight onto the Timeline and has no idea to fall back to — either
+   delete it as now, or clear its `date` so it survives as an undated thing to do.
+   Whichever you pick, make the function's doc comment and the toast copy say it.
+2. Fix the undo. Either re-create from the captured prior state rather than calling
+   `scheduleItem` on a dead id, or drop the undo affordance if the corrected
+   semantics make it meaningless.
+3. Decide whether the **Unschedule** control should exist at all. If yes, render it
+   where a *scheduled* item is shown (the Wishlist board only ever shows ideas, so
+   `mode="wishlist"` is arguably correct there and the button belongs elsewhere — the
+   Day view or the Timeline). If no, delete the dead branch, the handler and the
+   `onUnschedule` prop rather than leaving a wired-up button that cannot render.
+4. **Do not** simply flip a call site to `mode="scheduled"` to make the button
+   appear — that would expose the un-fixed delete.
+
+**Verify.** Tests for both `unscheduleItem` branches (with and without
+`sourceItemId`), asserting the source idea still exists in the `sourceItemId` case.
+Plus a render test for whichever decision you take in step 3 — either the button
+renders where a scheduled item is shown, or the dead branch is gone.
+
+---
+
+# The 2026-08-14 audit (all items below are FIXED)
+
 ## P0-1 · Transport times are stored in the *server's* timezone, shown in the *Stop's*, edited in the *device's*
 
 **Severity:** P0 — every Transport time entered in production is displayed shifted.
@@ -644,6 +774,11 @@ expect(describeChanges("COST", { costMinor: 1000 }, { costMinor: 2000 }).length)
 ```
 
 ## Suggested order
+
+**Only P0-4 and P1-5 are still open** (see "Open items added 2026-08-20" near the
+top). Take them together on one branch — they share a root cause and the second is a
+trap the first makes reachable. The ordering below is the historical plan for the
+2026-08-14 audit, kept for the record; every item in it is now FIXED.
 
 1. **P0-3** (deploy procedure — unblocks everything touching prod data)
 2. **P0-1** (transport timezones; biggest correctness payoff, self-contained)
