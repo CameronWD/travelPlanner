@@ -130,7 +130,7 @@ Swapping fonts is fair game (nominate a display + a UI face; say if body should 
 - **Spacing:** Tailwind 4px scale; sections typically `gap-3`/`gap-6`.
 - **Radii in use:** controls `rounded-md`; sections `rounded-lg`; cards `rounded-xl`→`rounded-2xl`; large/empty containers `rounded-2xl`. (Card radius isn't perfectly uniform today — a redesign can standardise it.)
 - **Icon buttons:** standard `size-8` (32px), expanding to a 44px touch target on coarse pointers.
-- **Top bar** (`app/(app)/layout.tsx`): sticky, `h-14`, translucent (`bg-background/60` + backdrop-blur), bottom border. Holds the 🛖 **TEEPEE** wordmark (Fraunces), a command-palette trigger (⌘K), a Globe link, the light/dark toggle, and an avatar dropdown (profile, discreet toggle, sign out).
+- **Top bar** (`app/(app)/layout.tsx`): sticky, `h-14`, translucent (`bg-background/60` + backdrop-blur), bottom border. Holds the 🛖 **TEEPEE** wordmark (Space Grotesk), a command-palette trigger (⌘K), a Globe link, the light/dark toggle, and an avatar dropdown (profile, help, sign out).
 - **Trip shell** adds a trip header (title + date range + currency badge + member avatar stack + fork switcher + notification bell), a horizontal **TripNav** (desktop) and a **fixed bottom tab bar** (mobile; content pads for it + safe-area). Full detail in [§C1](#c1--app-shell--navigation).
 
 ## A6 · UI primitive library
@@ -176,8 +176,7 @@ Map markers use the flat hexes above.
 2. **Mobile-first PWA.** Phone-first; safe-area insets; the mobile bottom tab bar is a fixture on trip pages; must work installed/offline (read-only when offline).
 3. **Leaflet maps are their own layer.** Tiles/markers/popups/routes are *not* token-driven and need explicit treatment — **including a dark tile style** (none exists today). Maps: Globe, Route (summary), Day, Wishlist. See [§C2](#c2--globe--maps).
 4. **Accessibility.** Visible focus ring via `--ring` (keep high-contrast vs `--background`); WCAG AA text contrast (the `warning` badge already skirts it); honour `prefers-reduced-motion` (animations are gated).
-5. **The discreet "workspace" reskin must keep working** — a privacy mode that re-maps tokens to a neutral spreadsheet look ([§C11](#c11--cross-cutting-patterns)). So keep component internals token-driven, not hard-coded.
-6. **Money & status colours are semantic:** under-budget uses `success`/emerald, over-budget uses `--over` (rose, *not* `destructive`), caution uses `warning`. Amounts are right-aligned `tabular-nums`.
+5. **Money & status colours are semantic:** under-budget uses `success`/emerald, over-budget uses `--over` (rose, *not* `destructive`), caution uses `warning`. Amounts are right-aligned `tabular-nums`.
 
 ---
 
@@ -196,7 +195,7 @@ What the nouns are and how they nest — so any redesigned layout still presents
 - **Wishlist** (trip-scoped) vs **Globe/Marker** (account-level, cross-trip world map). A trip seeds its Wishlist from Globe Markers (a copy); the board suggests Markers near the trip's Stops. **Vote** = a traveller's interest mark (must/keen/meh) on a Wishlist idea.
 - **Money:** **Cost** (estimated always + optional actual, in its own currency, converted via **Exchange rate**), **Other cost** (standalone), **Budget** (read-only roll-up by category/stop/chapter/day), **Spend so far** (cash-flow lens: paid vs estimated).
 - **Summary** raises **Flags** (auto-detected fixable problems: missing accommodation/transport, over hard-end-date, packed/spread days, etc.). **Next steps** = Flags + forward nudges, shown on Home.
-- **Supporting:** **Make it fit** (trim/drop to meet hard end date), **Day map** (one day's route), **Today view** (the Travelling Home), **Checklist** (pre-trip + packing templates), **Attachment** (files on entities), **Note** (comments), **Activity** (change log → notifications bell), **Calendar feed** (read-only ICS), **Discreet mode**, **Duplicate** (clone structure into a new trip), **Traveller/Invite** (membership by email-match), public **share link**.
+- **Supporting:** **Make it fit** (trim/drop to meet hard end date), **Day map** (one day's route), **Today view** (the Travelling Home), **Checklist** (pre-trip + packing templates), **Attachment** (files on entities), **Note** (comments), **Activity** (change log → notifications bell), **Calendar feed** (read-only ICS), **Duplicate** (clone structure into a new trip), **Traveller/Invite** (membership by email-match), public **share link**.
 
 ---
 
@@ -206,9 +205,9 @@ Compact per-surface reference: **what it shows · data it must present · states
 
 ## C1 · App shell & navigation
 
-**Top bar** (`app/(app)/layout.tsx`) — sticky, translucent, `max-w-5xl`. Left: 🛖 TEEPEE wordmark (or neutral label in discreet mode). Right: ⌘K command-palette trigger, Globe link, ThemeToggle, avatar dropdown (name/email, discreet toggle, sign out). *Discreet mode* hides Globe link + palette and swaps wordmark/title/favicon.
+**Top bar** (`app/(app)/layout.tsx`) — sticky, translucent, `max-w-5xl`. Left: 🛖 TEEPEE wordmark. Right: ⌘K command-palette trigger, Globe link, ThemeToggle, avatar dropdown (name/email, help, sign out).
 
-**Trip header + shell** (`trips/[tripId]/layout.tsx`) — Trip name (h1, display), date range (or "No dates yet"), currency **Badge** (mono), member **Avatar** stack (`-space-x-2`, "+N" overflow), **ForkSwitcher** (hidden when travelling/past/discreet), **NotificationBell**. Content area pads bottom for the mobile tab bar + safe-area.
+**Trip header + shell** (`trips/[tripId]/layout.tsx`) — Trip name (h1, display), date range (or "No dates yet"), currency **Badge** (mono), member **Avatar** stack (`-space-x-2`, "+N" overflow), **ForkSwitcher** (hidden when travelling/past), **NotificationBell**. Content area pads bottom for the mobile tab bar + safe-area.
 
 **TripNav** (desktop, `hidden md:flex`) — horizontal, scrollable tab row with an active **underline** (primary). Primary tabs: Home · Plan · Calendar · Budget · Summary. **NavMoreMenu** dropdown holds Wishlist · Journal · Checklists · Files · Activity · Settings.
 
@@ -220,7 +219,7 @@ Compact per-surface reference: **what it shows · data it must present · states
 
 **NotificationBell** — bell + count badge (caps at "9+"). Dropdown: "Notifications" + "Mark all read", a scrollable recent-activity list (actor · headline · relative time), and "See all activity".
 
-**Command palette** (⌘K) — a `bare` Dialog: search input + grouped results (**Go to** pages, **Do** actions like New trip / Add item / Toggle theme+discreet, **Find** fuzzy search over stops/items/transport). Keyboard-driven; Find disabled offline.
+**Command palette** (⌘K) — a `bare` Dialog: search input + grouped results (**Go to** pages, **Do** actions like New trip / Add item / Toggle theme, **Find** fuzzy search over stops/items/transport). Keyboard-driven; Find disabled offline.
 
 ## C2 · Globe & maps
 
@@ -236,7 +235,7 @@ Compact per-surface reference: **what it shows · data it must present · states
 
 ## C3 · Trips list & New trip
 
-**Trips list** (`/trips`) — responsive card grid (1/2/3 cols), sorted by phase. **TripCard**: cover image (photo → route-render SVG → monogram), a **phase badge** top-left ("Planning · In 26 days" / "Day 5 of 11"), an **unread count** badge top-right (primary), trip name, date range (or "No dates yet"), stop-count badge, and a hover ⋯ menu ("Duplicate"). Empty state with "New trip" CTA. *Discreet:* a spreadsheet-style `ProjectTable` instead.
+**Trips list** (`/trips`) — responsive card grid (1/2/3 cols), sorted by phase. **TripCard**: cover image (photo → route-render SVG → monogram), a **phase badge** top-left ("Planning · In 26 days" / "Day 5 of 11"), an **unread count** badge top-right (primary), trip name, date range (or "No dates yet"), stop-count badge, and a hover ⋯ menu ("Duplicate"). Empty state with "New trip" CTA.
 
 **TripCover** — decision tree: uploaded photo → stylised **route-render** SVG (dashed path through located stops, `secondary`/`primary`) → **monogram** (gradient + first letter).
 
@@ -253,7 +252,7 @@ Compact per-surface reference: **what it shows · data it must present · states
 
 ## C5 · Itinerary / Plan editor
 
-**Plan editor** (`/plan`, `ItineraryManager`) — the product core. Shows: a **firm-up toolbar** (amber, when rough stops exist), a **HomeBaseCard** bookend (top), a stop list grouped by **Chapter** (collapsible headers with chip + date range + drag handle + actions), and a return HomeBaseCard bookend. Between consecutive stops sit **TransportCard**s (cross-chapter legs render on the seam); under each dated stop sit **AccommodationCard**s and inline **things-to-do**. Plus an "other transports" section and **PlanOverview**. *Discreet:* a stop **spreadsheet** view. *Interactions:* add/edit/delete stops, transport, accommodation, chapters; **drag-reorder** (dnd-kit; re-flows dates with an **undo toast**); pin / make-rough / adjust-dates; firm-up (chapter or whole trip); "start chapter here". Notes/attachments via popover (desktop) or bottom-sheet (mobile).
+**Plan editor** (`/plan`, `ItineraryManager`) — the product core. Shows: a **firm-up toolbar** (amber, when rough stops exist), a **HomeBaseCard** bookend (top), a stop list grouped by **Chapter** (collapsible headers with chip + date range + drag handle + actions), and a return HomeBaseCard bookend. Between consecutive stops sit **TransportCard**s (cross-chapter legs render on the seam); under each dated stop sit **AccommodationCard**s and inline **things-to-do**. Plus an "other transports" section and **PlanOverview**. *Interactions:* add/edit/delete stops, transport, accommodation, chapters; **drag-reorder** (dnd-kit; re-flows dates with an **undo toast**); pin / make-rough / adjust-dates; firm-up (chapter or whole trip); "start chapter here". Notes/attachments via popover (desktop) or bottom-sheet (mobile).
 
 **StopCard** — name + country + map link; rough → "~N nights" dashed pill; scheduled → date range + timezone + nights. Notes preview; things-to-do list (title + edit; "Add Thing to Do"). Actions differ rough vs scheduled (chapter / pin / clear-dates / edit / notes / attach / delete; overflow menu on mobile). Draggable handle.
 
@@ -315,7 +314,7 @@ Compact per-surface reference: **what it shows · data it must present · states
 
 **Summary** (`/summary`) — read-only: **PlanOverview** (stops/nights/date span/hard-end status), interactive **RouteMap**, **FlagList** (severity icon + description + action link), **CostSummary** totals + by category/stop/day, and per-stop breakdown (accommodation/transport/items). **MakeItFit** appears when projected end > hard end.
 
-**Compare** (`/compare`, `CompareTable`) — real plan vs forks side-by-side (desktop: sticky-left scroll table; mobile: stacked cards). Rows: Route (with **diff** — added/dropped/reordered/re-nighted, colour-coded), Projected end + hard-end badge, Budget, Flags, Stops, Nights, Transit, Driving, Flights. Fork columns show **delta badges** (emerald + / rose −). Reorder arrows + **Promote** per fork. *Discreet:* hidden.
+**Compare** (`/compare`, `CompareTable`) — real plan vs forks side-by-side (desktop: sticky-left scroll table; mobile: stacked cards). Rows: Route (with **diff** — added/dropped/reordered/re-nighted, colour-coded), Projected end + hard-end badge, Budget, Flags, Stops, Nights, Transit, Driving, Flights. Fork columns show **delta badges** (emerald + / rose −). Reorder arrows + **Promote** per fork.
 
 **Activity** (`/activity`, `ActivityFeed`) — chronological (newest first): actor avatar + name + verb/entity headline + relative time; UPDATED rows show field old→new; NOTED rows show an excerpt. Marks all read on view.
 
@@ -328,7 +327,6 @@ Compact per-surface reference: **what it shows · data it must present · states
 - **Form + dialog:** `FormDialog` (remounts on `recordId` to reset) wraps a form using `useEntityForm` → server action → `ActionResult`; **Field** shows label + description, routes errors to the field (`aria-invalid`) with form-level errors as a toast. Submit disabled while pending.
 - **Toasts & undo:** success/error toasts; destructive actions emit an **UndoToast** ("… deleted · Undo"). Swipe-to-dismiss on mobile.
 - **Empty / loading:** `Skeleton` shapes while loading → `EmptyState` (icon + title + description + optional action) when empty → content.
-- **Discreet / workspace reskin:** re-maps tokens to a neutral spreadsheet look, neutralises the display font, swaps wordmark/title/favicon, hides Globe + palette + fork switcher, and turns the plan editor into a spreadsheet. **Must keep working** — keep components token-driven.
 - **Offline / PWA:** an amber offline banner (`useOnlineStatus`), a service worker caching visited trip pages for read-only offline use, and a push-notification opt-in (**EnableNotifications**).
 - **AI features:** violet-accented (distinct from primary) `AiSuggestButton` ("✨ …"), per-stop **AiActivitySuggestions**, **AiBookingParser** (in Checklists), **AiPackingSuggestions** — collapsible panels, disabled with helper text when unconfigured.
 
