@@ -18,8 +18,8 @@ export const MAX_WARM_DAYS = 60;
 
 /**
  * The set of same-origin paths worth pre-caching for offline viewing of a trip:
- * the read-while-travelling essentials + one page per dated day (capped).
- * Pure — no browser APIs.
+ * the read-while-travelling essentials (including the user guide) + one page
+ * per dated day (capped). Pure — no browser APIs.
  */
 export function tripOfflinePaths(
   tripId: string,
@@ -27,7 +27,7 @@ export function tripOfflinePaths(
   endDate: string | null,
 ): string[] {
   const base = `/trips/${tripId}`;
-  const paths = [base, `${base}/plan`, `${base}/summary`, `${base}/today`, `${base}/checklists`];
+  const paths = [base, `${base}/plan`, `${base}/summary`, `${base}/today`, `${base}/checklists`, `${base}/help`];
   if (startDate && endDate && endDate >= startDate) {
     const span = Math.min(daysBetween(startDate, endDate), MAX_WARM_DAYS - 1);
     for (let i = 0; i <= span; i++) {

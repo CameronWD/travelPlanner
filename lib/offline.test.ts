@@ -176,13 +176,14 @@ describe('tripOfflinePaths', () => {
       '/trips/t1/summary',
       '/trips/t1/today',
       '/trips/t1/checklists',
+      '/trips/t1/help',
       '/trips/t1/day/2026-07-01',
       '/trips/t1/day/2026-07-02',
       '/trips/t1/day/2026-07-03',
     ]);
   });
 
-  it('returns only the five non-day paths when dates are null', () => {
+  it('returns only the six non-day paths when dates are null', () => {
     const paths = tripOfflinePaths('t1', null, null);
     expect(paths).toEqual([
       '/trips/t1',
@@ -190,11 +191,12 @@ describe('tripOfflinePaths', () => {
       '/trips/t1/summary',
       '/trips/t1/today',
       '/trips/t1/checklists',
+      '/trips/t1/help',
     ]);
   });
 
   it('caps day paths at MAX_WARM_DAYS for a 400-day range', () => {
     const paths = tripOfflinePaths('t1', '2026-01-01', '2027-02-05'); // > 400 days
-    expect(paths).toHaveLength(5 + MAX_WARM_DAYS);
+    expect(paths).toHaveLength(6 + MAX_WARM_DAYS);
   });
 });
