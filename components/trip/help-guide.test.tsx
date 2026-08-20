@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { HelpGuide, HELP_PRINT_STYLE } from "./help-guide";
-import { HELP_SECTIONS } from "@/lib/help-guide";
+import { HELP_SECTIONS, sectionsInGroup, type HelpGroup } from "@/lib/help-guide";
+
+/** Minimum body text for a section to count as written rather than stubbed. */
+const MIN_BODY_CHARS = 200;
 
 describe("HelpGuide", () => {
   it("renders a heading for every section", () => {
@@ -25,6 +28,45 @@ describe("HelpGuide", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     expect(container.querySelector("[data-radix-collection-item]")).toBeNull();
     expect(container.querySelectorAll("details").length).toBe(HELP_SECTIONS.length);
+  });
+
+  it("gives every section a real body, not just a summary row", () => {
+    // Without this, a section could be gutted to an empty <details> and the
+    // one-details-per-entry count would still pass.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    for (const s of HELP_SECTIONS) {
+      const body = container.querySelector(`details#${s.id} > summary + div`);
+      const text = (body?.textContent ?? "").trim();
+      expect(
+        text.length,
+        `section ${s.id} has a ${text.length}-char body; needs at least ${MIN_BODY_CHARS}`,
+      ).toBeGreaterThanOrEqual(MIN_BODY_CHARS);
+    }
+  });
+
+  it("renders the sections in HELP_SECTIONS order", () => {
+    // Section order IS document order (lib/help-guide.ts) — a section moved or
+    // dropped must fail here rather than silently reshuffle the page.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const ids = Array.from(container.querySelectorAll("details")).map((d) => d.id);
+    expect(ids).toEqual(HELP_SECTIONS.map((s) => s.id));
+  });
+
+  it("puts each section inside its own group's block", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const blocks: Array<[HelpGroup, string]> = [
+      ["everyday", "help-everyday-heading"],
+      ["advanced", "help-advanced-heading"],
+      ["reference", "help-reference-heading"],
+    ];
+    for (const [group, headingId] of blocks) {
+      const block = container.querySelector(`section[aria-labelledby="${headingId}"]`);
+      expect(block, `missing block for group ${group}`).toBeTruthy();
+      const ids = Array.from(block?.querySelectorAll("details") ?? []).map((d) => d.id);
+      expect(ids, `wrong sections under ${headingId}`).toEqual(
+        sectionsInGroup(group).map((s) => s.id),
+      );
+    }
   });
 
   it("renders the legend above the collapsible sections", () => {
@@ -77,5 +119,13 @@ describe("HELP_PRINT_STYLE", () => {
     expect(HELP_PRINT_STYLE).toContain("@media print");
     expect(HELP_PRINT_STYLE).toContain("details");
     expect(HELP_PRINT_STYLE).toContain("display: block");
+  });
+
+  it("also opens sections in engines that hide ::details-content", () => {
+    // Chromium >= 131 / Safari >= 18.4 / Firefox >= 139 put a closed <details>
+    // content in a ::details-content box with content-visibility: hidden, where
+    // overriding the children's `display` is a no-op. Both rules are required.
+    expect(HELP_PRINT_STYLE).toContain("::details-content");
+    expect(HELP_PRINT_STYLE).toContain("content-visibility: visible");
   });
 });

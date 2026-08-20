@@ -25,11 +25,24 @@ import {
  *  - Never mention Discreet mode. It was removed.
  */
 
-/** Print CSS: expand every section so a printout is complete. */
+/**
+ * Print CSS: expand every section so a printout is complete.
+ *
+ * Two rules are needed because engines disagree on how a closed <details>
+ * hides its content. Older engines set `display: none` on the children, so
+ * overriding their `display` is enough. Chromium >= 131, Safari >= 18.4 and
+ * Firefox >= 139 instead put the content in a `::details-content` box with
+ * `content-visibility: hidden`, where the children's own `display` is
+ * irrelevant — those need the second rule. Keep both.
+ *
+ * `.help-print-hide` has no user in this file. It is a hook for the page
+ * chrome around the guide (nav, buttons) to opt out of the printout.
+ */
 export const HELP_PRINT_STYLE = `
   @media print {
     details > summary { list-style: none; }
     details > *:not(summary) { display: block !important; }
+    details::details-content { content-visibility: visible !important; }
     .help-print-hide { display: none !important; }
   }
 `;
@@ -138,7 +151,10 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 </Go>
                 . This is your trip laid out in order, first day at the top.
               </li>
-              <li>Tap a place to open it up.</li>
+              <li>
+                Find the place you want to plan. Each one is a card, with
+                everything about it already on show.
+              </li>
               <li>
                 Add the things you want to do there. They sit under that place
                 until you decide when.
@@ -170,19 +186,21 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </ol>
             <p>
               You can stop anywhere in that loop and come back later. Nothing has
-              to be finished, and the other one of you sees your changes straight
-              away.
+              to be finished, everything saves as you go, and the other one of you
+              picks up your changes the next time they open the screen.
             </p>
           </Section>
 
           <Section section={sectionById("trip-shape")}>
             <p>
-              Your places and your dates are already in. You don&rsquo;t have to
-              build the trip from scratch — this section is just so the{" "}
+              Everything about your trip hangs off one screen:{" "}
               <Go tripId={tripId} segment="plan">
                 Plan
-              </Go>{" "}
-              screen makes sense the first time you open it.
+              </Go>
+              . If someone has already put your places and dates in, this section
+              is just so that screen makes sense the first time you open it. If
+              it&rsquo;s still empty, that&rsquo;s where you start — add the
+              places, and the rest of the app fills itself in around them.
             </p>
             <p>
               It reads top to bottom, in the order you&rsquo;ll travel. Three
@@ -244,8 +262,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               </li>
               <li>
                 <strong className="font-semibold">Address</strong> — worth
-                filling in, because anything with an address turns up on that
-                day&rsquo;s map.
+                filling in, because an address will usually put the thing on that
+                day&rsquo;s map. The app looks the address up in the background,
+                and only what it can place gets plotted.
               </li>
               <li>
                 <strong className="font-semibold">Link</strong> — the page you
@@ -291,8 +310,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 Calendar
               </Go>
               , on that day&rsquo;s own page, and on the screen you&rsquo;ll live
-              off while you&rsquo;re travelling. There are three ways to do it —
-              use whichever is nearest.
+              off while you&rsquo;re travelling. Two routes move something
+              you&rsquo;ve already got onto a day; the third is for putting
+              something new straight onto one.
             </p>
             <ul className={`list-disc ${LIST_CLASS}`}>
               <li>
@@ -311,15 +331,21 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 <Go tripId={tripId} segment="wishlist">
                   Wishlist
                 </Go>{" "}
-                sits in a column beside the grid: drag an idea straight onto a
-                day, or tap the little calendar button next to it if dragging is
-                fiddly.
+                appears alongside it, as long as you&rsquo;ve put something on it
+                — in a column beside the grid on a wide screen, stacked
+                underneath on a phone. Drag an idea straight onto a day, or tap
+                the little calendar button next to it if dragging is fiddly.
               </li>
               <li>
-                <strong className="font-semibold">From the day itself.</strong>{" "}
+                <strong className="font-semibold">
+                  Something new, straight onto a day.
+                </strong>{" "}
                 Tap a date to open that day, then use{" "}
                 <strong className="font-semibold">Add to this day</strong> near
-                the bottom.
+                the bottom. This one writes a brand-new entry on that date, so
+                only reach for it when the thing doesn&rsquo;t exist yet — if
+                it&rsquo;s already parked under a place, go back to the pencil, or
+                you&rsquo;ll end up with two of it.
               </li>
             </ul>
             <p>
@@ -330,10 +356,11 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               doesn&rsquo;t pretend to be at nine sharp.
             </p>
             <p>
-              A day page is worth opening at least once. Across the top it shows
-              the weather and how much daylight you get, which is the difference
-              between a sunset walk being lovely and being in the dark. Below
-              that, <strong className="font-semibold">Show day map</strong> draws
+              A day page is worth opening at least once. When the app knows where
+              the place is on a map, the top of the page shows the weather and how
+              much daylight you get — the difference between a sunset walk being
+              lovely and being in the dark. Below that,{" "}
+              <strong className="font-semibold">Show day map</strong> draws
               the day&rsquo;s plans as a numbered route with tonight&rsquo;s bed
               marked on it, and hands the whole thing over to your phone&rsquo;s
               maps app when you want directions.
@@ -360,9 +387,11 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               conversation about every single one.
             </p>
             <p>
-              <strong className="font-semibold">Add from Globe</strong> pulls
-              from your Globe — an everywhere-someday map shared across all your
-              trips, not just this one. Each place on it is a{" "}
+              If you&rsquo;re part of a Globe, an{" "}
+              <strong className="font-semibold">Add from Globe</strong> button
+              appears up at the top of the board. A Globe is an
+              everywhere-someday map shared across all your trips, not just this
+              one. Each place on it is a{" "}
               <strong className="font-semibold">Marker</strong>, and Markers stay
               put: pulling one in copies it into this trip&rsquo;s Wishlist. The
               board also suggests Markers near where this trip is going, so you
@@ -473,7 +502,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <Go tripId={tripId} segment="checklists">
                 Checklists
               </Go>{" "}
-              holds two lists.{" "}
+              is where the ticking-off lives.{" "}
               <strong className="font-semibold">Pre-trip</strong> is the admin —
               visas, insurance, a travel SIM, telling the bank — and each line
               can carry a due date and whichever of you is doing it.{" "}
@@ -500,10 +529,12 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
             <p>
               <strong className="font-semibold">Notes</strong> are for talking
-              about one specific thing. Every place, booking and thing to do has
-              a speech-bubble button, and what you write stays attached to it —
-              so &ldquo;the 6am one is cheaper but brutal&rdquo; sits next to the
-              flight it&rsquo;s about instead of scrolling away in a chat.
+              about one specific thing. You can leave one on any place, booking or
+              thing to do, and what you write stays attached to it — so
+              &ldquo;the 6am one is cheaper but brutal&rdquo; sits next to the
+              flight it&rsquo;s about instead of scrolling away in a chat. On a
+              wide screen the speech-bubble button is on the card itself; on a
+              phone, look under the card&rsquo;s ⋯ menu.
             </p>
             <p>
               <Go tripId={tripId} segment="activity">
@@ -582,8 +613,11 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <li>the plan running past the day you have to be home</li>
             </ul>
             <p>
-              A Flag is always something you can do something about. Amber means
-              have a look; red means something&rsquo;s genuinely wrong.
+              A Flag is always something you can do something about, and they come
+              in two strengths. Amber is the loud one — the app thinks this wants
+              fixing. Blue is just for information, worth knowing but not a
+              problem. The Summary lists the amber ones first. Nothing is ever
+              red: a Flag is a nudge, not a failure.
             </p>
             <p>
               On the trip&rsquo;s Home screen the same information turns up as{" "}
