@@ -106,4 +106,13 @@ describe("AppLayout", () => {
     expect(main.className).toContain("lg:max-w-6xl");
     expect(main.className).toContain("2xl:max-w-7xl");
   });
+
+  it("offers a Help link in the traveller dropdown", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    // Link text matches the established "How to use TEEPEE" title used on the
+    // /help pages themselves (see app/(app)/help/page.tsx), not the word "Help".
+    const link = screen.getByRole("link", { name: /how to use teepee/i });
+    expect(link.getAttribute("href")).toBe("/help");
+  });
 });

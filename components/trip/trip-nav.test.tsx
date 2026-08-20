@@ -83,4 +83,17 @@ describe("TripNav", () => {
   it("stays active when the href carries a query string", () => {
     expect(isNavActive("/trips/t1/plan?plan=fork-9", "/trips/t1/plan", "/trips/t1")).toBe(true);
   });
+
+  it("includes Help in the More menu without a ?plan= param", () => {
+    const hrefs = Object.fromEntries(
+      moreNav("t1", "fork-9").map((i) => [i.label, i.href]),
+    );
+    // Help is not plan-scoped — the guide is the same for every plan.
+    expect(hrefs["Help"]).toBe("/trips/t1/help");
+  });
+
+  it("puts Help last in the More menu", () => {
+    const labels = moreNav("t1").map((i) => i.label);
+    expect(labels[labels.length - 1]).toBe("Help");
+  });
 });

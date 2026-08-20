@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -133,6 +134,10 @@ export default async function AppLayout({
                 </DropdownMenuLabel>
 
                 <DropdownMenuSeparator />
+
+                <DropdownMenuItem asChild>
+                  <Link href="/help">How to use TEEPEE</Link>
+                </DropdownMenuItem>
 
                 <SignOutMenuItem />
               </DropdownMenuContent>

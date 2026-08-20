@@ -34,6 +34,7 @@ export function moreNav(tripId: string, planParam?: string | null): NavItem[] {
     { label: "Files", href: `${base}/files` },
     { label: "Activity", href: `${base}/activity` },
     { label: "Settings", href: `${base}/settings` },
+    { label: "Help", href: `${base}/help` },
   ];
 }
 
