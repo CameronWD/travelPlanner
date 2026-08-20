@@ -652,12 +652,15 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               A Flag is always something you can do something about, and they come
               in two strengths. Amber is the loud one — the app thinks this wants
               fixing. Blue is just for information, worth knowing but not a
-              problem. The Summary lists the amber ones first. A Flag is never
-              red: it&rsquo;s a nudge, not a failure. Red is saved for one thing
-              only — the plan running past the day you have to be home. That
-              shows in red on the Plan, again in the Make it fit dialog, and as
-              an <strong className="font-semibold">Over hard end</strong> badge
-              when you compare plans.
+              problem. The Summary lists the amber ones first. Flags themselves
+              are only ever amber or blue — a Flag is never red, a nudge rather
+              than a failure. But the app does turn red when the plan runs past
+              the day you have to be home: that shows on the Plan, again in the
+              Make it fit dialog, and as an{" "}
+              <strong className="font-semibold">Over hard end</strong> badge
+              when you compare plans. (Red shows up elsewhere too, wherever
+              something&rsquo;s about to be deleted or a form has a problem —
+              it&rsquo;s not saved just for Flags.)
             </p>
             <p>
               Once your trip has dates, and up until the day you set off, the
@@ -841,14 +844,15 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             <p>
               A <strong className="font-semibold">variant</strong> is a second
               version of the plan, kept beside the real one. Italy first, or
-              Switzerland bolted on the end?{" "}
-              <strong className="font-semibold">New variant</strong> on the{" "}
-              <Go tripId={tripId} segment="plan">
-                Plan
-              </Go>{" "}
-              gives you one of each to look at side by side instead of arguing in
-              the abstract. (You&rsquo;ll see this called a Fork here and there —
-              same thing.)
+              Switzerland bolted on the end? Up in the trip header, next to the
+              member avatars and the notification bell, there&rsquo;s a dropdown
+              for this — open it and tap{" "}
+              <strong className="font-semibold">New variant</strong> to get one
+              of each to look at side by side instead of arguing in the
+              abstract. It travels with you across every screen on the trip,
+              though it steps aside once you&rsquo;re travelling or the trip is
+              over. (You&rsquo;ll see this called a Fork here and there — same
+              thing.)
             </p>
             <p>
               A variant is a full plan, not a sketch. You edit it with exactly the

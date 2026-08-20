@@ -207,14 +207,17 @@ export function HelpLegend() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="warning">Needs attention</Badge>
-            {/* Red is reserved for the hard-end overrun (plan-overview.tsx
-                `over` tone, the Make it fit dialog, the "Over hard end" badge
-                on Compare). Flags themselves are only ever amber or blue —
-                keep this consistent with the "When something looks off"
-                section of the guide. */}
+            {/* Flags themselves are only ever amber or blue (never red) — but
+                red is the app's general destructive colour (delete buttons,
+                form errors, etc.), and it also marks the hard-end overrun
+                (plan-overview.tsx `over` tone, the Make it fit dialog, the
+                "Over hard end" badge on Compare). Don't claim red is
+                exclusive to the hard-end case — keep this consistent with the
+                "When something looks off" section of the guide. */}
             <span className="text-sm text-muted-foreground">
-              Amber means have a look. Red turns up in one place only: when the
-              plan runs past the day you have to be home.
+              Amber means have a look. Flags themselves are only ever amber or
+              blue, but the app does turn red when the plan runs past the day
+              you have to be home.
             </span>
           </div>
         </div>
