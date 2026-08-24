@@ -394,6 +394,27 @@ describe("spanReflow (ADR 0038)", () => {
     expect(results[2]).toMatchObject({ id: "B", arriveDate: "2026-06-10" }); // kept lead 0
   });
 
+  it("never re-applies the window-anchor stop's lead-in (regression)", () => {
+    // Paris(06-01→04) ··3-day gap·· Rome(06-07→10) Florence(06-10→13) D(06-14→16);
+    // drag Florence before Rome → [Paris, Florence, Rome, D].
+    const Paris = sp("Paris", "2026-06-01", "2026-06-04");
+    const Rome = sp("Rome", "2026-06-07", "2026-06-10");
+    const Florence = sp("Florence", "2026-06-10", "2026-06-13");
+    const Dstop = sp("D", "2026-06-14", "2026-06-16");
+    const { results, conflicts } = spanReflow(
+      [Paris, Rome, Florence, Dstop],
+      [Paris, Florence, Rome, Dstop],
+      new Set(["Florence"]),
+    );
+    expect(conflicts).toEqual([]);
+    // Window = indices 1..2. Paris and D are not in results at all.
+    expect(results.map((r) => r.id)).toEqual(["Florence", "Rome"]);
+    expect(results[0]).toMatchObject({ id: "Florence", arriveDate: "2026-06-07", departDate: "2026-06-10" });
+    // Rome (unmoved, was oldOrder[first]) must NOT re-apply its 3-day lead-in:
+    // the window ends exactly where it used to (06-13), not 06-16.
+    expect(results[1]).toMatchObject({ id: "Rome", arriveDate: "2026-06-10", departDate: "2026-06-13" });
+  });
+
   it("holds pinned stops and reports a conflict when the span cannot fit", () => {
     const Bpin = sp("B", "2026-06-04", "2026-06-07", true);
     const { results, conflicts } = spanReflow([A, Bpin, C, D], [A, C, Bpin, D], new Set(["C"]));

@@ -276,7 +276,10 @@ export function spanReflow(
       continue;
     }
     const prevIsMoved = i > first && movedIds.has(newOrder[i - 1].id);
-    const lead = movedIds.has(stop.id) && !prevIsMoved ? 0 : (leadIn.get(stop.id) ?? 0);
+    const lead =
+      (movedIds.has(stop.id) && !prevIsMoved) || stop.id === oldOrder[first].id
+        ? 0
+        : (leadIn.get(stop.id) ?? 0);
     const arriveDate = addDays(cursor, lead);
     const departDate = addDays(arriveDate, nightsBetween(stop.arriveDate, stop.departDate));
     results.push({
