@@ -2135,4 +2135,58 @@ describe("Chapters menu — opt-in affordance gating", () => {
 
     expect(setChaptersEnabled).toHaveBeenCalledWith(TRIP_ID, false);
   });
+
+  it("hides per-stop 'Start a chapter here' and 'Assign to chapter' on every stop when chaptersEnabled is false", async () => {
+    const user = userEvent.setup();
+    const roughStop = makeStop({ id: "s-rough", name: "Athens", arriveDate: null, departDate: null, sortOrder: 0 });
+    const scheduledStop = makeStop({
+      id: "s-dated",
+      name: "Sparta",
+      arriveDate: "2026-07-01",
+      departDate: "2026-07-03",
+      sortOrder: 1,
+    });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[roughStop, scheduledStop]}
+        chapters={[]}
+        chaptersEnabled={false}
+      />,
+    );
+
+    // The desktop inline "Start a chapter here" icon button must not render at all
+    // (StopCard only renders it when `onStartChapter` is truthy).
+    expect(screen.queryByRole("button", { name: "Start a chapter here" })).toBeNull();
+    expect(screen.queryByText("Start a chapter here")).toBeNull();
+    expect(screen.queryByText("Assign to chapter")).toBeNull();
+
+    // Open every stop's overflow menu — a scheduled stop also has a second,
+    // desktop-only overflow button (see "two overflow buttons exist: mobile +
+    // desktop" elsewhere in this file), so use getAllByRole and take the first.
+    // Radix marks the rest of the page aria-hidden while a menu is open, so
+    // close each one (Escape) before opening the next.
+    for (const name of ["Athens", "Sparta"]) {
+      const overflowBtns = screen.getAllByRole("button", { name: `More actions for ${name}` });
+      await user.click(overflowBtns[0]);
+      expect(await screen.findByRole("menu")).toBeInTheDocument();
+      expect(screen.queryByRole("menuitem", { name: /Start a chapter here/ })).toBeNull();
+      expect(screen.queryByRole("menuitem", { name: /Assign to chapter/ })).toBeNull();
+      await user.keyboard("{Escape}");
+    }
+  });
+
+  it("still shows 'Start a chapter here' and 'Assign to chapter' on a rough stop when chaptersEnabled is true (default)", async () => {
+    const user = userEvent.setup();
+    const roughStop = makeStop({ id: "s-rough", name: "Athens", arriveDate: null, departDate: null });
+
+    render(<ItineraryManager {...baseProps} initialStops={[roughStop]} chapters={[]} />);
+
+    expect(screen.getByRole("button", { name: "Start a chapter here" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "More actions for Athens" }));
+    expect(screen.getByRole("menuitem", { name: /Start a chapter here/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Assign to chapter/ })).toBeInTheDocument();
+  });
 });

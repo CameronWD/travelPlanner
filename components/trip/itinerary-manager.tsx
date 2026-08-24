@@ -1536,8 +1536,8 @@ export function ItineraryManager({
         onMoveUp={(id) => handleMoveStop(id, "up")}
         onMoveDown={(id) => handleMoveStop(id, "down")}
         onDelete={handleDeleteStop}
-        onStartChapter={handleStartChapterHere}
-        onAssignToChapter={(s) => setAssigningStop(s)}
+        onStartChapter={chaptersEnabled ? handleStartChapterHere : undefined}
+        onAssignToChapter={chaptersEnabled ? (s) => setAssigningStop(s) : undefined}
         onTogglePin={handleTogglePin}
         onMakeRough={handleMakeRough}
         onAdjustDates={handleAdjustDates}
