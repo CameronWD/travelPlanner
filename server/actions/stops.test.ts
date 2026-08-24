@@ -30,6 +30,9 @@ const {
   chapterFindUniqueMock,
   chapterFindManyMock,
   accommodationFindManyMock,
+  accommodationUpdateMock,
+  itemFindManyMock,
+  itemUpdateMock,
   cleanupTargetSideDataMock,
 } = vi.hoisted(() => {
   const stopFindFirstMock = vi.fn();
@@ -40,6 +43,9 @@ const {
   const stopDeleteMock = vi.fn();
   const queryRawMock = vi.fn();
   const accommodationFindManyMock = vi.fn();
+  const accommodationUpdateMock = vi.fn();
+  const itemFindManyMock = vi.fn();
+  const itemUpdateMock = vi.fn();
   const cleanupTargetSideDataMock = vi.fn();
   const transactionMock = vi.fn(async (arg: unknown) => {
     // Interactive form: invoke the callback with a tx client.
@@ -48,6 +54,8 @@ const {
         $queryRaw: queryRawMock,
         stop: { update: stopUpdateMock, create: stopCreateMock, findMany: stopFindManyMock },
         chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
+        item: { findMany: itemFindManyMock, update: itemUpdateMock },
+        accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
       });
     }
     // Array form (kept for any batch-transaction callers).
@@ -82,6 +90,9 @@ const {
     chapterFindUniqueMock,
     chapterFindManyMock,
     accommodationFindManyMock,
+    accommodationUpdateMock,
+    itemFindManyMock,
+    itemUpdateMock,
     cleanupTargetSideDataMock,
   };
 });
@@ -111,6 +122,11 @@ vi.mock("@/lib/db", () => ({
     },
     accommodation: {
       findMany: accommodationFindManyMock,
+      update: accommodationUpdateMock,
+    },
+    item: {
+      findMany: itemFindManyMock,
+      update: itemUpdateMock,
     },
     $transaction: transactionMock,
   },
@@ -137,7 +153,9 @@ import {
   setStopNights,
   getTripProjection,
   recomputeChapterSpans,
+  shiftStopPayloadTx,
 } from "./stops";
+import type { Prisma } from "@prisma/client";
 import { chapterSpan } from "@/lib/chapter-span";
 import { recordActivity } from "@/server/actions/activity";
 import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
@@ -176,6 +194,10 @@ beforeEach(() => {
   chapterUpdateMock.mockResolvedValue({});
   // Default: accommodation.findMany returns no rows (most tests don't exercise cascade cleanup).
   accommodationFindManyMock.mockResolvedValue([]);
+  // Default: accommodation.update / item.findMany / item.update are no-ops.
+  accommodationUpdateMock.mockResolvedValue({});
+  itemFindManyMock.mockResolvedValue([]);
+  itemUpdateMock.mockResolvedValue({});
   // Default: cleanupTargetSideData is a no-op.
   cleanupTargetSideDataMock.mockResolvedValue(undefined);
 });
@@ -1554,6 +1576,116 @@ describe("Task 10: restoreStops — writes each entry verbatim inside the locked
     // recomputeChapterSpans (inside the tx) fetches chapters scoped to fork-9.
     expect(chapterFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ tripId: "t1", forkId: "fork-9" }) }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// restoreStops payload restore (ADR 0038) — Task 5
+// ---------------------------------------------------------------------------
+
+describe("restoreStops payload restore (ADR 0038)", () => {
+  it("writes item dates and accommodation check-in/out back verbatim", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "s1", tripId: "t1", forkId: null }]);
+    queryRawMock.mockResolvedValue([{ id: "s1" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const result = await restoreStops(
+      [{ id: "s1", sortOrder: 0, chapterId: null, arriveDate: "2026-06-01", departDate: "2026-06-04" }],
+      null,
+      {
+        items: [{ id: "i1", date: "2026-06-02" }],
+        accommodations: [{ id: "a1", checkIn: "2026-06-01", checkOut: "2026-06-04" }],
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "i1" }, data: { date: "2026-06-02" } });
+    expect(accommodationUpdateMock).toHaveBeenCalledWith({
+      where: { id: "a1" },
+      data: { checkIn: "2026-06-01", checkOut: "2026-06-04" },
+    });
+  });
+
+  it("is a no-op on items/accommodations when no payload is passed", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "s1", tripId: "t1", forkId: null }]);
+    queryRawMock.mockResolvedValue([{ id: "s1" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const result = await restoreStops([
+      { id: "s1", sortOrder: 0, chapterId: null, arriveDate: "2026-06-01", departDate: "2026-06-04" },
+    ]);
+
+    expect(result.success).toBe(true);
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+    expect(accommodationUpdateMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// shiftStopPayloadTx (ADR 0038) — Task 5
+// ---------------------------------------------------------------------------
+
+describe("shiftStopPayloadTx", () => {
+  it("shifts slotted items by offset and accommodations by the arrive delta, writing both", async () => {
+    itemFindManyMock.mockResolvedValue([
+      { id: "i1", date: "2026-06-02" }, // offset 1 from old arrive 2026-06-01
+    ]);
+    accommodationFindManyMock.mockResolvedValue([
+      { id: "a1", checkIn: "2026-06-01", checkOut: "2026-06-04" },
+    ]);
+    itemUpdateMock.mockResolvedValue({});
+    accommodationUpdateMock.mockResolvedValue({});
+
+    const tx = {
+      item: { findMany: itemFindManyMock, update: itemUpdateMock },
+      accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
+    } as unknown as Prisma.TransactionClient;
+
+    const result = await shiftStopPayloadTx(
+      tx,
+      { id: "stop-1", arriveDate: "2026-06-01" },
+      "2026-06-10",
+      "2026-06-13",
+    );
+
+    // Item shifted to preserve its offset from the new arrive date.
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "i1" }, data: { date: "2026-06-11" } });
+    // Accommodation shifted by the +9 day arrive delta.
+    expect(accommodationUpdateMock).toHaveBeenCalledWith({
+      where: { id: "a1" },
+      data: { checkIn: "2026-06-10", checkOut: "2026-06-13" },
+    });
+    expect(result.items).toEqual([{ id: "i1", date: "2026-06-11", prevDate: "2026-06-02" }]);
+    expect(result.accommodations).toEqual([
+      {
+        id: "a1",
+        checkIn: "2026-06-10",
+        checkOut: "2026-06-13",
+        prevCheckIn: "2026-06-01",
+        prevCheckOut: "2026-06-04",
+      },
+    ]);
+  });
+
+  it("queries items/accommodations scoped to the stop", async () => {
+    itemFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+
+    const tx = {
+      item: { findMany: itemFindManyMock, update: itemUpdateMock },
+      accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
+    } as unknown as Prisma.TransactionClient;
+
+    await shiftStopPayloadTx(tx, { id: "stop-1", arriveDate: "2026-06-01" }, "2026-06-10", "2026-06-13");
+
+    expect(itemFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { stopId: "stop-1", date: { not: null } } }),
+    );
+    expect(accommodationFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { stopId: "stop-1" } }),
     );
   });
 });

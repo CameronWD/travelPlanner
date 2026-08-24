@@ -8,7 +8,8 @@ import { requireTripAccess } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowStop, type FlowConflict } from "@/lib/firm-up";
-import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
+import { nightsBetween, formatLongDate, addDays, daysBetween } from "@/lib/dates";
+import { shiftItemDates, shiftAccommodationDates, type PayloadShiftResult } from "@/lib/payload-shift";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
@@ -120,6 +121,37 @@ export async function recomputeChapterSpans(
     const { startDate, endDate } = chapterSpan(members);
     await tx.chapter.update({ where: { id: chapter.id }, data: { startDate, endDate } });
   }
+}
+
+// ---------------------------------------------------------------------------
+// shiftStopPayloadTx — ADR 0038 payload shift on stop re-date
+// ---------------------------------------------------------------------------
+
+/**
+ * ADR 0038: when a stop is re-dated, its slotted Items keep their offset from
+ * the arrive date (un-slotting if the day no longer fits) and its
+ * Accommodation shifts by the arrive delta. Runs inside the caller's
+ * transaction; returns the shifts (with pre-images) for the Undo payload.
+ */
+export async function shiftStopPayloadTx(
+  tx: Prisma.TransactionClient,
+  stop: { id: string; arriveDate: string },
+  newArrive: string,
+  newDepart: string,
+): Promise<PayloadShiftResult> {
+  const [items, accommodations] = await Promise.all([
+    tx.item.findMany({ where: { stopId: stop.id, date: { not: null } }, select: { id: true, date: true } }),
+    tx.accommodation.findMany({ where: { stopId: stop.id }, select: { id: true, checkIn: true, checkOut: true } }),
+  ]);
+  const itemShifts = shiftItemDates(items, stop.arriveDate, newArrive, newDepart);
+  const accShifts = shiftAccommodationDates(accommodations, daysBetween(stop.arriveDate, newArrive));
+  for (const s of itemShifts) {
+    await tx.item.update({ where: { id: s.id }, data: { date: s.date } });
+  }
+  for (const s of accShifts) {
+    await tx.accommodation.update({ where: { id: s.id }, data: { checkIn: s.checkIn, checkOut: s.checkOut } });
+  }
+  return { items: itemShifts, accommodations: accShifts };
 }
 
 // ---------------------------------------------------------------------------
@@ -1284,10 +1316,14 @@ export async function reorderStops(
  * @param entries  Snapshot captured before the drag: every affected stop's
  *                 id + sortOrder + chapterId + arrive/departDate.
  * @param forkId   Plan being edited. Defaults to the plan the stops belong to.
+ * @param payload  ADR 0038: pre-image Item dates / Accommodation check-in-out
+ *                 to restore verbatim alongside the stops (the Undo of a
+ *                 payload shift caused by the drag being reverted).
  */
 export async function restoreStops(
   entries: { id: string; sortOrder: number; chapterId: string | null; arriveDate: string | null; departDate: string | null }[],
   forkId?: PlanId,
+  payload?: { items: { id: string; date: string | null }[]; accommodations: { id: string; checkIn: string; checkOut: string }[] },
 ): Promise<StopActionResult> {
   if (entries.length === 0) return { success: true };
 
@@ -1334,6 +1370,14 @@ export async function restoreStops(
           departDate: e.departDate,
         },
       });
+    }
+
+    // ADR 0038: restore the payload's pre-image dates verbatim, same as stops.
+    for (const item of payload?.items ?? []) {
+      await tx.item.update({ where: { id: item.id }, data: { date: item.date } });
+    }
+    for (const acc of payload?.accommodations ?? []) {
+      await tx.accommodation.update({ where: { id: acc.id }, data: { checkIn: acc.checkIn, checkOut: acc.checkOut } });
     }
 
     // Bring chapter date-bands back in sync with the restored dates.
