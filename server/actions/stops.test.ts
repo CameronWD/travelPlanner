@@ -56,6 +56,7 @@ const {
         chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
         item: { findMany: itemFindManyMock, update: itemUpdateMock },
         accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
+        trip: { findUnique: tripFindUniqueMock, update: tripUpdateMock },
       });
     }
     // Array form (kept for any batch-transaction callers).
@@ -935,28 +936,97 @@ describe("moveStop", () => {
 // ---------------------------------------------------------------------------
 
 describe("setStopDates", () => {
-  it("sets the stop's dates and ripples following dated non-pinned stops", async () => {
-    stopFindUniqueMock.mockResolvedValue({ id: "b", tripId: "trip-1", sortOrder: 1, arriveDate: null, departDate: null, nights: null, pinned: false });
+  // Converted from the old repack-based expectation ("ripples following dated
+  // non-pinned stops" — every following dated stop was force-repacked flush
+  // against its predecessor). Under ADR 0038 collision-push, a follower only
+  // moves when the edit actually overlaps it; a gap absorbs the push and
+  // protects everything further downstream. This test keeps the same shape
+  // (edited stop + two followers, one pinned-style "protected" case) but
+  // swaps the pinned follower for a gap-protected one, since collision-push
+  // (not pin status) is what now decides who moves.
+  it("pushes only overlapped followers and leaves gap-protected stops alone (ADR 0038)", async () => {
+    // requireStopAccess → old dates 2026-06-01..2026-06-03
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null, pinned: false, forkId: null })
+      // applyStopDates before-row
+      .mockResolvedValueOnce({ name: "S1", country: null, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null });
+    // Followers query (others): s2 overlaps the edited stop's new stay; s3 sits
+    // in the gap s2's push leaves behind and must stay untouched.
     stopFindManyMock.mockResolvedValue([
-      { id: "c", sortOrder: 2, nights: 2, pinned: false, arriveDate: "2026-07-20", departDate: "2026-07-22" },
-      { id: "d", sortOrder: 3, nights: null, pinned: true, arriveDate: "2026-07-25", departDate: "2026-07-28" },
-      { id: "e", sortOrder: 4, nights: 3, pinned: false, arriveDate: null, departDate: null },
+      { id: "s2", name: "S2", arriveDate: "2026-06-04", departDate: "2026-06-07", sortOrder: 1, pinned: false },
+      { id: "s3", name: "S3", arriveDate: "2026-06-12", departDate: "2026-06-15", sortOrder: 2, pinned: false },
     ]);
     stopUpdateMock.mockResolvedValue({});
-    tripFindUniqueMock.mockResolvedValue({ endDate: "2026-07-10" });
+    tripFindUniqueMock.mockResolvedValue({ endDate: "2026-06-01" });
     tripUpdateMock.mockResolvedValue({});
-    const result = await setStopDates("b", { arriveDate: "2026-07-12", departDate: "2026-07-15" });
+
+    // s1 extends its stay from 06-03 to 06-06, overlapping s2's 06-04 arrival.
+    const result = await setStopDates("s1", { arriveDate: "2026-06-01", departDate: "2026-06-06" });
+
     expect(result.success).toBe(true);
-    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "b" }, data: { arriveDate: "2026-07-12", departDate: "2026-07-15" } });
-    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "c" }, data: { arriveDate: "2026-07-15", departDate: "2026-07-17" } });
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: { arriveDate: "2026-06-01", departDate: "2026-06-06" } });
+    // s2 is pushed to start exactly when s1 now ends; its 3-night stay is preserved.
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s2" }, data: { arriveDate: "2026-06-06", departDate: "2026-06-09" } });
     const updatedIds = stopUpdateMock.mock.calls.map((c) => c[0].where.id);
-    expect(updatedIds).not.toContain("d");
-    expect(updatedIds).not.toContain("e");
-    // The trip's endDate (currently 2026-07-10) is grown to cover the furthest
-    // depart in the rippled run — the pinned stop d departs 2026-07-28, which is
-    // the latest — so no stop drops out of dated views. (d's own dates aren't
-    // rewritten, but the window must still span it.)
-    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: "trip-1" }, data: { endDate: "2026-07-28" } });
+    // s2's push (new depart 06-09) no longer reaches s3's 06-12 arrival — the
+    // gap absorbs it, so s3 is never touched.
+    expect(updatedIds).not.toContain("s3");
+    if (result.success) {
+      expect(result.changed).toEqual([{ id: "s2", arriveDate: "2026-06-06", departDate: "2026-06-09" }]);
+      expect(result.conflicts).toEqual([]);
+    }
+    // The trip window grows to cover s2's pushed depart (06-09), not just s1's own.
+    expect(tripUpdateMock).toHaveBeenCalledWith({ where: { id: "trip-1" }, data: { endDate: "2026-06-09" } });
+  });
+
+  it("returns the payload pre-images for undo", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "p1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null, pinned: false, forkId: null })
+      .mockResolvedValueOnce({ name: "P1", country: null, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null });
+    stopFindManyMock.mockResolvedValue([]); // no followers/preceding
+    itemFindManyMock.mockResolvedValue([{ id: "item-1", date: "2026-06-02" }]); // slotted 1 day into the old stay
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ endDate: "2026-06-10" });
+    tripUpdateMock.mockResolvedValue({});
+
+    // Arrive shifts +2 days (06-01 → 06-03), same 2-night length.
+    const result = await setStopDates("p1", { arriveDate: "2026-06-03", departDate: "2026-06-05" });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.payload?.items[0]).toEqual({ id: "item-1", date: "2026-06-04", prevDate: "2026-06-02" });
+    }
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "item-1" }, data: { date: "2026-06-04" } });
+  });
+
+  it("flags an overlap with the preceding stop instead of moving it", async () => {
+    stopFindUniqueMock
+      // requireStopAccess: edited stop s2's OLD dates
+      .mockResolvedValueOnce({ id: "s2", tripId: "trip-1", sortOrder: 1, arriveDate: "2026-06-05", departDate: "2026-06-07", nights: null, pinned: false, forkId: null })
+      // applyStopDates before-row
+      .mockResolvedValueOnce({ name: "S2", country: null, arriveDate: "2026-06-05", departDate: "2026-06-07", nights: null });
+    // Preceding stop s1 departs 06-05, after the edited stop's new arrive of 06-03.
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", name: "Paris", arriveDate: "2026-06-01", departDate: "2026-06-05", sortOrder: 0, pinned: false },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ endDate: "2026-06-10" });
+    tripUpdateMock.mockResolvedValue({});
+
+    const result = await setStopDates("s2", { arriveDate: "2026-06-03", departDate: "2026-06-06" });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.conflicts).toEqual([
+        expect.objectContaining({ stopId: "s2", message: expect.stringContaining("Paris") }),
+      ]);
+      expect(result.changed).toEqual([]);
+    }
+    // The edited stop's own dates are still written...
+    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s2" }, data: { arriveDate: "2026-06-03", departDate: "2026-06-06" } });
+    // ...but the preceding stop is never moved.
+    const updatedIds = stopUpdateMock.mock.calls.map((c) => c[0].where.id);
+    expect(updatedIds).not.toContain("s1");
   });
 
   it("rejects when departDate is before arriveDate and writes nothing", async () => {
@@ -1252,38 +1322,75 @@ describe("setStopNights", () => {
     expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "s1" }, data: { arriveDate: "2026-07-12", departDate: "2026-07-15" } });
   });
 
-  it("ripple preserves downstream scheduled stop span when nights column is null", async () => {
-    // Stop A: scheduled 2026-07-01..2026-07-05 (4 nights), sortOrder 0
-    // Stop B: scheduled 2026-07-05..2026-07-10 (5-night SPAN), nights: null (never set), not pinned, sortOrder 1
-    // Action: setStopNights("a", 2) → A departs 2026-07-03
-    // Expected ripple: B arrive = 2026-07-03, B depart = 2026-07-08 (5-night span preserved)
-    // Bug: old code used nights: null → flowDates treats it as nights ?? 1 → depart 2026-07-04
+  it("pushes an overlapped downstream stop preserving its actual span, not a stale nights column (ADR 0038)", async () => {
+    // Converted from a repack-era regression test: under the OLD flowDates
+    // repack, EVERY downstream dated stop moved on any nights change, and a
+    // null `nights` column made flowDates fall back to `nights ?? 1` instead
+    // of the stop's real arrive→depart span — a real bug. Under ADR 0038
+    // collision-push, a follower only moves when the edit actually overlaps
+    // it, and collisionPush's SpanStop has no `nights` field at all: it
+    // always derives the preserved length from the follower's own
+    // arrive/depart dates. So this now exercises an EXTEND that creates a
+    // genuine overlap, and still proves the 5-night SPAN survives even though
+    // the `nights` column on B is null.
+    //
+    // Stop A: scheduled 2026-07-01..2026-07-03 (nights column null), sortOrder 0
+    // Stop B: scheduled 2026-07-03..2026-07-08 (5-night SPAN), nights: null, not pinned, sortOrder 1
+    // Action: setStopNights("a", 5) → A departs 2026-07-06, overlapping B's 07-03 arrival
+    // Expected push: B arrive = 2026-07-06, B depart = 2026-07-11 (5-night span preserved)
     stopFindUniqueMock
       // requireStopAccess for "a"
-      .mockResolvedValueOnce({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false })
+      .mockResolvedValueOnce({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-03", nights: null, pinned: false })
       // applyStopDates before-row for "a"
-      .mockResolvedValueOnce({ name: "Alpha", country: "France", arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null });
+      .mockResolvedValueOnce({ name: "Alpha", country: "France", arriveDate: "2026-07-01", departDate: "2026-07-03", nights: null });
     stopFindManyMock.mockResolvedValue([
-      // Stop B: 5-night span (Jul 5 → Jul 10), nights column null
-      { id: "b", sortOrder: 1, nights: null, pinned: false, arriveDate: "2026-07-05", departDate: "2026-07-10" },
+      // Stop B: 5-night span (Jul 3 → Jul 8), nights column null
+      { id: "b", name: "Beta", sortOrder: 1, pinned: false, arriveDate: "2026-07-03", departDate: "2026-07-08" },
     ]);
     stopUpdateMock.mockResolvedValue({});
     tripFindUniqueMock.mockResolvedValue({ endDate: "2026-07-10" });
     tripUpdateMock.mockResolvedValue({});
 
-    const r = await setStopNights("a", 2);
+    const r = await setStopNights("a", 5);
 
     expect(r.success).toBe(true);
-    // A's new dates: arrive 2026-07-01, depart 2026-07-03
+    // A's new dates: arrive 2026-07-01, depart 2026-07-06
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "a" },
+      data: { arriveDate: "2026-07-01", departDate: "2026-07-06" },
+    });
+    // B is pushed to arrive 2026-07-06, depart 2026-07-11 (5-night span preserved)
+    expect(stopUpdateMock).toHaveBeenCalledWith({
+      where: { id: "b" },
+      data: { arriveDate: "2026-07-06", departDate: "2026-07-11" },
+    });
+  });
+
+  it("shrinking a stay moves nobody, even when the old span was contiguous (ADR 0038)", async () => {
+    // Under the old repack, shrinking A's stay still yanked B earlier to close
+    // the gap. Collision-push never does this — B's arrival only moves if A's
+    // NEW depart overlaps it. This directly covers collisionPush's "shrinking
+    // an earlier stay moves nobody" rule from inside the server action.
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "a", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null, pinned: false })
+      .mockResolvedValueOnce({ name: "Alpha", country: "France", arriveDate: "2026-07-01", departDate: "2026-07-05", nights: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "b", name: "Beta", sortOrder: 1, pinned: false, arriveDate: "2026-07-05", departDate: "2026-07-10" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ endDate: "2026-07-10" });
+    tripUpdateMock.mockResolvedValue({});
+
+    const r = await setStopNights("a", 2); // A shrinks to depart 2026-07-03
+
+    expect(r.success).toBe(true);
     expect(stopUpdateMock).toHaveBeenCalledWith({
       where: { id: "a" },
       data: { arriveDate: "2026-07-01", departDate: "2026-07-03" },
     });
-    // B must ripple to arrive 2026-07-03, depart 2026-07-08 (5-night span preserved)
-    expect(stopUpdateMock).toHaveBeenCalledWith({
-      where: { id: "b" },
-      data: { arriveDate: "2026-07-03", departDate: "2026-07-08" },
-    });
+    const updatedIds = stopUpdateMock.mock.calls.map((c) => c[0].where.id);
+    expect(updatedIds).not.toContain("b");
+    if (r.success) expect(r.changed).toEqual([]);
   });
 });
 

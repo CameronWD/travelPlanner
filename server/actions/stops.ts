@@ -7,13 +7,14 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
-import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowStop, type FlowConflict } from "@/lib/firm-up";
+import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
 import { nightsBetween, formatLongDate, addDays, daysBetween } from "@/lib/dates";
 import { shiftItemDates, shiftAccommodationDates, type PayloadShiftResult } from "@/lib/payload-shift";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
-import { insertionOrder, reflowReorderedDates, type ReflowStop } from "@/lib/reorder";
+import { insertionOrder, reflowReorderedDates, collisionPush, type ReflowStop } from "@/lib/reorder";
+import { compareScheduled } from "@/lib/plan-order";
 import { chapterSpan } from "@/lib/chapter-span";
 import { spanContributors } from "@/lib/chapters";
 import { type ActionResult, validationResult } from "@/lib/action-result";
@@ -23,7 +24,11 @@ import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
 // Result types
 // ---------------------------------------------------------------------------
 
-export type StopActionResult = ActionResult<{ conflicts?: FlowConflict[] }>;
+export type StopActionResult = ActionResult<{
+  conflicts?: FlowConflict[];
+  changed?: { id: string; arriveDate: string; departDate: string }[];
+  payload?: PayloadShiftResult;
+}>;
 
 /** Richer result returned by reorderStops (and reorderChapters) — includes
  *  the reflow payload so Task 10 can build the "X stops shifted" undo toast. */
@@ -539,6 +544,13 @@ export async function updateStop(
         notes: notes ?? null,
       },
     });
+    // ADR 0038: the form edit shifts this stop's own payload only (no
+    // collision-push through followers — that ripple is setStopDates' job,
+    // exercised via the reorder dialog). Renames rarely touch dates, so this
+    // covers the common "renamed while dates unchanged" case with no writes.
+    if (before?.arriveDate && (before.arriveDate !== arriveDate || before.departDate !== departDate)) {
+      await shiftStopPayloadTx(tx, { id: stopId, arriveDate: before.arriveDate }, arriveDate, departDate);
+    }
     await recomputeChapterSpans(tx, stop.tripId, stop.forkId);
     return result;
   });
@@ -651,8 +663,16 @@ export async function moveStop(
 }
 
 /**
- * Internal helper: apply new dates to an already-resolved stop and ripple
- * forward through contiguous following dated non-pinned stops.
+ * Internal helper: apply new dates to an already-resolved stop.
+ *
+ * ADR 0038 collision-push: a date edit ripples ONLY on collision. Scheduled
+ * stops after the edited one (in date order, not sortOrder) are pushed just
+ * far enough to clear an overlap with the edited stop's new stay — a gap
+ * absorbs the push and stops anything further downstream from moving. If the
+ * edit instead creates an overlap with the PRECEDING stop, that stop is never
+ * moved; the conflict is flagged on the edited stop itself. The edited stop's
+ * own slotted Items/Accommodation (and every pushed follower's) ride along via
+ * shiftStopPayloadTx, whose pre-images come back on `payload` for Undo.
  *
  * Callers are responsible for auth (requireStopAccess) and depart>=arrive
  * validation before calling this function.
@@ -666,7 +686,63 @@ async function applyStopDates(
     select: { name: true, country: true, arriveDate: true, departDate: true, nights: true },
   });
 
-  await db.stop.update({ where: { id: stop.id }, data: { arriveDate: dates.arriveDate, departDate: dates.departDate } });
+  let changed: { id: string; arriveDate: string; departDate: string }[] = [];
+  let conflicts: FlowConflict[] = [];
+  const payload: PayloadShiftResult = { items: [], accommodations: [] };
+  let maxDepart = dates.departDate;
+
+  await db.$transaction(async (tx) => {
+    await tx.stop.update({
+      where: { id: stop.id },
+      data: { arriveDate: dates.arriveDate, departDate: dates.departDate },
+    });
+    if (before?.arriveDate) {
+      const shifted = await shiftStopPayloadTx(
+        tx, { id: stop.id, arriveDate: before.arriveDate }, dates.arriveDate, dates.departDate,
+      );
+      payload.items.push(...shifted.items);
+      payload.accommodations.push(...shifted.accommodations);
+    }
+
+    // ADR 0038 collision-push: followers = scheduled stops after the edited
+    // stop in date order; each moves only as far as needed (gaps absorb).
+    const others = (await tx.stop.findMany({
+      where: { tripId: stop.tripId, id: { not: stop.id }, arriveDate: { not: null }, ...planScope(stop.forkId) },
+      select: { id: true, name: true, arriveDate: true, departDate: true, sortOrder: true, pinned: true },
+    })) as Array<{ id: string; name: string; arriveDate: string; departDate: string; sortOrder: number; pinned: boolean }>;
+    others.sort(compareScheduled);
+
+    const preceding = others.filter((s) => s.arriveDate < dates.arriveDate).pop();
+    if (preceding && preceding.departDate > dates.arriveDate) {
+      conflicts.push({
+        stopId: stop.id,
+        message: `These dates overlap ${preceding.name}'s stay (until ${preceding.departDate}).`,
+      });
+    }
+
+    const followers = others.filter((s) => s.arriveDate >= dates.arriveDate);
+    const pushed = collisionPush(followers, dates.departDate);
+    conflicts = conflicts.concat(pushed.conflicts);
+    const preById = new Map(others.map((s) => [s.id, s]));
+    for (const r of pushed.results) {
+      const pre = preById.get(r.id)!;
+      await tx.stop.update({ where: { id: r.id }, data: { arriveDate: r.arriveDate, departDate: r.departDate } });
+      const shifted = await shiftStopPayloadTx(tx, { id: r.id, arriveDate: pre.arriveDate }, r.arriveDate, r.departDate);
+      payload.items.push(...shifted.items);
+      payload.accommodations.push(...shifted.accommodations);
+      if (r.departDate > maxDepart) maxDepart = r.departDate;
+    }
+    changed = pushed.results.map((r) => ({ id: r.id, arriveDate: r.arriveDate, departDate: r.departDate }));
+
+    // Bands self-heal on any member date change (ADR 0021 §4).
+    await recomputeChapterSpans(tx, stop.tripId, stop.forkId);
+
+    // Auto-grow the trip window; never shrink endDate.
+    const trip = await tx.trip.findUnique({ where: { id: stop.tripId }, select: { endDate: true } });
+    if (!trip?.endDate || trip.endDate < maxDepart) {
+      await tx.trip.update({ where: { id: stop.tripId }, data: { endDate: maxDepart } });
+    }
+  });
 
   await recordPlanActivity(stop.forkId, {
     tripId: stop.tripId,
@@ -681,49 +757,8 @@ async function applyStopDates(
     ),
   });
 
-  const following = await db.stop.findMany({
-    where: { tripId: stop.tripId, sortOrder: { gt: stop.sortOrder }, ...planScope(stop.forkId) },
-    orderBy: { sortOrder: "asc" },
-    select: { id: true, sortOrder: true, nights: true, pinned: true, arriveDate: true, departDate: true },
-  });
-
-  // Collect the contiguous run of already-dated stops; stop at the first rough stop.
-  const run: typeof following = [];
-  for (const s of following) {
-    if (!s.arriveDate) break;
-    run.push(s);
-  }
-
-  let conflicts: FlowConflict[] = [];
-  let maxDepart = dates.departDate;
-  if (run.length > 0) {
-    const flowStops: FlowStop[] = run.map((s) => ({
-      id: s.id,
-      nights: s.arriveDate && s.departDate ? nightsBetween(s.arriveDate, s.departDate) : s.nights,
-      pinned: s.pinned,
-      arriveDate: s.arriveDate,
-      departDate: s.departDate,
-    }));
-    const flowed = flowDates(flowStops, dates.departDate);
-    conflicts = flowed.conflicts;
-    for (const r of flowed.results) {
-      if (r.departDate > maxDepart) maxDepart = r.departDate;
-      if (r.changed && !r.pinned) {
-        await db.stop.update({ where: { id: r.id }, data: { arriveDate: r.arriveDate, departDate: r.departDate } });
-      }
-    }
-  }
-
-  // Auto-grow the trip's window so the furthest date we just wrote stays
-  // visible in calendar/day/budget views (which only enumerate [start, end]).
-  // Never shrink endDate.
-  const trip = await db.trip.findUnique({ where: { id: stop.tripId }, select: { endDate: true } });
-  if (!trip?.endDate || trip.endDate < maxDepart) {
-    await db.trip.update({ where: { id: stop.tripId }, data: { endDate: maxDepart } });
-  }
-
   revalidatePath(`/trips/${stop.tripId}`);
-  return { success: true, conflicts };
+  return { success: true, conflicts, changed, payload };
 }
 
 /**
