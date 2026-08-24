@@ -1041,6 +1041,11 @@ export function ItineraryManager({
     if (!activeStop) return;
     // ADR 0021: scheduled stops now move too; only rough stops are barred from
     // dated chapters (guarded below). Rough AND scheduled stops move freely here.
+    // ADR 0038: a pinned scheduled stop's drag is blocked outright in
+    // handleDragEnd — skip the optimistic cross-container chapterId preview
+    // here too, so a blocked drop never leaves the stop visually parked in a
+    // chapter it was only hovered over (never actually moved into).
+    if (activeStop.arriveDate !== null && activeStop.pinned) return;
 
     // Determine the target container (chapterId or null for ungrouped).
     // The over element is either a stop (use its chapterId) or a droppable container id.

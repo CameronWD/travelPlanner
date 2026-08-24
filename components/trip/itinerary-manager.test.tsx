@@ -84,6 +84,7 @@ vi.mock("@/components/ui/use-toast", async (importOriginal) => {
 // (and failing) to simulate it.
 const dndCapture = vi.hoisted(() => ({
   onDragEnd: undefined as ((event: unknown) => void | Promise<void>) | undefined,
+  onDragOver: undefined as ((event: unknown) => void) | undefined,
 }));
 
 vi.mock("@dnd-kit/core", async (importOriginal) => {
@@ -92,6 +93,7 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
     ...actual,
     DndContext: (props: React.ComponentProps<typeof actual.DndContext>) => {
       dndCapture.onDragEnd = props.onDragEnd as (event: unknown) => void | Promise<void>;
+      dndCapture.onDragOver = props.onDragOver as (event: unknown) => void;
       const ActualDndContext = actual.DndContext;
       return <ActualDndContext {...props} />;
     },
@@ -1422,6 +1424,91 @@ describe("Task 10: pinned scheduled stop blocks the drag (ADR 0038)", () => {
     });
 
     expect(reorderStops).toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 10: a blocked pinned-stop drag must not corrupt local state (ADR 0038)
+//
+// handleDragOver optimistically previews a cross-container move by stamping
+// chapterId onto the dragged stop WHILE the gesture is in progress (dnd-kit
+// fires onDragOver repeatedly as the pointer crosses containers, before
+// onDragEnd on drop). handleDragEnd's pinned guard stops the drop from being
+// applied/persisted, but if handleDragOver had already re-stamped the pinned
+// stop's chapterId during the hover, that stale value would sit unnoticed in
+// localStops and ship to the server on some LATER, unrelated drag (whichever
+// reorder happens to run next sends the full stop list, chapterId included).
+// handleDragOver needs the identical pinned guard so the preview mutation
+// never happens in the first place.
+// ---------------------------------------------------------------------------
+
+describe("Task 10: blocked pinned-stop drag doesn't corrupt chapterId (regression, ADR 0038)", () => {
+  it("does not leave a pinned scheduled stop's chapterId mutated by a hover, even after the drop is blocked", async () => {
+    const pinned = makeStop({
+      id: "s-pinned",
+      name: "Rome",
+      arriveDate: "2026-08-01",
+      departDate: "2026-08-05",
+      pinned: true,
+      chapterId: null,
+      sortOrder: 0,
+    });
+    const other = makeStop({
+      id: "s-other",
+      name: "Naples",
+      arriveDate: "2026-08-05",
+      departDate: "2026-08-08",
+      pinned: false,
+      chapterId: "chB",
+      sortOrder: 1,
+    });
+    const chapterB = {
+      id: "chB",
+      name: "Coastal leg",
+      colour: "rose" as const,
+      startDate: "2026-08-05",
+      endDate: "2026-08-08",
+      sortOrder: 0,
+    };
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[pinned, other]} chapters={[chapterB]} />,
+    );
+
+    expect(dndCapture.onDragOver).toBeDefined();
+    expect(dndCapture.onDragEnd).toBeDefined();
+
+    // Hover the pinned stop over chapter B's container mid-drag — without the
+    // handleDragOver guard this optimistically stamps chapterId "chB" onto it.
+    act(() => {
+      dndCapture.onDragOver!({
+        active: { id: "s-pinned", data: { current: { type: "stop" } } },
+        over: { id: "chB", data: { current: {} } },
+      });
+    });
+
+    // Drop — blocked by the handleDragEnd pinned guard (asserted separately above).
+    await act(async () => {
+      await dndCapture.onDragEnd!({
+        active: { id: "s-pinned", data: { current: { type: "stop" } } },
+        over: { id: "chB", data: { current: {} } },
+      });
+    });
+
+    // A later, unrelated legitimate drag (moving "other") persists the whole
+    // stop list, chapterId included — this is where a corrupted pinned-stop
+    // chapterId from the earlier hover would leak to the server.
+    await act(async () => {
+      await dndCapture.onDragEnd!({
+        active: { id: "s-other", data: { current: { type: "stop" } } },
+        over: { id: "s-pinned", data: { current: { type: "stop" } } },
+      });
+    });
+
+    expect(reorderStops).toHaveBeenCalledTimes(1);
+    const items = vi.mocked(reorderStops).mock.calls[0][1] as { id: string; chapterId: string | null }[];
+    const pinnedItem = items.find((i) => i.id === "s-pinned");
+    expect(pinnedItem?.chapterId).toBeNull();
   });
 });
 
