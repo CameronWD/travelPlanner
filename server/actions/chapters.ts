@@ -11,8 +11,8 @@ import { nextChapterColour } from "@/lib/chapter-colours";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
-import { reflowReorderedDates, type ReflowStop } from "@/lib/reorder";
-import { recomputeChapterSpans, type ReorderResult } from "@/server/actions/stops";
+import { reflowSpanTx, type ReorderResult } from "@/server/actions/stops";
+import type { PayloadShiftResult } from "@/lib/payload-shift";
 import type { FlowConflict } from "@/lib/firm-up";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 
@@ -156,6 +156,7 @@ export async function reorderChapters(
   tripId: string,
   orderedChapterIds: string[],
   forkIdArg?: PlanId,
+  movedChapterId?: string,
 ): Promise<ReorderResult> {
   await requireTripAccess(tripId);
   if (orderedChapterIds.length === 0) return { success: true, changed: [], conflicts: [] };
@@ -172,7 +173,7 @@ export async function reorderChapters(
   // back to the plan derived from the chapters (all must belong to the same plan).
   const forkId: PlanId = forkIdArg ?? chapters[0]?.forkId ?? null;
 
-  // Load all stops for the trip to compute the new order and reflow.
+  // Load all stops for the trip to compute the new order.
   const allStops = await db.stop.findMany({
     where: { tripId, ...planScope(forkId) },
     orderBy: { sortOrder: "asc" },
@@ -181,15 +182,6 @@ export async function reorderChapters(
       arriveDate: true, departDate: true, nights: true, pinned: true,
     },
   });
-
-  // Resolve the reflow anchor.
-  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
-  const anchor =
-    trip?.startDate ??
-    allStops.reduce<string | null>(
-      (min, s) => (s.arriveDate && (min === null || s.arriveDate < min) ? s.arriveDate : min),
-      null,
-    );
 
   // Build the new stop order: emit each chapter's stops in the requested chapter order,
   // then any ungrouped stops (chapterId not in orderedChapterIds) at the end.
@@ -216,8 +208,14 @@ export async function reorderChapters(
     orderedItems.push({ id: stop.id, chapterId: stop.chapterId });
   }
 
+  // ADR 0038: only the dragged chapter's own stops count as "moved" for
+  // spanReflow's lead-in rule. movedChapterId is absent for callers that don't
+  // know which chapter was dragged, yielding an empty set (no special lead-in).
+  const movedIds = new Set((stopsByChapter.get(movedChapterId ?? "") ?? []).map((s) => s.id));
+
   let changed: { id: string; arriveDate: string; departDate: string }[] = [];
   let conflicts: FlowConflict[] = [];
+  let payload: PayloadShiftResult | undefined;
 
   const stopIds = orderedItems.map((i) => i.id);
 
@@ -243,44 +241,17 @@ export async function reorderChapters(
       await tx.chapter.update({ where: { id: orderedChapterIds[idx] }, data: { sortOrder: idx } });
     }
 
-    // Re-fetch the trip's stops from the LOCKED rows so we build the reflow input
-    // from post-lock data, not from the pre-tx allStops snapshot (closes a TOCTOU
-    // race where a concurrent writer could change a stop's dates/nights/pinned
-    // between the pre-tx read and the lock; mirrors the pattern in reorderStops).
-    const lockedStops = await tx.stop.findMany({
-      where: { tripId, ...planScope(forkId) },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true, sortOrder: true, chapterId: true,
-        arriveDate: true, departDate: true, nights: true, pinned: true,
-      },
-    });
-    const lockedById = new Map(lockedStops.map((s) => [s.id, s]));
-
-    // Reflow scheduled stop dates in the new order.
-    const reflowInput: ReflowStop[] = orderedItems.map((it) => {
-      const s = lockedById.get(it.id)!;
-      return { id: s.id, arriveDate: s.arriveDate, departDate: s.departDate, nights: s.nights, pinned: s.pinned };
-    });
-
-    const { results, conflicts: flowConflicts } = reflowReorderedDates(reflowInput, anchor);
-    conflicts = flowConflicts;
-
-    const changedResults = results.filter((r) => r.changed);
-    for (const r of changedResults) {
-      await tx.stop.update({
-        where: { id: r.id },
-        data: { arriveDate: r.arriveDate, departDate: r.departDate },
-      });
-    }
-    changed = changedResults.map((r) => ({ id: r.id, arriveDate: r.arriveDate, departDate: r.departDate }));
-
-    // Recompute chapter date-bands.
-    await recomputeChapterSpans(tx, tripId, forkId);
+    // ADR 0038: reflow only the span between the moved chapter's stops' old and
+    // new chronological positions, shift their payload, and self-heal chapter
+    // bands — via the shared reflowSpanTx (also used by reorderStops).
+    const reflow = await reflowSpanTx(tx, tripId, forkId, movedIds);
+    changed = reflow.changed;
+    conflicts = reflow.conflicts;
+    payload = reflow.payload;
   });
 
   revalidateChapterPaths(tripId);
-  return { success: true, changed, conflicts };
+  return { success: true, changed, conflicts, payload };
 }
 
 export async function assignStopToChapter(

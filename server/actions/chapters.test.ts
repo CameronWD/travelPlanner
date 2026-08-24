@@ -4,6 +4,7 @@ const {
   requireTripAccessMock, revalidatePathMock,
   chapterFindUniqueMock, chapterFindManyMock, chapterCountMock, chapterCreateMock, chapterCreateManyMock, chapterUpdateMock, chapterDeleteMock,
   stopFindManyMock, stopFindUniqueMock, stopUpdateMock, tripFindUniqueMock, queryRawMock, dbTransactionMock, chapterCreateInTxMock,
+  itemFindManyMock, itemUpdateMock, accommodationFindManyMock, accommodationUpdateMock,
 } = vi.hoisted(() => {
   const queryRawMock = vi.fn();
   const stopFindManyMock = vi.fn().mockResolvedValue([]);
@@ -12,12 +13,18 @@ const {
   const chapterUpdateMock = vi.fn().mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
   const tripFindUniqueMock = vi.fn();
   const chapterCreateInTxMock = vi.fn();
+  const itemFindManyMock = vi.fn().mockResolvedValue([]);
+  const itemUpdateMock = vi.fn();
+  const accommodationFindManyMock = vi.fn().mockResolvedValue([]);
+  const accommodationUpdateMock = vi.fn();
   const dbTransactionMock = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
         stop: { findMany: stopFindManyMock, update: stopUpdateMock },
         chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock, create: chapterCreateInTxMock },
+        item: { findMany: itemFindManyMock, update: itemUpdateMock },
+        accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
       });
     }
     if (Array.isArray(arg)) return Promise.all(arg);
@@ -40,6 +47,10 @@ const {
     queryRawMock,
     dbTransactionMock,
     chapterCreateInTxMock,
+    itemFindManyMock,
+    itemUpdateMock,
+    accommodationFindManyMock,
+    accommodationUpdateMock,
   };
 });
 
@@ -71,6 +82,12 @@ afterEach(() => {
   stopFindManyMock.mockResolvedValue([]);
   stopUpdateMock.mockReset();
   chapterCreateInTxMock.mockReset();
+  itemFindManyMock.mockReset();
+  itemFindManyMock.mockResolvedValue([]);
+  itemUpdateMock.mockReset();
+  accommodationFindManyMock.mockReset();
+  accommodationFindManyMock.mockResolvedValue([]);
+  accommodationUpdateMock.mockReset();
   // Restore dbTransactionMock to the callback-aware default.
   dbTransactionMock.mockImplementation(async (arg: unknown) => {
     if (typeof arg === "function") {
@@ -78,6 +95,8 @@ afterEach(() => {
         $queryRaw: queryRawMock,
         stop: { findMany: stopFindManyMock, update: stopUpdateMock },
         chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock, create: chapterCreateInTxMock },
+        item: { findMany: itemFindManyMock, update: itemUpdateMock },
+        accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
       });
     }
     if (Array.isArray(arg)) return Promise.all(arg);
@@ -443,69 +462,87 @@ describe("reorderChapters", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Task 9: reorderChapters — dated chapters now reorderable (ADR 0021)
+// Task 8: reorderChapters — span-scoped reflow via reflowSpanTx (ADR 0038)
 // ---------------------------------------------------------------------------
 
-describe("Task 9: reorderChapters — dated chapters can be reordered and reflowed", () => {
-  it("allows dated chapters to be reordered and reflows stop dates", async () => {
-    // Two dated chapters: ch-A (stops a1, a2) and ch-B (stops b1).
-    // New order: ch-B before ch-A.
-    // Trip startDate = 2026-07-01 (anchor).
-    // a1: arrive 2026-07-01, depart 2026-07-04 (3n); a2: arrive 2026-07-04, depart 2026-07-06 (2n).
-    // b1: arrive 2026-07-06, depart 2026-07-09 (3n).
-    // After reorder (ch-B first): b1 gets arrive 2026-07-01, depart 2026-07-04;
-    //   a1 gets arrive 2026-07-04, depart 2026-07-07; a2 gets arrive 2026-07-07, depart 2026-07-09.
+describe("Task 8: reorderChapters — dated chapter drags reflow the span only", () => {
+  it("re-dates only the dragged chapter's block + displaced stops; stops outside the span keep their dates", async () => {
+    // Chronological order: a1(01–04) a2(04–06) b1(06–09) ··3-day gap·· c1(12–15),
+    // grouped into ch-A (a1, a2), ch-B (b1), ch-C (c1).
+    // Drag ch-B to the front → new chapter order [ch-B, ch-A, ch-C] → stop
+    // order [b1, a1, a2, c1]. The reflow window only spans indices 0-2
+    // (b1, a1, a2); c1 sits outside it and must be left completely untouched.
     chapterFindManyMock.mockResolvedValue([
       { id: "ch-A", startDate: "2026-07-01", forkId: null },
       { id: "ch-B", startDate: "2026-07-06", forkId: null },
+      { id: "ch-C", startDate: "2026-07-12", forkId: null },
     ]);
-    stopFindManyMock.mockResolvedValue([
+    // Pre-tx read: current arrangement, grouped by chapterId.
+    stopFindManyMock.mockResolvedValueOnce([
       { id: "a1", sortOrder: 0, chapterId: "ch-A", arriveDate: "2026-07-01", departDate: "2026-07-04", nights: null, pinned: false },
       { id: "a2", sortOrder: 1, chapterId: "ch-A", arriveDate: "2026-07-04", departDate: "2026-07-06", nights: null, pinned: false },
       { id: "b1", sortOrder: 2, chapterId: "ch-B", arriveDate: "2026-07-06", departDate: "2026-07-09", nights: null, pinned: false },
+      { id: "c1", sortOrder: 3, chapterId: "ch-C", arriveDate: "2026-07-12", departDate: "2026-07-15", nights: null, pinned: false },
     ]);
-    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
-    queryRawMock.mockResolvedValue([
-      { id: "a1", tripId: "t1", arriveDate: "2026-07-01" },
-      { id: "a2", tripId: "t1", arriveDate: "2026-07-04" },
-      { id: "b1", tripId: "t1", arriveDate: "2026-07-06" },
-    ]);
+    queryRawMock.mockResolvedValue([]);
     stopUpdateMock.mockResolvedValue({});
+    // Post-write read used by reflowSpanTx (NEW sortOrder) and recomputeChapterSpans;
+    // dates are still the pre-drag values (writes haven't landed in this mock).
+    stopFindManyMock.mockResolvedValue([
+      { id: "b1", sortOrder: 0, chapterId: "ch-B", arriveDate: "2026-07-06", departDate: "2026-07-09", pinned: false },
+      { id: "a1", sortOrder: 1, chapterId: "ch-A", arriveDate: "2026-07-01", departDate: "2026-07-04", pinned: false },
+      { id: "a2", sortOrder: 2, chapterId: "ch-A", arriveDate: "2026-07-04", departDate: "2026-07-06", pinned: false },
+      { id: "c1", sortOrder: 3, chapterId: "ch-C", arriveDate: "2026-07-12", departDate: "2026-07-15", pinned: false },
+    ]);
 
-    const r = await reorderChapters("t1", ["ch-B", "ch-A"]);
+    const r = await reorderChapters("t1", ["ch-B", "ch-A", "ch-C"], null, "ch-B");
+
     expect(r.success).toBe(true);
     if (r.success) {
-      expect(r.changed).toBeDefined();
-      // b1 should be reflowed to arrive 2026-07-01
-      const b1 = r.changed!.find((c) => c.id === "b1");
-      expect(b1).toBeDefined();
-      expect(b1!.arriveDate).toBe("2026-07-01");
-      expect(b1!.departDate).toBe("2026-07-04");
+      expect(r.changed.map((c) => c.id).sort()).toEqual(["a1", "a2", "b1"]);
     }
-    // Persists the reflowed dates for b1
-    expect(stopUpdateMock).toHaveBeenCalledWith({ where: { id: "b1" }, data: { arriveDate: "2026-07-01", departDate: "2026-07-04" } });
+
+    const dateWrites = stopUpdateMock.mock.calls
+      .filter((call: unknown[]) => "arriveDate" in (call[0] as { data: Record<string, unknown> }).data)
+      .map((call: unknown[]) => {
+        const arg = call[0] as { where: { id: string }; data: { arriveDate: string; departDate: string } };
+        return { id: arg.where.id, arriveDate: arg.data.arriveDate, departDate: arg.data.departDate };
+      });
+    // b1 (the dragged block) arrives with no lead-in at the window's original
+    // start; a1/a2 (displaced) follow immediately, keeping their own nights.
+    expect(dateWrites.sort((a, b) => a.id.localeCompare(b.id))).toEqual([
+      { id: "a1", arriveDate: "2026-07-04", departDate: "2026-07-07" },
+      { id: "a2", arriveDate: "2026-07-07", departDate: "2026-07-09" },
+      { id: "b1", arriveDate: "2026-07-01", departDate: "2026-07-04" },
+    ]);
+    // c1 sits outside the reflow window — sortOrder is rewritten (all stops
+    // get repositioned) but it never receives an arrive/departDate write.
+    expect(dateWrites.some((w) => w.id === "c1")).toBe(false);
   });
 
-  it("returns { success, changed, conflicts } shape for dated chapter reorder", async () => {
+  it("returns { success, changed, conflicts, payload } shape when the chapter order is unchanged", async () => {
     chapterFindManyMock.mockResolvedValue([
       { id: "ch-X", startDate: "2026-07-01", forkId: null },
     ]);
-    stopFindManyMock.mockResolvedValue([
+    stopFindManyMock.mockResolvedValueOnce([
       { id: "x1", sortOrder: 0, chapterId: "ch-X", arriveDate: "2026-07-01", departDate: "2026-07-03", nights: null, pinned: false },
     ]);
-    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01" });
-    queryRawMock.mockResolvedValue([
-      { id: "x1", tripId: "t1", arriveDate: "2026-07-01" },
-    ]);
+    queryRawMock.mockResolvedValue([]);
     stopUpdateMock.mockResolvedValue({});
+    stopFindManyMock.mockResolvedValue([
+      { id: "x1", sortOrder: 0, chapterId: "ch-X", arriveDate: "2026-07-01", departDate: "2026-07-03", pinned: false },
+    ]);
 
     const r = await reorderChapters("t1", ["ch-X"]);
     expect(r.success).toBe(true);
     if (r.success) {
       expect(r).toHaveProperty("changed");
       expect(r).toHaveProperty("conflicts");
+      expect(r).toHaveProperty("payload");
       expect(Array.isArray(r.changed)).toBe(true);
       expect(Array.isArray(r.conflicts)).toBe(true);
+      // No permutation → spanReflow has nothing to re-date.
+      expect(r.changed).toEqual([]);
     }
   });
 });
