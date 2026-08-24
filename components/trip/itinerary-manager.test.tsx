@@ -74,7 +74,32 @@ vi.mock("@/components/ui/use-toast", async (importOriginal) => {
   return { ...mod, toast: vi.fn() };
 });
 
-import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop } from "@/server/actions/stops";
+// jsdom has no layout engine, so a real dnd-kit pointer/keyboard gesture can't
+// be simulated with real coordinates (see the "Task 10: scheduled entities are
+// draggable" describe block below). To still exercise the actual production
+// handleDragEnd (rather than just asserting a source snippet exists), wrap the
+// real DndContext to capture the onDragEnd callback the component wires up to
+// it, so a test can invoke it directly with a synthetic DragEndEvent — this
+// bypasses dnd-kit's sensor/coordinate machinery entirely rather than trying
+// (and failing) to simulate it.
+const dndCapture = vi.hoisted(() => ({
+  onDragEnd: undefined as ((event: unknown) => void | Promise<void>) | undefined,
+}));
+
+vi.mock("@dnd-kit/core", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@dnd-kit/core")>();
+  return {
+    ...actual,
+    DndContext: (props: React.ComponentProps<typeof actual.DndContext>) => {
+      dndCapture.onDragEnd = props.onDragEnd as (event: unknown) => void | Promise<void>;
+      const ActualDndContext = actual.DndContext;
+      return <ActualDndContext {...props} />;
+    },
+  };
+});
+
+import type * as React from "react";
+import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops } from "@/server/actions/stops";
 import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation } from "@/server/actions/accommodation";
 import { createChapter, deleteChapter } from "@/server/actions/chapters";
@@ -1282,6 +1307,121 @@ describe("Task 10: scheduled entities are draggable (wiring)", () => {
     expect(
       screen.getByRole("button", { name: "Reorder Paris" }),
     ).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 10: dates-rule rendering (ADR 0038) — a scheduled stop's position IS
+// its dates, so the editor must render scheduled stops in date order even
+// when the caller (a test fixture, or — before this task — the page loader)
+// hands them over sorted some other way.
+// ---------------------------------------------------------------------------
+
+describe("Task 10: dates-rule rendering order (ADR 0038)", () => {
+  it("renders scheduled stops in date order even when the fixture lists them out of order", () => {
+    const later = makeStop({
+      id: "s-later",
+      name: "Florence",
+      arriveDate: "2026-08-10",
+      departDate: "2026-08-13",
+      sortOrder: 0,
+    });
+    const earlier = makeStop({
+      id: "s-earlier",
+      name: "Venice",
+      arriveDate: "2026-08-01",
+      departDate: "2026-08-05",
+      sortOrder: 1,
+    });
+
+    // Fixture order is deliberately reversed (later date first, lower sortOrder)
+    // to prove rendering follows dates, not array/sortOrder position.
+    render(<ItineraryManager {...baseProps} initialStops={[later, earlier]} />);
+
+    const names = screen
+      .getAllByRole("heading", { level: 3 })
+      .map((h) => h.textContent);
+    expect(names).toEqual(["Venice", "Florence"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 10: pinned scheduled stop blocks the drag (ADR 0038)
+//
+// jsdom has no layout engine, so a real dnd-kit pointer gesture can't be
+// simulated with real coordinates (see the note above the dnd-kit mock near
+// the top of this file, and the "Task 10: scheduled entities are draggable"
+// block above). Instead of asserting the guard exists via a source-text
+// match, the DndContext mock above captures the real onDragEnd callback the
+// component wires up, so this test invokes the ACTUAL production
+// handleDragEnd with a synthetic DragEndEvent shape — real guard logic, no
+// pointer/coordinate simulation required.
+// ---------------------------------------------------------------------------
+
+describe("Task 10: pinned scheduled stop blocks the drag (ADR 0038)", () => {
+  it("shows the pinned-stop toast and calls no reorder action when a pinned scheduled stop is dropped", async () => {
+    const pinned = makeStop({
+      id: "s-pinned",
+      name: "Rome",
+      arriveDate: "2026-08-01",
+      departDate: "2026-08-05",
+      pinned: true,
+      sortOrder: 0,
+    });
+    const other = makeStop({
+      id: "s-other",
+      name: "Naples",
+      arriveDate: "2026-08-05",
+      departDate: "2026-08-08",
+      sortOrder: 1,
+    });
+
+    render(<ItineraryManager {...baseProps} initialStops={[pinned, other]} />);
+
+    expect(dndCapture.onDragEnd).toBeDefined();
+
+    await act(async () => {
+      await dndCapture.onDragEnd!({
+        active: { id: "s-pinned", data: { current: { type: "stop" } } },
+        over: { id: "s-other", data: { current: {} } },
+      });
+    });
+
+    expect(toast).toHaveBeenCalledWith({
+      title: "This stop is pinned — unpin it to move it.",
+    });
+    expect(reorderStops).not.toHaveBeenCalled();
+  });
+
+  it("does NOT block dragging a scheduled stop that is not pinned (regression guard)", async () => {
+    const unpinned = makeStop({
+      id: "s-unpinned",
+      name: "Rome",
+      arriveDate: "2026-08-01",
+      departDate: "2026-08-05",
+      pinned: false,
+      sortOrder: 0,
+    });
+    const other = makeStop({
+      id: "s-other",
+      name: "Naples",
+      arriveDate: "2026-08-05",
+      departDate: "2026-08-08",
+      sortOrder: 1,
+    });
+
+    render(<ItineraryManager {...baseProps} initialStops={[unpinned, other]} />);
+
+    expect(dndCapture.onDragEnd).toBeDefined();
+
+    await act(async () => {
+      await dndCapture.onDragEnd!({
+        active: { id: "s-unpinned", data: { current: { type: "stop" } } },
+        over: { id: "s-other", data: { current: {} } },
+      });
+    });
+
+    expect(reorderStops).toHaveBeenCalled();
   });
 });
 

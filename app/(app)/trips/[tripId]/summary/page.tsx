@@ -18,6 +18,7 @@ import { tripHomeBase } from "@/lib/home-base";
 import { homeMapPoint } from "@/lib/route-map";
 import { getTripProjection } from "@/server/actions/stops";
 import { groupStopsByChapter, chapterForStop } from "@/lib/chapters";
+import { orderPlanStops } from "@/lib/plan-order";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import { ChapterChip } from "@/components/trip/chapter-chip";
 import { CostAmounts } from "@/components/trip/cost-amounts";
@@ -270,11 +271,17 @@ export default async function SummaryPage({
   // budget.byChapter will be populated.
   // The stop/chapter queries filter rough (date-less) rows out, so the date
   // fields are non-null at runtime; narrow the Prisma types once here.
-  const datedStops = stops.map((s) => ({
-    ...s,
-    arriveDate: s.arriveDate!,
-    departDate: s.departDate!,
-  }));
+  // ADR 0038: a scheduled stop's position IS its dates — order canonically
+  // before anything downstream (budget rollup, chapter grouping, route map)
+  // groups or displays them by position. The fetch's orderBy stays sortOrder;
+  // this is the dates-rule re-sort layered on top.
+  const datedStops = orderPlanStops(
+    stops.map((s) => ({
+      ...s,
+      arriveDate: s.arriveDate!,
+      departDate: s.departDate!,
+    })),
+  );
   const datedChapters = chapters.map((c) => ({
     ...c,
     startDate: c.startDate!,

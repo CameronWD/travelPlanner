@@ -1,6 +1,7 @@
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { planScope } from "@/lib/plan-scope";
+import { orderPlanStops } from "@/lib/plan-order";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enums";
 import type { NoteView } from "@/components/trip/note-thread";
@@ -364,7 +365,7 @@ export default async function TripPlanPage({
             chapters={chapters}
             thingsToDoByStopId={thingsToDoByStopId}
             thingsToDoItemCostsById={thingsToDoItemCostsById}
-            initialStops={stops.map((stop) => ({
+            initialStops={orderPlanStops(stops).map((stop) => ({
               ...stop,
               accommodations: stop.accommodations.map((acc) => ({
                 ...acc,
