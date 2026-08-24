@@ -5,7 +5,7 @@
  * in isolation and reused from itinerary-manager.tsx.
  */
 
-import { nightsBetween } from "./dates";
+import { addDays, nightsBetween } from "./dates";
 import { flowDates } from "./firm-up";
 import type { FlowConflict, FlowResult } from "./firm-up";
 
@@ -290,5 +290,115 @@ export function reflowReorderedDates(
     };
   });
 
+  return { results, conflicts };
+}
+
+// ---------------------------------------------------------------------------
+// spanReflow (ADR 0038)
+// ---------------------------------------------------------------------------
+
+export interface SpanStop {
+  id: string;
+  arriveDate: string;
+  departDate: string;
+  pinned: boolean;
+}
+
+/**
+ * ADR 0038 span reflow. `oldOrder` = the plan's scheduled stops in current
+ * (chronological) order; `newOrder` = the same stops in the dropped
+ * arrangement; `movedIds` = the actively dragged stop(s). Only the window
+ * between the first and last differing position is re-dated, flowing from the
+ * window's original start date. Nights are always preserved. An unmoved stop
+ * keeps its lead-in gap; a moved stop whose new predecessor is not itself
+ * moved arrives with no lead-in (same-day handoff). Pinned stops keep their
+ * dates and conflict when overrun. Stops outside the window are absent from
+ * `results` entirely.
+ */
+export function spanReflow(
+  oldOrder: readonly SpanStop[],
+  newOrder: readonly SpanStop[],
+  movedIds: ReadonlySet<string>,
+): { results: ReflowResult[]; conflicts: FlowConflict[] } {
+  if (oldOrder.length !== newOrder.length) return { results: [], conflicts: [] };
+  let first = -1;
+  let last = -1;
+  for (let i = 0; i < oldOrder.length; i++) {
+    if (oldOrder[i].id !== newOrder[i].id) {
+      if (first === -1) first = i;
+      last = i;
+    }
+  }
+  if (first === -1) return { results: [], conflicts: [] };
+
+  // Lead-in gap per stop, measured in the OLD (chronological) order.
+  const leadIn = new Map<string, number>();
+  for (let i = 0; i < oldOrder.length; i++) {
+    leadIn.set(
+      oldOrder[i].id,
+      i === 0 ? 0 : Math.max(0, nightsBetween(oldOrder[i - 1].departDate, oldOrder[i].arriveDate)),
+    );
+  }
+
+  const results: ReflowResult[] = [];
+  const conflicts: FlowConflict[] = [];
+  let cursor = oldOrder[first].arriveDate;
+  for (let i = first; i <= last; i++) {
+    const stop = newOrder[i];
+    if (stop.pinned) {
+      if (cursor > stop.arriveDate) {
+        conflicts.push({
+          stopId: stop.id,
+          message: `Earlier stops run to ${cursor}, past this pinned arrival of ${stop.arriveDate}.`,
+        });
+      }
+      results.push({ id: stop.id, arriveDate: stop.arriveDate, departDate: stop.departDate, changed: false });
+      cursor = cursor > stop.departDate ? cursor : stop.departDate;
+      continue;
+    }
+    const prevIsMoved = i > first && movedIds.has(newOrder[i - 1].id);
+    const lead = movedIds.has(stop.id) && !prevIsMoved ? 0 : (leadIn.get(stop.id) ?? 0);
+    const arriveDate = addDays(cursor, lead);
+    const departDate = addDays(arriveDate, nightsBetween(stop.arriveDate, stop.departDate));
+    results.push({
+      id: stop.id,
+      arriveDate,
+      departDate,
+      changed: arriveDate !== stop.arriveDate || departDate !== stop.departDate,
+    });
+    cursor = departDate;
+  }
+  return { results, conflicts };
+}
+
+/**
+ * ADR 0038 collision-push for a direct date edit. `followers` = scheduled
+ * stops after the edited stop in chronological order; `cursor` = the edited
+ * stop's new depart date. A follower moves only as far as needed to clear the
+ * overlap (its own lead-in gap absorbs the push first); nights preserved.
+ * Shrinking an earlier stay moves nobody. Returns only changed stops.
+ */
+export function collisionPush(
+  followers: readonly SpanStop[],
+  cursor: string,
+): { results: ReflowResult[]; conflicts: FlowConflict[] } {
+  const results: ReflowResult[] = [];
+  const conflicts: FlowConflict[] = [];
+  let cur = cursor;
+  for (const s of followers) {
+    if (s.arriveDate >= cur) break; // gap absorbs the push; nothing further can overlap
+    if (s.pinned) {
+      conflicts.push({
+        stopId: s.id,
+        message: `Earlier stops run to ${cur}, past this pinned arrival of ${s.arriveDate}.`,
+      });
+      cur = cur > s.departDate ? cur : s.departDate;
+      continue;
+    }
+    const arriveDate = cur;
+    const departDate = addDays(arriveDate, nightsBetween(s.arriveDate, s.departDate));
+    results.push({ id: s.id, arriveDate, departDate, changed: true });
+    cur = departDate;
+  }
   return { results, conflicts };
 }

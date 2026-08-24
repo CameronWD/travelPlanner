@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { moveStopInOrder, moveChapterBlocks, insertionOrder, reflowReorderedDates } from "./reorder";
+import { moveStopInOrder, moveChapterBlocks, insertionOrder, reflowReorderedDates, spanReflow, collisionPush, type SpanStop } from "./reorder";
 import { groupStopsByChapter } from "./chapters";
 import type { ChapterLike, StopLike } from "./chapters";
 
@@ -474,5 +474,93 @@ describe("reflowReorderedDates", () => {
 
     expect(results).toEqual([]);
     expect(conflicts).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// spanReflow (ADR 0038)
+// ---------------------------------------------------------------------------
+
+const sp = (id: string, arriveDate: string, departDate: string, pinned = false): SpanStop =>
+  ({ id, arriveDate, departDate, pinned });
+
+describe("spanReflow (ADR 0038)", () => {
+  // The ADR's worked example: A(1–4) B(4–7) ··2-day gap·· C(9–12) D(12–15); drag C before B.
+  const A = sp("A", "2026-06-01", "2026-06-04");
+  const B = sp("B", "2026-06-04", "2026-06-07");
+  const C = sp("C", "2026-06-09", "2026-06-12");
+  const D = sp("D", "2026-06-12", "2026-06-15");
+
+  it("re-dates only the affected span and leaves stops outside untouched", () => {
+    const { results, conflicts } = spanReflow([A, B, C, D], [A, C, B, D], new Set(["C"]));
+    expect(conflicts).toEqual([]);
+    // Window = indices 1..2. A and D are not in results at all.
+    expect(results.map((r) => r.id)).toEqual(["C", "B"]);
+    expect(results[0]).toMatchObject({ id: "C", arriveDate: "2026-06-04", departDate: "2026-06-07", changed: true });
+    expect(results[1]).toMatchObject({ id: "B", arriveDate: "2026-06-07", departDate: "2026-06-10", changed: true });
+  });
+
+  it("returns empty when the order did not change", () => {
+    expect(spanReflow([A, B, C, D], [A, B, C, D], new Set(["B"])).results).toEqual([]);
+  });
+
+  it("preserves an unmoved stop's lead-in gap", () => {
+    // A(1–4) C(4–7) ··2 gap·· B(9–12) D(12–15); drag C after B → A B C D.
+    const C2 = sp("C", "2026-06-04", "2026-06-07");
+    const B2 = sp("B", "2026-06-09", "2026-06-12");
+    const { results } = spanReflow([A, C2, B2, D], [A, B2, C2, D], new Set(["C"]));
+    // B keeps its 2-day lead-in from window start (06-04 → arrives 06-06).
+    expect(results[0]).toMatchObject({ id: "B", arriveDate: "2026-06-06", departDate: "2026-06-09" });
+    expect(results[1]).toMatchObject({ id: "C", arriveDate: "2026-06-09", departDate: "2026-06-12" });
+  });
+
+  it("keeps a moved block's internal gaps (chapter drag)", () => {
+    // Drag block [C,D] (with no internal gap) before B: only first-of-block loses lead-in.
+    const { results } = spanReflow([A, B, C, D], [A, C, D, B], new Set(["C", "D"]));
+    expect(results.map((r) => r.id)).toEqual(["C", "D", "B"]);
+    expect(results[0]).toMatchObject({ id: "C", arriveDate: "2026-06-04" }); // lead 0 (moved, first)
+    expect(results[1]).toMatchObject({ id: "D", arriveDate: "2026-06-07" }); // kept lead 0
+    expect(results[2]).toMatchObject({ id: "B", arriveDate: "2026-06-10" }); // kept lead 0
+  });
+
+  it("holds pinned stops and reports a conflict when the span cannot fit", () => {
+    const Bpin = sp("B", "2026-06-04", "2026-06-07", true);
+    const { results, conflicts } = spanReflow([A, Bpin, C, D], [A, C, Bpin, D], new Set(["C"]));
+    const pinned = results.find((r) => r.id === "B")!;
+    expect(pinned).toMatchObject({ arriveDate: "2026-06-04", departDate: "2026-06-07", changed: false });
+    expect(conflicts).toHaveLength(1);
+    expect(conflicts[0].stopId).toBe("B");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// collisionPush (ADR 0038)
+// ---------------------------------------------------------------------------
+
+describe("collisionPush (ADR 0038)", () => {
+  it("pushes only overlapped followers, letting gaps absorb", () => {
+    // Edited stop now departs 06-06. B(4–7) overlaps → pushed. Gap-stop D(12–15) untouched.
+    const followers = [sp("B", "2026-06-04", "2026-06-07"), sp("D", "2026-06-12", "2026-06-15")];
+    const { results, conflicts } = collisionPush(followers, "2026-06-06");
+    expect(conflicts).toEqual([]);
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ id: "B", arriveDate: "2026-06-06", departDate: "2026-06-09" });
+  });
+
+  it("propagates a push down a glued chain", () => {
+    const followers = [sp("B", "2026-06-04", "2026-06-07"), sp("C", "2026-06-07", "2026-06-10")];
+    const { results } = collisionPush(followers, "2026-06-06");
+    expect(results.map((r) => r.id)).toEqual(["B", "C"]);
+    expect(results[1]).toMatchObject({ arriveDate: "2026-06-09", departDate: "2026-06-12" });
+  });
+
+  it("never moves anyone when the edit shrank the stay", () => {
+    expect(collisionPush([sp("B", "2026-06-04", "2026-06-07")], "2026-06-03").results).toEqual([]);
+  });
+
+  it("holds a pinned follower and flags it", () => {
+    const { results, conflicts } = collisionPush([sp("B", "2026-06-04", "2026-06-07", true)], "2026-06-06");
+    expect(results).toEqual([]);
+    expect(conflicts[0].stopId).toBe("B");
   });
 });
