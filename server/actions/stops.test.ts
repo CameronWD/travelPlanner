@@ -137,6 +137,19 @@ vi.mock("@/server/actions/target-cleanup", () => ({
   cleanupTargetSideData: cleanupTargetSideDataMock,
 }));
 
+// Partial mock: planTripFirmUp defaults to its REAL implementation (wrapped in
+// a spy) so every existing firmUpTrip test keeps exercising real flow logic.
+// One Task 9 test overrides it via mockReturnValueOnce to drive firmUpTrip's
+// write loop with a result the real flowDates would never organically produce
+// (an already-scheduled stop being re-dated), in order to unit-test the new
+// shiftStopPayloadTx guard in isolation — mirroring this file's documented
+// philosophy that flowDates/planTripFirmUp are tested in isolation elsewhere
+// and this file "just verifies wiring".
+vi.mock("@/lib/firm-up", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/firm-up")>();
+  return { ...actual, planTripFirmUp: vi.fn(actual.planTripFirmUp) };
+});
+
 import {
   createStop,
   updateStop,
@@ -157,6 +170,7 @@ import {
   shiftStopPayloadTx,
 } from "./stops";
 import type { Prisma } from "@prisma/client";
+import { planTripFirmUp } from "@/lib/firm-up";
 import { chapterSpan } from "@/lib/chapter-span";
 import { recordActivity } from "@/server/actions/activity";
 import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
@@ -1152,6 +1166,33 @@ describe("firmUpSegment", () => {
       }),
     );
   });
+
+  // Task 9 (ADR 0038): firmUpSegment's flow only ever dates previously-rough
+  // stops (segment is filtered to !arriveDate) — a rough stop has no prior
+  // arrive date to offset items/accommodation from, so no payload shift
+  // should occur even when the stop (unrealistically) already has slotted
+  // items/accommodation rows attached.
+  it("dating a previously-rough stop performs NO item/accommodation updates", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", sortOrder: 0, chapterId: "it", nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    geocodePlaceDetailedMock.mockResolvedValue(null);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+    // Even if stray items/accommodation rows existed for this stop, the guard
+    // must never look them up because the stop had no previous arrive date.
+    itemFindManyMock.mockResolvedValue([{ id: "item-1", date: "2026-07-01" }]);
+    accommodationFindManyMock.mockResolvedValue([{ id: "acc-1", checkIn: "2026-07-01", checkOut: "2026-07-03" }]);
+
+    const result = await firmUpSegment({ tripId: "trip-1", chapterId: "it" });
+
+    expect(result.success).toBe(true);
+    expect(itemFindManyMock).not.toHaveBeenCalled();
+    expect(accommodationFindManyMock).not.toHaveBeenCalled();
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+    expect(accommodationUpdateMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1993,6 +2034,75 @@ describe("firmUpTrip", () => {
     expect(chapterUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "ch-a" } }),
     );
+  });
+
+  // Task 9 (ADR 0038): firmUpTrip's write loop only ever writes dates for
+  // stops that were rough at fetch time (planTripFirmUp filters results to
+  // roughIds) — a rough stop has no prior arrive date to offset from, so no
+  // payload shift should occur even if stray items/accommodation rows exist.
+  it("dating a previously-rough stop performs NO item/accommodation updates", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "rome", sortOrder: 0, chapterId: null, nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+    itemFindManyMock.mockResolvedValue([{ id: "item-1", date: "2026-07-01" }]);
+    accommodationFindManyMock.mockResolvedValue([{ id: "acc-1", checkIn: "2026-07-01", checkOut: "2026-07-03" }]);
+
+    const result = await firmUpTrip("trip-1");
+
+    expect(result.success).toBe(true);
+    expect(itemFindManyMock).not.toHaveBeenCalled();
+    expect(accommodationFindManyMock).not.toHaveBeenCalled();
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+    expect(accommodationUpdateMock).not.toHaveBeenCalled();
+  });
+
+  // Task 9 (ADR 0038): "a Stop's payload rides with it" must hold for EVERY
+  // loop that writes a stop's flowed dates, including firmUpTrip's — not just
+  // applyStopDates/reflowSpanTx. Today's flowDates treats any already-dated
+  // stop as an immovable boundary (it always echoes the same dates back), so
+  // this specific combination — an already-scheduled stop coming back from
+  // the planner with DIFFERENT dates — cannot occur through firmUpTrip's real
+  // wiring. We drive it here by overriding planTripFirmUp for one call (the
+  // pure planner is tested in isolation in lib/firm-up.test.ts; this file's
+  // job is "just verify wiring", per the header comment above) so the new
+  // guard in the write loop is exercised directly: it must detect the prior
+  // arrive date, shift the stop's slotted item/accommodation by the same
+  // offset, and leave the still-rough sibling stop untouched.
+  it("shifts a re-dated stop's slotted items/accommodation when its previous arrive date was non-null", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "paris", sortOrder: 0, chapterId: null, nights: 2, pinned: false, arriveDate: "2026-07-01", departDate: "2026-07-03", timezone: "Europe/Paris", name: "Paris", country: "France" },
+      { id: "rome", sortOrder: 1, chapterId: null, nights: 3, pinned: false, arriveDate: null, departDate: null, timezone: null, name: "Rome", country: "Italy" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    tripUpdateMock.mockResolvedValue({});
+    vi.mocked(planTripFirmUp).mockReturnValueOnce({
+      results: [
+        { id: "paris", arriveDate: "2026-07-05", departDate: "2026-07-07" },
+        { id: "rome", arriveDate: "2026-07-07", departDate: "2026-07-10" },
+      ],
+      conflicts: [],
+    });
+    itemFindManyMock.mockResolvedValueOnce([{ id: "item-1", date: "2026-07-01" }]).mockResolvedValue([]);
+    accommodationFindManyMock
+      .mockResolvedValueOnce([{ id: "acc-1", checkIn: "2026-07-01", checkOut: "2026-07-03" }])
+      .mockResolvedValue([]);
+
+    const result = await firmUpTrip("trip-1");
+
+    expect(result.success).toBe(true);
+    // Paris moved 4 days later (07-01 -> 07-05); its item keeps its day-0 offset.
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "item-1" }, data: { date: "2026-07-05" } });
+    expect(accommodationUpdateMock).toHaveBeenCalledWith({
+      where: { id: "acc-1" },
+      data: { checkIn: "2026-07-05", checkOut: "2026-07-07" },
+    });
+    // Rome was rough (no prior arrive) — its date-write must NOT trigger a payload lookup.
+    expect(itemFindManyMock).toHaveBeenCalledTimes(1);
+    expect(accommodationFindManyMock).toHaveBeenCalledTimes(1);
   });
 });
 

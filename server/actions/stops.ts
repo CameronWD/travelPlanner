@@ -14,7 +14,7 @@ import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { insertionOrder, spanReflow, collisionPush } from "@/lib/reorder";
-import { compareScheduled } from "@/lib/plan-order";
+import { compareScheduled, orderPlanStops } from "@/lib/plan-order";
 import { chapterSpan } from "@/lib/chapter-span";
 import { spanContributors } from "@/lib/chapters";
 import { type ActionResult, validationResult } from "@/lib/action-result";
@@ -846,7 +846,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
   const { tripId, chapterId, forkId } = args;
   await requireTripAccess(tripId);
 
-  const [trip, stops] = await Promise.all([
+  const [trip, rawStops] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
     db.stop.findMany({
       where: { tripId, ...planScope(forkId) },
@@ -865,6 +865,10 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
       },
     }),
   ]);
+  // ADR 0038: flow follows canonical plan order (dates rule for scheduled
+  // stops), not raw sortOrder — matters for both the anchor walk-back below
+  // and the order rough segment members flow in.
+  const stops = orderPlanStops(rawStops);
 
   const segment = stops.filter((s) => (s.chapterId ?? null) === (chapterId ?? null) && !s.arriveDate);
   if (segment.length === 0) {
@@ -893,6 +897,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
     const s = segById[r.id];
     const coords = await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
     const timezone = s.timezone ?? tripTz;
+    const previousArrive = s.arriveDate;
     await db.stop.update({
       where: { id: r.id },
       data: {
@@ -902,6 +907,12 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
         ...(coords ? { lat: coords.lat, lng: coords.lng, countryCode: coords.countryCode ?? null } : {}),
       },
     });
+    // ADR 0038: if this stop had a prior arrive date and the flowed dates
+    // actually moved it, its slotted Items/Accommodation ride along. A
+    // previously-rough stop (no prior arrive) has nothing to offset from.
+    if (previousArrive && (previousArrive !== r.arriveDate || s.departDate !== r.departDate)) {
+      await shiftStopPayloadTx(db, { id: r.id, arriveDate: previousArrive }, r.arriveDate, r.departDate);
+    }
   }
 
   // Grow the trip's window to cover the freshly-dated segment. Without this any
@@ -975,7 +986,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
 export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: PlanId): Promise<StopActionResult> {
   await requireTripAccess(tripId);
 
-  const [trip, stops] = await Promise.all([
+  const [trip, rawStops] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
     db.stop.findMany({
       where: { tripId, ...planScope(forkId) },
@@ -986,6 +997,8 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
       },
     }),
   ]);
+  // ADR 0038: flow follows canonical plan order (dates rule), not raw sortOrder.
+  const stops = orderPlanStops(rawStops);
 
   const rough = stops.filter((s) => !s.arriveDate);
   if (rough.length === 0) {
@@ -1009,6 +1022,7 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
   for (const r of results) {
     const s = stopById[r.id];
     const coords = await geocodePlaceDetailed([s.name, s.country].filter(Boolean).join(", "));
+    const previousArrive = s.arriveDate;
     await db.stop.update({
       where: { id: r.id },
       data: {
@@ -1018,6 +1032,12 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
         ...(coords ? { lat: coords.lat, lng: coords.lng, countryCode: coords.countryCode ?? null } : {}),
       },
     });
+    // ADR 0038: if this stop had a prior arrive date and the flowed dates
+    // actually moved it, its slotted Items/Accommodation ride along. A
+    // previously-rough stop (no prior arrive) has nothing to offset from.
+    if (previousArrive && (previousArrive !== r.arriveDate || s.departDate !== r.departDate)) {
+      await shiftStopPayloadTx(db, { id: r.id, arriveDate: previousArrive }, r.arriveDate, r.departDate);
+    }
   }
 
   // Merge freshly-dated rough stops with already-scheduled stops for window +
