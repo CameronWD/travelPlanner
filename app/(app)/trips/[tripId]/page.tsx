@@ -33,6 +33,7 @@ export default async function TripHomePage({
       homeLng: true,
       homeCountryCode: true,
       roundTrip: true,
+      chaptersEnabled: true,
       stops: {
         where: { forkId: null, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
@@ -67,7 +68,7 @@ export default async function TripHomePage({
   const phaseEl = (() => {
     switch (phase) {
       case "sketching":
-        return <PhaseSketching tripId={tripId} tripName={trip.name} />;
+        return <PhaseSketching tripId={tripId} tripName={trip.name} chaptersEnabled={trip.chaptersEnabled} />;
       case "travelling":
         return <PhaseTravelling tripId={tripId} />;
       case "past":

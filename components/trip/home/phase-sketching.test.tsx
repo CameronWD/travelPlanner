@@ -53,3 +53,32 @@ describe("PhaseSketching fork-scoped plan queries", () => {
     );
   });
 });
+
+describe("PhaseSketching chapter gating (Task 13)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", name: "Rome", country: "Italy", nights: 3, chapterId: null, arriveDate: null },
+    ]);
+    chapterFindManyMock.mockResolvedValue([
+      { id: "c1", name: "Chapter One", colour: "sky" },
+    ]);
+  });
+
+  it("skips the chapters query when chaptersEnabled is false", async () => {
+    await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip", chaptersEnabled: false });
+    expect(chapterFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it("runs the chapters query when chaptersEnabled is true", async () => {
+    await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip", chaptersEnabled: true });
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
+    );
+  });
+
+  it("defaults to enabled when chaptersEnabled is omitted (pre-toggle call sites)", async () => {
+    await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip" });
+    expect(chapterFindManyMock).toHaveBeenCalled();
+  });
+});

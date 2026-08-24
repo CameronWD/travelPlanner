@@ -113,6 +113,7 @@ export default async function SummaryPage({
       homeLng: true,
       homeCountryCode: true,
       roundTrip: true,
+      chaptersEnabled: true,
     },
   });
   if (!trip) notFound();
@@ -124,7 +125,9 @@ export default async function SummaryPage({
       orderBy: { sortOrder: "asc" },
       select: { id: true, name: true, nights: true, country: true, chapterId: true },
     });
-    const datelessChapters = roughStopsForDateless.some((s) => s.chapterId)
+    // A disabled trip renders as if it had no chapters (Task 13) — skip the
+    // query entirely rather than fetch-then-discard.
+    const datelessChapters = trip.chaptersEnabled && roughStopsForDateless.some((s) => s.chapterId)
       ? await db.chapter.findMany({
           where: { tripId, forkId: null },
           select: { id: true, name: true, colour: true },
@@ -245,12 +248,16 @@ export default async function SummaryPage({
         where: { tripId },
         select: { base: true, quote: true, rate: true },
       }),
-      db.chapter.findMany({
-        // Only dated chapters group the dated summary.
-        where: { tripId, forkId: null, startDate: { not: null } },
-        orderBy: { startDate: "asc" },
-        select: { id: true, name: true, colour: true, startDate: true, endDate: true },
-      }),
+      // A disabled trip renders as if it had no chapters (Task 13) — skip the
+      // query entirely rather than fetch-then-discard.
+      trip.chaptersEnabled
+        ? db.chapter.findMany({
+            // Only dated chapters group the dated summary.
+            where: { tripId, forkId: null, startDate: { not: null } },
+            orderBy: { startDate: "asc" },
+            select: { id: true, name: true, colour: true, startDate: true, endDate: true },
+          })
+        : Promise.resolve([]),
       db.stop.findMany({
         where: { tripId, forkId: null, arriveDate: null },
         orderBy: { sortOrder: "asc" },

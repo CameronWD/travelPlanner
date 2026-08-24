@@ -75,7 +75,7 @@ export default async function BudgetPage({
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { homeCurrency: true, startDate: true, endDate: true },
+    select: { homeCurrency: true, startDate: true, endDate: true, chaptersEnabled: true },
   });
   if (!trip) notFound();
   // The budget roll-up enumerates every trip day; a date-less trip has no
@@ -90,7 +90,7 @@ export default async function BudgetPage({
     );
   }
 
-  const { homeCurrency, startDate, endDate } = trip;
+  const { homeCurrency, startDate, endDate, chaptersEnabled } = trip;
 
   // Fetch everything in parallel
   const [allCosts, stops, items, accommodations, transports, exchangeRates, chapters] = await Promise.all([
@@ -218,7 +218,9 @@ export default async function BudgetPage({
     transports: budgetTransports,
     tripStart: startDate,
     tripEnd: endDate,
-    chapters,
+    // A disabled trip renders as if it had no chapters — data stays, the
+    // per-chapter roll-up just doesn't build (Task 13).
+    chapters: chaptersEnabled ? chapters : [],
   });
 
   // Build SpendCost[] — same as budgetCosts but with paidAt from allCosts

@@ -83,6 +83,7 @@ describe("PhasePlanning fork-scoped plan queries", () => {
     homeLng: null,
     homeCountryCode: null,
     roundTrip: false,
+    chaptersEnabled: true,
   };
 
   beforeEach(() => {
@@ -101,10 +102,10 @@ describe("PhasePlanning fork-scoped plan queries", () => {
     getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
   });
 
-  async function renderPlanning() {
+  async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
     await PhasePlanning({
       tripId: "trip-1",
-      trip: baseTrip,
+      trip: { ...baseTrip, ...tripOverrides },
       today: "2026-01-05",
       phase: "planning",
     });
@@ -172,5 +173,78 @@ describe("PhasePlanning fork-scoped plan queries", () => {
     for (const call of checklistItemCountMock.mock.calls) {
       expect(call[0].where).not.toHaveProperty("forkId");
     }
+  });
+});
+
+describe("PhasePlanning chapter gating (Task 13)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    drivingWindingFactor: 1.3,
+    drivingAvgSpeedKph: 80,
+    homeName: null,
+    homeLat: null,
+    homeLng: null,
+    homeCountryCode: null,
+    roundTrip: false,
+    chaptersEnabled: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    stopCountMock.mockResolvedValue(0);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    // Chapters exist in the DB regardless of the toggle — gating hides the
+    // presentation, the data stays.
+    chapterFindManyMock.mockResolvedValue([
+      { id: "c1", name: "Chapter One", colour: "sky", startDate: "2026-01-01", endDate: "2026-01-10" },
+    ]);
+    chapterCountMock.mockResolvedValue(2);
+    checklistItemCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
+  });
+
+  async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
+    await PhasePlanning({
+      tripId: "trip-1",
+      trip: { ...baseTrip, ...tripOverrides },
+      today: "2026-01-05",
+      phase: "planning",
+    });
+  }
+
+  it("skips both chapter queries when chaptersEnabled is false, and passes no chapters into the budget build", async () => {
+    await renderPlanning({ chaptersEnabled: false });
+    expect(chapterFindManyMock).not.toHaveBeenCalled();
+    expect(chapterCountMock).not.toHaveBeenCalled();
+    expect(buildBudgetMock).toHaveBeenCalledWith(
+      expect.objectContaining({ chapters: [] }),
+    );
+  });
+
+  it("runs both chapter queries when chaptersEnabled is true and feeds them into the budget build", async () => {
+    await renderPlanning({ chaptersEnabled: true });
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
+    );
+    expect(chapterCountMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
+    );
+    expect(buildBudgetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chapters: [
+          expect.objectContaining({ id: "c1", name: "Chapter One" }),
+        ],
+      }),
+    );
   });
 });

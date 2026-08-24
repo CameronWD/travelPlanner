@@ -38,7 +38,7 @@ export const TRAVELLING_DESKTOP_GRID_CLASS =
 export async function PhaseTravelling({ tripId }: { tripId: string }) {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { startDate: true, endDate: true, homeCurrency: true },
+    select: { startDate: true, endDate: true, homeCurrency: true, chaptersEnabled: true },
   });
   if (!trip) notFound();
 
@@ -157,17 +157,21 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         sent: true,
       },
     }),
-    db.chapter.findMany({
-      where: { tripId, forkId: null },
-      orderBy: { startDate: "asc" },
-      select: {
-        id: true,
-        name: true,
-        colour: true,
-        startDate: true,
-        endDate: true,
-      },
-    }),
+    // A disabled trip renders as if it had no chapters (Task 13) — skip the
+    // query entirely rather than fetch-then-discard.
+    trip.chaptersEnabled
+      ? db.chapter.findMany({
+          where: { tripId, forkId: null },
+          orderBy: { startDate: "asc" },
+          select: {
+            id: true,
+            name: true,
+            colour: true,
+            startDate: true,
+            endDate: true,
+          },
+        })
+      : Promise.resolve([]),
     db.item.findMany({
       where: {
         tripId,

@@ -96,6 +96,7 @@ describe("PhaseTravelling fork-scoped plan queries", () => {
       startDate: "2026-01-01",
       endDate: "2026-01-10",
       homeCurrency: "GBP",
+      chaptersEnabled: true,
     });
     stopFindManyMock.mockResolvedValue([]);
     itemFindManyMock.mockResolvedValue([]);
@@ -159,6 +160,49 @@ describe("PhaseTravelling fork-scoped plan queries", () => {
     );
     expect(attachmentFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: { tripId: "trip-1" } }),
+    );
+  });
+});
+
+describe("PhaseTravelling chapter gating (Task 13)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    reminderFindManyMock.mockResolvedValue([]);
+    // Chapters exist in the DB regardless of the toggle — gating hides the
+    // presentation, the data stays.
+    chapterFindManyMock.mockResolvedValue([
+      { id: "c1", name: "Chapter One", colour: "sky", startDate: "2026-01-01", endDate: "2026-01-10" },
+    ]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([]);
+  });
+
+  it("skips the chapters query when the trip has chaptersEnabled: false", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+      homeCurrency: "GBP",
+      chaptersEnabled: false,
+    });
+    await PhaseTravelling({ tripId: "trip-1" });
+    expect(chapterFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it("runs the chapters query when the trip has chaptersEnabled: true", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+      homeCurrency: "GBP",
+      chaptersEnabled: true,
+    });
+    await PhaseTravelling({ tripId: "trip-1" });
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
     );
   });
 });

@@ -69,6 +69,7 @@ describe("PhasePast fork-scoped plan queries", () => {
     startDate: "2026-01-01",
     endDate: "2026-01-10",
     homeCurrency: "GBP",
+    chaptersEnabled: true,
   };
 
   beforeEach(() => {
@@ -94,8 +95,8 @@ describe("PhasePast fork-scoped plan queries", () => {
     });
   });
 
-  async function renderPast() {
-    await PhasePast({ tripId: "trip-1", trip: baseTrip });
+  async function renderPast(tripOverrides: Partial<typeof baseTrip> = {}) {
+    await PhasePast({ tripId: "trip-1", trip: { ...baseTrip, ...tripOverrides } });
   }
 
   it("scopes the stops query to the real plan", async () => {
@@ -146,5 +147,65 @@ describe("PhasePast fork-scoped plan queries", () => {
       expect.objectContaining({ where: { tripId: "trip-1" } }),
     );
     expect(journalEntryCountMock).toHaveBeenCalledWith({ where: { tripId: "trip-1" } });
+  });
+});
+
+describe("PhasePast chapter gating (Task 13)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    chaptersEnabled: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    // Chapters exist in the DB regardless of the toggle — gating hides the
+    // presentation, the data stays.
+    chapterFindManyMock.mockResolvedValue([
+      { id: "c1", name: "Chapter One", colour: "sky", startDate: "2026-01-01", endDate: "2026-01-10" },
+    ]);
+    journalEntryCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+    buildSpendSoFarMock.mockReturnValue({
+      costTotalMinor: 0,
+      paidSoFarMinor: 0,
+      paidCostMinor: 0,
+      varianceMinor: 0,
+      costRemainingMinor: 0,
+      tripElapsedPct: 100,
+    });
+  });
+
+  async function renderPast(tripOverrides: Partial<typeof baseTrip> = {}) {
+    await PhasePast({ tripId: "trip-1", trip: { ...baseTrip, ...tripOverrides } });
+  }
+
+  it("skips the chapters query when chaptersEnabled is false, and passes no chapters into the budget build", async () => {
+    await renderPast({ chaptersEnabled: false });
+    expect(chapterFindManyMock).not.toHaveBeenCalled();
+    expect(buildBudgetMock).toHaveBeenCalledWith(
+      expect.objectContaining({ chapters: [] }),
+    );
+  });
+
+  it("runs the chapters query when chaptersEnabled is true and feeds it into the budget build", async () => {
+    await renderPast({ chaptersEnabled: true });
+    expect(chapterFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
+    );
+    expect(buildBudgetMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chapters: [expect.objectContaining({ id: "c1", name: "Chapter One" })],
+      }),
+    );
   });
 });

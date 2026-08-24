@@ -56,6 +56,7 @@ interface PhasePlanningProps {
     homeLng: number | null;
     homeCountryCode: string | null;
     roundTrip: boolean;
+    chaptersEnabled: boolean;
   };
   today: string;
   phase: TripPhase; // "planning" | "final-prep"
@@ -162,18 +163,24 @@ export async function PhasePlanning({
       where: { tripId },
       select: { base: true, quote: true, rate: true },
     }),
-    db.chapter.findMany({
-      where: { tripId, forkId: null, startDate: { not: null } },
-      orderBy: { startDate: "asc" },
-      select: {
-        id: true,
-        name: true,
-        colour: true,
-        startDate: true,
-        endDate: true,
-      },
-    }),
-    db.chapter.count({ where: { tripId, forkId: null, startDate: null } }),
+    // A disabled trip renders as if it had no chapters (Task 13) — skip both
+    // chapter queries entirely rather than fetch-then-discard.
+    trip.chaptersEnabled
+      ? db.chapter.findMany({
+          where: { tripId, forkId: null, startDate: { not: null } },
+          orderBy: { startDate: "asc" },
+          select: {
+            id: true,
+            name: true,
+            colour: true,
+            startDate: true,
+            endDate: true,
+          },
+        })
+      : Promise.resolve([]),
+    trip.chaptersEnabled
+      ? db.chapter.count({ where: { tripId, forkId: null, startDate: null } })
+      : Promise.resolve(0),
     db.checklistItem.count({ where: { tripId, kind: "PACKING" } }),
     db.checklistItem.count({ where: { tripId, kind: "PRETRIP" } }),
   ]);

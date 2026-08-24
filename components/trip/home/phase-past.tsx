@@ -48,6 +48,7 @@ interface PhasePastProps {
     startDate: string | null;
     endDate: string | null;
     homeCurrency: string;
+    chaptersEnabled: boolean;
   };
 }
 
@@ -138,17 +139,21 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
       where: { tripId },
       select: { base: true, quote: true, rate: true },
     }),
-    db.chapter.findMany({
-      where: { tripId, forkId: null, startDate: { not: null } },
-      orderBy: { startDate: "asc" },
-      select: {
-        id: true,
-        name: true,
-        colour: true,
-        startDate: true,
-        endDate: true,
-      },
-    }),
+    // A disabled trip renders as if it had no chapters (Task 13) — skip the
+    // query entirely rather than fetch-then-discard.
+    trip.chaptersEnabled
+      ? db.chapter.findMany({
+          where: { tripId, forkId: null, startDate: { not: null } },
+          orderBy: { startDate: "asc" },
+          select: {
+            id: true,
+            name: true,
+            colour: true,
+            startDate: true,
+            endDate: true,
+          },
+        })
+      : Promise.resolve([]),
     db.journalEntry.count({ where: { tripId } }),
   ]);
 

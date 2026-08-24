@@ -89,6 +89,7 @@ vi.mock("@/components/trip/variant-banner", () => ({
 
 const { default: BudgetPage } = await import("./page");
 const { legacyPaidCount } = await import("@/lib/spend-so-far");
+const { buildBudget } = await import("@/lib/budget");
 
 const ONE_COST = [
   {
@@ -111,6 +112,7 @@ beforeEach(() => {
     homeCurrency: "GBP",
     startDate: "2026-01-01",
     endDate: "2026-01-10",
+    chaptersEnabled: true,
   });
   mockDb.cost.findMany.mockResolvedValue(ONE_COST);
   mockDb.stop.findMany.mockResolvedValue([]);
@@ -317,5 +319,53 @@ describe("BudgetPage legacy paid-without-date notice", () => {
     expect(
       screen.queryByText(/cost.*has.*recorded payment but no date/i),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("BudgetPage chapter gating (Task 13)", () => {
+  const CHAPTERS = [
+    { id: "c1", name: "Chapter One", colour: "sky", startDate: "2026-01-02", endDate: "2026-01-05" },
+  ];
+
+  it("passes no chapters into the budget build when the trip has chaptersEnabled: false", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({
+      homeCurrency: "GBP",
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+      chaptersEnabled: false,
+    });
+    mockDb.chapter.findMany.mockResolvedValue(CHAPTERS);
+
+    const jsx = await BudgetPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(vi.mocked(buildBudget)).toHaveBeenCalledWith(
+      expect.objectContaining({ chapters: [] }),
+    );
+  });
+
+  it("passes the fetched chapters into the budget build when the trip has chaptersEnabled: true", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({
+      homeCurrency: "GBP",
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+      chaptersEnabled: true,
+    });
+    mockDb.chapter.findMany.mockResolvedValue(CHAPTERS);
+
+    const jsx = await BudgetPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(vi.mocked(buildBudget)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chapters: [expect.objectContaining({ id: "c1", name: "Chapter One" })],
+      }),
+    );
   });
 });

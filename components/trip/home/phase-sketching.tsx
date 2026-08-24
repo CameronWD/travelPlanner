@@ -9,9 +9,12 @@ import { QuickActions } from "@/components/trip/home/quick-actions";
 interface PhaseSketchingProps {
   tripId: string;
   tripName: string;
+  /** A disabled trip renders as if it had no chapters (Task 13). Defaults to
+   * on so existing call sites that predate the toggle keep their chapters. */
+  chaptersEnabled?: boolean;
 }
 
-export async function PhaseSketching({ tripId, tripName }: PhaseSketchingProps) {
+export async function PhaseSketching({ tripId, tripName, chaptersEnabled = true }: PhaseSketchingProps) {
   const [stops, chapters] = await Promise.all([
     db.stop.findMany({
       // Dated views follow the real plan — CONTEXT.md; consistent with
@@ -20,11 +23,15 @@ export async function PhaseSketching({ tripId, tripName }: PhaseSketchingProps) 
       orderBy: [{ chapterSortOrder: "asc" }, { sortOrder: "asc" }],
       select: { id: true, name: true, country: true, nights: true, chapterId: true, arriveDate: true },
     }),
-    db.chapter.findMany({
-      where: { tripId, forkId: null },
-      orderBy: { name: "asc" },
-      select: { id: true, name: true, colour: true },
-    }),
+    // A disabled trip renders as if it had no chapters — skip the query
+    // entirely rather than fetch-then-discard.
+    chaptersEnabled
+      ? db.chapter.findMany({
+          where: { tripId, forkId: null },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, colour: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const totalNights = stops.reduce((n, s) => n + (s.nights ?? 0), 0);

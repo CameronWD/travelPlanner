@@ -43,6 +43,7 @@ export default async function SettingsPage({
       roundTrip: true,
       drivingWindingFactor: true,
       drivingAvgSpeedKph: true,
+      chaptersEnabled: true,
       members: {
         select: {
           userId: true,
@@ -66,17 +67,21 @@ export default async function SettingsPage({
   const [shareLink, calendarFeed, chapters] = await Promise.all([
     getShareLink(tripId),
     getCalendarFeed(tripId),
-    db.chapter.findMany({
-      where: { tripId, forkId: null },
-      orderBy: { startDate: "asc" },
-      select: {
-        id: true,
-        name: true,
-        colour: true,
-        startDate: true,
-        endDate: true,
-      },
-    }),
+    // A disabled trip renders as if it had no chapters (Task 13) — skip the
+    // query entirely rather than fetch-then-discard.
+    trip.chaptersEnabled
+      ? db.chapter.findMany({
+          where: { tripId, forkId: null },
+          orderBy: { startDate: "asc" },
+          select: {
+            id: true,
+            name: true,
+            colour: true,
+            startDate: true,
+            endDate: true,
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -108,15 +113,18 @@ export default async function SettingsPage({
         </CardContent>
       </Card>
 
-      {/* ── Chapters ── */}
-      <Card>
-        <CardHeader className="p-5 pb-0">
-          <CardTitle className="font-display text-base font-bold tracking-tight">Chapters</CardTitle>
-        </CardHeader>
-        <CardContent className="p-5 pt-3">
-          <ChaptersManager tripId={tripId} chapters={chapters} />
-        </CardContent>
-      </Card>
+      {/* ── Chapters — hidden while the trip has chapters turned off (Task 13);
+          turn them back on from the plan editor's Chapters menu. ── */}
+      {trip.chaptersEnabled && (
+        <Card>
+          <CardHeader className="p-5 pb-0">
+            <CardTitle className="font-display text-base font-bold tracking-tight">Chapters</CardTitle>
+          </CardHeader>
+          <CardContent className="p-5 pt-3">
+            <ChaptersManager tripId={tripId} chapters={chapters} />
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Travellers ── */}
       <Card>
