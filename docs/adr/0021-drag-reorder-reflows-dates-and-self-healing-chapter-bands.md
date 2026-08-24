@@ -1,5 +1,7 @@
 # Drag-to-reorder reflows dates on scheduled Stops & Chapters; Chapter bands self-heal
 
+Status: reflow semantics superseded by ADR 0038 (draggability of scheduled Stops/Chapters and band self-healing stand).
+
 Reverses the rough-only half of ADR 0014 and tightens ADR 0008/0009's date↔chapter sync.
 
 ## Context
