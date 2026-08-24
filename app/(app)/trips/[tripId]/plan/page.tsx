@@ -56,6 +56,7 @@ export default async function TripPlanPage({
         hardEndDate: true,
         drivingWindingFactor: true,
         drivingAvgSpeedKph: true,
+        chaptersEnabled: true,
       },
     }),
     db.stop.findMany({
@@ -362,7 +363,8 @@ export default async function TripPlanPage({
             attachmentsByAccommodationId={attachmentsByAccommodationId}
             attachmentsByItemId={attachmentsByItemId}
             currentUserId={user.id}
-            chapters={chapters}
+            chapters={trip?.chaptersEnabled ? chapters : []}
+            chaptersEnabled={trip?.chaptersEnabled ?? true}
             thingsToDoByStopId={thingsToDoByStopId}
             thingsToDoItemCostsById={thingsToDoItemCostsById}
             initialStops={orderPlanStops(stops).map((stop) => ({

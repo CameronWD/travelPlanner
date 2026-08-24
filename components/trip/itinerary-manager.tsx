@@ -25,6 +25,13 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   deleteStop,
   moveStop,
   toggleStopPin,
@@ -36,6 +43,7 @@ import {
   restoreStops,
 } from "@/server/actions/stops";
 import { reorderChapters, deleteChapter, assignStopToChapter, suggestChaptersFromCountries } from "@/server/actions/chapters";
+import { setChaptersEnabled } from "@/server/actions/trips";
 import { toast } from "@/components/ui/use-toast";
 import { toastWithUndo } from "@/components/ui/undo-toast";
 import { suggestResultToast } from "@/lib/suggest-toast";
@@ -183,7 +191,18 @@ interface ItineraryManagerProps {
   homeCountryCode?: string | null;
   /** Whether the trip returns to its Home base — drives the bottom bookend. */
   roundTrip?: boolean;
+  /**
+   * Whether chapters are opted in for this trip (spec 2026-08-24: chapters are
+   * off by default for new trips). Defaults `true` so existing callers/tests
+   * that don't pass it keep the pre-toggle behaviour.
+   */
+  chaptersEnabled?: boolean;
 }
+
+/** Stable empty-array reference so `effectiveChapters` doesn't churn identity
+ * on every render while chapters are disabled (a fresh `[]` literal each
+ * render would otherwise re-trigger the localChapters sync effect forever). */
+const EMPTY_CHAPTERS: ItineraryChapter[] = [];
 
 // ---------------------------------------------------------------------------
 // dnd-kit sub-components
@@ -442,18 +461,24 @@ export function ItineraryManager({
   homeBaseName,
   homeCountryCode,
   roundTrip,
+  chaptersEnabled = true,
 }: ItineraryManagerProps) {
   const { confirm, dialog } = useConfirm();
+
+  // Safety net: chapters are opt-in (spec 2026-08-24). Even if a caller passes
+  // a non-empty `chapters` prop alongside `chaptersEnabled={false}` (a stale
+  // prop combination), the disabled flag wins — no chapter bands render.
+  const effectiveChapters = chaptersEnabled ? chapters : EMPTY_CHAPTERS;
 
   // ── Local mutable copies (for optimistic drag reordering + optimistic delete) ──
   // Seeded from props; the drag handlers mutate them optimistically.
   // Re-sync during render (getDerivedStateFromProps pattern) when props identity
   // changes — this is idiomatic React and avoids setState-in-effect.
   const [localStops, setLocalStops] = React.useState<ItineraryStop[]>(() => orderPlanStops(initialStops));
-  const [localChapters, setLocalChapters] = React.useState<ItineraryChapter[]>(chapters);
+  const [localChapters, setLocalChapters] = React.useState<ItineraryChapter[]>(effectiveChapters);
   const [localTransports, setLocalTransports] = React.useState<ItineraryTransport[]>(initialTransports);
   const [trackedInitialStops, setTrackedInitialStops] = React.useState(initialStops);
-  const [trackedChapters, setTrackedChapters] = React.useState(chapters);
+  const [trackedChapters, setTrackedChapters] = React.useState(effectiveChapters);
   const [trackedInitialTransports, setTrackedInitialTransports] = React.useState(initialTransports);
   if (trackedInitialStops !== initialStops) {
     setTrackedInitialStops(initialStops);
@@ -462,9 +487,9 @@ export function ItineraryManager({
     // renders correctly regardless of the order the caller passed stops in.
     setLocalStops(orderPlanStops(initialStops));
   }
-  if (trackedChapters !== chapters) {
-    setTrackedChapters(chapters);
-    setLocalChapters(chapters);
+  if (trackedChapters !== effectiveChapters) {
+    setTrackedChapters(effectiveChapters);
+    setLocalChapters(effectiveChapters);
   }
   if (trackedInitialTransports !== initialTransports) {
     setTrackedInitialTransports(initialTransports);
@@ -937,6 +962,22 @@ export function ItineraryManager({
       const result = await suggestChaptersFromCountries(tripId);
       toast(suggestResultToast(result));
     });
+  }
+
+  // Flip the trip's chapters opt-in flag (spec 2026-08-24). Turning chapters
+  // back on self-heals stale date bands server-side; turning off just hides
+  // the grouping UI. The page re-fetches on success (revalidatePath), so the
+  // effectiveChapters safety net above takes it from there.
+  async function handleToggleChapters() {
+    setPendingId("chapters-toggle");
+    try {
+      const res = await setChaptersEnabled(tripId, !chaptersEnabled);
+      if (!res.success) toast({ variant: "destructive", title: "Couldn't update chapters. Try again." });
+    } catch {
+      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
+    } finally {
+      setPendingId(null);
+    }
   }
 
   // Save handler for the adjust-dates dialog (ripple path for dated stops).
@@ -2034,24 +2075,45 @@ export function ItineraryManager({
                   Firm up the whole trip
                 </Button>
               )}
-              <Button
-                variant="ghost"
-                size="md"
-                onClick={handleNewChapter}
-              >
-                <BookOpen className="size-4" aria-hidden="true" />
-                New Chapter
-              </Button>
-              <Button
-                variant="ghost"
-                size="md"
-                onClick={handleSuggestChapters}
-                disabled={isSuggesting}
-                loading={isSuggesting}
-              >
-                <Wand2 className="size-4" aria-hidden="true" />
-                Suggest from countries
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="md">
+                    <BookOpen className="size-4" aria-hidden="true" />
+                    Chapters
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  {chaptersEnabled ? (
+                    <>
+                      <DropdownMenuItem onSelect={handleNewChapter}>
+                        <BookOpen className="size-4" aria-hidden="true" />
+                        New Chapter
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onSelect={handleSuggestChapters}
+                        disabled={isSuggesting}
+                      >
+                        <Wand2 className="size-4" aria-hidden="true" />
+                        Suggest from countries
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        onSelect={handleToggleChapters}
+                        disabled={pendingId === "chapters-toggle"}
+                      >
+                        Turn off chapters
+                      </DropdownMenuItem>
+                    </>
+                  ) : (
+                    <DropdownMenuItem
+                      onSelect={handleToggleChapters}
+                      disabled={pendingId === "chapters-toggle"}
+                    >
+                      Group into chapters…
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
               <Button
                 variant="outline"
                 size="md"
@@ -2072,10 +2134,12 @@ export function ItineraryManager({
           action={
             <div className="flex flex-col items-center gap-3 w-full max-w-md">
               <QuickAddStops tripId={tripId} chapterId={null} forkId={forkId ?? null} />
-              <Button variant="outline" size="md" onClick={handleNewChapter}>
-                <BookOpen className="size-4" aria-hidden="true" />
-                New Chapter
-              </Button>
+              {chaptersEnabled && (
+                <Button variant="outline" size="md" onClick={handleNewChapter}>
+                  <BookOpen className="size-4" aria-hidden="true" />
+                  New Chapter
+                </Button>
+              )}
             </div>
           }
         />
@@ -2092,7 +2156,7 @@ export function ItineraryManager({
         tripEndDate={tripEndDate}
         defaultArriveDate={suggestedStopDates.arriveDate}
         defaultDepartDate={suggestedStopDates.departDate}
-        chapters={chapters.map((c) => ({ id: c.id, name: c.name }))}
+        chapters={effectiveChapters.map((c) => ({ id: c.id, name: c.name }))}
         forkId={forkId ?? null}
       />
 
@@ -2107,7 +2171,7 @@ export function ItineraryManager({
           }}
           tripStartDate={tripStartDate}
           tripEndDate={tripEndDate}
-          chapters={chapters.map((c) => ({ id: c.id, name: c.name }))}
+          chapters={effectiveChapters.map((c) => ({ id: c.id, name: c.name }))}
           forkId={forkId ?? null}
           attachments={attachmentsByStopId?.get(editingStop.id) ?? []}
         />

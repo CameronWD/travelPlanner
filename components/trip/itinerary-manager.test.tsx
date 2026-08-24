@@ -63,6 +63,10 @@ vi.mock("@/server/actions/chapters", () => ({
   deleteChapter: vi.fn().mockResolvedValue({ success: true }),
 }));
 
+vi.mock("@/server/actions/trips", () => ({
+  setChaptersEnabled: vi.fn().mockResolvedValue({ success: true }),
+}));
+
 // StopCard now imports ItemFormDialog which calls createItem/updateItem.
 vi.mock("@/server/actions/items", () => ({
   createItem: vi.fn().mockResolvedValue({ success: true }),
@@ -105,6 +109,7 @@ import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderSto
 import { createTransport, deleteTransport } from "@/server/actions/transport";
 import { createAccommodation } from "@/server/actions/accommodation";
 import { createChapter, deleteChapter } from "@/server/actions/chapters";
+import { setChaptersEnabled } from "@/server/actions/trips";
 import { toast } from "@/components/ui/use-toast";
 import { ItineraryManager, summariseReorder, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
 
@@ -2028,5 +2033,106 @@ describe("Task 14: HEAD_SLOT legs are visible in both no-chapters and chapters p
     );
 
     expect(await screen.findByText(/Transit Hub/)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Chapters menu — opt-in affordance gating (chaptersEnabled)
+// ---------------------------------------------------------------------------
+
+describe("Chapters menu — opt-in affordance gating", () => {
+  it("renders flat with no chapter controls when chaptersEnabled is false, and the menu offers only the opt-in item", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s-1", name: "Lisbon" });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stop]}
+        chapters={[]}
+        chaptersEnabled={false}
+      />,
+    );
+
+    // No chapter-creation controls anywhere on the page (toolbar or empty state).
+    expect(screen.queryByText("New Chapter")).toBeNull();
+    expect(screen.queryByText("Suggest from countries")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Chapters" }));
+
+    expect(screen.getByText("Group into chapters…")).toBeInTheDocument();
+    expect(screen.queryByText("New Chapter")).toBeNull();
+    expect(screen.queryByText("Suggest from countries")).toBeNull();
+    expect(screen.queryByText("Turn off chapters")).toBeNull();
+  });
+
+  it("keeps rendering flat even if a stale chapters prop is passed while disabled (safety net)", () => {
+    const stop = makeStop({ id: "s-1", name: "Porto", chapterId: "ch-1" });
+    const chapter = {
+      id: "ch-1",
+      name: "Iberia",
+      colour: "rose" as const,
+      startDate: null,
+      endDate: null,
+      sortOrder: 0,
+    };
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stop]}
+        chapters={[chapter]}
+        chaptersEnabled={false}
+      />,
+    );
+
+    // chaptersEnabled=false must win over a non-empty chapters prop: no chapter
+    // chip/header/band renders anywhere.
+    expect(screen.queryByText("Iberia")).toBeNull();
+  });
+
+  it("shows the full chapters menu when chaptersEnabled is true (default)", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s-1", name: "Lisbon" });
+
+    render(<ItineraryManager {...baseProps} initialStops={[stop]} chapters={[]} />);
+
+    await user.click(screen.getByRole("button", { name: "Chapters" }));
+
+    expect(screen.getByText("New Chapter")).toBeInTheDocument();
+    expect(screen.getByText("Suggest from countries")).toBeInTheDocument();
+    expect(screen.getByText("Turn off chapters")).toBeInTheDocument();
+    expect(screen.queryByText("Group into chapters…")).toBeNull();
+  });
+
+  it("calls setChaptersEnabled(tripId, true) when 'Group into chapters…' is clicked", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s-1", name: "Lisbon" });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[stop]}
+        chapters={[]}
+        chaptersEnabled={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Chapters" }));
+    await user.click(screen.getByText("Group into chapters…"));
+
+    expect(setChaptersEnabled).toHaveBeenCalledWith(TRIP_ID, true);
+  });
+
+  it("calls setChaptersEnabled(tripId, false) when 'Turn off chapters' is clicked", async () => {
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "s-1", name: "Lisbon" });
+
+    render(<ItineraryManager {...baseProps} initialStops={[stop]} chapters={[]} />);
+
+    await user.click(screen.getByRole("button", { name: "Chapters" }));
+    await user.click(screen.getByText("Turn off chapters"));
+
+    expect(setChaptersEnabled).toHaveBeenCalledWith(TRIP_ID, false);
   });
 });
