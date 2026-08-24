@@ -986,7 +986,7 @@ export async function firmUpSegment(args: FirmUpSegmentArgs): Promise<StopAction
 export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: PlanId): Promise<StopActionResult> {
   await requireTripAccess(tripId);
 
-  const [trip, rawStops] = await Promise.all([
+  const [trip, stops] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { startDate: true, endDate: true } }),
     db.stop.findMany({
       where: { tripId, ...planScope(forkId) },
@@ -997,8 +997,9 @@ export async function firmUpTrip(tripId: string, anchorDate?: string, forkId?: P
       },
     }),
   ]);
-  // ADR 0038: flow follows canonical plan order (dates rule), not raw sortOrder.
-  const stops = orderPlanStops(rawStops);
+  // ADR 0038: no orderPlanStops wrap needed here — planTripFirmUp orders its
+  // input canonically (dates rule) internally, so the invariant lives in one
+  // place (lib/firm-up.ts) rather than being duplicated at each call site.
 
   const rough = stops.filter((s) => !s.arriveDate);
   if (rough.length === 0) {

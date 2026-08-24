@@ -166,7 +166,7 @@ export function planTripFirmUp(
   stops: readonly TripFirmUpStop[],
   anchorDate: string,
 ): { results: TripFirmUpResult[]; conflicts: FlowConflict[] } {
-  const ordered = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
+  const ordered = orderPlanStops([...stops].sort((a, b) => a.sortOrder - b.sortOrder));
 
   // Never let a scheduled stop earlier than the anchor rewind the flow cursor.
   let anchor = anchorDate;

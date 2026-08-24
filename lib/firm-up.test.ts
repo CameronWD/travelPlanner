@@ -173,4 +173,23 @@ describe("planTripFirmUp", () => {
     const { results } = planTripFirmUp([tripScheduled("b", 0, "2026-07-05", "2026-07-07")], "2026-07-01");
     expect(results).toEqual([]);
   });
+
+  it("orders scheduled boundaries by date, not stale sortOrder, before flowing a trailing rough stop (ADR 0038)", () => {
+    // B was re-dated before A; sortOrder still says A first (A=0, B=1). Rough
+    // R trails both. Under the OLD raw-sortOrder ordering, flowDates would
+    // walk A (arrive 06-05) then B (arrive 06-01) in that array order: A's
+    // depart (06-08) becomes the cursor, which is already past B's arrival —
+    // producing a conflict on B — and then R would flow from B's own depart
+    // (06-05), landing at 06-05..06-07. Canonical (dates-rule) ordering walks
+    // B then A instead — no conflict — and R flows from A's real depart
+    // (06-08), landing at 06-08..06-10.
+    const A = tripScheduled("A", 0, "2026-06-05", "2026-06-08");
+    const B = tripScheduled("B", 1, "2026-06-01", "2026-06-05");
+    const R = tripRough("R", 2, 2);
+
+    const { results, conflicts } = planTripFirmUp([A, B, R], "2026-06-01");
+
+    expect(conflicts).toEqual([]);
+    expect(results).toEqual([{ id: "R", arriveDate: "2026-06-08", departDate: "2026-06-10" }]);
+  });
 });
