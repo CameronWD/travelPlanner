@@ -13,7 +13,7 @@ import { shiftItemDates, shiftAccommodationDates, type PayloadShiftResult } from
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
-import { insertionOrder, reflowReorderedDates, collisionPush, type ReflowStop } from "@/lib/reorder";
+import { insertionOrder, spanReflow, collisionPush } from "@/lib/reorder";
 import { compareScheduled } from "@/lib/plan-order";
 import { chapterSpan } from "@/lib/chapter-span";
 import { spanContributors } from "@/lib/chapters";
@@ -39,6 +39,8 @@ export type ReorderResult =
       changed: { id: string; arriveDate: string; departDate: string }[];
       /** Pin-infeasibility conflicts (the pin stays fixed; caller may show a warning). */
       conflicts: FlowConflict[];
+      /** ADR 0038: payload (Item/Accommodation) shifts riding along the re-dated stops, for Undo. */
+      payload?: PayloadShiftResult;
     }
   | { success: false; errors: Record<string, string[]> };
 
@@ -157,6 +159,53 @@ export async function shiftStopPayloadTx(
     await tx.accommodation.update({ where: { id: s.id }, data: { checkIn: s.checkIn, checkOut: s.checkOut } });
   }
   return { items: itemShifts, accommodations: accShifts };
+}
+
+// ---------------------------------------------------------------------------
+// reflowSpanTx — ADR 0038 drag reflow (shared by reorderStops / reorderChapters)
+// ---------------------------------------------------------------------------
+
+/**
+ * ADR 0038 drag reflow. Reads the plan's stops in the NEW arrangement (the
+ * caller has already written sortOrder), reflows only the span between the
+ * first and last scheduled stop whose chronological position changed, shifts
+ * each re-dated stop's payload, and self-heals chapter bands. Gap-preserving;
+ * never changes the trip's overall length.
+ */
+export async function reflowSpanTx(
+  tx: Prisma.TransactionClient,
+  tripId: string,
+  forkId: PlanId,
+  movedIds: ReadonlySet<string>,
+): Promise<{ changed: { id: string; arriveDate: string; departDate: string }[]; conflicts: FlowConflict[]; payload: PayloadShiftResult }> {
+  const orderedStops = await tx.stop.findMany({
+    where: { tripId, ...planScope(forkId) },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, arriveDate: true, departDate: true, pinned: true, sortOrder: true },
+  });
+  const newScheduled = orderedStops.filter(
+    (s): s is (typeof orderedStops)[number] & { arriveDate: string; departDate: string } =>
+      s.arriveDate != null && s.departDate != null,
+  );
+  const oldScheduled = [...newScheduled].sort(compareScheduled);
+
+  const { results, conflicts } = spanReflow(oldScheduled, newScheduled, movedIds);
+  const payload: PayloadShiftResult = { items: [], accommodations: [] };
+  const preById = new Map(newScheduled.map((s) => [s.id, s]));
+  const changedResults = results.filter((r) => r.changed);
+  for (const r of changedResults) {
+    const pre = preById.get(r.id)!;
+    await tx.stop.update({ where: { id: r.id }, data: { arriveDate: r.arriveDate, departDate: r.departDate } });
+    const shifted = await shiftStopPayloadTx(tx, { id: r.id, arriveDate: pre.arriveDate }, r.arriveDate, r.departDate);
+    payload.items.push(...shifted.items);
+    payload.accommodations.push(...shifted.accommodations);
+  }
+  await recomputeChapterSpans(tx, tripId, forkId);
+  return {
+    changed: changedResults.map((r) => ({ id: r.id, arriveDate: r.arriveDate, departDate: r.departDate })),
+    conflicts,
+    payload,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1191,15 +1240,20 @@ export async function assignStopToChapter(stopId: string, chapterId: string | nu
 /**
  * Reorder stops to an explicit new order (drag-and-drop). Rewrites global
  * sortOrder = index and chapterId for every stop (rough or scheduled).
- * After the positional writes, reflows calendar dates for scheduled stops from
- * the trip anchor and persists any changes. Returns the reflow payload so
- * Task 10 can build the "X stops shifted" undo toast (ADR 0021).
+ * After the positional writes, reflows ONLY the span between the moved
+ * stop(s)' old and new chronological positions via reflowSpanTx, preserving
+ * gaps elsewhere (ADR 0038). Returns the reflow payload so Task 10 can build
+ * the "X stops shifted" undo toast.
  * Locked FOR UPDATE to serialise with moveStop/other reorders (cf. ADR 0007).
+ *
+ * @param movedStopIds  The actively dragged stop(s), used by spanReflow to
+ *                       decide lead-in gaps within the affected span.
  */
 export async function reorderStops(
   tripId: string,
   items: { id: string; chapterId: string | null }[],
   forkId?: PlanId,
+  movedStopIds?: string[],
 ): Promise<ReorderResult> {
   await requireTripAccess(tripId);
   if (items.length === 0) return { success: true, changed: [], conflicts: [] };
@@ -1249,16 +1303,11 @@ export async function reorderStops(
     }
   }
 
-  // Resolve the reflow anchor (trip.startDate, else earliest scheduled arriveDate).
-  // We need this BEFORE the transaction for the reflow computation, but the
-  // actual stop order comes from inside the tx. We'll re-read it inside the tx
-  // for correctness; this pre-read is just for the anchor.
-  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { startDate: true } });
-
   const ids = items.map((i) => i.id);
 
   let changed: { id: string; arriveDate: string; departDate: string }[] = [];
   let conflicts: FlowConflict[] = [];
+  let payload: PayloadShiftResult = { items: [], accommodations: [] };
 
   try {
     await db.$transaction(async (tx) => {
@@ -1287,46 +1336,13 @@ export async function reorderStops(
         });
       }
 
-      // Reflow scheduled stop dates in the new order.
-      // Load all stops in the trip in the NEW order (sortOrder just written above)
-      // plus their date/pin fields needed by reflowReorderedDates.
-      const orderedStops = await tx.stop.findMany({
-        where: { tripId, ...planScope(reorderForkId) },
-        orderBy: { sortOrder: "asc" },
-        select: { id: true, arriveDate: true, departDate: true, nights: true, pinned: true, sortOrder: true },
-      });
-
-      // Anchor: trip.startDate if set, else earliest arriveDate among scheduled stops pre-reorder.
-      const anchor =
-        trip?.startDate ??
-        rows.reduce<string | null>(
-          (min, r) => (r.arriveDate && (min === null || r.arriveDate < min) ? r.arriveDate : min),
-          null,
-        );
-
-      const reflowInput: ReflowStop[] = orderedStops.map((s) => ({
-        id: s.id,
-        arriveDate: s.arriveDate,
-        departDate: s.departDate,
-        nights: s.nights,
-        pinned: s.pinned,
-      }));
-
-      const { results, conflicts: flowConflicts } = reflowReorderedDates(reflowInput, anchor);
-      conflicts = flowConflicts;
-
-      // Persist only the changed stops.
-      const changedResults = results.filter((r) => r.changed);
-      for (const r of changedResults) {
-        await tx.stop.update({
-          where: { id: r.id },
-          data: { arriveDate: r.arriveDate, departDate: r.departDate },
-        });
-      }
-      changed = changedResults.map((r) => ({ id: r.id, arriveDate: r.arriveDate, departDate: r.departDate }));
-
-      // Recompute chapter date-bands to stay in sync with the new stop dates.
-      await recomputeChapterSpans(tx, tripId, reorderForkId);
+      // ADR 0038: reflow only the span between the moved stop(s)' old and new
+      // chronological positions, shift its payload, and self-heal chapter
+      // bands — all via the shared reflowSpanTx (also used by reorderChapters).
+      const reflow = await reflowSpanTx(tx, tripId, reorderForkId, new Set(movedStopIds ?? []));
+      changed = reflow.changed;
+      conflicts = reflow.conflicts;
+      payload = reflow.payload;
     });
   } catch (e) {
     if (e instanceof Error && e.message === "STOP_NOT_IN_TRIP") {
@@ -1337,7 +1353,7 @@ export async function reorderStops(
 
   revalidatePath(`/trips/${tripId}`);
   revalidatePath(`/trips/${tripId}/plan`);
-  return { success: true, changed, conflicts };
+  return { success: true, changed, conflicts, payload };
 }
 
 /**
