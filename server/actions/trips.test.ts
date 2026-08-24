@@ -25,6 +25,9 @@ const {
   itemCreateMock,
   transportCreateMock,
   checklistItemCreateMock,
+  forkFindManyMock,
+  recomputeChapterSpansMock,
+  recordActivityMock,
   transactionMock,
   attachmentFindManyMock,
   storageDeleteMock,
@@ -41,6 +44,9 @@ const {
   const itemCreateMock = vi.fn();
   const transportCreateMock = vi.fn();
   const checklistItemCreateMock = vi.fn();
+  const forkFindManyMock = vi.fn().mockResolvedValue([]);
+  const recomputeChapterSpansMock = vi.fn().mockResolvedValue(undefined);
+  const recordActivityMock = vi.fn().mockResolvedValue(undefined);
   const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const storageDeleteMock = vi.fn().mockResolvedValue(undefined);
   const storageSaveMock = vi.fn().mockResolvedValue(undefined);
@@ -49,13 +55,14 @@ const {
   // we simulate it by calling the callback with a fake tx object.
   const transactionMock = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
     const tx = {
-      trip: { create: tripCreateMock },
+      trip: { create: tripCreateMock, update: tripUpdateMock },
       tripMember: { create: memberCreateMock },
       chapter: { create: chapterCreateMock },
       stop: { create: stopCreateMock },
       item: { create: itemCreateMock },
       transport: { create: transportCreateMock },
       checklistItem: { create: checklistItemCreateMock },
+      fork: { findMany: forkFindManyMock },
     };
     return cb(tx);
   });
@@ -80,6 +87,9 @@ const {
     itemCreateMock,
     transportCreateMock,
     checklistItemCreateMock,
+    forkFindManyMock,
+    recomputeChapterSpansMock,
+    recordActivityMock,
     transactionMock,
     attachmentFindManyMock,
     storageDeleteMock,
@@ -125,9 +135,10 @@ vi.mock("@/lib/storage", () => ({
 }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
-vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
+vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+vi.mock("@/server/actions/stops", () => ({ recomputeChapterSpans: recomputeChapterSpansMock }));
 
-import { createTrip, updateTrip, deleteTrip, setTripHardEndDate, duplicateTrip } from "./trips";
+import { createTrip, updateTrip, deleteTrip, setTripHardEndDate, duplicateTrip, setChaptersEnabled } from "./trips";
 
 const VALID_INPUT = {
   name: "Japan 2026",
@@ -716,7 +727,85 @@ describe("duplicateTrip", () => {
   });
 
   it("denies when the caller lacks access", async () => {
-    requireTripAccessMock.mockRejectedValue(new Error("NEXT_NOT_FOUND"));
+    requireTripAccessMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
     await expect(duplicateTrip("src", "x")).rejects.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setChaptersEnabled
+// ---------------------------------------------------------------------------
+
+describe("setChaptersEnabled", () => {
+  it("is access-checked — calls requireTripAccess with the tripId", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    await setChaptersEnabled(TRIP_ID, true);
+
+    expect(requireTripAccessMock).toHaveBeenCalledOnce();
+    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+  });
+
+  it("enabling: updates the trip AND recomputes chapter spans for the real plan and every fork", async () => {
+    tripUpdateMock.mockResolvedValue({});
+    forkFindManyMock.mockResolvedValueOnce([{ id: "fork-1" }, { id: "fork-2" }]);
+
+    const result = await setChaptersEnabled(TRIP_ID, true);
+
+    expect(result.success).toBe(true);
+    expect(tripUpdateMock).toHaveBeenCalledWith({
+      where: { id: TRIP_ID },
+      data: { chaptersEnabled: true },
+    });
+
+    // Real plan (forkId null) + every fork got recomputed.
+    expect(recomputeChapterSpansMock).toHaveBeenCalledWith(expect.anything(), TRIP_ID, null);
+    expect(recomputeChapterSpansMock).toHaveBeenCalledWith(expect.anything(), TRIP_ID, "fork-1");
+    expect(recomputeChapterSpansMock).toHaveBeenCalledWith(expect.anything(), TRIP_ID, "fork-2");
+    expect(recomputeChapterSpansMock).toHaveBeenCalledTimes(3);
+
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tripId: TRIP_ID,
+        changes: { summary: "Turned chapters on" },
+      }),
+    );
+
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/plan`);
+  });
+
+  it("enabling with no forks: recomputes only the real plan", async () => {
+    tripUpdateMock.mockResolvedValue({});
+    forkFindManyMock.mockResolvedValueOnce([]);
+
+    await setChaptersEnabled(TRIP_ID, true);
+
+    expect(recomputeChapterSpansMock).toHaveBeenCalledTimes(1);
+    expect(recomputeChapterSpansMock).toHaveBeenCalledWith(expect.anything(), TRIP_ID, null);
+  });
+
+  it("disabling: only updates the trip — no span recompute", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    const result = await setChaptersEnabled(TRIP_ID, false);
+
+    expect(result.success).toBe(true);
+    expect(tripUpdateMock).toHaveBeenCalledWith({
+      where: { id: TRIP_ID },
+      data: { chaptersEnabled: false },
+    });
+    expect(recomputeChapterSpansMock).not.toHaveBeenCalled();
+    expect(forkFindManyMock).not.toHaveBeenCalled();
+
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tripId: TRIP_ID,
+        changes: { summary: "Turned chapters off" },
+      }),
+    );
+
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/plan`);
   });
 });

@@ -115,6 +115,10 @@ model Trip {
   homeCountryCode String?
   roundTrip       Boolean @default(true)
 
+  // Chapters are opt-in per trip (spec 2026-08-24): off by default; the
+  // migration backfills true for trips that already have chapters.
+  chaptersEnabled Boolean @default(false)
+
   // Per-trip driving-estimate settings (used by drive-time hints + the
   // "long driving day" flag). Defaults suit mixed/winding roads.
   drivingWindingFactor Float @default(1.5)

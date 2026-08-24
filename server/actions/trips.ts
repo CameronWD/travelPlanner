@@ -7,6 +7,8 @@ import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { requireUser, requireTripAccess } from "@/lib/guards";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
+import { recordActivity } from "@/server/actions/activity";
+import { recomputeChapterSpans } from "@/server/actions/stops";
 import {
   createTripSchema,
   tripSchema,
@@ -388,4 +390,54 @@ export async function duplicateTrip(
   // This is a best-effort concern that must never break the mutation.
   revalidatePath("/trips");
   return { success: true, tripId: newTrip.id };
+}
+
+// ---------------------------------------------------------------------------
+// setChaptersEnabled
+// ---------------------------------------------------------------------------
+
+export type SetChaptersEnabledResult = UpdateTripResult;
+
+/**
+ * Turn chapters on/off for a trip. Chapters are opt-in (spec 2026-08-24): off
+ * by default for new trips, backfilled true for trips that already had
+ * chapters (see the 20260824000000_chapters_enabled migration).
+ *
+ * Turning chapters back ON self-heals stale date bands (ADR 0021 §4) by
+ * recomputing chapter spans for the real plan and every fork — chapters may
+ * have kept changing underneath a hidden band while the toggle was off.
+ * Turning chapters OFF only flips the flag; no data is touched.
+ */
+export async function setChaptersEnabled(tripId: string, enabled: boolean): Promise<SetChaptersEnabledResult> {
+  await requireTripAccess(tripId);
+
+  await db.$transaction(async (tx) => {
+    await tx.trip.update({ where: { id: tripId }, data: { chaptersEnabled: enabled } });
+
+    if (enabled) {
+      // Bands may have gone stale while hidden — self-heal every plan (ADR 0021 §4).
+      await recomputeChapterSpans(tx, tripId, null);
+      const forks = await tx.fork.findMany({ where: { tripId }, select: { id: true } });
+      for (const fork of forks) {
+        await recomputeChapterSpans(tx, tripId, fork.id);
+      }
+    }
+  });
+
+  // "TRIP" isn't a valid ActivityEntityType (see the note in duplicateTrip
+  // above); CHAPTER is the closest fit for this chapter-domain trip setting,
+  // mirroring the bulk-summary pattern chapters.ts uses for trip-wide changes.
+  await recordActivity({
+    tripId,
+    verb: "UPDATED",
+    entityType: "CHAPTER",
+    entityId: null,
+    entityLabel: "",
+    changes: { summary: enabled ? "Turned chapters on" : "Turned chapters off" },
+  });
+
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/trips/${tripId}/plan`);
+
+  return { success: true };
 }
