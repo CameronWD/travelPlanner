@@ -120,6 +120,17 @@ describe("computeProjectedEnd", () => {
     // a's real depart (07-05) -> 07-08, not from a rewound cursor.
     expect(computeProjectedEnd(stops, "2026-07-03")).toBe("2026-07-08");
   });
+
+  it("projects from date order even when sortOrder is stale (ADR 0038)", () => {
+    // B was re-dated before A; sortOrder still says A first. Rough R trails.
+    const stops = [
+      { id: "A", arriveDate: "2026-06-05", departDate: "2026-06-08", nights: null, pinned: false, sortOrder: 0 },
+      { id: "B", arriveDate: "2026-06-01", departDate: "2026-06-05", nights: null, pinned: false, sortOrder: 1 },
+      { id: "R", arriveDate: null, departDate: null, nights: 2, pinned: false, sortOrder: 2 },
+    ];
+    // Flow: B(1–5) A(5–8) then rough R (2 nights) → projected end 06-10.
+    expect(computeProjectedEnd(stops, "2026-06-01")).toBe("2026-06-10");
+  });
 });
 
 function tripRough(id: string, sortOrder: number, nights: number): TripFirmUpStop {

@@ -121,12 +121,14 @@ describe("mixed rough + dated membership", () => {
 });
 
 describe("sortGroupStops", () => {
-  it("orders by sortOrder, interleaving rough and dated (no dated-first hoist)", () => {
+  it("preserves input order verbatim, even when it doesn't match sortOrder (ADR 0038)", () => {
+    // Deliberately out of sortOrder (2, 1, 0) — the caller is responsible for
+    // canonical ordering (lib/plan-order.ts); this function must not re-sort.
     const rome = stop("rome", "2026-07-03", "2026-07-06", null, 0);
     const florence = stop("florence", null, null, "italy", 1); // rough, placed mid-chapter
     const venice = stop("venice", "2026-07-08", "2026-07-10", null, 2);
     const out = sortGroupStops([venice, florence, rome]);
-    expect(out.map((s) => s.id)).toEqual(["rome", "florence", "venice"]);
+    expect(out.map((s) => s.id)).toEqual(["venice", "florence", "rome"]);
   });
 });
 

@@ -1,4 +1,5 @@
 import { addDays, nightsBetween } from "./dates";
+import { orderPlanStops } from "./plan-order";
 
 export interface FlowStop {
   id: string;
@@ -100,7 +101,7 @@ export function computeProjectedEnd(
   anchorDate: string | null,
 ): string | null {
   if (stops.length === 0) return null;
-  const ordered = [...stops].sort((a, b) => a.sortOrder - b.sortOrder);
+  const ordered = orderPlanStops([...stops].sort((a, b) => a.sortOrder - b.sortOrder));
 
   // Anchor from the EARLIEST of the provided anchor and any scheduled arrive,
   // so a scheduled (boundary) stop never sits before the anchor and rewinds

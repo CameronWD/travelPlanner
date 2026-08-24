@@ -97,15 +97,13 @@ export function chapterIdForTransport(
 }
 
 /**
- * Order stops within a rendered chapter group as a single list by `sortOrder`
- * (the arrangement spine). For dated stops sortOrder already tracks date order —
- * firm-up flows dates forward in sortOrder and drag-reorder reflows dates to the
- * new position (ADR 0021) — so this yields chronological order for dated stops
- * while letting rough stops hold the position the traveller put them in. Pure;
- * stable via the id tiebreak. Supersedes the old dated-first / rough-after split.
+ * Order stops within a rendered chapter group. Since ADR 0038 the global list
+ * is already in canonical plan order (scheduled by date, rough by slot — see
+ * lib/plan-order.ts), so groups simply preserve the input order. Kept as a
+ * named seam so callers don't couple to that invariant.
  */
 export function sortGroupStops<S extends StopLike & { id: string }>(stops: readonly S[]): S[] {
-  return [...stops].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+  return [...stops];
 }
 
 export function isTransportBetweenLegs(
