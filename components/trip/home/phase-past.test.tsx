@@ -55,6 +55,25 @@ vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNod
 import React from "react";
 
 const { PAST_DESKTOP_GRID_CLASS, PhasePast } = await import("./phase-past");
+const { RouteMapLoader } = await import("@/components/trip/route-map-loader");
+
+// Server components aren't run through a renderer here (see file-header note),
+// so a mocked child is never actually invoked. To assert its props without
+// standing up a full render, walk the returned React element tree by hand.
+function findElementByType(node: unknown, type: unknown): { props: Record<string, unknown> } | null {
+  if (node == null || typeof node !== "object") return null;
+  const el = node as { type?: unknown; props?: { children?: unknown } };
+  if (el.type === type) return node as { props: Record<string, unknown> };
+  const children = el.props?.children;
+  if (Array.isArray(children)) {
+    for (const child of children) {
+      const found = findElementByType(child, type);
+      if (found) return found;
+    }
+    return null;
+  }
+  return findElementByType(children, type);
+}
 
 describe("PhasePast desktop rail width", () => {
   it("desktop grid uses 21.25rem rail (340 px) matching the mockup spec", () => {
@@ -147,6 +166,62 @@ describe("PhasePast fork-scoped plan queries", () => {
       expect.objectContaining({ where: { tripId: "trip-1" } }),
     );
     expect(journalEntryCountMock).toHaveBeenCalledWith({ where: { tripId: "trip-1" } });
+  });
+});
+
+describe("PhasePast route map order (ADR 0038)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    chaptersEnabled: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    journalEntryCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+    buildSpendSoFarMock.mockReturnValue({
+      costTotalMinor: 0,
+      paidSoFarMinor: 0,
+      paidCostMinor: 0,
+      varianceMinor: 0,
+      costRemainingMinor: 0,
+      tripElapsedPct: 100,
+    });
+  });
+
+  async function renderPast(tripOverrides: Partial<typeof baseTrip> = {}) {
+    return PhasePast({ tripId: "trip-1", trip: { ...baseTrip, ...tripOverrides } });
+  }
+
+  it("orders the route map's stops chronologically, not by raw sortOrder", async () => {
+    // sortOrder says Rome (0) then Florence (1), but Florence's dates come first.
+    stopFindManyMock.mockResolvedValue([
+      {
+        id: "rome", name: "Rome", lat: 41.9, lng: 12.5,
+        timezone: "Europe/Rome", arriveDate: "2026-01-08", departDate: "2026-01-10", sortOrder: 0,
+      },
+      {
+        id: "florence", name: "Florence", lat: 43.8, lng: 11.3,
+        timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-03", sortOrder: 1,
+      },
+    ]);
+
+    const tree = await renderPast();
+
+    const routeMapEl = findElementByType(tree, RouteMapLoader);
+    expect(routeMapEl).not.toBeNull();
+    const stops = routeMapEl!.props.stops as Array<{ id: string }>;
+    expect(stops.map((s) => s.id)).toEqual(["florence", "rome"]);
   });
 });
 

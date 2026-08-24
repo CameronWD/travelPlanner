@@ -15,6 +15,7 @@ import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enums";
 import { homeMapPoint } from "@/lib/route-map";
+import { orderPlanStops } from "@/lib/plan-order";
 
 // ---------------------------------------------------------------------------
 // Metadata — noindex so search engines don't index private trips
@@ -149,12 +150,17 @@ export default async function SharePage({
   ]);
 
   // Non-null at runtime: the query filters rough (date-less) stops out.
-  const stops = rawStops.map((s) => ({
-    ...s,
-    timezone: s.timezone ?? "UTC",
-    arriveDate: s.arriveDate!,
-    departDate: s.departDate!,
-  }));
+  // ADR 0038: a scheduled stop's position IS its dates — re-sort canonically
+  // before rendering (the numbered "at a glance" list and the route map both
+  // read this array's order), since the fetch's orderBy stays sortOrder.
+  const stops = orderPlanStops(
+    rawStops.map((s) => ({
+      ...s,
+      timezone: s.timezone ?? "UTC",
+      arriveDate: s.arriveDate!,
+      departDate: s.departDate!,
+    })),
+  );
 
   // Build itinerary projection (dates + entries only)
   const itinerary = buildItinerary({

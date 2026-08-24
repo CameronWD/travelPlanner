@@ -27,6 +27,7 @@ import { BudgetGlance } from "@/components/trip/home/budget-glance";
 import { QuickActions } from "@/components/trip/home/quick-actions";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
+import { orderPlanStops } from "@/lib/plan-order";
 
 const COST_SELECT = {
   id: true,
@@ -193,11 +194,16 @@ export async function PhasePlanning({
   // ---------------------------------------------------------------------------
   // Narrow nullable date fields (mirrors summary/page.tsx)
   // ---------------------------------------------------------------------------
-  const datedStops = datedStopsRaw.map((s) => ({
-    ...s,
-    arriveDate: s.arriveDate!,
-    departDate: s.departDate!,
-  }));
+  // ADR 0038: a scheduled stop's position IS its dates — re-sort canonically
+  // before rendering (the route map reads this array's order); the fetch's
+  // orderBy stays sortOrder.
+  const datedStops = orderPlanStops(
+    datedStopsRaw.map((s) => ({
+      ...s,
+      arriveDate: s.arriveDate!,
+      departDate: s.departDate!,
+    })),
+  );
 
   const datedChapters = datedChaptersRaw.map((c) => ({
     ...c,

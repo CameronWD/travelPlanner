@@ -10,6 +10,7 @@ import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { describePhase, compareForTripList } from "@/lib/trip-phase";
 import { todayISO } from "@/lib/dates";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { orderPlanStops } from "@/lib/plan-order";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: "Your trips · TEEPEE" };
@@ -28,7 +29,7 @@ export default async function TripsPage() {
           stops: {
             where: { forkId: null, arriveDate: { not: null } },
             orderBy: { sortOrder: "asc" },
-            select: { timezone: true, arriveDate: true, departDate: true },
+            select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
           },
         },
       },
@@ -44,13 +45,22 @@ export default async function TripsPage() {
   const coverStopsRaw = await db.stop.findMany({
     where: { tripId: { in: tripIds }, forkId: null, lat: { not: null }, lng: { not: null } },
     orderBy: { sortOrder: "asc" },
-    select: { tripId: true, lat: true, lng: true },
+    select: { id: true, tripId: true, sortOrder: true, arriveDate: true, departDate: true, lat: true, lng: true },
   });
-  const coverStopsByTrip = new Map<string, { lat: number; lng: number }[]>();
+  const rawCoverStopsByTrip = new Map<string, typeof coverStopsRaw>();
   for (const s of coverStopsRaw) {
-    const arr = coverStopsByTrip.get(s.tripId) ?? [];
-    arr.push({ lat: s.lat as number, lng: s.lng as number });
-    coverStopsByTrip.set(s.tripId, arr);
+    const arr = rawCoverStopsByTrip.get(s.tripId) ?? [];
+    arr.push(s);
+    rawCoverStopsByTrip.set(s.tripId, arr);
+  }
+  // ADR 0038: a scheduled stop's position IS its dates — the cover map's
+  // route order must follow canonical plan order, not raw sortOrder.
+  const coverStopsByTrip = new Map<string, { lat: number; lng: number }[]>();
+  for (const [tId, tripStops] of rawCoverStopsByTrip) {
+    coverStopsByTrip.set(
+      tId,
+      orderPlanStops(tripStops).map((s) => ({ lat: s.lat as number, lng: s.lng as number })),
+    );
   }
 
   // Build cover key presence per trip from the memberships query already in hand.
@@ -81,8 +91,10 @@ export default async function TripsPage() {
   });
 
   const today = todayISO();
+  // Canonical plan order for the "current timezone" pick — t.stops is fetched
+  // by sortOrder, which no longer tracks date order under ADR 0038.
   const todayByTripId = new Map(
-    trips.map((t) => [t.id, todayISOInZone(currentTripTimezone(t.stops))]),
+    trips.map((t) => [t.id, todayISOInZone(currentTripTimezone(orderPlanStops(t.stops)))]),
   );
   const sorted = [...trips].sort((a, b) => compareForTripList(a, b, today, todayByTripId));
 

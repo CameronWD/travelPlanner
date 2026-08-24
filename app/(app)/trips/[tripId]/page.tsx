@@ -8,6 +8,7 @@ import { PhasePlanning } from "@/components/trip/home/phase-planning";
 import { PhaseTravelling } from "@/components/trip/home/phase-travelling";
 import { PhasePast } from "@/components/trip/home/phase-past";
 import { TripCover } from "@/components/trip/trip-cover";
+import { orderPlanStops } from "@/lib/plan-order";
 
 export default async function TripHomePage({
   params,
@@ -37,19 +38,24 @@ export default async function TripHomePage({
       stops: {
         where: { forkId: null, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
-        select: { timezone: true, arriveDate: true, departDate: true },
+        select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
       },
     },
   });
   if (!trip) notFound();
 
-  const coverStops = await db.stop.findMany({
+  const coverStopsRaw = await db.stop.findMany({
     where: { tripId, forkId: null, lat: { not: null }, lng: { not: null } },
     orderBy: { sortOrder: "asc" },
-    select: { lat: true, lng: true },
+    select: { id: true, sortOrder: true, arriveDate: true, departDate: true, lat: true, lng: true },
   });
+  // ADR 0038: a scheduled stop's position IS its dates — the cover map's
+  // route order must follow canonical plan order, not raw sortOrder.
+  const coverStops = orderPlanStops(coverStopsRaw);
 
-  const today = todayISOInZone(currentTripTimezone(trip.stops));
+  // Same canonical order for the "current timezone" pick — trip.stops is
+  // fetched by sortOrder, which no longer tracks date order under ADR 0038.
+  const today = todayISOInZone(currentTripTimezone(orderPlanStops(trip.stops)));
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
 
   const cover = (

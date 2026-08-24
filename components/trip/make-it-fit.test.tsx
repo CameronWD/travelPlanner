@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, within, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MakeItFit } from "./make-it-fit";
 import type { FitStop } from "@/lib/make-it-fit";
@@ -98,6 +98,21 @@ describe("MakeItFit", () => {
       expect(n).toBeLessThan(id === "a" ? 6 : 4);
       expect(n).toBeGreaterThanOrEqual(1);
     }
+  });
+
+  it("renders the trim list chronologically, not by raw sortOrder (ADR 0038)", async () => {
+    // sortOrder says Rome (0) then Florence (1), but Florence's dates come first.
+    const outOfDateOrderStops = [
+      stop({ id: "a", name: "Rome", nights: 6, sortOrder: 0, arriveDate: "2026-07-10", departDate: "2026-07-16" }),
+      stop({ id: "b", name: "Florence", nights: 4, sortOrder: 1, arriveDate: "2026-07-01", departDate: "2026-07-05" }),
+    ];
+    render(<MakeItFit tripId="t1" stops={outOfDateOrderStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+    const trimSection = await screen.findByRole("region", { name: /trim plan/i });
+    const items = within(trimSection).getAllByRole("listitem");
+    expect(items).toHaveLength(2);
+    expect(items[0]).toHaveTextContent("Florence");
+    expect(items[1]).toHaveTextContent("Rome");
   });
 
   it("keeps the dialog open and toasts when a trim fails", async () => {

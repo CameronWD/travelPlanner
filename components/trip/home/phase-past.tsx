@@ -18,6 +18,7 @@ import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
+import { orderPlanStops } from "@/lib/plan-order";
 
 // ---------------------------------------------------------------------------
 // Selects
@@ -165,11 +166,16 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   // ---------------------------------------------------------------------------
   // Narrow nullable date fields
   // ---------------------------------------------------------------------------
-  const datedStops = datedStopsRaw.map((s) => ({
-    ...s,
-    arriveDate: s.arriveDate!,
-    departDate: s.departDate!,
-  }));
+  // ADR 0038: a scheduled stop's position IS its dates — re-sort canonically
+  // before rendering (the route map reads this array's order); the fetch's
+  // orderBy stays sortOrder.
+  const datedStops = orderPlanStops(
+    datedStopsRaw.map((s) => ({
+      ...s,
+      arriveDate: s.arriveDate!,
+      departDate: s.departDate!,
+    })),
+  );
 
   const datedChapters = datedChaptersRaw.map((c) => ({
     ...c,

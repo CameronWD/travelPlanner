@@ -16,6 +16,7 @@ import { toast } from "@/components/ui/use-toast";
 import { setStopNights, deleteStop } from "@/server/actions/stops";
 import { formatLongDate } from "@/lib/dates";
 import { computeProjectedEnd } from "@/lib/firm-up";
+import { orderPlanStops } from "@/lib/plan-order";
 import {
   nightsOver,
   buildTrimPlan,
@@ -96,9 +97,10 @@ function MakeItFitDialog({
   over: number;
   onClose: () => void;
 }) {
+  // ADR 0038: a scheduled stop's position IS its dates — this trim list must
+  // render chronologically, not by raw sortOrder.
   const flex = React.useMemo(
-    () =>
-      stops.filter(isFlexible).sort((a, b) => a.sortOrder - b.sortOrder),
+    () => orderPlanStops(stops).filter(isFlexible),
     [stops],
   );
   const initialPlan = React.useMemo(
