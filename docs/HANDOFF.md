@@ -241,9 +241,18 @@ Since late August 2026 CARTO's raster basemap endpoint watermarks unauthenticate
 NEXT_PUBLIC_CARTO_API_KEY="<your carto key>"
 ```
 
-The key reaches the browser by necessity — Leaflet fetches tiles client-side — so restrict it by domain in the CARTO dashboard. **`NEXT_PUBLIC_*` values are inlined at build time**, so setting the variable in your host's dashboard does nothing until you redeploy.
+To get a key: email [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) your email address, the domain you'll use the basemaps on, and roughly what you're building. There's no account and no approval queue — CARTO emails the key straight back, and domain scoping is fixed at that point, from the domain you supplied. There is no dashboard to change it afterwards.
+
+The key reaches the browser by necessity — Leaflet fetches tiles client-side — that's expected, not a leak. **`NEXT_PUBLIC_*` values are inlined at build time**, so setting the variable in your host's dashboard does nothing until you redeploy.
 
 Without the key the maps still pan, zoom and render markers; the tiles are just watermarked.
+
+**Fair use and terms.** The key is free for up to 5 million tile requests per calendar month, counted across CARTO's raster and vector services combined — past that, CARTO says they'll get in touch rather than cut the key off. It's intended for non-commercial use (personal projects, research, teaching, non-profits); commercial projects still get a key, but past the limit may be asked onto a paid agreement. Treat the key as scoped to this project: request a separate one rather than sharing or reusing this key on another domain or app.
+
+**Two things that look like a failed fix, but aren't:**
+
+- Both the browser and CARTO's CDN cache tiles. After adding the key, a plain reload can still show cached watermarked tiles — force-refresh (or clear the cache) before concluding the key isn't taking effect.
+- A wrong or mistyped key does **not** error. CARTO returns HTTP 200 with a watermarked tile — the same response as no key at all — so there is no failure signal to notice. If the watermark persists after a hard refresh, double-check the key value itself.
 
 ### Nominatim needs a contact, not a key
 

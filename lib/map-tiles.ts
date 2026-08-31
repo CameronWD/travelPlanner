@@ -9,9 +9,11 @@
  * (https://carto.com/basemaps/apikey).
  *
  * The variable is NEXT_PUBLIC_ by necessity: Leaflet fetches tiles from the
- * browser, so the key cannot be kept server-side. Restrict it by domain in the
- * CARTO dashboard. Note that NEXT_PUBLIC_* values are inlined at BUILD time —
- * setting it in a hosting dashboard does nothing until the app is rebuilt.
+ * browser, so the key cannot be kept server-side. There's no CARTO dashboard
+ * to restrict it in after the fact — domain scoping is fixed once, when the
+ * key is requested (see docs/HANDOFF.md §5). Note that NEXT_PUBLIC_* values
+ * are inlined at BUILD time — setting it in a hosting dashboard does nothing
+ * until the app is rebuilt.
  *
  * When the key is unset the URLs are left bare: maps still work, watermarked,
  * so local development needs no configuration.

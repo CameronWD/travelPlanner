@@ -61,6 +61,11 @@ npx web-push generate-vapid-keys   # VAPID public/private pair
    | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | same as `VAPID_PUBLIC_KEY` |
    | `CRON_SECRET` | from step 0 |
    | `NEXT_PUBLIC_APP_NAME` | e.g. `Trip Planner` |
+   | `NEXT_PUBLIC_CARTO_API_KEY` | from https://carto.com/basemaps/apikey (optional — see below) |
+
+   `NEXT_PUBLIC_CARTO_API_KEY` is optional: without it the map tiles still render, just
+   watermarked ("API KEY REQUIRED"). **`NEXT_PUBLIC_*` values are inlined at build time**,
+   so adding this to an *existing* deployment does nothing until you redeploy.
 
 3. Deploy. The build runs `prisma migrate deploy` against `DIRECT_URL`, creating the
    schema on Neon, then `next build`.

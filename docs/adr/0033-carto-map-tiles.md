@@ -27,5 +27,5 @@ The "**Free tier, no API key required**" consequence above no longer holds. In l
 
 Two further consequences:
 
-- **The key is necessarily public.** Leaflet fetches tiles from the browser, so it must be a `NEXT_PUBLIC_` variable and will appear in the client bundle. Restrict it by domain in the CARTO dashboard. It is also inlined at build time, so changing it requires a rebuild.
+- **The key is necessarily public.** Leaflet fetches tiles from the browser, so it must be a `NEXT_PUBLIC_` variable and will appear in the client bundle. There is no CARTO dashboard to restrict it in afterwards — domain scoping is fixed once, at the point the key is requested (see `docs/HANDOFF.md` §5 for the real terms). It is also inlined at build time, so changing it requires a rebuild.
 - **Raster basemaps are slated for retirement** in favour of vector tiles. This amendment buys time; migrating to vector (and to MapLibre in place of Leaflet's raster layer) would supersede this ADR rather than amend it.

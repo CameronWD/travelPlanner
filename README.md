@@ -48,7 +48,7 @@ node -v      # must be >= 20.19
 
 **Docker** (for the local Postgres container). Any recent Docker Desktop or Docker Engine install is fine.
 
-No external accounts or API keys are needed for local development — it runs on a local Postgres container with a dev-login bypass.
+No external accounts or API keys are needed for local development — it runs on a local Postgres container with a dev-login bypass. (Map tiles still render without one, just watermarked — see `docs/HANDOFF.md` §5.)
 
 ### 1. Install dependencies
 
@@ -150,6 +150,9 @@ npx web-push generate-vapid-keys     # VAPID public + private pair
 | `VAPID_SUBJECT` | `mailto:you@yourdomain.com` |
 | `CRON_SECRET` | step 0 |
 | `NEXT_PUBLIC_APP_NAME` | e.g. `TEEPEE` |
+| `NEXT_PUBLIC_CARTO_API_KEY` | optional, from [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) |
+
+`NEXT_PUBLIC_CARTO_API_KEY` is optional — without it map tiles still work, just watermarked. **`NEXT_PUBLIC_*` values are inlined at build time**, so adding it to an already-deployed project does nothing until you redeploy.
 
 Deploy. The build runs `prisma migrate deploy` (creating the Neon schema), then `next build`.
 

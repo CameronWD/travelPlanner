@@ -48,10 +48,11 @@ rendering.** We are not adding a 3D globe library in v1.
   the whole world and pointed at `Marker`s instead of trip `Item`s.
 - **The name/rendering mismatch is deliberate.** This ADR exists so nobody
   "corrects" the flat map into a 3D globe assuming it was an oversight.
-- **Offline is via tiles, not a bundled texture.** Leaflet uses network OSM
-  tiles; a bundled 3D earth texture would have been more offline-friendly. If the
-  Globe ever needs to work fully offline, tile-caching (or revisiting a bundled
-  globe) is the place to look — not a v1 requirement.
+- **Offline is via tiles, not a bundled texture.** Leaflet fetches basemap tiles
+  over the network (CARTO Positron/Dark Matter since ADR 0033, not raw OSM); a
+  bundled 3D earth texture would have been more offline-friendly. If the Globe
+  ever needs to work fully offline, tile-caching (or revisiting a bundled globe)
+  is the place to look — not a v1 requirement.
 - **Reversible.** Because the map lives behind a small component boundary (a
   loader + a map component, as `wishlist-map` already does), swapping in a 3D
   globe later is a contained change if the "globe should be a globe" itch ever

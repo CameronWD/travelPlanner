@@ -47,10 +47,11 @@ free `NEXT_PUBLIC_CARTO_API_KEY` to avoid a watermark on every tile (see
 [ADR 0033's amendment](adr/0033-carto-map-tiles.md#amendment--2026-08-31-carto-now-requires-an-api-key)).
 
 ```ts
-// lib/map-tiles.ts — the entire tile layer config, 34 lines
+// lib/map-tiles.ts — the entire tile layer config, 54 lines
+const KEY_QUERY = API_KEY ? `?key=${encodeURIComponent(API_KEY)}` : "";
 export const CARTO_TILES = {
-  light: { url: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", ... },
-  dark:  { url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",  ... },
+  light: { url: `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png${KEY_QUERY}`, ... },
+  dark:  { url: `https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png${KEY_QUERY}`,  ... },
 };
 export function cartoTiles(isDark: boolean): TileConfig { ... }
 ```
@@ -502,8 +503,10 @@ place to look.
    (or self-hosted Nominatim) and a durable cache.
 3. **The response cache is per-instance and unbounded.** No TTL, no eviction —
    correct at this scale, wrong past it.
-4. **CARTO tiles are a free CDN with no SLA.** Fine to depend on; keep the swap
-   point (one file) intact.
+4. **CARTO tiles want a free API key since late August 2026**, or every tile
+   renders with an "API KEY REQUIRED" watermark — see §2. Otherwise it's a
+   free CDN with no SLA; fine to depend on, keep the swap point (one file)
+   intact.
 5. **Attribution is contractual.** The OpenStreetMap + CARTO dual credit renders
    on every map. Removing it violates CARTO's terms.
 6. **`Permissions-Policy: geolocation=()`** is set in `next.config.ts`. There's
@@ -522,9 +525,11 @@ To stand this up in another Next.js App Router project:
 2. Copy `node_modules/leaflet/dist/images/marker-icon.png`, `marker-icon-2x.png`,
    `marker-shadow.png` → `public/leaflet/`
 3. Add `.leaflet-container { isolation: isolate; }` to global CSS
-4. Copy the `lib/` map helpers: `map-tiles.ts` (tile config), `map-icons.ts`
-   (default-icon fix), `map-pins.ts` (category → hex), `escape-html.ts` (popup
-   escaping). All four are dependency-free and copy verbatim.
+4. Copy the `lib/` map helpers: `map-tiles.ts` (tile config — get a free
+   `NEXT_PUBLIC_CARTO_API_KEY` at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey)
+   or tiles ship watermarked), `map-icons.ts` (default-icon fix), `map-pins.ts`
+   (category → hex), `escape-html.ts` (popup escaping). All four are
+   dependency-free and copy verbatim.
 5. Copy `components/ui/map-loader.tsx` (the `createMapLoader` factory)
 6. Copy `lib/maps.ts` verbatim if you want the deep links, `lib/geo.ts` for
    distance/drive estimates
@@ -545,7 +550,8 @@ The choices we'd revisit, in rough order of likely payoff:
 - **MapLibre GL + vector tiles** instead of Leaflet + raster. Sharper on retina,
   smooth zoom, runtime-restylable (so theme switching is a style swap, not a
   tile-URL swap), better offline story. Costs: WebGL requirement, larger bundle,
-  and a tile source that usually wants a key.
+  and — like the current CARTO raster tiles since late August 2026 — a vector
+  tile source that usually wants a key too.
 - **`react-leaflet`** if the map count grows past ~5 or map state needs to be
   reactive. The imperative pattern is fine at four maps; it wouldn't be at twelve.
 - **A React-portal popup renderer** to kill the hand-escaped HTML strings.
