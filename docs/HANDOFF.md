@@ -13,7 +13,7 @@ The following work out of the box in local development with no external accounts
 | Database | Postgres in Docker (`docker-compose.yml`) via `@prisma/adapter-pg` — see ADR 0005 |
 | Auth | Dev-login shim (`ALLOW_DEV_LOGIN="true"`) — no OAuth required |
 | FX rates | Frankfurter public API — no key |
-| Maps / geocoding | Leaflet + OpenStreetMap + Nominatim — no key |
+| Maps / geocoding | Leaflet + CARTO tiles + Nominatim — works with no key, but tiles carry a CARTO watermark without `NEXT_PUBLIC_CARTO_API_KEY`, and place search needs `NOMINATIM_CONTACT` (see §5) |
 | File uploads | Local disk (`.uploads/` at repo root) |
 
 The following are **disabled gracefully** without config — the UI hides or disables those features:
@@ -231,7 +231,7 @@ Users can manually override any rate on the Budget page — the manual flag is s
 
 ## 5. Maps
 
-Powered by [Leaflet](https://leafletjs.com/) with [CARTO](https://carto.com/) basemap tiles — Positron for light mode, Dark Matter for dark (see ADR 0033) — and [Nominatim](https://nominatim.org/) for geocoding.
+Powered by [Leaflet](https://leafletjs.com/) with [CARTO](https://carto.com/) basemap tiles — Positron for light mode, Dark Matter for dark (see [ADR 0033's 2026-08-31 amendment](adr/0033-carto-map-tiles.md#amendment--2026-08-31-carto-now-requires-an-api-key)) — and [Nominatim](https://nominatim.org/) for geocoding.
 
 ### CARTO tiles need an API key
 

@@ -5,7 +5,10 @@ just an HTTP endpoint, how the layers are separated, and the patterns worth
 copying into another project.
 
 **Headline: the entire map stack is one runtime dependency (`leaflet`) plus three
-free HTTP services. No API keys, no accounts, no billing.**
+free HTTP services. No accounts, no billing — but since late August 2026 CARTO's
+tile endpoint wants a free API key (unauthenticated tiles render with an
+"API KEY REQUIRED" watermark); see §2 and
+[ADR 0033's amendment](adr/0033-carto-map-tiles.md#amendment--2026-08-31-carto-now-requires-an-api-key).**
 
 ---
 
@@ -29,17 +32,19 @@ That's it. Notably **not** installed:
 
 | Service | Used for | Auth | Where |
 |---|---|---|---|
-| **CARTO basemaps** (Positron / Dark Matter) | Raster tiles, light + dark | None — public CDN | `lib/map-tiles.ts` |
+| **CARTO basemaps** (Positron / Dark Matter) | Raster tiles, light + dark | Free `NEXT_PUBLIC_CARTO_API_KEY` recommended — since late Aug 2026, unauthenticated tiles are watermarked | `lib/map-tiles.ts` |
 | **OpenStreetMap Nominatim** | Forward geocode, place search, reverse geocode | None — but a real contact in `User-Agent` is mandatory | `lib/geocode.ts` |
 | **Google Maps / Apple Maps** | "Open in Maps" + turn-by-turn directions deep links | None — URL schemes only | `lib/maps.ts` |
 
 **Why CARTO instead of raw OSM tiles:** OSM's standard raster tiles have no dark
 variant, and dark mode is first-class in this app. CARTO publishes Positron
-(light) and Dark Matter (dark) on a free, keyless CDN with the same
-`{s}/{z}/{x}/{y}` scheme, so it's a one-line swap that closes the dark-mode gap
-(ADR 0033). Cost: dual attribution is mandatory — OpenStreetMap for the data,
-CARTO for the tiles — and we now depend on CARTO's CDN uptime, mitigated by
-keeping the tile config in exactly one file.
+(light) and Dark Matter (dark) on a free CDN with the same `{s}/{z}/{x}/{y}`
+scheme, so it's a one-line swap that closes the dark-mode gap (ADR 0033).
+Cost: dual attribution is mandatory — OpenStreetMap for the data, CARTO for
+the tiles — we now depend on CARTO's CDN uptime, mitigated by keeping the
+tile config in exactly one file, and since late August 2026 CARTO requires a
+free `NEXT_PUBLIC_CARTO_API_KEY` to avoid a watermark on every tile (see
+[ADR 0033's amendment](adr/0033-carto-map-tiles.md#amendment--2026-08-31-carto-now-requires-an-api-key)).
 
 ```ts
 // lib/map-tiles.ts — the entire tile layer config, 34 lines

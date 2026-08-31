@@ -12,7 +12,7 @@ A collaborative trip planner built for two partners — plan a multi-stop journe
 
 **Budget** — multi-currency cost tracking (estimated vs actual), live FX rates via Frankfurter (no key required), manual rate override, per-category breakdown, and a home-currency roll-up.
 
-**On the go** — Today view that auto-focuses on the current trip day; interactive Leaflet/OpenStreetMap route map with Nominatim geocoding; offline read-cache via PWA service worker.
+**On the go** — Today view that auto-focuses on the current trip day; interactive Leaflet + CARTO route map (OpenStreetMap-credited data) with Nominatim geocoding; offline read-cache via PWA service worker.
 
 **Together** — shared Items list + Wishlist with emoji voting and per-item notes; web-push Reminders; per-day Journal with photo attachments.
 
@@ -29,7 +29,7 @@ A collaborative trip planner built for two partners — plan a multi-stop journe
 | Language | TypeScript 5 |
 | ORM / DB | Prisma 7 with driver adapter; Postgres |
 | Auth | Auth.js v5 (NextAuth) — Google OAuth + dev-login shim |
-| Maps | Leaflet 1.x + OpenStreetMap tiles + Nominatim geocoding |
+| Maps | Leaflet 1.x + CARTO tiles (OpenStreetMap data) + Nominatim geocoding |
 | FX rates | Frankfurter public API (no key) |
 | Push | web-push (VAPID) |
 | AI | Anthropic SDK (`@anthropic-ai/sdk`) |
