@@ -231,7 +231,23 @@ Users can manually override any rate on the Budget page — the manual flag is s
 
 ## 5. Maps
 
-Powered by [Leaflet](https://leafletjs.com/) with [OpenStreetMap](https://www.openstreetmap.org/) tiles and [Nominatim](https://nominatim.org/) for geocoding. No API key is required for either service.
+Powered by [Leaflet](https://leafletjs.com/) with [CARTO](https://carto.com/) basemap tiles — Positron for light mode, Dark Matter for dark (see ADR 0033) — and [Nominatim](https://nominatim.org/) for geocoding.
+
+### CARTO tiles need an API key
+
+Since late August 2026 CARTO's raster basemap endpoint watermarks unauthenticated tiles with "API KEY REQUIRED". Get a free key (fair-use limit) at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) and set:
+
+```
+NEXT_PUBLIC_CARTO_API_KEY="<your carto key>"
+```
+
+The key reaches the browser by necessity — Leaflet fetches tiles client-side — so restrict it by domain in the CARTO dashboard. **`NEXT_PUBLIC_*` values are inlined at build time**, so setting the variable in your host's dashboard does nothing until you redeploy.
+
+Without the key the maps still pan, zoom and render markers; the tiles are just watermarked.
+
+### Nominatim needs a contact, not a key
+
+Geocoding requires no API key, but Nominatim's usage policy requires a real contact (email or app URL) in the User-Agent and returns **HTTP 403** for a missing or placeholder one. Set `NOMINATIM_CONTACT` in every environment where place search must work — without it, search fails and the UI shows "Place search is temporarily unavailable".
 
 ---
 
@@ -339,6 +355,8 @@ The app is platform-agnostic and will run on any Node.js host (Railway, Fly.io, 
 | `AUTH_GOOGLE_SECRET` | Yes | Google OAuth client secret | Google Cloud Console |
 | `ALLOW_DEV_LOGIN` | Yes (set `"false"`) | Disable dev-login bypass | Set to `"false"` in production |
 | `NEXT_PUBLIC_APP_NAME` | No | App name shown in the UI | Any string; defaults gracefully |
+| `NEXT_PUBLIC_CARTO_API_KEY` | No (tiles watermarked without it) | CARTO basemap tile key | [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) |
+| `NOMINATIM_CONTACT` | No (place search breaks without it) | Real contact for Nominatim's User-Agent | An email you control, or your app's public URL |
 | `STORAGE_DRIVER` | Yes (unless local) | Storage backend: `"local"`, `"r2"`, or `"s3"` | Set to `"r2"` or `"s3"` |
 | `CLOUDFLARE_ACCOUNT_ID` | If `STORAGE_DRIVER=r2` | Cloudflare account ID | Cloudflare dashboard |
 | `R2_BUCKET_NAME` | If `STORAGE_DRIVER=r2` | R2 bucket name | Cloudflare R2 |
