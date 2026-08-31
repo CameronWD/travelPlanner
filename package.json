@@ -15,9 +15,7 @@
     "backfill:geocode": "tsx scripts/backfill-geocode.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:demo": "tsx prisma/seed-demo.ts",
-    "db:seed:demo:prod": "tsx prisma/seed-demo-prod.ts",
     "db:seed:real": "tsx prisma/seed-real.ts",
-    "db:seed:real:prod": "tsx prisma/seed-real-prod.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
