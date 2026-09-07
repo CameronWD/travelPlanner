@@ -612,6 +612,13 @@ async function applyStopDates(
   let maxDepart = dates.departDate;
 
   await db.$transaction(async (tx) => {
+    // Lock the WHOLE plan's stops FOR UPDATE, in canonical id order, before
+    // writing any dates (ADR 0007: every tx that writes a plan's Stop
+    // ordering or dates takes this same lock — closes an ABBA deadlock
+    // against the id-ordered canonical paths and the lost-update window on
+    // the unlocked `others` read below).
+    await lockPlanStopsTx(tx, stop.tripId, stop.forkId);
+
     await tx.stop.update({
       where: { id: stop.id },
       data: { arriveDate: dates.arriveDate, departDate: dates.departDate },
@@ -1292,12 +1299,11 @@ export async function restoreStops(
   const restoreForkId: PlanId = forkId ?? rows[0].forkId ?? null;
 
   await db.$transaction(async (tx) => {
-    // Lock the rows FOR UPDATE to serialise with concurrent reorders (ADR 0007).
-    await tx.$queryRaw`
-      SELECT "id" FROM "Stop"
-      WHERE "id" = ANY(${ids})
-      FOR UPDATE
-    `;
+    // Lock the WHOLE plan's stops FOR UPDATE, in canonical id order, to
+    // serialise with concurrent reorders (ADR 0007 — never a subset: the
+    // recomputeChapterSpans call below reads the whole plan while this lock
+    // is held).
+    await lockPlanStopsTx(tx, tripId, restoreForkId);
 
     // Write every snapshotted field verbatim — no reflow, no derivation.
     for (const e of entries) {

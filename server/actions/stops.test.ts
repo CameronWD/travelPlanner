@@ -229,6 +229,9 @@ beforeEach(() => {
   chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: null });
   // Default: stop.findMany returns no rows (individual tests override as needed).
   stopFindManyMock.mockResolvedValue([]);
+  // Default: $queryRaw (the FOR UPDATE lock helpers) returns no rows; tests
+  // that care about the locked row set override this explicitly.
+  queryRawMock.mockResolvedValue([]);
   // Default: chapter.findMany returns no chapters (recomputeChapterSpans is a no-op).
   chapterFindManyMock.mockResolvedValue([]);
   // Default: chapter.update is a no-op.
@@ -1098,6 +1101,30 @@ describe("setStopDates", () => {
     expect(updatedIds).not.toContain("s1");
   });
 
+  it("locks the WHOLE plan's stops in id order before writing dates (ADR 0007)", async () => {
+    // applyStopDates (reached via setStopDates) previously wrote plan dates
+    // under NO lock at all — an ABBA deadlock risk against the id-ordered
+    // canonical paths and a lost-update window on the unlocked `others` read.
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null, pinned: false, forkId: null })
+      .mockResolvedValueOnce({ name: "S1", country: null, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null });
+    stopFindManyMock.mockResolvedValue([]);
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ endDate: null });
+    tripUpdateMock.mockResolvedValue({});
+
+    await setStopDates("s1", { arriveDate: "2026-06-01", departDate: "2026-06-06" });
+
+    const lockSql = queryRawMock.mock.calls
+      .map((c: unknown[]) => (c[0] as string[]).join("?"))
+      .find((s: string) => s.includes("FOR UPDATE"));
+    expect(lockSql).toBeDefined();
+    expect(lockSql).toContain('FROM "Stop"');
+    expect(lockSql).toContain('"tripId" =');
+    expect(lockSql).toContain('ORDER BY "id" ASC');
+    expect(lockSql).not.toContain("ANY(");
+  });
+
   it("rejects when departDate is before arriveDate and writes nothing", async () => {
     stopFindUniqueMock.mockResolvedValue({ id: "b", tripId: "trip-1", sortOrder: 1, arriveDate: "2026-07-01", departDate: "2026-07-03", nights: null, pinned: false });
     const result = await setStopDates("b", { arriveDate: "2026-07-15", departDate: "2026-07-12" });
@@ -1894,6 +1921,31 @@ describe("Task 10: restoreStops — writes each entry verbatim inside the locked
     expect(chapterUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "ch-1" } }),
     );
+  });
+
+  it("locks the WHOLE plan's stops in id order, not just the restored ids (ADR 0007)", async () => {
+    // recomputeChapterSpans reads the whole plan while this lock is held, so
+    // restoreStops must take the same canonical full-plan lock as reorderStops
+    // — not a subset keyed on the restored ids.
+    stopFindManyMock.mockResolvedValue([{ id: "a", tripId: "t1", forkId: null }]);
+    queryRawMock.mockResolvedValue([
+      { id: "a", sortOrder: 0, chapterId: "ch-1", chapterSortOrder: null, arriveDate: "2026-07-01" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    await restoreStops([
+      { id: "a", sortOrder: 0, chapterId: "ch-1", arriveDate: "2026-07-01", departDate: "2026-07-04" },
+    ]);
+
+    const lockSql = queryRawMock.mock.calls
+      .map((c: unknown[]) => (c[0] as string[]).join("?"))
+      .find((s: string) => s.includes("FOR UPDATE"));
+    expect(lockSql).toBeDefined();
+    expect(lockSql).toContain('FROM "Stop"');
+    expect(lockSql).toContain('"tripId" =');
+    expect(lockSql).toContain('ORDER BY "id" ASC');
+    expect(lockSql).not.toContain("ANY(");
   });
 
   it("returns success with no updates for an empty entries list", async () => {
