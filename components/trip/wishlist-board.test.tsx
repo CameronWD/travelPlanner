@@ -1,8 +1,12 @@
 /**
- * Tests for WishlistBoard — focused on the undo-toast after unscheduling an item.
+ * Tests for WishlistBoard — Schedule button, List/Map toggle, fork threading,
+ * placed-idea markers, edit-dialog cost forwarding, and the Globe suggestions
+ * strip. The Unschedule affordance was removed from this component (Task 7):
+ * it now lives on the day-view Timeline row instead, so this file also
+ * verifies WishlistBoard never renders it.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // Mock WishlistMapLoader so Leaflet never touches jsdom.

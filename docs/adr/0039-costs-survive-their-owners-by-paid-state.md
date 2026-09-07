@@ -32,3 +32,13 @@ existing prod orphans are handled once by `scripts/sweep-orphaned-costs.ts`.
   from the converted cost to the deleted entity is deliberately not kept.
 - Alternatives rejected: delete-everything (paid money vanishes from Spend
   so far); convert-everything (estimate clutter outlives sketching).
+
+## Known exception (2026-09-07, reliability round)
+`promoteFork` (`server/actions/forks.ts:760-766`) does not go through
+`deleteOwnedCostsTx`. It replaces the real plan wholesale — deleting every
+real-plan Cost, including ever-paid ones — and preserves only the ITEM costs
+owned by wishlist ideas that survive promotion (ADR 0022). This is
+pre-existing plan-replacement semantics, not a regression introduced here;
+it is recorded as an exception to this ADR's paid-survives rule pending a
+follow-up decision on whether promotion should also convert ever-paid costs
+to Other instead of deleting them.

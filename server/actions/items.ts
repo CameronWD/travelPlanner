@@ -579,7 +579,14 @@ export async function unscheduleItem(itemId: string): Promise<UnscheduleResult> 
 
   let mode: "placement-removed" | "unslotted";
   if (fullItem.sourceItemId !== null) {
-    await db.item.delete({ where: { id: itemId } });
+    const storageKeys = await db.$transaction(async (tx) => {
+      await tx.item.delete({ where: { id: itemId } });
+      await deleteOwnedCostsTx(tx, accessItem.tripId, [
+        { type: "ITEM", id: itemId, label: fullItem.title ?? "Item" },
+      ]);
+      return cleanupTargetSideDataTx(tx, accessItem.tripId, "ITEM", itemId);
+    });
+    await deleteBlobsBestEffort(storageKeys);
     mode = "placement-removed";
   } else {
     await db.item.update({ where: { id: itemId }, data: { date: null } });
@@ -607,8 +614,7 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * Move an item to `targetDateISO`, reassigning its stop to whichever stop covers
  * that day (null on a gap day). Keeps the item's existing start/end time. Used by
- * month-grid drag-to-reschedule and wishlist→day drops. Rejects dates outside the
- * trip window.
+ * month-grid drag-to-reschedule. Rejects dates outside the trip window.
  */
 export async function rescheduleItem(
   itemId: string,

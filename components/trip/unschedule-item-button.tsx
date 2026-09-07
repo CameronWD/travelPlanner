@@ -62,11 +62,15 @@ export function UnscheduleItemButton({
           onUndo: async () => {
             try {
               if (!sourceItemId) throw new Error("Missing sourceItemId for placement-removed undo");
-              await scheduleItem(sourceItemId, {
+              const result = await scheduleItem(sourceItemId, {
                 date,
                 ...(startTime ? { startTime } : {}),
                 ...(endTime ? { endTime } : {}),
               });
+              if (!result.success) {
+                toast({ title: "Couldn't undo", variant: "destructive" });
+                return;
+              }
               router.refresh();
             } catch {
               toast({ title: "Couldn't undo", variant: "destructive" });
@@ -78,7 +82,11 @@ export function UnscheduleItemButton({
           title: hadStop ? "Moved to things to do" : "Moved to Wishlist",
           onUndo: async () => {
             try {
-              await rescheduleItem(itemId, date);
+              const result = await rescheduleItem(itemId, date);
+              if (!result.success) {
+                toast({ title: "Couldn't undo", variant: "destructive" });
+                return;
+              }
               router.refresh();
             } catch {
               toast({ title: "Couldn't undo", variant: "destructive" });
@@ -100,7 +108,7 @@ export function UnscheduleItemButton({
       className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
       disabled={isPending}
       onClick={handleClick}
-      title="Move back to wishlist"
+      title="Unschedule"
     >
       <CalendarX className="size-3.5" aria-hidden="true" />
       Unschedule

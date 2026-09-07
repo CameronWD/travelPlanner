@@ -255,4 +255,61 @@ describe("UnscheduleItemButton", () => {
       );
     });
   });
+
+  // Final-review Finding 4: rescheduleItem/scheduleItem fail by RETURNING
+  // {success:false}, not throwing — the try/catch alone never catches that,
+  // so a failed undo used to silently no-op instead of telling the user.
+  it("shows a destructive 'Couldn't undo' toast when rescheduleItem's undo RESOLVES with success:false", async () => {
+    unscheduleItemMock.mockResolvedValue({ success: true, mode: "unslotted", sourceItemId: null });
+    rescheduleItemMock.mockResolvedValue({ success: false, errors: { _: ["Server error"] } });
+    render(
+      <UnscheduleItemButton
+        itemId="direct-8"
+        itemTitle="Dinner"
+        date="2026-07-09"
+        startTime={null}
+        endTime={null}
+        hadStop={false}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /unschedule/i }));
+    await waitFor(() => expect(unscheduleItemMock).toHaveBeenCalled());
+    refreshMock.mockClear();
+
+    await fireOnUndo();
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Couldn't undo", variant: "destructive" }),
+      );
+    });
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
+
+  it("shows a destructive 'Couldn't undo' toast when scheduleItem's undo RESOLVES with success:false", async () => {
+    unscheduleItemMock.mockResolvedValue({ success: true, mode: "placement-removed", sourceItemId: "idea-3" });
+    scheduleItemMock.mockResolvedValue({ success: false, errors: { _: ["Server error"] } });
+    render(
+      <UnscheduleItemButton
+        itemId="placed-3"
+        itemTitle="Colosseum"
+        date="2026-07-10"
+        startTime={null}
+        endTime={null}
+        hadStop={false}
+      />,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /unschedule/i }));
+    await waitFor(() => expect(unscheduleItemMock).toHaveBeenCalled());
+    refreshMock.mockClear();
+
+    await fireOnUndo();
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Couldn't undo", variant: "destructive" }),
+      );
+    });
+    expect(refreshMock).not.toHaveBeenCalled();
+  });
 });

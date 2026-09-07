@@ -813,6 +813,69 @@ describe("unscheduleItem", () => {
       }),
     );
   });
+
+  // Merged from the former "unscheduleItem semantics (P1-5, grilling 2026-09-07)"
+  // describe block (final-review Finding 8): same subject, kept as one block.
+  it("deletes only the placement when the item is a placed copy", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1" }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1", sourceItemId: "idea-1", date: "2026-07-02", title: "Colosseum" });
+    itemDeleteMock.mockResolvedValue({});
+
+    const result = await unscheduleItem("placed-1");
+
+    expect(result).toMatchObject({ success: true, mode: "placement-removed", sourceItemId: "idea-1" });
+    expect(itemDeleteMock).toHaveBeenCalledWith({ where: { id: "placed-1" } });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("clears only the date on a direct-created item (un-slot, ADR 0038)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "direct-1", tripId: "trip-1" }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "direct-1", tripId: "trip-1", sourceItemId: null, date: "2026-07-02", stopId: "stop-1", title: "Dinner" });
+
+    const result = await unscheduleItem("direct-1");
+
+    expect(result).toMatchObject({ success: true, mode: "unslotted", sourceItemId: null });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "direct-1" }, data: { date: null } });
+    expect(itemDeleteMock).not.toHaveBeenCalled();
+  });
+
+  // Final-review Finding 1: the placement-removed branch used to be a bare
+  // db.item.delete, orphaning the placement's Notes/Attachments/Costs. It must
+  // now mirror deleteItem's shape: one tx wrapping the delete + cost cleanup +
+  // side-data cleanup, then best-effort blob deletion after commit.
+  it("wraps the placement-removed delete in a transaction with cost and side-data cleanup", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1" }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1", sourceItemId: "idea-1", date: "2026-07-02", title: "Colosseum" });
+    attachmentFindManyMock.mockResolvedValue([{ storageKey: "k1" }]);
+    costFindManyMock.mockResolvedValue([]);
+
+    const result = await unscheduleItem("placed-1");
+
+    expect(result.success).toBe(true);
+    expect(transactionMock).toHaveBeenCalledTimes(1); // one tx wraps it all
+    expect(itemDeleteMock).toHaveBeenCalledWith({ where: { id: "placed-1" } });
+    expect(attachmentDeleteManyMock).toHaveBeenCalled(); // inside the tx
+    expect(noteDeleteManyMock).toHaveBeenCalled();
+  });
+
+  it("converts the placement's paid cost to an Other cost instead of orphaning it", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1" }) // requireItemAccess
+      .mockResolvedValueOnce({ id: "placed-1", tripId: "trip-1", sourceItemId: "idea-1", date: "2026-07-02", title: "Colosseum" });
+    costFindManyMock.mockResolvedValue([
+      { id: "c1", paidMinor: 4000, paidAt: null, label: null, ownerType: "ITEM", ownerId: "placed-1" },
+    ]);
+
+    await unscheduleItem("placed-1");
+
+    expect(costUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { ownerType: "OTHER", ownerId: null, label: "Colosseum (deleted)" },
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -950,28 +1013,6 @@ describe("scheduleItem copy-in placement", () => {
     const result = await unscheduleItem("placed-direct");
     expect(result).toMatchObject({ success: true, mode: "unslotted", sourceItemId: null });
     expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "placed-direct" }, data: { date: null } });
-    expect(itemDeleteMock).not.toHaveBeenCalled();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// unscheduleItem semantics (P1-5, grilling 2026-09-07)
-// ---------------------------------------------------------------------------
-
-describe("unscheduleItem", () => {
-  it("deletes only the placement when the item is a placed copy", async () => {
-    itemFindUniqueMock.mockResolvedValue({ id: "placed-1", sourceItemId: "idea-1", date: "2026-07-02", title: "Colosseum" });
-    const result = await unscheduleItem("placed-1");
-    expect(result).toMatchObject({ success: true, mode: "placement-removed", sourceItemId: "idea-1" });
-    expect(itemDeleteMock).toHaveBeenCalledWith({ where: { id: "placed-1" } });
-    expect(itemUpdateMock).not.toHaveBeenCalled();
-  });
-
-  it("clears only the date on a direct-created item (un-slot, ADR 0038)", async () => {
-    itemFindUniqueMock.mockResolvedValue({ id: "direct-1", sourceItemId: null, date: "2026-07-02", stopId: "stop-1", title: "Dinner" });
-    const result = await unscheduleItem("direct-1");
-    expect(result).toMatchObject({ success: true, mode: "unslotted", sourceItemId: null });
-    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "direct-1" }, data: { date: null } });
     expect(itemDeleteMock).not.toHaveBeenCalled();
   });
 });
