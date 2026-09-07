@@ -12,6 +12,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "backfill:geocode": "tsx scripts/backfill-geocode.ts",
     "sweep:orphaned-costs": "tsx scripts/sweep-orphaned-costs.ts",
     "db:seed": "tsx prisma/seed.ts",

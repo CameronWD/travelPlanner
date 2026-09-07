@@ -25,3 +25,33 @@ jobs:
       - run: npx prisma validate
       - run: npm run test
       - run: npm run build
+
+  integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: trip
+          POSTGRES_PASSWORD: trip
+          POSTGRES_DB: trip
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U trip -d trip"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: "postgresql://trip:trip@localhost:5432/trip"
+      DIRECT_URL: "postgresql://trip:trip@localhost:5432/trip"
+      INTEGRATION: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - run: npm run test:integration
