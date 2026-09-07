@@ -89,7 +89,7 @@ The state of a Cost whose money has actually left the Traveller's account, carry
 _Avoid_: Settled, cleared, reconciled, booked (booking is not paying)
 
 **Other cost**:
-A standalone Cost not attached to any timeline thing — travel insurance, visas, eSIM, spending-money buffers. Still rolls into the budget.
+A standalone Cost not attached to any timeline thing — travel insurance, visas, eSIM, spending-money buffers. Still rolls into the budget. Also where a **paid** Cost lands when its owner is deleted: deleting an Accommodation, Item or Transport deletes that thing's *unpaid* Costs (estimates for a thing that no longer exists) but converts its paid Costs into an Other cost labelled after the deleted owner — money that actually left the account never vanishes from **Spend so far**.
 _Avoid_: Misc, extra
 
 **Budget**:
