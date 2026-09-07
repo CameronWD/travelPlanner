@@ -649,7 +649,7 @@ describe("scheduleItem", () => {
     // Two findUnique calls: requireItemAccess (returns {id, tripId}), then full item fetch
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
-      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null, date: null, title: "Visit the Museum", category: "SIGHTSEEING" });
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Visit the Museum", category: "SIGHTSEEING" });
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "placed-1", title: "Visit the Museum" });
 
@@ -698,7 +698,7 @@ describe("scheduleItem", () => {
   it("allows scheduling without times (wishlist idea path)", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
-      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null, date: null, title: "Visit the Museum", category: "SIGHTSEEING" });
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Visit the Museum", category: "SIGHTSEEING" });
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "placed-1" });
 
@@ -717,7 +717,7 @@ describe("scheduleItem", () => {
   it("revalidates the whole trip layout so the Budget reflects inline cost edits", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
-      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null, date: null, title: "Visit the Museum", category: "SIGHTSEEING" });
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Visit the Museum", category: "SIGHTSEEING" });
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "placed-1" });
 
@@ -729,7 +729,7 @@ describe("scheduleItem", () => {
   it("access-checks via item's tripId", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "item-1", tripId: "trip-3" })
-      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-3", forkId: null, date: null, title: "Visit the Museum", category: "SIGHTSEEING" });
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-3", forkId: null, date: null, stopId: null, title: "Visit the Museum", category: "SIGHTSEEING" });
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "placed-1" });
 
@@ -824,7 +824,7 @@ describe("scheduleItem records activity", () => {
     // New behaviour: scheduling a wishlist idea (date===null, forkId===null) creates a copy
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" }) // requireItemAccess
-      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null, date: null, title: "Louvre", category: "SIGHTSEEING" }); // full item row
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Louvre", category: "SIGHTSEEING" }); // full item row
     itemFindFirstMock.mockResolvedValue({ sortOrder: 0 });
     itemCreateMock.mockResolvedValue({ id: "placed-1", title: "Louvre" });
 
@@ -869,7 +869,7 @@ describe("scheduleItem copy-in placement", () => {
   it("scheduling a wishlist idea creates a placed copy and leaves the idea", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" }) // requireItemAccess
-      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null, date: null, title: "Louvre", category: "SIGHTSEEING" }); // full item row
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Louvre", category: "SIGHTSEEING" }); // full item row
     itemFindFirstMock.mockResolvedValue({ sortOrder: 0 });
     itemCreateMock.mockResolvedValue({ id: "placed-1" });
     const res = await scheduleItem("idea-1", { date: "2026-07-02" }, null);
@@ -883,7 +883,7 @@ describe("scheduleItem copy-in placement", () => {
   it("scheduling into a fork places the copy in that fork", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" }) // requireItemAccess
-      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null, date: null, title: "Louvre", category: "SIGHTSEEING" }); // full item row
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Louvre", category: "SIGHTSEEING" }); // full item row
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "placed-2" });
     await scheduleItem("idea-1", { date: "2026-07-02" }, "fork-9");
@@ -899,13 +899,18 @@ describe("scheduleItem copy-in placement", () => {
     expect(itemDeleteMock).toHaveBeenCalledWith({ where: { id: "placed-1" } });
   });
 
-  it("copy inherits title, category, stopId, lat, lng, address, link, notes from idea", async () => {
+  it("copy inherits title, category, lat, lng, address, link, notes from idea", async () => {
+    // NB: a genuine Wishlist idea can never carry a stopId (ADR 0022 / CONTEXT.md:
+    // "attached to no Stop and no day") — an item with a stopId is a stop-attached
+    // thing-to-do, not an idea, so it takes the in-place branch (see the
+    // "scheduleItem classification" describe block). stopId is asserted here as
+    // null to document that the copy path still passes it through faithfully.
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" }) // requireItemAccess
       .mockResolvedValueOnce({
         id: "idea-1", tripId: "trip-1", forkId: null, date: null,
         title: "Eiffel Tower", category: "SIGHTSEEING",
-        stopId: "stop-1", lat: 48.8584, lng: 2.2945,
+        stopId: null, lat: 48.8584, lng: 2.2945,
         address: "Paris", link: "https://example.com", notes: "bring camera",
       }); // full item row
     itemFindFirstMock.mockResolvedValue(null);
@@ -913,7 +918,7 @@ describe("scheduleItem copy-in placement", () => {
     await scheduleItem("idea-1", { date: "2026-07-02", startTime: "10:00", endTime: "12:00" }, null);
     expect(itemCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        stopId: "stop-1", lat: 48.8584, lng: 2.2945,
+        stopId: null, lat: 48.8584, lng: 2.2945,
         address: "Paris", link: "https://example.com", notes: "bring camera",
         startTime: "10:00", endTime: "12:00",
       }),
@@ -923,7 +928,7 @@ describe("scheduleItem copy-in placement", () => {
   it("sortOrder for placed copy is max existing placed sortOrder + 1 (scoped to plan)", async () => {
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" }) // requireItemAccess
-      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null, date: null, title: "X", category: "SIGHTSEEING" });
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "X", category: "SIGHTSEEING" });
     itemFindFirstMock.mockResolvedValue({ sortOrder: 7 });
     itemCreateMock.mockResolvedValue({ id: "placed-4" });
     await scheduleItem("idea-1", { date: "2026-07-02" }, null);
@@ -932,13 +937,62 @@ describe("scheduleItem copy-in placement", () => {
     });
   });
 
-  it("unscheduling a directly-created placed item (sourceItemId null) also deletes it", async () => {
+  it("unscheduling a directly-created placed item (sourceItemId null) un-slots it instead of deleting (grilling 2026-09-07)", async () => {
+    // Superseded assumption from the pre-fix design: a direct-created item used
+    // to be deleted outright on unschedule. Decision 2 (2026-09-07) changed this
+    // to clear the date in place so the item survives as a thing-to-do/Wishlist
+    // idea rather than being destroyed. See the "unscheduleItem" describe block
+    // below for the full mode-classification coverage.
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "placed-direct", tripId: "trip-1" }) // requireItemAccess
-      .mockResolvedValueOnce({ id: "placed-direct", tripId: "trip-1", forkId: null, date: "2026-07-02", sourceItemId: null }); // full item row
-    itemDeleteMock.mockResolvedValue({});
-    await unscheduleItem("placed-direct");
-    expect(itemDeleteMock).toHaveBeenCalledWith({ where: { id: "placed-direct" } });
+      .mockResolvedValueOnce({ id: "placed-direct", tripId: "trip-1", forkId: null, date: "2026-07-02", sourceItemId: null, stopId: null }); // full item row
+    itemUpdateMock.mockResolvedValue({});
+    const result = await unscheduleItem("placed-direct");
+    expect(result).toMatchObject({ success: true, mode: "unslotted", sourceItemId: null });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "placed-direct" }, data: { date: null } });
+    expect(itemDeleteMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// unscheduleItem semantics (P1-5, grilling 2026-09-07)
+// ---------------------------------------------------------------------------
+
+describe("unscheduleItem", () => {
+  it("deletes only the placement when the item is a placed copy", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "placed-1", sourceItemId: "idea-1", date: "2026-07-02", title: "Colosseum" });
+    const result = await unscheduleItem("placed-1");
+    expect(result).toMatchObject({ success: true, mode: "placement-removed", sourceItemId: "idea-1" });
+    expect(itemDeleteMock).toHaveBeenCalledWith({ where: { id: "placed-1" } });
+    expect(itemUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("clears only the date on a direct-created item (un-slot, ADR 0038)", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "direct-1", sourceItemId: null, date: "2026-07-02", stopId: "stop-1", title: "Dinner" });
+    const result = await unscheduleItem("direct-1");
+    expect(result).toMatchObject({ success: true, mode: "unslotted", sourceItemId: null });
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "direct-1" }, data: { date: null } });
+    expect(itemDeleteMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("scheduleItem classification", () => {
+  it("treats a stop-attached thing-to-do as in-place scheduling, not copy-in", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "todo-1", date: null, stopId: "stop-1", forkId: null, title: "Dinner" });
+    await scheduleItem("todo-1", { date: "2026-07-02" });
+    expect(itemCreateMock).not.toHaveBeenCalled();       // no copy
+    expect(itemUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "todo-1" } }),
+    );
+  });
+
+  it("still copies in a true wishlist idea (no date, no stop)", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "idea-1", date: null, stopId: null, forkId: null, title: "Idea", category: "SIGHTSEEING" });
+    itemFindFirstMock.mockResolvedValue({ sortOrder: 4 });
+    await scheduleItem("idea-1", { date: "2026-07-02" });
+    expect(itemCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ sourceItemId: "idea-1", date: "2026-07-02" }) }),
+    );
   });
 });
 

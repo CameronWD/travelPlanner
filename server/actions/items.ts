@@ -479,7 +479,8 @@ export async function scheduleItem(
   const fullItem = await db.item.findUnique({ where: { id: itemId } });
   if (!fullItem) notFound();
 
-  const isWishlistIdea = fullItem.date === null && fullItem.forkId === null;
+  const isWishlistIdea =
+    fullItem.date === null && fullItem.stopId === null && fullItem.forkId === null;
 
   if (isWishlistIdea) {
     // --- Copy-in placement branch ---
@@ -553,34 +554,48 @@ export async function scheduleItem(
   return { success: true };
 }
 
+export type UnscheduleResult = ActionResult<{
+  /** "placement-removed": row was a placed copy and was deleted (idea survives).
+   *  "unslotted": direct-created item; its date was cleared in place. */
+  mode: "placement-removed" | "unslotted";
+  sourceItemId: string | null;
+}>;
+
 /**
- * Unschedule (remove) a placed item (ADR 0019 copy-in semantics).
+ * Unschedule a placed item (ADR 0019 / grilling 2026-09-07).
  *
- * Deletes the placed copy. The originating wishlist idea (if any) is left
- * intact. Directly-created timeline items (sourceItemId===null) are also
- * deleted — they have no idea to fall back to ("remove from timeline").
+ * - Placed copy (sourceItemId set): delete only the placement; the idea
+ *   survives in the Wishlist.
+ * - Direct-created (sourceItemId null): clear the date in place. With a
+ *   stopId the item un-slots to that Stop's things-to-do (ADR 0038); with
+ *   none it returns to the Wishlist pool. Times are kept — harmless while
+ *   undated, and they make undo lossless.
  */
-export async function unscheduleItem(
-  itemId: string,
-): Promise<ItemActionResult> {
+export async function unscheduleItem(itemId: string): Promise<UnscheduleResult> {
   const accessItem = await requireItemAccess(itemId);
 
-  // Fetch the full item so we have its title for the activity log.
   const fullItem = await db.item.findUnique({ where: { id: itemId } });
   if (!fullItem) notFound();
 
-  await db.item.delete({ where: { id: itemId } });
+  let mode: "placement-removed" | "unslotted";
+  if (fullItem.sourceItemId !== null) {
+    await db.item.delete({ where: { id: itemId } });
+    mode = "placement-removed";
+  } else {
+    await db.item.update({ where: { id: itemId }, data: { date: null } });
+    mode = "unslotted";
+  }
 
   await recordPlanActivity(accessItem.forkId, {
     tripId: accessItem.tripId,
-    verb: "DELETED",
+    verb: mode === "placement-removed" ? "DELETED" : "UPDATED",
     entityType: "ITEM",
     entityId: itemId,
     entityLabel: entityLabel("ITEM", fullItem as unknown as Record<string, unknown>),
   });
 
   revalidateItemPaths(accessItem.tripId);
-  return { success: true };
+  return { success: true, mode, sourceItemId: fullItem.sourceItemId ?? null };
 }
 
 // ---------------------------------------------------------------------------
