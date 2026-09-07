@@ -21,6 +21,10 @@ const {
   costFindManyMock,
   costCreateMock,
   costUpdateMock,
+  costDeleteManyMock,
+  attachmentFindManyMock,
+  attachmentDeleteManyMock,
+  noteDeleteManyMock,
   resolveRateForTripMock,
   persistRateMock,
   transactionMock,
@@ -29,10 +33,27 @@ const {
 } = vi.hoisted(() => {
   const costCreateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
   const costUpdateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
+  const costDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const costFindManyMock = vi.fn().mockResolvedValue([]);
+  const itemDeleteMock = vi.fn();
+  const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
+  const attachmentDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const noteDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const transactionMock = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
-        cost: { create: costCreateMock, update: costUpdateMock },
+        item: { delete: itemDeleteMock },
+        cost: {
+          findMany: costFindManyMock,
+          create: costCreateMock,
+          update: costUpdateMock,
+          deleteMany: costDeleteManyMock,
+        },
+        attachment: {
+          findMany: attachmentFindManyMock,
+          deleteMany: attachmentDeleteManyMock,
+        },
+        note: { deleteMany: noteDeleteManyMock },
         exchangeRate: { upsert: vi.fn().mockResolvedValue({}) },
       });
     }
@@ -51,13 +72,17 @@ const {
     itemFindFirstMock: vi.fn(),
     itemCreateMock: vi.fn(),
     itemUpdateMock: vi.fn(),
-    itemDeleteMock: vi.fn(),
+    itemDeleteMock,
     stopFindUniqueMock: vi.fn(),
     stopFindManyMock: vi.fn().mockResolvedValue([]),
     tripFindUniqueMock: vi.fn().mockResolvedValue({ homeCurrency: "AUD" }),
-    costFindManyMock: vi.fn().mockResolvedValue([]),
+    costFindManyMock,
     costCreateMock,
     costUpdateMock,
+    costDeleteManyMock,
+    attachmentFindManyMock,
+    attachmentDeleteManyMock,
+    noteDeleteManyMock,
     resolveRateForTripMock: vi.fn().mockResolvedValue({ rate: 0.6, persist: null }),
     persistRateMock: vi.fn().mockResolvedValue(undefined),
     transactionMock,
@@ -95,6 +120,7 @@ vi.mock("@/lib/db", () => ({
       findMany: costFindManyMock,
       create: costCreateMock,
       update: costUpdateMock,
+      deleteMany: costDeleteManyMock,
     },
     marker: {
       findUnique: markerFindUniqueMock,
@@ -103,9 +129,14 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/server/actions/target-cleanup", () => ({
-  cleanupTargetSideData: vi.fn().mockResolvedValue(undefined),
-}));
+vi.mock("@/server/actions/target-cleanup", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/actions/target-cleanup")>();
+  return {
+    ...real,
+    cleanupTargetSideData: vi.fn().mockResolvedValue(undefined),
+    deleteBlobsBestEffort: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 import {
   createItem,
@@ -575,6 +606,34 @@ describe("deleteItem", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "DELETED", entityType: "ITEM", entityLabel: "Visit the Museum" }),
     );
+  });
+
+  it("runs delete, cost cleanup and side-data cleanup in one transaction", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", title: "Colosseum" });
+    attachmentFindManyMock.mockResolvedValue([{ storageKey: "k1" }]);
+    costFindManyMock.mockResolvedValue([]);
+
+    const result = await deleteItem("item-1");
+
+    expect(result.success).toBe(true);
+    expect(transactionMock).toHaveBeenCalledTimes(1); // one tx wraps it all
+    expect(itemDeleteMock).toHaveBeenCalledWith({ where: { id: "item-1" } });
+    expect(attachmentDeleteManyMock).toHaveBeenCalled(); // inside the tx
+    expect(noteDeleteManyMock).toHaveBeenCalled();
+  });
+
+  it("converts the item's paid cost to an Other cost", async () => {
+    itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1", title: "Colosseum" });
+    costFindManyMock.mockResolvedValue([
+      { id: "c1", paidMinor: 4000, paidAt: null, label: null, ownerType: "ITEM", ownerId: "item-1" },
+    ]);
+
+    await deleteItem("item-1");
+
+    expect(costUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { ownerType: "OTHER", ownerId: null, label: "Colosseum (deleted)" },
+    });
   });
 });
 

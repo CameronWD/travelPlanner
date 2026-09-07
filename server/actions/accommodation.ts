@@ -14,7 +14,8 @@ import { entityLabel, describeChanges } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { type ActionResult, validationResult } from "@/lib/action-result";
-import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
+import { cleanupTargetSideDataTx, deleteBlobsBestEffort } from "@/server/actions/target-cleanup";
+import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -282,10 +283,17 @@ export async function deleteAccommodation(
   const acc = await requireAccommodationAccess(accommodationId);
 
   const doomed = await db.accommodation.findUnique({ where: { id: accommodationId }, select: { name: true } });
-  await db.accommodation.delete({ where: { id: accommodationId } });
-  await recordPlanActivity(acc.forkId, { tripId: acc.tripId, verb: "DELETED", entityType: "ACCOMMODATION", entityId: accommodationId, entityLabel: doomed?.name ?? "" });
 
-  await cleanupTargetSideData(acc.tripId, "ACCOMMODATION", accommodationId);
+  const storageKeys = await db.$transaction(async (tx) => {
+    await tx.accommodation.delete({ where: { id: accommodationId } });
+    await deleteOwnedCostsTx(tx, acc.tripId, [
+      { type: "ACCOMMODATION", id: accommodationId, label: doomed?.name ?? "Accommodation" },
+    ]);
+    return cleanupTargetSideDataTx(tx, acc.tripId, "ACCOMMODATION", accommodationId);
+  });
+  await deleteBlobsBestEffort(storageKeys);
+
+  await recordPlanActivity(acc.forkId, { tripId: acc.tripId, verb: "DELETED", entityType: "ACCOMMODATION", entityId: accommodationId, entityLabel: doomed?.name ?? "" });
 
   revalidatePath(`/trips/${acc.tripId}`, "layout");
   return { success: true };

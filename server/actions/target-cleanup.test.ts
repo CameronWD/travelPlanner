@@ -43,7 +43,7 @@ vi.mock("@/lib/storage", async (importOriginal) => {
   };
 });
 
-import { cleanupTargetSideData } from "./target-cleanup";
+import { cleanupTargetSideData, cleanupTargetSideDataTx, deleteBlobsBestEffort } from "./target-cleanup";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -139,5 +139,88 @@ describe("cleanupTargetSideData", () => {
     expect(noteDeleteManyMock).toHaveBeenCalledWith({
       where: { tripId: "trip-5", targetType: "ACCOMMODATION", targetId: "acc-99" },
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cleanupTargetSideDataTx
+// ---------------------------------------------------------------------------
+
+describe("cleanupTargetSideDataTx", () => {
+  function fakeTx(attachments: { storageKey: string | null }[]) {
+    return {
+      attachment: {
+        findMany: vi.fn().mockResolvedValue(attachments),
+        deleteMany: vi.fn().mockResolvedValue({ count: attachments.length }),
+      },
+      note: {
+        deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+  }
+
+  it("deletes attachment and note rows inside the tx and returns storage keys (no blob deletes)", async () => {
+    const tx = fakeTx([{ storageKey: "k1" }, { storageKey: null }]);
+
+    const keys = await cleanupTargetSideDataTx(tx, "t1", "TRANSPORT", "tr1");
+
+    expect(keys).toEqual(["k1"]);
+    expect(tx.attachment.findMany).toHaveBeenCalledWith({
+      where: { tripId: "t1", targetType: "TRANSPORT", targetId: "tr1" },
+      select: { storageKey: true },
+    });
+    expect(tx.attachment.deleteMany).toHaveBeenCalledWith({
+      where: { tripId: "t1", targetType: "TRANSPORT", targetId: "tr1" },
+    });
+    expect(tx.note.deleteMany).toHaveBeenCalledWith({
+      where: { tripId: "t1", targetType: "TRANSPORT", targetId: "tr1" },
+    });
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty array when there are no attachments", async () => {
+    const tx = fakeTx([]);
+
+    const keys = await cleanupTargetSideDataTx(tx, "t2", "ITEM", "item-1");
+
+    expect(keys).toEqual([]);
+  });
+
+  it("filters out null storageKeys", async () => {
+    const tx = fakeTx([{ storageKey: null }, { storageKey: "k2" }, { storageKey: null }]);
+
+    const keys = await cleanupTargetSideDataTx(tx, "t3", "ACCOMMODATION", "acc-1");
+
+    expect(keys).toEqual(["k2"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deleteBlobsBestEffort
+// ---------------------------------------------------------------------------
+
+describe("deleteBlobsBestEffort", () => {
+  it("does nothing when storageKeys is empty (does not call getStorage)", async () => {
+    await deleteBlobsBestEffort([]);
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("calls storage.delete for each key", async () => {
+    await deleteBlobsBestEffort(["k1", "k2"]);
+
+    expect(storageDeleteMock).toHaveBeenCalledTimes(2);
+    expect(storageDeleteMock).toHaveBeenCalledWith("k1");
+    expect(storageDeleteMock).toHaveBeenCalledWith("k2");
+  });
+
+  it("swallows storage.delete errors and continues (best-effort)", async () => {
+    storageDeleteMock
+      .mockRejectedValueOnce(new Error("storage unavailable"))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(deleteBlobsBestEffort(["bad-key", "good-key"])).resolves.toBeUndefined();
+
+    expect(storageDeleteMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -16,7 +16,8 @@ import { getUserGlobe } from "@/lib/globe";
 import { markerToWishlistItemData } from "@/lib/marker-to-item";
 import type { MarkerView } from "@/components/globe/types";
 import { type ActionResult, validationResult } from "@/lib/action-result";
-import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
+import { cleanupTargetSideDataTx, deleteBlobsBestEffort } from "@/server/actions/target-cleanup";
+import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -390,10 +391,17 @@ export async function deleteItem(itemId: string): Promise<ItemActionResult> {
   const item = await requireItemAccess(itemId);
 
   const doomed = await db.item.findUnique({ where: { id: itemId }, select: { title: true } });
-  await db.item.delete({ where: { id: itemId } });
-  await recordPlanActivity(item.forkId, { tripId: item.tripId, verb: "DELETED", entityType: "ITEM", entityId: itemId, entityLabel: doomed?.title ?? "" });
 
-  await cleanupTargetSideData(item.tripId, "ITEM", itemId);
+  const storageKeys = await db.$transaction(async (tx) => {
+    await tx.item.delete({ where: { id: itemId } });
+    await deleteOwnedCostsTx(tx, item.tripId, [
+      { type: "ITEM", id: itemId, label: doomed?.title ?? "Item" },
+    ]);
+    return cleanupTargetSideDataTx(tx, item.tripId, "ITEM", itemId);
+  });
+  await deleteBlobsBestEffort(storageKeys);
+
+  await recordPlanActivity(item.forkId, { tripId: item.tripId, verb: "DELETED", entityType: "ITEM", entityId: itemId, entityLabel: doomed?.title ?? "" });
 
   revalidateItemPaths(item.tripId);
   return { success: true };

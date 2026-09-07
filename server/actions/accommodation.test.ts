@@ -19,16 +19,37 @@ const {
   costFindManyMock,
   costCreateMock,
   costUpdateMock,
+  costDeleteManyMock,
+  attachmentFindManyMock,
+  attachmentDeleteManyMock,
+  noteDeleteManyMock,
   resolveRateForTripMock,
   persistRateMock,
   transactionMock,
 } = vi.hoisted(() => {
   const costCreateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
   const costUpdateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
+  const costDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const costFindManyMock = vi.fn().mockResolvedValue([]);
+  const accDeleteMock = vi.fn();
+  const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
+  const attachmentDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const noteDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const transactionMock = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
-        cost: { create: costCreateMock, update: costUpdateMock },
+        accommodation: { delete: accDeleteMock },
+        cost: {
+          findMany: costFindManyMock,
+          create: costCreateMock,
+          update: costUpdateMock,
+          deleteMany: costDeleteManyMock,
+        },
+        attachment: {
+          findMany: attachmentFindManyMock,
+          deleteMany: attachmentDeleteManyMock,
+        },
+        note: { deleteMany: noteDeleteManyMock },
         exchangeRate: { upsert: vi.fn().mockResolvedValue({}) },
       });
     }
@@ -46,12 +67,16 @@ const {
     accFindUniqueMock: vi.fn(),
     accCreateMock: vi.fn(),
     accUpdateMock: vi.fn(),
-    accDeleteMock: vi.fn(),
+    accDeleteMock,
     stopFindUniqueMock: vi.fn(),
     tripFindUniqueMock: vi.fn().mockResolvedValue({ homeCurrency: "AUD" }),
-    costFindManyMock: vi.fn().mockResolvedValue([]),
+    costFindManyMock,
     costCreateMock,
     costUpdateMock,
+    costDeleteManyMock,
+    attachmentFindManyMock,
+    attachmentDeleteManyMock,
+    noteDeleteManyMock,
     resolveRateForTripMock: vi.fn().mockResolvedValue({ rate: 0.6, persist: null }),
     persistRateMock: vi.fn().mockResolvedValue(undefined),
     transactionMock,
@@ -84,14 +109,20 @@ vi.mock("@/lib/db", () => ({
       findMany: costFindManyMock,
       create: costCreateMock,
       update: costUpdateMock,
+      deleteMany: costDeleteManyMock,
     },
     $transaction: transactionMock,
   },
 }));
 
-vi.mock("@/server/actions/target-cleanup", () => ({
-  cleanupTargetSideData: vi.fn().mockResolvedValue(undefined),
-}));
+vi.mock("@/server/actions/target-cleanup", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/actions/target-cleanup")>();
+  return {
+    ...real,
+    cleanupTargetSideData: vi.fn().mockResolvedValue(undefined),
+    deleteBlobsBestEffort: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 import {
   createAccommodation,
@@ -482,6 +513,34 @@ describe("deleteAccommodation", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "DELETED", entityType: "ACCOMMODATION", entityLabel: "Grand Hotel" }),
     );
+  });
+
+  it("runs delete, cost cleanup and side-data cleanup in one transaction", async () => {
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null, name: "Grand Hotel" });
+    attachmentFindManyMock.mockResolvedValue([{ storageKey: "k1" }]);
+    costFindManyMock.mockResolvedValue([]);
+
+    const result = await deleteAccommodation("acc-1");
+
+    expect(result.success).toBe(true);
+    expect(transactionMock).toHaveBeenCalledTimes(1); // one tx wraps it all
+    expect(accDeleteMock).toHaveBeenCalledWith({ where: { id: "acc-1" } });
+    expect(attachmentDeleteManyMock).toHaveBeenCalled(); // inside the tx
+    expect(noteDeleteManyMock).toHaveBeenCalled();
+  });
+
+  it("converts the accommodation's paid cost to an Other cost", async () => {
+    accFindUniqueMock.mockResolvedValue({ id: "acc-1", tripId: "trip-1", forkId: null, name: "Grand Hotel" });
+    costFindManyMock.mockResolvedValue([
+      { id: "c1", paidMinor: 4000, paidAt: null, label: null, ownerType: "ACCOMMODATION", ownerId: "acc-1" },
+    ]);
+
+    await deleteAccommodation("acc-1");
+
+    expect(costUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { ownerType: "OTHER", ownerId: null, label: "Grand Hotel (deleted)" },
+    });
   });
 });
 

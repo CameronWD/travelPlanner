@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { getStorage } from "@/lib/storage";
 import type { TargetType } from "@/lib/enums";
@@ -63,4 +64,38 @@ export async function cleanupGlobeAttachments(
   }
 
   await db.attachment.deleteMany({ where: { globeId, targetType, targetId } });
+}
+
+/**
+ * Transaction-scoped variant of cleanupTargetSideData: deletes Attachment and
+ * Note ROWS inside the caller's transaction and returns the storage keys so
+ * the caller can delete the blobs best-effort AFTER commit (a blob delete
+ * cannot be rolled back, so it must not run inside the tx).
+ */
+export async function cleanupTargetSideDataTx(
+  tx: Prisma.TransactionClient,
+  tripId: string,
+  targetType: TargetType,
+  targetId: string,
+): Promise<string[]> {
+  const attachments = await tx.attachment.findMany({
+    where: { tripId, targetType, targetId },
+    select: { storageKey: true },
+  });
+  await tx.attachment.deleteMany({ where: { tripId, targetType, targetId } });
+  await tx.note.deleteMany({ where: { tripId, targetType, targetId } });
+  return attachments.map((a) => a.storageKey).filter((k): k is string => k != null);
+}
+
+/** Best-effort blob deletion — run AFTER the transaction commits. */
+export async function deleteBlobsBestEffort(storageKeys: string[]): Promise<void> {
+  if (storageKeys.length === 0) return;
+  const storage = getStorage();
+  for (const key of storageKeys) {
+    try {
+      await storage.delete(key);
+    } catch {
+      // best-effort: an unreferenced blob is harmless; never fail the mutation
+    }
+  }
 }
