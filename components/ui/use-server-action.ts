@@ -48,7 +48,7 @@ export function useServerAction<
         // A rejected action (network drop, server crash) must never vanish
         // silently — surface it like a failed result.
         const errors: FieldErrors = {
-          _: ["Something went wrong. Check your connection and try again."],
+          _form: ["Something went wrong. Check your connection and try again."],
         };
         setErrors(errors);
         optionsRef.current?.onError?.(errors, ...args);

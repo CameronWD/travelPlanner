@@ -30,4 +30,17 @@ describe("useEntityForm", () => {
     await waitFor(() => expect(result.current.errors.name).toEqual(["Required"]));
     expect(onClose).not.toHaveBeenCalled();
   });
+
+  it("on a rejected submit: surfaces errors._form (the key every dialog's <FormError> reads), does not close", async () => {
+    const submit = vi.fn().mockRejectedValue(new Error("offline"));
+    const onClose = vi.fn();
+    const { result } = renderHook(() => useEntityForm({ submit, onClose }));
+
+    act(() => result.current.onSubmit(fakeEvent()));
+    await waitFor(() => expect(result.current.isPending).toBe(false));
+    expect(result.current.errors._form).toEqual([
+      "Something went wrong. Check your connection and try again.",
+    ]);
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

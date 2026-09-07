@@ -81,6 +81,28 @@ describe("AddFromGlobeDialog", () => {
   });
 
   // -------------------------------------------------------------------------
+  // Test 1b: a rejected addMarkerToWishlist (network drop) still surfaces a
+  // toast via the synthetic errors._form the hook now sets on rejection.
+  // -------------------------------------------------------------------------
+  it("shows an error toast when addMarkerToWishlist rejects", async () => {
+    vi.mocked(addMarkerToWishlist).mockRejectedValueOnce(new Error("offline"));
+    const user = userEvent.setup();
+    render(<AddFromGlobeDialog {...baseProps} />);
+
+    const addBtn = screen.getByRole("button", { name: /add eiffel tower/i });
+    await user.click(addBtn);
+
+    await vi.waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: expect.stringMatching(/couldn't add/i),
+          description: "Something went wrong. Check your connection and try again.",
+        }),
+      ),
+    );
+  });
+
+  // -------------------------------------------------------------------------
   // Test 2: already-added markers show "Added" and no Add button
   // -------------------------------------------------------------------------
   it("already-added markers show 'Added' and have no Add button", () => {
