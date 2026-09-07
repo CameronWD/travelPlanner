@@ -22,6 +22,7 @@ import type { Category } from "@/lib/categories";
 import type { TransportMode } from "@/lib/enums";
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 import type { AttachmentView } from "@/components/trip/attachment-list";
+import { UnscheduleItemButton } from "@/components/trip/unschedule-item-button";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -52,13 +53,19 @@ export interface TimelineProps {
    * Absent in the agenda variant — the prop is optional so calendar stays unaffected.
    */
   attachmentsByTarget?: Record<string, AttachmentView[]>;
+  /**
+   * When true (and variant="day"), renders the Unschedule control on each
+   * scheduled item row. Absent/false in the agenda variant keeps the
+   * calendar overview read-only.
+   */
+  showUnschedule?: boolean;
 }
 
 // ---------------------------------------------------------------------------
 // Timeline component
 // ---------------------------------------------------------------------------
 
-export function Timeline({ day, variant = "agenda", itemDirections, attachmentsByTarget }: TimelineProps) {
+export function Timeline({ day, variant = "agenda", itemDirections, attachmentsByTarget, showUnschedule }: TimelineProps) {
   const isDay = variant === "day";
 
   const hasAnything =
@@ -97,6 +104,7 @@ export function Timeline({ day, variant = "agenda", itemDirections, attachmentsB
           isDay={isDay}
           directions={itemDirections?.[e.item.id]}
           attachments={attachmentsByTarget?.[e.item.id] ?? []}
+          showUnschedule={showUnschedule}
         />
       ))}
 
@@ -120,6 +128,7 @@ export function Timeline({ day, variant = "agenda", itemDirections, attachmentsB
               isDay={isDay}
               directions={itemDirections?.[e.item.id]}
               attachments={attachmentsByTarget?.[e.item.id] ?? []}
+              showUnschedule={showUnschedule}
             />
           ))}
         </div>
@@ -281,11 +290,13 @@ function TimedItemRow({
   isDay,
   directions,
   attachments,
+  showUnschedule,
 }: {
   entry: ItemEntry;
   isDay: boolean;
   directions?: ItemDirections;
   attachments: AttachmentView[];
+  showUnschedule?: boolean;
 }) {
   const { item } = entry;
   const timeLabel = item.endTime
@@ -307,6 +318,16 @@ function TimedItemRow({
             </span>
             <CategoryPill category={item.category as Category} size="sm" />
             <DirectionsLink directions={directions} label={item.title} />
+            {showUnschedule && item.date && (
+              <UnscheduleItemButton
+                itemId={item.id}
+                itemTitle={item.title}
+                date={item.date}
+                startTime={item.startTime ?? null}
+                endTime={item.endTime ?? null}
+                hadStop={item.stopId != null}
+              />
+            )}
           </div>
           {(timeLabel || item.address) && (
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -351,11 +372,13 @@ function UntimedItemRow({
   isDay,
   directions,
   attachments,
+  showUnschedule,
 }: {
   entry: ItemEntry;
   isDay: boolean;
   directions?: ItemDirections;
   attachments: AttachmentView[];
+  showUnschedule?: boolean;
 }) {
   const { item } = entry;
 
@@ -379,6 +402,16 @@ function UntimedItemRow({
             <span className="truncate text-xs text-muted-foreground">{item.address}</span>
           )}
           <DirectionsLink directions={directions} label={item.title} />
+          {showUnschedule && item.date && (
+            <UnscheduleItemButton
+              itemId={item.id}
+              itemTitle={item.title}
+              date={item.date}
+              startTime={item.startTime ?? null}
+              endTime={item.endTime ?? null}
+              hadStop={item.stopId != null}
+            />
+          )}
           <AttachmentLinks attachments={attachments} />
         </div>
       </div>

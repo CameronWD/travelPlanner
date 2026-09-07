@@ -1,7 +1,20 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Timeline } from "./timeline";
 import type { DayPlan } from "@/lib/itinerary";
+
+// Timeline renders UnscheduleItemButton (a client island) on day-variant item
+// rows when showUnschedule is set. That component pulls in the server-actions
+// module and next/navigation's useRouter — mock both so this stays a pure
+// component test, same pattern as unschedule-item-button.test.tsx.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+vi.mock("@/server/actions/items", () => ({
+  unscheduleItem: vi.fn(),
+  scheduleItem: vi.fn(),
+  rescheduleItem: vi.fn(),
+}));
 
 // ---------------------------------------------------------------------------
 // Minimal DayPlan fixture with one timed and one untimed item
@@ -431,5 +444,32 @@ describe("Timeline — untimed day row address regression (Task 8 fix)", () => {
   it("renders the address for an untimed day item that has an address", () => {
     render(<Timeline day={dayPlanWithUntimedItemAddress} variant="day" />);
     expect(screen.getByText(UNTIMED_ITEM_ADDRESS)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 7: reachable Unschedule control (P1-5 UI half)
+// ---------------------------------------------------------------------------
+
+describe("Timeline — Unschedule control (Task 7)", () => {
+  it("renders the Unschedule button for a timed item when showUnschedule is true and variant is day", () => {
+    render(<Timeline day={dayPlan} variant="day" showUnschedule />);
+    // dayPlan has both a timed and an untimed item — both should get the control.
+    expect(screen.getAllByRole("button", { name: /unschedule/i })).toHaveLength(2);
+  });
+
+  it("does not render the Unschedule button when showUnschedule is absent", () => {
+    render(<Timeline day={dayPlan} variant="day" />);
+    expect(screen.queryByRole("button", { name: /unschedule/i })).not.toBeInTheDocument();
+  });
+
+  it("does not render the Unschedule button in the agenda variant even when showUnschedule is true", () => {
+    render(<Timeline day={dayPlan} variant="agenda" showUnschedule />);
+    expect(screen.queryByRole("button", { name: /unschedule/i })).not.toBeInTheDocument();
+  });
+
+  it("renders the Unschedule button for an untimed item when showUnschedule is true and variant is day", () => {
+    render(<Timeline day={dayPlanWithUntimedItem} variant="day" showUnschedule />);
+    expect(screen.getByRole("button", { name: /unschedule/i })).toBeInTheDocument();
   });
 });

@@ -15,8 +15,6 @@ vi.mock("./wishlist-map-loader", () => ({
 
 vi.mock("@/server/actions/items", () => ({
   deleteItem: vi.fn().mockResolvedValue({ success: true }),
-  unscheduleItem: vi.fn().mockResolvedValue({ success: true }),
-  scheduleItem: vi.fn().mockResolvedValue({ success: true }),
   addMarkerToWishlist: vi.fn().mockResolvedValue({ success: true }),
 }));
 
@@ -37,13 +35,12 @@ vi.mock("@/server/actions/costs", () => ({
 }));
 
 // Mock heavy child components to keep the test lightweight.
-// ItemCard is mocked so we can expose an "Unschedule" button directly —
-// the real card only renders it in mode="scheduled" but the handler lives
-// in WishlistBoard. We stub the card to surface the action for testing.
+// Task 7: ItemCard no longer takes an onUnschedule prop at all — the real
+// Unschedule control now lives on the day-view Timeline row instead, so this
+// stub deliberately has nothing left to surface for it.
 vi.mock("./item-card", () => ({
-  ItemCard: ({ item, onUnschedule, onSchedule, onEdit }: {
+  ItemCard: ({ item, onSchedule, onEdit }: {
     item: { id: string; title: string };
-    onUnschedule?: (id: string) => void;
     onSchedule?: (item: { id: string; title: string }) => void;
     onEdit?: (item: { id: string; title: string }) => void;
   }) => (
@@ -54,9 +51,6 @@ vi.mock("./item-card", () => ({
       )}
       {onSchedule && (
         <button onClick={() => onSchedule(item)}>Schedule {item.title}</button>
-      )}
-      {onUnschedule && (
-        <button onClick={() => onUnschedule(item.id)}>Unschedule</button>
       )}
     </div>
   ),
@@ -88,7 +82,6 @@ vi.mock("./schedule-item-dialog", () => ({
   },
 }));
 
-import { unscheduleItem, scheduleItem } from "@/server/actions/items";
 import type { MarkerView } from "@/components/globe/types";
 import { Toaster } from "@/components/ui/toaster";
 import { dismissToast } from "@/components/ui/use-toast";
@@ -156,98 +149,13 @@ afterEach(() => {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("WishlistBoard — unschedule undo-toast", () => {
-  it("shows a 'Moved to Wishlist' toast with Undo after unscheduling", async () => {
-    const user = userEvent.setup();
+describe("WishlistBoard — Unschedule control removed (Task 7)", () => {
+  it("never renders an Unschedule affordance — the control now lives on the day-view Timeline row", async () => {
     const item = makeItem();
     renderBoard([item]);
 
-    const unscheduleBtn = await screen.findByRole("button", { name: "Unschedule" });
-    await user.click(unscheduleBtn);
-
-    await waitFor(() => {
-      expect(screen.getByText("Moved to Wishlist")).toBeInTheDocument();
-    });
-    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
-  });
-
-  it("calls scheduleItem with the prior date and times when Undo is clicked", async () => {
-    const user = userEvent.setup();
-    const item = makeItem({
-      id: "item-2",
-      date: "2026-07-12",
-      startTime: "09:00",
-      endTime: "11:00",
-    });
-    renderBoard([item]);
-
-    const unscheduleBtn = await screen.findByRole("button", { name: "Unschedule" });
-    await user.click(unscheduleBtn);
-
-    const undoBtn = await screen.findByRole("button", { name: "Undo" });
-    await user.click(undoBtn);
-
-    await waitFor(() => {
-      expect(scheduleItem).toHaveBeenCalledWith("item-2", {
-        date: "2026-07-12",
-        startTime: "09:00",
-        endTime: "11:00",
-      });
-    });
-  });
-
-  it("calls scheduleItem with only date when item has no times", async () => {
-    const user = userEvent.setup();
-    const item = makeItem({
-      id: "item-3",
-      date: "2026-07-13",
-      startTime: null,
-      endTime: null,
-    });
-    renderBoard([item]);
-
-    const unscheduleBtn = await screen.findByRole("button", { name: "Unschedule" });
-    await user.click(unscheduleBtn);
-
-    const undoBtn = await screen.findByRole("button", { name: "Undo" });
-    await user.click(undoBtn);
-
-    await waitFor(() => {
-      expect(scheduleItem).toHaveBeenCalledWith("item-3", {
-        date: "2026-07-13",
-      });
-    });
-  });
-
-  it("calls unscheduleItem with the item id", async () => {
-    const user = userEvent.setup();
-    const item = makeItem({ id: "item-4" });
-    renderBoard([item]);
-
-    const unscheduleBtn = await screen.findByRole("button", { name: "Unschedule" });
-    await user.click(unscheduleBtn);
-
-    await waitFor(() => {
-      expect(unscheduleItem).toHaveBeenCalledWith("item-4");
-    });
-  });
-
-  it("does not show a toast when unscheduleItem fails", async () => {
-    const user = userEvent.setup();
-    vi.mocked(unscheduleItem).mockResolvedValueOnce({ success: false, errors: { date: ["Server error"] } });
-    const item = makeItem({ id: "item-5" });
-    renderBoard([item]);
-
-    const unscheduleBtn = await screen.findByRole("button", { name: "Unschedule" });
-    await user.click(unscheduleBtn);
-
-    // Give time for async operations
-    await waitFor(() => {
-      expect(unscheduleItem).toHaveBeenCalledWith("item-5");
-    });
-
-    // Toast should NOT appear on failure
-    expect(screen.queryByText("Moved to Wishlist")).not.toBeInTheDocument();
+    await screen.findByText(item.title);
+    expect(screen.queryByRole("button", { name: /unschedule/i })).not.toBeInTheDocument();
   });
 });
 

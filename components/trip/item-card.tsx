@@ -9,7 +9,6 @@ import {
   Hash,
   StickyNote,
   Clock,
-  CalendarX,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { safeWebHref } from "@/lib/url";
@@ -47,13 +46,12 @@ export interface ItemCardItem {
 
 export interface ItemCardProps {
   item: ItemCardItem;
-  /** "wishlist" = show Schedule action; "scheduled" = show time + Unschedule action */
+  /** "wishlist" = show Schedule action; "scheduled" = show time (Unschedule lives on the day-view row, not here) */
   mode: "wishlist" | "scheduled";
   isPending?: boolean;
   onEdit?: (item: ItemCardItem) => void;
   onDelete?: (itemId: string) => void;
   onSchedule?: (item: ItemCardItem) => void;
-  onUnschedule?: (itemId: string) => void;
   /** Costs attached to this item */
   costs?: CostRow[];
   /** Trip ID (required when costs are provided) */
@@ -81,7 +79,6 @@ export function ItemCard({
   onEdit,
   onDelete,
   onSchedule,
-  onUnschedule,
   costs,
   tripId,
   homeCurrency,
@@ -142,19 +139,6 @@ export function ItemCard({
             </>
           ) : (
             <>
-              {onUnschedule && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  disabled={isPending}
-                  onClick={() => onUnschedule(item.id)}
-                  title="Move back to wishlist"
-                >
-                  <CalendarX className="size-3.5" aria-hidden="true" />
-                  Unschedule
-                </Button>
-              )}
               {onEdit && (
                 <Button
                   variant="ghost"
