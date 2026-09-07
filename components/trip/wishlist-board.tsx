@@ -8,9 +8,7 @@ import type { CostRow } from "@/server/actions/costs";
 import { ItemFormDialog, type StopOption } from "./item-form-dialog";
 import { ScheduleItemDialog } from "./schedule-item-dialog";
 import { AddItemButton } from "./item-form-dialog";
-import { deleteItem, unscheduleItem, scheduleItem } from "@/server/actions/items";
-import { toastWithUndo } from "@/components/ui/undo-toast";
-import { toast } from "@/components/ui/use-toast";
+import { deleteItem } from "@/server/actions/items";
 import type { NoteView } from "./note-thread";
 import type { VoteView } from "./vote-control";
 import { sortItemsByVotes } from "@/lib/votes";
@@ -129,40 +127,6 @@ export function WishlistBoard({
     setPendingId(itemId);
     try {
       await deleteItem(itemId);
-    } finally {
-      setPendingId(null);
-    }
-  }
-
-  async function handleUnschedule(itemId: string) {
-    const item = items.find((i) => i.id === itemId);
-
-    // Capture the prior schedule BEFORE the mutation; after it succeeds
-    // these fields will be cleared on the server.
-    const priorDate = item?.date ?? null;
-    const priorStartTime = item?.startTime ?? null;
-    const priorEndTime = item?.endTime ?? null;
-
-    setPendingId(itemId);
-    try {
-      const result = await unscheduleItem(itemId);
-      if (result.success && priorDate) {
-        toastWithUndo({
-          title: "Moved to Wishlist",
-          description: item?.title,
-          onUndo: async () => {
-            try {
-              await scheduleItem(itemId, {
-                date: priorDate,
-                ...(priorStartTime ? { startTime: priorStartTime } : {}),
-                ...(priorEndTime ? { endTime: priorEndTime } : {}),
-              });
-            } catch {
-              toast({ title: "Couldn't undo", variant: "destructive" });
-            }
-          },
-        });
-      }
     } finally {
       setPendingId(null);
     }
@@ -366,7 +330,6 @@ export function WishlistBoard({
                             onEdit={setEditingItem}
                             onDelete={handleDelete}
                             onSchedule={setSchedulingItem}
-                            onUnschedule={handleUnschedule}
                             costs={costsByItemId?.get(item.id)}
                             tripId={tripId}
                             homeCurrency={homeCurrency}
@@ -410,7 +373,6 @@ export function WishlistBoard({
                         onEdit={setEditingItem}
                         onDelete={handleDelete}
                         onSchedule={setSchedulingItem}
-                        onUnschedule={handleUnschedule}
                         costs={costsByItemId?.get(item.id)}
                         tripId={tripId}
                         homeCurrency={homeCurrency}

@@ -86,6 +86,10 @@ export async function GET(req: NextRequest) {
         fireAt: { lte: now },
         sent: false,
       },
+      // Bounded batch: after an outage the backlog drains across successive
+      // */5 runs instead of one request that can outlive a serverless timeout.
+      orderBy: { fireAt: "asc" },
+      take: 200,
       select: {
         id: true,
         tripId: true,

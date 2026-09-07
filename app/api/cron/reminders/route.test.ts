@@ -107,4 +107,15 @@ describe("GET /api/cron/reminders — processing", () => {
       data: { sent: true },
     });
   });
+
+  it("processes at most 200 due reminders per run, oldest first", async () => {
+    vi.stubEnv("CRON_SECRET", "right");
+    reminderFindManyMock.mockResolvedValue([]);
+
+    await GET(req({ secret: "right" }));
+
+    expect(reminderFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 200, orderBy: { fireAt: "asc" } }),
+    );
+  });
 });

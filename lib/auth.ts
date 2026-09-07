@@ -29,7 +29,10 @@ if (process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET) {
   );
 }
 
-if (process.env.ALLOW_DEV_LOGIN === "true") {
+// Dev login is a passwordless sign-in-as-anyone door. The env var opts in,
+// and a production build hard-refuses regardless — copying a repo with
+// ALLOW_DEV_LOGIN in its .env to a host must never re-open it.
+if (process.env.ALLOW_DEV_LOGIN === "true" && process.env.NODE_ENV !== "production") {
   providers.push(
     // DEV ONLY. No password — this looks up a seeded user by email and signs
     // them in for local development. Never enable ALLOW_DEV_LOGIN in prod.

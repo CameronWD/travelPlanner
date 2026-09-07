@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   decideMembershipsToCreate,
   type PendingInviteLike,
@@ -8,8 +8,13 @@ import {
 /**
  * Tests for the pure invite-acceptance decision helper.
  *
- * No mocks needed — this function is side-effect-free.
+ * decideMembershipsToCreate itself is side-effect-free, but this test file
+ * imports it from "./invites", which also imports "@/lib/db" at module scope
+ * for the side-effectful acceptPendingInvitesForUser. lib/db.ts now throws at
+ * import time when DATABASE_URL is unset (which it is under vitest), so mock
+ * it — same pattern every other test in the suite already uses.
  */
+vi.mock("@/lib/db", () => ({ db: {} }));
 
 const USER_ID = "user-alice";
 const USER_EMAIL = "alice@example.com";

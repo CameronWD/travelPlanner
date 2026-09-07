@@ -11,7 +11,8 @@ import { nextChapterColour } from "@/lib/chapter-colours";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { REAL_PLAN, planScope, type PlanId } from "@/lib/plan-scope";
-import { reflowSpanTx, type ReorderResult } from "@/server/actions/stops";
+import { reflowSpanTx, lockPlanStopsTx } from "@/server/actions/stop-flow";
+import type { ReorderResult } from "@/server/actions/stops";
 import type { PayloadShiftResult } from "@/lib/payload-shift";
 import type { FlowConflict } from "@/lib/firm-up";
 import { type ActionResult, validationResult } from "@/lib/action-result";
@@ -217,17 +218,11 @@ export async function reorderChapters(
   let conflicts: FlowConflict[] = [];
   let payload: PayloadShiftResult | undefined;
 
-  const stopIds = orderedItems.map((i) => i.id);
-
   await db.$transaction(async (tx) => {
-    // Lock the trip's stops FOR UPDATE (ADR 0007).
-    if (stopIds.length > 0) {
-      await tx.$queryRaw`
-        SELECT "id" FROM "Stop"
-        WHERE "id" = ANY(${stopIds})
-        FOR UPDATE
-      `;
-    }
+    // Lock the WHOLE plan's stops FOR UPDATE, in canonical id order (ADR 0007
+    // — never just the dragged ids). The lock result is unused here — the
+    // lock itself is the point; reflowSpanTx below re-reads the plan.
+    await lockPlanStopsTx(tx, tripId, forkId ?? null);
 
     // Write sortOrder for all stops in the new chapter order.
     for (let idx = 0; idx < orderedItems.length; idx++) {

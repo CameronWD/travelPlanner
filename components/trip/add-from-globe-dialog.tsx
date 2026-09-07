@@ -99,7 +99,7 @@ export function AddFromGlobeDialog({
     onError: (errors) =>
       toast({
         title: "Couldn't add marker",
-        description: errors._?.[0] ?? Object.values(errors)[0]?.[0],
+        description: errors._form?.[0] ?? Object.values(errors)[0]?.[0],
         variant: "destructive",
       }),
   });

@@ -33,7 +33,12 @@ const {
   accommodationUpdateMock,
   itemFindManyMock,
   itemUpdateMock,
-  cleanupTargetSideDataMock,
+  costFindManyMock,
+  costUpdateMock,
+  costDeleteManyMock,
+  attachmentFindManyMock,
+  attachmentDeleteManyMock,
+  noteDeleteManyMock,
 } = vi.hoisted(() => {
   const stopFindFirstMock = vi.fn();
   const stopFindUniqueMock = vi.fn();
@@ -46,17 +51,25 @@ const {
   const accommodationUpdateMock = vi.fn();
   const itemFindManyMock = vi.fn();
   const itemUpdateMock = vi.fn();
-  const cleanupTargetSideDataMock = vi.fn();
+  const costFindManyMock = vi.fn().mockResolvedValue([]);
+  const costUpdateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
+  const costDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
+  const attachmentDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const noteDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const transactionMock = vi.fn(async (arg: unknown) => {
     // Interactive form: invoke the callback with a tx client.
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
-        stop: { update: stopUpdateMock, create: stopCreateMock, findMany: stopFindManyMock },
+        stop: { update: stopUpdateMock, create: stopCreateMock, findMany: stopFindManyMock, delete: stopDeleteMock },
         chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
         item: { findMany: itemFindManyMock, update: itemUpdateMock },
         accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
         trip: { findUnique: tripFindUniqueMock, update: tripUpdateMock },
+        cost: { findMany: costFindManyMock, update: costUpdateMock, deleteMany: costDeleteManyMock },
+        attachment: { findMany: attachmentFindManyMock, deleteMany: attachmentDeleteManyMock },
+        note: { deleteMany: noteDeleteManyMock },
       });
     }
     // Array form (kept for any batch-transaction callers).
@@ -94,7 +107,12 @@ const {
     accommodationUpdateMock,
     itemFindManyMock,
     itemUpdateMock,
-    cleanupTargetSideDataMock,
+    costFindManyMock,
+    costUpdateMock,
+    costDeleteManyMock,
+    attachmentFindManyMock,
+    attachmentDeleteManyMock,
+    noteDeleteManyMock,
   };
 });
 
@@ -133,9 +151,19 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-vi.mock("@/server/actions/target-cleanup", () => ({
-  cleanupTargetSideData: cleanupTargetSideDataMock,
-}));
+// Partial mock: cleanupTargetSideDataTx / deleteBlobsBestEffort run for REAL
+// against the tx fixture above (mirrors Task 2's accommodation/items/transport
+// test approach) so deleteStop's tx-scoped cleanup is exercised end-to-end;
+// only the legacy non-tx cleanupTargetSideData and the post-commit blob
+// deleter are stubbed.
+vi.mock("@/server/actions/target-cleanup", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/actions/target-cleanup")>();
+  return {
+    ...real,
+    cleanupTargetSideData: vi.fn().mockResolvedValue(undefined),
+    deleteBlobsBestEffort: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 // Partial mock: planTripFirmUp defaults to its REAL implementation (wrapped in
 // a spy) so every existing firmUpTrip test keeps exercising real flow logic.
@@ -166,14 +194,12 @@ import {
   setStopNotes,
   setStopNights,
   getTripProjection,
-  recomputeChapterSpans,
-  shiftStopPayloadTx,
 } from "./stops";
+import { recomputeChapterSpans, shiftStopPayloadTx } from "./stop-flow";
 import type { Prisma } from "@prisma/client";
 import { planTripFirmUp } from "@/lib/firm-up";
 import { chapterSpan } from "@/lib/chapter-span";
 import { recordActivity } from "@/server/actions/activity";
-import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
 
 const VALID_INPUT = {
   mode: "scheduled" as const,
@@ -203,6 +229,9 @@ beforeEach(() => {
   chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: null });
   // Default: stop.findMany returns no rows (individual tests override as needed).
   stopFindManyMock.mockResolvedValue([]);
+  // Default: $queryRaw (the FOR UPDATE lock helpers) returns no rows; tests
+  // that care about the locked row set override this explicitly.
+  queryRawMock.mockResolvedValue([]);
   // Default: chapter.findMany returns no chapters (recomputeChapterSpans is a no-op).
   chapterFindManyMock.mockResolvedValue([]);
   // Default: chapter.update is a no-op.
@@ -213,8 +242,15 @@ beforeEach(() => {
   accommodationUpdateMock.mockResolvedValue({});
   itemFindManyMock.mockResolvedValue([]);
   itemUpdateMock.mockResolvedValue({});
-  // Default: cleanupTargetSideData is a no-op.
-  cleanupTargetSideDataMock.mockResolvedValue(undefined);
+  // Default: cost.findMany returns no rows; update/deleteMany are no-ops
+  // (most tests don't exercise deleteStop's cascade cost cleanup).
+  costFindManyMock.mockResolvedValue([]);
+  costUpdateMock.mockResolvedValue({});
+  costDeleteManyMock.mockResolvedValue({ count: 0 });
+  // Default: attachment/note cleanup (cleanupTargetSideDataTx) is a no-op.
+  attachmentFindManyMock.mockResolvedValue([]);
+  attachmentDeleteManyMock.mockResolvedValue({ count: 0 });
+  noteDeleteManyMock.mockResolvedValue({ count: 0 });
 });
 
 afterEach(() => {
@@ -536,6 +572,9 @@ describe("createStop with afterStopId", () => {
     expect(queryRawMock).toHaveBeenCalledOnce();
     const sqlParts = queryRawMock.mock.calls[0][0] as string[];
     expect(sqlParts.join(" ")).toContain("FOR UPDATE");
+    // ADR 0007: canonical acquisition order is by "id", not "sortOrder" — the
+    // helper sorts by sortOrder in JS afterwards for caller convenience.
+    expect(sqlParts.join(" ")).toContain('ORDER BY "id" ASC');
     // New stop lands at sortOrder = 1 (right after anchor "a").
     expect(stopCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ sortOrder: 1 }),
@@ -761,6 +800,23 @@ describe("deleteStop", () => {
       expect.objectContaining({ verb: "DELETED", entityType: "STOP", entityLabel: "Paris" }),
     );
   });
+
+  it("deleteStop cleans costs and side-data for the stop's cascaded accommodations", async () => {
+    accommodationFindManyMock.mockResolvedValue([{ id: "acc-1", name: "Hotel Lisboa" }]);
+    stopFindUniqueMock.mockResolvedValue({ id: "stop-1", name: "Lisbon" });
+    costFindManyMock.mockResolvedValue([
+      { id: "c1", paidMinor: 8000, paidAt: null, label: null, ownerType: "ACCOMMODATION", ownerId: "acc-1" },
+      { id: "c2", paidMinor: null, paidAt: null, label: null, ownerType: "ACCOMMODATION", ownerId: "acc-1" },
+    ]);
+    const result = await deleteStop("stop-1");
+    expect(result.success).toBe(true);
+    expect(transactionMock).toHaveBeenCalledTimes(1);
+    expect(costUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (deleted)" },
+    });
+    expect(costDeleteManyMock).toHaveBeenCalledWith({ where: { id: { in: ["c2"] } } });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -795,6 +851,8 @@ describe("moveStop", () => {
     expect(queryRawMock).toHaveBeenCalledOnce();
     const sqlParts = queryRawMock.mock.calls[0][0] as string[];
     expect(sqlParts.join(" ")).toContain("FOR UPDATE");
+    // ADR 0007: canonical acquisition order is by "id", not "sortOrder".
+    expect(sqlParts.join(" ")).toContain('ORDER BY "id" ASC');
     // First bound value is the tripId.
     expect(queryRawMock.mock.calls[0][1]).toBe("trip-1");
     // SQL must include forkId scoping.
@@ -1041,6 +1099,30 @@ describe("setStopDates", () => {
     // ...but the preceding stop is never moved.
     const updatedIds = stopUpdateMock.mock.calls.map((c) => c[0].where.id);
     expect(updatedIds).not.toContain("s1");
+  });
+
+  it("locks the WHOLE plan's stops in id order before writing dates (ADR 0007)", async () => {
+    // applyStopDates (reached via setStopDates) previously wrote plan dates
+    // under NO lock at all — an ABBA deadlock risk against the id-ordered
+    // canonical paths and a lost-update window on the unlocked `others` read.
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null, pinned: false, forkId: null })
+      .mockResolvedValueOnce({ name: "S1", country: null, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null });
+    stopFindManyMock.mockResolvedValue([]);
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ endDate: null });
+    tripUpdateMock.mockResolvedValue({});
+
+    await setStopDates("s1", { arriveDate: "2026-06-01", departDate: "2026-06-06" });
+
+    const lockSql = queryRawMock.mock.calls
+      .map((c: unknown[]) => (c[0] as string[]).join("?"))
+      .find((s: string) => s.includes("FOR UPDATE"));
+    expect(lockSql).toBeDefined();
+    expect(lockSql).toContain('FROM "Stop"');
+    expect(lockSql).toContain('"tripId" =');
+    expect(lockSql).toContain('ORDER BY "id" ASC');
+    expect(lockSql).not.toContain("ANY(");
   });
 
   it("rejects when departDate is before arriveDate and writes nothing", async () => {
@@ -1526,10 +1608,11 @@ describe("reorderStops", () => {
   it("rejects a stop not in the trip: no updates and returns failure", async () => {
     // No chapters to validate (no chapterIds in the list)
     chapterFindManyMock.mockResolvedValue([]);
-    // FOR UPDATE returns one stop with a DIFFERENT tripId
+    // ADR 0007: the lock query is now tripId-scoped (lockPlanStopsTx), so a
+    // stop from another trip is simply absent from the locked set — it's
+    // never returned by the (mocked) query in the first place.
     queryRawMock.mockResolvedValue([
-      { id: "a", tripId: "t1", arriveDate: null },
-      { id: "x", tripId: "other-trip", arriveDate: null },
+      { id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null, arriveDate: null },
     ]);
 
     const result = await reorderStops("t1", [
@@ -1539,6 +1622,31 @@ describe("reorderStops", () => {
 
     expect(result.success).toBe(false);
     expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("locks the WHOLE plan's stops in id order, not just the dragged ids (ADR 0007)", async () => {
+    chapterFindManyMock.mockResolvedValue([{ id: "c1", startDate: null }]);
+    queryRawMock.mockResolvedValue([
+      { id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null, arriveDate: null },
+      { id: "b", sortOrder: 1, chapterId: null, chapterSortOrder: null, arriveDate: null },
+      { id: "c", sortOrder: 2, chapterId: null, chapterSortOrder: null, arriveDate: null },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+
+    await reorderStops("t1", [
+      { id: "a", chapterId: null },
+      { id: "b", chapterId: "c1" },
+      { id: "c", chapterId: null },
+    ]);
+
+    const lockSql = queryRawMock.mock.calls
+      .map((c: unknown[]) => (c[0] as string[]).join("?"))
+      .find((s: string) => s.includes("FOR UPDATE"));
+    expect(lockSql).toBeDefined();
+    expect(lockSql).toContain('FROM "Stop"');
+    expect(lockSql).toContain('"tripId" =');
+    expect(lockSql).toContain('ORDER BY "id" ASC');
+    expect(lockSql).not.toContain("ANY(");
   });
 
   it("refuses to move a rough stop into a DATED chapter: returns failure, no updates", async () => {
@@ -1813,6 +1921,31 @@ describe("Task 10: restoreStops — writes each entry verbatim inside the locked
     expect(chapterUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: "ch-1" } }),
     );
+  });
+
+  it("locks the WHOLE plan's stops in id order, not just the restored ids (ADR 0007)", async () => {
+    // recomputeChapterSpans reads the whole plan while this lock is held, so
+    // restoreStops must take the same canonical full-plan lock as reorderStops
+    // — not a subset keyed on the restored ids.
+    stopFindManyMock.mockResolvedValue([{ id: "a", tripId: "t1", forkId: null }]);
+    queryRawMock.mockResolvedValue([
+      { id: "a", sortOrder: 0, chapterId: "ch-1", chapterSortOrder: null, arriveDate: "2026-07-01" },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    await restoreStops([
+      { id: "a", sortOrder: 0, chapterId: "ch-1", arriveDate: "2026-07-01", departDate: "2026-07-04" },
+    ]);
+
+    const lockSql = queryRawMock.mock.calls
+      .map((c: unknown[]) => (c[0] as string[]).join("?"))
+      .find((s: string) => s.includes("FOR UPDATE"));
+    expect(lockSql).toBeDefined();
+    expect(lockSql).toContain('FROM "Stop"');
+    expect(lockSql).toContain('"tripId" =');
+    expect(lockSql).toContain('ORDER BY "id" ASC');
+    expect(lockSql).not.toContain("ANY(");
   });
 
   it("returns success with no updates for an empty entries list", async () => {
@@ -2641,7 +2774,7 @@ describe("Task 9: reorderStops — reflows dates for scheduled stops and returns
 // ---------------------------------------------------------------------------
 
 describe("deleteStop: cleans up its own and cascade-deleted accommodations' side-data", () => {
-  it("calls cleanupTargetSideData for the stop itself", async () => {
+  it("cleans up the stop's own attachments/notes inside the transaction", async () => {
     stopFindUniqueMock
       .mockResolvedValueOnce({ id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null })
       .mockResolvedValueOnce({ name: "Tokyo" });
@@ -2650,44 +2783,45 @@ describe("deleteStop: cleans up its own and cascade-deleted accommodations' side
 
     await deleteStop("stop-1");
 
-    expect(cleanupTargetSideData).toHaveBeenCalledWith("trip-1", "STOP", "stop-1");
+    expect(attachmentDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", targetType: "STOP", targetId: "stop-1" } });
+    expect(noteDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-1", targetType: "STOP", targetId: "stop-1" } });
   });
 
-  it("calls cleanupTargetSideData for each cascade-deleted accommodation", async () => {
+  it("cleans up attachments/notes for each cascade-deleted accommodation", async () => {
     stopFindUniqueMock
       .mockResolvedValueOnce({ id: "stop-2", tripId: "trip-2", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null })
       .mockResolvedValueOnce({ name: "Paris" });
     stopDeleteMock.mockResolvedValue({});
     accommodationFindManyMock.mockResolvedValue([
-      { id: "acc-a" },
-      { id: "acc-b" },
+      { id: "acc-a", name: "Acc A" },
+      { id: "acc-b", name: "Acc B" },
     ]);
 
     await deleteStop("stop-2");
 
-    expect(cleanupTargetSideData).toHaveBeenCalledWith("trip-2", "STOP", "stop-2");
-    expect(cleanupTargetSideData).toHaveBeenCalledWith("trip-2", "ACCOMMODATION", "acc-a");
-    expect(cleanupTargetSideData).toHaveBeenCalledWith("trip-2", "ACCOMMODATION", "acc-b");
-    expect(cleanupTargetSideData).toHaveBeenCalledTimes(3);
+    expect(attachmentDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-2", targetType: "STOP", targetId: "stop-2" } });
+    expect(attachmentDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-2", targetType: "ACCOMMODATION", targetId: "acc-a" } });
+    expect(attachmentDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-2", targetType: "ACCOMMODATION", targetId: "acc-b" } });
+    expect(attachmentDeleteManyMock).toHaveBeenCalledTimes(3);
   });
 
-  it("queries accommodations by stopId before deleting the stop", async () => {
+  it("queries accommodations by stopId (selecting id and name) before deleting the stop", async () => {
     stopFindUniqueMock
       .mockResolvedValueOnce({ id: "stop-3", tripId: "trip-3", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null })
       .mockResolvedValueOnce({ name: "Rome" });
     stopDeleteMock.mockResolvedValue({});
-    accommodationFindManyMock.mockResolvedValue([{ id: "acc-c" }]);
+    accommodationFindManyMock.mockResolvedValue([{ id: "acc-c", name: "Acc C" }]);
 
     await deleteStop("stop-3");
 
     expect(accommodationFindManyMock).toHaveBeenCalledWith({
       where: { stopId: "stop-3" },
-      select: { id: true },
+      select: { id: true, name: true },
     });
-    expect(cleanupTargetSideData).toHaveBeenCalledWith("trip-3", "ACCOMMODATION", "acc-c");
+    expect(attachmentDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-3", targetType: "ACCOMMODATION", targetId: "acc-c" } });
   });
 
-  it("does not call cleanupTargetSideData for ACCOMMODATION when stop has none", async () => {
+  it("does not clean up ACCOMMODATION side-data when the stop has none", async () => {
     stopFindUniqueMock
       .mockResolvedValueOnce({ id: "stop-4", tripId: "trip-4", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null })
       .mockResolvedValueOnce({ name: "Berlin" });
@@ -2696,7 +2830,7 @@ describe("deleteStop: cleans up its own and cascade-deleted accommodations' side
 
     await deleteStop("stop-4");
 
-    expect(cleanupTargetSideData).toHaveBeenCalledTimes(1); // only the STOP itself
-    expect(cleanupTargetSideData).toHaveBeenCalledWith("trip-4", "STOP", "stop-4");
+    expect(attachmentDeleteManyMock).toHaveBeenCalledTimes(1); // only the STOP itself
+    expect(attachmentDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "trip-4", targetType: "STOP", targetId: "stop-4" } });
   });
 });

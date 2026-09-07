@@ -7,6 +7,12 @@ vi.mock("@/lib/auth", () => ({
   auth: vi.fn(),
 }));
 
+// layout.tsx pulls in @/lib/invites and @/lib/globe-invites, which both import
+// @/lib/db at module scope. lib/db.ts now throws at import time when
+// DATABASE_URL is unset (which it is under vitest) — mock it so this render
+// test doesn't need a real database, same as every other test in the suite.
+vi.mock("@/lib/db", () => ({ db: {} }));
+
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
 }));

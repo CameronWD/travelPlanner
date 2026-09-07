@@ -8,6 +8,20 @@ vi.mock("next/link", () => ({
   ),
 }));
 
+// AgendaView renders Timeline, which now statically imports
+// UnscheduleItemButton (Task 7) — that client island pulls in the
+// server-actions module and next/navigation's useRouter at import time even
+// though the agenda variant never renders the button. Mock both so this
+// stays a pure component test, same pattern as timeline.test.tsx.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+vi.mock("@/server/actions/items", () => ({
+  unscheduleItem: vi.fn(),
+  scheduleItem: vi.fn(),
+  rescheduleItem: vi.fn(),
+}));
+
 import { AgendaView } from "./agenda-view";
 import type { DayPlan } from "@/lib/itinerary";
 

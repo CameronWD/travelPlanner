@@ -427,7 +427,7 @@ export default async function DayPage({
         <DayFeasibility entries={feasibility} />
 
         {/* Detailed timeline */}
-        <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} />
+        <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} showUnschedule />
 
         {/* Quick add */}
         <div className="flex items-center justify-between">

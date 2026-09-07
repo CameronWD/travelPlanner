@@ -2,23 +2,23 @@
 
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
-import { nightsBetween, formatLongDate, addDays, daysBetween } from "@/lib/dates";
-import { shiftItemDates, shiftAccommodationDates, type PayloadShiftResult } from "@/lib/payload-shift";
+import { nightsBetween, formatLongDate, addDays } from "@/lib/dates";
+import { type PayloadShiftResult } from "@/lib/payload-shift";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
-import { insertionOrder, spanReflow, collisionPush } from "@/lib/reorder";
+import { insertionOrder, collisionPush } from "@/lib/reorder";
 import { compareScheduled, orderPlanStops } from "@/lib/plan-order";
 import { chapterSpan } from "@/lib/chapter-span";
-import { spanContributors } from "@/lib/chapters";
 import { type ActionResult, validationResult } from "@/lib/action-result";
-import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
+import { cleanupTargetSideDataTx, deleteBlobsBestEffort } from "@/server/actions/target-cleanup";
+import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
+import { recomputeChapterSpans, shiftStopPayloadTx, reflowSpanTx, lockPlanStopsTx } from "@/server/actions/stop-flow";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -81,131 +81,6 @@ async function requireStopAccess(stopId: string): Promise<{
   // Also verify the user is a member of the trip
   await requireTripAccess(stop.tripId);
   return stop;
-}
-
-// ---------------------------------------------------------------------------
-// recomputeChapterSpans — self-healing chapter date-bands (ADR 0021)
-// ---------------------------------------------------------------------------
-
-/**
- * Recompute every chapter's startDate/endDate in the given plan so it spans
- * the stops that are rendered into it: dated stops explicitly linked by
- * `chapterId`, PLUS dated stops with no `chapterId` whose arrive date falls
- * inside the chapter's current band (union rule — mirrors ADR 0008 rendering).
- *
- * If a chapter has NO such dated members its dates are cleared to null,
- * reverting it to "rough" (fixes the "last stop made rough leaves chapter
- * stranded" case in #8).
- *
- * Called inside the SAME `$transaction` as the mutating stop action so the
- * stop mutation + chapter span update are atomic. Exported so Task 9 can
- * import it from the same module.
- */
-export async function recomputeChapterSpans(
-  tx: Prisma.TransactionClient,
-  tripId: string,
-  forkId: PlanId,
-): Promise<void> {
-  const [chapters, stops] = await Promise.all([
-    tx.chapter.findMany({
-      where: { tripId, ...planScope(forkId) },
-      select: { id: true, startDate: true, endDate: true },
-    }),
-    tx.stop.findMany({
-      where: { tripId, ...planScope(forkId) },
-      select: { id: true, chapterId: true, arriveDate: true, departDate: true, sortOrder: true },
-    }),
-  ]);
-
-  // Snapshot bands so date-band membership is evaluated against the pre-update
-  // state, not chapters we've already rewritten in this loop.
-  const snapshot = chapters.map((c) => ({
-    id: c.id, name: "", colour: "", startDate: c.startDate, endDate: c.endDate,
-  }));
-
-  for (const chapter of snapshot) {
-    const members = spanContributors(chapter, stops, snapshot);
-    const { startDate, endDate } = chapterSpan(members);
-    await tx.chapter.update({ where: { id: chapter.id }, data: { startDate, endDate } });
-  }
-}
-
-// ---------------------------------------------------------------------------
-// shiftStopPayloadTx — ADR 0038 payload shift on stop re-date
-// ---------------------------------------------------------------------------
-
-/**
- * ADR 0038: when a stop is re-dated, its slotted Items keep their offset from
- * the arrive date (un-slotting if the day no longer fits) and its
- * Accommodation shifts by the arrive delta. Runs inside the caller's
- * transaction; returns the shifts (with pre-images) for the Undo payload.
- */
-export async function shiftStopPayloadTx(
-  tx: Prisma.TransactionClient,
-  stop: { id: string; arriveDate: string },
-  newArrive: string,
-  newDepart: string,
-): Promise<PayloadShiftResult> {
-  const [items, accommodations] = await Promise.all([
-    tx.item.findMany({ where: { stopId: stop.id, date: { not: null } }, select: { id: true, date: true } }),
-    tx.accommodation.findMany({ where: { stopId: stop.id }, select: { id: true, checkIn: true, checkOut: true } }),
-  ]);
-  const itemShifts = shiftItemDates(items, stop.arriveDate, newArrive, newDepart);
-  const accShifts = shiftAccommodationDates(accommodations, daysBetween(stop.arriveDate, newArrive));
-  for (const s of itemShifts) {
-    await tx.item.update({ where: { id: s.id }, data: { date: s.date } });
-  }
-  for (const s of accShifts) {
-    await tx.accommodation.update({ where: { id: s.id }, data: { checkIn: s.checkIn, checkOut: s.checkOut } });
-  }
-  return { items: itemShifts, accommodations: accShifts };
-}
-
-// ---------------------------------------------------------------------------
-// reflowSpanTx — ADR 0038 drag reflow (shared by reorderStops / reorderChapters)
-// ---------------------------------------------------------------------------
-
-/**
- * ADR 0038 drag reflow. Reads the plan's stops in the NEW arrangement (the
- * caller has already written sortOrder), reflows only the span between the
- * first and last scheduled stop whose chronological position changed, shifts
- * each re-dated stop's payload, and self-heals chapter bands. Gap-preserving;
- * never changes the trip's overall length.
- */
-export async function reflowSpanTx(
-  tx: Prisma.TransactionClient,
-  tripId: string,
-  forkId: PlanId,
-  movedIds: ReadonlySet<string>,
-): Promise<{ changed: { id: string; arriveDate: string; departDate: string }[]; conflicts: FlowConflict[]; payload: PayloadShiftResult }> {
-  const orderedStops = await tx.stop.findMany({
-    where: { tripId, ...planScope(forkId) },
-    orderBy: { sortOrder: "asc" },
-    select: { id: true, arriveDate: true, departDate: true, pinned: true, sortOrder: true },
-  });
-  const newScheduled = orderedStops.filter(
-    (s): s is (typeof orderedStops)[number] & { arriveDate: string; departDate: string } =>
-      s.arriveDate != null && s.departDate != null,
-  );
-  const oldScheduled = [...newScheduled].sort(compareScheduled);
-
-  const { results, conflicts } = spanReflow(oldScheduled, newScheduled, movedIds);
-  const payload: PayloadShiftResult = { items: [], accommodations: [] };
-  const preById = new Map(newScheduled.map((s) => [s.id, s]));
-  const changedResults = results.filter((r) => r.changed);
-  for (const r of changedResults) {
-    const pre = preById.get(r.id)!;
-    await tx.stop.update({ where: { id: r.id }, data: { arriveDate: r.arriveDate, departDate: r.departDate } });
-    const shifted = await shiftStopPayloadTx(tx, { id: r.id, arriveDate: pre.arriveDate }, r.arriveDate, r.departDate);
-    payload.items.push(...shifted.items);
-    payload.accommodations.push(...shifted.accommodations);
-  }
-  await recomputeChapterSpans(tx, tripId, forkId);
-  return {
-    changed: changedResults.map((r) => ({ id: r.id, arriveDate: r.arriveDate, departDate: r.departDate })),
-    conflicts,
-    payload,
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -301,16 +176,9 @@ export async function createStop(
     }
 
     const created = await db.$transaction(async (tx) => {
-      // Lock the trip's stops FOR UPDATE to serialise concurrent inserts (ADR 0007).
-      // Prisma can't express SELECT ... FOR UPDATE on findMany, so use raw SQL.
-      const siblings = await tx.$queryRaw<Array<{ id: string; sortOrder: number; chapterId: string | null; chapterSortOrder: number | null }>>`
-        SELECT "id", "sortOrder", "chapterId", "chapterSortOrder"
-        FROM "Stop"
-        WHERE "tripId" = ${tripId}
-          AND "forkId" ${forkId ? Prisma.sql`= ${forkId}` : Prisma.sql`IS NULL`}
-        ORDER BY "sortOrder" ASC
-        FOR UPDATE
-      `;
+      // Lock the trip's stops FOR UPDATE to serialise concurrent inserts (ADR 0007:
+      // canonical full-plan lock, acquired in id order via lockPlanStopsTx).
+      const siblings = await lockPlanStopsTx(tx, tripId, forkId ?? null);
 
       const result = insertionOrder(siblings, afterStopId);
       const { sortOrder, renumber } = result;
@@ -624,24 +492,34 @@ export async function updateStop(
 export async function deleteStop(stopId: string): Promise<StopActionResult> {
   const stop = await requireStopAccess(stopId);
 
-  // Collect accommodation ids BEFORE deleting the stop. The DB cascades
-  // Accommodation rows when a Stop is deleted, which would orphan their
-  // attachments and notes — we clean those up ourselves below.
+  // Read names BEFORE the delete: the DB cascades Accommodation rows with the
+  // Stop, and converted costs need the accommodation's name for their label.
   const cascadedAccommodations = await db.accommodation.findMany({
     where: { stopId },
-    select: { id: true },
+    select: { id: true, name: true },
   });
-
   const doomed = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
-  await db.stop.delete({ where: { id: stopId } });
-  await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
 
-  // Clean up the stop's own attachments/notes.
-  await cleanupTargetSideData(stop.tripId, "STOP", stopId);
-  // Clean up attachments/notes for accommodations that were cascade-deleted.
-  for (const acc of cascadedAccommodations) {
-    await cleanupTargetSideData(stop.tripId, "ACCOMMODATION", acc.id);
-  }
+  const storageKeys = await db.$transaction(async (tx) => {
+    await tx.stop.delete({ where: { id: stopId } });
+    await deleteOwnedCostsTx(
+      tx,
+      stop.tripId,
+      cascadedAccommodations.map((a) => ({
+        type: "ACCOMMODATION" as const,
+        id: a.id,
+        label: a.name ?? "Accommodation",
+      })),
+    );
+    const keys = await cleanupTargetSideDataTx(tx, stop.tripId, "STOP", stopId);
+    for (const acc of cascadedAccommodations) {
+      keys.push(...(await cleanupTargetSideDataTx(tx, stop.tripId, "ACCOMMODATION", acc.id)));
+    }
+    return keys;
+  });
+  await deleteBlobsBestEffort(storageKeys);
+
+  await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
 
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
@@ -663,17 +541,10 @@ export async function moveStop(
 
   // READ COMMITTED is sufficient here — the FOR UPDATE row lock is what serializes concurrent reorders.
   const moved = await db.$transaction(async (tx) => {
-    // Lock the trip's stops in sortOrder. A concurrent reorder blocks here until
-    // we commit, then re-reads the corrected order — closing the read-then-swap
-    // race. Prisma can't express SELECT ... FOR UPDATE on findMany, so use raw SQL.
-    const siblings = await tx.$queryRaw<Array<{ id: string; sortOrder: number }>>`
-      SELECT "id", "sortOrder"
-      FROM "Stop"
-      WHERE "tripId" = ${stop.tripId}
-        AND "forkId" ${stop.forkId ? Prisma.sql`= ${stop.forkId}` : Prisma.sql`IS NULL`}
-      ORDER BY "sortOrder" ASC
-      FOR UPDATE
-    `;
+    // Lock the trip's stops. A concurrent reorder blocks here until we commit,
+    // then re-reads the corrected order — closing the read-then-swap race
+    // (ADR 0007: canonical full-plan lock, acquired in id order via lockPlanStopsTx).
+    const siblings = await lockPlanStopsTx(tx, stop.tripId, stop.forkId ?? null);
 
     const idx = siblings.findIndex((s) => s.id === stopId);
     if (idx === -1) return false; // stop vanished mid-flight — nothing to do
@@ -741,6 +612,13 @@ async function applyStopDates(
   let maxDepart = dates.departDate;
 
   await db.$transaction(async (tx) => {
+    // Lock the WHOLE plan's stops FOR UPDATE, in canonical id order, before
+    // writing any dates (ADR 0007: every tx that writes a plan's Stop
+    // ordering or dates takes this same lock — closes an ABBA deadlock
+    // against the id-ordered canonical paths and the lost-update window on
+    // the unlocked `others` read below).
+    await lockPlanStopsTx(tx, stop.tripId, stop.forkId);
+
     await tx.stop.update({
       where: { id: stop.id },
       data: { arriveDate: dates.arriveDate, departDate: dates.departDate },
@@ -1332,20 +1210,17 @@ export async function reorderStops(
 
   try {
     await db.$transaction(async (tx) => {
-      // Lock the trip's stops FOR UPDATE to serialise concurrent reorders (ADR 0007).
-      // Prisma can't express SELECT ... FOR UPDATE on findMany, so use raw SQL.
-      const rows = await tx.$queryRaw<Array<{ id: string; tripId: string; arriveDate: string | null }>>`
-        SELECT "id", "tripId", "arriveDate"
-        FROM "Stop"
-        WHERE "id" = ANY(${ids})
-        FOR UPDATE
-      `;
-      const byId = new Map(rows.map((r) => [r.id, r]));
+      // Lock the WHOLE plan's stops FOR UPDATE, in canonical id order, to
+      // serialise concurrent reorders (ADR 0007 — never just the dragged ids).
+      const lockedRows = await lockPlanStopsTx(tx, tripId, reorderForkId);
+      const byId = new Map(lockedRows.map((r) => [r.id, r]));
 
-      // Every id must exist and belong to this trip.
+      // Every id must exist in the locked (plan-scoped) set. The query is
+      // already tripId-scoped, so a passed-in id that isn't in this plan
+      // simply won't appear here — no separate tripId check needed.
       for (const id of ids) {
         const r = byId.get(id);
-        if (!r || r.tripId !== tripId) throw new Error("STOP_NOT_IN_TRIP");
+        if (!r) throw new Error("STOP_NOT_IN_TRIP");
       }
 
       // Write sortOrder + chapterId for ALL stops (both rough and scheduled — ADR 0021).
@@ -1424,12 +1299,11 @@ export async function restoreStops(
   const restoreForkId: PlanId = forkId ?? rows[0].forkId ?? null;
 
   await db.$transaction(async (tx) => {
-    // Lock the rows FOR UPDATE to serialise with concurrent reorders (ADR 0007).
-    await tx.$queryRaw`
-      SELECT "id" FROM "Stop"
-      WHERE "id" = ANY(${ids})
-      FOR UPDATE
-    `;
+    // Lock the WHOLE plan's stops FOR UPDATE, in canonical id order, to
+    // serialise with concurrent reorders (ADR 0007 — never a subset: the
+    // recomputeChapterSpans call below reads the whole plan while this lock
+    // is held).
+    await lockPlanStopsTx(tx, tripId, restoreForkId);
 
     // Write every snapshotted field verbatim — no reflow, no derivation.
     for (const e of entries) {

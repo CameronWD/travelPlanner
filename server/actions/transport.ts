@@ -13,7 +13,9 @@ import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { type ActionResult, validationResult } from "@/lib/action-result";
-import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
+import { cleanupTargetSideDataTx, deleteBlobsBestEffort } from "@/server/actions/target-cleanup";
+import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
+import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -418,6 +420,10 @@ export async function reorderTransports(
   }
 
   await db.$transaction(async (tx) => {
+    // Lock the WHOLE plan's transports FOR UPDATE, in canonical id order
+    // (ADR 0007) — previously this path took no lock at all.
+    await lockPlanTransportsTx(tx, tripId, forkId ?? null);
+
     for (const item of items) {
       await (tx as typeof db).transport.update({
         where: { id: item.id },
@@ -439,10 +445,18 @@ export async function deleteTransport(
   const transport = await requireTransportAccess(transportId);
 
   const doomed = await db.transport.findUnique({ where: { id: transportId } });
-  await db.transport.delete({ where: { id: transportId } });
-  await recordPlanActivity(transport.forkId, { tripId: transport.tripId, verb: "DELETED", entityType: "TRANSPORT", entityId: transportId, entityLabel: entityLabel("TRANSPORT", (doomed ?? {}) as unknown as Record<string, unknown>) });
+  const ownerLabel = entityLabel("TRANSPORT", (doomed ?? {}) as unknown as Record<string, unknown>);
 
-  await cleanupTargetSideData(transport.tripId, "TRANSPORT", transportId);
+  const storageKeys = await db.$transaction(async (tx) => {
+    await tx.transport.delete({ where: { id: transportId } });
+    await deleteOwnedCostsTx(tx, transport.tripId, [
+      { type: "TRANSPORT", id: transportId, label: ownerLabel },
+    ]);
+    return cleanupTargetSideDataTx(tx, transport.tripId, "TRANSPORT", transportId);
+  });
+  await deleteBlobsBestEffort(storageKeys);
+
+  await recordPlanActivity(transport.forkId, { tripId: transport.tripId, verb: "DELETED", entityType: "TRANSPORT", entityId: transportId, entityLabel: ownerLabel });
 
   revalidatePath(`/trips/${transport.tripId}`, "layout");
   return { success: true };

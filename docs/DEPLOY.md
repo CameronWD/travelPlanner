@@ -112,6 +112,17 @@ once manually (Actions tab → Reminders cron → Run workflow) to confirm it re
 2. Create your trip, then invite your partner by email on the trip's Settings page.
 3. Your partner signs in with that Google email and is auto-added.
 
+### One-off: sweep orphaned costs (after the ADR 0039 deploy)
+
+Deletes before ADR 0039 orphaned Cost rows (owner gone, money still in the
+budget). Run ONCE against prod after deploying the reliability round:
+
+    npx tsx scripts/sweep-orphaned-costs.ts            # dry run — review output
+    npx tsx scripts/sweep-orphaned-costs.ts --execute  # apply
+
+Never-paid orphans are deleted; ever-paid orphans become "Other costs"
+labelled "<label> (deleted)". Requires DATABASE_URL pointing at prod.
+
 ## Enabling AI later (optional, paid)
 
 Add `ANTHROPIC_API_KEY` (and optionally `AI_MODEL=claude-haiku-4-5` for lower cost) in

@@ -13,7 +13,12 @@ import { PrismaPg } from "@prisma/adapter-pg";
  * up a new client (and a new pool) on every module reload.
  */
 function createPrismaClient() {
-  const connectionString = process.env.DATABASE_URL ?? "";
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error(
+      "DATABASE_URL is not set. The app cannot run without Postgres — set it in .env (see .env.example) or the deployment environment.",
+    );
+  }
   const adapter = new PrismaPg({ connectionString });
   return new PrismaClient({ adapter });
 }

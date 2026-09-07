@@ -22,18 +22,41 @@ const {
   costFindManyMock,
   costCreateMock,
   costUpdateMock,
+  costDeleteManyMock,
+  attachmentFindManyMock,
+  attachmentDeleteManyMock,
+  noteDeleteManyMock,
   resolveRateForTripMock,
   persistRateMock,
   transactionMock,
+  queryRawMock,
 } = vi.hoisted(() => {
+  const queryRawMock = vi.fn().mockResolvedValue([]);
   const costCreateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
   const costUpdateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
+  const costDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const costFindManyMock = vi.fn().mockResolvedValue([]);
   const transportUpdateMock = vi.fn().mockResolvedValue({});
+  const transportDeleteMock = vi.fn();
+  const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
+  const attachmentDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const noteDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const transactionMock = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
-        transport: { update: transportUpdateMock },
-        cost: { create: costCreateMock, update: costUpdateMock },
+        $queryRaw: queryRawMock,
+        transport: { update: transportUpdateMock, delete: transportDeleteMock },
+        cost: {
+          findMany: costFindManyMock,
+          create: costCreateMock,
+          update: costUpdateMock,
+          deleteMany: costDeleteManyMock,
+        },
+        attachment: {
+          findMany: attachmentFindManyMock,
+          deleteMany: attachmentDeleteManyMock,
+        },
+        note: { deleteMany: noteDeleteManyMock },
         exchangeRate: { upsert: vi.fn().mockResolvedValue({}) },
       });
     }
@@ -54,15 +77,20 @@ const {
     transportFindManyMock: vi.fn().mockResolvedValue([]),
     transportCreateMock: vi.fn(),
     transportUpdateMock,
-    transportDeleteMock: vi.fn(),
+    transportDeleteMock,
     stopFindManyMock: vi.fn().mockResolvedValue([]),
     tripFindUniqueMock: vi.fn().mockResolvedValue({ homeCurrency: "AUD" }),
-    costFindManyMock: vi.fn().mockResolvedValue([]),
+    costFindManyMock,
     costCreateMock,
     costUpdateMock,
+    costDeleteManyMock,
+    attachmentFindManyMock,
+    attachmentDeleteManyMock,
+    noteDeleteManyMock,
     resolveRateForTripMock: vi.fn().mockResolvedValue({ rate: 0.6, persist: null }),
     persistRateMock: vi.fn().mockResolvedValue(undefined),
     transactionMock,
+    queryRawMock,
   };
 });
 
@@ -97,14 +125,20 @@ vi.mock("@/lib/db", () => ({
       findMany: costFindManyMock,
       create: costCreateMock,
       update: costUpdateMock,
+      deleteMany: costDeleteManyMock,
     },
     $transaction: transactionMock,
   },
 }));
 
-vi.mock("@/server/actions/target-cleanup", () => ({
-  cleanupTargetSideData: vi.fn().mockResolvedValue(undefined),
-}));
+vi.mock("@/server/actions/target-cleanup", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/actions/target-cleanup")>();
+  return {
+    ...real,
+    cleanupTargetSideData: vi.fn().mockResolvedValue(undefined),
+    deleteBlobsBestEffort: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 import {
   createTransport,
@@ -640,6 +674,34 @@ describe("deleteTransport", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "DELETED", entityType: "TRANSPORT", entityLabel: "BA490" }),
     );
+  });
+
+  it("runs delete, cost cleanup and side-data cleanup in one transaction", async () => {
+    transportFindUniqueMock.mockResolvedValue({ id: "t-1", tripId: "trip-1", mode: "FLIGHT", reference: "BA490" });
+    attachmentFindManyMock.mockResolvedValue([{ storageKey: "k1" }]);
+    costFindManyMock.mockResolvedValue([]);
+
+    const result = await deleteTransport("t-1");
+
+    expect(result.success).toBe(true);
+    expect(transactionMock).toHaveBeenCalledTimes(1); // one tx wraps it all
+    expect(transportDeleteMock).toHaveBeenCalledWith({ where: { id: "t-1" } });
+    expect(attachmentDeleteManyMock).toHaveBeenCalled(); // inside the tx
+    expect(noteDeleteManyMock).toHaveBeenCalled();
+  });
+
+  it("converts the transport's paid cost to an Other cost", async () => {
+    transportFindUniqueMock.mockResolvedValue({ id: "t-1", tripId: "trip-1", mode: "FLIGHT", reference: "BA490" });
+    costFindManyMock.mockResolvedValue([
+      { id: "c1", paidMinor: 4000, paidAt: null, label: null, ownerType: "TRANSPORT", ownerId: "t-1" },
+    ]);
+
+    await deleteTransport("t-1");
+
+    expect(costUpdateMock).toHaveBeenCalledWith({
+      where: { id: "c1" },
+      data: { ownerType: "OTHER", ownerId: null, label: "BA490 (deleted)" },
+    });
   });
 });
 
@@ -1265,6 +1327,25 @@ describe("reorderTransports", () => {
         where: expect.objectContaining({ forkId: "fork-9" }),
       }),
     );
+  });
+
+  it("locks the WHOLE plan's transports FOR UPDATE in id order (ADR 0007)", async () => {
+    // Previously reorderTransports took no lock at all.
+    transportFindManyMock.mockResolvedValue([
+      { id: "leg-1", tripId: "trip-1", forkId: null },
+    ]);
+    const items = [{ id: "leg-1", anchorStopId: "stop-a", sortOrder: 0 }];
+
+    await reorderTransports("trip-1", items);
+
+    expect(queryRawMock).toHaveBeenCalled();
+    const lockSql = queryRawMock.mock.calls
+      .map((c: unknown[]) => (c[0] as string[]).join("?"))
+      .find((s: string) => s.includes("FOR UPDATE"));
+    expect(lockSql).toBeDefined();
+    expect(lockSql).toContain('FROM "Transport"');
+    expect(lockSql).toContain('"tripId" =');
+    expect(lockSql).toContain('ORDER BY "id" ASC');
   });
 });
 
