@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "backfill:geocode": "tsx scripts/backfill-geocode.ts",
+    "sweep:orphaned-costs": "tsx scripts/sweep-orphaned-costs.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:demo": "tsx prisma/seed-demo.ts",
     "db:seed:real": "tsx prisma/seed-real.ts",
