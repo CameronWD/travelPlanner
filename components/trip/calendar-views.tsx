@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { AgendaView } from "@/components/trip/agenda-view";
 import { MonthGrid } from "@/components/trip/month-grid";
 import { addMonths, startOfMonthISO, formatMonthYear, monthKey } from "@/lib/dates";
-import { rescheduleItem } from "@/server/actions/items";
+import { scheduleItem, rescheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import { ScheduleItemDialog } from "@/components/trip/schedule-item-dialog";
 import { categoryDotClass } from "@/components/trip/category-dot";
@@ -108,10 +108,19 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
 
+  const wishlistIds = React.useMemo(
+    () => new Set(wishlistItems.map((w) => w.id)),
+    [wishlistItems],
+  );
+
   const handleDropItem = React.useCallback(
     (itemId: string, dateISO: string) => {
       startTransition(async () => {
-        const result = await rescheduleItem(itemId, dateISO);
+        // ADR 0019: a Wishlist idea is PLACED (copy-in) — the idea survives on
+        // the board. Only an already-dated item moves in place.
+        const result = wishlistIds.has(itemId)
+          ? await scheduleItem(itemId, { date: dateISO })
+          : await rescheduleItem(itemId, dateISO);
         if (!result.success) {
           toast({
             variant: "destructive",
@@ -122,7 +131,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
         router.refresh();
       });
     },
-    [router],
+    [router, wishlistIds],
   );
 
   const [railOpen, setRailOpen] = React.useState(true);
