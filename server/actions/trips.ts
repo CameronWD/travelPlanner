@@ -8,7 +8,7 @@ import { requireUser, requireTripAccess } from "@/lib/guards";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { recordActivity } from "@/server/actions/activity";
-import { recomputeChapterSpans } from "@/server/actions/stops";
+import { recomputeChapterSpans } from "@/server/actions/stop-flow";
 import {
   createTripSchema,
   tripSchema,

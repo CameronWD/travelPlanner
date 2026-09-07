@@ -194,9 +194,8 @@ import {
   setStopNotes,
   setStopNights,
   getTripProjection,
-  recomputeChapterSpans,
-  shiftStopPayloadTx,
 } from "./stops";
+import { recomputeChapterSpans, shiftStopPayloadTx } from "./stop-flow";
 import type { Prisma } from "@prisma/client";
 import { planTripFirmUp } from "@/lib/firm-up";
 import { chapterSpan } from "@/lib/chapter-span";

@@ -136,7 +136,7 @@ vi.mock("@/lib/storage", () => ({
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
-vi.mock("@/server/actions/stops", () => ({ recomputeChapterSpans: recomputeChapterSpansMock }));
+vi.mock("@/server/actions/stop-flow", () => ({ recomputeChapterSpans: recomputeChapterSpansMock }));
 
 import { createTrip, updateTrip, deleteTrip, setTripHardEndDate, duplicateTrip, setChaptersEnabled } from "./trips";
 
