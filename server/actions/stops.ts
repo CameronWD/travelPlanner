@@ -18,7 +18,8 @@ import { compareScheduled, orderPlanStops } from "@/lib/plan-order";
 import { chapterSpan } from "@/lib/chapter-span";
 import { spanContributors } from "@/lib/chapters";
 import { type ActionResult, validationResult } from "@/lib/action-result";
-import { cleanupTargetSideData } from "@/server/actions/target-cleanup";
+import { cleanupTargetSideDataTx, deleteBlobsBestEffort } from "@/server/actions/target-cleanup";
+import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -624,24 +625,34 @@ export async function updateStop(
 export async function deleteStop(stopId: string): Promise<StopActionResult> {
   const stop = await requireStopAccess(stopId);
 
-  // Collect accommodation ids BEFORE deleting the stop. The DB cascades
-  // Accommodation rows when a Stop is deleted, which would orphan their
-  // attachments and notes — we clean those up ourselves below.
+  // Read names BEFORE the delete: the DB cascades Accommodation rows with the
+  // Stop, and converted costs need the accommodation's name for their label.
   const cascadedAccommodations = await db.accommodation.findMany({
     where: { stopId },
-    select: { id: true },
+    select: { id: true, name: true },
   });
-
   const doomed = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
-  await db.stop.delete({ where: { id: stopId } });
-  await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
 
-  // Clean up the stop's own attachments/notes.
-  await cleanupTargetSideData(stop.tripId, "STOP", stopId);
-  // Clean up attachments/notes for accommodations that were cascade-deleted.
-  for (const acc of cascadedAccommodations) {
-    await cleanupTargetSideData(stop.tripId, "ACCOMMODATION", acc.id);
-  }
+  const storageKeys = await db.$transaction(async (tx) => {
+    await tx.stop.delete({ where: { id: stopId } });
+    await deleteOwnedCostsTx(
+      tx,
+      stop.tripId,
+      cascadedAccommodations.map((a) => ({
+        type: "ACCOMMODATION" as const,
+        id: a.id,
+        label: a.name ?? "Accommodation",
+      })),
+    );
+    const keys = await cleanupTargetSideDataTx(tx, stop.tripId, "STOP", stopId);
+    for (const acc of cascadedAccommodations) {
+      keys.push(...(await cleanupTargetSideDataTx(tx, stop.tripId, "ACCOMMODATION", acc.id)));
+    }
+    return keys;
+  });
+  await deleteBlobsBestEffort(storageKeys);
+
+  await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
 
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
