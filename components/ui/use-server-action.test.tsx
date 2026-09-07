@@ -35,4 +35,19 @@ describe("useServerAction", () => {
     await waitFor(() => expect(action).toHaveBeenCalledWith("abc"));
     expect(onSuccess).toHaveBeenCalledWith({ success: true }, "abc");
   });
+
+  it("surfaces a rejected action as a form-level error and calls onError", async () => {
+    const boom = vi.fn().mockRejectedValue(new Error("offline"));
+    const onError = vi.fn();
+    const { result } = renderHook(() => useServerAction(boom, { onError }));
+
+    act(() => result.current.run());
+    await waitFor(() => expect(result.current.isPending).toBe(false));
+    expect(result.current.errors._).toEqual([
+      "Something went wrong. Check your connection and try again.",
+    ]);
+    expect(onError).toHaveBeenCalledWith({
+      _: ["Something went wrong. Check your connection and try again."],
+    });
+  });
 });

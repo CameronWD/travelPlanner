@@ -41,7 +41,19 @@ export function useServerAction<
   const run = React.useCallback((...args: TArgs) => {
     setErrors({});
     startTransition(async () => {
-      const result = await actionRef.current(...args);
+      let result: ActionResult<TSuccess>;
+      try {
+        result = await actionRef.current(...args);
+      } catch {
+        // A rejected action (network drop, server crash) must never vanish
+        // silently — surface it like a failed result.
+        const errors: FieldErrors = {
+          _: ["Something went wrong. Check your connection and try again."],
+        };
+        setErrors(errors);
+        optionsRef.current?.onError?.(errors, ...args);
+        return;
+      }
       if (!result.success) {
         setErrors(result.errors);
         optionsRef.current?.onError?.(result.errors, ...args);
