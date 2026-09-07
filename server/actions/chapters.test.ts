@@ -459,6 +459,27 @@ describe("reorderChapters", () => {
     expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "c1" }, data: { sortOrder: 1 } });
     expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "c2" }, data: { sortOrder: 2 } });
   });
+
+  it("locks the WHOLE plan's stops in id order, not just the dragged ids (ADR 0007)", async () => {
+    chapterFindManyMock.mockResolvedValue([
+      { id: "c1", startDate: null, forkId: null },
+      { id: "c2", startDate: null, forkId: null },
+    ]);
+    stopFindManyMock.mockResolvedValue([]);
+    tripFindUniqueMock.mockResolvedValue({ startDate: null });
+    queryRawMock.mockResolvedValue([]);
+
+    await reorderChapters("t1", ["c2", "c1"]);
+
+    const lockSql = queryRawMock.mock.calls
+      .map((c: unknown[]) => (c[0] as string[]).join("?"))
+      .find((s: string) => s.includes("FOR UPDATE"));
+    expect(lockSql).toBeDefined();
+    expect(lockSql).toContain('FROM "Stop"');
+    expect(lockSql).toContain('"tripId" =');
+    expect(lockSql).toContain('ORDER BY "id" ASC');
+    expect(lockSql).not.toContain("ANY(");
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -9,6 +9,50 @@ import { chapterSpan } from "@/lib/chapter-span";
 import { spanContributors } from "@/lib/chapters";
 
 // ---------------------------------------------------------------------------
+// lockPlanStopsTx / lockPlanTransportsTx — canonical lock acquisition (ADR 0007)
+// ---------------------------------------------------------------------------
+
+/**
+ * Locks ALL of a plan's stops FOR UPDATE in canonical (id) order. ADR 0007:
+ * every path that will write stop rows in a plan takes this same lock over
+ * the same row set in the same order, so concurrent editors queue instead
+ * of deadlocking. Returns rows sorted by sortOrder for caller convenience.
+ */
+export async function lockPlanStopsTx(
+  tx: Prisma.TransactionClient,
+  tripId: string,
+  forkId: PlanId,
+): Promise<Array<{ id: string; sortOrder: number; chapterId: string | null; chapterSortOrder: number | null; arriveDate: string | null }>> {
+  const rows = await tx.$queryRaw<
+    Array<{ id: string; sortOrder: number; chapterId: string | null; chapterSortOrder: number | null; arriveDate: string | null }>
+  >`
+    SELECT "id", "sortOrder", "chapterId", "chapterSortOrder", "arriveDate"
+    FROM "Stop"
+    WHERE "tripId" = ${tripId}
+      AND "forkId" ${forkId ? Prisma.sql`= ${forkId}` : Prisma.sql`IS NULL`}
+    ORDER BY "id" ASC
+    FOR UPDATE
+  `;
+  return [...rows].sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+/** Same canonical lock for a plan's transports. */
+export async function lockPlanTransportsTx(
+  tx: Prisma.TransactionClient,
+  tripId: string,
+  forkId: PlanId,
+): Promise<Array<{ id: string; sortOrder: number }>> {
+  return tx.$queryRaw<Array<{ id: string; sortOrder: number }>>`
+    SELECT "id", "sortOrder"
+    FROM "Transport"
+    WHERE "tripId" = ${tripId}
+      AND "forkId" ${forkId ? Prisma.sql`= ${forkId}` : Prisma.sql`IS NULL`}
+    ORDER BY "id" ASC
+    FOR UPDATE
+  `;
+}
+
+// ---------------------------------------------------------------------------
 // recomputeChapterSpans — self-healing chapter date-bands (ADR 0021)
 // ---------------------------------------------------------------------------
 

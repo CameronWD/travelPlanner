@@ -48,3 +48,15 @@ multi-user in production (Postgres everywhere — see ADR 0005):
 - Tests assert call shape (a `FOR UPDATE` query is issued; persist + create share one
   tx) because the test sandbox has no Postgres; true lock behaviour is exercised
   against Postgres in CI/prod.
+
+## Amendment (2026-09-07, reliability round)
+
+Lock acquisition is now canonical: every transaction that writes a plan's
+Stop ordering or dates takes `lockPlanStopsTx` (all the plan's stops,
+`ORDER BY "id" FOR UPDATE`) — never a subset, never a different order.
+Previously reorderStops/reorderChapters locked only the dragged ids with no
+ORDER BY (deadlock-prone against moveStop/createStop's full-plan sortOrder-
+ordered lock, and under-locked given reflowSpanTx writes the whole plan),
+and reorderTransports took no lock at all (now `lockPlanTransportsTx`).
+Verified by call-shape unit tests and `test/integration/locking.test.ts`
+against real Postgres.

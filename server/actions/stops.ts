@@ -2,7 +2,6 @@
 
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
@@ -19,7 +18,7 @@ import { chapterSpan } from "@/lib/chapter-span";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 import { cleanupTargetSideDataTx, deleteBlobsBestEffort } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
-import { recomputeChapterSpans, shiftStopPayloadTx, reflowSpanTx } from "@/server/actions/stop-flow";
+import { recomputeChapterSpans, shiftStopPayloadTx, reflowSpanTx, lockPlanStopsTx } from "@/server/actions/stop-flow";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -177,16 +176,9 @@ export async function createStop(
     }
 
     const created = await db.$transaction(async (tx) => {
-      // Lock the trip's stops FOR UPDATE to serialise concurrent inserts (ADR 0007).
-      // Prisma can't express SELECT ... FOR UPDATE on findMany, so use raw SQL.
-      const siblings = await tx.$queryRaw<Array<{ id: string; sortOrder: number; chapterId: string | null; chapterSortOrder: number | null }>>`
-        SELECT "id", "sortOrder", "chapterId", "chapterSortOrder"
-        FROM "Stop"
-        WHERE "tripId" = ${tripId}
-          AND "forkId" ${forkId ? Prisma.sql`= ${forkId}` : Prisma.sql`IS NULL`}
-        ORDER BY "sortOrder" ASC
-        FOR UPDATE
-      `;
+      // Lock the trip's stops FOR UPDATE to serialise concurrent inserts (ADR 0007:
+      // canonical full-plan lock, acquired in id order via lockPlanStopsTx).
+      const siblings = await lockPlanStopsTx(tx, tripId, forkId ?? null);
 
       const result = insertionOrder(siblings, afterStopId);
       const { sortOrder, renumber } = result;
@@ -549,17 +541,10 @@ export async function moveStop(
 
   // READ COMMITTED is sufficient here — the FOR UPDATE row lock is what serializes concurrent reorders.
   const moved = await db.$transaction(async (tx) => {
-    // Lock the trip's stops in sortOrder. A concurrent reorder blocks here until
-    // we commit, then re-reads the corrected order — closing the read-then-swap
-    // race. Prisma can't express SELECT ... FOR UPDATE on findMany, so use raw SQL.
-    const siblings = await tx.$queryRaw<Array<{ id: string; sortOrder: number }>>`
-      SELECT "id", "sortOrder"
-      FROM "Stop"
-      WHERE "tripId" = ${stop.tripId}
-        AND "forkId" ${stop.forkId ? Prisma.sql`= ${stop.forkId}` : Prisma.sql`IS NULL`}
-      ORDER BY "sortOrder" ASC
-      FOR UPDATE
-    `;
+    // Lock the trip's stops. A concurrent reorder blocks here until we commit,
+    // then re-reads the corrected order — closing the read-then-swap race
+    // (ADR 0007: canonical full-plan lock, acquired in id order via lockPlanStopsTx).
+    const siblings = await lockPlanStopsTx(tx, stop.tripId, stop.forkId ?? null);
 
     const idx = siblings.findIndex((s) => s.id === stopId);
     if (idx === -1) return false; // stop vanished mid-flight — nothing to do
@@ -1218,20 +1203,17 @@ export async function reorderStops(
 
   try {
     await db.$transaction(async (tx) => {
-      // Lock the trip's stops FOR UPDATE to serialise concurrent reorders (ADR 0007).
-      // Prisma can't express SELECT ... FOR UPDATE on findMany, so use raw SQL.
-      const rows = await tx.$queryRaw<Array<{ id: string; tripId: string; arriveDate: string | null }>>`
-        SELECT "id", "tripId", "arriveDate"
-        FROM "Stop"
-        WHERE "id" = ANY(${ids})
-        FOR UPDATE
-      `;
-      const byId = new Map(rows.map((r) => [r.id, r]));
+      // Lock the WHOLE plan's stops FOR UPDATE, in canonical id order, to
+      // serialise concurrent reorders (ADR 0007 — never just the dragged ids).
+      const lockedRows = await lockPlanStopsTx(tx, tripId, reorderForkId);
+      const byId = new Map(lockedRows.map((r) => [r.id, r]));
 
-      // Every id must exist and belong to this trip.
+      // Every id must exist in the locked (plan-scoped) set. The query is
+      // already tripId-scoped, so a passed-in id that isn't in this plan
+      // simply won't appear here — no separate tripId check needed.
       for (const id of ids) {
         const r = byId.get(id);
-        if (!r || r.tripId !== tripId) throw new Error("STOP_NOT_IN_TRIP");
+        if (!r) throw new Error("STOP_NOT_IN_TRIP");
       }
 
       // Write sortOrder + chapterId for ALL stops (both rough and scheduled — ADR 0021).

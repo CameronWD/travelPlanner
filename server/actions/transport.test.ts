@@ -29,7 +29,9 @@ const {
   resolveRateForTripMock,
   persistRateMock,
   transactionMock,
+  queryRawMock,
 } = vi.hoisted(() => {
+  const queryRawMock = vi.fn().mockResolvedValue([]);
   const costCreateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
   const costUpdateMock = vi.fn().mockResolvedValue({ id: "cost-1" });
   const costDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
@@ -42,6 +44,7 @@ const {
   const transactionMock = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
+        $queryRaw: queryRawMock,
         transport: { update: transportUpdateMock, delete: transportDeleteMock },
         cost: {
           findMany: costFindManyMock,
@@ -87,6 +90,7 @@ const {
     resolveRateForTripMock: vi.fn().mockResolvedValue({ rate: 0.6, persist: null }),
     persistRateMock: vi.fn().mockResolvedValue(undefined),
     transactionMock,
+    queryRawMock,
   };
 });
 
@@ -1323,6 +1327,25 @@ describe("reorderTransports", () => {
         where: expect.objectContaining({ forkId: "fork-9" }),
       }),
     );
+  });
+
+  it("locks the WHOLE plan's transports FOR UPDATE in id order (ADR 0007)", async () => {
+    // Previously reorderTransports took no lock at all.
+    transportFindManyMock.mockResolvedValue([
+      { id: "leg-1", tripId: "trip-1", forkId: null },
+    ]);
+    const items = [{ id: "leg-1", anchorStopId: "stop-a", sortOrder: 0 }];
+
+    await reorderTransports("trip-1", items);
+
+    expect(queryRawMock).toHaveBeenCalled();
+    const lockSql = queryRawMock.mock.calls
+      .map((c: unknown[]) => (c[0] as string[]).join("?"))
+      .find((s: string) => s.includes("FOR UPDATE"));
+    expect(lockSql).toBeDefined();
+    expect(lockSql).toContain('FROM "Transport"');
+    expect(lockSql).toContain('"tripId" =');
+    expect(lockSql).toContain('ORDER BY "id" ASC');
   });
 });
 

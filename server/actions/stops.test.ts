@@ -569,6 +569,9 @@ describe("createStop with afterStopId", () => {
     expect(queryRawMock).toHaveBeenCalledOnce();
     const sqlParts = queryRawMock.mock.calls[0][0] as string[];
     expect(sqlParts.join(" ")).toContain("FOR UPDATE");
+    // ADR 0007: canonical acquisition order is by "id", not "sortOrder" — the
+    // helper sorts by sortOrder in JS afterwards for caller convenience.
+    expect(sqlParts.join(" ")).toContain('ORDER BY "id" ASC');
     // New stop lands at sortOrder = 1 (right after anchor "a").
     expect(stopCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ sortOrder: 1 }),
@@ -845,6 +848,8 @@ describe("moveStop", () => {
     expect(queryRawMock).toHaveBeenCalledOnce();
     const sqlParts = queryRawMock.mock.calls[0][0] as string[];
     expect(sqlParts.join(" ")).toContain("FOR UPDATE");
+    // ADR 0007: canonical acquisition order is by "id", not "sortOrder".
+    expect(sqlParts.join(" ")).toContain('ORDER BY "id" ASC');
     // First bound value is the tripId.
     expect(queryRawMock.mock.calls[0][1]).toBe("trip-1");
     // SQL must include forkId scoping.
@@ -1576,10 +1581,11 @@ describe("reorderStops", () => {
   it("rejects a stop not in the trip: no updates and returns failure", async () => {
     // No chapters to validate (no chapterIds in the list)
     chapterFindManyMock.mockResolvedValue([]);
-    // FOR UPDATE returns one stop with a DIFFERENT tripId
+    // ADR 0007: the lock query is now tripId-scoped (lockPlanStopsTx), so a
+    // stop from another trip is simply absent from the locked set — it's
+    // never returned by the (mocked) query in the first place.
     queryRawMock.mockResolvedValue([
-      { id: "a", tripId: "t1", arriveDate: null },
-      { id: "x", tripId: "other-trip", arriveDate: null },
+      { id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null, arriveDate: null },
     ]);
 
     const result = await reorderStops("t1", [
@@ -1589,6 +1595,31 @@ describe("reorderStops", () => {
 
     expect(result.success).toBe(false);
     expect(stopUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("locks the WHOLE plan's stops in id order, not just the dragged ids (ADR 0007)", async () => {
+    chapterFindManyMock.mockResolvedValue([{ id: "c1", startDate: null }]);
+    queryRawMock.mockResolvedValue([
+      { id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null, arriveDate: null },
+      { id: "b", sortOrder: 1, chapterId: null, chapterSortOrder: null, arriveDate: null },
+      { id: "c", sortOrder: 2, chapterId: null, chapterSortOrder: null, arriveDate: null },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+
+    await reorderStops("t1", [
+      { id: "a", chapterId: null },
+      { id: "b", chapterId: "c1" },
+      { id: "c", chapterId: null },
+    ]);
+
+    const lockSql = queryRawMock.mock.calls
+      .map((c: unknown[]) => (c[0] as string[]).join("?"))
+      .find((s: string) => s.includes("FOR UPDATE"));
+    expect(lockSql).toBeDefined();
+    expect(lockSql).toContain('FROM "Stop"');
+    expect(lockSql).toContain('"tripId" =');
+    expect(lockSql).toContain('ORDER BY "id" ASC');
+    expect(lockSql).not.toContain("ANY(");
   });
 
   it("refuses to move a rough stop into a DATED chapter: returns failure, no updates", async () => {

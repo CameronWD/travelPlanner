@@ -15,6 +15,7 @@ import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { type ActionResult, validationResult } from "@/lib/action-result";
 import { cleanupTargetSideDataTx, deleteBlobsBestEffort } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
+import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -419,6 +420,10 @@ export async function reorderTransports(
   }
 
   await db.$transaction(async (tx) => {
+    // Lock the WHOLE plan's transports FOR UPDATE, in canonical id order
+    // (ADR 0007) — previously this path took no lock at all.
+    await lockPlanTransportsTx(tx, tripId, forkId ?? null);
+
     for (const item of items) {
       await (tx as typeof db).transport.update({
         where: { id: item.id },
