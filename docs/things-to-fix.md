@@ -59,7 +59,8 @@ Severity: **P0** = wrong data/behaviour for real users in production ·
 # Open items added 2026-08-20
 
 Everything in the 2026-08-14 audit below is now marked **Status: FIXED**. The two
-items in this section are *newer* and **open**. Both were surfaced by the
+items in this section were *newer*; both are now **fixed** too (`fix/reliability-round`).
+Both were surfaced by the
 `feat/in-app-user-guide` build — writing a user-facing description of the Wishlist
 forced a line-by-line read of what those screens actually do, and the prose and the
 code disagreed. Both are verified by code read on `feat/in-app-user-guide`
@@ -123,6 +124,8 @@ a second row with `sourceItemId` set — and a control asserting that dropping a
 already-dated item still updates in place and creates nothing. Both are logic-level
 and need no DB (the suite mocks `@/lib/db`).
 
+**Status: FIXED** (fix/reliability-round, 3107436).
+
 ## P1-5 · `unscheduleItem` deletes the row, its undo is broken, and the only control that calls it never renders
 
 **Severity:** P1 — a documented capability is entirely missing, and the code behind
@@ -181,6 +184,8 @@ outright.
 `sourceItemId`), asserting the source idea still exists in the `sourceItemId` case.
 Plus a render test for whichever decision you take in step 3 — either the button
 renders where a scheduled item is shown, or the dead branch is gone.
+
+**Status: FIXED** (fix/reliability-round, 7162efd server; cf15407 UI).
 
 ---
 
@@ -775,10 +780,10 @@ expect(describeChanges("COST", { costMinor: 1000 }, { costMinor: 2000 }).length)
 
 ## Suggested order
 
-**Only P0-4 and P1-5 are still open** (see "Open items added 2026-08-20" near the
-top). Take them together on one branch — they share a root cause and the second is a
-trap the first makes reachable. The ordering below is the historical plan for the
-2026-08-14 audit, kept for the record; every item in it is now FIXED.
+**Every item in this document is now FIXED**, including P0-4 and P1-5 (see "Open
+items added 2026-08-20" near the top, fixed together on `fix/reliability-round` since
+they share a root cause and the second was a trap the first made reachable). The
+ordering below is the historical plan for the 2026-08-14 audit, kept for the record.
 
 1. **P0-3** (deploy procedure — unblocks everything touching prod data)
 2. **P0-1** (transport timezones; biggest correctness payoff, self-contained)

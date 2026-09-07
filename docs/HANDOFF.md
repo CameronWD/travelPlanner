@@ -31,59 +31,42 @@ In production you need: Postgres, Google OAuth, a strong `AUTH_SECRET`, and `ALL
 
 ## 1. Database (Postgres)
 
-> **Status: done.** The app now ships on Postgres (`@prisma/adapter-pg`) with a committed Postgres migration baseline. The steps below are background; for the actual deploy follow `docs/DEPLOY.md`.
+> **Status: done.** The app now ships on Postgres (`@prisma/adapter-pg`) with a committed Postgres migration baseline. Local dev also runs Postgres (a docker-compose container), so dev and prod use the same engine end to end. The steps below are background; for the actual deploy follow `docs/DEPLOY.md`.
 
-### Why you need to switch
+### Background — the SQLite → Postgres switch (done, see ADR 0005)
 
-The local dev setup uses SQLite via `@prisma/adapter-better-sqlite3`. Postgres is strongly recommended for production (concurrent writes, proper connection pooling, managed backups).
+The local dev setup originally used SQLite via `@prisma/adapter-better-sqlite3`. ADR 0005 dropped that in favour of Postgres everywhere (concurrent writes, proper connection pooling, managed backups, and no dev/prod drift). That switch has already happened; the sections below describe the current, post-switch code.
 
 ### Current setup — what the code actually does
 
-**`prisma/schema.prisma`** — datasource provider is set to `"sqlite"`. The connection URL is NOT in this file; it is passed via `prisma.config.ts`.
+**`prisma/schema.prisma`** — datasource provider is set to `"postgresql"`. The connection URL is NOT in this file; it is passed via `prisma.config.ts`.
 
-**`prisma.config.ts`** — Prisma 7 config file. Sets `datasource.url` from the `DATABASE_URL` environment variable and points at `prisma/migrations/`.
+**`prisma.config.ts`** — Prisma 7 config file. Sets `datasource.url` from the `DIRECT_URL` (falling back to `DATABASE_URL`) environment variable and points at `prisma/migrations/`.
 
 **`lib/db.ts`** — constructs the `PrismaClient` with a driver adapter:
 
 ```ts
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-const adapter = new PrismaBetterSqlite3({ url });
+import { PrismaPg } from "@prisma/adapter-pg";
+const adapter = new PrismaPg({ connectionString });
 return new PrismaClient({ adapter });
 ```
 
-Prisma 7 requires an explicit driver adapter — the client will not fall back to the built-in sqlite engine.
+Prisma 7 requires an explicit driver adapter — the client will not fall back to a built-in engine. `createPrismaClient` also now throws a clear error immediately if `DATABASE_URL` is unset ("DATABASE_URL is not set. The app cannot run without Postgres...") instead of letting the adapter fail later with an opaque connection error.
 
-### Steps to switch to Postgres
+### How the switch was done (historical record — already done, nothing to action here)
 
-1. **Change the datasource provider** in `prisma/schema.prisma`:
+These are the steps ADR 0005 took to move off SQLite. Kept for context (e.g. if a fresh Postgres target — a new environment, a restore — ever needs the baseline re-created); there is nothing left to do against the current repo.
 
-   ```prisma
-   datasource db {
-     provider = "postgresql"
-   }
-   ```
+1. **Changed the datasource provider** in `prisma/schema.prisma` to `postgresql` (done — see the current file, quoted above).
 
-2. **Swap the driver adapter** in `lib/db.ts`. Install the Postgres adapter:
+2. **Swapped the driver adapter** in `lib/db.ts` to the Postgres adapter (done — see the current file, quoted above):
 
    ```bash
    npm install @prisma/adapter-pg pg
    npm install -D @types/pg
    ```
 
-   Then update `lib/db.ts`:
-
-   ```ts
-   import { PrismaClient } from "@prisma/client";
-   import { PrismaPg } from "@prisma/adapter-pg";
-
-   function createPrismaClient() {
-     const url = process.env.DATABASE_URL ?? "";
-     const adapter = new PrismaPg({ connectionString: url });
-     return new PrismaClient({ adapter });
-   }
-   ```
-
-   For Neon (serverless Postgres) use `@prisma/adapter-neon` instead:
+   For Neon (serverless Postgres, used in production) the adapter is `@prisma/adapter-neon`:
 
    ```bash
    npm install @prisma/adapter-neon @neondatabase/serverless
@@ -103,38 +86,24 @@ Prisma 7 requires an explicit driver adapter — the client will not fall back t
    }
    ```
 
-3. **Set `DATABASE_URL`** to your Postgres connection string:
+   The repo currently ships the plain `@prisma/adapter-pg` adapter (works against any Postgres over TCP, including Neon's pooled connection string) — see `lib/db.ts`.
+
+3. **Set `DATABASE_URL`** (and `DIRECT_URL` for migrations — see `prisma.config.ts`) to a Postgres connection string, e.g.:
 
    ```
    DATABASE_URL="postgresql://user:password@host:5432/dbname?sslmode=require"
    ```
 
-4. **Regenerate the migration history for Postgres.** The committed migrations
-   under `prisma/migrations/` are **SQLite-specific DDL** (and `migration_lock.toml`
-   pins `provider = "sqlite"`), so `prisma migrate deploy` will *not* apply them to
-   Postgres. For the first Postgres deploy you must create a Postgres migration
-   baseline. Two options:
+4. **Created the Postgres migration baseline.** The committed migrations under
+   `prisma/migrations/` **are** the Postgres baseline (verify: `migration_lock.toml`
+   pins `provider = "postgresql"`), so `npx prisma migrate deploy` applies cleanly
+   against a fresh Postgres database — no regeneration needed. If a *different*
+   fresh Postgres target ever needs bootstrapping from scratch instead of applying
+   the committed history, the two options that were used to create this baseline
+   remain valid: `npx prisma migrate dev --name init` against an empty DB, or
+   `npx prisma db push` for a migration-less push.
 
-   - **Simplest (fresh DB):** delete the existing `prisma/migrations/` folder, then
-     against your empty Postgres database run:
-
-     ```bash
-     npx prisma migrate dev --name init   # generates Postgres DDL + applies it
-     ```
-
-     Commit the new migration, and use `npx prisma migrate deploy` in CI/CD from then on.
-
-   - **Or, no migration files:** push the schema directly to a fresh Postgres DB:
-
-     ```bash
-     npx prisma db push
-     ```
-
-   Either way you end up with Postgres-correct DDL. (`migrate deploy` is still the
-   right command for *subsequent* deploys once a Postgres baseline exists — use it
-   in CI/CD, not `migrate dev`.)
-
-> **Schema compatibility note:** The schema deliberately avoids Prisma `enum` and `Json` field types to stay portable across SQLite and Postgres. All enum-ish values are stored as `String`; all JSON-ish data is stored as `String` of JSON. Switching providers requires only the one-line `provider` change in `schema.prisma` **plus regenerating the migration baseline** (step 4 above) — no model/field changes are needed.
+> **Schema compatibility note:** The schema deliberately avoids Prisma `enum` and `Json` field types (all enum-ish values are stored as `String`; all JSON-ish data as a `String` of JSON) — a portability convention kept from the SQLite era, now valued for keeping the schema simple rather than for cross-engine portability (the app is Postgres-only today).
 
 ---
 

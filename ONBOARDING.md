@@ -22,6 +22,13 @@ npm install                 # postinstall runs `prisma generate`
 npm run dev                 # next dev
 npm run test                # vitest run (full suite)
 npx vitest run <file>       # run a single test file (preferred in CI/sandbox)
+
+# Real-Postgres integration suite (locking tests) — needs a running DB, so it's
+# skipped by default and not part of `npm test`:
+docker compose up -d
+npx prisma migrate deploy
+INTEGRATION=1 npm run test:integration
+
 npx tsc --noEmit            # typecheck
 npm run lint                # eslint
 npm run build               # production build (also a correctness gate)
