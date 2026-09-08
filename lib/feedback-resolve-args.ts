@@ -44,7 +44,7 @@ export function parseResolveArgs(
 
   if (!id) {
     return {
-      error: "A feedback note id is required, e.g. npm run feedback:resolve -- n1 --note \"fixed\"",
+      error: "A Feedback note id is required, e.g. npm run feedback:resolve -- n1 --note \"fixed\"",
     };
   }
 

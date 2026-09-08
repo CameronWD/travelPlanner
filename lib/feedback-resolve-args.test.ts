@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseResolveArgs } from "@/lib/feedback-resolve-args";
 
 describe("parseResolveArgs", () => {
-  it("marks a note done with a resolution", () => {
+  it("marks a Feedback note done with a resolution", () => {
     expect(parseResolveArgs(["n1", "--note", "Fixed the drag handle"])).toEqual({
       id: "n1",
       status: "DONE",
@@ -18,7 +18,7 @@ describe("parseResolveArgs", () => {
     });
   });
 
-  it("marks a note won't fix", () => {
+  it("marks a Feedback note won't fix", () => {
     expect(
       parseResolveArgs(["n1", "--wontfix", "--note", "Out of scope"]),
     ).toEqual({ id: "n1", status: "WONTFIX", resolution: "Out of scope" });
@@ -47,6 +47,24 @@ describe("parseResolveArgs", () => {
   it("errors on an unknown flag rather than silently ignoring it", () => {
     expect(parseResolveArgs(["n1", "--done"])).toEqual({
       error: expect.stringContaining("--done"),
+    });
+  });
+
+  it("errors when --note is immediately followed by another flag", () => {
+    expect(parseResolveArgs(["n1", "--note", "--wontfix"])).toEqual({
+      error: expect.stringContaining("--note"),
+    });
+  });
+
+  it("errors on a second positional argument", () => {
+    expect(parseResolveArgs(["n1", "n2"])).toEqual({
+      error: expect.stringContaining("n2"),
+    });
+  });
+
+  it("rejects a wrong-case flag as unknown rather than silently ignoring it", () => {
+    expect(parseResolveArgs(["n1", "--Note", "x"])).toEqual({
+      error: expect.stringContaining("--Note"),
     });
   });
 });
