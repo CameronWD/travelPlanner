@@ -102,6 +102,9 @@ Open [http://localhost:3000](http://localhost:3000). Sign in using the dev-login
 npm run test      # run the full Vitest suite
 npm run build     # production build (requires all required env vars)
 npm run lint      # ESLint
+npm run feedback:pull                         # rewrite docs/feedback/inbox.md from the Feedback notes written in the app
+                                              # (read-only; reads production when .env.production.local is present)
+npm run feedback:resolve -- <id> --note "…"   # mark a Feedback note Done (or --wontfix)
 ```
 
 ### Troubleshooting
