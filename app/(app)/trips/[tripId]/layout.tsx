@@ -11,6 +11,7 @@ import { MobileTabBar } from "@/components/trip/mobile-tab-bar";
 import { NotificationBell } from "@/components/trip/notification-bell";
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { OfflineWarmer } from "@/components/offline-warmer";
+import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
 import {
   getUnreadActivityCount,
   getRecentActivity,
@@ -155,6 +156,7 @@ export default async function TripLayout({
       {/* ── Page content ── */}
       <div className="py-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6">
         <OfflineWarmer paths={offlinePaths} />
+        <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
         {children}
       </div>
 
