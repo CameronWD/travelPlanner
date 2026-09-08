@@ -85,4 +85,30 @@ describe("renderInbox", () => {
     const md = renderInbox([note({ id: "a" }), note({ id: "b" })], generatedAt);
     expect(md).toContain("2 open");
   });
+
+  it("uses unambiguous Feedback note terminology in the header", () => {
+    const md = renderInbox([], generatedAt);
+    expect(md).toContain("Resolve a Feedback note with");
+    expect(md).not.toContain("Close a note with");
+  });
+
+  it("renders unknown status values as the raw status string, not undefined", () => {
+    const unknownNote = {
+      id: "unknown-status",
+      body: "This has an unknown status",
+      route: "/trips/t1/plan",
+      pageLabel: "Plan editor",
+      tripName: "Europe Summer 2026",
+      authorName: "Cam",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      status: "PENDING" as any,
+      authoredAt: new Date("2026-09-07T08:00:00.000Z"),
+      resolvedAt: new Date("2026-09-05T00:00:00.000Z"),
+      resolution: "Working on it",
+    };
+    const md = renderInbox([unknownNote], generatedAt);
+    expect(md).toContain("PENDING");
+    expect(md).not.toContain("undefined");
+    expect(md).toContain("unknown-status");
+  });
 });
