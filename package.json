@@ -16,6 +16,7 @@
     "backfill:geocode": "tsx scripts/backfill-geocode.ts",
     "sweep:orphaned-costs": "tsx scripts/sweep-orphaned-costs.ts",
     "feedback:pull": "tsx scripts/feedback-pull.ts",
+    "feedback:resolve": "tsx scripts/feedback-resolve.ts",
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:demo": "tsx prisma/seed-demo.ts",
     "db:seed:real": "tsx prisma/seed-real.ts",
