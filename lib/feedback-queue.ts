@@ -41,11 +41,12 @@ function isQueuedNote(value: unknown): value is QueuedFeedbackNote {
 function write(queue: QueuedFeedbackNote[]): QueuedFeedbackNote[] {
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(queue));
+    return queue;
   } catch {
-    // Storage full or blocked (private mode). The note is lost either way;
-    // failing silently keeps the panel usable.
+    // Storage full or blocked (private mode). Return what is actually persisted
+    // so the caller knows the write failed and can detect it by checking for their key.
+    return readQueue();
   }
-  return queue;
 }
 
 /** The queued notes, oldest first. Corrupt or foreign storage reads as empty. */

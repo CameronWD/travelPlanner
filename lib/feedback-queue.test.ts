@@ -65,6 +65,36 @@ describe("enqueue", () => {
     expect(queue).toHaveLength(50);
     expect(queue[0].clientKey).toBe("fk_5");
   });
+
+  it("returns a queue without the new note when setItem throws", () => {
+    enqueue(note({ clientKey: "fk_1" }));
+    const spy = vi
+      .spyOn(window.localStorage.__proto__, "setItem")
+      .mockImplementation(() => {
+        throw new Error("quota");
+      });
+
+    const queue = enqueue(note({ clientKey: "fk_2" }));
+
+    expect(queue.map((n) => n.clientKey)).toEqual(["fk_1"]);
+    expect(queue.some((n) => n.clientKey === "fk_2")).toBe(false);
+    spy.mockRestore();
+  });
+
+  it("preserves the existing queue when setItem throws", () => {
+    enqueue(note({ clientKey: "fk_1" }));
+    const spy = vi
+      .spyOn(window.localStorage.__proto__, "setItem")
+      .mockImplementation(() => {
+        throw new Error("quota");
+      });
+
+    const queue = enqueue(note({ clientKey: "fk_2" }));
+
+    expect(queue).toHaveLength(1);
+    expect(queue[0].clientKey).toBe("fk_1");
+    spy.mockRestore();
+  });
 });
 
 describe("removeFromQueue", () => {
