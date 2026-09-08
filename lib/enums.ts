@@ -58,3 +58,8 @@ export const TARGET_TYPES = [
 ] as const;
 export type TargetType = (typeof TARGET_TYPES)[number];
 export const targetTypeSchema = z.enum(TARGET_TYPES);
+
+/** `FeedbackNote.status` — the lifecycle of a Feedback note (ADR 0040). */
+export const FEEDBACK_STATUSES = ["OPEN", "DONE", "WONTFIX"] as const;
+export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
+export const feedbackStatusSchema = z.enum(FEEDBACK_STATUSES);
