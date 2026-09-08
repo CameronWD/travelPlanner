@@ -46,6 +46,8 @@ type LogEntry =
 const EMPTY_LOG = "No feedback yet. Tell me what's annoying.";
 const OFFLINE_SAVED = "Saved — it'll send when you're back online.";
 const SEND_FAILED = "Couldn't send that just yet — it's saved and will retry.";
+const STORAGE_FAILED =
+  "Couldn't save that on this device — your words are still in the box, so try again.";
 const DELETE_FAILED = "Couldn't remove that feedback just yet.";
 
 /** Copy for a closed note's badge. An OPEN note wears no badge. */
@@ -56,17 +58,28 @@ const STATUS_LABEL: Record<FeedbackNoteView["status"], string | null> = {
 };
 
 /**
- * Where a note was written, for the meta line above its body.
- *
- * Prefers the Trip name: the page label alone ("Budget") is ambiguous once
- * there are several trips, and the label is what the exported inbox groups by
- * anyway. Notes written outside a trip fall back to the page label.
+ * Where a note came from, for the meta line above its body: the Trip it was
+ * written in (when there was one) and always the screen — the page label alone
+ * is ambiguous across trips, and the trip name alone hides the screen, which is
+ * the part a fix starts from.
  */
 function whereWritten(note: {
   tripName: string | null;
   pageLabel: string;
 }): string {
-  return note.tripName ?? note.pageLabel;
+  return note.tripName ? `${note.tripName} · ${note.pageLabel}` : note.pageLabel;
+}
+
+/**
+ * Did the note actually reach storage?
+ *
+ * `enqueue` reports failure by omission: when localStorage rejects the write
+ * (quota, private mode) it returns the queue *as persisted*, without our note
+ * (see lib/feedback-queue.ts). Silently treating that as saved is how a written
+ * note gets lost, which is the one thing this feature exists to prevent.
+ */
+function isQueued(queue: QueuedFeedbackNote[], clientKey: string): boolean {
+  return queue.some((q) => q.clientKey === clientKey);
 }
 
 /**
@@ -163,29 +176,50 @@ export function FeedbackLauncher({
     };
 
     if (!online) {
-      setPending(enqueue(note));
+      const queue = enqueue(note);
+      setPending(queue);
+      if (!isQueued(queue, note.clientKey)) {
+        // Nowhere to put it — the box is the only copy left, so keep it there.
+        toast({ variant: "destructive", title: STORAGE_FAILED });
+        return;
+      }
       setBody("");
       toast({ title: OFFLINE_SAVED });
       return;
     }
 
+    // A send that didn't land is only safe if the note is sitting in the queue.
+    // When it is, clear the box: the Pending entry is the receipt, and leaving
+    // the text behind invites a second Send and so a second note. When it
+    // isn't, the box is the only copy — keep it and say so.
+    const failedSend = (persisted: boolean) => {
+      if (persisted) {
+        setBody("");
+        toast({ variant: "destructive", title: SEND_FAILED });
+      } else {
+        toast({ variant: "destructive", title: STORAGE_FAILED });
+      }
+    };
+
     setIsSending(true);
     // Queue first: a crash, a closed tab or a dead connection mid-send must
     // never lose what was written. It is dequeued only once the server says so.
-    setPending(enqueue(note));
+    const queue = enqueue(note);
+    setPending(queue);
+    const queued = isQueued(queue, note.clientKey);
     try {
       const result = await createFeedbackNote(note);
       if (result.success) {
         setPending(removeFromQueue(note.clientKey));
         setSent((prev) => [...prev, result.note]);
         setBody("");
-      } else {
-        setPending(readQueue());
-        toast({ variant: "destructive", title: SEND_FAILED });
+        return;
       }
+      setPending(readQueue());
+      failedSend(queued);
     } catch {
       setPending(readQueue());
-      toast({ variant: "destructive", title: SEND_FAILED });
+      failedSend(queued);
     } finally {
       setIsSending(false);
     }
@@ -202,13 +236,21 @@ export function FeedbackLauncher({
 
   return (
     <>
+      {/*
+        Below md the trip tab bar (components/trip/mobile-tab-bar.tsx) is fixed
+        to the bottom at the same z-40 and stands ~3.94rem tall (1px border +
+        py-3 + size-5 icon + gap-0.5 + text-xs) plus the safe area — at a 1rem
+        offset it would paint over this button and swallow the taps. 5rem is the
+        clearance the trip layout already reserves for that bar; from md up the
+        bar is hidden and the button drops back to 1rem.
+      */}
       <Button
         type="button"
         size="icon"
         variant="secondary"
         aria-label="Leave feedback about TEEPEE"
         onClick={() => setOpen(true)}
-        className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] left-4 z-40 size-11 rounded-full shadow-lg"
+        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-4 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))]"
       >
         <MessageSquarePlus className="size-5" aria-hidden />
       </Button>
