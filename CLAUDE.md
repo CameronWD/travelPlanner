@@ -12,7 +12,7 @@ At the start of every session, before the grilling interview:
 2. Read the inbox and lead with what's open in it.
 3. Commit the refreshed `docs/feedback/inbox.md` on your working branch.
 
-Close a note only when the work has actually landed:
+Close a Feedback note only when the work has actually landed:
 `npm run feedback:resolve -- <id> --note "what you did"`. Never hand-edit
 `docs/feedback/inbox.md` — it is generated (ADR 0040).
 
