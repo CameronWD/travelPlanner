@@ -15,9 +15,35 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitive.Viewport
     ref={ref}
     className={cn(
-      // On mobile (default): sit above the fixed tab bar (~4rem) plus safe-area-inset-bottom.
-      // At sm+: standard bottom-4 right-4 positioning (no tab bar).
-      "fixed bottom-0 right-0 z-100 flex max-h-screen w-full flex-col-reverse gap-2 p-4 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:bottom-4 sm:right-4 sm:top-auto sm:max-w-sm sm:pb-4",
+      // The viewport itself must never be hit-testable. Radix only sets
+      // pointerEvents:none on it while the stack is *empty*; with one toast on
+      // screen this <ol> — z-100, w-full below md, ~9.25rem of padding — is a
+      // live surface, and for the whole life of the toast it swallows taps on
+      // the Feedback trigger (components/feedback/feedback-launcher.tsx,
+      // 5–7.75rem) and the trip tab bar (components/trip/mobile-tab-bar.tsx,
+      // 0–3.94rem) sitting underneath it. Each Toast re-enables its own
+      // pointer events (pointer-events-auto in toastVariants below), so the
+      // cards stay clickable, closable and swipeable.
+      "pointer-events-none",
+      // Below md: bottom-right, above the Feedback trigger, which sits at
+      // bottom-[calc(5rem+env(safe-area-inset-bottom))] with a 2.75rem
+      // (size-11) button, so its top edge is at 7.75rem+safe-area —
+      // pb-[calc(8.25rem+safe-area)] clears it with 0.5rem to spare, carrying
+      // the same env() term as the trigger so the gap can't close on a device
+      // with a non-zero inset. The panel is full-screen at this size and wants
+      // its toasts on top of it, so this corner stays as it is.
+      //
+      // From md up: bottom-**left**. The docked Feedback panel now owns the
+      // bottom-right (components/ui/sheet.tsx, side="docked":
+      // md:bottom-[5.25rem] md:right-4, up to 37.5rem tall). A toast on that
+      // edge is exactly flush with the panel's bottom-right corner and at
+      // z-100 lands on its composer — including the send-failure toast, the
+      // one the user most needs to read. No clearance fixes that: the panel is
+      // far taller than any offset worth using, so the toasts move to the
+      // opposite corner instead. Nothing else lives bottom-left from md up —
+      // the trigger is bottom-right, the tab bar is md:hidden — so the plain
+      // md:bottom-4 offset is all that is needed there.
+      "fixed bottom-0 right-0 z-100 flex max-h-screen w-full flex-col-reverse gap-2 p-4 pb-[calc(8.25rem+env(safe-area-inset-bottom))] md:bottom-4 md:left-4 md:right-auto md:pb-4 sm:top-auto sm:max-w-sm",
       className,
     )}
     {...props}
@@ -31,7 +57,18 @@ const toastVariants = cva(
     // Gate slide/fade animations behind motion-safe so reduced-motion users get no animation.
     // Note: globals.css also has a prefers-reduced-motion rule that collapses all tp-* durations
     // to 0.01ms — this motion-safe: layer makes the intent explicit at the component level.
-    "motion-safe:data-[state=open]:tp-slide-in-right motion-safe:data-[state=closed]:tp-fade-out",
+    //
+    // Entry direction has to match the viewport's corner (ToastViewport above):
+    // right below md (viewport is right-anchored there — full-width below sm,
+    // sm:max-w-sm flush right in the 640–768px band), left from md up (viewport
+    // moves to bottom-left to clear the docked Feedback panel). The md:
+    // override wins in the generated CSS despite both classes setting the same
+    // `animation` property: Tailwind v4 emits the base motion-safe block before
+    // the md-grouped one, so at equal specificity (one class + one attribute
+    // selector each) the later, md: rule takes it whenever both its media
+    // conditions (width and motion) hold — verified against the actual build
+    // output rather than assumed.
+    "motion-safe:data-[state=open]:tp-slide-in-right md:motion-safe:data-[state=open]:tp-slide-in-left motion-safe:data-[state=closed]:tp-fade-out",
     "data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=cancel]:translate-x-0 motion-safe:data-[swipe=end]:tp-slide-out-right",
   ),
   {

@@ -37,6 +37,9 @@ const sheetVariants = cva(
         right:
           "inset-y-0 right-0 h-full w-[calc(100%-2rem)] max-w-sm border-l data-[state=open]:tp-slide-in-right data-[state=closed]:tp-slide-out-right",
         left: "inset-y-0 left-0 h-full w-[calc(100%-2rem)] max-w-sm border-r data-[state=open]:tp-slide-in-left data-[state=closed]:tp-slide-out-left",
+        docked:
+          "inset-0 h-full w-full rounded-none border-0 data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down " +
+          "md:inset-auto md:bottom-[5.25rem] md:right-4 md:h-[min(37.5rem,calc(100vh-9rem))] md:w-[560px] md:max-w-[calc(100vw-2rem)] md:rounded-2xl md:border",
       },
     },
     defaultVariants: {
@@ -49,14 +52,16 @@ export interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
     VariantProps<typeof sheetVariants> {
   hideClose?: boolean;
+  /** Suppresses the dimming backdrop. Off by default — every existing caller keeps its overlay. */
+  hideOverlay?: boolean;
 }
 
 const SheetContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   SheetContentProps
->(({ side = "bottom", className, children, hideClose, ...props }, ref) => (
+>(({ side = "bottom", className, children, hideClose, hideOverlay, ...props }, ref) => (
   <SheetPortal>
-    <SheetOverlay />
+    {!hideOverlay ? <SheetOverlay /> : null}
     <DialogPrimitive.Content
       ref={ref}
       className={cn(sheetVariants({ side }), className)}
