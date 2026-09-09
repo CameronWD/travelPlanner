@@ -521,7 +521,8 @@ export function FeedbackLauncher({
           A chat widget does not vanish the moment you touch the page behind
           it, and neither does this: the glossary promises the page stays
           visible *and usable*, which is impossible if the first click out
-          there is spent closing the panel. The X and Escape close it.
+          there is spent closing the panel. The X, Escape, and the trigger
+          itself (see SheetTrigger above) still close it.
         */
         onInteractOutside={(event) => event.preventDefault()}
         /*

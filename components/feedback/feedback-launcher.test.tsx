@@ -520,6 +520,43 @@ describe("FeedbackLauncher", () => {
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     });
 
+    it("closes when the trigger is clicked while the panel is open", async () => {
+      // SheetTrigger (asChild) composes Radix's onOpenToggle onto the click,
+      // so clicking the launcher again while open now closes the panel —
+      // it used to be a no-op before the SheetTrigger rewiring above. Every
+      // chat widget on the web closes on a second click of its launcher, and
+      // the owner chose to keep that rather than suppress it.
+      stubViewport(true);
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      const trigger = screen.getByRole("button", { name: /leave feedback/i });
+      await user.click(trigger);
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+      await user.click(trigger);
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    });
+
+    it("returns focus to the trigger after closing it via the trigger itself", async () => {
+      // It is what was just clicked, so this should hold trivially — but the
+      // same onCloseAutoFocus wiring that returns focus on Escape/X governs
+      // this route too, so assert it rather than assume it.
+      stubViewport(true);
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      const trigger = screen.getByRole("button", { name: /leave feedback/i });
+      await user.click(trigger);
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+      await user.click(trigger);
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(document.activeElement).toBe(trigger);
+    });
+
     it("returns focus to the trigger after closing via Escape", async () => {
       // The trigger is wired through SheetTrigger (asChild) specifically so
       // Radix's internal triggerRef is populated — without it, Radix's
