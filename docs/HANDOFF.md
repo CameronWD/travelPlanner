@@ -360,6 +360,15 @@ are, since the app is used deployed — falling back to the local `.env`
 otherwise. `feedback:pull` is read-only: it only ever writes
 `docs/feedback/inbox.md`, never the database.
 
+`feedback:resolve` is the only writer, and because of that env preference it
+normally writes **production**. It prints the target database host (host only —
+never the connection string or credentials) before it touches anything, and
+`--dry-run` looks the note up and reports what would change without writing:
+
+```bash
+npm run feedback:resolve -- <id> --note "what you did" --dry-run
+```
+
 ---
 
 ## 10. Known limitations & fast-follows

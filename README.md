@@ -104,7 +104,9 @@ npm run build     # production build (requires all required env vars)
 npm run lint      # ESLint
 npm run feedback:pull                           # rewrite docs/feedback/inbox.md from the Feedback notes written in the app
                                                 # (read-only; reads production when .env.production.local is present)
-npm run feedback:resolve -- <id> --note "..."   # mark a Feedback note Done (or --wontfix)
+npm run feedback:resolve -- <id> --note "..."   # mark a Feedback note Done (or --wontfix); the only script that writes
+                                                # to the database — it prints the target host first, and --dry-run
+                                                # reports the change without making it
 ```
 
 ### Troubleshooting

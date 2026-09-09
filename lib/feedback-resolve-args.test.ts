@@ -7,6 +7,7 @@ describe("parseResolveArgs", () => {
       id: "n1",
       status: "DONE",
       resolution: "Fixed the drag handle",
+      dryRun: false,
     });
   });
 
@@ -15,13 +16,19 @@ describe("parseResolveArgs", () => {
       id: "n1",
       status: "DONE",
       resolution: "Fixed it",
+      dryRun: false,
     });
   });
 
   it("marks a Feedback note won't fix", () => {
     expect(
       parseResolveArgs(["n1", "--wontfix", "--note", "Out of scope"]),
-    ).toEqual({ id: "n1", status: "WONTFIX", resolution: "Out of scope" });
+    ).toEqual({
+      id: "n1",
+      status: "WONTFIX",
+      resolution: "Out of scope",
+      dryRun: false,
+    });
   });
 
   it("allows closing without a resolution line", () => {
@@ -29,6 +36,40 @@ describe("parseResolveArgs", () => {
       id: "n1",
       status: "DONE",
       resolution: null,
+      dryRun: false,
+    });
+  });
+
+  it("recognises --dry-run", () => {
+    expect(parseResolveArgs(["n1", "--note", "Fixed it", "--dry-run"])).toEqual({
+      id: "n1",
+      status: "DONE",
+      resolution: "Fixed it",
+      dryRun: true,
+    });
+  });
+
+  it("recognises --dry-run before the id", () => {
+    expect(parseResolveArgs(["--dry-run", "n1"])).toEqual({
+      id: "n1",
+      status: "DONE",
+      resolution: null,
+      dryRun: true,
+    });
+  });
+
+  it("combines --dry-run with --wontfix", () => {
+    expect(parseResolveArgs(["n1", "--wontfix", "--dry-run"])).toEqual({
+      id: "n1",
+      status: "WONTFIX",
+      resolution: null,
+      dryRun: true,
+    });
+  });
+
+  it("does not treat --dry-run as the value of --note", () => {
+    expect(parseResolveArgs(["n1", "--note", "--dry-run"])).toEqual({
+      error: expect.stringContaining("--note"),
     });
   });
 

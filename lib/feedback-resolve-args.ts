@@ -4,12 +4,14 @@ export type ResolveArgs = {
   id: string;
   status: FeedbackStatus;
   resolution: string | null;
+  /** Look the note up and report the change without making it. */
+  dryRun: boolean;
 };
 
 /**
  * Parse `feedback:resolve` arguments.
  *
- * Usage: <id> [--note "what you did" | --note=…] [--wontfix]
+ * Usage: <id> [--note "what you did" | --note=…] [--wontfix] [--dry-run]
  * Unknown flags are an error, not a shrug — a typo'd flag must never look like
  * a successful close.
  */
@@ -19,11 +21,14 @@ export function parseResolveArgs(
   let id: string | null = null;
   let status: FeedbackStatus = "DONE";
   let resolution: string | null = null;
+  let dryRun = false;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--wontfix") {
       status = "WONTFIX";
+    } else if (arg === "--dry-run") {
+      dryRun = true;
     } else if (arg === "--note") {
       const value = argv[i + 1];
       if (value === undefined || value.startsWith("--")) {
@@ -48,5 +53,5 @@ export function parseResolveArgs(
     };
   }
 
-  return { id, status, resolution: resolution?.trim() || null };
+  return { id, status, resolution: resolution?.trim() || null, dryRun };
 }
