@@ -54,13 +54,18 @@ describe("Sheet", () => {
   });
 
   it("does not show the bottom sheet's drag affordance when docked", () => {
-    const { container } = render(
+    render(
       <Sheet open>
         <SheetContent side="docked" hideOverlay>
           <SheetTitle>Docked</SheetTitle>
         </SheetContent>
       </Sheet>,
     );
-    expect(container.querySelector(".bg-muted-foreground\\/30")).toBeNull();
+    // Query from the dialog, as the sibling test above does: SheetContent
+    // renders through a portal into document.body, so RTL's `container` never
+    // holds the panel and a query rooted there returns null whatever the
+    // variant renders.
+    const panel = screen.getByRole("dialog");
+    expect(panel.querySelector(".bg-muted-foreground\\/30")).toBeNull();
   });
 });

@@ -46,7 +46,7 @@ type LogEntry =
 /**
  * Where a draft is *about*, frozen the moment composing begins.
  *
- * The panel is non-modal (Task 2), so the page behind it stays navigable
+ * The panel is non-modal from md up, so the page behind it stays navigable
  * while the box is open — a traveller can start typing on Budget, click
  * through to Plan editor, then press Send. Recording where the remark was
  * written is the entire point of the captured context (ADR 0040), so a note
@@ -66,6 +66,29 @@ const SEND_FAILED = "Couldn't send that just yet — it's saved and will retry."
 const STORAGE_FAILED =
   "Couldn't save that on this device — your words are still in the box, so try again.";
 const DELETE_FAILED = "Couldn't remove that feedback just yet.";
+
+/**
+ * The breakpoint the docked panel changes shape at — it must stay in step with
+ * the `docked` sheet variant's `md:` styles in components/ui/sheet.tsx.
+ */
+const DOCKED_FROM = "(min-width: 768px)";
+
+/**
+ * Is the panel in its docked shape — a card beside a page you can still use —
+ * rather than filling the screen?
+ *
+ * Read once, when the panel opens; never while rendering. On the server there
+ * is no `window` to ask, and the safe answer there is `false`: a page that is
+ * scroll-locked for a moment longer than it needed to be is a nuisance, but a
+ * full-screen opaque panel with the page still scrolling and still reachable by
+ * a screen reader behind it is a bug.
+ */
+function isDockedViewport(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    return false;
+  }
+  return window.matchMedia(DOCKED_FROM).matches;
+}
 
 /** Matches the server schema's cap (lib/validations/feedback.ts). */
 const BODY_MAX = 4000;
@@ -129,9 +152,11 @@ function isQueued(queue: QueuedFeedbackNote[], clientKey: string): boolean {
  * The floating Feedback panel — a remark about TEEPEE itself, from any screen.
  *
  * Bottom-**right**: the panel takes the shape and position of a site's chat
- * widget, but it is a log, not a conversation — it stays open above the
- * trigger while the page behind it stays visible and usable. Toasts
- * (`components/ui/toast.tsx`) now clear the trigger by stacking above it.
+ * widget, but it is a log, not a conversation — from md up it stays open above
+ * the trigger, and clicking the page behind it does not dismiss it, because the
+ * page there is genuinely still usable. Below md it fills the screen and is
+ * modal instead (see `docked`). Toasts (`components/ui/toast.tsx`) keep out of
+ * its way: above the trigger below md, in the opposite corner from md up.
  *
  * The panel reads as a log: every traveller's notes oldest-first, with anything
  * still queued on this device beneath them. Losing a written note is the
@@ -155,6 +180,12 @@ export function FeedbackLauncher({
   );
 
   const [open, setOpen] = React.useState(false);
+  // Which shape the panel opened in. Below md it fills the screen, so "the page
+  // stays usable behind it" is meaningless and the panel has to behave like a
+  // proper dialog: scroll-locked, with everything behind it hidden from screen
+  // readers. From md up the page beside it really is usable, so the panel stays
+  // non-modal. Decided at open time — see isDockedViewport.
+  const [docked, setDocked] = React.useState(false);
   const [body, setBody] = React.useState("");
   const [sent, setSent] = React.useState<FeedbackNoteView[]>([]);
   const [pending, setPending] = React.useState<QueuedFeedbackNote[]>([]);
@@ -247,6 +278,12 @@ export function FeedbackLauncher({
     const queued = pending.map((note): LogEntry => ({ kind: "pending", note }));
     return [...landed, ...queued];
   }, [sent, pending]);
+
+  /** Opens the panel, pinning the shape it opened in for as long as it is up. */
+  function openPanel() {
+    setDocked(isDockedViewport());
+    setOpen(true);
+  }
 
   /** The box is empty again: clears the text and releases the frozen context. */
   function clearDraft() {
@@ -353,21 +390,44 @@ export function FeedbackLauncher({
         size="icon"
         variant="secondary"
         aria-label="Leave feedback about TEEPEE"
-        onClick={() => setOpen(true)}
+        onClick={openPanel}
         className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))] print:hidden"
       >
         <MessageSquarePlus className="size-5" aria-hidden />
       </Button>
 
-      <Sheet open={open} onOpenChange={setOpen} modal={false}>
+      {/*
+        `hideOverlay` tracks `docked` rather than being always-on: Radix hangs
+        the scroll lock off the overlay (it wraps the content in RemoveScroll)
+        and renders no overlay at all unless the dialog is modal. So below md
+        the overlay is what stops the page scrolling underneath a panel that
+        covers it — and it is invisible there anyway, sitting behind an opaque
+        full-screen surface. From md up there is no overlay and no lock, which
+        is the whole point of the docked shape.
+      */}
+      <Sheet open={open} onOpenChange={setOpen} modal={!docked}>
         <SheetContent
           side="docked"
-          hideOverlay
+          hideOverlay={docked}
           className="gap-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+          /*
+            A chat widget does not vanish the moment you touch the page behind
+            it, and neither does this: the glossary promises the page stays
+            visible *and usable*, which is impossible if the first click out
+            there is spent closing the panel. The X and Escape close it.
+          */
+          onInteractOutside={(event) => event.preventDefault()}
         >
           <SheetHeader>
             <SheetTitle>Feedback</SheetTitle>
-            <SheetDescription>{`You're on ${pageLabel}`}</SheetDescription>
+            {/*
+              Once a draft has frozen its context (see DraftContext) the panel
+              must name the *frozen* page, not the live one — after navigating
+              mid-draft, "You're on Budget" would promise the opposite of where
+              the note will actually be filed. While the box is empty there is
+              no frozen context and the label tracks the route, as it should.
+            */}
+            <SheetDescription>{`You're on ${draftContext?.pageLabel ?? pageLabel}`}</SheetDescription>
           </SheetHeader>
 
           {entries.length === 0 ? (

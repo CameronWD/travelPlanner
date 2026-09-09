@@ -52,6 +52,25 @@ const existingNote = {
   authoredAt: "2026-09-07T00:00:00.000Z",
 };
 
+/**
+ * The panel reads `matchMedia("(min-width: 768px)")` when it opens to decide
+ * which shape it is in: the docked card from md up (page usable beside it, so
+ * non-modal) or the full-screen one below md (modal, scroll-locked, page hidden
+ * from screen readers). jsdom has no layout, so any test that cares must say.
+ *
+ * Left unstubbed, test/setup.ts's matchMedia reports `matches: false` — the
+ * full-screen, modal shape.
+ */
+function stubViewport(dockedFromMd: boolean) {
+  vi.stubGlobal(
+    "matchMedia",
+    ((query: string) => ({
+      matches: dockedFromMd,
+      media: query,
+    })) as unknown as typeof matchMedia,
+  );
+}
+
 beforeEach(() => {
   window.localStorage.clear();
   pathnameMock.mockReturnValue("/trips/t1/plan");
@@ -74,6 +93,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
 
@@ -147,7 +167,7 @@ describe("FeedbackLauncher", () => {
     await waitFor(() => expect(box).toHaveValue(""));
   });
 
-  describe("the panel is non-modal, so the page behind it can navigate mid-draft", () => {
+  describe("the panel is non-modal from md up, so the page behind it can navigate mid-draft", () => {
     it("files a note against the page where typing began, not the page at send time", async () => {
       const user = userEvent.setup();
       const { rerender } = render(<FeedbackLauncher />);
@@ -184,6 +204,27 @@ describe("FeedbackLauncher", () => {
       expect(
         await screen.findByText(/You're on Budget/),
       ).toBeInTheDocument();
+    });
+
+    it("names the frozen page in the description once a draft exists", async () => {
+      stubViewport(true);
+      const user = userEvent.setup();
+      const { rerender } = render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      const box = await screen.findByPlaceholderText(/what's on your mind/i);
+      await user.type(box, "Started writing here");
+
+      pathnameMock.mockReturnValue("/trips/t1/budget");
+      rerender(<FeedbackLauncher />);
+
+      // The note is frozen to Plan editor and will be filed there, so the
+      // panel must not say "You're on Budget" — that promises the opposite of
+      // what the freeze guarantees.
+      expect(
+        await screen.findByText(/You're on Plan editor/),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/You're on Budget/)).toBeNull();
     });
 
     it("lets the next draft pick up the route after a previous one was sent", async () => {
@@ -342,12 +383,149 @@ describe("FeedbackLauncher", () => {
   });
 
   it("opens a docked panel that leaves the page visible behind it", async () => {
+    // This is the md-and-up case by definition — below md the panel covers the
+    // page, so there is nothing to leave visible. Say so, rather than leaning
+    // on jsdom's default of "no viewport at all".
+    stubViewport(true);
     const user = userEvent.setup();
     render(<FeedbackLauncher />);
     await user.click(screen.getByRole("button", { name: /leave feedback/i }));
     const panel = await screen.findByRole("dialog");
     expect(panel.className).toContain("md:w-[560px]");
     expect(document.querySelector(".backdrop-blur-sm")).toBeNull();
+  });
+
+  describe("the page behind the docked panel", () => {
+    it("does not dismiss the panel when it is clicked", async () => {
+      stubViewport(true);
+      const user = userEvent.setup();
+      render(
+        <>
+          <button type="button">Somewhere else on the page</button>
+          <FeedbackLauncher />
+        </>,
+      );
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+      // A chat widget does not close because you used the page behind it, and
+      // "visible and usable behind it" is worthless if the first click out
+      // there is spent reopening the panel.
+      await user.click(
+        screen.getByRole("button", { name: /somewhere else on the page/i }),
+      );
+
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(
+        screen.getByPlaceholderText(/what's on your mind/i),
+      ).toBeInTheDocument();
+    });
+
+    it("keeps a half-written draft when the page behind it is clicked", async () => {
+      stubViewport(true);
+      const user = userEvent.setup();
+      render(
+        <>
+          <button type="button">Somewhere else on the page</button>
+          <FeedbackLauncher />
+        </>,
+      );
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      const box = await screen.findByPlaceholderText(/what's on your mind/i);
+      await user.type(box, "Half a thought");
+
+      await user.click(
+        screen.getByRole("button", { name: /somewhere else on the page/i }),
+      );
+
+      expect(box).toHaveValue("Half a thought");
+    });
+
+    it("still closes on Escape", async () => {
+      stubViewport(true);
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+      await user.keyboard("{Escape}");
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    });
+
+    it("still closes on the X", async () => {
+      stubViewport(true);
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /^close$/i }));
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    });
+  });
+
+  describe("the panel is modal below md and non-modal from md up", () => {
+    it("hides and locks the page behind the full-screen panel below md", async () => {
+      stubViewport(false);
+      const user = userEvent.setup();
+      const { container } = render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      await screen.findByRole("dialog");
+
+      // Covering the whole screen while a screen-reader user can still walk the
+      // page underneath is the bug; modal is what fixes it.
+      expect(container).toHaveAttribute("aria-hidden", "true");
+      // Radix hangs the scroll lock (RemoveScroll) off the overlay, so the
+      // overlay has to exist here — invisible behind an opaque full-screen
+      // panel, but it is what stops the page scrolling underneath.
+      expect(document.querySelector(".backdrop-blur-sm")).not.toBeNull();
+      expect(document.body.style.pointerEvents).toBe("none");
+    });
+
+    it("leaves the page behind reachable from md up", async () => {
+      stubViewport(true);
+      const user = userEvent.setup();
+      const { container } = render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      await screen.findByRole("dialog");
+
+      expect(container).not.toHaveAttribute("aria-hidden");
+      expect(document.querySelector(".backdrop-blur-sm")).toBeNull();
+      expect(document.body.style.pointerEvents).not.toBe("none");
+    });
+
+    it("falls back to the modal panel when matchMedia is unavailable", async () => {
+      // The SSR-safe branch: no way to ask about the viewport, so assume the
+      // shape whose failure mode is a nuisance rather than a bug.
+      vi.stubGlobal("matchMedia", undefined);
+      const user = userEvent.setup();
+      const { container } = render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      await screen.findByRole("dialog");
+
+      expect(container).toHaveAttribute("aria-hidden", "true");
+      expect(document.querySelector(".backdrop-blur-sm")).not.toBeNull();
+    });
+
+    it("never asks about the viewport while rendering, only when opened", () => {
+      // On the server there is no window to ask. The query is read in the open
+      // handler for exactly that reason, so rendering must not touch it.
+      const matchMediaSpy = vi.fn(() => ({ matches: true }));
+      vi.stubGlobal("matchMedia", matchMediaSpy);
+
+      render(<FeedbackLauncher />);
+
+      expect(matchMediaSpy).not.toHaveBeenCalled();
+    });
   });
 
   it("marks a done Feedback note with a green pill and a won't-fix one without", async () => {
