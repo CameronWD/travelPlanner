@@ -7,23 +7,28 @@ workspace. Continues `docs/follow-ups/2026-09-08-feedback-notes.md`.
 
 ## Worth doing before the panel sees much phone traffic
 
-- **Rotating a phone while the panel is open leaves it in the wrong modality.**
-  `components/feedback/feedback-launcher.tsx` snapshots `docked` once, in `openPanel`,
-  from `matchMedia("(min-width: 768px)")`. There is no change listener, so crossing the
-  `md` boundary while open desynchronises the CSS shape from the React modality:
-  - portrait → landscape on a phone (iPhone landscape ≈ 844px, so it crosses 768px):
-    the panel re-renders as the small docked card but keeps the modal overlay, so the
-    page behind stays dimmed, blurred, scroll-locked and `aria-hidden` — and because
-    outside-click dismissal is deliberately disabled, tapping the backdrop does
-    nothing. One tap on the X recovers it and the draft is never lost.
-  - desktop narrowed below `md`: the full-screen panel returns without the scroll lock
-    or `aria-hidden` it should have.
+- ~~Rotating a phone while the panel is open leaves it in the wrong modality.~~
+  **Fixed** in `d589beb` / `37d216d`: `useDockedViewport` now subscribes to the media
+  query via `useSyncExternalStore`, latched on "has ever been opened" rather than "is
+  open" so the modality cannot flip underneath Radix's exit animation. Two regressions
+  it exposed were fixed in the same pass — focus landing on a note's Delete button
+  after the remount (`b58bba6`), and `aria-hidden` being stamped across the whole app
+  for the length of every desktop close. Note `components/trip/calendar-views.tsx:48`
+  still has the same one-shot `matchMedia` pattern; harmless there, since it drives a
+  default view rather than a dialog's modality, but it is the same trap.
 
-  Fix is about ten lines: replace the snapshot with a subscription —
-  `useSyncExternalStore` over the media query's `change` event, server snapshot
-  `false` — gated on `open`. Note `components/trip/calendar-views.tsx:48` has the same
-  one-shot `matchMedia` pattern; the consequence is only severe here because it drives
-  a dialog's modality.
+- **Keyboard focus is dumped to the top of the document when the panel closes.** The
+  floating trigger is a plain `<Button onClick={openPanel}>`
+  (`components/feedback/feedback-launcher.tsx:430`) rather than a Radix `SheetTrigger`,
+  so `context.triggerRef` is never populated; both content variants `preventDefault()`
+  in `onCloseAutoFocus` and then call `triggerRef.current?.focus()`, which no-ops on
+  null — and because the default was prevented, FocusScope also skips its own
+  restore-previous-focus fallback. `activeElement` after a close is `<body>`. Genuinely
+  pre-existing (the trigger was never a `SheetTrigger`) and neither this branch's focus
+  work nor the rotation fix made it worse, but it is a real WCAG 2.4.3 defect and the
+  fix is roughly four lines — wrap the trigger in `SheetTrigger`, or restore focus by
+  hand in `onCloseAutoFocus`. Deliberately not papered over with a test asserting the
+  current behaviour as intended.
 
 - **Desktop toasts now fly in from the wrong edge.** The viewport moved to the
   bottom-left at `md`+, but `Toaster` still sets `swipeDirection="right"` and the card
@@ -48,6 +53,18 @@ workspace. Continues `docs/follow-ups/2026-09-08-feedback-notes.md`.
 - A desktop toast now sits over the frozen `sticky left-0` label column of the Compare
   table (`components/trip/compare-table.tsx:477`) rather than the table's right edge.
   Transient, and the table is readable the moment the toast clears.
+- The launcher's module-level `MediaQueryList` cache is keyed off the current
+  `window.matchMedia` function reference. Correct across the test suite (each stub is a
+  fresh closure, and `vi.unstubAllGlobals()` restores a different reference), but two
+  tests in one file that both leave `matchMedia` unstubbed share a single cached list
+  via module state. Harmless today — the default stub always reports `matches: false`
+  and nothing asserts on its identity — but a future test could trip over it. A
+  `beforeEach` cache reset would close it off.
+- `stubViewport` in the launcher tests discards the query string it is handed, so a
+  typo in `DOCKED_FROM`, or drift between it and the `md:` classes in
+  `components/ui/sheet.tsx:41-43` or the same `(min-width: 768px)` literal duplicated at
+  `components/trip/calendar-views.tsx:48`, would pass every test. Pre-existing weakness,
+  not introduced by this branch.
 - `badgeFor`'s variant type in the launcher is a hand-written `"success" | "muted"`
   union rather than being derived from `badgeVariants`. Deliberate — the narrow union
   is the better contract — but noted in case the variant set grows.
