@@ -478,6 +478,22 @@ describe("FeedbackLauncher", () => {
       expect(box).toHaveValue("Half a thought");
     });
 
+    it("puts focus in the write box on open, not on a listed note's Delete button", async () => {
+      // Radix's default autofocus-on-open behaviour is "first tabbable element
+      // inside the content" — with a deletable note listed, that element sits
+      // ahead of the write box in DOM order and is a destructive control. The
+      // panel is for writing, so opening it should put the cursor in the box.
+      stubViewport(true);
+      const user = userEvent.setup();
+      render(<FeedbackLauncher currentUserId="u2" />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      const box = await screen.findByPlaceholderText(/what's on your mind/i);
+      await screen.findByRole("button", { name: /delete/i });
+
+      await waitFor(() => expect(document.activeElement).toBe(box));
+    });
+
     it("still closes on Escape", async () => {
       stubViewport(true);
       const user = userEvent.setup();
@@ -490,6 +506,14 @@ describe("FeedbackLauncher", () => {
 
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     });
+
+    // NOT added: "focus returns to the trigger once Escape closes the panel".
+    // Verified (both by reading @radix-ui/react-dialog's source and by an
+    // ad-hoc probe against this component) that it does not, and that this is
+    // pre-existing and unrelated to this fix — see the report for the
+    // evidence. Writing a passing test here would mean asserting the bug as
+    // if it were the intended behaviour, which is worse than leaving the gap
+    // reported but uncovered.
 
     it("still closes on the X", async () => {
       stubViewport(true);
@@ -629,10 +653,14 @@ describe("FeedbackLauncher", () => {
         expect(document.querySelector(".backdrop-blur-sm")).toBeNull(),
       );
 
-      expect(
-        screen.getByPlaceholderText(/what's on your mind/i),
-      ).toHaveValue("Started on a phone");
+      const boxAfter = screen.getByPlaceholderText(/what's on your mind/i);
+      expect(boxAfter).toHaveValue("Started on a phone");
       expect(screen.getByText(/You're on Plan editor/)).toBeInTheDocument();
+      // The remount replaces the textarea's DOM node entirely, so this is
+      // only true because onOpenAutoFocus explicitly refocuses the *new* node
+      // — without it, a mid-keystroke user's cursor would land wherever
+      // Radix's default (first tabbable element) puts it instead.
+      expect(document.activeElement).toBe(boxAfter);
     });
 
     it("keeps the draft text and frozen context when narrowing below md turns the panel modal", async () => {
@@ -654,10 +682,10 @@ describe("FeedbackLauncher", () => {
         expect(document.querySelector(".backdrop-blur-sm")).not.toBeNull(),
       );
 
-      expect(
-        screen.getByPlaceholderText(/what's on your mind/i),
-      ).toHaveValue("Started on a desktop");
+      const boxAfter = screen.getByPlaceholderText(/what's on your mind/i);
+      expect(boxAfter).toHaveValue("Started on a desktop");
       expect(screen.getByText(/You're on Plan editor/)).toBeInTheDocument();
+      expect(document.activeElement).toBe(boxAfter);
     });
 
     it("removes its media-query listener once the panel closes or unmounts", async () => {

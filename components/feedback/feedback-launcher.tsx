@@ -236,6 +236,7 @@ export function FeedbackLauncher({
   const [draftContext, setDraftContext] = React.useState<DraftContext | null>(
     null,
   );
+  const bodyRef = React.useRef<HTMLTextAreaElement>(null);
 
   const pageLabel = pageLabelForRoute(pathname);
 
@@ -447,7 +448,8 @@ export function FeedbackLauncher({
         flip live while the panel is open — see useDockedViewport — which
         remounts DialogContent between its modal and non-modal variants; the
         draft text and frozen context live in this component, not in Radix's
-        subtree, so they survive that swap.
+        subtree, so they survive that swap. Focus does not survive a remount on
+        its own, though — see onOpenAutoFocus below.
       */}
       <Sheet open={open} onOpenChange={setOpen} modal={!docked}>
         <SheetContent
@@ -461,6 +463,23 @@ export function FeedbackLauncher({
             there is spent closing the panel. The X and Escape close it.
           */
           onInteractOutside={(event) => event.preventDefault()}
+          /*
+            Radix's default here focuses the first tabbable element inside the
+            content — which, whenever a note is listed with a Delete button,
+            is that button, not the write box. That is wrong even on a normal
+            open (a log's first move should be "start typing", not "here's a
+            destructive control"), and it gets worse now that `docked` flipping
+            mid-open remounts this content (see the comment above): without
+            this override, a phone rotating or a window resizing mid-draft
+            would silently steal focus from underneath a mid-keystroke user
+            and land it on Delete. Fires on every fresh mount of this content —
+            including the swap's remount, not just the first open — so
+            preventing the default and focusing the box here covers both.
+          */
+          onOpenAutoFocus={(event) => {
+            event.preventDefault();
+            bodyRef.current?.focus();
+          }}
         >
           <SheetHeader>
             <SheetTitle>Feedback</SheetTitle>
@@ -503,6 +522,7 @@ export function FeedbackLauncher({
               retry for as long as the device lives.
             */}
             <Textarea
+              ref={bodyRef}
               value={body}
               onChange={handleBodyChange}
               placeholder="What's on your mind?"
