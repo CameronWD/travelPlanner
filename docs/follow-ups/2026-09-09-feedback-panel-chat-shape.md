@@ -17,26 +17,26 @@ workspace. Continues `docs/follow-ups/2026-09-08-feedback-notes.md`.
   still has the same one-shot `matchMedia` pattern; harmless there, since it drives a
   default view rather than a dialog's modality, but it is the same trap.
 
-- **Keyboard focus is dumped to the top of the document when the panel closes.** The
-  floating trigger is a plain `<Button onClick={openPanel}>`
-  (`components/feedback/feedback-launcher.tsx:430`) rather than a Radix `SheetTrigger`,
-  so `context.triggerRef` is never populated; both content variants `preventDefault()`
-  in `onCloseAutoFocus` and then call `triggerRef.current?.focus()`, which no-ops on
-  null — and because the default was prevented, FocusScope also skips its own
-  restore-previous-focus fallback. `activeElement` after a close is `<body>`. Genuinely
-  pre-existing (the trigger was never a `SheetTrigger`) and neither this branch's focus
-  work nor the rotation fix made it worse, but it is a real WCAG 2.4.3 defect and the
-  fix is roughly four lines — wrap the trigger in `SheetTrigger`, or restore focus by
-  hand in `onCloseAutoFocus`. Deliberately not papered over with a test asserting the
-  current behaviour as intended.
+- ~~Keyboard focus is dumped to the top of the document when the panel closes.~~
+  **Fixed** in `fd60dec`: the trigger is now wrapped in `<SheetTrigger asChild>`, so
+  Radix's `triggerRef` is populated and focus returns to the button on both Escape and
+  the X. Wiring the ref also woke Radix's `onCloseAutoFocus` during the docked↔modal
+  *remount* (which is not a close), where it yanked focus off the write box; the panel
+  now only lets that default run when `open` is genuinely false.
 
-- **Desktop toasts now fly in from the wrong edge.** The viewport moved to the
-  bottom-left at `md`+, but `Toaster` still sets `swipeDirection="right"` and the card
-  keeps `motion-safe:tp-slide-in-right` / `tp-slide-out-right`
-  (`components/ui/toast.tsx:60-61`, `components/ui/toaster.tsx:21`). So a desktop toast
-  animates from the page centre toward the left edge, and dismissing it means swiping
-  *into* the page rather than off the nearest edge. Purely cosmetic, but it reads as a
-  bug. `md:left-*` variants of the slide utilities already exist in `app/globals.css`.
+- ~~Desktop toasts fly in from the wrong edge.~~ **Fixed** in `32e9628`: the entry
+  animation is `tp-slide-in-right` at base and `sm` — where the viewport is still
+  right-anchored — and `md:motion-safe:data-[state=open]:tp-slide-in-left` from `md`
+  up. Verified against compiled CSS, not assumed: equal specificity, `md:` block
+  emitted later, so the override genuinely wins.
+
+- **The trigger is now a toggle, and that was not asked for.** Radix's `DialogTrigger`
+  composes `onOpenToggle` onto the click, so clicking the floating button while the
+  panel is open now closes it; it used to be a no-op. Defensible for a chat-widget
+  shape and focus resolves correctly, but it is a third dismissal route nobody chose,
+  it is untested, and the comment at `components/feedback/feedback-launcher.tsx:524`
+  still says only the X and Escape close the panel. Decide whether to keep it, then
+  make the comment and a test say so.
 
 ## Small, cheap, not urgent
 
@@ -53,6 +53,18 @@ workspace. Continues `docs/follow-ups/2026-09-08-feedback-notes.md`.
 - A desktop toast now sits over the frozen `sticky left-0` label column of the Compare
   table (`components/trip/compare-table.tsx:477`) rather than the table's right edge.
   Transient, and the table is readable the moment the toast clears.
+- The comment justifying `swipeDirection="right"` in `components/ui/toaster.tsx:23` has
+  a wrong premise. Radix Toast's swipe is pointer-based, not touch-only — a desktop
+  mouse-drag dismiss works, and `pointerType === "touch"` merely widens the start
+  buffer from 2px to 10px. The *decision* is still right (Radix takes one
+  non-responsive value, and touch is the dominant swipe case), so only the reasoning
+  needs rewording before it misleads someone.
+- The `onCloseAutoFocus` guard reads the last *committed* `open`, which differs from
+  "at dispatch time" in two corners jsdom cannot reach, both benign: crossing `md`
+  during the ~200ms exit animation briefly pulls focus back into the dismissing panel
+  before it settles on the trigger; and unmounting the launcher with the panel open
+  refocuses nothing, which is fine because the trigger unmounts too. Worth knowing
+  before anyone "simplifies" the guard to a ref.
 - The launcher's module-level `MediaQueryList` cache is keyed off the current
   `window.matchMedia` function reference. Correct across the test suite (each stub is a
   fresh closure, and `vi.unstubAllGlobals()` restores a different reference), but two
