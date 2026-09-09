@@ -27,6 +27,19 @@ const STORAGE_KEY = "teepee.feedback.queue.v1";
 /** Keeps a wedged queue from growing without bound on a device that stays offline. */
 const MAX_QUEUED = 50;
 
+/** A nullable field must be present and null — an absent one is a broken record. */
+function isNullableString(value: unknown): boolean {
+  return typeof value === "string" || value === null;
+}
+
+/**
+ * Every field the server requires, checked here.
+ *
+ * A record that passes this guard but fails the server schema can never be
+ * sent, and until `flushQueue` learned to discard such a note it blocked every
+ * note behind it — so the guard mirrors the schema field for field rather than
+ * spot-checking a few.
+ */
 function isQueuedNote(value: unknown): value is QueuedFeedbackNote {
   if (typeof value !== "object" || value === null) return false;
   const note = value as Record<string, unknown>;
@@ -34,7 +47,12 @@ function isQueuedNote(value: unknown): value is QueuedFeedbackNote {
     typeof note.clientKey === "string" &&
     typeof note.body === "string" &&
     typeof note.route === "string" &&
-    typeof note.authoredAt === "string"
+    typeof note.pageLabel === "string" &&
+    typeof note.authoredAt === "string" &&
+    isNullableString(note.tripId) &&
+    isNullableString(note.tripName) &&
+    isNullableString(note.viewport) &&
+    isNullableString(note.userAgent)
   );
 }
 
@@ -76,26 +94,48 @@ export function removeFromQueue(clientKey: string): QueuedFeedbackNote[] {
 }
 
 /**
- * Send queued notes oldest-first, stopping at the first failure so ordering is
- * preserved and a dead connection isn't hammered. `send` resolves true when the
- * note landed; a throw counts as a failure and the note stays queued.
+ * What became of one attempt to send a queued note.
+ *
+ * The distinction matters because the queue is drained in order: a `transient`
+ * result must stop the flush and keep the note, while a `rejected` one must
+ * discard it. Retrying a note the server will never accept wedges the queue
+ * forever and silently strands every note written after it.
+ */
+export type SendOutcome = "sent" | "transient" | "rejected";
+
+export type FlushResult = {
+  sent: number;
+  /** Notes the server refused outright. The caller must tell the user. */
+  discarded: QueuedFeedbackNote[];
+  remaining: number;
+};
+
+/**
+ * Send queued notes oldest-first, stopping at the first transient failure so
+ * ordering is preserved and a dead connection isn't hammered. A throw is
+ * transient — the note stays queued. A `rejected` note is dropped and the
+ * flush continues, so one unsendable note cannot block the rest; the discarded
+ * notes come back in the result because losing what someone wrote must never
+ * be silent.
  */
 export async function flushQueue(
-  send: (note: QueuedFeedbackNote) => Promise<boolean>,
-): Promise<{ sent: number; remaining: number }> {
+  send: (note: QueuedFeedbackNote) => Promise<SendOutcome>,
+): Promise<FlushResult> {
   let sent = 0;
+  const discarded: QueuedFeedbackNote[] = [];
   for (const note of readQueue()) {
-    let landed = false;
+    let outcome: SendOutcome;
     try {
-      landed = await send(note);
+      outcome = await send(note);
     } catch {
-      landed = false;
+      outcome = "transient";
     }
-    if (!landed) break;
+    if (outcome === "transient") break;
     removeFromQueue(note.clientKey);
-    sent++;
+    if (outcome === "rejected") discarded.push(note);
+    else sent++;
   }
-  return { sent, remaining: readQueue().length };
+  return { sent, discarded, remaining: readQueue().length };
 }
 
 /** A one-off key for a note, stable across retries. */

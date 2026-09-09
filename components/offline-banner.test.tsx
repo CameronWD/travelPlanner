@@ -47,6 +47,10 @@ describe("OfflineBanner", () => {
     expect(banner).toBeTruthy();
     expect(banner.textContent).toMatch(/offline/i);
     expect(banner.textContent).toMatch(/saved trip/i);
+    // A Feedback note queues and sends itself later (ADR 0041), so the banner
+    // must not claim that every change needs a connection.
+    expect(banner.textContent).toMatch(/plan changes need a connection/i);
+    expect(banner.textContent).toMatch(/feedback/i);
 
     // Keep the compiler happy
     void queryByRole;

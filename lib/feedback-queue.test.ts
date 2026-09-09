@@ -43,6 +43,45 @@ describe("readQueue", () => {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ nope: true }));
     expect(readQueue()).toEqual([]);
   });
+
+  // A record the guard waves through but the server schema rejects can never
+  // be sent, so it must not be readable as a note in the first place.
+  it.each([
+    "clientKey",
+    "body",
+    "route",
+    "pageLabel",
+    "tripId",
+    "tripName",
+    "viewport",
+    "userAgent",
+    "authoredAt",
+  ])("rejects a stored record missing %s", (field) => {
+    const broken: Record<string, unknown> = { ...note() };
+    delete broken[field];
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify([broken]));
+    expect(readQueue()).toEqual([]);
+  });
+
+  it("accepts null for the nullable fields but not for the required ones", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify([
+        note({ tripId: null, tripName: null, viewport: null, userAgent: null }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        { ...note({ clientKey: "fk_bad" }), pageLabel: null as any },
+      ]),
+    );
+    expect(readQueue().map((n) => n.clientKey)).toEqual(["fk_1"]);
+  });
+
+  it("rejects a stored record whose field is the wrong type", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify([{ ...note(), viewport: 390 }]),
+    );
+    expect(readQueue()).toEqual([]);
+  });
 });
 
 describe("enqueue", () => {
@@ -110,39 +149,68 @@ describe("flushQueue", () => {
   it("sends oldest first and clears what landed", async () => {
     enqueue(note({ clientKey: "fk_1" }));
     enqueue(note({ clientKey: "fk_2" }));
-    const sender = vi.fn().mockResolvedValue(true);
+    const sender = vi.fn().mockResolvedValue("sent");
 
     const result = await flushQueue(sender);
 
     expect(sender.mock.calls.map((c) => c[0].clientKey)).toEqual(["fk_1", "fk_2"]);
-    expect(result).toEqual({ sent: 2, remaining: 0 });
+    expect(result).toEqual({ sent: 2, discarded: [], remaining: 0 });
     expect(readQueue()).toEqual([]);
   });
 
-  it("stops at the first failure and keeps the rest queued in order", async () => {
+  it("stops at the first transient failure and keeps the rest queued in order", async () => {
     enqueue(note({ clientKey: "fk_1" }));
     enqueue(note({ clientKey: "fk_2" }));
     enqueue(note({ clientKey: "fk_3" }));
     const sender = vi
       .fn()
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false);
+      .mockResolvedValueOnce("sent")
+      .mockResolvedValueOnce("transient");
 
     const result = await flushQueue(sender);
 
     expect(sender).toHaveBeenCalledTimes(2);
-    expect(result).toEqual({ sent: 1, remaining: 2 });
+    expect(result).toEqual({ sent: 1, discarded: [], remaining: 2 });
     expect(readQueue().map((n) => n.clientKey)).toEqual(["fk_2", "fk_3"]);
   });
 
-  it("treats a thrown sender as a failure rather than losing the note", async () => {
+  it("treats a thrown sender as transient rather than losing the note", async () => {
     enqueue(note({ clientKey: "fk_1" }));
     const sender = vi.fn().mockRejectedValue(new Error("offline"));
 
     const result = await flushQueue(sender);
 
-    expect(result).toEqual({ sent: 0, remaining: 1 });
+    expect(result).toEqual({ sent: 0, discarded: [], remaining: 1 });
     expect(readQueue()).toHaveLength(1);
+  });
+
+  // The whole point of the outcome union: a note the server will never accept
+  // used to be retried forever, stranding every note written after it.
+  it("discards a permanently rejected Feedback note and sends the one behind it", async () => {
+    enqueue(note({ clientKey: "fk_bad", body: "Rejected forever" }));
+    enqueue(note({ clientKey: "fk_good" }));
+    const sender = vi
+      .fn()
+      .mockResolvedValueOnce("rejected")
+      .mockResolvedValueOnce("sent");
+
+    const result = await flushQueue(sender);
+
+    expect(sender).toHaveBeenCalledTimes(2);
+    expect(result.sent).toBe(1);
+    expect(result.remaining).toBe(0);
+    expect(readQueue()).toEqual([]);
+  });
+
+  it("hands back the discarded Feedback notes so the user can be told", async () => {
+    enqueue(note({ clientKey: "fk_bad", body: "Rejected forever" }));
+    const sender = vi.fn().mockResolvedValue("rejected");
+
+    const result = await flushQueue(sender);
+
+    expect(result.discarded.map((n) => n.clientKey)).toEqual(["fk_bad"]);
+    expect(result.discarded[0].body).toBe("Rejected forever");
+    expect(result.sent).toBe(0);
   });
 });
 

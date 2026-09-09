@@ -264,4 +264,140 @@ describe("FeedbackLauncher", () => {
     // the text behind invites a second Send and so a second note.
     await waitFor(() => expect(box).toHaveValue(""));
   });
+
+  it("keeps the floating button off a printed page", () => {
+    render(<FeedbackLauncher />);
+    expect(
+      screen.getByRole("button", { name: /leave feedback/i }).className,
+    ).toContain("print:hidden");
+  });
+
+  it("labels a note whose status it does not recognise instead of striking it out silently", async () => {
+    listMock.mockResolvedValue({
+      success: true,
+      notes: [{ ...existingNote, status: "PENDING" }],
+    });
+    const user = userEvent.setup();
+    render(<FeedbackLauncher />);
+
+    await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+
+    expect(await screen.findByText("PENDING")).toBeInTheDocument();
+  });
+
+  it("wears no badge on an open note", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackLauncher />);
+
+    await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+
+    expect(await screen.findByText("Budget totals look wrong")).toBeInTheDocument();
+    expect(screen.queryByText("OPEN")).toBeNull();
+  });
+
+  describe("the 4000-character cap", () => {
+    it("stops the box accepting more than the server will", async () => {
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      const box = await screen.findByPlaceholderText(/what's on your mind/i);
+
+      expect(box).toHaveAttribute("maxlength", "4000");
+    });
+
+    // An over-long body queues and is then rejected by the schema on every
+    // retry, so it must never reach the queue in the first place.
+    it("cannot queue a body longer than the server accepts", async () => {
+      onlineMock.mockReturnValue(false);
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      const box = await screen.findByPlaceholderText(/what's on your mind/i);
+      await user.click(box);
+      await user.paste("x".repeat(4500));
+
+      expect((box as HTMLTextAreaElement).value).toHaveLength(4000);
+
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      await waitFor(() =>
+        expect(
+          window.localStorage.getItem("teepee.feedback.queue.v1"),
+        ).not.toBeNull(),
+      );
+      const queued = JSON.parse(
+        window.localStorage.getItem("teepee.feedback.queue.v1") ?? "[]",
+      ) as { body: string }[];
+      expect(queued).toHaveLength(1);
+      expect(queued[0].body.length).toBeLessThanOrEqual(4000);
+    });
+
+    it("shows the count only once it is close to the limit", async () => {
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      const box = await screen.findByPlaceholderText(/what's on your mind/i);
+
+      expect(screen.queryByText(/\/4000/)).toBeNull();
+
+      await user.click(box);
+      await user.paste("x".repeat(3900));
+
+      expect(await screen.findByText("3900/4000")).toBeInTheDocument();
+    });
+  });
+
+  it("tells the user when a queued note is rejected outright, and sends the one behind it", async () => {
+    window.localStorage.setItem(
+      "teepee.feedback.queue.v1",
+      JSON.stringify([
+        {
+          clientKey: "fk_doomed",
+          body: "The server will never take this",
+          route: "/trips/t1/plan",
+          pageLabel: "Plan editor",
+          tripId: "t1",
+          tripName: "Europe Summer 2026",
+          viewport: "390x844",
+          userAgent: "iPhone",
+          authoredAt: "2026-09-08T00:00:00.000Z",
+        },
+        {
+          clientKey: "fk_fine",
+          body: "Written on the train",
+          route: "/trips/t1/plan",
+          pageLabel: "Plan editor",
+          tripId: "t1",
+          tripName: "Europe Summer 2026",
+          viewport: "390x844",
+          userAgent: "iPhone",
+          authoredAt: "2026-09-08T00:01:00.000Z",
+        },
+      ]),
+    );
+    createMock.mockImplementation(async (input) =>
+      input.clientKey === "fk_doomed"
+        ? { success: false, errors: { _form: ["too long"] } }
+        : { success: true, note: { ...existingNote, id: "n9", body: input.body } },
+    );
+
+    render(<FeedbackLauncher />);
+
+    // The doomed note no longer blocks the one written after it...
+    await waitFor(() => expect(createMock).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(window.localStorage.getItem("teepee.feedback.queue.v1")).toBe("[]"),
+    );
+    // ...and losing it is not allowed to be silent.
+    await waitFor(() => expect(toastMock).toHaveBeenCalled());
+    const [options] = toastMock.mock.calls[0];
+    expect(options.variant).toBe("destructive");
+    expect(String(options.title)).toMatch(/discarded/i);
+    expect(String(options.description)).toContain(
+      "The server will never take this",
+    );
+  });
 });

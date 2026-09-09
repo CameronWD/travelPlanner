@@ -50,12 +50,34 @@ const STORAGE_FAILED =
   "Couldn't save that on this device — your words are still in the box, so try again.";
 const DELETE_FAILED = "Couldn't remove that feedback just yet.";
 
+/** Matches the server schema's cap (lib/validations/feedback.ts). */
+const BODY_MAX = 4000;
+/** The count only appears once it is worth knowing — a counter you can ignore. */
+const COUNT_FROM = BODY_MAX - 200;
+
+/** A note the server refused is gone; say so rather than dropping it quietly. */
+function discardedMessage(discarded: QueuedFeedbackNote[]): string {
+  return discarded.length === 1
+    ? "A saved Feedback note couldn't be accepted and has been discarded."
+    : `${discarded.length} saved Feedback notes couldn't be accepted and have been discarded.`;
+}
+
 /** Copy for a closed note's badge. An OPEN note wears no badge. */
-const STATUS_LABEL: Record<FeedbackNoteView["status"], string | null> = {
-  OPEN: null,
+const STATUS_LABEL: Partial<Record<FeedbackNoteView["status"], string>> = {
   DONE: "Done",
   WONTFIX: "Won't fix",
 };
+
+/**
+ * The badge a note wears, or null for an open one. An unrecognised status
+ * shows itself rather than vanishing — a struck-through note with no badge
+ * explaining why is worse than an unfamiliar word (lib/feedback-inbox.ts does
+ * the same).
+ */
+function badgeFor(status: FeedbackNoteView["status"]): string | null {
+  if (status === "OPEN") return null;
+  return STATUS_LABEL[status] ?? status;
+}
 
 /**
  * Where a note came from, for the meta line above its body: the Trip it was
@@ -126,9 +148,20 @@ export function FeedbackLauncher({
     const result = await flushQueue(async (note) => {
       // QueuedFeedbackNote is shaped as the action's input on purpose (ADR
       // 0041), so a queued note can be replayed exactly as it was written.
+      //
+      // A rejection is the server's schema saying no, which no amount of
+      // retrying changes; only a throw (dead connection, dead server) is worth
+      // trying again.
       const res = await createFeedbackNote(note);
-      return res.success;
+      return res.success ? "sent" : "rejected";
     });
+    if (result.discarded.length > 0) {
+      toast({
+        variant: "destructive",
+        title: discardedMessage(result.discarded),
+        description: result.discarded[0].body.slice(0, 120),
+      });
+    }
     if (result.sent > 0 && open) await refresh();
   }, [open, refresh]);
 
@@ -243,6 +276,10 @@ export function FeedbackLauncher({
         offset it would paint over this button and swallow the taps. 5rem is the
         clearance the trip layout already reserves for that bar; from md up the
         bar is hidden and the button drops back to 1rem.
+
+        `print:hidden` keeps it off the printed itinerary
+        (app/(app)/trips/[tripId]/print/page.tsx hides app chrome by tag and by
+        `.print-hide`, neither of which this floating button is).
       */}
       <Button
         type="button"
@@ -250,7 +287,7 @@ export function FeedbackLauncher({
         variant="secondary"
         aria-label="Leave feedback about TEEPEE"
         onClick={() => setOpen(true)}
-        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-4 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))]"
+        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-4 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))] print:hidden"
       >
         <MessageSquarePlus className="size-5" aria-hidden />
       </Button>
@@ -285,23 +322,45 @@ export function FeedbackLauncher({
           )}
 
           <div className="flex flex-col gap-2">
+            {/*
+              maxLength matches the server's cap. Without it a longer note is
+              accepted here, queued, and then rejected by the schema on every
+              retry for as long as the device lives.
+            */}
             <Textarea
               value={body}
               onChange={(e) => setBody(e.target.value)}
               placeholder="What's on your mind?"
               aria-label="Your feedback about TEEPEE"
               rows={3}
+              maxLength={BODY_MAX}
             />
-            <Button
-              type="button"
-              size="sm"
-              className="self-end"
-              loading={isSending}
-              disabled={isSending || body.trim().length === 0}
-              onClick={() => void handleSend()}
-            >
-              Send
-            </Button>
+            <div className="flex items-center gap-2">
+              {body.length >= COUNT_FROM ? (
+                <p
+                  role="status"
+                  aria-live="polite"
+                  className={cn(
+                    "text-xs",
+                    body.length >= BODY_MAX
+                      ? "font-medium text-destructive"
+                      : "text-muted-foreground",
+                  )}
+                >
+                  {body.length}/{BODY_MAX}
+                </p>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                className="ml-auto"
+                loading={isSending}
+                disabled={isSending || body.trim().length === 0}
+                onClick={() => void handleSend()}
+              >
+                Send
+              </Button>
+            </div>
           </div>
         </SheetContent>
       </Sheet>
@@ -318,7 +377,7 @@ function SentEntry({
   canDelete: boolean;
   onDelete: (id: string) => void | Promise<void>;
 }) {
-  const statusLabel = STATUS_LABEL[note.status];
+  const statusLabel = badgeFor(note.status);
   const closed = statusLabel !== null;
 
   return (
