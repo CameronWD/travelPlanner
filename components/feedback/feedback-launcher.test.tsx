@@ -575,10 +575,33 @@ describe("FeedbackLauncher", () => {
       expect(document.querySelector(".backdrop-blur-sm")).not.toBeNull();
     });
 
-    it("never asks about the viewport while rendering, only when opened", () => {
-      // On the server there is no window to ask, and the subscription is only
-      // active while the panel is open — mounting the trigger button alone
-      // must never touch matchMedia.
+    it("degrades gracefully when the MediaQueryList only has the old addListener API", async () => {
+      // Safari 12/13's MediaQueryList has addListener/removeListener but no
+      // addEventListener, and this project has no browserslist narrowing
+      // Next's defaults away from it. Subscribing must skip live tracking
+      // rather than throw inside the effect (which would surface as an error
+      // boundary on every panel open).
+      vi.stubGlobal(
+        "matchMedia",
+        (() => ({
+          matches: true,
+          media: DOCKED_FROM,
+          addListener: () => {},
+          removeListener: () => {},
+        })) as unknown as typeof matchMedia,
+      );
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    });
+
+    it("never asks about the viewport while rendering, only once it has been opened", () => {
+      // On the server there is no window to ask, and the subscription only
+      // ever activates once the panel has opened at least once — mounting
+      // the trigger button alone must never touch matchMedia.
       const matchMediaSpy = vi.fn(() => ({ matches: true }));
       vi.stubGlobal("matchMedia", matchMediaSpy);
 
@@ -588,7 +611,7 @@ describe("FeedbackLauncher", () => {
     });
   });
 
-  describe("the panel's shape stays live for as long as it is open", () => {
+  describe("the panel's shape stays live from its first open onward", () => {
     it("becomes non-modal with no overlay when a panel opened below md is widened past it", async () => {
       const viewport = stubViewport(false);
       const user = userEvent.setup();
@@ -688,7 +711,14 @@ describe("FeedbackLauncher", () => {
       expect(document.activeElement).toBe(boxAfter);
     });
 
-    it("removes its media-query listener once the panel closes or unmounts", async () => {
+    it("keeps its media-query listener subscribed across a close — only unmount removes it", async () => {
+      // docked is latched to "has this panel ever opened", not "is it open
+      // right now" (see useDockedViewport): gating on `open` looked right but
+      // let `docked` snap to false in the same render `open` does, flipping
+      // `modal` underneath Radix's ~200ms exit-animation window. Latching
+      // means the subscription deliberately outlives a close — proved here by
+      // checking it is *still* subscribed right after closing, not just by
+      // checking it's eventually gone — and only unmounting tears it down.
       const viewport = stubViewport(true);
       const user = userEvent.setup();
       const { unmount } = render(<FeedbackLauncher />);
@@ -697,8 +727,11 @@ describe("FeedbackLauncher", () => {
       await screen.findByRole("dialog");
       expect(viewport.listenerCount()).toBeGreaterThan(0);
 
-      unmount();
+      await user.click(screen.getByRole("button", { name: /^close$/i }));
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(viewport.listenerCount()).toBeGreaterThan(0);
 
+      unmount();
       expect(viewport.listenerCount()).toBe(0);
     });
   });

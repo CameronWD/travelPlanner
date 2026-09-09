@@ -78,17 +78,59 @@ function getDockedServerSnapshot(): boolean {
   return false;
 }
 
+// Cached against the *current* `window.matchMedia` function reference, not
+// created once forever: React's useSyncExternalStore calls getSnapshot on
+// every render (so, several times per keystroke while the box is focused),
+// and an uncached `window.matchMedia(...)` call constructs a fresh
+// MediaQueryList every time for no reason. Keying the cache off the function
+// reference rather than a module-load-time flag means a *different*
+// matchMedia implementation — the only way this ever changes in practice —
+// still invalidates it correctly.
+let cachedMatchMediaFn: typeof window.matchMedia | undefined;
+let cachedDockedMql: MediaQueryList | null = null;
+
+function getDockedMql(): MediaQueryList | null {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    cachedMatchMediaFn = undefined;
+    cachedDockedMql = null;
+    return null;
+  }
+  if (window.matchMedia !== cachedMatchMediaFn) {
+    cachedMatchMediaFn = window.matchMedia;
+    cachedDockedMql = window.matchMedia(DOCKED_FROM);
+  }
+  return cachedDockedMql;
+}
+
 /**
  * Is the panel in its docked shape — a card beside a page you can still use —
  * rather than filling the screen?
  *
- * Live for as long as `active` (the panel being open) holds: a phone rotating
- * from portrait to landscape, or a desktop window narrowing below `md`, must
- * flip the shape while the panel is up, not just at the moment it opened —
- * otherwise the CSS shape and the dialog's modality (scroll lock, `aria-hidden`,
- * outside-click behaviour) fall out of step with each other. `active` gates the
- * whole thing off while the panel is closed, so mounting the button alone never
- * touches `matchMedia`.
+ * Live for as long as `active` holds, tracking `matchMedia`'s `change` event:
+ * a phone rotating from portrait to landscape, or a desktop window narrowing
+ * below `md`, must flip the shape while the panel is up, not just at the
+ * moment it opened — otherwise the CSS shape and the dialog's modality
+ * (scroll lock, `aria-hidden`, outside-click behaviour) fall out of step.
+ *
+ * `active` is latched to "has this panel ever been opened", not "is it open
+ * right now" — see the `hasOpened` state below. Gating on `open` itself
+ * looked right but wasn't: Radix's `Presence` keeps the content mounted for
+ * the ~200ms exit animation after `open` goes false, so `docked` snapping to
+ * `false` in the very same render `open` does would flip `modal` to `true`
+ * mid-exit on desktop, swapping in `DialogContentModal` — `aria-hidden`
+ * stamped across the whole app, the log torn down and rebuilt, and
+ * `onOpenAutoFocus` firing again to pull focus back into the panel being
+ * dismissed. Latching on "ever opened" means the subscription outlives a
+ * close (only unmounting tears it down) but never starts before the first
+ * open, so mounting the trigger button alone still never touches
+ * `matchMedia`.
+ *
+ * Guards `addEventListener`'s existence, not just `matchMedia`'s: Safari
+ * 12/13 shipped a `MediaQueryList` with only the older `addListener`/
+ * `removeListener` pair, and this project's `package.json` has no
+ * `browserslist` narrowing Next's defaults away from it. Without the guard,
+ * that combination throws inside an effect — an error boundary on panel
+ * open, not a graceful skip of live tracking.
  *
  * On the server there is no `window` to ask, and the safe answer there is
  * `false`: a page that is scroll-locked for a moment longer than it needed to
@@ -100,29 +142,24 @@ function getDockedServerSnapshot(): boolean {
 function useDockedViewport(active: boolean): boolean {
   const subscribe = React.useCallback(
     (onChange: () => void) => {
-      if (
-        !active ||
-        typeof window === "undefined" ||
-        typeof window.matchMedia !== "function"
-      ) {
+      if (!active) return () => {};
+      const mql = getDockedMql();
+      if (!mql || typeof mql.addEventListener !== "function") {
         return () => {};
       }
-      const mql = window.matchMedia(DOCKED_FROM);
       mql.addEventListener("change", onChange);
-      return () => mql.removeEventListener("change", onChange);
+      return () => {
+        if (typeof mql.removeEventListener === "function") {
+          mql.removeEventListener("change", onChange);
+        }
+      };
     },
     [active],
   );
 
   const getSnapshot = React.useCallback((): boolean => {
-    if (
-      !active ||
-      typeof window === "undefined" ||
-      typeof window.matchMedia !== "function"
-    ) {
-      return false;
-    }
-    return window.matchMedia(DOCKED_FROM).matches;
+    if (!active) return false;
+    return getDockedMql()?.matches ?? false;
   }, [active]);
 
   return React.useSyncExternalStore(subscribe, getSnapshot, getDockedServerSnapshot);
@@ -218,15 +255,21 @@ export function FeedbackLauncher({
   );
 
   const [open, setOpen] = React.useState(false);
+  // Latched true the first time the panel opens, and never reset — see
+  // useDockedViewport for why `docked` tracks *this* rather than `open`
+  // itself: `open` goes false a beat before Radix finishes unmounting the
+  // exiting content, and letting the shape flip in that gap flips modality
+  // underneath a panel that is mid-close.
+  const [hasOpened, setHasOpened] = React.useState(false);
   // Which shape the panel is in right now. Below md it fills the screen, so
   // "the page stays usable behind it" is meaningless and the panel has to
   // behave like a proper dialog: scroll-locked, with everything behind it
   // hidden from screen readers. From md up the page beside it really is
-  // usable, so the panel stays non-modal. Tracked live for as long as the
-  // panel is open — see useDockedViewport — so rotating a phone or narrowing
-  // a desktop window mid-draft keeps the CSS shape and the dialog's modality
-  // in step with each other.
-  const docked = useDockedViewport(open);
+  // usable, so the panel stays non-modal. Tracked live from the first open
+  // onward — see useDockedViewport — so rotating a phone or narrowing a
+  // desktop window mid-draft keeps the CSS shape and the dialog's modality in
+  // step with each other.
+  const docked = useDockedViewport(hasOpened);
   const [body, setBody] = React.useState("");
   const [sent, setSent] = React.useState<FeedbackNoteView[]>([]);
   const [pending, setPending] = React.useState<QueuedFeedbackNote[]>([]);
@@ -323,6 +366,7 @@ export function FeedbackLauncher({
 
   /** Opens the panel. Its shape (see useDockedViewport) tracks the viewport live. */
   function openPanel() {
+    setHasOpened(true);
     setOpen(true);
   }
 
@@ -445,11 +489,14 @@ export function FeedbackLauncher({
         covers it — and it is invisible there anyway, sitting behind an opaque
         full-screen surface. From md up there is no overlay and no lock, which
         is the whole point of the docked shape. `docked` (and so `modal`) can
-        flip live while the panel is open — see useDockedViewport — which
-        remounts DialogContent between its modal and non-modal variants; the
-        draft text and frozen context live in this component, not in Radix's
-        subtree, so they survive that swap. Focus does not survive a remount on
-        its own, though — see onOpenAutoFocus below.
+        flip live from the moment the panel first opens onward — see
+        useDockedViewport, and note it tracks `hasOpened` rather than `open`
+        itself, deliberately including the ~200ms exit animation after a
+        desktop close — which remounts DialogContent between its modal and
+        non-modal variants; the draft text and frozen context live in this
+        component, not in Radix's subtree, so they survive that swap. Focus
+        does not survive a remount on its own, though — see onOpenAutoFocus
+        below.
       */}
       <Sheet open={open} onOpenChange={setOpen} modal={!docked}>
         <SheetContent
