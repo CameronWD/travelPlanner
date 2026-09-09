@@ -350,6 +350,25 @@ describe("FeedbackLauncher", () => {
     expect(document.querySelector(".backdrop-blur-sm")).toBeNull();
   });
 
+  it("marks a done Feedback note with a green pill and a won't-fix one without", async () => {
+    listMock.mockResolvedValue({
+      success: true,
+      notes: [
+        { ...existingNote, id: "done", body: "Fixed one", status: "DONE" },
+        { ...existingNote, id: "wontfix", body: "Skipped one", status: "WONTFIX" },
+      ],
+    });
+    const user = userEvent.setup();
+    render(<FeedbackLauncher />);
+    await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+
+    const done = await screen.findByText("Done");
+    expect(done.className).toContain("bg-success");
+
+    const wontFix = screen.getByText("Won't fix");
+    expect(wontFix.className).not.toContain("bg-success");
+  });
+
   it("labels a note whose status it does not recognise instead of striking it out silently", async () => {
     listMock.mockResolvedValue({
       success: true,

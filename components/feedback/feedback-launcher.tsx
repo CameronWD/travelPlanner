@@ -89,11 +89,15 @@ const STATUS_LABEL: Partial<Record<FeedbackNoteView["status"], string>> = {
  * The badge a note wears, or null for an open one. An unrecognised status
  * shows itself rather than vanishing — a struck-through note with no badge
  * explaining why is worse than an unfamiliar word (lib/feedback-inbox.ts does
- * the same).
+ * the same). Returns both the label and variant so they cannot drift.
  */
-function badgeFor(status: FeedbackNoteView["status"]): string | null {
-  if (status === "OPEN") return null;
-  return STATUS_LABEL[status] ?? status;
+function badgeFor(
+  status: FeedbackNoteView["status"],
+): { label: string | null; variant: "success" | "muted" } {
+  if (status === "OPEN") return { label: null, variant: "muted" };
+  const label = STATUS_LABEL[status] ?? status;
+  const variant = status === "DONE" ? "success" : "muted";
+  return { label, variant };
 }
 
 /**
@@ -444,7 +448,7 @@ function SentEntry({
   canDelete: boolean;
   onDelete: (id: string) => void | Promise<void>;
 }) {
-  const statusLabel = badgeFor(note.status);
+  const { label: statusLabel, variant: badgeVariant } = badgeFor(note.status);
   const closed = statusLabel !== null;
 
   return (
@@ -463,7 +467,7 @@ function SentEntry({
           {note.body}
         </p>
       </div>
-      {statusLabel ? <Badge variant="muted">{statusLabel}</Badge> : null}
+      {statusLabel ? <Badge variant={badgeVariant}>{statusLabel}</Badge> : null}
       {canDelete ? (
         <Button
           type="button"
