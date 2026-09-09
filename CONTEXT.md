@@ -196,6 +196,20 @@ _Avoid_: Apply, commit, merge, accept, choose
 The read-only side-by-side view of a Trip's **real plan** and all its **Forks**, one column each, the real plan as the leftmost baseline. Rows cover **Route** (Stops in order, nights, countries), **projected end** vs **Hard end date**, **Budget** total (estimated, Home currency), **Flags** (by severity), Stop and night totals, and transit metrics (scheduled transit time, driving hours, flight count). Each Fork's figures are shown as a **delta** against the real plan: the **Route** row marks, per Fork, which Stops were **added**, **dropped**, **re-nighted** or **reordered**, and any change of **Transport** mode; every other row shows a numeric delta. From a column you open a Fork to edit, or **Promote** it.
 _Avoid_: Versus, diff, dashboard
 
+### Feedback on the app itself
+
+**Feedback note**:
+A remark a **Traveller** writes *about TEEPEE* while using it — a defect, an annoyance, a "wouldn't it be nice". It is **not** trip content: it belongs to no **Trip** and no **Plan**, it never appears in any planning view, and nothing in the app reads it. It exists to be carried out of the app and worked on later. A Feedback note is free text plus the circumstances the app records for itself — the route it was written from, the Trip in view (if any), the author, the moment, and the device — so it can be understood without the author being asked "where were you?". Each note carries a **status** (**Open**, **Done** or **Won't fix**); status changes when the work is actually done, not by the author tidying up. Sharply distinct from a **Note** (trip-wide planning text, part of the Trip's content) and from a **Flag** (a problem the app detects in a *plan* and asks the Traveller to fix). A Flag is about the holiday; a Feedback note is about the software.
+_Avoid_: Note (that's trip content), Flag (that's a plan problem), bug, issue, ticket, report, comment
+
+**Feedback panel**:
+The surface a Feedback note is written in: a floating button in the bottom-left of every signed-in screen that opens a small panel — the notes already written, newest last, each labelled with where it came from, above a box to write the next one. It is deliberately reachable from *anywhere*, because a remark you have to navigate to is a remark you don't make.
+_Avoid_: Feedback form, bug reporter, widget, chat (it is a log, not a conversation)
+
+**Feedback inbox**:
+The Feedback notes rendered out of the database into a committed markdown document, so a working session can start from the backlog without querying anything. Open notes first, resolved ones kept beneath as history. Generated, never hand-edited — the database is the truth and the inbox is its printout.
+_Avoid_: Backlog, todo list, things-to-fix (that document is a separate, hand-written audit)
+
 ## Flagged ambiguities
 
 _(none yet)_

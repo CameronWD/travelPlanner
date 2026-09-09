@@ -18,6 +18,7 @@ import { SignOutMenuItem } from "@/components/ui/sign-out-button";
 import { OfflineBanner } from "@/components/offline-banner";
 import { CommandPaletteMount } from "@/components/command-palette-mount";
 import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
+import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
 
 export async function generateMetadata(): Promise<Metadata> { return {}; }
 
@@ -66,6 +67,7 @@ export default async function AppLayout({
     <div className="flex min-h-full flex-col">
       <OfflineBanner />
       <CommandPaletteMount />
+      <FeedbackLauncher currentUserId={session.user.id} />
       {/* ── Top bar ── */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-14 max-w-5xl lg:max-w-6xl 2xl:max-w-7xl items-center justify-between px-4 sm:px-6">

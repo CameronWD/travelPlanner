@@ -13,8 +13,11 @@ vi.mock("@/lib/auth", () => ({
 // test doesn't need a real database, same as every other test in the suite.
 vi.mock("@/lib/db", () => ({ db: {} }));
 
+// The shell now mounts the Feedback launcher, a client component that reads the
+// current route — so this mock has to cover usePathname as well as redirect.
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
+  usePathname: vi.fn(() => "/trips"),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -111,6 +114,13 @@ describe("AppLayout", () => {
     expect(main.className).toContain("max-w-5xl");
     expect(main.className).toContain("lg:max-w-6xl");
     expect(main.className).toContain("2xl:max-w-7xl");
+  });
+
+  it("mounts the feedback launcher for a signed-in traveller", async () => {
+    render(await AppLayout({ children: <div /> }));
+    expect(
+      screen.getByRole("button", { name: /leave feedback/i }),
+    ).toBeInTheDocument();
   });
 
   it("offers a Help link in the traveller dropdown", async () => {

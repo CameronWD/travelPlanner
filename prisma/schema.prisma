@@ -49,6 +49,7 @@ model User {
   globeMembership    GlobeMember?
   globesCreated      Globe[]       @relation("GlobeCreatedBy")
   markersCreated     Marker[]      @relation("MarkerCreatedBy")
+  feedbackNotes      FeedbackNote[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -668,4 +669,43 @@ model Marker {
 
   @@index([globeId])
   @@index([createdById])
+}
+
+// ---------------------------------------------------------------------------
+// Feedback about the app itself — inert product data, read by no feature.
+// See ADR 0040 (capture + export) and ADR 0041 (offline queue).
+// ---------------------------------------------------------------------------
+
+model FeedbackNote {
+  id        String @id @default(cuid())
+  /// Client-generated, reused on every retry — the duplicate guard for the
+  /// offline flush (ADR 0041).
+  clientKey String @unique
+  authorId  String
+  body      String
+
+  // Circumstances the app records for itself, so a note is understandable
+  // without asking the author where they were.
+  route     String
+  pageLabel String
+  /// Snapshots, deliberately NOT foreign keys: feedback outlives the Trip it
+  /// was written about (ADR 0040).
+  tripId    String?
+  tripName  String?
+  viewport  String?
+  userAgent String?
+
+  status     String    @default("OPEN") // lib/enums.ts FEEDBACK_STATUSES
+  resolution String?
+  resolvedAt DateTime?
+
+  /// When the author wrote it (client clock) — may precede createdAt.
+  authoredAt DateTime
+  /// When it reached the server.
+  createdAt  DateTime @default(now())
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([status, authoredAt])
+  @@index([authorId])
 }

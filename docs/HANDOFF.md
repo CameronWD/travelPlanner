@@ -352,6 +352,23 @@ The app is platform-agnostic and will run on any Node.js host (Railway, Fly.io, 
 | `ANTHROPIC_API_KEY` | No (AI disabled) | Enables AI assistant features | [console.anthropic.com](https://console.anthropic.com/) |
 | `AI_MODEL` | No | Anthropic model ID (default: `claude-opus-4-8`) | Any valid Anthropic model ID |
 
+### Feedback scripts
+
+`npm run feedback:pull` and `npm run feedback:resolve` (ADR 0040) read
+`.env.production.local` when it exists — that's where Feedback notes actually
+are, since the app is used deployed — falling back to the local `.env`
+otherwise. `feedback:pull` is read-only: it only ever writes
+`docs/feedback/inbox.md`, never the database.
+
+`feedback:resolve` is the only writer, and because of that env preference it
+normally writes **production**. It prints the target database host (host only —
+never the connection string or credentials) before it touches anything, and
+`--dry-run` looks the note up and reports what would change without writing:
+
+```bash
+npm run feedback:resolve -- <id> --note "what you did" --dry-run
+```
+
 ---
 
 ## 10. Known limitations & fast-follows
