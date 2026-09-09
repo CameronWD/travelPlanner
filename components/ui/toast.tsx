@@ -15,9 +15,13 @@ const ToastViewport = React.forwardRef<
   <ToastPrimitive.Viewport
     ref={ref}
     className={cn(
-      // On mobile (default): sit above the fixed tab bar (~4rem) plus safe-area-inset-bottom.
-      // At sm+: standard bottom-4 right-4 positioning (no tab bar).
-      "fixed bottom-0 right-0 z-100 flex max-h-screen w-full flex-col-reverse gap-2 p-4 pb-[calc(4rem+env(safe-area-inset-bottom))] sm:bottom-4 sm:right-4 sm:top-auto sm:max-w-sm sm:pb-4",
+      // Below md: the Feedback trigger (components/feedback/feedback-launcher.tsx)
+      // sits at bottom-[5rem]+safe-area with a 2.75rem (size-11) button, so its
+      // top edge is at 7.75rem — pb-[8.25rem] clears it with 0.5rem to spare.
+      // From md up: the trigger drops to bottom-[1rem]+safe-area, top edge at
+      // 3.75rem — bottom-[4.25rem] clears it the same way, with the tab bar
+      // (components/trip/mobile-tab-bar.tsx, md:hidden) out of the picture.
+      "fixed bottom-0 right-0 z-100 flex max-h-screen w-full flex-col-reverse gap-2 p-4 pb-[calc(8.25rem+env(safe-area-inset-bottom))] md:bottom-[4.25rem] md:right-4 md:pb-4 sm:top-auto sm:max-w-sm",
       className,
     )}
     {...props}

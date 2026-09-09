@@ -107,8 +107,9 @@ function isQueued(queue: QueuedFeedbackNote[], clientKey: string): boolean {
 /**
  * The floating Feedback panel — a remark about TEEPEE itself, from any screen.
  *
- * Bottom-**left** is deliberate: `components/ui/toast.tsx` owns the bottom
- * right and reserves 4rem of bottom padding on mobile.
+ * Bottom-**right**, docked chat-widget shape: the panel stays open above the
+ * trigger while the page behind it stays visible and usable. Toasts
+ * (`components/ui/toast.tsx`) now clear the trigger by stacking above it.
  *
  * The panel reads as a log: every traveller's notes oldest-first, with anything
  * still queued on this device beneath them. Losing a written note is the
@@ -287,13 +288,17 @@ export function FeedbackLauncher({
         variant="secondary"
         aria-label="Leave feedback about TEEPEE"
         onClick={() => setOpen(true)}
-        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] left-4 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))] print:hidden"
+        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))] print:hidden"
       >
         <MessageSquarePlus className="size-5" aria-hidden />
       </Button>
 
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent className="gap-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+      <Sheet open={open} onOpenChange={setOpen} modal={false}>
+        <SheetContent
+          side="docked"
+          hideOverlay
+          className="gap-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+        >
           <SheetHeader>
             <SheetTitle>Feedback</SheetTitle>
             <SheetDescription>{`You're on ${pageLabel}`}</SheetDescription>
@@ -302,7 +307,7 @@ export function FeedbackLauncher({
           {entries.length === 0 ? (
             <p className="py-4 text-sm text-muted-foreground">{EMPTY_LOG}</p>
           ) : (
-            <ul className="flex max-h-[40vh] flex-col gap-3 overflow-y-auto pr-1">
+            <ul className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
               {entries.map((entry) =>
                 entry.kind === "sent" ? (
                   <SentEntry

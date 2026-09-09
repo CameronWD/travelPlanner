@@ -272,6 +272,22 @@ describe("FeedbackLauncher", () => {
     ).toContain("print:hidden");
   });
 
+  it("anchors the trigger to the bottom right", () => {
+    render(<FeedbackLauncher />);
+    const trigger = screen.getByRole("button", { name: /leave feedback/i });
+    expect(trigger.className).toContain("right-4");
+    expect(trigger.className).not.toContain("left-4");
+  });
+
+  it("opens a docked panel that leaves the page visible behind it", async () => {
+    const user = userEvent.setup();
+    render(<FeedbackLauncher />);
+    await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+    const panel = await screen.findByRole("dialog");
+    expect(panel.className).toContain("md:w-[560px]");
+    expect(document.querySelector(".backdrop-blur-sm")).toBeNull();
+  });
+
   it("labels a note whose status it does not recognise instead of striking it out silently", async () => {
     listMock.mockResolvedValue({
       success: true,
