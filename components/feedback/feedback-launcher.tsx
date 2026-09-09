@@ -9,6 +9,7 @@ import {
   SheetHeader,
   SheetTitle,
   SheetDescription,
+  SheetTrigger,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -364,12 +365,6 @@ export function FeedbackLauncher({
     return [...landed, ...queued];
   }, [sent, pending]);
 
-  /** Opens the panel. Its shape (see useDockedViewport) tracks the viewport live. */
-  function openPanel() {
-    setHasOpened(true);
-    setOpen(true);
-  }
-
   /** The box is empty again: clears the text and releases the frozen context. */
   function clearDraft() {
     setBody("");
@@ -457,7 +452,17 @@ export function FeedbackLauncher({
   }
 
   return (
-    <>
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        // Latch on the way open, never on the way closed — see the
+        // `hasOpened` declaration above for why "ever opened" and "open right
+        // now" have to stay two different things.
+        if (next) setHasOpened(true);
+        setOpen(next);
+      }}
+      modal={!docked}
+    >
       {/*
         Below md the trip tab bar (components/trip/mobile-tab-bar.tsx) is fixed
         to the bottom at the same z-40 and stands ~3.94rem tall (1px border +
@@ -469,17 +474,27 @@ export function FeedbackLauncher({
         `print:hidden` keeps it off the printed itinerary
         (app/(app)/trips/[tripId]/print/page.tsx hides app chrome by tag and by
         `.print-hide`, neither of which this floating button is).
+
+        Wrapped in SheetTrigger (asChild, so this Button is still the actual
+        DOM node — no wrapper element, no dropped classes) rather than opened
+        via a plain onClick: that's what populates Radix's internal
+        triggerRef, which onCloseAutoFocus needs to hand focus back to on
+        close. A trigger outside the Sheet leaves that ref null, Radix's
+        preventDefault() on the same callback skips FocusScope's own restore
+        fallback, and focus is dumped on <body> instead — see
+        components/trip/mobile-tab-bar.tsx:71 for the existing asChild pattern.
       */}
-      <Button
-        type="button"
-        size="icon"
-        variant="secondary"
-        aria-label="Leave feedback about TEEPEE"
-        onClick={openPanel}
-        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))] print:hidden"
-      >
-        <MessageSquarePlus className="size-5" aria-hidden />
-      </Button>
+      <SheetTrigger asChild>
+        <Button
+          type="button"
+          size="icon"
+          variant="secondary"
+          aria-label="Leave feedback about TEEPEE"
+          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))] print:hidden"
+        >
+          <MessageSquarePlus className="size-5" aria-hidden />
+        </Button>
+      </SheetTrigger>
 
       {/*
         `hideOverlay` tracks `docked` rather than being always-on: Radix hangs
@@ -498,115 +513,135 @@ export function FeedbackLauncher({
         does not survive a remount on its own, though — see onOpenAutoFocus
         below.
       */}
-      <Sheet open={open} onOpenChange={setOpen} modal={!docked}>
-        <SheetContent
-          side="docked"
-          hideOverlay={docked}
-          className="gap-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
-          /*
-            A chat widget does not vanish the moment you touch the page behind
-            it, and neither does this: the glossary promises the page stays
-            visible *and usable*, which is impossible if the first click out
-            there is spent closing the panel. The X and Escape close it.
-          */
-          onInteractOutside={(event) => event.preventDefault()}
-          /*
-            Radix's default here focuses the first tabbable element inside the
-            content — which, whenever a note is listed with a Delete button,
-            is that button, not the write box. That is wrong even on a normal
-            open (a log's first move should be "start typing", not "here's a
-            destructive control"), and it gets worse now that `docked` flipping
-            mid-open remounts this content (see the comment above): without
-            this override, a phone rotating or a window resizing mid-draft
-            would silently steal focus from underneath a mid-keystroke user
-            and land it on Delete. Fires on every fresh mount of this content —
-            including the swap's remount, not just the first open — so
-            preventing the default and focusing the box here covers both.
-          */
-          onOpenAutoFocus={(event) => {
-            event.preventDefault();
-            bodyRef.current?.focus();
-          }}
-        >
-          <SheetHeader>
-            <SheetTitle>Feedback</SheetTitle>
-            {/*
-              Once a draft has frozen its context (see DraftContext) the panel
-              must name the *frozen* page, not the live one — after navigating
-              mid-draft, "You're on Budget" would promise the opposite of where
-              the note will actually be filed. While the box is empty there is
-              no frozen context and the label tracks the route, as it should.
-            */}
-            <SheetDescription>{`You're on ${draftContext?.pageLabel ?? pageLabel}`}</SheetDescription>
-          </SheetHeader>
+      <SheetContent
+        side="docked"
+        hideOverlay={docked}
+        className="gap-3 pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
+        /*
+          A chat widget does not vanish the moment you touch the page behind
+          it, and neither does this: the glossary promises the page stays
+          visible *and usable*, which is impossible if the first click out
+          there is spent closing the panel. The X and Escape close it.
+        */
+        onInteractOutside={(event) => event.preventDefault()}
+        /*
+          Radix's default here focuses the first tabbable element inside the
+          content — which, whenever a note is listed with a Delete button,
+          is that button, not the write box. That is wrong even on a normal
+          open (a log's first move should be "start typing", not "here's a
+          destructive control"), and it gets worse now that `docked` flipping
+          mid-open remounts this content (see the comment above): without
+          this override, a phone rotating or a window resizing mid-draft
+          would silently steal focus from underneath a mid-keystroke user
+          and land it on Delete. Fires on every fresh mount of this content —
+          including the swap's remount, not just the first open — so
+          preventing the default and focusing the box here covers both.
+        */
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          bodyRef.current?.focus();
+        }}
+        /*
+          Now that SheetTrigger populates triggerRef (see the comment on the
+          trigger above), Radix's default here — unconditionally on the modal
+          variant, or unless an outside interaction happened on the non-modal
+          one — refocuses the trigger button whenever this content unmounts.
+          That is right on a genuine close, which is the whole point of the
+          rewiring. But it *also* fires on the docked/modal swap remount (see
+          the hideOverlay comment above): FocusScope defers its unmount
+          autofocus by a setTimeout(0)
+          (@radix-ui/react-focus-scope/dist/index.mjs), so it lands a tick
+          after the freshly-mounted content's onOpenAutoFocus above has
+          already put focus back in the box — and would yank it straight back
+          out to the trigger, even though the panel never actually closed.
+          `open` is what tells the two cases apart here: the swap flips
+          `docked`/`modal` while `open` stays true throughout, and only a
+          real close ever sets it false. Preventing default during the swap
+          leaves focus exactly where onOpenAutoFocus put it; leaving Radix's
+          default alone on a real close is what returns focus to the trigger.
+        */
+        onCloseAutoFocus={(event) => {
+          if (open) event.preventDefault();
+        }}
+      >
+        <SheetHeader>
+          <SheetTitle>Feedback</SheetTitle>
+          {/*
+            Once a draft has frozen its context (see DraftContext) the panel
+            must name the *frozen* page, not the live one — after navigating
+            mid-draft, "You're on Budget" would promise the opposite of where
+            the note will actually be filed. While the box is empty there is
+            no frozen context and the label tracks the route, as it should.
+          */}
+          <SheetDescription>{`You're on ${draftContext?.pageLabel ?? pageLabel}`}</SheetDescription>
+        </SheetHeader>
 
-          {entries.length === 0 ? (
-            <p className="py-4 text-sm text-muted-foreground">{EMPTY_LOG}</p>
-          ) : (
-            <ul className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
-              {entries.map((entry) =>
-                entry.kind === "sent" ? (
-                  <SentEntry
-                    key={entry.note.id}
-                    note={entry.note}
-                    canDelete={
-                      currentUserId !== undefined &&
-                      entry.note.authorId === currentUserId
-                    }
-                    onDelete={handleDelete}
-                  />
-                ) : (
-                  <PendingEntry key={entry.note.clientKey} note={entry.note} />
-                ),
-              )}
-            </ul>
-          )}
+        {entries.length === 0 ? (
+          <p className="py-4 text-sm text-muted-foreground">{EMPTY_LOG}</p>
+        ) : (
+          <ul className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
+            {entries.map((entry) =>
+              entry.kind === "sent" ? (
+                <SentEntry
+                  key={entry.note.id}
+                  note={entry.note}
+                  canDelete={
+                    currentUserId !== undefined &&
+                    entry.note.authorId === currentUserId
+                  }
+                  onDelete={handleDelete}
+                />
+              ) : (
+                <PendingEntry key={entry.note.clientKey} note={entry.note} />
+              ),
+            )}
+          </ul>
+        )}
 
-          <div className="flex flex-col gap-2">
-            {/*
-              maxLength matches the server's cap. Without it a longer note is
-              accepted here, queued, and then rejected by the schema on every
-              retry for as long as the device lives.
-            */}
-            <Textarea
-              ref={bodyRef}
-              value={body}
-              onChange={handleBodyChange}
-              placeholder="What's on your mind?"
-              aria-label="Your feedback about TEEPEE"
-              rows={3}
-              maxLength={BODY_MAX}
-            />
-            <div className="flex items-center gap-2">
-              {body.length >= COUNT_FROM ? (
-                <p
-                  role="status"
-                  aria-live="polite"
-                  className={cn(
-                    "text-xs",
-                    body.length >= BODY_MAX
-                      ? "font-medium text-destructive"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {body.length}/{BODY_MAX}
-                </p>
-              ) : null}
-              <Button
-                type="button"
-                size="sm"
-                className="ml-auto"
-                loading={isSending}
-                disabled={isSending || body.trim().length === 0}
-                onClick={() => void handleSend()}
+        <div className="flex flex-col gap-2">
+          {/*
+            maxLength matches the server's cap. Without it a longer note is
+            accepted here, queued, and then rejected by the schema on every
+            retry for as long as the device lives.
+          */}
+          <Textarea
+            ref={bodyRef}
+            value={body}
+            onChange={handleBodyChange}
+            placeholder="What's on your mind?"
+            aria-label="Your feedback about TEEPEE"
+            rows={3}
+            maxLength={BODY_MAX}
+          />
+          <div className="flex items-center gap-2">
+            {body.length >= COUNT_FROM ? (
+              <p
+                role="status"
+                aria-live="polite"
+                className={cn(
+                  "text-xs",
+                  body.length >= BODY_MAX
+                    ? "font-medium text-destructive"
+                    : "text-muted-foreground",
+                )}
               >
-                Send
-              </Button>
-            </div>
+                {body.length}/{BODY_MAX}
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              size="sm"
+              className="ml-auto"
+              loading={isSending}
+              disabled={isSending || body.trim().length === 0}
+              onClick={() => void handleSend()}
+            >
+              Send
+            </Button>
           </div>
-        </SheetContent>
-      </Sheet>
-    </>
+        </div>
+      </SheetContent>
+    </Sheet>
   );
 }
 

@@ -507,14 +507,6 @@ describe("FeedbackLauncher", () => {
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     });
 
-    // NOT added: "focus returns to the trigger once Escape closes the panel".
-    // Verified (both by reading @radix-ui/react-dialog's source and by an
-    // ad-hoc probe against this component) that it does not, and that this is
-    // pre-existing and unrelated to this fix — see the report for the
-    // evidence. Writing a passing test here would mean asserting the bug as
-    // if it were the intended behaviour, which is worse than leaving the gap
-    // reported but uncovered.
-
     it("still closes on the X", async () => {
       stubViewport(true);
       const user = userEvent.setup();
@@ -526,6 +518,42 @@ describe("FeedbackLauncher", () => {
       await user.click(screen.getByRole("button", { name: /^close$/i }));
 
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    });
+
+    it("returns focus to the trigger after closing via Escape", async () => {
+      // The trigger is wired through SheetTrigger (asChild) specifically so
+      // Radix's internal triggerRef is populated — without it, Radix's
+      // onCloseAutoFocus preventDefault()s and then no-ops on a null ref,
+      // and FocusScope skips its own restore-previous-focus fallback because
+      // the default was already prevented. Left unfixed, focus lands on
+      // <body>, a WCAG 2.4.3 failure.
+      stubViewport(true);
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      const trigger = screen.getByRole("button", { name: /leave feedback/i });
+      await user.click(trigger);
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+      await user.keyboard("{Escape}");
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(document.activeElement).toBe(trigger);
+    });
+
+    it("returns focus to the trigger after closing via the X", async () => {
+      stubViewport(true);
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      const trigger = screen.getByRole("button", { name: /leave feedback/i });
+      await user.click(trigger);
+      expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: /^close$/i }));
+
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      expect(document.activeElement).toBe(trigger);
     });
   });
 
