@@ -48,8 +48,11 @@ async function main() {
       route: true,
       pageLabel: true,
       tripName: true,
+      viewport: true,
+      userAgent: true,
       status: true,
       authoredAt: true,
+      createdAt: true,
       resolvedAt: true,
       resolution: true,
       author: { select: { name: true } },
@@ -63,10 +66,13 @@ async function main() {
     pageLabel: row.pageLabel,
     tripName: row.tripName,
     authorName: row.author.name ?? "Traveller",
+    viewport: row.viewport,
+    userAgent: row.userAgent,
     status: (FEEDBACK_STATUSES as readonly string[]).includes(row.status)
       ? (row.status as (typeof FEEDBACK_STATUSES)[number])
       : ("OPEN" as const),
     authoredAt: row.authoredAt,
+    createdAt: row.createdAt,
     resolvedAt: row.resolvedAt,
     resolution: row.resolution,
   }));

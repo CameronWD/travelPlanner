@@ -1,5 +1,6 @@
 import type { FeedbackStatus } from "@/lib/enums";
 import { areaForRoute } from "@/lib/feedback-context";
+import { describeDevice } from "@/lib/feedback-device";
 
 /** A Feedback note as the inbox renders it. */
 export type InboxNote = {
@@ -9,8 +10,12 @@ export type InboxNote = {
   pageLabel: string;
   tripName: string | null;
   authorName: string;
+  viewport: string | null;
+  userAgent: string | null;
   status: FeedbackStatus;
   authoredAt: Date;
+  /** When it reached the server — later than authoredAt for an offline note. */
+  createdAt: Date;
   resolvedAt: Date | null;
   resolution: string | null;
 };
@@ -31,6 +36,19 @@ function indentBody(body: string): string {
   return body.trim().split("\n").join("\n  ");
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Did this note sit in an offline queue long enough to be worth saying so?
+ *
+ * ADR 0041 promises a note can land materially later than it was written, and
+ * that gap changes how you read it. A few minutes' or hours' lag is just the
+ * clock, so only a day or more earns a line.
+ */
+function landedLate(note: InboxNote): boolean {
+  return Math.abs(note.createdAt.getTime() - note.authoredAt.getTime()) > DAY_MS;
+}
+
 function renderNote(note: InboxNote): string {
   const meta = [
     note.pageLabel,
@@ -46,6 +64,15 @@ function renderNote(note: InboxNote): string {
     `  ${indentBody(note.body)}`,
     `  _${note.route}_`,
   ];
+
+  // What the author was actually looking at. Stored on every row since ADR
+  // 0040; useless until it is in front of the reader.
+  const device = [note.viewport, describeDevice(note.userAgent)]
+    .filter(Boolean)
+    .join(" · ");
+  if (device) lines.push(`  _${device}_`);
+
+  if (landedLate(note)) lines.push(`  _Landed ${day(note.createdAt)}_`);
 
   if (note.status !== "OPEN") {
     const resolved = note.resolvedAt ? ` on ${day(note.resolvedAt)}` : "";
@@ -82,7 +109,10 @@ export function renderInbox(notes: InboxNote[], generatedAt: Date): string {
       "and this file is its printout.** Resolve a Feedback note with " +
       "`npm run feedback:resolve -- <id> --note \"what you did\"`.",
     "",
-    `_${open.length} open, ${resolved.length} resolved · pulled ${generatedAt.toISOString()}_`,
+    // The day, not the instant: this file is committed to make backlog movement
+    // readable in git, and a to-the-millisecond stamp makes every pull a diff
+    // even when nothing changed.
+    `_${open.length} open, ${resolved.length} resolved · pulled ${day(generatedAt)}_`,
     "",
     "## Open",
     "",

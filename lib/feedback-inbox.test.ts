@@ -11,8 +11,12 @@ function note(overrides: Partial<InboxNote> = {}): InboxNote {
     pageLabel: "Plan editor",
     tripName: "Europe Summer 2026",
     authorName: "Cam",
+    viewport: "390x844",
+    userAgent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1",
     status: "OPEN",
     authoredAt: new Date("2026-09-07T08:00:00.000Z"),
+    createdAt: new Date("2026-09-07T08:00:02.000Z"),
     resolvedAt: null,
     resolution: null,
     ...overrides,
@@ -81,6 +85,62 @@ describe("renderInbox", () => {
     expect(md).toContain("Won't fix");
   });
 
+  it("shows the device the note was written on, summarised", () => {
+    const md = renderInbox([note()], generatedAt);
+    expect(md).toContain("390x844 · iPhone · Safari");
+    // The raw agent string is what capturing the device is *not* for.
+    expect(md).not.toContain("AppleWebKit");
+  });
+
+  it("shows the viewport alone when the agent tells us nothing", () => {
+    const md = renderInbox([note({ userAgent: null })], generatedAt);
+    expect(md).toContain("390x844");
+  });
+
+  it("omits the device line entirely when nothing was captured", () => {
+    const md = renderInbox([note({ viewport: null, userAgent: null })], generatedAt);
+    expect(md).toContain("Dragging is fiddly on a phone");
+    expect(md).not.toContain("__");
+  });
+
+  it("says when an offline note landed, if that was much later than it was written", () => {
+    const md = renderInbox(
+      [
+        note({
+          authoredAt: new Date("2026-09-01T08:00:00.000Z"),
+          createdAt: new Date("2026-09-06T09:00:00.000Z"),
+        }),
+      ],
+      generatedAt,
+    );
+    expect(md).toContain("Landed 2026-09-06");
+  });
+
+  it("stays quiet about landing when the note sent straight away", () => {
+    expect(renderInbox([note()], generatedAt)).not.toContain("Landed");
+  });
+
+  it("stays quiet about landing for a lag of under a day", () => {
+    const md = renderInbox(
+      [
+        note({
+          authoredAt: new Date("2026-09-07T08:00:00.000Z"),
+          createdAt: new Date("2026-09-07T20:00:00.000Z"),
+        }),
+      ],
+      generatedAt,
+    );
+    expect(md).not.toContain("Landed");
+  });
+
+  it("stamps the pull with the day only, so an unchanged backlog is an unchanged file", () => {
+    const md = renderInbox([], generatedAt);
+    expect(md).toContain("pulled 2026-09-08");
+    expect(md).not.toContain("2026-09-08T10:00:00.000Z");
+    // Two pulls on the same day with the same notes must produce no diff.
+    expect(md).toBe(renderInbox([], new Date("2026-09-08T23:59:00.000Z")));
+  });
+
   it("counts the open notes in the summary line", () => {
     const md = renderInbox([note({ id: "a" }), note({ id: "b" })], generatedAt);
     expect(md).toContain("2 open");
@@ -100,9 +160,12 @@ describe("renderInbox", () => {
       pageLabel: "Plan editor",
       tripName: "Europe Summer 2026",
       authorName: "Cam",
+      viewport: "390x844",
+      userAgent: "iPhone",
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       status: "PENDING" as any,
       authoredAt: new Date("2026-09-07T08:00:00.000Z"),
+      createdAt: new Date("2026-09-07T08:00:00.000Z"),
       resolvedAt: new Date("2026-09-05T00:00:00.000Z"),
       resolution: "Working on it",
     };
