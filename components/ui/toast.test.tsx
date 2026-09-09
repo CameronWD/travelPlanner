@@ -4,7 +4,7 @@ import { ToastProvider } from "@radix-ui/react-toast";
 import { ToastViewport, ToastClose } from "./toast";
 
 describe("ToastViewport", () => {
-  it("has mobile bottom offset to clear the Feedback trigger and md:bottom-[4.25rem] override", () => {
+  it("has mobile bottom offset to clear the Feedback trigger and md:bottom safe-area override", () => {
     const { container } = render(
       <ToastProvider>
         <ToastViewport data-testid="toast-viewport" />
@@ -15,7 +15,13 @@ describe("ToastViewport", () => {
     expect(viewport.className).toContain(
       "pb-[calc(8.25rem+env(safe-area-inset-bottom))]",
     );
-    expect(viewport.className).toContain("md:bottom-[4.25rem]");
+    // The trigger keeps its env() term at md and up
+    // (md:bottom-[calc(1rem+env(safe-area-inset-bottom))]), so the toast
+    // clearance must carry the identical term — a flat md:bottom-[4.25rem]
+    // would let the gap close on a device with a non-zero inset.
+    expect(viewport.className).toContain(
+      "md:bottom-[calc(4.25rem+env(safe-area-inset-bottom))]",
+    );
     expect(viewport.className).toContain("md:pb-4");
     void container; // suppress unused-var lint
   });

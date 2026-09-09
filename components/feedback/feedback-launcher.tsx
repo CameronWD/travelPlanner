@@ -43,6 +43,23 @@ type LogEntry =
   | { kind: "sent"; note: FeedbackNoteView }
   | { kind: "pending"; note: QueuedFeedbackNote };
 
+/**
+ * Where a draft is *about*, frozen the moment composing begins.
+ *
+ * The panel is non-modal (Task 2), so the page behind it stays navigable
+ * while the box is open — a traveller can start typing on Budget, click
+ * through to Plan editor, then press Send. Recording where the remark was
+ * written is the entire point of the captured context (ADR 0040), so a note
+ * must be stamped with wherever the user *was* when they started writing it,
+ * not wherever they land before Send.
+ */
+type DraftContext = {
+  route: string;
+  pageLabel: string;
+  tripId: string | null;
+  tripName: string | null;
+};
+
 const EMPTY_LOG = "No feedback yet. Tell me what's annoying.";
 const OFFLINE_SAVED = "Saved — it'll send when you're back online.";
 const SEND_FAILED = "Couldn't send that just yet — it's saved and will retry.";
@@ -107,7 +124,8 @@ function isQueued(queue: QueuedFeedbackNote[], clientKey: string): boolean {
 /**
  * The floating Feedback panel — a remark about TEEPEE itself, from any screen.
  *
- * Bottom-**right**, docked chat-widget shape: the panel stays open above the
+ * Bottom-**right**: the panel takes the shape and position of a site's chat
+ * widget, but it is a log, not a conversation — it stays open above the
  * trigger while the page behind it stays visible and usable. Toasts
  * (`components/ui/toast.tsx`) now clear the trigger by stacking above it.
  *
@@ -137,8 +155,41 @@ export function FeedbackLauncher({
   const [sent, setSent] = React.useState<FeedbackNoteView[]>([]);
   const [pending, setPending] = React.useState<QueuedFeedbackNote[]>([]);
   const [isSending, setIsSending] = React.useState(false);
+  // Frozen at the first keystroke of a draft; null while the box is empty, so
+  // the *next* draft picks up wherever the user is then. See DraftContext.
+  const [draftContext, setDraftContext] = React.useState<DraftContext | null>(
+    null,
+  );
 
   const pageLabel = pageLabelForRoute(pathname);
+
+  const currentContext = React.useCallback(
+    (): DraftContext => ({
+      route: pathname,
+      pageLabel,
+      tripId: trip?.tripId ?? tripIdFromRoute(pathname),
+      tripName: trip?.tripName ?? null,
+    }),
+    [pathname, pageLabel, trip],
+  );
+
+  /**
+   * The box, not the send button, is where a draft's context is decided:
+   * empty → non-empty freezes it (composing has begun, from wherever the
+   * user is right now); non-empty → empty releases it (the draft is gone,
+   * so the next one should track the live route again).
+   */
+  function handleBodyChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const value = e.target.value;
+    const wasEmpty = body.trim().length === 0;
+    const willBeEmpty = value.trim().length === 0;
+    setBody(value);
+    if (wasEmpty && !willBeEmpty) {
+      setDraftContext(currentContext());
+    } else if (!wasEmpty && willBeEmpty) {
+      setDraftContext(null);
+    }
+  }
 
   const refresh = React.useCallback(async () => {
     const result = await listFeedbackNotes();
@@ -193,17 +244,28 @@ export function FeedbackLauncher({
     return [...landed, ...queued];
   }, [sent, pending]);
 
+  /** The box is empty again: clears the text and releases the frozen context. */
+  function clearDraft() {
+    setBody("");
+    setDraftContext(null);
+  }
+
   async function handleSend() {
     const trimmed = body.trim();
     if (!trimmed || isSending) return;
 
+    // The box went empty→non-empty at least once to get here, so it should
+    // have frozen a context already; falling back to the live one only
+    // guards against a draft that somehow arrived pre-filled.
+    const context = draftContext ?? currentContext();
+
     const note: QueuedFeedbackNote = {
       clientKey: newClientKey(),
       body: trimmed,
-      route: pathname,
-      pageLabel,
-      tripId: trip?.tripId ?? tripIdFromRoute(pathname),
-      tripName: trip?.tripName ?? null,
+      route: context.route,
+      pageLabel: context.pageLabel,
+      tripId: context.tripId,
+      tripName: context.tripName,
       viewport: `${window.innerWidth}x${window.innerHeight}`,
       userAgent: navigator.userAgent.slice(0, 512),
       authoredAt: new Date().toISOString(),
@@ -217,7 +279,7 @@ export function FeedbackLauncher({
         toast({ variant: "destructive", title: STORAGE_FAILED });
         return;
       }
-      setBody("");
+      clearDraft();
       toast({ title: OFFLINE_SAVED });
       return;
     }
@@ -228,7 +290,7 @@ export function FeedbackLauncher({
     // isn't, the box is the only copy — keep it and say so.
     const failedSend = (persisted: boolean) => {
       if (persisted) {
-        setBody("");
+        clearDraft();
         toast({ variant: "destructive", title: SEND_FAILED });
       } else {
         toast({ variant: "destructive", title: STORAGE_FAILED });
@@ -246,7 +308,7 @@ export function FeedbackLauncher({
       if (result.success) {
         setPending(removeFromQueue(note.clientKey));
         setSent((prev) => [...prev, result.note]);
-        setBody("");
+        clearDraft();
         return;
       }
       setPending(readQueue());
@@ -334,7 +396,7 @@ export function FeedbackLauncher({
             */}
             <Textarea
               value={body}
-              onChange={(e) => setBody(e.target.value)}
+              onChange={handleBodyChange}
               placeholder="What's on your mind?"
               aria-label="Your feedback about TEEPEE"
               rows={3}

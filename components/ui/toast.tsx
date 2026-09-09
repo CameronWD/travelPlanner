@@ -16,12 +16,16 @@ const ToastViewport = React.forwardRef<
     ref={ref}
     className={cn(
       // Below md: the Feedback trigger (components/feedback/feedback-launcher.tsx)
-      // sits at bottom-[5rem]+safe-area with a 2.75rem (size-11) button, so its
-      // top edge is at 7.75rem — pb-[8.25rem] clears it with 0.5rem to spare.
-      // From md up: the trigger drops to bottom-[1rem]+safe-area, top edge at
-      // 3.75rem — bottom-[4.25rem] clears it the same way, with the tab bar
-      // (components/trip/mobile-tab-bar.tsx, md:hidden) out of the picture.
-      "fixed bottom-0 right-0 z-100 flex max-h-screen w-full flex-col-reverse gap-2 p-4 pb-[calc(8.25rem+env(safe-area-inset-bottom))] md:bottom-[4.25rem] md:right-4 md:pb-4 sm:top-auto sm:max-w-sm",
+      // sits at bottom-[calc(5rem+env(safe-area-inset-bottom))] with a 2.75rem
+      // (size-11) button, so its top edge is at 7.75rem+safe-area —
+      // pb-[calc(8.25rem+safe-area)] clears it with 0.5rem to spare, carrying
+      // the same env() term as the trigger so the gap can't close on a device
+      // with a non-zero inset.
+      // From md up: the trigger drops to bottom-[calc(1rem+safe-area)], top
+      // edge at 3.75rem+safe-area — bottom-[calc(4.25rem+safe-area)] clears it
+      // the same way, again matching the trigger's env() term, with the tab
+      // bar (components/trip/mobile-tab-bar.tsx, md:hidden) out of the picture.
+      "fixed bottom-0 right-0 z-100 flex max-h-screen w-full flex-col-reverse gap-2 p-4 pb-[calc(8.25rem+env(safe-area-inset-bottom))] md:bottom-[calc(4.25rem+env(safe-area-inset-bottom))] md:right-4 md:pb-4 sm:top-auto sm:max-w-sm",
       className,
     )}
     {...props}

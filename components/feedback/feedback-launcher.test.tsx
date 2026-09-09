@@ -147,6 +147,68 @@ describe("FeedbackLauncher", () => {
     await waitFor(() => expect(box).toHaveValue(""));
   });
 
+  describe("the panel is non-modal, so the page behind it can navigate mid-draft", () => {
+    it("files a note against the page where typing began, not the page at send time", async () => {
+      const user = userEvent.setup();
+      const { rerender } = render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      const box = await screen.findByPlaceholderText(/what's on your mind/i);
+      await user.type(box, "Started writing here");
+
+      // The page behind the (now non-modal) panel navigates while the draft
+      // is still open — the note must not follow it.
+      pathnameMock.mockReturnValue("/trips/t1/summary");
+      rerender(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+      const input = createMock.mock.calls[0][0];
+      expect(input.route).toBe("/trips/t1/plan");
+      expect(input.pageLabel).toBe("Plan editor");
+    });
+
+    it("keeps the description tracking the live route while the box is empty", async () => {
+      const user = userEvent.setup();
+      const { rerender } = render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      expect(
+        await screen.findByText(/You're on Plan editor/),
+      ).toBeInTheDocument();
+
+      pathnameMock.mockReturnValue("/trips/t1/budget");
+      rerender(<FeedbackLauncher />);
+
+      expect(
+        await screen.findByText(/You're on Budget/),
+      ).toBeInTheDocument();
+    });
+
+    it("lets the next draft pick up the route after a previous one was sent", async () => {
+      const user = userEvent.setup();
+      const { rerender } = render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      const box = await screen.findByPlaceholderText(/what's on your mind/i);
+      await user.type(box, "First note, written on plan");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+      await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+
+      pathnameMock.mockReturnValue("/trips/t1/budget");
+      rerender(<FeedbackLauncher />);
+
+      await user.type(box, "Second note, written on budget");
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      await waitFor(() => expect(createMock).toHaveBeenCalledTimes(2));
+      const secondInput = createMock.mock.calls[1][0];
+      expect(secondInput.route).toBe("/trips/t1/budget");
+      expect(secondInput.pageLabel).toBe("Budget");
+    });
+  });
+
   it("queues a note written offline and marks it pending", async () => {
     onlineMock.mockReturnValue(false);
     const user = userEvent.setup();
