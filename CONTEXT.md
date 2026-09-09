@@ -203,7 +203,7 @@ A remark a **Traveller** writes *about TEEPEE* while using it — a defect, an a
 _Avoid_: Note (that's trip content), Flag (that's a plan problem), bug, issue, ticket, report, comment
 
 **Feedback panel**:
-The surface a Feedback note is written in: a floating button in the bottom-left of every signed-in screen that opens a small panel — the notes already written, newest last, each labelled with where it came from, above a box to write the next one. It is deliberately reachable from *anywhere*, because a remark you have to navigate to is a remark you don't make.
+The surface a Feedback note is written in: a floating button in the bottom-right of every signed-in screen that opens a panel docked above it — the notes already written, newest last, each labelled with where it came from, above a box to write the next one. It takes the familiar shape and position of a site's chat widget, so it reads as somewhere to say something rather than as part of the plan. The page stays visible and usable behind it; on a phone it fills the screen. It is deliberately reachable from *anywhere*, because a remark you have to navigate to is a remark you don't make.
 _Avoid_: Feedback form, bug reporter, widget, chat (it is a log, not a conversation)
 
 **Feedback inbox**:
