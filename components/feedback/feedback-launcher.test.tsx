@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const {
@@ -40,6 +40,9 @@ vi.mock("@/components/ui/use-toast", () => ({
 
 import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
 
+/** Mirrors the component's own DOCKED_FROM (not exported) for the stub's `media` field. */
+const DOCKED_FROM = "(min-width: 768px)";
+
 const existingNote = {
   id: "n1",
   body: "Budget totals look wrong",
@@ -53,22 +56,54 @@ const existingNote = {
 };
 
 /**
- * The panel reads `matchMedia("(min-width: 768px)")` when it opens to decide
- * which shape it is in: the docked card from md up (page usable beside it, so
+ * The panel reads `matchMedia("(min-width: 768px)")`, live, to decide which
+ * shape it is in: the docked card from md up (page usable beside it, so
  * non-modal) or the full-screen one below md (modal, scroll-locked, page hidden
  * from screen readers). jsdom has no layout, so any test that cares must say.
  *
  * Left unstubbed, test/setup.ts's matchMedia reports `matches: false` — the
  * full-screen, modal shape.
+ *
+ * The returned `setMatches` simulates the viewport actually changing while the
+ * panel is open (a phone rotating, a window narrowing): it flips what the
+ * stubbed MediaQueryList reports and fires a `change` event at every listener
+ * the component registered, the same way a real MediaQueryList would.
  */
 function stubViewport(dockedFromMd: boolean) {
+  let matches = dockedFromMd;
+  const listeners = new Set<(event: { matches: boolean }) => void>();
+  const mql = {
+    get matches() {
+      return matches;
+    },
+    media: DOCKED_FROM,
+    addEventListener: (
+      event: string,
+      cb: (event: { matches: boolean }) => void,
+    ) => {
+      if (event === "change") listeners.add(cb);
+    },
+    removeEventListener: (
+      event: string,
+      cb: (event: { matches: boolean }) => void,
+    ) => {
+      if (event === "change") listeners.delete(cb);
+    },
+  };
   vi.stubGlobal(
     "matchMedia",
-    ((query: string) => ({
-      matches: dockedFromMd,
-      media: query,
-    })) as unknown as typeof matchMedia,
+    (() => mql) as unknown as typeof matchMedia,
   );
+  return {
+    setMatches(next: boolean) {
+      matches = next;
+      listeners.forEach((cb) => cb({ matches: next }));
+    },
+    /** How many `change` listeners are currently registered — proves cleanup ran. */
+    listenerCount() {
+      return listeners.size;
+    },
+  };
 }
 
 beforeEach(() => {
@@ -517,14 +552,126 @@ describe("FeedbackLauncher", () => {
     });
 
     it("never asks about the viewport while rendering, only when opened", () => {
-      // On the server there is no window to ask. The query is read in the open
-      // handler for exactly that reason, so rendering must not touch it.
+      // On the server there is no window to ask, and the subscription is only
+      // active while the panel is open — mounting the trigger button alone
+      // must never touch matchMedia.
       const matchMediaSpy = vi.fn(() => ({ matches: true }));
       vi.stubGlobal("matchMedia", matchMediaSpy);
 
       render(<FeedbackLauncher />);
 
       expect(matchMediaSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("the panel's shape stays live for as long as it is open", () => {
+    it("becomes non-modal with no overlay when a panel opened below md is widened past it", async () => {
+      const viewport = stubViewport(false);
+      const user = userEvent.setup();
+      const { container } = render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      await screen.findByRole("dialog");
+      expect(container).toHaveAttribute("aria-hidden", "true");
+
+      act(() => {
+        viewport.setMatches(true);
+      });
+
+      await waitFor(() => expect(container).not.toHaveAttribute("aria-hidden"));
+      expect(document.querySelector(".backdrop-blur-sm")).toBeNull();
+      expect(document.body.style.pointerEvents).not.toBe("none");
+      expect(screen.getByRole("dialog").className).toContain("md:w-[560px]");
+    });
+
+    it("becomes modal when a panel opened above md is narrowed below it", async () => {
+      const viewport = stubViewport(true);
+      const user = userEvent.setup();
+      const { container } = render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      await screen.findByRole("dialog");
+      expect(container).not.toHaveAttribute("aria-hidden");
+
+      act(() => {
+        viewport.setMatches(false);
+      });
+
+      await waitFor(() =>
+        expect(container).toHaveAttribute("aria-hidden", "true"),
+      );
+      expect(document.querySelector(".backdrop-blur-sm")).not.toBeNull();
+      expect(document.body.style.pointerEvents).toBe("none");
+    });
+
+    it("keeps the draft text and frozen context when widening past md turns the panel non-modal", async () => {
+      // Radix swaps DialogContentModal for DialogContentNonModal when `modal`
+      // flips, remounting the content subtree — but the draft and its frozen
+      // context live in this component (the parent), not in that subtree, so
+      // they must survive the swap untouched.
+      const viewport = stubViewport(false);
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      const box = await screen.findByPlaceholderText(/what's on your mind/i);
+      await user.type(box, "Started on a phone");
+
+      // Navigate before the swap, the way a live route would: proves the
+      // *frozen* context (Plan editor) survives, not just a re-read live one.
+      pathnameMock.mockReturnValue("/trips/t1/budget");
+
+      act(() => {
+        viewport.setMatches(true);
+      });
+
+      await waitFor(() =>
+        expect(document.querySelector(".backdrop-blur-sm")).toBeNull(),
+      );
+
+      expect(
+        screen.getByPlaceholderText(/what's on your mind/i),
+      ).toHaveValue("Started on a phone");
+      expect(screen.getByText(/You're on Plan editor/)).toBeInTheDocument();
+    });
+
+    it("keeps the draft text and frozen context when narrowing below md turns the panel modal", async () => {
+      const viewport = stubViewport(true);
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      const box = await screen.findByPlaceholderText(/what's on your mind/i);
+      await user.type(box, "Started on a desktop");
+
+      pathnameMock.mockReturnValue("/trips/t1/budget");
+
+      act(() => {
+        viewport.setMatches(false);
+      });
+
+      await waitFor(() =>
+        expect(document.querySelector(".backdrop-blur-sm")).not.toBeNull(),
+      );
+
+      expect(
+        screen.getByPlaceholderText(/what's on your mind/i),
+      ).toHaveValue("Started on a desktop");
+      expect(screen.getByText(/You're on Plan editor/)).toBeInTheDocument();
+    });
+
+    it("removes its media-query listener once the panel closes or unmounts", async () => {
+      const viewport = stubViewport(true);
+      const user = userEvent.setup();
+      const { unmount } = render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      await screen.findByRole("dialog");
+      expect(viewport.listenerCount()).toBeGreaterThan(0);
+
+      unmount();
+
+      expect(viewport.listenerCount()).toBe(0);
     });
   });
 

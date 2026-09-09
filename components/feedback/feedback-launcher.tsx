@@ -73,21 +73,59 @@ const DELETE_FAILED = "Couldn't remove that feedback just yet.";
  */
 const DOCKED_FROM = "(min-width: 768px)";
 
+/** The server (and first client render, to match it) never has a viewport to ask about. */
+function getDockedServerSnapshot(): boolean {
+  return false;
+}
+
 /**
  * Is the panel in its docked shape — a card beside a page you can still use —
  * rather than filling the screen?
  *
- * Read once, when the panel opens; never while rendering. On the server there
- * is no `window` to ask, and the safe answer there is `false`: a page that is
- * scroll-locked for a moment longer than it needed to be is a nuisance, but a
- * full-screen opaque panel with the page still scrolling and still reachable by
- * a screen reader behind it is a bug.
+ * Live for as long as `active` (the panel being open) holds: a phone rotating
+ * from portrait to landscape, or a desktop window narrowing below `md`, must
+ * flip the shape while the panel is up, not just at the moment it opened —
+ * otherwise the CSS shape and the dialog's modality (scroll lock, `aria-hidden`,
+ * outside-click behaviour) fall out of step with each other. `active` gates the
+ * whole thing off while the panel is closed, so mounting the button alone never
+ * touches `matchMedia`.
+ *
+ * On the server there is no `window` to ask, and the safe answer there is
+ * `false`: a page that is scroll-locked for a moment longer than it needed to
+ * be is a nuisance, but a full-screen opaque panel with the page still
+ * scrolling and still reachable by a screen reader behind it is a bug. The
+ * server snapshot mirrors that so the first client render agrees with it —
+ * no hydration mismatch.
  */
-function isDockedViewport(): boolean {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
-    return false;
-  }
-  return window.matchMedia(DOCKED_FROM).matches;
+function useDockedViewport(active: boolean): boolean {
+  const subscribe = React.useCallback(
+    (onChange: () => void) => {
+      if (
+        !active ||
+        typeof window === "undefined" ||
+        typeof window.matchMedia !== "function"
+      ) {
+        return () => {};
+      }
+      const mql = window.matchMedia(DOCKED_FROM);
+      mql.addEventListener("change", onChange);
+      return () => mql.removeEventListener("change", onChange);
+    },
+    [active],
+  );
+
+  const getSnapshot = React.useCallback((): boolean => {
+    if (
+      !active ||
+      typeof window === "undefined" ||
+      typeof window.matchMedia !== "function"
+    ) {
+      return false;
+    }
+    return window.matchMedia(DOCKED_FROM).matches;
+  }, [active]);
+
+  return React.useSyncExternalStore(subscribe, getSnapshot, getDockedServerSnapshot);
 }
 
 /** Matches the server schema's cap (lib/validations/feedback.ts). */
@@ -180,12 +218,15 @@ export function FeedbackLauncher({
   );
 
   const [open, setOpen] = React.useState(false);
-  // Which shape the panel opened in. Below md it fills the screen, so "the page
-  // stays usable behind it" is meaningless and the panel has to behave like a
-  // proper dialog: scroll-locked, with everything behind it hidden from screen
-  // readers. From md up the page beside it really is usable, so the panel stays
-  // non-modal. Decided at open time — see isDockedViewport.
-  const [docked, setDocked] = React.useState(false);
+  // Which shape the panel is in right now. Below md it fills the screen, so
+  // "the page stays usable behind it" is meaningless and the panel has to
+  // behave like a proper dialog: scroll-locked, with everything behind it
+  // hidden from screen readers. From md up the page beside it really is
+  // usable, so the panel stays non-modal. Tracked live for as long as the
+  // panel is open — see useDockedViewport — so rotating a phone or narrowing
+  // a desktop window mid-draft keeps the CSS shape and the dialog's modality
+  // in step with each other.
+  const docked = useDockedViewport(open);
   const [body, setBody] = React.useState("");
   const [sent, setSent] = React.useState<FeedbackNoteView[]>([]);
   const [pending, setPending] = React.useState<QueuedFeedbackNote[]>([]);
@@ -279,9 +320,8 @@ export function FeedbackLauncher({
     return [...landed, ...queued];
   }, [sent, pending]);
 
-  /** Opens the panel, pinning the shape it opened in for as long as it is up. */
+  /** Opens the panel. Its shape (see useDockedViewport) tracks the viewport live. */
   function openPanel() {
-    setDocked(isDockedViewport());
     setOpen(true);
   }
 
@@ -403,7 +443,11 @@ export function FeedbackLauncher({
         the overlay is what stops the page scrolling underneath a panel that
         covers it — and it is invisible there anyway, sitting behind an opaque
         full-screen surface. From md up there is no overlay and no lock, which
-        is the whole point of the docked shape.
+        is the whole point of the docked shape. `docked` (and so `modal`) can
+        flip live while the panel is open — see useDockedViewport — which
+        remounts DialogContent between its modal and non-modal variants; the
+        draft text and frozen context live in this component, not in Radix's
+        subtree, so they survive that swap.
       */}
       <Sheet open={open} onOpenChange={setOpen} modal={!docked}>
         <SheetContent
