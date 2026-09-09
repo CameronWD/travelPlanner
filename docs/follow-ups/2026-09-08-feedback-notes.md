@@ -8,13 +8,16 @@ queue).
 
 ## Operational — do this before or with the first deploy
 
-- **The `FeedbackNote` migration has never run against production.** `package.json`'s
-  `build` is a bare `next build` with no `prisma migrate deploy`, so nothing applies
-  `prisma/migrations/20260908000000_add_feedback_notes` on ship. Until it is applied,
-  every send fails with Prisma `P2021`, the Feedback panel reports "saved and will
-  retry", and the offline queue fills until `MAX_QUEUED` starts evicting. Apply the
-  migration as a deliberate step, and decide separately whether the build command
-  should own migrations for good — that is a deployment decision, left alone here.
+- **The `FeedbackNote` migration has not yet run against production — but the deploy
+  applies it.** The final review read `package.json`'s bare `next build` and concluded
+  nothing would apply `prisma/migrations/20260908000000_add_feedback_notes`; that was
+  wrong. `vercel.json` overrides the build command with
+  `prisma migrate deploy && next build` (see `docs/DEPLOY.md` §3), so shipping creates
+  the table. No manual step is needed. The migration is purely additive — a single
+  `CREATE TABLE` — so §4b's destructive-migration rehearsal does not apply and there is
+  no window where live reads break. Until the deploy happens, every send fails with
+  Prisma `P2021`, the Feedback panel reports "saved and will retry", and the offline
+  queue fills until `MAX_QUEUED` starts evicting.
 - **Neither script's happy path has ever run.** `feedback:pull` and `feedback:resolve`
   were verified as far as their argument and failure paths; the table did not exist in
   production and this sandbox has no local Postgres. First real run wants a human
