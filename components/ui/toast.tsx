@@ -57,7 +57,18 @@ const toastVariants = cva(
     // Gate slide/fade animations behind motion-safe so reduced-motion users get no animation.
     // Note: globals.css also has a prefers-reduced-motion rule that collapses all tp-* durations
     // to 0.01ms — this motion-safe: layer makes the intent explicit at the component level.
-    "motion-safe:data-[state=open]:tp-slide-in-right motion-safe:data-[state=closed]:tp-fade-out",
+    //
+    // Entry direction has to match the viewport's corner (ToastViewport above):
+    // right below md (viewport is right-anchored there — full-width below sm,
+    // sm:max-w-sm flush right in the 640–768px band), left from md up (viewport
+    // moves to bottom-left to clear the docked Feedback panel). The md:
+    // override wins in the generated CSS despite both classes setting the same
+    // `animation` property: Tailwind v4 emits the base motion-safe block before
+    // the md-grouped one, so at equal specificity (one class + one attribute
+    // selector each) the later, md: rule takes it whenever both its media
+    // conditions (width and motion) hold — verified against the actual build
+    // output rather than assumed.
+    "motion-safe:data-[state=open]:tp-slide-in-right md:motion-safe:data-[state=open]:tp-slide-in-left motion-safe:data-[state=closed]:tp-fade-out",
     "data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=cancel]:translate-x-0 motion-safe:data-[swipe=end]:tp-slide-out-right",
   ),
   {

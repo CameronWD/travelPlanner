@@ -84,6 +84,29 @@ describe("ToastViewport", () => {
     expect(card.className).toContain("pointer-events-auto");
   });
 
+  it("enters from the right below md and from the left from md up, matching the viewport's corner", () => {
+    render(
+      <ToastProvider>
+        <Toast open data-testid="toast-entry">
+          <ToastTitle>Saved</ToastTitle>
+        </Toast>
+        <ToastViewport />
+      </ToastProvider>,
+    );
+    const card = screen.getByTestId("toast-entry");
+    // Below md (and in the 640-768px band, where sm:max-w-sm still anchors
+    // the viewport to the right) the toast still slides in from the right.
+    expect(card.className).toContain(
+      "motion-safe:data-[state=open]:tp-slide-in-right",
+    );
+    // From md up the viewport has moved to bottom-left (off the docked
+    // Feedback panel), so entry has to flip to match — the override, not a
+    // second unrelated class, since Tailwind still has to resolve one winner.
+    expect(card.className).toContain(
+      "md:motion-safe:data-[state=open]:tp-slide-in-left",
+    );
+  });
+
   it("keeps the toast card swipeable to dismiss", () => {
     render(
       <ToastProvider swipeDirection="right">
