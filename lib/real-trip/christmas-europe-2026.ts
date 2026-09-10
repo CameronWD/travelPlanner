@@ -72,11 +72,27 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
 
 // --- transports (Task 4) ---------------------------------------------------
 
-const TRANSPORTS: DemoTransport[] = [];
+const TRANSPORTS: DemoTransport[] = [
+  { key: "xmas26:tr:home-denpasar", mode: "FLIGHT", fromStopKey: null, toStopKey: SK.denpasar, depIsHome: true, depPlace: "Gold Coast (OOL)", depAt: "2026-12-04T17:50:00Z", arrPlace: "Denpasar (DPS)", arrAt: "2026-12-04T22:15:00Z", reference: "WNIQHG", sortOrder: 0, cost: { costMinor: 89559, currency: "AUD", paid: true, paidMinor: 89559, paidAt: "2026-07-13" } },
+  { key: "xmas26:tr:denpasar-munich", mode: "FLIGHT", fromStopKey: SK.denpasar, toStopKey: SK.munich, depPlace: "Denpasar (DPS)", depAt: "2026-12-05T19:00:00Z", arrPlace: "Munich (MUC)", arrAt: "2026-12-06T06:45:00Z", reference: "DHZU24", notes: "Thai Airways via Bangkok.\nArrives BKK 22:15 on 5 Dec; onward TG924 lands Munich 06:45 on 6 Dec.\nOvernight in the air — no bed booked for the night of the 5th.", sortOrder: 1, cost: { costMinor: 163569, currency: "AUD", paid: true, paidMinor: 163569, paidAt: "2026-07-19" } },
+  { key: "xmas26:tr:munich-strasbourg", mode: "TRAIN", fromStopKey: SK.munich, toStopKey: SK.strasbourg, depPlace: "Munich Hbf", depAt: "2026-12-10T06:51:00Z", arrPlace: "Strasbourg", arrAt: "2026-12-10T10:40:00Z", reference: "300186503818", notes: "1st Class\nCarriage 13 - Seat 350,351\nBring ID\nArrive at least 20 minutes early\nWill need to catch tram back to accom in Kehl", sortOrder: 2, cost: { costMinor: 23521, currency: "AUD", paid: true, paidMinor: 23521, paidAt: "2026-07-26" } },
+  { key: "xmas26:tr:strasbourg-frankfurt", mode: "TRAIN", fromStopKey: SK.strasbourg, toStopKey: SK.frankfurt, notes: "Not booked yet — travelling 13 Dec.", sortOrder: 3 },
+  { key: "xmas26:tr:frankfurt-paris", mode: "TRAIN", fromStopKey: SK.frankfurt, toStopKey: SK.paris, notes: "Not booked yet — travelling 15 Dec.", sortOrder: 4 },
+  { key: "xmas26:tr:paris-london", mode: "TRAIN", fromStopKey: SK.paris, toStopKey: SK.london, depPlace: "Paris Gare du Nord", depAt: "2026-12-19T08:02:00Z", arrPlace: "London St Pancras", arrAt: "2026-12-19T09:30:00Z", reference: "WXFVKQ", notes: "Carriage 15\nSeats 53 and 54", sortOrder: 5, cost: { costMinor: 41438, currency: "AUD", paid: true, paidMinor: 41438, paidAt: "2026-07-26" } },
+  { key: "xmas26:tr:london-aghalee", mode: "FLIGHT", fromStopKey: SK.london, toStopKey: SK.aghalee, depPlace: "London Heathrow (LHR)", depAt: "2026-12-22T09:15:00Z", arrPlace: "Belfast City (BHD)", arrAt: "2026-12-22T10:40:00Z", reference: "XHARUZ", notes: "British Airways\nHeathrow (LHR) - Terminal 5\n1hr 25 mins\nBelfast City Airport (BHD)", sortOrder: 6 },
+  { key: "xmas26:tr:aghalee-dublin", mode: "TRAIN", fromStopKey: SK.aghalee, toStopKey: SK.dublin, notes: "Not booked yet — travelling 29 Dec. Train or coach.", sortOrder: 7 },
+  { key: "xmas26:tr:dublin-como", mode: "FLIGHT", fromStopKey: SK.dublin, toStopKey: SK.como, depPlace: "Dublin (DUB)", depAt: "2026-12-30T08:15:00Z", arrPlace: "Milan Malpensa (MXP)", arrAt: "2026-12-30T11:45:00Z", reference: "FR7799 · H4WP7Q", notes: "Ryanair.\n2x 20kg checked bags included. Seats 16A and 16B.\nMust use the Ryanair app for boarding passes — printed passes are not accepted.\nOnward transfer to Como is a separate leg.", sortOrder: 8, cost: { costMinor: 35862, currency: "EUR", paid: true, paidMinor: 35862 } },
+  { key: "xmas26:tr:mxp-como", mode: "TRAIN", fromStopKey: null, toStopKey: SK.como, depPlace: "Milan Malpensa (MXP)", arrPlace: "Como", notes: "Not booked yet — airport transfer on arrival, 30 Dec.", sortOrder: 9 },
+  { key: "xmas26:tr:como-milan", mode: "TRAIN", fromStopKey: SK.como, toStopKey: SK.milan, notes: "Not booked yet — travelling 1 Jan.", sortOrder: 10 },
+  { key: "xmas26:tr:milan-rome", mode: "TRAIN", fromStopKey: SK.milan, toStopKey: SK.rome, notes: "Not booked yet — travelling 2 Jan.", sortOrder: 11 },
+  { key: "xmas26:tr:rome-home", mode: "FLIGHT", fromStopKey: SK.rome, toStopKey: null, arrIsHome: true, depPlace: "Rome (FCO)", depAt: "2027-01-07T08:55:00Z", arrPlace: "Brisbane (BNE)", arrAt: "2027-01-08T17:30:00Z", reference: "8QPEWK", notes: "Leave Rome 8:55am 7th Jan\n5 hours 10 minutes\nArrive Doha 4:05pm 7th Jan\nLeave Doha 8:25pm\n14 hours 5 minutes\nArrive Brisbane 5:30pm 8th Jan", sortOrder: 12 },
+];
 
 // --- standalone costs (Task 4) ---------------------------------------------
 
-const COSTS: DemoCost[] = [];
+const COSTS: DemoCost[] = [
+  { ownerType: "OTHER", label: "Rome city tax", costMinor: 7000, currency: "EUR" },
+];
 
 // --- builder ---------------------------------------------------------------
 

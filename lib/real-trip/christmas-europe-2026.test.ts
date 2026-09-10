@@ -1,9 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { buildChristmasEurope2026 } from "./christmas-europe-2026";
+import { hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
+import { TRANSPORT_MODES } from "@/lib/enums";
 
 const t = buildChristmasEurope2026();
 const ordered = [...t.stops].sort((a, b) => a.sortOrder - b.sortOrder);
 const SK_DUBLIN = "xmas26:stop:dublin";
+const SK_COMO = "xmas26:stop:como";
 
 describe("envelope", () => {
   it("is the real trip under Cam's home base", () => {
@@ -159,6 +162,123 @@ describe("accommodations", () => {
       expect(a!.confirmation, g.name).toBe(g.confirmation);
       expect(a!.cost!.costMinor, g.name).toBe(g.costMinor);
       expect(a!.cost!.currency, g.name).toBe(g.currency);
+    }
+  });
+});
+
+describe("transports", () => {
+  it("has 13 legs with unique keys, valid modes and real stop references", () => {
+    expect(t.transports).toHaveLength(13);
+    expect(new Set(t.transports.map((x) => x.key)).size).toBe(13);
+    expect(new Set(t.transports.map((x) => x.sortOrder)).size).toBe(13);
+    const stopKeys = new Set(t.stops.map((s) => s.key));
+    for (const tr of t.transports) {
+      expect(TRANSPORT_MODES, tr.key).toContain(tr.mode);
+      if (tr.fromStopKey) expect(stopKeys.has(tr.fromStopKey), tr.key).toBe(true);
+      if (tr.toStopKey) expect(stopKeys.has(tr.toStopKey), tr.key).toBe(true);
+    }
+  });
+
+  it("closes the round trip from and back to the home base", () => {
+    const legs = t.transports.map((x) => ({
+      depIsHome: x.depIsHome, arrIsHome: x.arrIsHome,
+      toStopId: x.toStopKey ?? null, fromStopId: x.fromStopKey ?? null,
+    }));
+    expect(hasOutboundLeg(legs, ordered[0].key)).toBe(true);
+    expect(hasReturnLeg(legs, ordered[ordered.length - 1].key)).toBe(true);
+  });
+
+  it("connects every consecutive pair of stops", () => {
+    for (let i = 0; i < ordered.length - 1; i++) {
+      const leg = t.transports.find(
+        (x) => x.fromStopKey === ordered[i].key && x.toStopKey === ordered[i + 1].key,
+      );
+      expect(leg, `${ordered[i].name} → ${ordered[i + 1].name}`).toBeTruthy();
+    }
+  });
+
+  it("keeps the Malpensa transfer as between-legs travel", () => {
+    const hop = t.transports.find((x) => x.key === "xmas26:tr:mxp-como")!;
+    expect(hop.fromStopKey ?? null).toBeNull();
+    expect(hop.toStopKey).toBe(SK_COMO);
+    expect(hop.depPlace).toBe("Milan Malpensa (MXP)");
+  });
+
+  it("lands the Bangkok overnight in Munich on the 6th", () => {
+    const leg = t.transports.find((x) => x.reference === "DHZU24")!;
+    expect(leg.depAt).toBe("2026-12-05T19:00:00Z");
+    expect(leg.arrAt).toBe("2026-12-06T06:45:00Z");
+  });
+
+  it("never lets a leg arrive before it departs", () => {
+    for (const tr of t.transports) {
+      if (tr.depAt && tr.arrAt) expect(tr.arrAt > tr.depAt, tr.key).toBe(true);
+    }
+  });
+
+  it("leaves exactly the six unbooked legs without times or references", () => {
+    const unbooked = t.transports.filter((x) => !x.depAt);
+    expect(unbooked.map((x) => x.key).sort()).toEqual([
+      "xmas26:tr:aghalee-dublin", "xmas26:tr:como-milan", "xmas26:tr:frankfurt-paris",
+      "xmas26:tr:milan-rome", "xmas26:tr:mxp-como", "xmas26:tr:strasbourg-frankfurt",
+    ]);
+    for (const x of unbooked) {
+      expect(x.arrAt ?? null, x.key).toBeNull();
+      expect(x.cost ?? null, x.key).toBeNull();
+    }
+  });
+});
+
+describe("costs", () => {
+  const inline = [
+    ...t.transports.map((x) => x.cost),
+    ...t.accommodations.map((a) => a.cost),
+  ].filter(Boolean);
+  const all = [...inline, ...t.costs];
+
+  it("records 17 costs in total", () => {
+    expect(all).toHaveLength(17);
+  });
+
+  it("never records a cost of zero — a Cost with no number is not a Cost", () => {
+    for (const c of all) expect(c!.costMinor).toBeGreaterThan(0);
+  });
+
+  it("gives every paid cost a paid amount", () => {
+    for (const c of all) {
+      if (c!.paid) expect(typeof c!.paidMinor).toBe("number");
+    }
+  });
+
+  it("totals 935935 AUD and 96472 EUR", () => {
+    const sum = (cur: string) =>
+      all.filter((c) => c!.currency === cur).reduce((n, c) => n + c!.costMinor, 0);
+    expect(sum("AUD")).toBe(935935);
+    expect(sum("EUR")).toBe(96472);
+  });
+
+  it("seeds a EUR rate so the euro costs convert to the home currency", () => {
+    const currencies = new Set(all.map((c) => c!.currency));
+    for (const cur of currencies) {
+      if (cur === t.homeCurrency) continue;
+      const rate = (t.exchangeRates ?? []).find((r) => r.base === cur);
+      expect(rate, cur).toBeTruthy();
+      expect(rate!.quote).toBe("AUD");
+    }
+  });
+
+  it("carries the Rome city tax as a standalone other cost", () => {
+    expect(t.costs).toHaveLength(1);
+    expect(t.costs[0]).toMatchObject({
+      ownerType: "OTHER", label: "Rome city tax", costMinor: 7000, currency: "EUR",
+    });
+  });
+
+  it("records the two flights that previously showed a zero cost", () => {
+    for (const ref of ["WNIQHG", "DHZU24"]) {
+      const leg = t.transports.find((x) => x.reference === ref)!;
+      expect(leg.cost!.costMinor, ref).toBe(leg.cost!.paidMinor);
+      expect(leg.cost!.paid, ref).toBe(true);
     }
   });
 });
