@@ -3,6 +3,7 @@ import { buildChristmasEurope2026 } from "./christmas-europe-2026";
 
 const t = buildChristmasEurope2026();
 const ordered = [...t.stops].sort((a, b) => a.sortOrder - b.sortOrder);
+const SK_DUBLIN = "xmas26:stop:dublin";
 
 describe("envelope", () => {
   it("is the real trip under Cam's home base", () => {
@@ -75,5 +76,51 @@ describe("stops", () => {
       "Denpasar", "Munich", "Strasbourg", "Frankfurt", "Paris", "London",
       "Aghalee", "Dublin", "Como", "Milan", "Rome",
     ]);
+  });
+});
+
+describe("accommodations", () => {
+  it("gives every stop exactly one bed", () => {
+    expect(t.accommodations).toHaveLength(11);
+    const byStop = new Map(t.accommodations.map((a) => [a.stopKey, a]));
+    expect(byStop.size).toBe(11);
+    for (const s of t.stops) expect(byStop.has(s.key), s.name).toBe(true);
+  });
+
+  it("matches each bed's dates to its stop's dates exactly", () => {
+    const stopByKey = new Map(t.stops.map((s) => [s.key, s]));
+    for (const a of t.accommodations) {
+      const s = stopByKey.get(a.stopKey)!;
+      expect(a.checkIn, a.name).toBe(s.arriveDate);
+      expect(a.checkOut, a.name).toBe(s.departDate);
+    }
+  });
+
+  it("carries an address, a confirmation and a real cost on every bed", () => {
+    for (const a of t.accommodations) {
+      expect(a.address, a.name).toBeTruthy();
+      expect(a.confirmation, a.name).toBeTruthy();
+      expect(a.cost, a.name).toBeTruthy();
+      expect(a.cost!.costMinor, a.name).toBeGreaterThan(0);
+    }
+  });
+
+  it("records the Dublin bed as paid on the day it was charged", () => {
+    const dublin = t.accommodations.find((a) => a.stopKey.endsWith("dublin"))!;
+    expect(dublin.name).toBe("Point A Dublin The Liberties");
+    expect(dublin.cost).toMatchObject({
+      costMinor: 15642, paidMinor: 15642, currency: "AUD", paid: true, paidAt: "2026-08-11",
+    });
+  });
+
+  it("prices Rome in euro and leaves it unpaid — it is cash on arrival", () => {
+    const rome = t.accommodations.find((a) => a.stopKey.endsWith("rome"))!;
+    expect(rome.cost).toMatchObject({ costMinor: 53610, currency: "EUR" });
+    expect(rome.cost!.paid ?? false).toBe(false);
+  });
+
+  it("leaves every other bed unpaid", () => {
+    const paid = t.accommodations.filter((a) => a.cost?.paid);
+    expect(paid.map((a) => a.stopKey)).toEqual([SK_DUBLIN]);
   });
 });
