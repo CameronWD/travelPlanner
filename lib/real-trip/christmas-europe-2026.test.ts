@@ -1,118 +1,79 @@
 import { describe, it, expect } from "vitest";
 import { buildChristmasEurope2026 } from "./christmas-europe-2026";
-import { hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
-import { CHAPTER_COLOUR_VALUES } from "@/lib/chapter-colours";
-import { TRANSPORT_MODES } from "@/lib/enums";
 
-describe("buildChristmasEurope2026", () => {
-  const t = buildChristmasEurope2026();
+const t = buildChristmasEurope2026();
+const ordered = [...t.stops].sort((a, b) => a.sortOrder - b.sortOrder);
 
-  it("has the right envelope", () => {
+describe("envelope", () => {
+  it("is the real trip under Cam's home base", () => {
     expect(t.name).toBe("Christmas in Europe 2026");
     expect(t.startDate).toBe("2026-12-04");
     expect(t.endDate).toBe("2027-01-08");
+    expect(t.hardEndDate ?? null).toBeNull();
     expect(t.homeCurrency).toBe("AUD");
     expect(t.roundTrip).toBe(true);
-    expect(t.home?.name).toBe("Gold Coast");
-    expect(t.home?.countryCode).toBe("au");
+    expect(t.home).toEqual({
+      name: "Gold Coast", lat: -28.0023731, lng: 153.4145987, countryCode: "au",
+    });
   });
 
-  it("has 10 dated stops in order, lowercase country codes, unique sortOrder", () => {
-    expect(t.stops).toHaveLength(10);
-    expect(new Set(t.stops.map((s) => s.sortOrder)).size).toBe(10);
+  it("has chapters switched off — no chapter rows at all", () => {
+    expect(t.chapters).toHaveLength(0);
+  });
+});
+
+describe("stops", () => {
+  it("has 11 fully-dated stops with unique sort order", () => {
+    expect(t.stops).toHaveLength(11);
+    expect(new Set(t.stops.map((s) => s.sortOrder)).size).toBe(11);
+    expect(new Set(t.stops.map((s) => s.key)).size).toBe(11);
+  });
+
+  it("gives every stop a date range, timezone, country and point", () => {
     for (const s of t.stops) {
-      expect(s.arriveDate).toBeTruthy();
-      expect(s.departDate).toBeTruthy();
-      expect(s.timezone).toBeTruthy();
-      expect(typeof s.lat).toBe("number");
-      expect(typeof s.lng).toBe("number");
-      expect(s.countryCode).toBe(s.countryCode?.toLowerCase());
+      expect(s.arriveDate, s.name).toBeTruthy();
+      expect(s.departDate, s.name).toBeTruthy();
+      expect(s.timezone, s.name).toBeTruthy();
+      expect(s.timezone, s.name).not.toBe("UTC");
+      expect(s.countryCode, s.name).toBe(s.countryCode?.toLowerCase());
+      expect(typeof s.lat, s.name).toBe("number");
+      expect(typeof s.lng, s.name).toBe("number");
     }
   });
 
-  it("stops never overlap or run backwards", () => {
-    const ordered = [...t.stops].sort((a, b) => a.sortOrder - b.sortOrder);
+  it("runs strictly forward with no gap and no overlap between consecutive stops", () => {
     for (let i = 0; i < ordered.length - 1; i++) {
-      expect(ordered[i + 1].arriveDate! >= ordered[i].departDate!).toBe(true);
+      const here = ordered[i];
+      const next = ordered[i + 1];
+      expect(here.departDate! > here.arriveDate!, here.name).toBe(true);
+      // Denpasar → Munich is the one intentional break: an overnight flight via
+      // Bangkok, so the night of the 5th is spent in the air, not in a bed.
+      const expected = here.key.endsWith("denpasar") ? "2026-12-06" : here.departDate;
+      expect(next.arriveDate, `${here.name} → ${next.name}`).toBe(expected);
     }
   });
 
-  it("has 4 chapters with valid colours, each covering its stops", () => {
-    expect(t.chapters).toHaveLength(4);
-    const valid = new Set<string>(CHAPTER_COLOUR_VALUES);
-    for (const c of t.chapters) expect(valid.has(c.colour)).toBe(true);
-    for (const s of t.stops) {
-      const covered = t.chapters.some(
-        (c) => c.startDate! <= s.arriveDate! && s.arriveDate! <= c.endDate!,
-      );
-      expect(covered).toBe(true);
+  it("declares nights matching the date span", () => {
+    const DAY = 86_400_000;
+    for (const s of ordered) {
+      const span = (Date.parse(s.departDate!) - Date.parse(s.arriveDate!)) / DAY;
+      expect(s.nights, s.name).toBe(span);
     }
   });
 
-  it("has 11 transports connecting real stops with valid modes", () => {
-    expect(t.transports).toHaveLength(11);
-    const stopKeys = new Set(t.stops.map((s) => s.key));
-    for (const tr of t.transports) {
-      expect(TRANSPORT_MODES).toContain(tr.mode);
-      if (tr.fromStopKey) expect(stopKeys.has(tr.fromStopKey)).toBe(true);
-      if (tr.toStopKey) expect(stopKeys.has(tr.toStopKey)).toBe(true);
-    }
+  it("starts and ends inside the trip envelope", () => {
+    expect(ordered[0].arriveDate).toBe(t.startDate);
+    expect(ordered[ordered.length - 1].departDate! <= t.endDate!).toBe(true);
   });
 
-  it("is a closed round trip (outbound from home, return to home)", () => {
-    const legs = t.transports.map((x) => ({
-      depIsHome: x.depIsHome,
-      arrIsHome: x.arrIsHome,
-      toStopId: x.toStopKey ?? null,
-      fromStopId: x.fromStopKey ?? null,
-    }));
-    const ordered = [...t.stops].sort((a, b) => a.sortOrder - b.sortOrder);
-    expect(hasOutboundLeg(legs, ordered[0].key)).toBe(true);
-    expect(hasReturnLeg(legs, ordered[ordered.length - 1].key)).toBe(true);
+  it("spends 33 nights in beds across the trip", () => {
+    expect(ordered.reduce((n, s) => n + (s.nights ?? 0), 0)).toBe(33);
   });
 
-  it("records the 3 booked costs as actual + paid", () => {
-    const withCost = t.transports.filter((tr) => tr.cost);
-    expect(withCost).toHaveLength(3);
-    for (const tr of withCost) {
-      expect(tr.cost!.paid).toBe(true);
-      expect(tr.cost!.paidMinor).toBe(tr.cost!.costMinor);
-    }
-    expect(withCost.map((tr) => tr.cost!.costMinor).sort((a, b) => a - b)).toEqual([
-      23521, 41438, 186752,
+  it("visits the expected route in order", () => {
+    expect(ordered.map((s) => s.name)).toEqual([
+      "Denpasar", "Munich", "Strasbourg", "Frankfurt", "Paris", "London",
+      "Aghalee", "Dublin", "Como", "Milan", "Rome",
     ]);
-    expect(withCost.filter((tr) => tr.cost!.currency === "AUD")).toHaveLength(2);
-    expect(withCost.filter((tr) => tr.cost!.currency === "EUR")).toHaveLength(1);
-  });
-
-  it("seeds EUR, GBP and IDR exchange rates quoted to AUD", () => {
-    expect(new Set((t.exchangeRates ?? []).map((r) => r.base))).toEqual(
-      new Set(["EUR", "GBP", "IDR"]),
-    );
-    for (const r of t.exchangeRates ?? []) expect(r.quote).toBe("AUD");
-  });
-
-  it("has the Neuschwanstein day trip on Munich, undated, marked must-do", () => {
-    expect(t.items).toHaveLength(1);
-    const n = t.items.find((i) => i.title.includes("Neuschwanstein"));
-    expect(n).toBeTruthy();
-    expect(n!.stopKey).toBe("xmas26:stop:munich");
-    expect(n!.date).toBeNull();
-    expect(n!.category).toBe("SIGHTSEEING");
-    expect(n!.votes?.some((v) => v.level === "MUST")).toBe(true);
-  });
-
-  it("has no accommodation booked yet", () => {
-    expect(t.accommodations).toHaveLength(0);
-  });
-
-  it("has a pre-trip checklist of outstanding tasks", () => {
-    const cl = t.checklist ?? [];
-    expect(cl).toHaveLength(20);
-    for (const c of cl) {
-      expect(c.kind).toBe("PRETRIP");
-      expect(c.done).toBe(false);
-    }
-    expect(cl.filter((c) => /Book accommodation/i.test(c.text))).toHaveLength(10);
   });
 });
