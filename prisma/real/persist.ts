@@ -18,6 +18,21 @@ import type { User } from "@prisma/client";
 export const REAL_TRIP_NAME = "Christmas in Europe 2026";
 export const REAL_USER = { email: "cammark.williams@gmail.com", name: "Cam" };
 
+/**
+ * The date a Cost's money actually left the account. A paid Cost must carry a
+ * date (see CONTEXT.md "Paid"), so when the descriptor doesn't record one we
+ * fall back to a caller-supplied instant rather than inventing `now` inside
+ * the persister — that kept the seed non-deterministic and silently discarded
+ * real payment dates.
+ */
+export function resolvePaidAt(
+  cost: { paid?: boolean; paidAt?: string | null } | null | undefined,
+  fallback: Date,
+): Date | null {
+  if (!cost?.paid) return null;
+  return cost.paidAt ? new Date(cost.paidAt) : fallback;
+}
+
 /** Upsert the real trip owner by email. */
 export async function ensureRealUser(): Promise<User> {
   return db.user.upsert({
@@ -51,7 +66,7 @@ export async function wipeRealTrip(): Promise<void> {
  * costs, standalone costs) plus exchange rates, cover gradient and the pre-trip
  * checklist. No forks. Votes and checklist assignments resolve to the single owner.
  */
-export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void> {
+export async function persistRealTrip(trip: DemoTrip, user: User, now: Date = new Date()): Promise<void> {
   const storage = getStorage();
   const id = new Map<string, string>();
 
@@ -101,7 +116,6 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
     }
     return r;
   };
-  const paidAt = (paid: boolean | undefined): Date | null => (paid ? new Date() : null);
 
   // --- Chapters ---
   for (const ch of trip.chapters) {
@@ -147,7 +161,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
           tripId, ownerType: "TRANSPORT", ownerId: dbT.id,
           costMinor: t.cost.costMinor, paidMinor: t.cost.paidMinor ?? null,
           currency: t.cost.currency, rateToHome: rateToHome(t.cost.currency),
-          paidAt: paidAt(t.cost.paid), category: t.cost.category ?? null,
+          paidAt: resolvePaidAt(t.cost, now), category: t.cost.category ?? null,
         },
       });
     }
@@ -171,7 +185,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
           tripId, ownerType: "ACCOMMODATION", ownerId: dbA.id,
           costMinor: a.cost.costMinor, paidMinor: a.cost.paidMinor ?? null,
           currency: a.cost.currency, rateToHome: rateToHome(a.cost.currency),
-          paidAt: paidAt(a.cost.paid), category: a.cost.category ?? null,
+          paidAt: resolvePaidAt(a.cost, now), category: a.cost.category ?? null,
         },
       });
     }
@@ -196,7 +210,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
           tripId, ownerType: "ITEM", ownerId: dbItem.id,
           costMinor: it.cost.costMinor, paidMinor: it.cost.paidMinor ?? null,
           currency: it.cost.currency, rateToHome: rateToHome(it.cost.currency),
-          paidAt: paidAt(it.cost.paid), category: it.cost.category ?? null,
+          paidAt: resolvePaidAt(it.cost, now), category: it.cost.category ?? null,
         },
       });
     }
@@ -213,7 +227,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
         tripId, ownerType: c.ownerType, ownerId,
         costMinor: c.costMinor, paidMinor: c.paidMinor ?? null,
         currency: c.currency, rateToHome: rateToHome(c.currency),
-        paidAt: paidAt(c.paid), label: c.label ?? null, category: c.category ?? null,
+        paidAt: resolvePaidAt(c, now), label: c.label ?? null, category: c.category ?? null,
       },
     });
   }

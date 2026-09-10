@@ -11,7 +11,7 @@ export interface DemoVote { user: Who; level: "MUST" | "KEEN" | "MEH"; }
 // unrepresentable rather than relying on callers to remember the rule.
 export type DemoInlineCost =
   | { costMinor: number; currency: string; category?: string | null; paid?: false; paidMinor?: number | null }
-  | { costMinor: number; currency: string; category?: string | null; paid: true; paidMinor: number };
+  | { costMinor: number; currency: string; category?: string | null; paid: true; paidMinor: number; paidAt?: string | null };
 export type DemoCost = DemoInlineCost & { ownerType: "TRANSPORT" | "ACCOMMODATION" | "ITEM" | "OTHER"; ownerKey?: Key | null; label?: string | null; };
 
 export interface DemoStop {
