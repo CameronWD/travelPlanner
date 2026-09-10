@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildChristmasEurope2026 } from "./christmas-europe-2026";
+import { buildChristmasEurope2026, summariseRealTrip } from "./christmas-europe-2026";
 import { hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
 import { TRANSPORT_MODES } from "@/lib/enums";
 
@@ -331,5 +331,32 @@ describe("costs", () => {
       expect(leg.cost!.costMinor, ref).toBe(leg.cost!.paidMinor);
       expect(leg.cost!.paid, ref).toBe(true);
     }
+  });
+});
+
+describe("summariseRealTrip", () => {
+  const out = summariseRealTrip(t);
+
+  it("names the trip and its span", () => {
+    expect(out).toContain("Christmas in Europe 2026");
+    expect(out).toContain("2026-12-04");
+    expect(out).toContain("2027-01-08");
+  });
+
+  it("counts every row that will be written", () => {
+    expect(out).toContain("11 stops");
+    expect(out).toContain("11 accommodations");
+    expect(out).toContain("13 transports");
+    expect(out).toContain("17 costs");
+  });
+
+  it("lists every stop with its dates so the dry-run can be eyeballed", () => {
+    for (const s of t.stops) expect(out).toContain(s.name);
+    expect(out).toContain("2026-12-22 → 2026-12-29");
+  });
+
+  it("reports both currency totals", () => {
+    expect(out).toContain("9359.35 AUD");
+    expect(out).toContain("964.72 EUR");
   });
 });

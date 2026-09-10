@@ -118,3 +118,41 @@ export function buildChristmasEurope2026(): DemoTrip {
     ],
   };
 }
+
+/**
+ * Render the trip as a human-readable printout for the dry-run. Pure: it reads
+ * the same descriptor the persister consumes, so what it prints is exactly
+ * what would be written. There is no local Postgres in this project's sandbox,
+ * so this is the last line of defence before a production write.
+ */
+export function summariseRealTrip(trip: DemoTrip): string {
+  const allCosts = [
+    ...trip.transports.map((x) => x.cost),
+    ...trip.accommodations.map((a) => a.cost),
+    ...trip.costs,
+  ].filter((c): c is NonNullable<typeof c> => !!c);
+
+  const totals = new Map<string, number>();
+  for (const c of allCosts) totals.set(c.currency, (totals.get(c.currency) ?? 0) + c.costMinor);
+
+  const bedByStop = new Map(trip.accommodations.map((a) => [a.stopKey, a]));
+  const lines: string[] = [];
+
+  lines.push(`${trip.name}  ${trip.startDate} → ${trip.endDate}  (${trip.homeCurrency})`);
+  lines.push(`home base: ${trip.home?.name ?? "none"} · round trip: ${trip.roundTrip ?? true} · chapters: ${trip.chapters.length}`);
+  lines.push("");
+  lines.push(`${trip.stops.length} stops, ${trip.accommodations.length} accommodations, ${trip.transports.length} transports, ${allCosts.length} costs`);
+  lines.push("");
+
+  for (const s of [...trip.stops].sort((a, b) => a.sortOrder - b.sortOrder)) {
+    const bed = bedByStop.get(s.key);
+    lines.push(`  ${s.arriveDate} → ${s.departDate}  ${s.name} (${s.nights}n)  ${bed ? bed.name : "NO BED"}`);
+  }
+
+  lines.push("");
+  for (const [cur, minor] of [...totals].sort()) {
+    lines.push(`  total ${(minor / 100).toFixed(2)} ${cur}`);
+  }
+
+  return lines.join("\n");
+}

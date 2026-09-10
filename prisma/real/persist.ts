@@ -3,13 +3,20 @@
  *
  * A focused subset of prisma/demo/persist.ts: one trip, one owner member, no
  * forks / globe / partner. Reuses the demo storage + cover helpers and the
- * DemoTrip data types. Idempotent: wipeRealTrip() deletes any prior trip with
- * the same name (and its attachment blobs) before re-persisting.
+ * DemoTrip data types. Additive: assertNoExistingRealTrip() refuses to run a
+ * second time rather than deleting and recreating (see wipeRealTrip's docs
+ * for why that path is dangerous and must not be wired into the seed).
+ *
+ * `@/lib/db` throws at module-evaluation time if DATABASE_URL isn't set — and
+ * this project's sandbox has no local Postgres, so the only DATABASE_URL ever
+ * available here points at production. Every function below that needs `db`
+ * loads it via a lazy dynamic import instead of a top-level static import, so
+ * merely importing this module (e.g. for a dry run) opens no connection and
+ * needs no credentials.
  *
  * Verified by `tsc --noEmit` and `eslint`; exercised by prisma/seed-real.ts.
  */
 
-import { db } from "@/lib/db";
 import { getStorage, generateKey } from "@/lib/storage";
 import { gradientPng } from "@/lib/demo/cover-image";
 import type { DemoTrip } from "@/lib/demo/types";
@@ -17,6 +24,12 @@ import type { User } from "@prisma/client";
 
 export const REAL_TRIP_NAME = "Christmas in Europe 2026";
 export const REAL_USER = { email: "cammark.williams@gmail.com", name: "Cam" };
+
+/** Lazily load the Prisma client. Never import `@/lib/db` at module scope here. */
+async function loadDb() {
+  const { db } = await import("@/lib/db");
+  return db;
+}
 
 /**
  * The date a Cost's money actually left the account. A paid Cost must carry a
@@ -35,6 +48,7 @@ export function resolvePaidAt(
 
 /** Upsert the real trip owner by email. */
 export async function ensureRealUser(): Promise<User> {
+  const db = await loadDb();
   return db.user.upsert({
     where: { email: REAL_USER.email },
     update: { name: REAL_USER.name },
@@ -43,11 +57,33 @@ export async function ensureRealUser(): Promise<User> {
 }
 
 /**
+ * Refuse to write if a trip of this name already exists. The additive seed
+ * path never deletes, so a second run would silently create a duplicate;
+ * failing loudly is the safe outcome. Deliberately NOT wipeRealTrip() — that
+ * function deletes real data and must never be pointed at production.
+ */
+export async function assertNoExistingRealTrip(name: string = REAL_TRIP_NAME): Promise<void> {
+  const db = await loadDb();
+  const existing = await db.trip.findMany({ where: { name }, select: { id: true } });
+  if (existing.length > 0) {
+    throw new Error(
+      `Refusing to write: ${existing.length} trip(s) already named "${name}" ` +
+        `(${existing.map((t) => t.id).join(", ")}). This seed is additive and never deletes. ` +
+        `Remove or rename the existing trip in the app first.`,
+    );
+  }
+}
+
+/**
  * Idempotent teardown: delete every trip named REAL_TRIP_NAME (deleting its
  * attachment blobs first so no orphaned storage objects remain). Safe on a
  * fresh DB — the lookup returns [] so nothing is deleted.
+ *
+ * DANGER: deletes real data. Not referenced by the additive seed path
+ * (prisma/seed-real.ts) — kept only as a manual escape hatch, never wired in.
  */
 export async function wipeRealTrip(): Promise<void> {
+  const db = await loadDb();
   const storage = getStorage();
   const trips = await db.trip.findMany({ where: { name: REAL_TRIP_NAME }, select: { id: true } });
   for (const t of trips) {
@@ -67,7 +103,7 @@ export async function wipeRealTrip(): Promise<void> {
  * checklist. No forks. Votes and checklist assignments resolve to the single owner.
  */
 export async function persistRealTrip(trip: DemoTrip, user: User, now: Date = new Date()): Promise<void> {
-  const storage = getStorage();
+  const db = await loadDb();
   const id = new Map<string, string>();
 
   // --- Trip + owner member ---
@@ -92,6 +128,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User, now: Date = ne
 
   // --- Cover gradient ---
   if (trip.coverGradient) {
+    const storage = getStorage();
     const [top, bottom] = trip.coverGradient;
     const png = gradientPng(top, bottom);
     const coverKey = generateKey({ trip: tripId }, crypto.randomUUID(), "cover.png");
