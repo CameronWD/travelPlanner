@@ -34,9 +34,29 @@ export async function seedReal(opts: { dryRun?: boolean } = {}): Promise<void> {
   console.log(`\n✅ Seeded "${trip.name}" for ${user.email}.\n`);
 }
 
+/**
+ * Arguments that aren't the one supported flag. A non-empty result is a hard
+ * error at the call site: given the stakes (a typo like --dryrun silently
+ * falling through to a real write), an unrecognised argument must abort
+ * rather than be ignored. Kept separate from the `isMain` block below so
+ * it's testable without touching `process.argv` or spawning a subprocess.
+ */
+export function unsupportedSeedArgs(argv: string[]): string[] {
+  return argv.filter((a) => a !== "--dry-run");
+}
+
 const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
-  const dryRun = process.argv.includes("--dry-run");
+  const argv = process.argv.slice(2);
+  const unknown = unsupportedSeedArgs(argv);
+  if (unknown.length > 0) {
+    console.error(
+      `seed-real: unrecognised argument(s) ${unknown.map((a) => `"${a}"`).join(", ")}. ` +
+        `The only supported flag is --dry-run.`,
+    );
+    process.exit(1);
+  }
+  const dryRun = argv.includes("--dry-run");
   seedReal({ dryRun })
     .then(async () => {
       // Dry runs never open a connection, so there's nothing to disconnect —

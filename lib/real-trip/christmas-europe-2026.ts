@@ -129,6 +129,7 @@ export function summariseRealTrip(trip: DemoTrip): string {
   const allCosts = [
     ...trip.transports.map((x) => x.cost),
     ...trip.accommodations.map((a) => a.cost),
+    ...trip.items.map((i) => i.cost),
     ...trip.costs,
   ].filter((c): c is NonNullable<typeof c> => !!c);
 
@@ -138,10 +139,19 @@ export function summariseRealTrip(trip: DemoTrip): string {
   const bedByStop = new Map(trip.accommodations.map((a) => [a.stopKey, a]));
   const lines: string[] = [];
 
+  // Exchange rates get their own count in the printout: a rate that failed to
+  // appear is exactly the kind of thing this preview should surface, since a
+  // missing rate means the persister silently leaves that currency's costs
+  // unconverted (see rateToHome's console.warn in prisma/real/persist.ts).
+  const rateCount = trip.exchangeRates?.length ?? 0;
+
   lines.push(`${trip.name}  ${trip.startDate} → ${trip.endDate}  (${trip.homeCurrency})`);
   lines.push(`home base: ${trip.home?.name ?? "none"} · round trip: ${trip.roundTrip ?? true} · chapters: ${trip.chapters.length}`);
   lines.push("");
-  lines.push(`${trip.stops.length} stops, ${trip.accommodations.length} accommodations, ${trip.transports.length} transports, ${allCosts.length} costs`);
+  lines.push(
+    `${trip.stops.length} stops, ${trip.accommodations.length} accommodations, ${trip.transports.length} transports, ` +
+      `${allCosts.length} costs, ${rateCount} exchange rate${rateCount === 1 ? "" : "s"}`,
+  );
   lines.push("");
 
   for (const s of [...trip.stops].sort((a, b) => a.sortOrder - b.sortOrder)) {

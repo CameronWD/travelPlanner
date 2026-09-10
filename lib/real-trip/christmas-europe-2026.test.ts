@@ -359,4 +359,34 @@ describe("summariseRealTrip", () => {
     expect(out).toContain("9359.35 AUD");
     expect(out).toContain("964.72 EUR");
   });
+
+  it("reports the exchange rate row count", () => {
+    // The real trip seeds exactly one rate (EUR -> AUD). A rate that failed
+    // to appear here is exactly what this preview exists to catch, since a
+    // missing rate means the persister leaves that currency's costs
+    // unconverted.
+    expect(t.exchangeRates).toHaveLength(1);
+    expect(out).toContain("1 exchange rate");
+  });
+
+  it("would count a costed item if the trip ever had one", () => {
+    // The real trip has no items (`items: []`) and must keep none — this
+    // builds a modified copy of the descriptor rather than adding an item to
+    // the real builder, purely to prove summariseRealTrip doesn't structurally
+    // drop ITEM costs from the row/currency totals the moment one exists.
+    const withCostedItem = {
+      ...t,
+      items: [
+        {
+          key: "test:item:not-in-real-trip",
+          title: "Test-only item",
+          category: "activity",
+          cost: { costMinor: 5000, currency: "AUD" as const },
+        },
+      ],
+    };
+    const out2 = summariseRealTrip(withCostedItem);
+    expect(out2).toContain("18 costs");
+    expect(out2).toContain("9409.35 AUD");
+  });
 });
