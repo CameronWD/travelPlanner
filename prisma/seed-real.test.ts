@@ -5,16 +5,24 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // the module docblock), and mocking `./real/persist` keeps that true
 // transitively too, since `persistRealTrip` et al. are the only things that
 // would otherwise reach `db`.
-const { ensureRealUserMock, assertNoExistingRealTripMock, persistRealTripMock } = vi.hoisted(() => ({
+const {
+  ensureRealUserMock,
+  assertNoExistingRealTripMock,
+  persistRealTripMock,
+  addExistingUserAsMemberMock,
+} = vi.hoisted(() => ({
   ensureRealUserMock: vi.fn(),
   assertNoExistingRealTripMock: vi.fn(),
   persistRealTripMock: vi.fn(),
+  addExistingUserAsMemberMock: vi.fn(),
 }));
 
 vi.mock("./real/persist", () => ({
   ensureRealUser: ensureRealUserMock,
   assertNoExistingRealTrip: assertNoExistingRealTripMock,
   persistRealTrip: persistRealTripMock,
+  addExistingUserAsMember: addExistingUserAsMemberMock,
+  REAL_PARTNER_EMAIL: "xanni99.m@hotmail.com",
 }));
 
 import { seedReal, unsupportedSeedArgs } from "./seed-real";
@@ -28,7 +36,8 @@ describe("seedReal dry-run short-circuit", () => {
   beforeEach(() => {
     ensureRealUserMock.mockReset().mockResolvedValue({ id: "user_1", email: "cammark.williams@gmail.com" });
     assertNoExistingRealTripMock.mockReset().mockResolvedValue(undefined);
-    persistRealTripMock.mockReset().mockResolvedValue(undefined);
+    persistRealTripMock.mockReset().mockResolvedValue("trip_1");
+    addExistingUserAsMemberMock.mockReset().mockResolvedValue(true);
   });
 
   it("a dry run calls none of the persistence functions", async () => {
@@ -36,13 +45,21 @@ describe("seedReal dry-run short-circuit", () => {
     expect(assertNoExistingRealTripMock).not.toHaveBeenCalled();
     expect(ensureRealUserMock).not.toHaveBeenCalled();
     expect(persistRealTripMock).not.toHaveBeenCalled();
+    expect(addExistingUserAsMemberMock).not.toHaveBeenCalled();
   });
 
-  it("a real run calls all three persistence functions, so the branch actually discriminates", async () => {
+  it("a real run calls all four persistence functions, so the branch actually discriminates", async () => {
     await seedReal({});
     expect(assertNoExistingRealTripMock).toHaveBeenCalledTimes(1);
     expect(ensureRealUserMock).toHaveBeenCalledTimes(1);
     expect(persistRealTripMock).toHaveBeenCalledTimes(1);
+    expect(addExistingUserAsMemberMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("attaches the partner to the trip id persistRealTrip returned, not a stale value", async () => {
+    persistRealTripMock.mockResolvedValue("trip_from_persist");
+    await seedReal({});
+    expect(addExistingUserAsMemberMock).toHaveBeenCalledWith("trip_from_persist", "xanni99.m@hotmail.com");
   });
 });
 

@@ -2,7 +2,10 @@
  * Persister for the real "Christmas in Europe 2026" trip.
  *
  * A focused subset of prisma/demo/persist.ts: one trip, one owner member, no
- * forks / globe / partner. Reuses the demo storage + cover helpers and the
+ * forks or globe, and none of the demo's multi-user "partner" upsert/vote
+ * machinery. `addExistingUserAsMember` below adds Cam's real partner as a
+ * plain TripMember — her account already exists, so it's a lookup-and-upsert,
+ * never a User creation. Reuses the demo storage + cover helpers and the
  * DemoTrip data types. Additive: assertNoExistingRealTrip() refuses to run a
  * second time rather than deleting and recreating (see wipeRealTrip's docs
  * for why that path is dangerous and must not be wired into the seed).
@@ -24,6 +27,8 @@ import type { User } from "@prisma/client";
 
 export const REAL_TRIP_NAME = "Christmas in Europe 2026";
 export const REAL_USER = { email: "cammark.williams@gmail.com", name: "Cam" };
+/** Cam's partner. Her account already exists; she is added directly as a member. */
+export const REAL_PARTNER_EMAIL = "xanni99.m@hotmail.com";
 
 /** Lazily load the Prisma client. Never import `@/lib/db` at module scope here. */
 async function loadDb() {
@@ -75,6 +80,28 @@ export async function assertNoExistingRealTrip(name: string = REAL_TRIP_NAME): P
 }
 
 /**
+ * Add an already-registered user to a trip as a member. Deliberately does NOT
+ * upsert a User — inviting someone who has never signed in is the Invite
+ * flow's job, and silently creating an empty account here would be worse than
+ * failing to add them. Returns whether a membership was created.
+ */
+export async function addExistingUserAsMember(
+  tripId: string,
+  email: string,
+  role: "owner" | "member" = "member",
+): Promise<boolean> {
+  const db = await loadDb();
+  const user = await db.user.findUnique({ where: { email }, select: { id: true } });
+  if (!user) return false;
+  await db.tripMember.upsert({
+    where: { tripId_userId: { tripId, userId: user.id } },
+    update: {},
+    create: { tripId, userId: user.id, role },
+  });
+  return true;
+}
+
+/**
  * Idempotent teardown: delete every trip named REAL_TRIP_NAME (deleting its
  * attachment blobs first so no orphaned storage objects remain). Safe on a
  * fresh DB — the lookup returns [] so nothing is deleted.
@@ -102,7 +129,7 @@ export async function wipeRealTrip(): Promise<void> {
  * costs, standalone costs) plus exchange rates, cover gradient and the pre-trip
  * checklist. No forks. Votes and checklist assignments resolve to the single owner.
  */
-export async function persistRealTrip(trip: DemoTrip, user: User, now: Date = new Date()): Promise<void> {
+export async function persistRealTrip(trip: DemoTrip, user: User, now: Date = new Date()): Promise<string> {
   const db = await loadDb();
   const id = new Map<string, string>();
 
@@ -280,4 +307,6 @@ export async function persistRealTrip(trip: DemoTrip, user: User, now: Date = ne
       },
     });
   }
+
+  return tripId;
 }

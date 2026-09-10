@@ -1,6 +1,12 @@
 import { pathToFileURL } from "node:url";
 import { buildChristmasEurope2026, summariseRealTrip } from "../lib/real-trip/christmas-europe-2026";
-import { ensureRealUser, assertNoExistingRealTrip, persistRealTrip } from "./real/persist";
+import {
+  ensureRealUser,
+  assertNoExistingRealTrip,
+  persistRealTrip,
+  addExistingUserAsMember,
+  REAL_PARTNER_EMAIL,
+} from "./real/persist";
 
 /**
  * Seeds Cam's real "Christmas in Europe 2026" trip under his account.
@@ -30,8 +36,14 @@ export async function seedReal(opts: { dryRun?: boolean } = {}): Promise<void> {
 
   await assertNoExistingRealTrip(trip.name);
   const user = await ensureRealUser();
-  await persistRealTrip(trip, user);
-  console.log(`\n✅ Seeded "${trip.name}" for ${user.email}.\n`);
+  const tripId = await persistRealTrip(trip, user);
+  const added = await addExistingUserAsMember(tripId, REAL_PARTNER_EMAIL);
+  console.log(`\n✅ Seeded "${trip.name}" for ${user.email}.`);
+  console.log(
+    added
+      ? `   ${REAL_PARTNER_EMAIL} added as a member.\n`
+      : `   ⚠️  No account found for ${REAL_PARTNER_EMAIL} — invite them from the app.\n`,
+  );
 }
 
 /**

@@ -9,10 +9,22 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // way it intercepts a static one, so mocking `@/lib/db` here still works —
 // and it's what lets the assertNoExistingRealTrip tests below control
 // `trip.findMany`'s return value without a real database.
-const { findManyMock } = vi.hoisted(() => ({ findManyMock: vi.fn() }));
-vi.mock("@/lib/db", () => ({ db: { trip: { findMany: findManyMock } } }));
+const { findManyMock, userFindUniqueMock, userCreateMock, userUpsertMock, tripMemberUpsertMock } = vi.hoisted(() => ({
+  findManyMock: vi.fn(),
+  userFindUniqueMock: vi.fn(),
+  userCreateMock: vi.fn(),
+  userUpsertMock: vi.fn(),
+  tripMemberUpsertMock: vi.fn(),
+}));
+vi.mock("@/lib/db", () => ({
+  db: {
+    trip: { findMany: findManyMock },
+    user: { findUnique: userFindUniqueMock, create: userCreateMock, upsert: userUpsertMock },
+    tripMember: { upsert: tripMemberUpsertMock },
+  },
+}));
 
-import { resolvePaidAt, assertNoExistingRealTrip } from "./persist";
+import { resolvePaidAt, assertNoExistingRealTrip, addExistingUserAsMember, REAL_PARTNER_EMAIL, REAL_USER } from "./persist";
 
 const FALLBACK = new Date("2026-09-10T00:00:00.000Z");
 
@@ -62,5 +74,75 @@ describe("assertNoExistingRealTrip", () => {
       where: { name: "Christmas in Europe 2026" },
       select: { id: true },
     });
+  });
+});
+
+describe("real trip participants", () => {
+  it("names Cam as the owner and Xanthia as the partner", () => {
+    expect(REAL_USER.email).toBe("cammark.williams@gmail.com");
+    expect(REAL_PARTNER_EMAIL).toBe("xanni99.m@hotmail.com");
+  });
+
+  it("keeps the two participants distinct", () => {
+    expect(REAL_PARTNER_EMAIL).not.toBe(REAL_USER.email);
+  });
+});
+
+describe("addExistingUserAsMember", () => {
+  beforeEach(() => {
+    userFindUniqueMock.mockReset();
+    userCreateMock.mockReset();
+    userUpsertMock.mockReset();
+    tripMemberUpsertMock.mockReset();
+  });
+
+  it("returns false and creates nothing when no user matches the email", async () => {
+    userFindUniqueMock.mockResolvedValueOnce(null);
+
+    const result = await addExistingUserAsMember("trip_1", "nobody@example.com");
+
+    expect(result).toBe(false);
+    expect(userFindUniqueMock).toHaveBeenCalledWith({
+      where: { email: "nobody@example.com" },
+      select: { id: true },
+    });
+    expect(tripMemberUpsertMock).not.toHaveBeenCalled();
+    expect(userCreateMock).not.toHaveBeenCalled();
+    expect(userUpsertMock).not.toHaveBeenCalled();
+  });
+
+  it("returns true and upserts a TripMember with the right tripId/userId/role when a user matches", async () => {
+    userFindUniqueMock.mockResolvedValueOnce({ id: "user_xanthia" });
+    tripMemberUpsertMock.mockResolvedValueOnce({});
+
+    const result = await addExistingUserAsMember("trip_1", "xanni99.m@hotmail.com", "member");
+
+    expect(result).toBe(true);
+    expect(tripMemberUpsertMock).toHaveBeenCalledWith({
+      where: { tripId_userId: { tripId: "trip_1", userId: "user_xanthia" } },
+      update: {},
+      create: { tripId: "trip_1", userId: "user_xanthia", role: "member" },
+    });
+  });
+
+  it("defaults the role to member when none is passed", async () => {
+    userFindUniqueMock.mockResolvedValueOnce({ id: "user_xanthia" });
+    tripMemberUpsertMock.mockResolvedValueOnce({});
+
+    await addExistingUserAsMember("trip_1", "xanni99.m@hotmail.com");
+
+    expect(tripMemberUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ role: "member" }) }),
+    );
+  });
+
+  it("never creates a User row, even when a member is successfully added", async () => {
+    userFindUniqueMock.mockResolvedValueOnce({ id: "user_xanthia" });
+    tripMemberUpsertMock.mockResolvedValueOnce({});
+
+    await addExistingUserAsMember("trip_1", "xanni99.m@hotmail.com");
+
+    expect(userCreateMock).not.toHaveBeenCalled();
+    expect(userUpsertMock).not.toHaveBeenCalled();
   });
 });
