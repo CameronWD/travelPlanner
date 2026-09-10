@@ -227,6 +227,57 @@ describe("transports", () => {
       expect(x.cost ?? null, x.key).toBeNull();
     }
   });
+
+  // Golden data, transcribed independently from the booking confirmations in
+  // task-4-brief.md (not copied out of the builder) — a second, separate
+  // typing of the same source so the two are checked against each other, not
+  // against themselves. This is what actually catches a transposed digit in a
+  // departure instant, a mistyped reference, or a place-name slip; the
+  // structural checks above do not, because they only compare the builder to
+  // its own sibling arrays.
+  const GOLDEN_TRANSPORTS: {
+    key: string; mode: string; fromStopKey: string | null; toStopKey: string | null;
+    depPlace: string | null; depAt: string | null; arrPlace: string | null; arrAt: string | null;
+    reference: string | null; costMinor?: number; currency?: string;
+  }[] = [
+    { key: "xmas26:tr:home-denpasar", mode: "FLIGHT", fromStopKey: null, toStopKey: "xmas26:stop:denpasar", depPlace: "Gold Coast (OOL)", depAt: "2026-12-04T17:50:00Z", arrPlace: "Denpasar (DPS)", arrAt: "2026-12-04T22:15:00Z", reference: "WNIQHG", costMinor: 89559, currency: "AUD" },
+    { key: "xmas26:tr:denpasar-munich", mode: "FLIGHT", fromStopKey: "xmas26:stop:denpasar", toStopKey: "xmas26:stop:munich", depPlace: "Denpasar (DPS)", depAt: "2026-12-05T19:00:00Z", arrPlace: "Munich (MUC)", arrAt: "2026-12-06T06:45:00Z", reference: "DHZU24", costMinor: 163569, currency: "AUD" },
+    { key: "xmas26:tr:munich-strasbourg", mode: "TRAIN", fromStopKey: "xmas26:stop:munich", toStopKey: "xmas26:stop:strasbourg", depPlace: "Munich Hbf", depAt: "2026-12-10T06:51:00Z", arrPlace: "Strasbourg", arrAt: "2026-12-10T10:40:00Z", reference: "300186503818", costMinor: 23521, currency: "AUD" },
+    { key: "xmas26:tr:strasbourg-frankfurt", mode: "TRAIN", fromStopKey: "xmas26:stop:strasbourg", toStopKey: "xmas26:stop:frankfurt", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
+    { key: "xmas26:tr:frankfurt-paris", mode: "TRAIN", fromStopKey: "xmas26:stop:frankfurt", toStopKey: "xmas26:stop:paris", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
+    { key: "xmas26:tr:paris-london", mode: "TRAIN", fromStopKey: "xmas26:stop:paris", toStopKey: "xmas26:stop:london", depPlace: "Paris Gare du Nord", depAt: "2026-12-19T08:02:00Z", arrPlace: "London St Pancras", arrAt: "2026-12-19T09:30:00Z", reference: "WXFVKQ", costMinor: 41438, currency: "AUD" },
+    { key: "xmas26:tr:london-aghalee", mode: "FLIGHT", fromStopKey: "xmas26:stop:london", toStopKey: "xmas26:stop:aghalee", depPlace: "London Heathrow (LHR)", depAt: "2026-12-22T09:15:00Z", arrPlace: "Belfast City (BHD)", arrAt: "2026-12-22T10:40:00Z", reference: "XHARUZ" },
+    { key: "xmas26:tr:aghalee-dublin", mode: "TRAIN", fromStopKey: "xmas26:stop:aghalee", toStopKey: "xmas26:stop:dublin", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
+    { key: "xmas26:tr:dublin-como", mode: "FLIGHT", fromStopKey: "xmas26:stop:dublin", toStopKey: "xmas26:stop:como", depPlace: "Dublin (DUB)", depAt: "2026-12-30T08:15:00Z", arrPlace: "Milan Malpensa (MXP)", arrAt: "2026-12-30T11:45:00Z", reference: "FR7799 · H4WP7Q", costMinor: 35862, currency: "EUR" },
+    { key: "xmas26:tr:mxp-como", mode: "TRAIN", fromStopKey: null, toStopKey: "xmas26:stop:como", depPlace: "Milan Malpensa (MXP)", depAt: null, arrPlace: "Como", arrAt: null, reference: null },
+    { key: "xmas26:tr:como-milan", mode: "TRAIN", fromStopKey: "xmas26:stop:como", toStopKey: "xmas26:stop:milan", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
+    { key: "xmas26:tr:milan-rome", mode: "TRAIN", fromStopKey: "xmas26:stop:milan", toStopKey: "xmas26:stop:rome", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
+    { key: "xmas26:tr:rome-home", mode: "FLIGHT", fromStopKey: "xmas26:stop:rome", toStopKey: null, depPlace: "Rome (FCO)", depAt: "2027-01-07T08:55:00Z", arrPlace: "Brisbane (BNE)", arrAt: "2027-01-08T17:30:00Z", reference: "8QPEWK" },
+  ];
+
+  it("matches the golden leg data for every transport, value for value", () => {
+    expect(t.transports).toHaveLength(GOLDEN_TRANSPORTS.length);
+    const byKey = new Map(t.transports.map((x) => [x.key, x]));
+    for (const g of GOLDEN_TRANSPORTS) {
+      const x = byKey.get(g.key);
+      expect(x, g.key).toBeTruthy();
+      expect(x!.mode, g.key).toBe(g.mode);
+      expect(x!.fromStopKey ?? null, g.key).toBe(g.fromStopKey);
+      expect(x!.toStopKey ?? null, g.key).toBe(g.toStopKey);
+      expect(x!.depPlace ?? null, g.key).toBe(g.depPlace);
+      expect(x!.depAt ?? null, g.key).toBe(g.depAt);
+      expect(x!.arrPlace ?? null, g.key).toBe(g.arrPlace);
+      expect(x!.arrAt ?? null, g.key).toBe(g.arrAt);
+      expect(x!.reference ?? null, g.key).toBe(g.reference);
+      if (g.costMinor !== undefined) {
+        expect(x!.cost, g.key).toBeTruthy();
+        expect(x!.cost!.costMinor, g.key).toBe(g.costMinor);
+        expect(x!.cost!.currency, g.key).toBe(g.currency);
+      } else {
+        expect(x!.cost ?? null, g.key).toBeNull();
+      }
+    }
+  });
 });
 
 describe("costs", () => {
