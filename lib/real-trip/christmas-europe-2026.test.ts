@@ -123,4 +123,42 @@ describe("accommodations", () => {
     const paid = t.accommodations.filter((a) => a.cost?.paid);
     expect(paid.map((a) => a.stopKey)).toEqual([SK_DUBLIN]);
   });
+
+  // Golden data, transcribed independently from the booking confirmations in
+  // task-3-brief.md (not copied out of the builder) — a second, separate
+  // typing of the same source so the two are checked against each other, not
+  // against themselves. This is what actually catches a transposed digit in a
+  // cost, a mistyped PIN, or a currency slip; the structural checks above do
+  // not, because they only compare the builder to its own sibling arrays.
+  const GOLDEN_BEDS: {
+    stopKey: string; name: string; checkIn: string; checkOut: string;
+    confirmation: string; costMinor: number; currency: string;
+  }[] = [
+    { stopKey: "xmas26:stop:denpasar", name: "1 Bedroom private pool @Kuta", checkIn: "2026-12-04", checkOut: "2026-12-05", confirmation: "HM2EDZ4CB5", costMinor: 11520, currency: "AUD" },
+    { stopKey: "xmas26:stop:munich", name: "B&B Hotel München-Hbf", checkIn: "2026-12-06", checkOut: "2026-12-10", confirmation: "5201106083", costMinor: 80609, currency: "AUD" },
+    { stopKey: "xmas26:stop:strasbourg", name: "B&B Hotel Kehl", checkIn: "2026-12-10", checkOut: "2026-12-13", confirmation: "6031790255 PIN:4046", costMinor: 81000, currency: "AUD" },
+    { stopKey: "xmas26:stop:frankfurt", name: "Premier Inn Frankfurt City Europaviertel", checkIn: "2026-12-13", checkOut: "2026-12-15", confirmation: "6925281379, PIN:8192", costMinor: 18700, currency: "AUD" },
+    { stopKey: "xmas26:stop:paris", name: "Villa Margaux Opéra Montmartre", checkIn: "2026-12-15", checkOut: "2026-12-19", confirmation: "5887236633, PIN:7856", costMinor: 91652, currency: "AUD" },
+    { stopKey: "xmas26:stop:london", name: "Zedwell Underground Hotel Tottenham Court Rd", checkIn: "2026-12-19", checkOut: "2026-12-22", confirmation: "5012646116, PIN:8416", costMinor: 54535, currency: "AUD" },
+    { stopKey: "xmas26:stop:aghalee", name: "Clenaghans", checkIn: "2026-12-22", checkOut: "2026-12-29", confirmation: "HM855WTW9F", costMinor: 130417, currency: "AUD" },
+    { stopKey: "xmas26:stop:dublin", name: "Point A Dublin The Liberties", checkIn: "2026-12-29", checkOut: "2026-12-30", confirmation: "HMKSN99TRQ", costMinor: 15642, currency: "AUD" },
+    { stopKey: "xmas26:stop:como", name: "attico capicci", checkIn: "2026-12-30", checkOut: "2027-01-01", confirmation: "HMXAXCW8QE", costMinor: 116873, currency: "AUD" },
+    { stopKey: "xmas26:stop:milan", name: "Ibis Milano Centro", checkIn: "2027-01-01", checkOut: "2027-01-02", confirmation: "5622902959, PIN:1094", costMinor: 16900, currency: "AUD" },
+    { stopKey: "xmas26:stop:rome", name: "The Club Navona", checkIn: "2027-01-02", checkOut: "2027-01-07", confirmation: "6243212144 (PIN: 4820)", costMinor: 53610, currency: "EUR" },
+  ];
+
+  it("matches the golden booking data for every bed, value for value", () => {
+    expect(t.accommodations).toHaveLength(GOLDEN_BEDS.length);
+    const byStop = new Map(t.accommodations.map((a) => [a.stopKey, a]));
+    for (const g of GOLDEN_BEDS) {
+      const a = byStop.get(g.stopKey);
+      expect(a, g.name).toBeTruthy();
+      expect(a!.name, g.name).toBe(g.name);
+      expect(a!.checkIn, g.name).toBe(g.checkIn);
+      expect(a!.checkOut, g.name).toBe(g.checkOut);
+      expect(a!.confirmation, g.name).toBe(g.confirmation);
+      expect(a!.cost!.costMinor, g.name).toBe(g.costMinor);
+      expect(a!.cost!.currency, g.name).toBe(g.currency);
+    }
+  });
 });
