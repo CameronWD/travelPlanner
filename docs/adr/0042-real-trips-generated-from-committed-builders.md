@@ -68,8 +68,11 @@ Trip into the database correctly once, not to keep it in sync afterwards.
   the Trip — so they catch a mistyped confirmation number or a transposed
   price rather than merely restating the implementation back at itself.
 - Because the seed is additive and refuses to run twice, fixing a mistake
-  found after the real write is an in-app edit (or a manual `wipeRealTrip()`
-  and re-seed), never a second automatic run of `db:seed:real`.
+  found after the real write is an in-app edit, never a second automatic run
+  of `db:seed:real`. A manual `wipeRealTrip()` and re-seed is the fallback of
+  last resort — **DANGER: it deletes real data** (every Trip of that name and
+  its attachment blobs) with no undo, so it is a deliberate, local-only act,
+  never wired into the seed path and never pointed at production casually.
 - The original hand-entered Trip ("THE Trip") is untouched by this decision —
   it is not deleted, migrated or reconciled. The corrected Trip is added
   alongside it, not in place of it.
