@@ -17,6 +17,18 @@ const {
   addExistingUserAsMemberMock: vi.fn(),
 }));
 
+// `@/lib/db` throws at module-evaluation time when DATABASE_URL is absent —
+// which is exactly the situation the failure path has to survive, since that
+// missing variable may be the very reason the seed is exiting. A throwing
+// getter reproduces it: `const { db } = await import(...)` rejects.
+let dbImportAttempts = 0;
+vi.mock("../lib/db", () => ({
+  get db(): never {
+    dbImportAttempts++;
+    throw new Error("DATABASE_URL is not set.");
+  },
+}));
+
 vi.mock("./real/persist", () => ({
   ensureRealUser: ensureRealUserMock,
   assertNoExistingRealTrip: assertNoExistingRealTripMock,
@@ -25,7 +37,7 @@ vi.mock("./real/persist", () => ({
   REAL_PARTNER_EMAIL: "xanni99.m@hotmail.com",
 }));
 
-import { seedReal, unsupportedSeedArgs } from "./seed-real";
+import { seedReal, unsupportedSeedArgs, disconnectQuietly } from "./seed-real";
 
 // Importing this module under vitest does not fire the `isMain` block:
 // `process.argv[1]` is vitest's own entry point here, not this file, so
@@ -76,5 +88,25 @@ describe("unsupportedSeedArgs", () => {
 
   it("flags any other unrecognised argument, even alongside a valid one", () => {
     expect(unsupportedSeedArgs(["--dry-run", "--wipe"])).toEqual(["--wipe"]);
+  });
+});
+
+describe("disconnectQuietly", () => {
+  beforeEach(() => {
+    dbImportAttempts = 0;
+  });
+
+  it("skips the database entirely on a dry run", async () => {
+    await expect(disconnectQuietly(true)).resolves.toBeUndefined();
+    expect(dbImportAttempts).toBe(0);
+  });
+
+  // The failure handler runs *after* an error has already been reported, and
+  // the seed's own module note explains why `db` can throw on import. If that
+  // throw escaped, the handler's promise would reject, the `process.exit(1)`
+  // after it would never run, and a failed seed could exit 0.
+  it("swallows a db that throws on import, so a failed run still exits cleanly", async () => {
+    await expect(disconnectQuietly(false)).resolves.toBeUndefined();
+    expect(dbImportAttempts).toBe(1);
   });
 });

@@ -57,6 +57,26 @@ export function unsupportedSeedArgs(argv: string[]): string[] {
   return argv.filter((a) => a !== "--dry-run");
 }
 
+/**
+ * Close the Prisma connection on the way out, best-effort.
+ *
+ * Dry runs never open one, so there is nothing to disconnect — and importing
+ * `@/lib/db` would defeat the point of a dry run. On the failure path the
+ * import itself can throw (`db` throws at module-evaluation time when
+ * DATABASE_URL is absent, which may well be *why* we're exiting), so the whole
+ * thing is swallowed: a disconnect that fails must not replace the original
+ * error with its own rejection, or hijack the non-zero exit.
+ */
+export async function disconnectQuietly(dryRun: boolean): Promise<void> {
+  if (dryRun) return;
+  try {
+    const { db } = await import("../lib/db");
+    await db.$disconnect();
+  } catch {
+    // Nothing useful to do — the process is on its way out either way.
+  }
+}
+
 const isMain = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
   const argv = process.argv.slice(2);
@@ -73,17 +93,13 @@ if (isMain) {
     .then(async () => {
       // Dry runs never open a connection, so there's nothing to disconnect —
       // and importing `@/lib/db` here would defeat the point of a dry run.
-      if (!dryRun) {
-        const { db } = await import("../lib/db");
-        await db.$disconnect();
-      }
+      if (dryRun) return;
+      const { db } = await import("../lib/db");
+      await db.$disconnect();
     })
     .catch(async (err) => {
       console.error(err);
-      if (!dryRun) {
-        const { db } = await import("../lib/db");
-        await db.$disconnect();
-      }
+      await disconnectQuietly(dryRun);
       process.exit(1);
     });
 }
