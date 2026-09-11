@@ -1,118 +1,570 @@
 import { describe, it, expect } from "vitest";
-import { buildChristmasEurope2026 } from "./christmas-europe-2026";
+import { buildChristmasEurope2026, summariseRealTrip } from "./christmas-europe-2026";
 import { hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
-import { CHAPTER_COLOUR_VALUES } from "@/lib/chapter-colours";
 import { TRANSPORT_MODES } from "@/lib/enums";
+import { transportTimeDisplay } from "@/lib/time-display";
+import { durationMinutes } from "@/lib/transport";
 
-describe("buildChristmasEurope2026", () => {
-  const t = buildChristmasEurope2026();
+const t = buildChristmasEurope2026();
+const ordered = [...t.stops].sort((a, b) => a.sortOrder - b.sortOrder);
+const SK_DUBLIN = "xmas26:stop:dublin";
+const SK_COMO = "xmas26:stop:como";
 
-  it("has the right envelope", () => {
+describe("envelope", () => {
+  it("is the real trip under Cam's home base", () => {
     expect(t.name).toBe("Christmas in Europe 2026");
     expect(t.startDate).toBe("2026-12-04");
     expect(t.endDate).toBe("2027-01-08");
+    expect(t.hardEndDate ?? null).toBeNull();
     expect(t.homeCurrency).toBe("AUD");
     expect(t.roundTrip).toBe(true);
-    expect(t.home?.name).toBe("Gold Coast");
-    expect(t.home?.countryCode).toBe("au");
+    expect(t.home).toEqual({
+      name: "Gold Coast", lat: -28.0023731, lng: 153.4145987, countryCode: "au",
+    });
   });
 
-  it("has 10 dated stops in order, lowercase country codes, unique sortOrder", () => {
-    expect(t.stops).toHaveLength(10);
-    expect(new Set(t.stops.map((s) => s.sortOrder)).size).toBe(10);
+  it("has chapters switched off — no chapter rows at all", () => {
+    expect(t.chapters).toHaveLength(0);
+  });
+});
+
+describe("stops", () => {
+  it("has 11 fully-dated stops with unique sort order", () => {
+    expect(t.stops).toHaveLength(11);
+    expect(new Set(t.stops.map((s) => s.sortOrder)).size).toBe(11);
+    expect(new Set(t.stops.map((s) => s.key)).size).toBe(11);
+  });
+
+  it("gives every stop a date range, timezone, country and point", () => {
     for (const s of t.stops) {
-      expect(s.arriveDate).toBeTruthy();
-      expect(s.departDate).toBeTruthy();
-      expect(s.timezone).toBeTruthy();
-      expect(typeof s.lat).toBe("number");
-      expect(typeof s.lng).toBe("number");
-      expect(s.countryCode).toBe(s.countryCode?.toLowerCase());
+      expect(s.arriveDate, s.name).toBeTruthy();
+      expect(s.departDate, s.name).toBeTruthy();
+      expect(s.timezone, s.name).toBeTruthy();
+      expect(s.timezone, s.name).not.toBe("UTC");
+      expect(s.countryCode, s.name).toBe(s.countryCode?.toLowerCase());
+      expect(typeof s.lat, s.name).toBe("number");
+      expect(typeof s.lng, s.name).toBe("number");
     }
   });
 
-  it("stops never overlap or run backwards", () => {
-    const ordered = [...t.stops].sort((a, b) => a.sortOrder - b.sortOrder);
+  it("runs strictly forward with no gap and no overlap between consecutive stops", () => {
     for (let i = 0; i < ordered.length - 1; i++) {
-      expect(ordered[i + 1].arriveDate! >= ordered[i].departDate!).toBe(true);
+      const here = ordered[i];
+      const next = ordered[i + 1];
+      expect(here.departDate! > here.arriveDate!, here.name).toBe(true);
+      // Denpasar → Munich is the one intentional break: an overnight flight via
+      // Bangkok, so the night of the 5th is spent in the air, not in a bed.
+      const expected = here.key.endsWith("denpasar") ? "2026-12-06" : here.departDate;
+      expect(next.arriveDate, `${here.name} → ${next.name}`).toBe(expected);
     }
   });
 
-  it("has 4 chapters with valid colours, each covering its stops", () => {
-    expect(t.chapters).toHaveLength(4);
-    const valid = new Set<string>(CHAPTER_COLOUR_VALUES);
-    for (const c of t.chapters) expect(valid.has(c.colour)).toBe(true);
-    for (const s of t.stops) {
-      const covered = t.chapters.some(
-        (c) => c.startDate! <= s.arriveDate! && s.arriveDate! <= c.endDate!,
-      );
-      expect(covered).toBe(true);
+  it("declares nights matching the date span", () => {
+    const DAY = 86_400_000;
+    for (const s of ordered) {
+      const span = (Date.parse(s.departDate!) - Date.parse(s.arriveDate!)) / DAY;
+      expect(s.nights, s.name).toBe(span);
     }
   });
 
-  it("has 11 transports connecting real stops with valid modes", () => {
-    expect(t.transports).toHaveLength(11);
+  it("starts and ends inside the trip envelope", () => {
+    expect(ordered[0].arriveDate).toBe(t.startDate);
+    expect(ordered[ordered.length - 1].departDate! <= t.endDate!).toBe(true);
+  });
+
+  it("spends 33 nights in beds across the trip", () => {
+    expect(ordered.reduce((n, s) => n + (s.nights ?? 0), 0)).toBe(33);
+  });
+
+  it("visits the expected route in order", () => {
+    expect(ordered.map((s) => s.name)).toEqual([
+      "Denpasar", "Munich", "Strasbourg", "Frankfurt", "Paris", "London",
+      "Aghalee", "Dublin", "Como", "Milan", "Rome",
+    ]);
+  });
+});
+
+describe("accommodations", () => {
+  it("gives every stop exactly one bed", () => {
+    expect(t.accommodations).toHaveLength(11);
+    const byStop = new Map(t.accommodations.map((a) => [a.stopKey, a]));
+    expect(byStop.size).toBe(11);
+    for (const s of t.stops) expect(byStop.has(s.key), s.name).toBe(true);
+  });
+
+  it("matches each bed's dates to its stop's dates exactly", () => {
+    const stopByKey = new Map(t.stops.map((s) => [s.key, s]));
+    for (const a of t.accommodations) {
+      const s = stopByKey.get(a.stopKey)!;
+      expect(a.checkIn, a.name).toBe(s.arriveDate);
+      expect(a.checkOut, a.name).toBe(s.departDate);
+    }
+  });
+
+  it("carries an address, a confirmation and a real cost on every bed", () => {
+    for (const a of t.accommodations) {
+      expect(a.address, a.name).toBeTruthy();
+      expect(a.confirmation, a.name).toBeTruthy();
+      expect(a.cost, a.name).toBeTruthy();
+      expect(a.cost!.costMinor, a.name).toBeGreaterThan(0);
+    }
+  });
+
+  it("records the Dublin bed as paid on the day it was charged", () => {
+    const dublin = t.accommodations.find((a) => a.stopKey.endsWith("dublin"))!;
+    expect(dublin.name).toBe("Point A Dublin The Liberties");
+    expect(dublin.cost).toMatchObject({
+      costMinor: 15642, paidMinor: 15642, currency: "AUD", paid: true, paidAt: "2026-08-11",
+    });
+  });
+
+  it("prices Rome in euro and leaves it unpaid — it is cash on arrival", () => {
+    const rome = t.accommodations.find((a) => a.stopKey.endsWith("rome"))!;
+    expect(rome.cost).toMatchObject({ costMinor: 53610, currency: "EUR" });
+    expect(rome.cost!.paid ?? false).toBe(false);
+  });
+
+  it("leaves every other bed unpaid", () => {
+    const paid = t.accommodations.filter((a) => a.cost?.paid);
+    expect(paid.map((a) => a.stopKey)).toEqual([SK_DUBLIN]);
+  });
+
+  // Golden data, transcribed independently from the booking confirmations in
+  // task-3-brief.md (not copied out of the builder) — a second, separate
+  // typing of the same source so the two are checked against each other, not
+  // against themselves. This is what actually catches a transposed digit in a
+  // cost, a mistyped PIN, or a currency slip; the structural checks above do
+  // not, because they only compare the builder to its own sibling arrays.
+  const GOLDEN_BEDS: {
+    stopKey: string; name: string; checkIn: string; checkOut: string;
+    confirmation: string; costMinor: number; currency: string;
+  }[] = [
+    { stopKey: "xmas26:stop:denpasar", name: "1 Bedroom private pool @Kuta", checkIn: "2026-12-04", checkOut: "2026-12-05", confirmation: "HM2EDZ4CB5", costMinor: 11520, currency: "AUD" },
+    { stopKey: "xmas26:stop:munich", name: "B&B Hotel München-Hbf", checkIn: "2026-12-06", checkOut: "2026-12-10", confirmation: "5201106083", costMinor: 80609, currency: "AUD" },
+    { stopKey: "xmas26:stop:strasbourg", name: "B&B Hotel Kehl", checkIn: "2026-12-10", checkOut: "2026-12-13", confirmation: "6031790255 PIN:4046", costMinor: 81000, currency: "AUD" },
+    { stopKey: "xmas26:stop:frankfurt", name: "Premier Inn Frankfurt City Europaviertel", checkIn: "2026-12-13", checkOut: "2026-12-15", confirmation: "6925281379, PIN:8192", costMinor: 18700, currency: "AUD" },
+    { stopKey: "xmas26:stop:paris", name: "Villa Margaux Opéra Montmartre", checkIn: "2026-12-15", checkOut: "2026-12-19", confirmation: "5887236633, PIN:7856", costMinor: 91652, currency: "AUD" },
+    { stopKey: "xmas26:stop:london", name: "Zedwell Underground Hotel Tottenham Court Rd", checkIn: "2026-12-19", checkOut: "2026-12-22", confirmation: "5012646116, PIN:8416", costMinor: 54535, currency: "AUD" },
+    { stopKey: "xmas26:stop:aghalee", name: "Clenaghans", checkIn: "2026-12-22", checkOut: "2026-12-29", confirmation: "HM855WTW9F", costMinor: 130417, currency: "AUD" },
+    { stopKey: "xmas26:stop:dublin", name: "Point A Dublin The Liberties", checkIn: "2026-12-29", checkOut: "2026-12-30", confirmation: "HMKSN99TRQ", costMinor: 15642, currency: "AUD" },
+    { stopKey: "xmas26:stop:como", name: "attico capicci", checkIn: "2026-12-30", checkOut: "2027-01-01", confirmation: "HMXAXCW8QE", costMinor: 116873, currency: "AUD" },
+    { stopKey: "xmas26:stop:milan", name: "Ibis Milano Centro", checkIn: "2027-01-01", checkOut: "2027-01-02", confirmation: "5622902959, PIN:1094", costMinor: 16900, currency: "AUD" },
+    { stopKey: "xmas26:stop:rome", name: "The Club Navona", checkIn: "2027-01-02", checkOut: "2027-01-07", confirmation: "6243212144 (PIN: 4820)", costMinor: 53610, currency: "EUR" },
+  ];
+
+  it("matches the golden booking data for every bed, value for value", () => {
+    expect(t.accommodations).toHaveLength(GOLDEN_BEDS.length);
+    const byStop = new Map(t.accommodations.map((a) => [a.stopKey, a]));
+    for (const g of GOLDEN_BEDS) {
+      const a = byStop.get(g.stopKey);
+      expect(a, g.name).toBeTruthy();
+      expect(a!.name, g.name).toBe(g.name);
+      expect(a!.checkIn, g.name).toBe(g.checkIn);
+      expect(a!.checkOut, g.name).toBe(g.checkOut);
+      expect(a!.confirmation, g.name).toBe(g.confirmation);
+      expect(a!.cost!.costMinor, g.name).toBe(g.costMinor);
+      expect(a!.cost!.currency, g.name).toBe(g.currency);
+    }
+  });
+});
+
+describe("transports", () => {
+  it("has 13 legs with unique keys, valid modes and real stop references", () => {
+    expect(t.transports).toHaveLength(13);
+    expect(new Set(t.transports.map((x) => x.key)).size).toBe(13);
+    expect(new Set(t.transports.map((x) => x.sortOrder)).size).toBe(13);
     const stopKeys = new Set(t.stops.map((s) => s.key));
     for (const tr of t.transports) {
-      expect(TRANSPORT_MODES).toContain(tr.mode);
-      if (tr.fromStopKey) expect(stopKeys.has(tr.fromStopKey)).toBe(true);
-      if (tr.toStopKey) expect(stopKeys.has(tr.toStopKey)).toBe(true);
+      expect(TRANSPORT_MODES, tr.key).toContain(tr.mode);
+      if (tr.fromStopKey) expect(stopKeys.has(tr.fromStopKey), tr.key).toBe(true);
+      if (tr.toStopKey) expect(stopKeys.has(tr.toStopKey), tr.key).toBe(true);
     }
   });
 
-  it("is a closed round trip (outbound from home, return to home)", () => {
+  it("closes the round trip from and back to the home base", () => {
     const legs = t.transports.map((x) => ({
-      depIsHome: x.depIsHome,
-      arrIsHome: x.arrIsHome,
-      toStopId: x.toStopKey ?? null,
-      fromStopId: x.fromStopKey ?? null,
+      depIsHome: x.depIsHome, arrIsHome: x.arrIsHome,
+      toStopId: x.toStopKey ?? null, fromStopId: x.fromStopKey ?? null,
     }));
-    const ordered = [...t.stops].sort((a, b) => a.sortOrder - b.sortOrder);
     expect(hasOutboundLeg(legs, ordered[0].key)).toBe(true);
     expect(hasReturnLeg(legs, ordered[ordered.length - 1].key)).toBe(true);
   });
 
-  it("records the 3 booked costs as actual + paid", () => {
-    const withCost = t.transports.filter((tr) => tr.cost);
-    expect(withCost).toHaveLength(3);
-    for (const tr of withCost) {
-      expect(tr.cost!.paid).toBe(true);
-      expect(tr.cost!.paidMinor).toBe(tr.cost!.costMinor);
+  it("connects every consecutive pair of stops", () => {
+    for (let i = 0; i < ordered.length - 1; i++) {
+      const leg = t.transports.find(
+        (x) => x.fromStopKey === ordered[i].key && x.toStopKey === ordered[i + 1].key,
+      );
+      expect(leg, `${ordered[i].name} → ${ordered[i + 1].name}`).toBeTruthy();
     }
-    expect(withCost.map((tr) => tr.cost!.costMinor).sort((a, b) => a - b)).toEqual([
-      23521, 41438, 186752,
+  });
+
+  it("keeps the Malpensa transfer as between-legs travel", () => {
+    const hop = t.transports.find((x) => x.key === "xmas26:tr:mxp-como")!;
+    expect(hop.fromStopKey ?? null).toBeNull();
+    expect(hop.toStopKey).toBe(SK_COMO);
+    expect(hop.depPlace).toBe("Milan Malpensa (MXP)");
+  });
+
+  it("lands the Bangkok overnight in Munich on the 6th", () => {
+    const leg = t.transports.find((x) => x.reference === "DHZU24")!;
+    // Stored as true UTC instants: 19:00 in Asia/Makassar (+8) and 06:45 in
+    // Europe/Berlin (+1). The rendered wall times are pinned below.
+    expect(leg.depAt).toBe("2026-12-05T11:00:00Z");
+    expect(leg.arrAt).toBe("2026-12-06T05:45:00Z");
+  });
+
+  it("never lets a leg arrive before it departs", () => {
+    for (const tr of t.transports) {
+      if (tr.depAt && tr.arrAt) expect(tr.arrAt > tr.depAt, tr.key).toBe(true);
+    }
+  });
+
+  it("leaves exactly the six unbooked legs without times or references", () => {
+    const unbooked = t.transports.filter((x) => !x.depAt);
+    expect(unbooked.map((x) => x.key).sort()).toEqual([
+      "xmas26:tr:aghalee-dublin", "xmas26:tr:como-milan", "xmas26:tr:frankfurt-paris",
+      "xmas26:tr:milan-rome", "xmas26:tr:mxp-como", "xmas26:tr:strasbourg-frankfurt",
     ]);
-    expect(withCost.filter((tr) => tr.cost!.currency === "AUD")).toHaveLength(2);
-    expect(withCost.filter((tr) => tr.cost!.currency === "EUR")).toHaveLength(1);
-  });
-
-  it("seeds EUR, GBP and IDR exchange rates quoted to AUD", () => {
-    expect(new Set((t.exchangeRates ?? []).map((r) => r.base))).toEqual(
-      new Set(["EUR", "GBP", "IDR"]),
-    );
-    for (const r of t.exchangeRates ?? []) expect(r.quote).toBe("AUD");
-  });
-
-  it("has the Neuschwanstein day trip on Munich, undated, marked must-do", () => {
-    expect(t.items).toHaveLength(1);
-    const n = t.items.find((i) => i.title.includes("Neuschwanstein"));
-    expect(n).toBeTruthy();
-    expect(n!.stopKey).toBe("xmas26:stop:munich");
-    expect(n!.date).toBeNull();
-    expect(n!.category).toBe("SIGHTSEEING");
-    expect(n!.votes?.some((v) => v.level === "MUST")).toBe(true);
-  });
-
-  it("has no accommodation booked yet", () => {
-    expect(t.accommodations).toHaveLength(0);
-  });
-
-  it("has a pre-trip checklist of outstanding tasks", () => {
-    const cl = t.checklist ?? [];
-    expect(cl).toHaveLength(20);
-    for (const c of cl) {
-      expect(c.kind).toBe("PRETRIP");
-      expect(c.done).toBe(false);
+    for (const x of unbooked) {
+      expect(x.arrAt ?? null, x.key).toBeNull();
+      expect(x.cost ?? null, x.key).toBeNull();
     }
-    expect(cl.filter((c) => /Book accommodation/i.test(c.text))).toHaveLength(10);
+  });
+
+  // Golden data, transcribed independently from the booking confirmations in
+  // task-4-brief.md (not copied out of the builder) — a second, separate
+  // typing of the same source so the two are checked against each other, not
+  // against themselves. This is what actually catches a transposed digit in a
+  // departure instant, a mistyped reference, or a place-name slip; the
+  // structural checks above do not, because they only compare the builder to
+  // its own sibling arrays.
+  //
+  // depAt/arrAt are TRUE UTC INSTANTS, not the booking's wall clock with a `Z`
+  // glued on: the app writes through wallTimeToInstant() in the endpoint Stop's
+  // zone and reads back through transportTimeDisplay() in the same zone
+  // (docs/things-to-fix.md P0-1). Each instant below is the booking wall time
+  // minus that endpoint's December/January offset — Australia/Brisbane +10,
+  // Asia/Makassar +8, Europe/Berlin +1, Europe/Paris +1, Europe/London 0,
+  // Europe/Dublin 0, Europe/Rome +1. The "renders as" table further down pins
+  // the wall clock these instants produce, so the two halves can't drift apart.
+  const GOLDEN_TRANSPORTS: {
+    key: string; mode: string; fromStopKey: string | null; toStopKey: string | null;
+    depPlace: string | null; depAt: string | null; arrPlace: string | null; arrAt: string | null;
+    reference: string | null; costMinor?: number; currency?: string;
+    paid?: boolean; paidMinor?: number; paidAt?: string;
+  }[] = [
+    { key: "xmas26:tr:home-denpasar", mode: "FLIGHT", fromStopKey: null, toStopKey: "xmas26:stop:denpasar", depPlace: "Gold Coast (OOL)", depAt: "2026-12-04T07:50:00Z", arrPlace: "Denpasar (DPS)", arrAt: "2026-12-04T14:15:00Z", reference: "WNIQHG", costMinor: 89559, currency: "AUD", paid: true, paidMinor: 89559, paidAt: "2026-07-13" },
+    { key: "xmas26:tr:denpasar-munich", mode: "FLIGHT", fromStopKey: "xmas26:stop:denpasar", toStopKey: "xmas26:stop:munich", depPlace: "Denpasar (DPS)", depAt: "2026-12-05T11:00:00Z", arrPlace: "Munich (MUC)", arrAt: "2026-12-06T05:45:00Z", reference: "DHZU24", costMinor: 163569, currency: "AUD", paid: true, paidMinor: 163569, paidAt: "2026-07-19" },
+    { key: "xmas26:tr:munich-strasbourg", mode: "TRAIN", fromStopKey: "xmas26:stop:munich", toStopKey: "xmas26:stop:strasbourg", depPlace: "Munich Hbf", depAt: "2026-12-10T05:51:00Z", arrPlace: "Strasbourg", arrAt: "2026-12-10T09:40:00Z", reference: "300186503818", costMinor: 23521, currency: "AUD", paid: true, paidMinor: 23521, paidAt: "2026-07-26" },
+    { key: "xmas26:tr:strasbourg-frankfurt", mode: "TRAIN", fromStopKey: "xmas26:stop:strasbourg", toStopKey: "xmas26:stop:frankfurt", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
+    { key: "xmas26:tr:frankfurt-paris", mode: "TRAIN", fromStopKey: "xmas26:stop:frankfurt", toStopKey: "xmas26:stop:paris", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
+    { key: "xmas26:tr:paris-london", mode: "TRAIN", fromStopKey: "xmas26:stop:paris", toStopKey: "xmas26:stop:london", depPlace: "Paris Gare du Nord", depAt: "2026-12-19T07:02:00Z", arrPlace: "London St Pancras", arrAt: "2026-12-19T09:30:00Z", reference: "WXFVKQ", costMinor: 41438, currency: "AUD", paid: true, paidMinor: 41438, paidAt: "2026-07-26" },
+    { key: "xmas26:tr:london-aghalee", mode: "FLIGHT", fromStopKey: "xmas26:stop:london", toStopKey: "xmas26:stop:aghalee", depPlace: "London Heathrow (LHR)", depAt: "2026-12-22T09:15:00Z", arrPlace: "Belfast City (BHD)", arrAt: "2026-12-22T10:40:00Z", reference: "XHARUZ" },
+    { key: "xmas26:tr:aghalee-dublin", mode: "TRAIN", fromStopKey: "xmas26:stop:aghalee", toStopKey: "xmas26:stop:dublin", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
+    { key: "xmas26:tr:dublin-como", mode: "FLIGHT", fromStopKey: "xmas26:stop:dublin", toStopKey: "xmas26:stop:como", depPlace: "Dublin (DUB)", depAt: "2026-12-30T08:15:00Z", arrPlace: "Milan Malpensa (MXP)", arrAt: "2026-12-30T10:45:00Z", reference: "FR7799 · H4WP7Q", costMinor: 35862, currency: "EUR", paid: true, paidMinor: 35862, paidAt: "2026-08-11" },
+    { key: "xmas26:tr:mxp-como", mode: "TRAIN", fromStopKey: null, toStopKey: "xmas26:stop:como", depPlace: "Milan Malpensa (MXP)", depAt: null, arrPlace: "Como", arrAt: null, reference: null },
+    { key: "xmas26:tr:como-milan", mode: "TRAIN", fromStopKey: "xmas26:stop:como", toStopKey: "xmas26:stop:milan", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
+    { key: "xmas26:tr:milan-rome", mode: "TRAIN", fromStopKey: "xmas26:stop:milan", toStopKey: "xmas26:stop:rome", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
+    { key: "xmas26:tr:rome-home", mode: "FLIGHT", fromStopKey: "xmas26:stop:rome", toStopKey: null, depPlace: "Rome (FCO)", depAt: "2027-01-07T07:55:00Z", arrPlace: "Brisbane (BNE)", arrAt: "2027-01-08T07:30:00Z", reference: "8QPEWK" },
+  ];
+
+  it("matches the golden leg data for every transport, value for value", () => {
+    expect(t.transports).toHaveLength(GOLDEN_TRANSPORTS.length);
+    const byKey = new Map(t.transports.map((x) => [x.key, x]));
+    for (const g of GOLDEN_TRANSPORTS) {
+      const x = byKey.get(g.key);
+      expect(x, g.key).toBeTruthy();
+      expect(x!.mode, g.key).toBe(g.mode);
+      expect(x!.fromStopKey ?? null, g.key).toBe(g.fromStopKey);
+      expect(x!.toStopKey ?? null, g.key).toBe(g.toStopKey);
+      expect(x!.depPlace ?? null, g.key).toBe(g.depPlace);
+      expect(x!.depAt ?? null, g.key).toBe(g.depAt);
+      expect(x!.arrPlace ?? null, g.key).toBe(g.arrPlace);
+      expect(x!.arrAt ?? null, g.key).toBe(g.arrAt);
+      expect(x!.reference ?? null, g.key).toBe(g.reference);
+      if (g.costMinor !== undefined) {
+        expect(x!.cost, g.key).toBeTruthy();
+        expect(x!.cost!.costMinor, g.key).toBe(g.costMinor);
+        expect(x!.cost!.currency, g.key).toBe(g.currency);
+      } else {
+        expect(x!.cost ?? null, g.key).toBeNull();
+      }
+    }
+  });
+
+  // Payment state is the whole reason this branch exists (its first commit is
+  // "preserve real payment dates"): resolvePaidAt stamps the seed *run date* on
+  // any paid cost that arrives without a paidAt, and lib/budget.ts treats
+  // paidAt as the sole signal that money has actually left the account. An
+  // unpinned paidAt is therefore a silently fabricated value, not a cosmetic
+  // gap — so every costed leg's paid/paidMinor/paidAt is asserted here.
+  it("pins the payment state of every costed leg, dates included", () => {
+    const byKey = new Map(t.transports.map((x) => [x.key, x]));
+    const costed = GOLDEN_TRANSPORTS.filter((g) => g.costMinor !== undefined);
+    expect(costed).toHaveLength(5);
+    for (const g of costed) {
+      const cost = byKey.get(g.key)!.cost!;
+      const paidAt = cost.paid === true ? cost.paidAt ?? null : null;
+      expect(cost.paid ?? false, g.key).toBe(g.paid ?? false);
+      expect(cost.paidMinor ?? null, g.key).toBe(g.paidMinor ?? null);
+      expect(paidAt, g.key).toBe(g.paidAt ?? null);
+    }
+  });
+
+  it("never leaves a paid leg without a payment date for the seed to invent", () => {
+    for (const x of t.transports) {
+      const cost = x.cost;
+      if (cost?.paid === true) expect(cost.paidAt ?? null, x.key).toBeTruthy();
+    }
+  });
+});
+
+// The regression guard for the Critical finding on this branch: the builder's
+// instants were briefly written as booking wall clock with a `Z` suffix, which
+// would have displayed 10 of 14 booked times wrong in the app. Structural
+// checks can't catch that — only running the real render path can. This runs
+// transportTimeDisplay (the exact helper the transport card uses) over the
+// builder's own legs, resolving each endpoint's zone from the linked Stop the
+// same way the app does, and asserts the wall clock matches the booking.
+describe("transport times render as the booked wall clock", () => {
+  const stopTz = new Map(t.stops.map((s) => [s.key, s.timezone ?? null]));
+  const display = (key: string) => {
+    const x = t.transports.find((leg) => leg.key === key)!;
+    return transportTimeDisplay({
+      depAt: x.depAt ? new Date(x.depAt) : null,
+      arrAt: x.arrAt ? new Date(x.arrAt) : null,
+      fromTimezone: x.fromStopKey ? stopTz.get(x.fromStopKey) : null,
+      toTimezone: x.toStopKey ? stopTz.get(x.toStopKey) : null,
+    });
+  };
+
+  // key → the wall times printed on the booking confirmation.
+  const RENDERS: { key: string; dep: string; arr: string; dayDelta?: number }[] = [
+    { key: "xmas26:tr:munich-strasbourg", dep: "06:51", arr: "10:40" },
+    { key: "xmas26:tr:paris-london", dep: "08:02", arr: "09:30" },
+    { key: "xmas26:tr:london-aghalee", dep: "09:15", arr: "10:40" },
+    { key: "xmas26:tr:dublin-como", dep: "08:15", arr: "11:45" },
+    { key: "xmas26:tr:denpasar-munich", dep: "19:00", arr: "06:45", dayDelta: 1 },
+  ];
+
+  for (const r of RENDERS) {
+    it(`${r.key} shows ${r.dep} → ${r.arr} on the card`, () => {
+      const d = display(r.key);
+      expect(d.dep!.time).toBe(r.dep);
+      expect(d.arr!.time).toBe(r.arr);
+      if (r.dayDelta !== undefined) expect(d.dayDelta).toBe(r.dayDelta);
+    });
+  }
+
+  // DOCUMENTED EXCEPTION — do not "correct" these two back.
+  //
+  // A home-base endpoint has no Stop, so it has no timezone of its own, and
+  // resolveEndpointZones falls back to the *other* endpoint's zone. Ticket
+  // wall time → stored UTC instant → what the card renders:
+  //   - Gold Coast departure: ticket 17:50 Brisbane (UTC+10) → stored
+  //     `2026-12-04T07:50:00Z` → renders 15:50 (Asia/Makassar).
+  //   - Brisbane arrival: ticket 17:30 Brisbane (UTC+10) → stored
+  //     `2027-01-08T07:30:00Z` → renders 08:30 (Europe/Rome).
+  // Cam chose true-instant correctness over the card reading: the moment is
+  // right, and every other consumer (durations, ordering, ICS, the far
+  // endpoint's own display) depends on the instant being true. Making the
+  // card read the ticket time would require storing a fictional instant.
+  it("renders the two home-base endpoints in the far endpoint's zone, by design", () => {
+    const out = display("xmas26:tr:home-denpasar");
+    expect(out.dep!.time).toBe("15:50"); // 17:50 Brisbane, shown in Asia/Makassar
+    expect(out.arr!.time).toBe("22:15"); // Denpasar arrival, matches the ticket
+
+    const home = display("xmas26:tr:rome-home");
+    expect(home.dep!.time).toBe("08:55"); // Rome departure, matches the ticket
+    expect(home.arr!.time).toBe("08:30"); // 17:30 Brisbane, shown in Europe/Rome
+  });
+
+  // Durations are the independent cross-check on the instants: they are
+  // offset-free, so they hold whatever timezone reasoning went into the stored
+  // values, and each one is quoted on the booking itself.
+  it("keeps every booked leg's duration exactly as the booking states it", () => {
+    const mins = (key: string) => {
+      const x = t.transports.find((leg) => leg.key === key)!;
+      return durationMinutes(x.depAt, x.arrAt);
+    };
+    expect(mins("xmas26:tr:home-denpasar")).toBe(6 * 60 + 25);
+    expect(mins("xmas26:tr:denpasar-munich")).toBe(18 * 60 + 45);
+    expect(mins("xmas26:tr:munich-strasbourg")).toBe(3 * 60 + 49);
+    expect(mins("xmas26:tr:paris-london")).toBe(2 * 60 + 28);
+    // The leg's own notes say "1hr 25 mins".
+    expect(mins("xmas26:tr:london-aghalee")).toBe(1 * 60 + 25);
+    expect(mins("xmas26:tr:dublin-como")).toBe(2 * 60 + 30);
+    // The leg's own notes say 5h10 in the air + 4h20 in Doha + 14h05 = 23h35.
+    expect(mins("xmas26:tr:rome-home")).toBe(23 * 60 + 35);
+  });
+});
+
+describe("costs", () => {
+  const inline = [
+    ...t.transports.map((x) => x.cost),
+    ...t.accommodations.map((a) => a.cost),
+  ].filter(Boolean);
+  const all = [...inline, ...t.costs];
+
+  it("records 17 costs in total", () => {
+    expect(all).toHaveLength(17);
+  });
+
+  it("never records a cost of zero — a Cost with no number is not a Cost", () => {
+    for (const c of all) expect(c!.costMinor).toBeGreaterThan(0);
+  });
+
+  it("gives every paid cost a paid amount", () => {
+    for (const c of all) {
+      if (c!.paid) expect(typeof c!.paidMinor).toBe("number");
+    }
+  });
+
+  it("totals 935935 AUD and 96472 EUR", () => {
+    const sum = (cur: string) =>
+      all.filter((c) => c!.currency === cur).reduce((n, c) => n + c!.costMinor, 0);
+    expect(sum("AUD")).toBe(935935);
+    expect(sum("EUR")).toBe(96472);
+  });
+
+  it("seeds a EUR rate so the euro costs convert to the home currency", () => {
+    const currencies = new Set(all.map((c) => c!.currency));
+    for (const cur of currencies) {
+      if (cur === t.homeCurrency) continue;
+      const rate = (t.exchangeRates ?? []).find((r) => r.base === cur);
+      expect(rate, cur).toBeTruthy();
+      expect(rate!.quote).toBe("AUD");
+    }
+  });
+
+  it("carries the Rome city tax as a standalone other cost", () => {
+    expect(t.costs).toHaveLength(1);
+    expect(t.costs[0]).toMatchObject({
+      ownerType: "OTHER", label: "Rome city tax", costMinor: 7000, currency: "EUR",
+    });
+  });
+
+  it("records the two flights that previously showed a zero cost", () => {
+    for (const ref of ["WNIQHG", "DHZU24"]) {
+      const leg = t.transports.find((x) => x.reference === ref)!;
+      expect(leg.cost!.costMinor, ref).toBe(leg.cost!.paidMinor);
+      expect(leg.cost!.paid, ref).toBe(true);
+    }
+  });
+});
+
+describe("summariseRealTrip", () => {
+  const out = summariseRealTrip(t);
+
+  it("names the trip and its span", () => {
+    expect(out).toContain("Christmas in Europe 2026");
+    expect(out).toContain("2026-12-04");
+    expect(out).toContain("2027-01-08");
+  });
+
+  it("counts every row that will be written", () => {
+    expect(out).toContain("11 stops");
+    expect(out).toContain("11 accommodations");
+    expect(out).toContain("13 transports");
+    expect(out).toContain("17 costs");
+  });
+
+  it("lists every stop with its dates so the dry-run can be eyeballed", () => {
+    for (const s of t.stops) expect(out).toContain(s.name);
+    expect(out).toContain("2026-12-22 → 2026-12-29");
+  });
+
+  it("reports both currency totals", () => {
+    expect(out).toContain("total 9359.35 AUD");
+    expect(out).toContain("total 964.72 EUR");
+  });
+
+  // The dry-run printout is the last human check before a production write, so
+  // it has to show the thing most likely to be wrong. Counts and a stop spine
+  // would not have surfaced this branch's Critical finding (every booked time
+  // shifted by its endpoint's UTC offset); rendered wall clocks do.
+  it("lists every leg with its mode, endpoints, reference and cost", () => {
+    for (const x of t.transports) {
+      expect(out, x.key).toContain(`#${x.sortOrder} ${x.mode.padEnd(6)}`);
+      if (x.reference) expect(out, x.key).toContain(`ref ${x.reference}`);
+      if (x.depPlace) expect(out, x.key).toContain(x.depPlace);
+      if (x.arrPlace) expect(out, x.key).toContain(x.arrPlace);
+    }
+    expect(out).toContain("895.59 AUD · paid 2026-07-13");
+    expect(out).toContain("358.62 EUR · paid 2026-08-11");
+  });
+
+  it("prints transport times as the app renders them, not as raw instants", () => {
+    // Booking wall clock, not the stored `Z` instant: 06:51 Munich is 05:51Z.
+    expect(out).toContain("2026-12-10 06:51");
+    expect(out).toContain("2026-12-10 10:40");
+    expect(out).toContain("2026-12-19 08:02");
+    expect(out).toContain("2026-12-30 11:45");
+    expect(out).not.toContain("05:51");
+    expect(out).not.toContain("07:02");
+  });
+
+  it("flags the Bangkok overnight as landing the next day", () => {
+    expect(out).toContain("2026-12-05 19:00");
+    expect(out).toContain("2026-12-06 06:45");
+    expect(out).toMatch(/2026-12-06 06:45 [^\n]*\(\+1 day\)/);
+  });
+
+  it("marks the home-base endpoints and explains why their clock reads oddly", () => {
+    expect(out).toContain("Gold Coast (OOL) [home]");
+    expect(out).toContain("Brisbane (BNE) [home]");
+    expect(out).toContain("no timezone of its own");
+  });
+
+  it("shows an unbooked leg as unbooked rather than silently blank", () => {
+    expect(out).toContain("not booked — no times");
+    expect(out).toContain("no cost");
+  });
+
+  it("would shout if a paid cost reached the seed with no payment date", () => {
+    // Guards resolvePaidAt's fallback, which stamps the seed *run date* on a
+    // paid cost that has no paidAt — a fabricated value the printout must not
+    // hide. Built on a modified copy; the real trip has no such cost.
+    expect(out).not.toContain("NO DATE");
+    const withUndatedPayment = {
+      ...t,
+      transports: t.transports.map((x) =>
+        x.key === "xmas26:tr:dublin-como"
+          ? { ...x, cost: { costMinor: 35862, currency: "EUR", paid: true as const, paidMinor: 35862 } }
+          : x,
+      ),
+    };
+    expect(summariseRealTrip(withUndatedPayment)).toContain("NO DATE");
+  });
+
+  it("reports the exchange rate row count", () => {
+    // The real trip seeds exactly one rate (EUR -> AUD). A rate that failed
+    // to appear here is exactly what this preview exists to catch, since a
+    // missing rate means the persister leaves that currency's costs
+    // unconverted.
+    expect(t.exchangeRates).toHaveLength(1);
+    expect(out).toContain("1 exchange rate");
+  });
+
+  it("would count a costed item if the trip ever had one", () => {
+    // The real trip has no items (`items: []`) and must keep none — this
+    // builds a modified copy of the descriptor rather than adding an item to
+    // the real builder, purely to prove summariseRealTrip doesn't structurally
+    // drop ITEM costs from the row/currency totals the moment one exists.
+    const withCostedItem = {
+      ...t,
+      items: [
+        {
+          key: "test:item:not-in-real-trip",
+          title: "Test-only item",
+          category: "activity",
+          cost: { costMinor: 5000, currency: "AUD" as const },
+        },
+      ],
+    };
+    const out2 = summariseRealTrip(withCostedItem);
+    expect(out2).toContain("18 costs");
+    expect(out2).toContain("9409.35 AUD");
   });
 });

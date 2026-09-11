@@ -2,14 +2,24 @@
  * Persister for the real "Christmas in Europe 2026" trip.
  *
  * A focused subset of prisma/demo/persist.ts: one trip, one owner member, no
- * forks / globe / partner. Reuses the demo storage + cover helpers and the
- * DemoTrip data types. Idempotent: wipeRealTrip() deletes any prior trip with
- * the same name (and its attachment blobs) before re-persisting.
+ * forks or globe, and none of the demo's multi-user "partner" upsert/vote
+ * machinery. `addExistingUserAsMember` below adds Cam's real partner as a
+ * plain TripMember — her account already exists, so it's a lookup-and-upsert,
+ * never a User creation. Reuses the demo storage + cover helpers and the
+ * DemoTrip data types. Additive: assertNoExistingRealTrip() refuses to run a
+ * second time rather than deleting and recreating (see wipeRealTrip's docs
+ * for why that path is dangerous and must not be wired into the seed).
+ *
+ * `@/lib/db` throws at module-evaluation time if DATABASE_URL isn't set — and
+ * this project's sandbox has no local Postgres, so the only DATABASE_URL ever
+ * available here points at production. Every function below that needs `db`
+ * loads it via a lazy dynamic import instead of a top-level static import, so
+ * merely importing this module (e.g. for a dry run) opens no connection and
+ * needs no credentials.
  *
  * Verified by `tsc --noEmit` and `eslint`; exercised by prisma/seed-real.ts.
  */
 
-import { db } from "@/lib/db";
 import { getStorage, generateKey } from "@/lib/storage";
 import { gradientPng } from "@/lib/demo/cover-image";
 import type { DemoTrip } from "@/lib/demo/types";
@@ -17,9 +27,33 @@ import type { User } from "@prisma/client";
 
 export const REAL_TRIP_NAME = "Christmas in Europe 2026";
 export const REAL_USER = { email: "cammark.williams@gmail.com", name: "Cam" };
+/** Cam's partner. Her account already exists; she is added directly as a member. */
+export const REAL_PARTNER_EMAIL = "xanni99.m@hotmail.com";
+
+/** Lazily load the Prisma client. Never import `@/lib/db` at module scope here. */
+async function loadDb() {
+  const { db } = await import("@/lib/db");
+  return db;
+}
+
+/**
+ * The date a Cost's money actually left the account. A paid Cost must carry a
+ * date (see CONTEXT.md "Paid"), so when the descriptor doesn't record one we
+ * fall back to a caller-supplied instant rather than inventing `now` inside
+ * the persister — that kept the seed non-deterministic and silently discarded
+ * real payment dates.
+ */
+export function resolvePaidAt(
+  cost: { paid?: boolean; paidAt?: string | null } | null | undefined,
+  fallback: Date,
+): Date | null {
+  if (!cost?.paid) return null;
+  return cost.paidAt ? new Date(cost.paidAt) : fallback;
+}
 
 /** Upsert the real trip owner by email. */
 export async function ensureRealUser(): Promise<User> {
+  const db = await loadDb();
   return db.user.upsert({
     where: { email: REAL_USER.email },
     update: { name: REAL_USER.name },
@@ -28,11 +62,55 @@ export async function ensureRealUser(): Promise<User> {
 }
 
 /**
+ * Refuse to write if a trip of this name already exists. The additive seed
+ * path never deletes, so a second run would silently create a duplicate;
+ * failing loudly is the safe outcome. Deliberately NOT wipeRealTrip() — that
+ * function deletes real data and must never be pointed at production.
+ */
+export async function assertNoExistingRealTrip(name: string = REAL_TRIP_NAME): Promise<void> {
+  const db = await loadDb();
+  const existing = await db.trip.findMany({ where: { name }, select: { id: true } });
+  if (existing.length > 0) {
+    throw new Error(
+      `Refusing to write: ${existing.length} trip(s) already named "${name}" ` +
+        `(${existing.map((t) => t.id).join(", ")}). This seed is additive and never deletes. ` +
+        `Remove or rename the existing trip in the app first.`,
+    );
+  }
+}
+
+/**
+ * Add an already-registered user to a trip as a member. Deliberately does NOT
+ * upsert a User — inviting someone who has never signed in is the Invite
+ * flow's job, and silently creating an empty account here would be worse than
+ * failing to add them. Returns whether a membership was created.
+ */
+export async function addExistingUserAsMember(
+  tripId: string,
+  email: string,
+  role: "owner" | "member" = "member",
+): Promise<boolean> {
+  const db = await loadDb();
+  const user = await db.user.findUnique({ where: { email }, select: { id: true } });
+  if (!user) return false;
+  await db.tripMember.upsert({
+    where: { tripId_userId: { tripId, userId: user.id } },
+    update: {},
+    create: { tripId, userId: user.id, role },
+  });
+  return true;
+}
+
+/**
  * Idempotent teardown: delete every trip named REAL_TRIP_NAME (deleting its
  * attachment blobs first so no orphaned storage objects remain). Safe on a
  * fresh DB — the lookup returns [] so nothing is deleted.
+ *
+ * DANGER: deletes real data. Not referenced by the additive seed path
+ * (prisma/seed-real.ts) — kept only as a manual escape hatch, never wired in.
  */
 export async function wipeRealTrip(): Promise<void> {
+  const db = await loadDb();
   const storage = getStorage();
   const trips = await db.trip.findMany({ where: { name: REAL_TRIP_NAME }, select: { id: true } });
   for (const t of trips) {
@@ -51,8 +129,8 @@ export async function wipeRealTrip(): Promise<void> {
  * costs, standalone costs) plus exchange rates, cover gradient and the pre-trip
  * checklist. No forks. Votes and checklist assignments resolve to the single owner.
  */
-export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void> {
-  const storage = getStorage();
+export async function persistRealTrip(trip: DemoTrip, user: User, now: Date = new Date()): Promise<string> {
+  const db = await loadDb();
   const id = new Map<string, string>();
 
   // --- Trip + owner member ---
@@ -77,6 +155,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
 
   // --- Cover gradient ---
   if (trip.coverGradient) {
+    const storage = getStorage();
     const [top, bottom] = trip.coverGradient;
     const png = gradientPng(top, bottom);
     const coverKey = generateKey({ trip: tripId }, crypto.randomUUID(), "cover.png");
@@ -101,7 +180,6 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
     }
     return r;
   };
-  const paidAt = (paid: boolean | undefined): Date | null => (paid ? new Date() : null);
 
   // --- Chapters ---
   for (const ch of trip.chapters) {
@@ -147,7 +225,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
           tripId, ownerType: "TRANSPORT", ownerId: dbT.id,
           costMinor: t.cost.costMinor, paidMinor: t.cost.paidMinor ?? null,
           currency: t.cost.currency, rateToHome: rateToHome(t.cost.currency),
-          paidAt: paidAt(t.cost.paid), category: t.cost.category ?? null,
+          paidAt: resolvePaidAt(t.cost, now), category: t.cost.category ?? null,
         },
       });
     }
@@ -171,7 +249,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
           tripId, ownerType: "ACCOMMODATION", ownerId: dbA.id,
           costMinor: a.cost.costMinor, paidMinor: a.cost.paidMinor ?? null,
           currency: a.cost.currency, rateToHome: rateToHome(a.cost.currency),
-          paidAt: paidAt(a.cost.paid), category: a.cost.category ?? null,
+          paidAt: resolvePaidAt(a.cost, now), category: a.cost.category ?? null,
         },
       });
     }
@@ -196,7 +274,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
           tripId, ownerType: "ITEM", ownerId: dbItem.id,
           costMinor: it.cost.costMinor, paidMinor: it.cost.paidMinor ?? null,
           currency: it.cost.currency, rateToHome: rateToHome(it.cost.currency),
-          paidAt: paidAt(it.cost.paid), category: it.cost.category ?? null,
+          paidAt: resolvePaidAt(it.cost, now), category: it.cost.category ?? null,
         },
       });
     }
@@ -213,7 +291,7 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
         tripId, ownerType: c.ownerType, ownerId,
         costMinor: c.costMinor, paidMinor: c.paidMinor ?? null,
         currency: c.currency, rateToHome: rateToHome(c.currency),
-        paidAt: paidAt(c.paid), label: c.label ?? null, category: c.category ?? null,
+        paidAt: resolvePaidAt(c, now), label: c.label ?? null, category: c.category ?? null,
       },
     });
   }
@@ -229,4 +307,6 @@ export async function persistRealTrip(trip: DemoTrip, user: User): Promise<void>
       },
     });
   }
+
+  return tripId;
 }
