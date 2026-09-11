@@ -8,18 +8,37 @@
  *
  * Round trip from the Gold Coast (AUD): a Bali overnight, then Munich →
  * Strasbourg → Frankfurt → Paris → London → Aghalee → Dublin → Como → Milan →
- * Rome, home via Doha. Chapters are off. Times are local wall-clock stored
- * with a Z suffix, matching every existing row in this trip.
+ * Rome, home via Doha. Chapters are off.
+ *
+ * TRANSPORT TIMES ARE TRUE UTC INSTANTS — not wall-clock text with a `Z` glued
+ * on. This is the app's own semantic: the write path converts a typed wall time
+ * in the endpoint Stop's zone via `wallTimeToInstant`
+ * (`server/actions/transport.ts`), and `transportTimeDisplay`
+ * (`lib/time-display.ts`) renders that instant back in the same Stop's zone. So
+ * a booking's printed wall time is stored here as the real moment it happens:
+ * Munich Hbf 06:51 (Europe/Berlin, +1 in December) is `05:51:00Z`. Storing the
+ * wall clock verbatim is exactly the defect `docs/things-to-fix.md` P0-1 fixed,
+ * and any production row that still looks that way is that bug's output.
+ * `christmas-europe-2026.test.ts` pins every leg's rendered wall time.
+ *
+ * One documented exception, deliberately accepted: the two home-base legs have
+ * no Stop at the home end and therefore no timezone of their own, so
+ * `resolveEndpointZones` falls back to the far endpoint's zone. Their stored
+ * instants are the true moments (OOL departs 07:50 Brisbane, BNE arrives 17:30
+ * Brisbane) but their cards read 15:50 WITA and 08:30 CET. True-instant
+ * correctness was chosen over the card reading; do not "fix" them back.
  *
  * Pure module — no Prisma, no React, no network, no clock.
  */
 
+import { transportTimeDisplay, dayDeltaSuffix } from "@/lib/time-display";
 import type {
   DemoTrip,
   DemoStop,
   DemoTransport,
   DemoAccommodation,
   DemoCost,
+  DemoInlineCost,
 } from "@/lib/demo/types";
 
 // --- keys ------------------------------------------------------------------
@@ -73,19 +92,19 @@ const ACCOMMODATIONS: DemoAccommodation[] = [
 // --- transports (Task 4) ---------------------------------------------------
 
 const TRANSPORTS: DemoTransport[] = [
-  { key: "xmas26:tr:home-denpasar", mode: "FLIGHT", fromStopKey: null, toStopKey: SK.denpasar, depIsHome: true, depPlace: "Gold Coast (OOL)", depAt: "2026-12-04T17:50:00Z", arrPlace: "Denpasar (DPS)", arrAt: "2026-12-04T22:15:00Z", reference: "WNIQHG", sortOrder: 0, cost: { costMinor: 89559, currency: "AUD", paid: true, paidMinor: 89559, paidAt: "2026-07-13" } },
-  { key: "xmas26:tr:denpasar-munich", mode: "FLIGHT", fromStopKey: SK.denpasar, toStopKey: SK.munich, depPlace: "Denpasar (DPS)", depAt: "2026-12-05T19:00:00Z", arrPlace: "Munich (MUC)", arrAt: "2026-12-06T06:45:00Z", reference: "DHZU24", notes: "Thai Airways via Bangkok.\nArrives BKK 22:15 on 5 Dec; onward TG924 lands Munich 06:45 on 6 Dec.\nOvernight in the air — no bed booked for the night of the 5th.", sortOrder: 1, cost: { costMinor: 163569, currency: "AUD", paid: true, paidMinor: 163569, paidAt: "2026-07-19" } },
-  { key: "xmas26:tr:munich-strasbourg", mode: "TRAIN", fromStopKey: SK.munich, toStopKey: SK.strasbourg, depPlace: "Munich Hbf", depAt: "2026-12-10T06:51:00Z", arrPlace: "Strasbourg", arrAt: "2026-12-10T10:40:00Z", reference: "300186503818", notes: "1st Class\nCarriage 13 - Seat 350,351\nBring ID\nArrive at least 20 minutes early\nWill need to catch tram back to accom in Kehl", sortOrder: 2, cost: { costMinor: 23521, currency: "AUD", paid: true, paidMinor: 23521, paidAt: "2026-07-26" } },
+  { key: "xmas26:tr:home-denpasar", mode: "FLIGHT", fromStopKey: null, toStopKey: SK.denpasar, depIsHome: true, depPlace: "Gold Coast (OOL)", depAt: "2026-12-04T07:50:00Z", arrPlace: "Denpasar (DPS)", arrAt: "2026-12-04T14:15:00Z", reference: "WNIQHG", sortOrder: 0, cost: { costMinor: 89559, currency: "AUD", paid: true, paidMinor: 89559, paidAt: "2026-07-13" } },
+  { key: "xmas26:tr:denpasar-munich", mode: "FLIGHT", fromStopKey: SK.denpasar, toStopKey: SK.munich, depPlace: "Denpasar (DPS)", depAt: "2026-12-05T11:00:00Z", arrPlace: "Munich (MUC)", arrAt: "2026-12-06T05:45:00Z", reference: "DHZU24", notes: "Thai Airways via Bangkok.\nArrives BKK 22:15 on 5 Dec; onward TG924 lands Munich 06:45 on 6 Dec.\nOvernight in the air — no bed booked for the night of the 5th.", sortOrder: 1, cost: { costMinor: 163569, currency: "AUD", paid: true, paidMinor: 163569, paidAt: "2026-07-19" } },
+  { key: "xmas26:tr:munich-strasbourg", mode: "TRAIN", fromStopKey: SK.munich, toStopKey: SK.strasbourg, depPlace: "Munich Hbf", depAt: "2026-12-10T05:51:00Z", arrPlace: "Strasbourg", arrAt: "2026-12-10T09:40:00Z", reference: "300186503818", notes: "1st Class\nCarriage 13 - Seat 350,351\nBring ID\nArrive at least 20 minutes early\nWill need to catch tram back to accom in Kehl", sortOrder: 2, cost: { costMinor: 23521, currency: "AUD", paid: true, paidMinor: 23521, paidAt: "2026-07-26" } },
   { key: "xmas26:tr:strasbourg-frankfurt", mode: "TRAIN", fromStopKey: SK.strasbourg, toStopKey: SK.frankfurt, notes: "Not booked yet — travelling 13 Dec.", sortOrder: 3 },
   { key: "xmas26:tr:frankfurt-paris", mode: "TRAIN", fromStopKey: SK.frankfurt, toStopKey: SK.paris, notes: "Not booked yet — travelling 15 Dec.", sortOrder: 4 },
-  { key: "xmas26:tr:paris-london", mode: "TRAIN", fromStopKey: SK.paris, toStopKey: SK.london, depPlace: "Paris Gare du Nord", depAt: "2026-12-19T08:02:00Z", arrPlace: "London St Pancras", arrAt: "2026-12-19T09:30:00Z", reference: "WXFVKQ", notes: "Carriage 15\nSeats 53 and 54", sortOrder: 5, cost: { costMinor: 41438, currency: "AUD", paid: true, paidMinor: 41438, paidAt: "2026-07-26" } },
+  { key: "xmas26:tr:paris-london", mode: "TRAIN", fromStopKey: SK.paris, toStopKey: SK.london, depPlace: "Paris Gare du Nord", depAt: "2026-12-19T07:02:00Z", arrPlace: "London St Pancras", arrAt: "2026-12-19T09:30:00Z", reference: "WXFVKQ", notes: "Carriage 15\nSeats 53 and 54", sortOrder: 5, cost: { costMinor: 41438, currency: "AUD", paid: true, paidMinor: 41438, paidAt: "2026-07-26" } },
   { key: "xmas26:tr:london-aghalee", mode: "FLIGHT", fromStopKey: SK.london, toStopKey: SK.aghalee, depPlace: "London Heathrow (LHR)", depAt: "2026-12-22T09:15:00Z", arrPlace: "Belfast City (BHD)", arrAt: "2026-12-22T10:40:00Z", reference: "XHARUZ", notes: "British Airways\nHeathrow (LHR) - Terminal 5\n1hr 25 mins\nBelfast City Airport (BHD)", sortOrder: 6 },
   { key: "xmas26:tr:aghalee-dublin", mode: "TRAIN", fromStopKey: SK.aghalee, toStopKey: SK.dublin, notes: "Not booked yet — travelling 29 Dec. Train or coach.", sortOrder: 7 },
-  { key: "xmas26:tr:dublin-como", mode: "FLIGHT", fromStopKey: SK.dublin, toStopKey: SK.como, depPlace: "Dublin (DUB)", depAt: "2026-12-30T08:15:00Z", arrPlace: "Milan Malpensa (MXP)", arrAt: "2026-12-30T11:45:00Z", reference: "FR7799 · H4WP7Q", notes: "Ryanair.\n2x 20kg checked bags included. Seats 16A and 16B.\nMust use the Ryanair app for boarding passes — printed passes are not accepted.\nOnward transfer to Como is a separate leg.", sortOrder: 8, cost: { costMinor: 35862, currency: "EUR", paid: true, paidMinor: 35862 } },
+  { key: "xmas26:tr:dublin-como", mode: "FLIGHT", fromStopKey: SK.dublin, toStopKey: SK.como, depPlace: "Dublin (DUB)", depAt: "2026-12-30T08:15:00Z", arrPlace: "Milan Malpensa (MXP)", arrAt: "2026-12-30T10:45:00Z", reference: "FR7799 · H4WP7Q", notes: "Ryanair.\n2x 20kg checked bags included. Seats 16A and 16B.\nMust use the Ryanair app for boarding passes — printed passes are not accepted.\nOnward transfer to Como is a separate leg.", sortOrder: 8, cost: { costMinor: 35862, currency: "EUR", paid: true, paidMinor: 35862, paidAt: "2026-08-11" } },
   { key: "xmas26:tr:mxp-como", mode: "TRAIN", fromStopKey: null, toStopKey: SK.como, depPlace: "Milan Malpensa (MXP)", arrPlace: "Como", notes: "Not booked yet — airport transfer on arrival, 30 Dec.", sortOrder: 9 },
   { key: "xmas26:tr:como-milan", mode: "TRAIN", fromStopKey: SK.como, toStopKey: SK.milan, notes: "Not booked yet — travelling 1 Jan.", sortOrder: 10 },
   { key: "xmas26:tr:milan-rome", mode: "TRAIN", fromStopKey: SK.milan, toStopKey: SK.rome, notes: "Not booked yet — travelling 2 Jan.", sortOrder: 11 },
-  { key: "xmas26:tr:rome-home", mode: "FLIGHT", fromStopKey: SK.rome, toStopKey: null, arrIsHome: true, depPlace: "Rome (FCO)", depAt: "2027-01-07T08:55:00Z", arrPlace: "Brisbane (BNE)", arrAt: "2027-01-08T17:30:00Z", reference: "8QPEWK", notes: "Leave Rome 8:55am 7th Jan\n5 hours 10 minutes\nArrive Doha 4:05pm 7th Jan\nLeave Doha 8:25pm\n14 hours 5 minutes\nArrive Brisbane 5:30pm 8th Jan", sortOrder: 12 },
+  { key: "xmas26:tr:rome-home", mode: "FLIGHT", fromStopKey: SK.rome, toStopKey: null, arrIsHome: true, depPlace: "Rome (FCO)", depAt: "2027-01-07T07:55:00Z", arrPlace: "Brisbane (BNE)", arrAt: "2027-01-08T07:30:00Z", reference: "8QPEWK", notes: "Leave Rome 8:55am 7th Jan\n5 hours 10 minutes\nArrive Doha 4:05pm 7th Jan\nLeave Doha 8:25pm\n14 hours 5 minutes\nArrive Brisbane 5:30pm 8th Jan", sortOrder: 12 },
 ];
 
 // --- standalone costs (Task 4) ---------------------------------------------
@@ -119,11 +138,30 @@ export function buildChristmasEurope2026(): DemoTrip {
   };
 }
 
+/** "895.59 AUD · paid 2026-07-13" / "536.10 EUR · unpaid" / "no cost". */
+function describeCost(cost: DemoInlineCost | null | undefined): string {
+  if (!cost) return "no cost";
+  const amount = `${(cost.costMinor / 100).toFixed(2)} ${cost.currency}`;
+  if (!cost.paid) return `${amount} · unpaid`;
+  const paidAmount = `${((cost.paidMinor ?? cost.costMinor) / 100).toFixed(2)}`;
+  // A paid cost with no paidAt is a real hazard, not a cosmetic one: the
+  // persister stamps the seed *run date* in its place, and lib/budget.ts
+  // treats paidAt as the sole signal that money has left the account.
+  const when = cost.paidAt ? `paid ${cost.paidAt}` : "paid ⚠️ NO DATE — seed will stamp today";
+  return `${amount} · ${when} (${paidAmount} ${cost.currency})`;
+}
+
 /**
  * Render the trip as a human-readable printout for the dry-run. Pure: it reads
  * the same descriptor the persister consumes, so what it prints is exactly
  * what would be written. There is no local Postgres in this project's sandbox,
  * so this is the last line of defence before a production write.
+ *
+ * Transport times are printed through `transportTimeDisplay` — the same pure
+ * helper the transport card uses — rather than as raw instants, so the printout
+ * shows the wall clock a human can check against a booking confirmation. A leg
+ * whose stored instant is wrong shows up here as a wrong time, which a table of
+ * `Z` strings never would.
  */
 export function summariseRealTrip(trip: DemoTrip): string {
   const allCosts = [
@@ -157,6 +195,51 @@ export function summariseRealTrip(trip: DemoTrip): string {
   for (const s of [...trip.stops].sort((a, b) => a.sortOrder - b.sortOrder)) {
     const bed = bedByStop.get(s.key);
     lines.push(`  ${s.arriveDate} → ${s.departDate}  ${s.name} (${s.nights}n)  ${bed ? bed.name : "NO BED"}`);
+  }
+
+  // --- Transports, timed exactly as the app will render them ---------------
+  const stopByKey = new Map(trip.stops.map((s) => [s.key, s]));
+  const tzOf = (key: string | null | undefined) =>
+    (key ? stopByKey.get(key)?.timezone : null) ?? null;
+  const endpointLabel = (
+    place: string | null | undefined,
+    stopKey: string | null | undefined,
+    isHome: boolean | undefined,
+  ) => {
+    const base = place ?? (stopKey ? stopByKey.get(stopKey)?.name : null) ?? trip.home?.name ?? "?";
+    return isHome ? `${base} [home]` : base;
+  };
+
+  lines.push("");
+  lines.push("transports:");
+  let anyHomeEndpoint = false;
+  for (const x of [...trip.transports].sort((a, b) => a.sortOrder - b.sortOrder)) {
+    const { dep, arr, dayDelta } = transportTimeDisplay({
+      depAt: x.depAt ? new Date(x.depAt) : null,
+      arrAt: x.arrAt ? new Date(x.arrAt) : null,
+      fromTimezone: tzOf(x.fromStopKey),
+      toTimezone: tzOf(x.toStopKey),
+    });
+    if (x.depIsHome || x.arrIsHome) anyHomeEndpoint = true;
+    const when =
+      dep || arr
+        ? `${dep ? `${dep.dateISO} ${dep.time} ${dep.zone}` : "—"} → ` +
+          `${arr ? `${arr.dateISO} ${arr.time} ${arr.zone}${dayDeltaSuffix(dayDelta)}` : "—"}`
+        : "not booked — no times";
+    lines.push(
+      `  #${x.sortOrder} ${x.mode.padEnd(6)} ` +
+        `${endpointLabel(x.depPlace, x.fromStopKey, x.depIsHome)} → ` +
+        `${endpointLabel(x.arrPlace, x.toStopKey, x.arrIsHome)}`,
+    );
+    lines.push(`        ${when}  ·  ref ${x.reference ?? "—"}  ·  ${describeCost(x.cost)}`);
+  }
+  if (anyHomeEndpoint) {
+    // Documented, accepted behaviour — see the module docblock. Spelling it out
+    // in the printout stops a future reader "correcting" a correct instant.
+    lines.push(
+      "  note: a [home] endpoint has no Stop and therefore no timezone of its own, so its " +
+        "time renders in the other endpoint's zone. The stored instants are the true moments.",
+    );
   }
 
   lines.push("");

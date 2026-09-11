@@ -2,6 +2,8 @@ import { describe, it, expect } from "vitest";
 import { buildChristmasEurope2026, summariseRealTrip } from "./christmas-europe-2026";
 import { hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
 import { TRANSPORT_MODES } from "@/lib/enums";
+import { transportTimeDisplay } from "@/lib/time-display";
+import { durationMinutes } from "@/lib/transport";
 
 const t = buildChristmasEurope2026();
 const ordered = [...t.stops].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -206,8 +208,10 @@ describe("transports", () => {
 
   it("lands the Bangkok overnight in Munich on the 6th", () => {
     const leg = t.transports.find((x) => x.reference === "DHZU24")!;
-    expect(leg.depAt).toBe("2026-12-05T19:00:00Z");
-    expect(leg.arrAt).toBe("2026-12-06T06:45:00Z");
+    // Stored as true UTC instants: 19:00 in Asia/Makassar (+8) and 06:45 in
+    // Europe/Berlin (+1). The rendered wall times are pinned below.
+    expect(leg.depAt).toBe("2026-12-05T11:00:00Z");
+    expect(leg.arrAt).toBe("2026-12-06T05:45:00Z");
   });
 
   it("never lets a leg arrive before it departs", () => {
@@ -235,24 +239,34 @@ describe("transports", () => {
   // departure instant, a mistyped reference, or a place-name slip; the
   // structural checks above do not, because they only compare the builder to
   // its own sibling arrays.
+  //
+  // depAt/arrAt are TRUE UTC INSTANTS, not the booking's wall clock with a `Z`
+  // glued on: the app writes through wallTimeToInstant() in the endpoint Stop's
+  // zone and reads back through transportTimeDisplay() in the same zone
+  // (docs/things-to-fix.md P0-1). Each instant below is the booking wall time
+  // minus that endpoint's December/January offset — Australia/Brisbane +10,
+  // Asia/Makassar +8, Europe/Berlin +1, Europe/Paris +1, Europe/London 0,
+  // Europe/Dublin 0, Europe/Rome +1. The "renders as" table further down pins
+  // the wall clock these instants produce, so the two halves can't drift apart.
   const GOLDEN_TRANSPORTS: {
     key: string; mode: string; fromStopKey: string | null; toStopKey: string | null;
     depPlace: string | null; depAt: string | null; arrPlace: string | null; arrAt: string | null;
     reference: string | null; costMinor?: number; currency?: string;
+    paid?: boolean; paidMinor?: number; paidAt?: string;
   }[] = [
-    { key: "xmas26:tr:home-denpasar", mode: "FLIGHT", fromStopKey: null, toStopKey: "xmas26:stop:denpasar", depPlace: "Gold Coast (OOL)", depAt: "2026-12-04T17:50:00Z", arrPlace: "Denpasar (DPS)", arrAt: "2026-12-04T22:15:00Z", reference: "WNIQHG", costMinor: 89559, currency: "AUD" },
-    { key: "xmas26:tr:denpasar-munich", mode: "FLIGHT", fromStopKey: "xmas26:stop:denpasar", toStopKey: "xmas26:stop:munich", depPlace: "Denpasar (DPS)", depAt: "2026-12-05T19:00:00Z", arrPlace: "Munich (MUC)", arrAt: "2026-12-06T06:45:00Z", reference: "DHZU24", costMinor: 163569, currency: "AUD" },
-    { key: "xmas26:tr:munich-strasbourg", mode: "TRAIN", fromStopKey: "xmas26:stop:munich", toStopKey: "xmas26:stop:strasbourg", depPlace: "Munich Hbf", depAt: "2026-12-10T06:51:00Z", arrPlace: "Strasbourg", arrAt: "2026-12-10T10:40:00Z", reference: "300186503818", costMinor: 23521, currency: "AUD" },
+    { key: "xmas26:tr:home-denpasar", mode: "FLIGHT", fromStopKey: null, toStopKey: "xmas26:stop:denpasar", depPlace: "Gold Coast (OOL)", depAt: "2026-12-04T07:50:00Z", arrPlace: "Denpasar (DPS)", arrAt: "2026-12-04T14:15:00Z", reference: "WNIQHG", costMinor: 89559, currency: "AUD", paid: true, paidMinor: 89559, paidAt: "2026-07-13" },
+    { key: "xmas26:tr:denpasar-munich", mode: "FLIGHT", fromStopKey: "xmas26:stop:denpasar", toStopKey: "xmas26:stop:munich", depPlace: "Denpasar (DPS)", depAt: "2026-12-05T11:00:00Z", arrPlace: "Munich (MUC)", arrAt: "2026-12-06T05:45:00Z", reference: "DHZU24", costMinor: 163569, currency: "AUD", paid: true, paidMinor: 163569, paidAt: "2026-07-19" },
+    { key: "xmas26:tr:munich-strasbourg", mode: "TRAIN", fromStopKey: "xmas26:stop:munich", toStopKey: "xmas26:stop:strasbourg", depPlace: "Munich Hbf", depAt: "2026-12-10T05:51:00Z", arrPlace: "Strasbourg", arrAt: "2026-12-10T09:40:00Z", reference: "300186503818", costMinor: 23521, currency: "AUD", paid: true, paidMinor: 23521, paidAt: "2026-07-26" },
     { key: "xmas26:tr:strasbourg-frankfurt", mode: "TRAIN", fromStopKey: "xmas26:stop:strasbourg", toStopKey: "xmas26:stop:frankfurt", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
     { key: "xmas26:tr:frankfurt-paris", mode: "TRAIN", fromStopKey: "xmas26:stop:frankfurt", toStopKey: "xmas26:stop:paris", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
-    { key: "xmas26:tr:paris-london", mode: "TRAIN", fromStopKey: "xmas26:stop:paris", toStopKey: "xmas26:stop:london", depPlace: "Paris Gare du Nord", depAt: "2026-12-19T08:02:00Z", arrPlace: "London St Pancras", arrAt: "2026-12-19T09:30:00Z", reference: "WXFVKQ", costMinor: 41438, currency: "AUD" },
+    { key: "xmas26:tr:paris-london", mode: "TRAIN", fromStopKey: "xmas26:stop:paris", toStopKey: "xmas26:stop:london", depPlace: "Paris Gare du Nord", depAt: "2026-12-19T07:02:00Z", arrPlace: "London St Pancras", arrAt: "2026-12-19T09:30:00Z", reference: "WXFVKQ", costMinor: 41438, currency: "AUD", paid: true, paidMinor: 41438, paidAt: "2026-07-26" },
     { key: "xmas26:tr:london-aghalee", mode: "FLIGHT", fromStopKey: "xmas26:stop:london", toStopKey: "xmas26:stop:aghalee", depPlace: "London Heathrow (LHR)", depAt: "2026-12-22T09:15:00Z", arrPlace: "Belfast City (BHD)", arrAt: "2026-12-22T10:40:00Z", reference: "XHARUZ" },
     { key: "xmas26:tr:aghalee-dublin", mode: "TRAIN", fromStopKey: "xmas26:stop:aghalee", toStopKey: "xmas26:stop:dublin", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
-    { key: "xmas26:tr:dublin-como", mode: "FLIGHT", fromStopKey: "xmas26:stop:dublin", toStopKey: "xmas26:stop:como", depPlace: "Dublin (DUB)", depAt: "2026-12-30T08:15:00Z", arrPlace: "Milan Malpensa (MXP)", arrAt: "2026-12-30T11:45:00Z", reference: "FR7799 · H4WP7Q", costMinor: 35862, currency: "EUR" },
+    { key: "xmas26:tr:dublin-como", mode: "FLIGHT", fromStopKey: "xmas26:stop:dublin", toStopKey: "xmas26:stop:como", depPlace: "Dublin (DUB)", depAt: "2026-12-30T08:15:00Z", arrPlace: "Milan Malpensa (MXP)", arrAt: "2026-12-30T10:45:00Z", reference: "FR7799 · H4WP7Q", costMinor: 35862, currency: "EUR", paid: true, paidMinor: 35862, paidAt: "2026-08-11" },
     { key: "xmas26:tr:mxp-como", mode: "TRAIN", fromStopKey: null, toStopKey: "xmas26:stop:como", depPlace: "Milan Malpensa (MXP)", depAt: null, arrPlace: "Como", arrAt: null, reference: null },
     { key: "xmas26:tr:como-milan", mode: "TRAIN", fromStopKey: "xmas26:stop:como", toStopKey: "xmas26:stop:milan", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
     { key: "xmas26:tr:milan-rome", mode: "TRAIN", fromStopKey: "xmas26:stop:milan", toStopKey: "xmas26:stop:rome", depPlace: null, depAt: null, arrPlace: null, arrAt: null, reference: null },
-    { key: "xmas26:tr:rome-home", mode: "FLIGHT", fromStopKey: "xmas26:stop:rome", toStopKey: null, depPlace: "Rome (FCO)", depAt: "2027-01-07T08:55:00Z", arrPlace: "Brisbane (BNE)", arrAt: "2027-01-08T17:30:00Z", reference: "8QPEWK" },
+    { key: "xmas26:tr:rome-home", mode: "FLIGHT", fromStopKey: "xmas26:stop:rome", toStopKey: null, depPlace: "Rome (FCO)", depAt: "2027-01-07T07:55:00Z", arrPlace: "Brisbane (BNE)", arrAt: "2027-01-08T07:30:00Z", reference: "8QPEWK" },
   ];
 
   it("matches the golden leg data for every transport, value for value", () => {
@@ -277,6 +291,110 @@ describe("transports", () => {
         expect(x!.cost ?? null, g.key).toBeNull();
       }
     }
+  });
+
+  // Payment state is the whole reason this branch exists (its first commit is
+  // "preserve real payment dates"): resolvePaidAt stamps the seed *run date* on
+  // any paid cost that arrives without a paidAt, and lib/budget.ts treats
+  // paidAt as the sole signal that money has actually left the account. An
+  // unpinned paidAt is therefore a silently fabricated value, not a cosmetic
+  // gap — so every costed leg's paid/paidMinor/paidAt is asserted here.
+  it("pins the payment state of every costed leg, dates included", () => {
+    const byKey = new Map(t.transports.map((x) => [x.key, x]));
+    const costed = GOLDEN_TRANSPORTS.filter((g) => g.costMinor !== undefined);
+    expect(costed).toHaveLength(5);
+    for (const g of costed) {
+      const cost = byKey.get(g.key)!.cost!;
+      const paidAt = cost.paid === true ? cost.paidAt ?? null : null;
+      expect(cost.paid ?? false, g.key).toBe(g.paid ?? false);
+      expect(cost.paidMinor ?? null, g.key).toBe(g.paidMinor ?? null);
+      expect(paidAt, g.key).toBe(g.paidAt ?? null);
+    }
+  });
+
+  it("never leaves a paid leg without a payment date for the seed to invent", () => {
+    for (const x of t.transports) {
+      const cost = x.cost;
+      if (cost?.paid === true) expect(cost.paidAt ?? null, x.key).toBeTruthy();
+    }
+  });
+});
+
+// The regression guard for the Critical finding on this branch: the builder's
+// instants were briefly written as booking wall clock with a `Z` suffix, which
+// would have displayed 10 of 14 booked times wrong in the app. Structural
+// checks can't catch that — only running the real render path can. This runs
+// transportTimeDisplay (the exact helper the transport card uses) over the
+// builder's own legs, resolving each endpoint's zone from the linked Stop the
+// same way the app does, and asserts the wall clock matches the booking.
+describe("transport times render as the booked wall clock", () => {
+  const stopTz = new Map(t.stops.map((s) => [s.key, s.timezone ?? null]));
+  const display = (key: string) => {
+    const x = t.transports.find((leg) => leg.key === key)!;
+    return transportTimeDisplay({
+      depAt: x.depAt ? new Date(x.depAt) : null,
+      arrAt: x.arrAt ? new Date(x.arrAt) : null,
+      fromTimezone: x.fromStopKey ? stopTz.get(x.fromStopKey) : null,
+      toTimezone: x.toStopKey ? stopTz.get(x.toStopKey) : null,
+    });
+  };
+
+  // key → the wall times printed on the booking confirmation.
+  const RENDERS: { key: string; dep: string; arr: string; dayDelta?: number }[] = [
+    { key: "xmas26:tr:munich-strasbourg", dep: "06:51", arr: "10:40" },
+    { key: "xmas26:tr:paris-london", dep: "08:02", arr: "09:30" },
+    { key: "xmas26:tr:london-aghalee", dep: "09:15", arr: "10:40" },
+    { key: "xmas26:tr:dublin-como", dep: "08:15", arr: "11:45" },
+    { key: "xmas26:tr:denpasar-munich", dep: "19:00", arr: "06:45", dayDelta: 1 },
+  ];
+
+  for (const r of RENDERS) {
+    it(`${r.key} shows ${r.dep} → ${r.arr} on the card`, () => {
+      const d = display(r.key);
+      expect(d.dep!.time).toBe(r.dep);
+      expect(d.arr!.time).toBe(r.arr);
+      if (r.dayDelta !== undefined) expect(d.dayDelta).toBe(r.dayDelta);
+    });
+  }
+
+  // DOCUMENTED EXCEPTION — do not "correct" these two back.
+  //
+  // A home-base endpoint has no Stop, so it has no timezone of its own, and
+  // resolveEndpointZones falls back to the *other* endpoint's zone. The stored
+  // instants are the true moments — OOL departs 07:50 Brisbane (+10), BNE
+  // arrives 17:30 Brisbane (+10) — but the card renders the home end in
+  // Asia/Makassar and Europe/Rome respectively, so the clock reads differently
+  // from the ticket. Cam chose true-instant correctness over the card reading:
+  // the moment is right, and every other consumer (durations, ordering, ICS,
+  // the far endpoint's own display) depends on the instant being true. Making
+  // the card read 07:50 would require storing a fictional instant.
+  it("renders the two home-base endpoints in the far endpoint's zone, by design", () => {
+    const out = display("xmas26:tr:home-denpasar");
+    expect(out.dep!.time).toBe("15:50"); // 07:50 Brisbane, shown in Asia/Makassar
+    expect(out.arr!.time).toBe("22:15"); // Denpasar arrival, matches the ticket
+
+    const home = display("xmas26:tr:rome-home");
+    expect(home.dep!.time).toBe("08:55"); // Rome departure, matches the ticket
+    expect(home.arr!.time).toBe("08:30"); // 17:30 Brisbane, shown in Europe/Rome
+  });
+
+  // Durations are the independent cross-check on the instants: they are
+  // offset-free, so they hold whatever timezone reasoning went into the stored
+  // values, and each one is quoted on the booking itself.
+  it("keeps every booked leg's duration exactly as the booking states it", () => {
+    const mins = (key: string) => {
+      const x = t.transports.find((leg) => leg.key === key)!;
+      return durationMinutes(x.depAt, x.arrAt);
+    };
+    expect(mins("xmas26:tr:home-denpasar")).toBe(6 * 60 + 25);
+    expect(mins("xmas26:tr:denpasar-munich")).toBe(18 * 60 + 45);
+    expect(mins("xmas26:tr:munich-strasbourg")).toBe(3 * 60 + 49);
+    expect(mins("xmas26:tr:paris-london")).toBe(2 * 60 + 28);
+    // The leg's own notes say "1hr 25 mins".
+    expect(mins("xmas26:tr:london-aghalee")).toBe(1 * 60 + 25);
+    expect(mins("xmas26:tr:dublin-como")).toBe(2 * 60 + 30);
+    // The leg's own notes say 5h10 in the air + 4h20 in Doha + 14h05 = 23h35.
+    expect(mins("xmas26:tr:rome-home")).toBe(23 * 60 + 35);
   });
 });
 
@@ -356,8 +474,66 @@ describe("summariseRealTrip", () => {
   });
 
   it("reports both currency totals", () => {
-    expect(out).toContain("9359.35 AUD");
-    expect(out).toContain("964.72 EUR");
+    expect(out).toContain("total 9359.35 AUD");
+    expect(out).toContain("total 964.72 EUR");
+  });
+
+  // The dry-run printout is the last human check before a production write, so
+  // it has to show the thing most likely to be wrong. Counts and a stop spine
+  // would not have surfaced this branch's Critical finding (every booked time
+  // shifted by its endpoint's UTC offset); rendered wall clocks do.
+  it("lists every leg with its mode, endpoints, reference and cost", () => {
+    for (const x of t.transports) {
+      expect(out, x.key).toContain(`#${x.sortOrder} ${x.mode.padEnd(6)}`);
+      if (x.reference) expect(out, x.key).toContain(`ref ${x.reference}`);
+      if (x.depPlace) expect(out, x.key).toContain(x.depPlace);
+      if (x.arrPlace) expect(out, x.key).toContain(x.arrPlace);
+    }
+    expect(out).toContain("895.59 AUD · paid 2026-07-13");
+    expect(out).toContain("358.62 EUR · paid 2026-08-11");
+  });
+
+  it("prints transport times as the app renders them, not as raw instants", () => {
+    // Booking wall clock, not the stored `Z` instant: 06:51 Munich is 05:51Z.
+    expect(out).toContain("2026-12-10 06:51");
+    expect(out).toContain("2026-12-10 10:40");
+    expect(out).toContain("2026-12-19 08:02");
+    expect(out).toContain("2026-12-30 11:45");
+    expect(out).not.toContain("05:51");
+    expect(out).not.toContain("07:02");
+  });
+
+  it("flags the Bangkok overnight as landing the next day", () => {
+    expect(out).toContain("2026-12-05 19:00");
+    expect(out).toContain("2026-12-06 06:45");
+    expect(out).toMatch(/2026-12-06 06:45 [^\n]*\(\+1 day\)/);
+  });
+
+  it("marks the home-base endpoints and explains why their clock reads oddly", () => {
+    expect(out).toContain("Gold Coast (OOL) [home]");
+    expect(out).toContain("Brisbane (BNE) [home]");
+    expect(out).toContain("no timezone of its own");
+  });
+
+  it("shows an unbooked leg as unbooked rather than silently blank", () => {
+    expect(out).toContain("not booked — no times");
+    expect(out).toContain("no cost");
+  });
+
+  it("would shout if a paid cost reached the seed with no payment date", () => {
+    // Guards resolvePaidAt's fallback, which stamps the seed *run date* on a
+    // paid cost that has no paidAt — a fabricated value the printout must not
+    // hide. Built on a modified copy; the real trip has no such cost.
+    expect(out).not.toContain("NO DATE");
+    const withUndatedPayment = {
+      ...t,
+      transports: t.transports.map((x) =>
+        x.key === "xmas26:tr:dublin-como"
+          ? { ...x, cost: { costMinor: 35862, currency: "EUR", paid: true as const, paidMinor: 35862 } }
+          : x,
+      ),
+    };
+    expect(summariseRealTrip(withUndatedPayment)).toContain("NO DATE");
   });
 
   it("reports the exchange rate row count", () => {

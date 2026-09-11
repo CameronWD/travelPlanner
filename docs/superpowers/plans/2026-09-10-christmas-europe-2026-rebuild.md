@@ -13,7 +13,8 @@
 - **Nothing may be deleted.** No `delete`, no `deleteMany`, no wipe. The write is purely additive.
 - **Never run `wipeRealTrip()` against production.** It deletes every trip matching `REAL_TRIP_NAME`.
 - **Do not write to production during implementation.** The prod write is a gated manual step after Cam approves the dry-run. Tasks 1–6 must not open a write transaction against Neon.
-- **Times are local wall-clock stored as `Z`.** `08:55` at Rome means `2027-01-07T08:55:00Z`. Never convert to real UTC — every existing row in this trip uses this convention.
+- ~~**Times are local wall-clock stored as `Z`.** `08:55` at Rome means `2027-01-07T08:55:00Z`. Never convert to real UTC — every existing row in this trip uses this convention.~~
+  **WRONG — corrected 2026-09-11 by the final whole-branch review.** This was inferred from production rows that are themselves the output of the bug `docs/things-to-fix.md` P0-1 already fixed. **Transport times are TRUE UTC instants.** The app writes via `wallTimeToInstant()` in the endpoint Stop's zone (`server/actions/transport.ts`) and reads back via `transportTimeDisplay()` in the same zone (`lib/time-display.ts`), so `08:55` at Rome (Europe/Rome, +1 in January) means `2027-01-07T07:55:00Z`. The transport table further down this plan carries the superseded values; the builder and its tests are the source of truth.
 - **Dates are `"YYYY-MM-DD"` strings.** Money is `Int` minor units. Lat/lng are `Float`.
 - **Builders stay pure.** No `Date.now()`, no `new Date()` without an argument, no network calls in `lib/real-trip/`.
 - **Country codes lowercase ISO 3166-1 alpha-2.** Currencies uppercase ISO 4217.
