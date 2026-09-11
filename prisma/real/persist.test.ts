@@ -136,6 +136,17 @@ describe("addExistingUserAsMember", () => {
     );
   });
 
+  it("passes a non-default role through to the upsert, proving the parameter is actually read", async () => {
+    userFindUniqueMock.mockResolvedValueOnce({ id: "user_xanthia" });
+    tripMemberUpsertMock.mockResolvedValueOnce({});
+
+    await addExistingUserAsMember("trip_1", "xanni99.m@hotmail.com", "owner");
+
+    expect(tripMemberUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ create: expect.objectContaining({ role: "owner" }) }),
+    );
+  });
+
   it("never creates a User row, even when a member is successfully added", async () => {
     userFindUniqueMock.mockResolvedValueOnce({ id: "user_xanthia" });
     tripMemberUpsertMock.mockResolvedValueOnce({});
