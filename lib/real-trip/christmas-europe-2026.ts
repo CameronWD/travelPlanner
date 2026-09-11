@@ -23,10 +23,14 @@
  *
  * One documented exception, deliberately accepted: the two home-base legs have
  * no Stop at the home end and therefore no timezone of their own, so
- * `resolveEndpointZones` falls back to the far endpoint's zone. Their stored
- * instants are the true moments (OOL departs 07:50 Brisbane, BNE arrives 17:30
- * Brisbane) but their cards read 15:50 WITA and 08:30 CET. True-instant
- * correctness was chosen over the card reading; do not "fix" them back.
+ * `resolveEndpointZones` falls back to the far endpoint's zone. Ticket wall
+ * time → stored UTC instant → what the card renders, for each leg:
+ *   - Gold Coast departure: ticket 17:50 Brisbane (UTC+10) → stored
+ *     `2026-12-04T07:50:00Z` → renders 15:50 (Asia/Makassar).
+ *   - Brisbane arrival: ticket 17:30 Brisbane (UTC+10) → stored
+ *     `2027-01-08T07:30:00Z` → renders 08:30 (Europe/Rome).
+ * True-instant correctness was chosen over the card reading; do not "fix"
+ * these stored instants back to match the card — they are already correct.
  *
  * Pure module — no Prisma, no React, no network, no clock.
  */

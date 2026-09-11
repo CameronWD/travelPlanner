@@ -360,17 +360,19 @@ describe("transport times render as the booked wall clock", () => {
   // DOCUMENTED EXCEPTION — do not "correct" these two back.
   //
   // A home-base endpoint has no Stop, so it has no timezone of its own, and
-  // resolveEndpointZones falls back to the *other* endpoint's zone. The stored
-  // instants are the true moments — OOL departs 07:50 Brisbane (+10), BNE
-  // arrives 17:30 Brisbane (+10) — but the card renders the home end in
-  // Asia/Makassar and Europe/Rome respectively, so the clock reads differently
-  // from the ticket. Cam chose true-instant correctness over the card reading:
-  // the moment is right, and every other consumer (durations, ordering, ICS,
-  // the far endpoint's own display) depends on the instant being true. Making
-  // the card read 07:50 would require storing a fictional instant.
+  // resolveEndpointZones falls back to the *other* endpoint's zone. Ticket
+  // wall time → stored UTC instant → what the card renders:
+  //   - Gold Coast departure: ticket 17:50 Brisbane (UTC+10) → stored
+  //     `2026-12-04T07:50:00Z` → renders 15:50 (Asia/Makassar).
+  //   - Brisbane arrival: ticket 17:30 Brisbane (UTC+10) → stored
+  //     `2027-01-08T07:30:00Z` → renders 08:30 (Europe/Rome).
+  // Cam chose true-instant correctness over the card reading: the moment is
+  // right, and every other consumer (durations, ordering, ICS, the far
+  // endpoint's own display) depends on the instant being true. Making the
+  // card read the ticket time would require storing a fictional instant.
   it("renders the two home-base endpoints in the far endpoint's zone, by design", () => {
     const out = display("xmas26:tr:home-denpasar");
-    expect(out.dep!.time).toBe("15:50"); // 07:50 Brisbane, shown in Asia/Makassar
+    expect(out.dep!.time).toBe("15:50"); // 17:50 Brisbane, shown in Asia/Makassar
     expect(out.arr!.time).toBe("22:15"); // Denpasar arrival, matches the ticket
 
     const home = display("xmas26:tr:rome-home");
