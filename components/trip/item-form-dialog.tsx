@@ -87,6 +87,11 @@ export interface ItemFormDialogProps {
    * Only applied on create (ignored in edit mode where the item's own stopId wins).
    */
   defaultStopId?: string | null;
+  /**
+   * Pre-fill the Date field on create (for "+ Add" on a specific day row).
+   * Ignored in edit mode where the item's own date wins.
+   */
+  defaultDate?: string;
   /** Existing attachments for this item (edit mode only). */
   attachments?: AttachmentView[];
 }
@@ -150,6 +155,7 @@ export function ItemFormDialog({
   costs,
   forkId,
   defaultStopId,
+  defaultDate,
   attachments,
 }: ItemFormDialogProps) {
   return (
@@ -171,6 +177,7 @@ export function ItemFormDialog({
         costs={costs}
         forkId={forkId}
         defaultStopId={item ? undefined : defaultStopId}
+        defaultDate={item ? undefined : defaultDate}
         attachments={attachments}
       />
     </FormDialog>
@@ -274,6 +281,8 @@ interface ItemFormProps {
   forkId?: string | null;
   /** Pre-select this stop on create (ignored in edit mode). */
   defaultStopId?: string | null;
+  /** Pre-fill the date field on create (ignored in edit mode). */
+  defaultDate?: string;
   attachments?: AttachmentView[];
 }
 
@@ -289,6 +298,7 @@ function ItemForm({
   costs,
   forkId,
   defaultStopId,
+  defaultDate,
   attachments,
 }: ItemFormProps) {
   const isEdit = Boolean(item);
@@ -306,7 +316,7 @@ function ItemForm({
   );
   const [stopId, setStopId] = React.useState(item?.stopId ?? defaultStopId ?? "");
   const [date, setDate] = React.useState(
-    item?.date ?? (defaultUnscheduled ? "" : (tripStartDate ?? "")),
+    item?.date ?? defaultDate ?? (defaultUnscheduled ? "" : (tripStartDate ?? "")),
   );
   const [startTime, setStartTime] = React.useState(item?.startTime ?? "");
   const [endTime, setEndTime] = React.useState(item?.endTime ?? "");

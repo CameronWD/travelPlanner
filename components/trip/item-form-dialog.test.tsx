@@ -744,3 +744,43 @@ describe("EditItemButton — homeCurrency + costs forwarding", () => {
     expect(screen.getByLabelText(/^cost amount$/i)).toHaveValue("55.00");
   });
 });
+
+// ---------------------------------------------------------------------------
+// defaultDate prop
+// ---------------------------------------------------------------------------
+
+describe("defaultDate prop", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("pre-fills the date field from defaultDate on create", () => {
+    render(
+      <ItemFormDialog
+        tripId="t1"
+        stops={[{ id: "s1", name: "Paris" }]}
+        defaultUnscheduled={false}
+        defaultDate="2026-12-06"
+        open={true}
+        onOpenChange={() => {}}
+      />,
+    );
+    expect(screen.getByLabelText(/^date$/i)).toHaveValue("2026-12-06");
+  });
+
+  it("ignores defaultDate in edit mode — the item's own date wins", () => {
+    render(
+      <ItemFormDialog
+        tripId="t1"
+        stops={[{ id: "s1", name: "Paris" }]}
+        item={{
+          id: "i1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-07",
+          startTime: null, endTime: null, address: null, link: null,
+          booking: null, notes: null, stopId: "s1",
+        }}
+        defaultDate="2026-12-06"
+        open={true}
+        onOpenChange={() => {}}
+      />,
+    );
+    expect(screen.getByLabelText(/^date$/i)).toHaveValue("2026-12-07");
+  });
+});
