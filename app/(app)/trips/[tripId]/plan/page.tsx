@@ -43,7 +43,7 @@ export default async function TripPlanPage({
     : null;
   const activeForkId = activeFork ? activeFork.id : null;
 
-  const [trip, stops, transports, allCosts, chapters, thingsToDoItems] = await Promise.all([
+  const [trip, stops, transports, allCosts, chapters, thingsToDoItems, scheduledItems] = await Promise.all([
     db.trip.findUnique({
       where: { id: tripId },
       select: {
@@ -136,6 +136,27 @@ export default async function TripPlanPage({
     db.item.findMany({
       where: { tripId, ...planScope(activeForkId), stopId: { not: null }, date: null },
       orderBy: { sortOrder: "asc" },
+      select: {
+        id: true,
+        title: true,
+        category: true,
+        date: true,
+        startTime: true,
+        endTime: true,
+        address: true,
+        link: true,
+        booking: true,
+        notes: true,
+        stopId: true,
+        lat: true,
+        lng: true,
+      },
+    }),
+    // Per-stop scheduled items: plan-owned items with stopId set and a date —
+    // the stop's slice of the Timeline, rendered as day rows (grilling 2026-09-13)
+    db.item.findMany({
+      where: { tripId, ...planScope(activeForkId), stopId: { not: null }, date: { not: null } },
+      orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
       select: {
         id: true,
         title: true,
@@ -266,16 +287,16 @@ export default async function TripPlanPage({
     costsByOwnerId.set(cost.ownerId, existing);
   }
 
-  // Fetch costs for things-to-do items (ADR 0022)
-  const thingsToDoItemIds = thingsToDoItems.map((i) => i.id);
+  // Fetch costs for things-to-do items (ADR 0022) and scheduled items (day rows)
+  const planItemIds = [...thingsToDoItems, ...scheduledItems].map((i) => i.id);
   const thingsToDoItemCostsRaw =
-    thingsToDoItemIds.length > 0
+    planItemIds.length > 0
       ? await db.cost.findMany({
           where: {
             tripId,
             ...planScope(activeForkId),
             ownerType: "ITEM",
-            ownerId: { in: thingsToDoItemIds },
+            ownerId: { in: planItemIds },
           },
           orderBy: { createdAt: "asc" },
           select: COST_SELECT,
@@ -298,6 +319,15 @@ export default async function TripPlanPage({
     const existing = thingsToDoByStopId.get(item.stopId) ?? [];
     existing.push(item);
     thingsToDoByStopId.set(item.stopId, existing);
+  }
+
+  // Group scheduled items by stopId for the day rows
+  const dayItemsByStopId = new Map<string, typeof scheduledItems>();
+  for (const item of scheduledItems) {
+    if (!item.stopId) continue;
+    const existing = dayItemsByStopId.get(item.stopId) ?? [];
+    existing.push(item);
+    dayItemsByStopId.set(item.stopId, existing);
   }
 
   // Build a coord lookup by stop id so transport leg estimates can fall back
@@ -366,6 +396,7 @@ export default async function TripPlanPage({
             chapters={trip?.chaptersEnabled ? chapters : []}
             chaptersEnabled={trip?.chaptersEnabled ?? true}
             thingsToDoByStopId={thingsToDoByStopId}
+            dayItemsByStopId={dayItemsByStopId}
             thingsToDoItemCostsById={thingsToDoItemCostsById}
             initialStops={orderPlanStops(stops).map((stop) => ({
               ...stop,
