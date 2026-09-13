@@ -601,6 +601,17 @@ describe("things to do section", () => {
     expect(scheduleItem).toHaveBeenCalledWith("th1", { date: "2026-07-11" });
   });
 
+  it("preserves a timed thing-to-do's startTime/endTime when scheduling onto a picked day", async () => {
+    const user = userEvent.setup();
+    const timedThing = { id: "th2", title: "Sunrise run", category: "ACTIVITY", stopId: "a", startTime: "06:00" };
+    render(
+      <StopCard stop={scheduledStop} isFirst isLast tripId="t1" thingsToDo={[timedThing]} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Pick a day for Sunrise run" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Sat 11 Jul" }));
+    expect(scheduleItem).toHaveBeenCalledWith("th2", { date: "2026-07-11", startTime: "06:00" });
+  });
+
   it("shows no pick-a-day control on a rough stop (no days exist yet)", () => {
     render(<StopCard stop={roughStop} isFirst isLast tripId="t1" thingsToDo={[thing]} />);
     expect(

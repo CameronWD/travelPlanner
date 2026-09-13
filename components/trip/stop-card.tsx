@@ -176,8 +176,17 @@ export function StopCard({
     [isRough, stop.arriveDate, stop.departDate],
   );
 
-  async function handleScheduleThing(thingId: string, dateISO: string) {
-    const res = await scheduleItem(thingId, { date: dateISO });
+  async function handleScheduleThing(thing: ThingToDo, dateISO: string) {
+    // Things-to-do can carry times (kept on unschedule "to make undo
+    // lossless" — see unscheduleItem's doc comment in server/actions/items.ts).
+    // scheduleItem's in-place branch overwrites startTime/endTime wholesale
+    // when absent from the input, so pass the thing's existing times through
+    // explicitly or picking a day silently wipes them.
+    const res = await scheduleItem(thing.id, {
+      date: dateISO,
+      ...(thing.startTime ? { startTime: thing.startTime } : {}),
+      ...(thing.endTime ? { endTime: thing.endTime } : {}),
+    });
     if (!res.success) {
       toast({ title: "Couldn't schedule it", variant: "destructive" });
       return;
@@ -536,7 +545,7 @@ export function StopCard({
                     <DayPickerMenu
                       days={stayDays}
                       label={`Pick a day for ${thing.title}`}
-                      onPick={(d) => handleScheduleThing(thing.id, d)}
+                      onPick={(d) => handleScheduleThing(thing, d)}
                       disabled={isPending}
                     />
                   )}

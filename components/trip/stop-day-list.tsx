@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
 import { formatDayLabel } from "@/lib/dates";
 import { buildStopDays, type StopDayItem } from "@/lib/stop-days";
-import { rescheduleItem } from "@/server/actions/items";
+import { scheduleItem } from "@/server/actions/items";
 import { categoryDotClass } from "./category-dot";
 import { DayPickerMenu } from "./day-picker-menu";
 import { ItemFormDialog, type StopOption } from "./item-form-dialog";
@@ -72,7 +72,18 @@ export function StopDayList({
   }
 
   async function handleMove(item: StopDayItem, targetDateISO: string) {
-    const res = await rescheduleItem(item.id, targetDateISO);
+    // Use scheduleItem's in-place branch (server/actions/items.ts:531+) rather
+    // than rescheduleItem: rescheduleItem re-derives stopId from the target
+    // date via stopForDate, which on a shared arrive/depart (changeover) day
+    // resolves to the NEXT stop — silently re-filing the item off this card.
+    // scheduleItem's in-place branch keeps stopId untouched. It overwrites
+    // startTime/endTime wholesale though, so the item's existing times must
+    // be passed through explicitly to survive the move.
+    const res = await scheduleItem(item.id, {
+      date: targetDateISO,
+      ...(item.startTime ? { startTime: item.startTime } : {}),
+      ...(item.endTime ? { endTime: item.endTime } : {}),
+    });
     if (!res.success) {
       toast({ title: "Couldn't move it", variant: "destructive" });
       return;

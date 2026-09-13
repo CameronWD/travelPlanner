@@ -22,7 +22,7 @@ vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),
 }));
-import { rescheduleItem } from "@/server/actions/items";
+import { scheduleItem } from "@/server/actions/items";
 
 import { StopDayList } from "./stop-day-list";
 import type { StopDayItem } from "@/lib/stop-days";
@@ -85,14 +85,28 @@ describe("expanded day", () => {
     expect(await screen.findByLabelText(/^date$/i)).toHaveValue("2026-12-05");
   });
 
-  it("moves an item to another day via the pick-a-day menu", async () => {
+  it("moves an item to another day via the pick-a-day menu, keeping it on the same stop and preserving its times", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
     await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
     const region = screen.getByTestId("day-detail-2026-12-06");
     await user.click(within(region).getByRole("button", { name: "Move Louvre to another day" }));
     await user.click(await screen.findByRole("menuitem", { name: "Mon 7 Dec" }));
-    expect(rescheduleItem).toHaveBeenCalledWith("a", "2026-12-07");
+    // Louvre has startTime "09:30" and no endTime — must survive the move,
+    // and the item must go through scheduleItem's in-place branch (which
+    // keeps stopId) rather than rescheduleItem (which re-derives stopId from
+    // the date and would re-file a changeover-day item onto the next stop).
+    expect(scheduleItem).toHaveBeenCalledWith("a", { date: "2026-12-07", startTime: "09:30" });
+  });
+
+  it("moves an untimed item to another day with just the date", async () => {
+    const user = userEvent.setup();
+    render(<StopDayList {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    const region = screen.getByTestId("day-detail-2026-12-06");
+    await user.click(within(region).getByRole("button", { name: "Move Wander Marais to another day" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Mon 7 Dec" }));
+    expect(scheduleItem).toHaveBeenCalledWith("c", { date: "2026-12-07" });
   });
 
   it("offers Unschedule on each expanded item row", async () => {

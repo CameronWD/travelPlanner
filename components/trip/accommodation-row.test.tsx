@@ -46,3 +46,19 @@ it("expands to the full AccommodationCard", async () => {
   await user.click(screen.getByRole("button", { name: /Hotel du Louvre/ }));
   expect(screen.getByText("Place André Malraux")).toBeInTheDocument();
 });
+
+it("keeps the same toggle button (and its focus) across expand/collapse instead of unmounting it", async () => {
+  const user = userEvent.setup();
+  render(<AccommodationRow accommodation={accommodation} stop={stop} />);
+  const toggle = screen.getByRole("button", { name: /Hotel du Louvre/ });
+  toggle.focus();
+  await user.click(toggle);
+  const stillToggle = screen.getByRole("button", { name: /Hotel du Louvre/ });
+  expect(stillToggle).toBe(toggle);
+  expect(stillToggle).toHaveAttribute("aria-expanded", "true");
+  expect(document.activeElement).toBe(toggle);
+
+  await user.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(document.activeElement).toBe(toggle);
+});

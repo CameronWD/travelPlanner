@@ -41,48 +41,43 @@ export function AccommodationRow(props: AccommodationRowProps) {
     stop,
   );
 
-  if (open) {
-    return (
-      <div className="flex flex-col gap-1">
-        <button
-          type="button"
-          aria-expanded={true}
-          onClick={() => setOpen(false)}
-          className="inline-flex items-center gap-1 self-start px-1.5 text-xs text-muted-foreground hover:text-foreground"
-        >
-          <ChevronDown className="size-3.5 rotate-180" aria-hidden="true" />
-          Collapse
-        </button>
-        <AccommodationCard {...props} />
-      </div>
-    );
-  }
-
+  // A single persistent toggle button carries aria-expanded and identity
+  // across both states, so focus stays put across the toggle instead of
+  // dropping to <body> when the collapsed control used to unmount.
   return (
-    <button
-      type="button"
-      aria-expanded={false}
-      onClick={() => setOpen(true)}
-      disabled={isPending}
-      className={cn(
-        "flex w-full items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-sm shadow-soft transition-shadow hover:shadow-soft-lg dark:border-emerald-900 dark:bg-emerald-950/40",
-        isPending && "pointer-events-none opacity-60",
-      )}
-    >
-      <Home className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-      <span className="min-w-0 flex-1 truncate font-medium text-emerald-900 dark:text-emerald-100">
-        {a.name}
-      </span>
-      <span className="shrink-0 text-xs text-emerald-700/80 dark:text-emerald-300/80">
-        {formatDateRange(a.checkIn, a.checkOut)}
-      </span>
-      {warnings.length > 0 && (
-        <AlertTriangle
-          className="size-3.5 shrink-0 text-amber-600"
-          aria-label="Dates fall outside the stop"
+    <div className="flex flex-col gap-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+        disabled={isPending}
+        className={cn(
+          "flex w-full items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-left text-sm shadow-soft transition-shadow hover:shadow-soft-lg dark:border-emerald-900 dark:bg-emerald-950/40",
+          isPending && "pointer-events-none opacity-60",
+        )}
+      >
+        <Home className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate font-medium text-emerald-900 dark:text-emerald-100">
+          {a.name}
+        </span>
+        <span className="shrink-0 text-xs text-emerald-700/80 dark:text-emerald-300/80">
+          {formatDateRange(a.checkIn, a.checkOut)}
+        </span>
+        {warnings.length > 0 && (
+          <AlertTriangle
+            className="size-3.5 shrink-0 text-amber-600"
+            aria-label="Dates fall outside the stop"
+          />
+        )}
+        <ChevronDown
+          className={cn(
+            "size-3.5 shrink-0 text-emerald-700/60 transition-transform dark:text-emerald-300/60",
+            open && "rotate-180",
+          )}
+          aria-hidden="true"
         />
-      )}
-      <ChevronDown className="size-3.5 shrink-0 text-emerald-700/60 dark:text-emerald-300/60" aria-hidden="true" />
-    </button>
+      </button>
+      {open && <AccommodationCard {...props} />}
+    </div>
   );
 }
