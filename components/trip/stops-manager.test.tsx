@@ -30,6 +30,10 @@ vi.mock("@/server/actions/items", () => ({
   updateItem: vi.fn().mockResolvedValue({ success: true }),
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
 vi.mock("@/server/actions/costs", () => ({
   createCost: vi.fn().mockResolvedValue({ success: true }),
   updateCost: vi.fn().mockResolvedValue({ success: true }),
