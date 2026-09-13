@@ -4,6 +4,7 @@ import {
   formatISODate,
   formatDateRange,
   formatLongDate,
+  formatDayLabel,
   nightsBetween,
   daysBetween,
   addDays,
@@ -326,5 +327,12 @@ describe("todayLocalISO", () => {
     const expected = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     expect(todayLocalISO()).toBe(expected); // differs from todayISO() when TZ≠UTC
     vi.useRealTimers();
+  });
+});
+
+describe("formatDayLabel", () => {
+  it("formats YYYY-MM-DD as 'Sun 6 Dec' with no year", () => {
+    expect(formatDayLabel("2026-12-06")).toBe("Sun 6 Dec");
+    expect(formatDayLabel("2026-07-03")).toBe("Fri 3 Jul");
   });
 });

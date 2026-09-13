@@ -122,6 +122,15 @@ export function formatLongDate(s: string): string {
   return `${day} ${date} ${month} ${year}`;
 }
 
+/**
+ * Format a YYYY-MM-DD string to a short in-trip day label like "Fri 3 Jul".
+ * No year — used inside a Stop's day rows where the year is already evident.
+ */
+export function formatDayLabel(s: string): string {
+  const d = parseISODate(s);
+  return `${DAY_SHORT[d.getUTCDay()]} ${d.getUTCDate()} ${MONTH_SHORT[d.getUTCMonth()]}`;
+}
+
 // ---------------------------------------------------------------------------
 // Arithmetic helpers
 // ---------------------------------------------------------------------------
