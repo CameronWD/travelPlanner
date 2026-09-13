@@ -50,7 +50,7 @@ export function buildStopDays(
       dateISO,
       timed: dayItems
         .filter((i) => Boolean(i.startTime))
-        .sort((a, b) => (a.startTime! < b.startTime! ? -1 : 1)),
+        .sort((a, b) => (a.startTime! < b.startTime! ? -1 : a.startTime! > b.startTime! ? 1 : 0)),
       untimed: dayItems.filter((i) => !i.startTime),
     };
   });

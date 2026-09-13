@@ -39,4 +39,14 @@ describe("buildStopDays", () => {
     expect(days).toHaveLength(1);
     expect(days[0].untimed.map((i) => i.id)).toEqual(["a"]);
   });
+
+  it("preserves input order for items with the same startTime", () => {
+    const days = buildStopDays("2026-12-05", "2026-12-07", [
+      item({ id: "a", title: "First lunch", date: "2026-12-06", startTime: "12:00" }),
+      item({ id: "b", title: "Second lunch", date: "2026-12-06", startTime: "12:00" }),
+      item({ id: "c", title: "Third lunch", date: "2026-12-06", startTime: "12:00" }),
+    ]);
+    const dec6 = days.find((d) => d.dateISO === "2026-12-06")!;
+    expect(dec6.timed.map((i) => i.id)).toEqual(["a", "b", "c"]);
+  });
 });
