@@ -18,8 +18,15 @@ vi.mock("@/server/actions/attachments", () => ({
 vi.mock("@/server/actions/items", () => ({
   createItem: vi.fn().mockResolvedValue({ success: true }),
   updateItem: vi.fn().mockResolvedValue({ success: true }),
+  scheduleItem: vi.fn().mockResolvedValue({ success: true }),
+  unscheduleItem: vi.fn().mockResolvedValue({ success: true, mode: "unslotted", sourceItemId: null }),
+  rescheduleItem: vi.fn().mockResolvedValue({ success: true }),
 }));
-import { createItem } from "@/server/actions/items";
+import { createItem, scheduleItem } from "@/server/actions/items";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 vi.mock("@/server/actions/costs", () => ({
   createCost: vi.fn().mockResolvedValue({ success: true }),
@@ -544,5 +551,60 @@ describe("Task 10 — StopCard Bold-Modular anatomy", () => {
       />,
     );
     expect(screen.getByText("06:00")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Day-aware plan editor (grilling 2026-09-13)
+// ---------------------------------------------------------------------------
+
+describe("day rows (scheduled stops)", () => {
+  const dayItems = [
+    { id: "d1", title: "Colosseum", category: "SIGHTSEEING", date: "2026-07-11", startTime: "10:00", stopId: "a" },
+  ];
+
+  it("renders a day row for every day of the stay, including empty ones", () => {
+    render(
+      <StopCard stop={scheduledStop} isFirst isLast tripId="t1" dayItems={dayItems} />,
+    );
+    // 10 → 13 Jul inclusive = 4 rows
+    expect(screen.getByRole("button", { name: /Fri 10 Jul/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sat 11 Jul/ })).toHaveTextContent("Colosseum");
+    expect(screen.getByRole("button", { name: /Sun 12 Jul/ })).toHaveTextContent(/nothing planned/i);
+    expect(screen.getByRole("button", { name: /Mon 13 Jul/ })).toBeInTheDocument();
+  });
+
+  it("renders no day rows on a rough stop", () => {
+    render(<StopCard stop={roughStop} isFirst isLast tripId="t1" dayItems={[]} />);
+    expect(screen.queryByTestId("stop-day-list")).not.toBeInTheDocument();
+  });
+});
+
+describe("things to do section", () => {
+  const thing = { id: "th1", title: "Trevi Fountain", category: "SIGHTSEEING", stopId: "a" };
+
+  it("labels the dateless pool 'Things to do'", () => {
+    render(
+      <StopCard stop={scheduledStop} isFirst isLast tripId="t1" thingsToDo={[thing]} />,
+    );
+    expect(screen.getByText("Things to do")).toBeInTheDocument();
+    expect(screen.getByText("Trevi Fountain")).toBeInTheDocument();
+  });
+
+  it("schedules a thing-to-do onto a picked day", async () => {
+    const user = userEvent.setup();
+    render(
+      <StopCard stop={scheduledStop} isFirst isLast tripId="t1" thingsToDo={[thing]} />,
+    );
+    await user.click(screen.getByRole("button", { name: "Pick a day for Trevi Fountain" }));
+    await user.click(await screen.findByRole("menuitem", { name: "Sat 11 Jul" }));
+    expect(scheduleItem).toHaveBeenCalledWith("th1", { date: "2026-07-11" });
+  });
+
+  it("shows no pick-a-day control on a rough stop (no days exist yet)", () => {
+    render(<StopCard stop={roughStop} isFirst isLast tripId="t1" thingsToDo={[thing]} />);
+    expect(
+      screen.queryByRole("button", { name: "Pick a day for Trevi Fountain" }),
+    ).not.toBeInTheDocument();
   });
 });

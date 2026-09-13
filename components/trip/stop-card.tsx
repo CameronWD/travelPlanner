@@ -1,4 +1,7 @@
+"use client";
+
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronUp,
   ChevronDown,
@@ -30,6 +33,12 @@ import type { CostRow } from "@/server/actions/costs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { stopBandBorderClass, stopPillClass } from "@/lib/stop-colours";
 import { categoryDotClass } from "./category-dot";
+import { enumerateTripDays } from "@/lib/itinerary";
+import { scheduleItem } from "@/server/actions/items";
+import { toast } from "@/components/ui/use-toast";
+import { StopDayList } from "./stop-day-list";
+import { DayPickerMenu } from "./day-picker-menu";
+import type { StopDayItem } from "@/lib/stop-days";
 
 export interface StopCardStop {
   id: string;
@@ -109,6 +118,8 @@ export interface StopCardProps {
   // ── Things to do (ADR 0022) ──────────────────────────────────────────────
   /** Plan-owned things to do attached to this stop (stopId set, date null). */
   thingsToDo?: ThingToDo[];
+  /** Scheduled items for this stop (date != null) — drives the day rows. */
+  dayItems?: StopDayItem[];
   /** Costs keyed by item id (for edit pre-fill). */
   thingsToDoItemCosts?: Map<string, CostRow[]>;
   /** Attachments keyed by item id (for edit pre-fill). */
@@ -149,6 +160,7 @@ export function StopCard({
   currentUserId,
   dragHandle,
   thingsToDo,
+  dayItems,
   thingsToDoItemCosts,
   thingsToDoItemAttachments,
   stops = [],
@@ -157,6 +169,21 @@ export function StopCard({
   attachments,
 }: StopCardProps) {
   const isRough = !stop.arriveDate || !stop.departDate;
+  const router = useRouter();
+
+  const stayDays = React.useMemo(
+    () => (isRough ? [] : enumerateTripDays(stop.arriveDate!, stop.departDate!)),
+    [isRough, stop.arriveDate, stop.departDate],
+  );
+
+  async function handleScheduleThing(thingId: string, dateISO: string) {
+    const res = await scheduleItem(thingId, { date: dateISO });
+    if (!res.success) {
+      toast({ title: "Couldn't schedule it", variant: "destructive" });
+      return;
+    }
+    router.refresh();
+  }
 
   // Things-to-do dialog state (ADR 0022)
   const [addThingOpen, setAddThingOpen] = React.useState(false);
@@ -462,12 +489,31 @@ export function StopCard({
         </p>
       )}
 
+      {/* Day rows — the stop's slice of the Timeline (grilling 2026-09-13) */}
+      {tripId && !isRough && (
+        <StopDayList
+          tripId={tripId}
+          stop={{ id: stop.id, arriveDate: stop.arriveDate!, departDate: stop.departDate! }}
+          items={dayItems ?? []}
+          stops={stops}
+          forkId={forkId}
+          homeCurrency={homeCurrency}
+          itemCostsById={thingsToDoItemCosts}
+          itemAttachmentsById={thingsToDoItemAttachments}
+          isPending={isPending}
+        />
+      )}
+
       {/* Things to do (ADR 0022) — shown when tripId is provided */}
       {tripId && (
         <>
           {/* List of existing things to do */}
           {thingsToDo && thingsToDo.length > 0 && (
-            <ul className="flex flex-col gap-1.5 border-t border-border/40 pt-2">
+            <div className="flex flex-col gap-1.5 border-t border-border/40 pt-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                Things to do
+              </div>
+              <ul className="flex flex-col gap-1.5">
               {thingsToDo.map((thing) => (
                 <li key={thing.id} className="flex items-center gap-2">
                   {/* Category/stop hue dot */}
@@ -485,6 +531,14 @@ export function StopCard({
                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
                       {thing.startTime}
                     </span>
+                  )}
+                  {!isRough && stayDays.length > 0 && (
+                    <DayPickerMenu
+                      days={stayDays}
+                      label={`Pick a day for ${thing.title}`}
+                      onPick={(d) => handleScheduleThing(thing.id, d)}
+                      disabled={isPending}
+                    />
                   )}
                   <Button
                     variant="ghost"
@@ -513,7 +567,8 @@ export function StopCard({
                   </Button>
                 </li>
               ))}
-            </ul>
+              </ul>
+            </div>
           )}
 
           {/* Add a thing to do — coral text link (D3 design) */}
