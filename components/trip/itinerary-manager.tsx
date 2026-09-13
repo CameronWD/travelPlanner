@@ -9,7 +9,8 @@ import { StopFormDialog } from "./stop-form-dialog";
 import { QuickAddStops } from "./quick-add-stops";
 import { TransportCard, type TransportCardTransport } from "./transport-card";
 import { TransportFormDialog, type StopOption, HOME_ENDPOINT } from "./transport-form-dialog";
-import { AccommodationCard, type AccommodationCardAccommodation } from "./accommodation-card";
+import { type AccommodationCardAccommodation } from "./accommodation-card";
+import { AccommodationRow } from "./accommodation-row";
 import { AccommodationFormDialog } from "./accommodation-form-dialog";
 import { ChapterFormDialog } from "./chapter-form-dialog";
 import { ChapterChip } from "./chapter-chip";
@@ -58,6 +59,7 @@ import { orderPlanStops } from "@/lib/plan-order";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import type { TransportMode } from "@/lib/enums";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
+import type { StopDayItem } from "@/lib/stop-days";
 import type { CostRow } from "@/server/actions/costs";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import type { NoteView } from "./note-thread";
@@ -182,6 +184,8 @@ interface ItineraryManagerProps {
    * Costs keyed by item id for things-to-do edit pre-fill (ADR 0022).
    */
   thingsToDoItemCostsById?: Map<string, CostRow[]>;
+  /** Scheduled items keyed by stopId (date != null) — drives StopCard day rows. */
+  dayItemsByStopId?: Map<string, StopDayItem[]>;
   /**
    * The trip's home base name — passed to TransportFormDialog so the picker
    * can offer "🏠 Home" as a departure/arrival option.
@@ -458,6 +462,7 @@ export function ItineraryManager({
   forkId,
   thingsToDoByStopId,
   thingsToDoItemCostsById,
+  dayItemsByStopId,
   homeBaseName,
   homeCountryCode,
   roundTrip,
@@ -1547,6 +1552,7 @@ export function ItineraryManager({
         currentUserId={currentUserId}
         dragHandle={dragHandle}
         thingsToDo={thingsToDoByStopId?.get(stop.id)}
+        dayItems={dayItemsByStopId?.get(stop.id)}
         thingsToDoItemCosts={thingsToDoItemCostsById}
         thingsToDoItemAttachments={attachmentsByItemId}
         stops={stopOptions}
@@ -1567,7 +1573,7 @@ export function ItineraryManager({
         {stop.arriveDate && stop.departDate && stop.accommodations.length > 0 && (
           <div className="ml-4 flex flex-col gap-2 pl-4">
             {stop.accommodations.map((acc) => (
-              <AccommodationCard
+              <AccommodationRow
                 key={acc.id}
                 accommodation={acc}
                 stop={{ arriveDate: stop.arriveDate!, departDate: stop.departDate! }}

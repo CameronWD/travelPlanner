@@ -67,10 +67,22 @@ vi.mock("@/server/actions/trips", () => ({
   setChaptersEnabled: vi.fn().mockResolvedValue({ success: true }),
 }));
 
-// StopCard now imports ItemFormDialog which calls createItem/updateItem.
+// StopCard now imports ItemFormDialog which calls createItem/updateItem, and
+// (Task 6) StopCard/StopDayList/UnscheduleItemButton call scheduleItem/
+// rescheduleItem/unscheduleItem for the day-aware plan editor.
 vi.mock("@/server/actions/items", () => ({
   createItem: vi.fn().mockResolvedValue({ success: true }),
   updateItem: vi.fn().mockResolvedValue({ success: true }),
+  scheduleItem: vi.fn().mockResolvedValue({ success: true }),
+  unscheduleItem: vi.fn().mockResolvedValue({ success: true }),
+  rescheduleItem: vi.fn().mockResolvedValue({ success: true }),
+}));
+
+// Task 6 added a useRouter() call to StopCard (used to refresh after
+// schedule/unschedule/reschedule actions). jsdom has no app router mounted,
+// so it must be mocked.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 
 vi.mock("@/components/ui/use-toast", async (importOriginal) => {
@@ -2188,5 +2200,72 @@ describe("Chapters menu — opt-in affordance gating", () => {
     await user.click(screen.getByRole("button", { name: "More actions for Athens" }));
     expect(screen.getByRole("menuitem", { name: /Start a chapter here/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /Assign to chapter/ })).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 7: day-aware plan editor wiring — dayItemsByStopId threading + the
+// collapsed AccommodationRow swap-in.
+// ---------------------------------------------------------------------------
+
+describe("day-aware plan editor wiring", () => {
+  it("passes each stop's scheduled items through to its day rows", () => {
+    const scheduledStop = makeStop({
+      id: "s1",
+      name: "Rome",
+      arriveDate: "2026-07-10",
+      departDate: "2026-07-13",
+    });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[scheduledStop]}
+        dayItemsByStopId={
+          new Map([
+            [
+              "s1",
+              [
+                {
+                  id: "d1",
+                  title: "Colosseum",
+                  category: "SIGHTSEEING",
+                  date: "2026-07-11",
+                  startTime: "10:00",
+                  stopId: "s1",
+                },
+              ],
+            ],
+          ])
+        }
+      />,
+    );
+
+    expect(screen.getByTestId("stop-day-list")).toBeInTheDocument();
+    expect(screen.getByText("Colosseum")).toBeInTheDocument();
+  });
+
+  it("renders accommodation collapsed to a one-line row", () => {
+    const scheduledStop = makeStop({
+      id: "s1",
+      name: "Rome",
+      arriveDate: "2026-07-10",
+      departDate: "2026-07-13",
+      accommodations: [
+        {
+          id: "acc-1",
+          stopId: "s1",
+          name: "Hotel Roma",
+          checkIn: "2026-07-10",
+          checkOut: "2026-07-13",
+          costs: [],
+        },
+      ],
+    });
+
+    render(<ItineraryManager {...baseProps} initialStops={[scheduledStop]} />);
+
+    const row = screen.getByRole("button", { name: /Hotel/ });
+    expect(row).toHaveAttribute("aria-expanded", "false");
   });
 });
