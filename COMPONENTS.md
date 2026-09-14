@@ -299,6 +299,22 @@ All trip-surface cards use this shell:
 Use `text-over` (not `text-destructive`) when displaying an over-budget amount — `destructive`
 is reserved for errors and destructive actions.
 
+### Mobile form-control font size
+
+Every text-entry control is **16 px below `sm`** (`text-base sm:text-sm`) — iOS Safari
+auto-zooms the page when a focused control is smaller. `Input`, `Textarea`,
+`SelectTrigger`, and `SelectItem` already do this; any raw `<input>`, `<textarea>`,
+or native `<select>` added outside the primitives must carry the same pair.
+Guarded by `components/ui/mobile-font-size.test.tsx`.
+
+### Bottom overlay stack (mobile)
+
+Everything that must clear the mobile trip tab bar computes its offset from
+`--tp-tab-bar-h` (declared in `app/globals.css`, consumed by the tab bar itself,
+the feedback FAB, the toast viewport, and the trip layout's bottom padding).
+Never hand-tune a `5rem`-style clearance against the bar — change the variable
+or compose `calc(var(--tp-tab-bar-h) + …)`.
+
 ---
 
 ## Deliberately left duplicated

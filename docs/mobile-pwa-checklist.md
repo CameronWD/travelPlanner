@@ -16,6 +16,7 @@ Global pass criteria for every screen:
 - [ ] Long names truncate/ellipsize rather than pushing content off-screen.
 - [ ] Icons do not overlap each other or escape their container.
 - [ ] All content text ≥ 12 px (pinch-zoom not required to read labels).
+- [ ] All form controls (inputs, textareas, selects) render text at **≥ 16 px** on mobile — anything smaller makes iOS Safari auto-zoom the page on focus. (Shared primitives use `text-base sm:text-sm`; any new raw control must follow suit.)
 - [ ] Tappable controls are ~44 px in the touch dimension.
 - [ ] Bottom tab bar sits **above** the home indicator; bar background reaches the screen edge.
 - [ ] Header content clears the notch / Dynamic Island; header background fills behind it.
@@ -153,15 +154,6 @@ Global pass criteria for every screen:
 
 ---
 
-## Chapters (`/trips/[id]/chapters`)
-
-- [ ] Chapter list items truncate long titles — no row widens the page.
-- [ ] Chapter chip / badge row wraps or truncates cleanly.
-- [ ] Add chapter button is ~44 px.
-- [ ] Dark theme: chapter colours and labels legible.
-
----
-
 ## Summary + route map (`/trips/[id]/summary`)
 
 - [ ] Summary stats / cards stack; none overflow.
@@ -237,15 +229,6 @@ Global pass criteria for every screen:
 - [ ] Notification rows truncate long text.
 - [ ] "Mark all read" / close control is ~44 px.
 - [ ] Dark theme: panel background and text legible.
-
----
-
-## Discreet mode (`/trips/[id]/discreet`)
-
-- [ ] The wide spreadsheet/table scrolls **horizontally inside its own contained box** — the page body does NOT scroll horizontally. (This is intentional — the disguise requires the table.)
-- [ ] The container border / shadow is visible at 320 px.
-- [ ] Table text is ≥ 12 px (legible, though dense by design).
-- [ ] No body-level horizontal scroll.
 
 ---
 
