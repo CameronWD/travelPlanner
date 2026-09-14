@@ -40,6 +40,16 @@ export const paidAtStringSchema = z
   );
 
 /**
+ * An optional calendar date on an UNPAID cost — money committed but not yet
+ * taken (CONTEXT.md "Due date"). Plain YYYY-MM-DD (the repo's calendar-date
+ * convention), not an ISO datetime like `paidAt`.
+ */
+const dueDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Due date must be YYYY-MM-DD")
+  .refine(isRealCalendarDate, "Due date must be a real calendar date");
+
+/**
  * Zod schema for creating or updating a Cost.
  *
  * Rules:
@@ -78,6 +88,8 @@ export const costSchema = z
       }),
 
     paidAt: paidAtStringSchema.transform((s) => new Date(s)).optional(),
+
+    dueDate: dueDateSchema.optional(),
 
     ownerType: costOwnerTypeSchema,
 

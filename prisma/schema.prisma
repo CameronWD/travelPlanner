@@ -382,6 +382,7 @@ model Cost {
   currency       String // ISO 4217
   rateToHome     Float? // snapshotted FX rate at entry, or null if same currency
   paidAt         DateTime?
+  dueDate        String? // "YYYY-MM-DD" — when an unpaid cost's money leaves the account (CONTEXT.md "Due date")
   ownerType      String // lib/enums.ts COST_OWNER_TYPES
   ownerId        String? // null when ownerType == OTHER
   label          String? // names an OTHER cost (e.g. "Travel insurance")
@@ -396,6 +397,7 @@ model Cost {
   @@index([tripId])
   @@index([forkId])
   @@index([ownerType, ownerId])
+  @@index([dueDate])
 }
 
 model ExchangeRate {

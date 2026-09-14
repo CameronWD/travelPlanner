@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { FormError } from "@/components/ui/form-error";
+import { DateField } from "@/components/ui/date-field";
 import { CostSummary } from "./cost-summary";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
@@ -53,6 +54,7 @@ interface FormState {
   paid: boolean;
   paidAmount: string;
   paidAt: string;
+  dueDate: string;
 }
 
 function defaultFormState(defaultCurrency: string): FormState {
@@ -62,6 +64,7 @@ function defaultFormState(defaultCurrency: string): FormState {
     paid: false,
     paidAmount: "",
     paidAt: "",
+    dueDate: "",
   };
 }
 
@@ -80,6 +83,7 @@ function costToFormState(cost: CostRow): FormState {
     paidAt: cost.paidAt
       ? new Date(cost.paidAt).toISOString().slice(0, 10)
       : "",
+    dueDate: cost.dueDate ?? "",
   };
 }
 
@@ -156,6 +160,17 @@ function CostDialogForm({
             errors={errors}
             disabled={submitting}
           />
+
+          {/* Due date — money committed but not yet taken (CONTEXT.md "Due
+              date"); only meaningful while the cost is unpaid. */}
+          {!form.paid && (
+            <DateField
+              label="Due date (optional)"
+              value={form.dueDate}
+              onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
+              disabled={submitting}
+            />
+          )}
 
           {/* Form-level error */}
           <FormError>{errors._form?.[0]}</FormError>
@@ -245,6 +260,7 @@ export function CostEditor({
       paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
       currency: form.currency,
       paidAt: hasPaidAmount ? form.paidAt || undefined : undefined,
+      ...(form.dueDate && !form.paid ? { dueDate: form.dueDate } : {}),
       ownerType,
       ownerId,
     };

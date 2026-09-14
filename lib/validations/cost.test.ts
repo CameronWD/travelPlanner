@@ -299,6 +299,32 @@ const base = {
   ownerId: "a1",
 };
 
+describe("costSchema — dueDate handling", () => {
+  const validCost = {
+    costMinor: 1000,
+    currency: "AUD",
+    ownerType: "ITEM" as const,
+    ownerId: "item-1",
+  };
+
+  it("accepts an optional YYYY-MM-DD due date", () => {
+    expect(costSchema.safeParse({ ...validCost, dueDate: "2026-11-20" }).success).toBe(true);
+  });
+
+  it("accepts absent due date", () => {
+    const result = costSchema.safeParse(validCost);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.dueDate).toBeUndefined();
+    }
+  });
+
+  it("rejects a malformed or impossible due date", () => {
+    expect(costSchema.safeParse({ ...validCost, dueDate: "20-11-2026" }).success).toBe(false);
+    expect(costSchema.safeParse({ ...validCost, dueDate: "2026-02-31" }).success).toBe(false);
+  });
+});
+
 describe("costSchema paid invariant", () => {
   it("rejects a paid date with no paid amount", () => {
     const result = costSchema.safeParse({ ...base, paidAt: "2026-06-04" });

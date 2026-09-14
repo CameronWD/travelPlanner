@@ -143,6 +143,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         currency: true,
         rateToHome: true,
         paidAt: true,
+        dueDate: true,
         ownerType: true,
         ownerId: true,
         label: true,

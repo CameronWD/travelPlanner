@@ -313,6 +313,7 @@ describe("WishlistBoard — homeCurrency + costs forwarded to edit dialog", () =
         currency: "EUR",
         rateToHome: 0.6,
         paidAt: null,
+        dueDate: null,
         ownerType: "ITEM" as const,
         ownerId: "item-50",
         label: null,

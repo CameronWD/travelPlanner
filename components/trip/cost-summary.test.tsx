@@ -10,6 +10,7 @@ const baseCost: CostRow = {
   currency: "GBP",
   rateToHome: null,
   paidAt: null,
+  dueDate: null,
   ownerType: "OTHER",
   ownerId: null,
   label: null,

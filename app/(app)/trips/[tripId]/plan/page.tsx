@@ -18,6 +18,7 @@ const COST_SELECT = {
   currency: true,
   rateToHome: true,
   paidAt: true,
+  dueDate: true,
   ownerType: true,
   ownerId: true,
   label: true,

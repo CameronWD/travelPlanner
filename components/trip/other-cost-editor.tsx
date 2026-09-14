@@ -13,6 +13,7 @@ import {
 import { Field } from "@/components/ui/field";
 import { FormError } from "@/components/ui/form-error";
 import { Input } from "@/components/ui/input";
+import { DateField } from "@/components/ui/date-field";
 import {
   Select,
   SelectContent,
@@ -74,6 +75,7 @@ interface FormState {
   currency: string;
   paid: boolean;
   paidAt: string;
+  dueDate: string;
 }
 
 function defaultFormState(defaultCurrency: string): FormState {
@@ -85,6 +87,7 @@ function defaultFormState(defaultCurrency: string): FormState {
     currency: defaultCurrency,
     paid: false,
     paidAt: "",
+    dueDate: "",
   };
 }
 
@@ -103,6 +106,7 @@ function costToFormState(cost: CostRow): FormState {
     // with the box unticked so re-saving it doesn't fabricate a payment.
     paid: Boolean(cost.paidAt),
     paidAt: cost.paidAt ? new Date(cost.paidAt).toISOString().slice(0, 10) : "",
+    dueDate: cost.dueDate ?? "",
   };
 }
 
@@ -136,6 +140,7 @@ function parseFormToInput(form: FormState): CostRawInput | null {
     paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
     currency: form.currency,
     paidAt: hasPaidAmount ? form.paidAt || undefined : undefined,
+    ...(form.dueDate && !form.paid ? { dueDate: form.dueDate } : {}),
     ownerType: "OTHER",
     label: form.label,
     category: form.category || undefined,
@@ -268,6 +273,15 @@ function OtherCostDialog({
                 />
                 Paid
               </label>
+
+              {!form.paid && (
+                <DateField
+                  label="Due date (optional)"
+                  value={form.dueDate}
+                  onChange={(e) => setForm((f) => ({ ...f, dueDate: e.target.value }))}
+                  disabled={submitting}
+                />
+              )}
 
               {form.paid && (
                 <>

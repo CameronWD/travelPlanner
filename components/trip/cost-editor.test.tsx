@@ -32,6 +32,7 @@ const sampleCost: CostRow = {
   ownerId: "owner-1",
   label: null,
   category: null,
+  dueDate: null,
 };
 
 const labeledCost: CostRow = {
@@ -45,6 +46,7 @@ const labeledCost: CostRow = {
   ownerId: "owner-1",
   label: "Train ticket",
   category: null,
+  dueDate: null,
 };
 
 describe("CostEditor", () => {
@@ -188,5 +190,45 @@ describe("CostEditor", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Server error");
+  });
+
+  it("shows a Due date input while editing an unpaid cost", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} costs={[sampleCost]} />);
+
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+
+    expect(screen.getByLabelText(/due date/i)).toBeInTheDocument();
+  });
+
+  it("does not show a Due date input while editing a paid cost", async () => {
+    const paidCost: CostRow = {
+      ...sampleCost,
+      paidMinor: 5000,
+      paidAt: new Date("2026-06-04"),
+    };
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} costs={[paidCost]} />);
+
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+
+    expect(screen.queryByLabelText(/due date/i)).not.toBeInTheDocument();
+  });
+
+  it("saves a due date entered on an unpaid cost", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} costs={[sampleCost]} />);
+
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+
+    const dueDateInput = screen.getByLabelText(/due date/i);
+    await user.type(dueDateInput, "2026-11-20");
+
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(updateCost).toHaveBeenCalledWith(
+      "cost-1",
+      expect.objectContaining({ dueDate: "2026-11-20" }),
+    );
   });
 });

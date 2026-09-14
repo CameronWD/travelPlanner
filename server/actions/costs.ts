@@ -165,6 +165,7 @@ export async function createCost(
         currency: data.currency,
         rateToHome: resolved.rate,
         paidAt: data.paidAt ?? null,
+        dueDate: data.dueDate ?? null,
         ownerType: data.ownerType,
         ownerId: data.ownerId ?? null,
         label: data.label ?? null,
@@ -231,6 +232,7 @@ export async function updateCost(
         currency: data.currency,
         rateToHome: resolved.rate,
         paidAt: data.paidAt ?? null,
+        dueDate: data.dueDate ?? null,
         ownerType: data.ownerType,
         ownerId: data.ownerId ?? null,
         label: data.label ?? null,
@@ -372,6 +374,7 @@ export type CostRow = {
   currency: string;
   rateToHome: number | null;
   paidAt: Date | null;
+  dueDate: string | null;
   ownerType: string;
   ownerId: string | null;
   label: string | null;
