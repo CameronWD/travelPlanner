@@ -326,6 +326,7 @@ function TimedItemRow({
     return (
       <div className="flex items-start gap-2">
         <TimeGutter time={item.startTime} isDay={isDay} />
+        {/* min-w-0 lets the card shrink in its flex track so titles truncate instead of overflowing at narrow widths. Not breakpoint-gated: it has no effect unless the row is width-constrained. */}
         <div className={cn("flex-1 min-w-0 rounded-2xl border-l-4 bg-card px-3 py-2.5 shadow-soft", accent.borderL)}>
           <div className="flex min-w-0 items-center gap-2">
             <span
