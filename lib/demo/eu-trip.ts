@@ -11,6 +11,7 @@
  */
 
 import type { DemoTrip, DemoFork, DemoStop, DemoTransport, DemoAccommodation, DemoItem, DemoCost, DemoChapter } from "./types";
+import type { Category } from "@/lib/categories";
 import { GLOBE_MARKER_KEYS } from "./globe";
 
 // ---------------------------------------------------------------------------
@@ -41,7 +42,7 @@ const CK = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-type ItemCategory = "SIGHTSEEING" | "FOOD" | "ACTIVITY" | "NIGHTLIFE" | "SHOPPING" | "OTHER";
+type ItemCategory = Category;
 
 // ---------------------------------------------------------------------------
 // Stops

@@ -54,6 +54,8 @@ const CATEGORY_COLOR_CLASSES: Record<string, string> = {
   violet:
     "border-violet-200 bg-violet-100 text-violet-700 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-300",
   rose: "border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-300",
+  indigo:
+    "border-indigo-200 bg-indigo-100 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300",
   stone:
     "border-stone-200 bg-stone-100 text-stone-700 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-300",
 };
@@ -72,6 +74,7 @@ const CATEGORY_ACCENT_CLASSES: Record<string, { dot: string; borderL: string }> 
   emerald: { dot: "bg-emerald-500", borderL: "border-l-emerald-500" },
   violet: { dot: "bg-violet-500", borderL: "border-l-violet-500" },
   rose: { dot: "bg-rose-500", borderL: "border-l-rose-500" },
+  indigo: { dot: "bg-indigo-500", borderL: "border-l-indigo-500" },
   stone: { dot: "bg-stone-500", borderL: "border-l-stone-500" },
 };
 

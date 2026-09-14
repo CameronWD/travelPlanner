@@ -11,6 +11,7 @@ const DOT_CLASSES: Record<string, string> = {
   emerald: "bg-emerald-500",
   violet: "bg-violet-500",
   rose: "bg-rose-500",
+  indigo: "bg-indigo-500",
   stone: "bg-stone-500",
 };
 

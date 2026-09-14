@@ -8,13 +8,14 @@ import {
 } from "@/lib/categories";
 
 describe("categories", () => {
-  it("exposes all six item categories", () => {
+  it("exposes all seven item categories", () => {
     expect(CATEGORY_VALUES).toEqual([
       "SIGHTSEEING",
       "FOOD",
       "ACTIVITY",
       "NIGHTLIFE",
       "SHOPPING",
+      "GETTING_AROUND",
       "OTHER",
     ]);
   });
@@ -41,5 +42,11 @@ describe("categories", () => {
 
   it("rejects unknown categories via the Zod schema", () => {
     expect(categorySchema.safeParse("BANANA").success).toBe(false);
+  });
+
+  it("labels Getting around in sentence case with the indigo colour", () => {
+    expect(categoryMeta("GETTING_AROUND")).toEqual({
+      value: "GETTING_AROUND", label: "Getting around", color: "indigo",
+    });
   });
 });

@@ -20,6 +20,9 @@ export const CATEGORIES = [
   { value: "ACTIVITY", label: "Activity", color: "emerald" },
   { value: "NIGHTLIFE", label: "Nightlife", color: "violet" },
   { value: "SHOPPING", label: "Shopping", color: "rose" },
+  // Movement that does not change your base — day-trip buses, local trains,
+  // metro passes. An Item category, never the Transport entity (CONTEXT.md).
+  { value: "GETTING_AROUND", label: "Getting around", color: "indigo" },
   { value: "OTHER", label: "Other", color: "stone" },
 ] as const satisfies readonly CategoryMeta[];
 
