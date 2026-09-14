@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { planScope } from "@/lib/plan-scope";
+import { planScope, THINGS_TO_DO_WHERE } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enums";
@@ -137,7 +137,7 @@ export default async function TripPlanPage({
     }),
     // Per-stop things to do: plan-owned items with stopId set and date null (ADR 0022)
     db.item.findMany({
-      where: { tripId, ...planScope(activeForkId), stopId: { not: null }, date: null },
+      where: { tripId, ...planScope(activeForkId), ...THINGS_TO_DO_WHERE },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,

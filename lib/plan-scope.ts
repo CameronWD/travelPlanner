@@ -46,6 +46,13 @@ export const PLAN_PLACEMENT_WHERE = {
 export const WISHLIST_IDEA_WHERE = { stopId: null, date: null } as const;
 
 /**
+ * Prisma `where` fragment selecting plan-owned "things to do": Items attached
+ * to a Stop but not yet given a day (ADR 0022). Spread into an existing
+ * `where` (e.g. `{ tripId, ...planScope(forkId), ...THINGS_TO_DO_WHERE }`).
+ */
+export const THINGS_TO_DO_WHERE = { stopId: { not: null }, date: null } as const;
+
+/**
  * Pure predicate mirroring {@link PLAN_PLACEMENT_WHERE}: true when the Item is a
  * plan placement (has a Stop OR a date), false when it is a Wishlist idea.
  */
