@@ -28,17 +28,17 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  "fixed z-50 flex flex-col gap-4 border-border bg-card p-6 text-card-foreground shadow-soft-lg",
+  "fixed z-50 flex flex-col border-border bg-card text-card-foreground shadow-soft-lg",
   {
     variants: {
       side: {
         bottom:
-          "inset-x-0 bottom-0 max-h-[90dvh] overflow-y-auto rounded-t-2xl border-t data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
+          "inset-x-0 bottom-0 max-h-[90dvh] overflow-hidden rounded-t-2xl border-t data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
         right:
-          "inset-y-0 right-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-y-auto border-l data-[state=open]:tp-slide-in-right data-[state=closed]:tp-slide-out-right",
-        left: "inset-y-0 left-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-y-auto border-r data-[state=open]:tp-slide-in-left data-[state=closed]:tp-slide-out-left",
+          "inset-y-0 right-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden border-l data-[state=open]:tp-slide-in-right data-[state=closed]:tp-slide-out-right",
+        left: "inset-y-0 left-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden border-r data-[state=open]:tp-slide-in-left data-[state=closed]:tp-slide-out-left",
         docked:
-          "inset-0 h-full w-full rounded-none border-0 data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down " +
+          "gap-4 p-6 inset-0 h-full w-full rounded-none border-0 data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down " +
           "md:inset-auto md:bottom-[5.25rem] md:right-4 md:h-[min(37.5rem,calc(100vh-9rem))] md:w-[560px] md:max-w-[calc(100vw-2rem)] md:rounded-2xl md:border",
       },
     },
@@ -67,17 +67,26 @@ const SheetContent = React.forwardRef<
       className={cn(sheetVariants({ side }), className)}
       {...props}
     >
-      {side === "bottom" ? (
-        <div
-          aria-hidden="true"
-          className="mx-auto -mt-2 mb-1 h-1.5 w-10 rounded-full bg-muted-foreground/30"
-        />
-      ) : null}
-      {children}
+      {side === "docked" ? (
+        children
+      ) : (
+        <>
+          {side === "bottom" ? (
+            <div
+              aria-hidden="true"
+              className="mx-auto mt-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30"
+            />
+          ) : null}
+          {/* Scrollable body — the frame never scrolls, so the ✕ and handle stay put (mirrors dialog.tsx). */}
+          <div className="flex min-h-0 flex-col gap-4 overflow-y-auto px-6 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+            {children}
+          </div>
+        </>
+      )}
       {!hideClose ? (
         <DialogPrimitive.Close
           className={cn(
-            "absolute right-4 top-4 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+            "absolute right-4 top-4 z-20 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
           )}
         >

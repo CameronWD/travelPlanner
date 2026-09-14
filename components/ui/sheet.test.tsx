@@ -82,7 +82,11 @@ describe("Sheet", () => {
     // poke under the browser chrome. dialog.tsx already uses 90dvh.
     expect(panel.className).toContain("max-h-[90dvh]");
     expect(panel.className).not.toContain("max-h-[90vh]");
-    expect(panel.className).toContain("overflow-y-auto");
+    // Frame has overflow-hidden; inner wrapper has overflow-y-auto
+    expect(panel.className).toContain("overflow-hidden");
+    expect(panel.querySelector('[class*="overflow-y-auto"]')).not.toBeNull();
+    // Close button is NOT inside the scroll wrapper
+    expect(screen.getByRole("button", { name: /close/i }).closest('[class*="overflow-y-auto"]')).toBeNull();
   });
 
   it("scrolls side sheets internally too", () => {
@@ -94,7 +98,11 @@ describe("Sheet", () => {
       </Sheet>,
     );
     const panel = screen.getByRole("dialog");
-    expect(panel.className).toContain("overflow-y-auto");
+    // Frame has overflow-hidden; inner wrapper has overflow-y-auto
+    expect(panel.className).toContain("overflow-hidden");
+    expect(panel.querySelector('[class*="overflow-y-auto"]')).not.toBeNull();
+    // Close button is NOT inside the scroll wrapper
+    expect(screen.getByRole("button", { name: /close/i }).closest('[class*="overflow-y-auto"]')).toBeNull();
   });
 
   it("leaves the docked variant's scroll management to its content", () => {
@@ -106,6 +114,8 @@ describe("Sheet", () => {
       </Sheet>,
     );
     const panel = screen.getByRole("dialog");
+    // Docked variant has NO inner scroll wrapper
     expect(panel.className).not.toContain("overflow-y-auto");
+    expect(panel.querySelector('[class*="overflow-y-auto"]')).toBeNull();
   });
 });
