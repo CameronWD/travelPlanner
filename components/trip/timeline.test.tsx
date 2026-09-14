@@ -335,6 +335,18 @@ describe("Timeline — mobile-hardening structural assertions (Task 3)", () => {
     expect(gutterSpan).not.toBeNull();
     expect(gutterSpan!.className).toMatch(/\bw-9\b/);
   });
+
+  it("timed item card carries min-w-0 so the flex-1 card can shrink below its content's intrinsic width (Task 8 sweep fix)", () => {
+    // Without min-w-0 on this flex-item card, the title/badge/Unschedule row
+    // refuses to shrink below its content width, overflowing the 320px
+    // viewport even though the title span itself truncates.
+    const { container } = render(
+      <Timeline day={dayPlanWithLongTimedTitle} variant="day" showUnschedule />,
+    );
+    const card = container.querySelector(".border-l-4.bg-card");
+    expect(card).not.toBeNull();
+    expect(card!.className).toMatch(/\bmin-w-0\b/);
+  });
 });
 
 // ---------------------------------------------------------------------------

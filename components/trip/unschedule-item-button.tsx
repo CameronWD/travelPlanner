@@ -111,7 +111,10 @@ export function UnscheduleItemButton({
       title="Unschedule"
     >
       <CalendarX className="size-3.5" aria-hidden="true" />
-      Unschedule
+      {/* Icon-only below sm — the full label plus the title/category pill
+          overflows a day-view item row at 320–374px viewports; the `title`
+          attribute above keeps "Unschedule" as the accessible name either way. */}
+      <span className="hidden sm:inline">Unschedule</span>
     </Button>
   );
 }

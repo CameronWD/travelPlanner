@@ -326,7 +326,7 @@ function TimedItemRow({
     return (
       <div className="flex items-start gap-2">
         <TimeGutter time={item.startTime} isDay={isDay} />
-        <div className={cn("flex-1 rounded-2xl border-l-4 bg-card px-3 py-2.5 shadow-soft", accent.borderL)}>
+        <div className={cn("flex-1 min-w-0 rounded-2xl border-l-4 bg-card px-3 py-2.5 shadow-soft", accent.borderL)}>
           <div className="flex min-w-0 items-center gap-2">
             <span
               className="truncate text-sm font-bold leading-tight text-foreground min-w-0"

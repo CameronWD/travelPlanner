@@ -57,6 +57,25 @@ async function fireOnUndo() {
 }
 
 describe("UnscheduleItemButton", () => {
+  it("hides the visible label below sm (mobile overflow fix) but keeps the accessible name via title", () => {
+    render(
+      <UnscheduleItemButton
+        itemId="placed-1"
+        itemTitle="Colosseum"
+        date="2026-07-02"
+        startTime="10:00"
+        endTime={null}
+        hadStop
+      />,
+    );
+    const button = screen.getByRole("button", { name: /unschedule/i });
+    expect(button).toHaveAttribute("title", "Unschedule");
+    const label = screen.getByText("Unschedule");
+    expect(label.tagName).toBe("SPAN");
+    expect(label.className).toContain("hidden");
+    expect(label.className).toContain("sm:inline");
+  });
+
   it("placement-removed: undo re-schedules the SOURCE idea", async () => {
     unscheduleItemMock.mockResolvedValue({ success: true, mode: "placement-removed", sourceItemId: "idea-1" });
     render(
