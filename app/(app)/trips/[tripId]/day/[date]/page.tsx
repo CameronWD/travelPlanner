@@ -350,8 +350,12 @@ export default async function DayPage({
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
   const freeForm = isFreeFormDay(dayPlan);
   const dayStop = stops.find((s) => s.id === dayPlan.stop?.id) ?? null;
+  // Only fetch when DayIdeas will actually render (freeForm + Travelling +
+  // a resolvable stop) — a pre-departure free-form day shows the light
+  // "browse your wishlist" link instead, so fetching things-to-do for it
+  // would be wasted work.
   const thingsToDo =
-    freeForm && dayStop
+    freeForm && phase === "travelling" && dayStop
       ? await db.item.findMany({
           where: { tripId, forkId: null, ...THINGS_TO_DO_WHERE, stopId: dayStop.id },
           orderBy: { sortOrder: "asc" },
