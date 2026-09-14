@@ -156,8 +156,13 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         category: true,
       },
     }),
+    // COST_DUE rows are cron idempotency markers (see CONTEXT.md "Due date"),
+    // not user-facing reminders — exclude them so they don't show up in the
+    // Reminders card's sent-history (and become user-deletable, which would
+    // re-arm a duplicate push that day). NOT-exclusion (rather than
+    // `targetType: null`) so any future legitimately-typed reminders still show.
     db.reminder.findMany({
-      where: { tripId },
+      where: { tripId, NOT: { targetType: "COST_DUE" } },
       orderBy: { fireAt: "asc" },
       select: {
         id: true,

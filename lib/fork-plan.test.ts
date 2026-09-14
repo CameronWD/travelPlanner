@@ -1,5 +1,5 @@
 // lib/fork-plan.test.ts
-import { describe, it, expect } from "vitest";
+import { it, expect } from "vitest";
 import { buildForkPlan } from "./fork-plan";
 
 const source = {

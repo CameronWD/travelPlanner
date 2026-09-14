@@ -66,44 +66,6 @@ const makeTransport = (
   arrAt: overrides.arrAt ?? null,
 });
 
-const makeAccom = (
-  id: string,
-  stopId: string,
-  overrides: Partial<{
-    checkIn: string;
-    checkOut: string;
-    name: string;
-  }> = {},
-) => ({
-  id,
-  stopId,
-  name: overrides.name ?? "Hotel",
-  checkIn: overrides.checkIn ?? "2026-07-01",
-  checkOut: overrides.checkOut ?? "2026-07-03",
-});
-
-const makeItem = (
-  id: string,
-  overrides: Partial<{
-    stopId: string | null;
-    date: string | null;
-    startTime: string | null;
-    endTime: string | null;
-    lat: number | null;
-    lng: number | null;
-    category: string;
-  }> = {},
-) => ({
-  id,
-  stopId: overrides.stopId ?? null,
-  date: overrides.date ?? null,
-  startTime: overrides.startTime ?? null,
-  endTime: overrides.endTime ?? null,
-  lat: overrides.lat ?? null,
-  lng: overrides.lng ?? null,
-  category: overrides.category ?? "SIGHTSEEING",
-});
-
 const makeCost = (
   id: string,
   overrides: Partial<{

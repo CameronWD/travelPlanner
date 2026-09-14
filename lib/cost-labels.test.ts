@@ -58,7 +58,7 @@ describe("costLabel", () => {
     expect(costLabel({ ownerType: "TRANSPORT", ownerId: "missing", label: null }, ownerNames)).toBe(
       "Transport",
     );
-    expect(costLabel({ ownerType: "ITEM", ownerId: "missing", label: null }, ownerNames)).toBe("Activity");
+    expect(costLabel({ ownerType: "ITEM", ownerId: "missing", label: null }, ownerNames)).toBe("Item");
     expect(costLabel({ ownerType: "ACCOMMODATION", ownerId: null, label: null }, ownerNames)).toBe(
       "Accommodation",
     );

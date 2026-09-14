@@ -192,11 +192,19 @@ describe("PhaseTravelling fork-scoped plan queries", () => {
   it("leaves the trip-wide reminders and attachments queries unscoped by forkId", async () => {
     await PhaseTravelling({ tripId: "trip-1" });
     expect(reminderFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { tripId: "trip-1" } }),
+      expect.objectContaining({
+        where: { tripId: "trip-1", NOT: { targetType: "COST_DUE" } },
+      }),
     );
     expect(attachmentFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: { tripId: "trip-1" } }),
     );
+  });
+
+  it("excludes COST_DUE cron marker rows from the reminders query", async () => {
+    await PhaseTravelling({ tripId: "trip-1" });
+    const remindersCall = reminderFindManyMock.mock.calls[0][0];
+    expect(remindersCall.where.NOT).toEqual({ targetType: "COST_DUE" });
   });
 
   it("broadens the wishlist-idea query to select countryCode without a lat/lng filter", async () => {

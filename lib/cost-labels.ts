@@ -34,7 +34,7 @@ export function buildCostLabelMap(sources: CostLabelSources): Map<string, string
 const FALLBACK_BY_TYPE: Record<string, string> = {
   TRANSPORT: "Transport",
   ACCOMMODATION: "Accommodation",
-  ITEM: "Activity",
+  ITEM: "Item",
 };
 
 /**
