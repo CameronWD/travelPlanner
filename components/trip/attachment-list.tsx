@@ -206,8 +206,6 @@ export function AttachmentList({
               <div className="flex shrink-0 items-center gap-1">
                 <a
                   href={att.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   aria-label={`View ${att.filename}`}
                   className="inline-flex size-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                 >

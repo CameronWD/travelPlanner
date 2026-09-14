@@ -68,10 +68,14 @@ export default async function TripLayout({
     notFound();
   }
 
-  const [unreadCount, recent, forks] = await Promise.all([
+  const [unreadCount, recent, forks, warmAttachments] = await Promise.all([
     getUnreadActivityCount(tripId),
     getRecentActivity(tripId, 10),
     listForks(tripId),
+    db.attachment.findMany({
+      where: { tripId },
+      select: { url: true, size: true },
+    }),
   ]);
 
   const today = todayISOInZone(currentTripTimezone(trip.stops));
@@ -90,7 +94,7 @@ export default async function TripLayout({
       ? formatDateRange(trip.startDate, trip.endDate)
       : "No dates yet";
 
-  const offlinePaths = tripOfflinePaths(tripId, trip.startDate, trip.endDate);
+  const offlinePaths = tripOfflinePaths(tripId, trip.startDate, trip.endDate, warmAttachments);
 
   return (
     <div className="flex flex-col gap-0">

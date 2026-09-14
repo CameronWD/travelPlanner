@@ -77,8 +77,6 @@ function PhotoStrip({
             <div key={photo.id} className="group relative">
               <a
                 href={photo.url}
-                target="_blank"
-                rel="noopener noreferrer"
                 aria-label={`View photo ${photo.filename}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
