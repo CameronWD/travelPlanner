@@ -43,7 +43,7 @@ A first-class movement between two Stops — a flight, train, drive, ferry, etc.
 _Avoid_: Leg, journey, travel, segment
 
 **Accommodation**:
-A first-class place you sleep, attached to a Stop — check-in/out dates, address, confirmation number, cost. Usually one per Stop, occasionally more.
+A first-class place you sleep, attached to a Stop — check-in/out dates, address, confirmation number, cost. Usually one per Stop, occasionally more. Each of the check-in and check-out may optionally carry a **time**; a timed check-in/out sits in the day's Timeline at its time like any timed Item, while an untimed one falls back to a fixed reading order — check-out first thing on its day, check-in after that day's Transport.
 _Avoid_: Hotel, lodging, stay (note: "Stay" is too close to "Stop")
 
 **Timeline**:
@@ -143,6 +143,10 @@ _Avoid_: Now view, agenda
 **Day map**:
 An on-demand map of a single day's plan — its located Items as a numbered route in time order, with tonight's Accommodation and the day's Transport points marked. Available on both the Day view and the Travelling **Home**, collapsed until opened. It offers one-tap **directions** out to an external maps app (the whole day's route, or a single hop between Items) but never computes travel time itself, and plots only what has coordinates.
 _Avoid_: Route map (that's the whole-Trip map shown in the Summary)
+
+**Day ideas**:
+The menu a dated day view offers when the day is **free-form** (no scheduled Items): the candidates the Travellers already collected, each one tap from being scheduled onto the day. Drawn from the current Stop's dateless **things to do** pool (always, all of them), plus **Wishlist** ideas near the Stop (~30km) and Wishlist ideas whose country matches the Stop's (located or not). Shown in place of "nothing planned" on an empty day; on a day that has plans it stays out of the way as the existing collapsed nearby-Wishlist section (tight 1.5km matching against the day's plan). Scheduling from it uses the normal copy-in placement (ADR 0019).
+_Avoid_: Suggestions, recommendations (nothing is machine-suggested — it is the Travellers' own pool resurfaced), free-day view (it is a section of the day view, not a view)
 
 **Checklist**:
 A list of tickable tasks. Two flavours: a **Pre-trip checklist** (visas, insurance, eSIM, with optional due dates) and a **Packing list** (reusable across Trips via templates).
