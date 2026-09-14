@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { Input } from "./input";
 import { Textarea } from "./textarea";
-import { Select, SelectTrigger, SelectValue } from "./select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
 
 /**
  * iOS Safari auto-zooms the page when a focused control's font-size is <16px.
@@ -34,6 +34,22 @@ describe("form controls are ≥16px on mobile (iOS zoom guard)", () => {
       </Select>,
     );
     const el = screen.getByRole("combobox", { name: "pick" });
+    expect(el.className).toContain("text-base");
+    expect(el.className).toContain("sm:text-sm");
+  });
+
+  it("SelectItem is text-base on mobile, text-sm from sm up", () => {
+    render(
+      <Select open>
+        <SelectTrigger aria-label="pick">
+          <SelectValue placeholder="Pick" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="x">X</SelectItem>
+        </SelectContent>
+      </Select>,
+    );
+    const el = screen.getByRole("option");
     expect(el.className).toContain("text-base");
     expect(el.className).toContain("sm:text-sm");
   });
