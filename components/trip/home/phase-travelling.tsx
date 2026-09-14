@@ -30,6 +30,9 @@ import {
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 import { ChapterChip } from "@/components/trip/chapter-chip";
 import { WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
+import { buildCostLabelMap } from "@/lib/cost-labels";
+import { buildUpcomingPayments } from "@/lib/upcoming-payments";
+import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 
 /** Exported for className assertion in tests — must match the JSX below. */
 export const TRAVELLING_DESKTOP_GRID_CLASS =
@@ -320,6 +323,26 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
     today: effectiveDate,
   });
 
+  // ── Upcoming payments ───────────────────────────────────────────────────────
+  // Owner-label map (lib/cost-labels.ts): prefer the linked stop's current
+  // name over the transport's free-text depPlace/arrPlace (they're mutually
+  // exclusive — a stop-linked transport carries no free text of its own),
+  // falling back to the free text for transports with no stop link.
+  const stopName = new Map(stops.map((s) => [s.id, s.name] as const));
+  const ownerNames = buildCostLabelMap({
+    items: items.map((i) => ({ id: i.id, title: i.title })),
+    accommodations: accommodations.map((a) => ({ id: a.id, name: a.name })),
+    transports: transports.map((t) => ({
+      id: t.id,
+      mode: t.mode,
+      depPlace: (t.fromStopId ? stopName.get(t.fromStopId) : null) ?? t.depPlace ?? null,
+      arrPlace: (t.toStopId ? stopName.get(t.toStopId) : null) ?? t.arrPlace ?? null,
+    })),
+  });
+  // `today` (trip-timezone "now"), not `effectiveDate` (clamped to the trip's
+  // dated window) — a due date can fall before/after the trip itself.
+  const upcomingPayments = buildUpcomingPayments({ costs, ownerNames, today });
+
   // ── Day-map model (for effectiveDate) ──────────────────────────────────────
   const dayItems = items
     .filter((item) => item.date === effectiveDate)
@@ -507,6 +530,9 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
 
           {/* Spend so far (compact glance) */}
           <SpendSoFarCard compact spend={spend} homeCurrency={homeCurrency} />
+
+          {/* Upcoming payments */}
+          <UpcomingPaymentsCard payments={upcomingPayments} tripId={tripId} />
 
           {/* Tonight's accommodation */}
           {tonightAccom && (

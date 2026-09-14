@@ -28,6 +28,9 @@ import { QuickActions } from "@/components/trip/home/quick-actions";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import { orderPlanStops } from "@/lib/plan-order";
+import { buildCostLabelMap } from "@/lib/cost-labels";
+import { buildUpcomingPayments } from "@/lib/upcoming-payments";
+import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 
 const COST_SELECT = {
   id: true,
@@ -147,6 +150,7 @@ export async function PhasePlanning({
       where: { tripId, forkId: null },
       select: {
         id: true,
+        title: true,
         stopId: true,
         category: true,
         date: true,
@@ -235,6 +239,24 @@ export async function PhasePlanning({
     tripEnd: endDate,
     chapters: datedChapters,
   });
+
+  // ---------------------------------------------------------------------------
+  // Upcoming payments (lib/upcoming-payments.ts) — same owner-label map as the
+  // budget page (lib/cost-labels.ts), resolved against every stop (dated or
+  // rough) so transport costs still label correctly.
+  // ---------------------------------------------------------------------------
+  const stopNameById = new Map(allStopsRaw.map((s) => [s.id, s.name] as const));
+  const ownerNames = buildCostLabelMap({
+    items: items.map((i) => ({ id: i.id, title: i.title })),
+    accommodations: accommodations.map((a) => ({ id: a.id, name: a.name })),
+    transports: transports.map((t) => ({
+      id: t.id,
+      mode: t.mode,
+      depPlace: t.fromStopId ? (stopNameById.get(t.fromStopId) ?? null) : null,
+      arrPlace: t.toStopId ? (stopNameById.get(t.toStopId) ?? null) : null,
+    })),
+  });
+  const upcomingPayments = buildUpcomingPayments({ costs, ownerNames, today });
 
   // ---------------------------------------------------------------------------
   // Detect flags (mirrors summary/page.tsx)
@@ -341,6 +363,10 @@ export async function PhasePlanning({
     />
   );
 
+  const upcomingEl = (
+    <UpcomingPaymentsCard key="upcoming-payments" payments={upcomingPayments} tripId={tripId} />
+  );
+
   const route =
     mapStops.length > 0 ? (
       <section
@@ -365,6 +391,7 @@ export async function PhasePlanning({
         </div>
         <div className="flex flex-col gap-6">
           {money}
+          {upcomingEl}
           {actions}
         </div>
       </div>

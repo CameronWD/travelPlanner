@@ -60,9 +60,11 @@ vi.mock("@/components/trip/home/next-steps-card", () => ({ NextStepsCard: () => 
 vi.mock("@/components/trip/home/budget-glance", () => ({ BudgetGlance: () => null }));
 vi.mock("@/components/trip/home/quick-actions", () => ({ QuickActions: () => null }));
 vi.mock("@/components/trip/route-map-loader", () => ({ RouteMapLoader: () => null }));
+vi.mock("@/components/trip/upcoming-payments-card", () => ({ UpcomingPaymentsCard: () => null }));
 
 const { PLANNING_DESKTOP_GRID_CLASS, PhasePlanning } = await import("./phase-planning");
 const { RouteMapLoader } = await import("@/components/trip/route-map-loader");
+const { UpcomingPaymentsCard } = await import("@/components/trip/upcoming-payments-card");
 
 // Server components aren't run through a renderer here (see file-header note),
 // so a mocked child is never actually invoked. To assert its props without
@@ -330,5 +332,78 @@ describe("PhasePlanning chapter gating (Task 13)", () => {
         ],
       }),
     );
+  });
+});
+
+describe("PhasePlanning upcoming payments mount", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    drivingWindingFactor: 1.3,
+    drivingAvgSpeedKph: 80,
+    homeName: null,
+    homeLat: null,
+    homeLng: null,
+    homeCountryCode: null,
+    roundTrip: false,
+    chaptersEnabled: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    stopCountMock.mockResolvedValue(0);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCountMock.mockResolvedValue(0);
+    checklistItemCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
+  });
+
+  async function renderPlanning(tripOverrides: Partial<typeof baseTrip> = {}) {
+    return PhasePlanning({
+      tripId: "trip-1",
+      trip: { ...baseTrip, ...tripOverrides },
+      today: "2026-01-05",
+      phase: "planning",
+    });
+  }
+
+  it("mounts UpcomingPaymentsCard in the right rail, fed by unpaid dated costs", async () => {
+    costFindManyMock.mockResolvedValue([
+      {
+        id: "c1",
+        costMinor: 1000,
+        currency: "GBP",
+        paidAt: null,
+        dueDate: "2026-01-08",
+        ownerType: "OTHER",
+        ownerId: null,
+        label: "Deposit",
+      },
+    ]);
+
+    const tree = await renderPlanning();
+
+    const el = findElementByType(tree, UpcomingPaymentsCard);
+    expect(el).not.toBeNull();
+    expect(el!.props.tripId).toBe("trip-1");
+    expect((el!.props.payments as unknown[]).length).toBe(1);
+  });
+
+  it("passes an empty payments list through when nothing is unpaid-with-a-due-date", async () => {
+    const tree = await renderPlanning();
+
+    const el = findElementByType(tree, UpcomingPaymentsCard);
+    expect(el).not.toBeNull();
+    expect(el!.props.payments).toEqual([]);
   });
 });

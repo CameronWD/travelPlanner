@@ -46,7 +46,17 @@ vi.mock("@/lib/spend-so-far", () => ({
   legacyPaidCount: vi.fn(() => 0),
 }));
 vi.mock("@/lib/fx", () => ({ isRateStale: vi.fn(() => false) }));
-vi.mock("@/lib/dates", () => ({ nightsBetween: vi.fn(() => 5) }));
+// Keep the real `daysBetween` — lib/upcoming-payments.ts (exercised for real,
+// not mocked) depends on it to compute daysUntil for the new upcoming-
+// payments card.
+vi.mock("@/lib/dates", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/dates")>();
+  return { ...actual, nightsBetween: vi.fn(() => 5) };
+});
+vi.mock("@/lib/tz", () => ({
+  todayISOInZone: vi.fn(() => "2026-01-05"),
+  currentTripTimezone: vi.fn(() => "UTC"),
+}));
 vi.mock("@/components/trip/other-cost-editor", () => ({
   OtherCostEditor: () => <div data-testid="other-cost-editor" />,
 }));
@@ -99,6 +109,7 @@ const ONE_COST = [
     currency: "GBP",
     rateToHome: 1,
     paidAt: null,
+    dueDate: null,
     ownerType: "OTHER",
     ownerId: null,
     label: "Flight",
@@ -367,5 +378,62 @@ describe("BudgetPage chapter gating (Task 13)", () => {
         chapters: [expect.objectContaining({ id: "c1", name: "Chapter One" })],
       }),
     );
+  });
+});
+
+describe("BudgetPage upcoming payments", () => {
+  const UNPAID_WITH_DUE_DATE = [
+    {
+      id: "cost-2",
+      costMinor: 45000,
+      paidMinor: 0,
+      currency: "EUR",
+      rateToHome: 1,
+      paidAt: null,
+      dueDate: "2026-01-08",
+      ownerType: "OTHER",
+      ownerId: null,
+      label: "Deposit",
+      category: "Accommodation",
+    },
+  ];
+
+  it("shows the Upcoming payments card on the real plan when a cost is unpaid with a due date", async () => {
+    mockDb.cost.findMany.mockResolvedValue(UNPAID_WITH_DUE_DATE);
+
+    const jsx = await BudgetPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.getByText("Upcoming payments")).toBeInTheDocument();
+    expect(screen.getByText("Deposit")).toBeInTheDocument();
+    expect(screen.getByText("comes out in 3 days")).toBeInTheDocument();
+  });
+
+  it("hides the Upcoming payments card on a fork (paid tracking is real-plan-only)", async () => {
+    mockDb.fork.findFirst.mockResolvedValue({ id: "fork-9", name: "Plus Switzerland" });
+    mockDb.cost.findMany.mockResolvedValue(UNPAID_WITH_DUE_DATE);
+
+    const jsx = await BudgetPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({ plan: "fork-9" }),
+    });
+    render(jsx);
+
+    expect(screen.queryByText("Upcoming payments")).not.toBeInTheDocument();
+  });
+
+  it("renders nothing when no cost is both unpaid and due", async () => {
+    mockDb.cost.findMany.mockResolvedValue(ONE_COST); // paidAt: null, dueDate: null
+
+    const jsx = await BudgetPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({}),
+    });
+    render(jsx);
+
+    expect(screen.queryByText("Upcoming payments")).not.toBeInTheDocument();
   });
 });

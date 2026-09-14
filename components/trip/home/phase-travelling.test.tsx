@@ -43,7 +43,12 @@ vi.mock("@/lib/db", () => ({
     attachment: { findMany: attachmentFindManyMock },
   },
 }));
-vi.mock("@/lib/dates", () => ({ todayISO: vi.fn(), formatLongDate: vi.fn(), dayNumberInTrip: vi.fn() }));
+// Keep the real `daysBetween` — lib/upcoming-payments.ts (exercised for real,
+// not mocked) depends on it to compute daysUntil for the upcoming-payments card.
+vi.mock("@/lib/dates", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/dates")>();
+  return { ...actual, todayISO: vi.fn(), formatLongDate: vi.fn(), dayNumberInTrip: vi.fn() };
+});
 vi.mock("@/lib/itinerary", () => ({
   buildItinerary: buildItineraryMock,
   effectiveTodayISO: vi.fn(),
@@ -68,10 +73,31 @@ vi.mock("@/components/trip/spend-so-far-card", () => ({ SpendSoFarCard: () => nu
 vi.mock("@/components/trip/reminders-card", () => ({ RemindersCard: () => null }));
 vi.mock("@/components/trip/attachment-links", () => ({ AttachmentLinks: () => null }));
 vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: () => null }));
+vi.mock("@/components/trip/upcoming-payments-card", () => ({ UpcomingPaymentsCard: () => null }));
 // React import needed for JSX in mocks above
 import React from "react";
 
 const { TRAVELLING_DESKTOP_GRID_CLASS, PhaseTravelling } = await import("./phase-travelling");
+const { UpcomingPaymentsCard } = await import("@/components/trip/upcoming-payments-card");
+
+// Server components aren't run through a renderer here (see file-header note),
+// so a mocked child is never actually invoked. To assert its props without
+// standing up a full render, walk the returned React element tree by hand
+// (mirrors components/trip/home/phase-planning.test.tsx).
+function findElementByType(node: unknown, type: unknown): { props: Record<string, unknown> } | null {
+  if (node == null || typeof node !== "object") return null;
+  const el = node as { type?: unknown; props?: { children?: unknown } };
+  if (el.type === type) return node as { props: Record<string, unknown> };
+  const children = el.props?.children;
+  if (Array.isArray(children)) {
+    for (const child of children) {
+      const found = findElementByType(child, type);
+      if (found) return found;
+    }
+    return null;
+  }
+  return findElementByType(children, type);
+}
 
 describe("PhaseTravelling desktop rail", () => {
   it("exports TRAVELLING_DESKTOP_GRID_CLASS with 21.25rem rail matching the E1 mockup spec", () => {
@@ -204,5 +230,56 @@ describe("PhaseTravelling chapter gating (Task 13)", () => {
     expect(chapterFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ forkId: null }) }),
     );
+  });
+});
+
+describe("PhaseTravelling upcoming payments mount", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+      homeCurrency: "GBP",
+      chaptersEnabled: true,
+    });
+    stopFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    reminderFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([]);
+  });
+
+  it("mounts UpcomingPaymentsCard in the rail after Spend so far, fed by unpaid dated costs", async () => {
+    costFindManyMock.mockResolvedValue([
+      {
+        id: "c1",
+        costMinor: 1000,
+        currency: "GBP",
+        paidAt: null,
+        dueDate: "2026-01-08",
+        ownerType: "OTHER",
+        ownerId: null,
+        label: "Deposit",
+      },
+    ]);
+
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+
+    const el = findElementByType(tree, UpcomingPaymentsCard);
+    expect(el).not.toBeNull();
+    expect(el!.props.tripId).toBe("trip-1");
+    expect((el!.props.payments as unknown[]).length).toBe(1);
+  });
+
+  it("passes an empty payments list through when nothing is unpaid-with-a-due-date", async () => {
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+
+    const el = findElementByType(tree, UpcomingPaymentsCard);
+    expect(el).not.toBeNull();
+    expect(el!.props.payments).toEqual([]);
   });
 });

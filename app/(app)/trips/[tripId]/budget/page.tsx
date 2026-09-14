@@ -26,6 +26,9 @@ import { nightsBetween } from "@/lib/dates";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { BudgetHeroRow } from "@/components/trip/budget-hero-row";
 import { CostChecklist, type CostChecklistRow } from "@/components/trip/cost-checklist";
+import { buildCostLabelMap } from "@/lib/cost-labels";
+import { buildUpcomingPayments } from "@/lib/upcoming-payments";
+import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -137,24 +140,19 @@ export default async function BudgetPage({
 
   const stopName = new Map(stops.map((s) => [s.id, s.name] as const));
 
-  /** Transport has no name — label it by mode, with endpoints when they resolve. */
-  function transportLabel(t: {
-    mode: string;
-    fromStopId: string | null;
-    toStopId: string | null;
-  }): string {
-    const mode = t.mode.charAt(0).toUpperCase() + t.mode.slice(1).toLowerCase();
-    const from = t.fromStopId ? stopName.get(t.fromStopId) : null;
-    const to = t.toStopId ? stopName.get(t.toStopId) : null;
-    if (from && to) return `${mode} · ${from} → ${to}`;
-    return mode;
-  }
-
-  const ownerName = new Map<string, string>([
-    ...accommodations.map((a) => [a.id, a.name] as const),
-    ...transports.map((t) => [t.id, transportLabel(t)] as const),
-    ...items.map((i) => [i.id, i.title] as const),
-  ]);
+  // Owner-label map (lib/cost-labels.ts): the budget page has no free-text
+  // depPlace/arrPlace to fall back on for transports, so it resolves both
+  // endpoints via the stop-name map — same as before this was extracted.
+  const ownerName = buildCostLabelMap({
+    items: items.map((i) => ({ id: i.id, title: i.title })),
+    accommodations: accommodations.map((a) => ({ id: a.id, name: a.name })),
+    transports: transports.map((t) => ({
+      id: t.id,
+      mode: t.mode,
+      depPlace: t.fromStopId ? (stopName.get(t.fromStopId) ?? null) : null,
+      arrPlace: t.toStopId ? (stopName.get(t.toStopId) ?? null) : null,
+    })),
+  });
 
   const checklistRows: CostChecklistRow[] = allCosts.map((c) => ({
     id: c.id,
@@ -238,12 +236,20 @@ export default async function BudgetPage({
     paidAt: c.paidAt,
   }));
 
+  const today = todayISOInZone(currentTripTimezone(stops));
+
   const spend = buildSpendSoFar({
     costs: spendCosts,
     homeCurrency,
     tripStart: startDate,
     tripEnd: endDate,
-    today: todayISOInZone(currentTripTimezone(stops)),
+    today,
+  });
+
+  const upcomingPayments = buildUpcomingPayments({
+    costs: allCosts,
+    ownerNames: ownerName,
+    today,
   });
 
   // Build rates data for the panel
@@ -391,6 +397,9 @@ export default async function BudgetPage({
               </p>
             </div>
           )}
+
+          {/* Upcoming payments — paid tracking is real-plan-only */}
+          {!activeFork && <UpcomingPaymentsCard payments={upcomingPayments} tripId={tripId} />}
 
           {/* Mark off what you've paid — paid tracking is real-plan-only */}
           {!activeFork && checklistRows.length > 0 && (
