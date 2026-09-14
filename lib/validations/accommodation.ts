@@ -7,6 +7,11 @@ const isoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "Date must be in YYYY-MM-DD format");
 
+/** HH:MM 24-hour regex */
+const hhmm = z
+  .string()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Time must be in HH:MM format (24h)");
+
 /**
  * Zod schema for creating or updating an Accommodation.
  *
@@ -26,6 +31,8 @@ export const accommodationSchema = z
     address: z.string().trim().optional(),
     checkIn: isoDate,
     checkOut: isoDate,
+    checkInTime: hhmm.optional(),
+    checkOutTime: hhmm.optional(),
     confirmation: z.string().trim().optional(),
     notes: z.string().trim().optional(),
     lat: z.number().optional(),

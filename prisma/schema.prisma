@@ -316,6 +316,8 @@ model Accommodation {
   address      String?
   checkIn      String // "YYYY-MM-DD"
   checkOut     String // "YYYY-MM-DD"
+  checkInTime  String? // "HH:mm" in the stop's local timezone — optional (CONTEXT.md Accommodation)
+  checkOutTime String? // "HH:mm"
   confirmation String?
   notes        String?
   lat          Float?

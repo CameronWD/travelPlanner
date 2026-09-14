@@ -90,6 +90,20 @@ describe("accommodationSchema", () => {
       expect(result.error.flatten().fieldErrors.checkIn).toBeDefined();
     }
   });
+
+  it("accepts optional HH:MM check-in/out times", () => {
+    const parsed = accommodationSchema.safeParse({
+      ...VALID,
+      checkInTime: "15:00",
+      checkOutTime: "10:00",
+    });
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects malformed times", () => {
+    const parsed = accommodationSchema.safeParse({ ...VALID, checkInTime: "3pm" });
+    expect(parsed.success).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

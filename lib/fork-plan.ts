@@ -75,6 +75,8 @@ export interface ForkSourceAccommodation {
   address: string | null;
   checkIn: string;
   checkOut: string;
+  checkInTime?: string | null;
+  checkOutTime?: string | null;
   confirmation: string | null;
   notes: string | null;
   lat: number | null;
@@ -178,6 +180,8 @@ export interface ForkPlan {
       address: string | null;
       checkIn: string;
       checkOut: string;
+      checkInTime: string | null;
+      checkOutTime: string | null;
       confirmation: string | null;
       notes: string | null;
       lat: number | null;
@@ -250,6 +254,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
       sourceStopId: a.stopId,
       data: {
         name: a.name, address: a.address, checkIn: a.checkIn, checkOut: a.checkOut,
+        checkInTime: a.checkInTime ?? null, checkOutTime: a.checkOutTime ?? null,
         confirmation: a.confirmation, notes: a.notes, lat: a.lat, lng: a.lng,
       },
     })),
