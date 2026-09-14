@@ -33,10 +33,10 @@ const sheetVariants = cva(
     variants: {
       side: {
         bottom:
-          "inset-x-0 bottom-0 max-h-[90vh] rounded-t-2xl border-t data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
+          "inset-x-0 bottom-0 max-h-[90dvh] overflow-y-auto rounded-t-2xl border-t data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
         right:
-          "inset-y-0 right-0 h-full w-[calc(100%-2rem)] max-w-sm border-l data-[state=open]:tp-slide-in-right data-[state=closed]:tp-slide-out-right",
-        left: "inset-y-0 left-0 h-full w-[calc(100%-2rem)] max-w-sm border-r data-[state=open]:tp-slide-in-left data-[state=closed]:tp-slide-out-left",
+          "inset-y-0 right-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-y-auto border-l data-[state=open]:tp-slide-in-right data-[state=closed]:tp-slide-out-right",
+        left: "inset-y-0 left-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-y-auto border-r data-[state=open]:tp-slide-in-left data-[state=closed]:tp-slide-out-left",
         docked:
           "inset-0 h-full w-full rounded-none border-0 data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down " +
           "md:inset-auto md:bottom-[5.25rem] md:right-4 md:h-[min(37.5rem,calc(100vh-9rem))] md:w-[560px] md:max-w-[calc(100vw-2rem)] md:rounded-2xl md:border",

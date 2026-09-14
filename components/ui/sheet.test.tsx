@@ -68,4 +68,44 @@ describe("Sheet", () => {
     const panel = screen.getByRole("dialog");
     expect(panel.querySelector(".bg-muted-foreground\\/30")).toBeNull();
   });
+
+  it("caps the bottom sheet with dvh and scrolls overflowing content internally", () => {
+    render(
+      <Sheet open>
+        <SheetContent>
+          <SheetTitle>Default</SheetTitle>
+        </SheetContent>
+      </Sheet>,
+    );
+    const panel = screen.getByRole("dialog");
+    // dvh, not vh: vh ignores the iOS dynamic toolbar, so a 90vh sheet can
+    // poke under the browser chrome. dialog.tsx already uses 90dvh.
+    expect(panel.className).toContain("max-h-[90dvh]");
+    expect(panel.className).not.toContain("max-h-[90vh]");
+    expect(panel.className).toContain("overflow-y-auto");
+  });
+
+  it("scrolls side sheets internally too", () => {
+    render(
+      <Sheet open>
+        <SheetContent side="right">
+          <SheetTitle>Side</SheetTitle>
+        </SheetContent>
+      </Sheet>,
+    );
+    const panel = screen.getByRole("dialog");
+    expect(panel.className).toContain("overflow-y-auto");
+  });
+
+  it("leaves the docked variant's scroll management to its content", () => {
+    render(
+      <Sheet open>
+        <SheetContent side="docked" hideOverlay>
+          <SheetTitle>Docked</SheetTitle>
+        </SheetContent>
+      </Sheet>,
+    );
+    const panel = screen.getByRole("dialog");
+    expect(panel.className).not.toContain("overflow-y-auto");
+  });
 });
