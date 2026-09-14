@@ -97,7 +97,7 @@ export async function suggestActivities(input: {
         {
           role: "user",
           content: `Suggest approximately 6 things to do, see, or eat in ${location} for a traveller.${avoidClause}
-For each suggestion provide a short title, a category (one of: SIGHTSEEING, FOOD, ACTIVITY, NIGHTLIFE, SHOPPING, OTHER), and a concise one-sentence note.
+For each suggestion provide a short title, a category (one of: SIGHTSEEING, FOOD, ACTIVITY, NIGHTLIFE, SHOPPING, GETTING_AROUND, OTHER), and a concise one-sentence note.
 Be specific and practical. Only output via the schema.`,
         },
       ],

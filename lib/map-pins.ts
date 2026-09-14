@@ -12,6 +12,7 @@ export const CATEGORY_PIN_HEX: Record<string, string> = {
   ACTIVITY: "#10b981", // emerald-500
   NIGHTLIFE: "#8b5cf6", // violet-500
   SHOPPING: "#f43f5e", // rose-500
+  GETTING_AROUND: "#6366f1", // indigo-500
   OTHER: "#78716c", // stone-500
 };
 
