@@ -20,7 +20,7 @@ export function MarkerFilters({ filter, countries, onChange }: MarkerFiltersProp
         <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-card px-3 py-2">
           <Search className="size-4 shrink-0 text-muted-foreground" aria-hidden />
           <input
-            className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+            className="min-w-0 flex-1 bg-transparent text-base outline-none sm:text-sm"
             placeholder="Search places"
             value={filter.query}
             onChange={(e) => onChange({ ...filter, query: e.target.value })}
@@ -31,7 +31,7 @@ export function MarkerFilters({ filter, countries, onChange }: MarkerFiltersProp
           onChange={(e) =>
             onChange({ ...filter, country: e.target.value || null })
           }
-          className="rounded-full border border-border bg-card px-3 py-2 text-sm"
+          className="rounded-full border border-border bg-card px-3 py-2 text-base sm:text-sm"
         >
           <option value="">All countries</option>
           {countries.map((c) => (

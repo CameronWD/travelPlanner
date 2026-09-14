@@ -64,7 +64,7 @@ export function AiBookingParser({ tripId, aiConfigured }: AiBookingParserProps) 
 
       <form onSubmit={handleParse} className="flex flex-col gap-2">
         <textarea
-          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none min-h-[100px]"
+          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none min-h-[100px] sm:text-sm"
           placeholder="Paste booking confirmation email or text here…"
           value={text}
           onChange={(e) => setText(e.target.value)}
