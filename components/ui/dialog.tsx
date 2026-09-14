@@ -111,6 +111,11 @@ function DialogFooter({
   return (
     <div
       className={cn(
+        // Pinned to the bottom of the scroll body (mirror of DialogHeader's sticky
+        // top): the negative bottom margin cancels the body's own bottom padding so
+        // the stuck footer sits flush with the scrollport edge, and the opaque
+        // bg-card + border-t cover content scrolling beneath it.
+        "sticky bottom-0 z-10 -mx-6 -mb-[calc(1.5rem+env(safe-area-inset-bottom))] mt-2 border-t border-border/60 bg-card px-6 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))]",
         // Buttons sit side-by-side (DOM order Cancel → primary, so the primary
         // is on the right and focus order is natural).
         // Mobile (bottom sheet): split the width equally (flex-1) for large,

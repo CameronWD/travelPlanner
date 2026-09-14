@@ -153,4 +153,27 @@ describe("DialogFooter", () => {
     expect(buttons[0]).toHaveTextContent("Cancel");
     expect(buttons[1]).toHaveTextContent("Save");
   });
+
+  it("pins to the bottom of the scroll body so actions stay reachable on tall forms", () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Test</DialogTitle>
+          <DialogFooter>
+            <button>Cancel</button>
+            <button>Save</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>,
+    );
+
+    const footer = screen.getByRole("button", { name: "Cancel" }).closest("div")!;
+    expect(footer.className).toContain("sticky");
+    expect(footer.className).toContain("bottom-0");
+    // Opaque, separated surface — content scrolling underneath must not show through.
+    expect(footer.className).toContain("bg-card");
+    expect(footer.className).toContain("border-t");
+    // Cancels the scroll body's own bottom padding so the stuck footer sits flush.
+    expect(footer.className).toContain("-mb-[calc(1.5rem+env(safe-area-inset-bottom))]");
+  });
 });
