@@ -9,15 +9,22 @@
  *
  * What it does:
  *   Scans Item, Accommodation, and Transport rows that have a place string but
- *   are missing lat/lng coordinates, then geocodes each missing side via the
- *   OpenStreetMap Nominatim API (same helper used by the server actions).
+ *   are missing lat/lng coordinates (or, for Items, are missing countryCode),
+ *   then geocodes each missing side via the OpenStreetMap Nominatim API (same
+ *   helper used by the server actions).
  *
- *   - Items:          address set AND (lat IS NULL OR lng IS NULL)
+ *   - Items:          address set AND (lat IS NULL OR lng IS NULL OR countryCode IS NULL)
  *   - Accommodation:  address set AND (lat IS NULL OR lng IS NULL)
  *   - Transport dep:  depPlace set AND depLat IS NULL
  *   - Transport arr:  arrPlace set AND arrLat IS NULL
  *
- *   Rows that already have coordinates are skipped (idempotent).
+ *   Items already carrying good lat/lng but missing countryCode are
+ *   re-geocoded to derive the code, but the write only overwrites lat/lng
+ *   when they were null — an already-located item never has its coordinates
+ *   clobbered by a countryCode-only backfill pass.
+ *
+ *   Rows that already have coordinates (and, for Items, a countryCode) are
+ *   skipped (idempotent).
  *   A 1100 ms delay is inserted between every geocode call to respect
  *   Nominatim's ~1 req/sec usage policy.
  *
@@ -66,9 +73,9 @@ async function backfillItems(): Promise<EntityStats> {
   const rows = await db.item.findMany({
     where: {
       address: { not: null },
-      OR: [{ lat: null }, { lng: null }],
+      OR: [{ lat: null }, { lng: null }, { countryCode: null }],
     },
-    select: { id: true, address: true },
+    select: { id: true, address: true, lat: true, lng: true },
   });
 
   stats.scanned = rows.length;
@@ -76,9 +83,13 @@ async function backfillItems(): Promise<EntityStats> {
 
   for (const row of rows) {
     const address = row.address as string;
+    const needsCoords = row.lat === null || row.lng === null;
 
     if (DRY_RUN) {
-      log(`  [dry-run] WOULD geocode item ${row.id}: "${address}"`);
+      log(
+        `  [dry-run] WOULD geocode item ${row.id}: "${address}"` +
+          (needsCoords ? "" : " (countryCode only — coords already set)"),
+      );
       stats.geocoded++;
       continue;
     }
@@ -87,11 +98,12 @@ async function backfillItems(): Promise<EntityStats> {
     await throttle();
 
     if (candidate) {
+      // Only overwrite lat/lng when they were missing — a countryCode-only
+      // backfill pass (row already located) must never clobber good coords.
       await db.item.update({
         where: { id: row.id },
         data: {
-          lat: candidate.lat,
-          lng: candidate.lng,
+          ...(needsCoords ? { lat: candidate.lat, lng: candidate.lng } : {}),
           countryCode: candidate.countryCode?.toLowerCase() ?? null,
         },
       });

@@ -691,7 +691,7 @@ describe("duplicateTrip", () => {
           sortOrder: 1, chapterId: "ch1", chapterSortOrder: 1, notes: null },
       ],
       items: [{ stopId: "s1", title: "Colosseum", category: "SIGHTSEEING", date: "2026-08-02", startTime: "09:00",
-                endTime: null, lat: null, lng: null, address: null, link: null, booking: "B", notes: null }],
+                endTime: null, lat: null, lng: null, countryCode: "it", address: null, link: null, booking: "B", notes: null }],
       transports: [{ fromStopId: "s1", toStopId: "s2", mode: "TRAIN", depPlace: "A", arrPlace: "B",
                      depAt: new Date("2026-08-04T08:00:00Z"), arrAt: new Date("2026-08-04T10:00:00Z"),
                      reference: "R1", notes: "n", depLat: 1, depLng: 2, arrLat: 3, arrLng: 4 }],
@@ -718,8 +718,8 @@ describe("duplicateTrip", () => {
     // stops created rough (dates null), remapped to new chapter
     expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", name: "Rome", arriveDate: null, departDate: null, chapterId: "new-ch1" }) });
     expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", name: "Florence", arriveDate: null, departDate: null, chapterId: "new-ch1" }) });
-    // item created unscheduled under the remapped stop
-    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", stopId: "new-s1", date: null, booking: null }) });
+    // item created unscheduled under the remapped stop, countryCode carried through
+    expect(itemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", stopId: "new-s1", date: null, booking: null, countryCode: "it" }) });
     // transport remapped to new stop ids, dates cleared
     expect(transportCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", fromStopId: "new-s1", toStopId: "new-s2", depAt: null, arrAt: null, reference: null }) });
     // checklist item copied with dates cleared and done reset

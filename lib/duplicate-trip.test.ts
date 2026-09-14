@@ -21,9 +21,9 @@ const SOURCE: DuplicateSource = {
   ],
   items: [
     { stopId: "s1", title: "Colosseum", category: "SIGHTSEEING", date: "2026-08-02",
-      startTime: "09:00", endTime: "11:00", lat: 41.89, lng: 12.49, address: "Rome", link: "x", booking: "BK1", notes: "n" },
+      startTime: "09:00", endTime: "11:00", lat: 41.89, lng: 12.49, countryCode: "it", address: "Rome", link: "x", booking: "BK1", notes: "n" },
     { stopId: null, title: "Gelato somewhere", category: "FOOD", date: null,
-      startTime: null, endTime: null, lat: null, lng: null, address: null, link: null, booking: null, notes: null },
+      startTime: null, endTime: null, lat: null, lng: null, countryCode: null, address: null, link: null, booking: null, notes: null },
   ],
   transports: [
     { fromStopId: "s1", toStopId: "s2", mode: "TRAIN", depPlace: "Roma Termini", arrPlace: "Firenze",
@@ -74,9 +74,15 @@ describe("buildDuplicatePlan", () => {
     expect(col.data).toEqual({
       title: "Colosseum", category: "SIGHTSEEING",
       date: null, startTime: null, endTime: null, booking: null,
-      lat: 41.89, lng: 12.49, address: "Rome", link: "x", notes: "n",
+      lat: 41.89, lng: 12.49, countryCode: "it", address: "Rome", link: "x", notes: "n",
       sortOrder: 0,
     });
+  });
+
+  it("carries a null countryCode through when the source item has none", () => {
+    const plan = buildDuplicatePlan(SOURCE, "x");
+    const gelato = plan.items[1];
+    expect(gelato.data.countryCode).toBeNull();
   });
 
   it("keeps transport connections but strips times/reference/notes/cost-bearing fields", () => {

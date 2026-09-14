@@ -45,6 +45,7 @@ export interface DuplicateSourceItem {
   endTime: string | null;
   lat: number | null;
   lng: number | null;
+  countryCode: string | null;
   address: string | null;
   link: string | null;
   booking: string | null;
@@ -100,7 +101,7 @@ export interface DuplicatePlan {
     sourceStopId: string | null;
     data: {
       title: string; category: string; date: null; startTime: null; endTime: null; booking: null;
-      lat: number | null; lng: number | null; address: string | null; link: string | null; notes: string | null; sortOrder: number;
+      lat: number | null; lng: number | null; countryCode: string | null; address: string | null; link: string | null; notes: string | null; sortOrder: number;
     };
   }>;
   transports: Array<{
@@ -163,6 +164,7 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
         booking: null,
         lat: it.lat,
         lng: it.lng,
+        countryCode: it.countryCode,
         address: it.address,
         link: it.link,
         notes: it.notes,
