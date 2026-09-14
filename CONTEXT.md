@@ -55,8 +55,8 @@ A thing to do or see that sits on the Timeline — an activity, a sight, a meal,
 _Avoid_: Event, entry, task; **Activity** (reserved for the change-log **Activity** feed — never label a thing-to-do "activity"; "Activity/Experience" is only a **Category** value)
 
 **Category**:
-The classifier on an Item used for colour-coding and budget grouping (e.g. Sightseeing, Food & Drink, Activity, Shopping, Other). Final list TBD.
-_Avoid_: Type, tag, label
+The classifier on an Item used for colour-coding and budget grouping: Sightseeing, Food & Drink, Activity, Nightlife, Shopping, **Getting around**, Other. **Getting around** covers movement that does *not* change your base — day-trip buses, local trains, metro passes — which is an Item, never a **Transport** (Transport is strictly Stop-to-Stop and drives the date engine; a day trip out and back is just timed Items on the day).
+_Avoid_: Type, tag, label; Transit/Transport as a category name (too close to the **Transport** entity)
 
 **Wishlist**:
 A trip-wide, shared pool of unscheduled Items — candidate places/activities you've collected but not committed to a day. It is *not* part of any **Plan**: the same Wishlist is seen by every Plan (the real plan and all Forks). Scheduling an idea **places a copy** of it onto the current Plan's Timeline as a Plan-owned scheduled Item; the idea itself **stays in the Wishlist** (shown with a "✓ in this plan" marker), so it can also be placed differently in another Plan. **Votes** stay attached to the shared Wishlist idea, never to the placed copy. Un-scheduling removes only the current Plan's copy; the idea remains in the pool. Scoped to a *single Trip* — distinct from the cross-trip **Globe**. A Wishlist can be **seeded from Globe Markers**: pulling a Marker in **copies** it as an unscheduled Item (the Marker stays on the Globe), and the board proactively **suggests** Markers that overlap where the Trip is going. The two pools stay separate — the copied Item is thereafter independent of its source Marker.
