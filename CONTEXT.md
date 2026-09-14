@@ -90,6 +90,10 @@ _Avoid_: Price, expense, spend; "estimated"/"actual" for the two amounts (the co
 The state of a Cost whose money has actually left the Traveller's account, carrying both a **paid amount** and the date it was paid. Marking a Cost paid *requires* the paid amount — the app never records a payment whose size it does not know — but the amount is offered pre-filled with the **cost amount**, so confirming a thing that cost what you expected is a single gesture. Paid Costs are what **Spend so far** counts, and what drops out of "still to pay". The reverse — un-marking — leaves the paid amount in place as history.
 _Avoid_: Settled, cleared, reconciled, booked (booking is not paying)
 
+**Due date**:
+An optional date on an *unpaid* **Cost** for money that is committed but not yet taken — a scheduled Airbnb charge, a balance due before arrival. It marks when the money leaves the account, turning the Cost into an upcoming payment: listed as **Upcoming payments** (soonest first, "comes out in X days") on the **Budget** and the **Home**, pushed as a notification 3 days before and on the day, and nudged on the due day to be confirmed **Paid**. Marking the Cost paid silences it everywhere; a Cost with no Due date simply never alerts. It is awareness of committed money, not a **Flag** (nothing about the plan is wrong).
+_Avoid_: Payment date (that's **paidAt**, when it actually happened), deadline, billing date
+
 **Other cost**:
 A standalone Cost not attached to any timeline thing — travel insurance, visas, eSIM, spending-money buffers. Still rolls into the budget. Also where a **paid** Cost lands when its owner is deleted: deleting an Accommodation, Item or Transport deletes that thing's *unpaid* Costs (estimates for a thing that no longer exists) but converts its paid Costs into an Other cost labelled after the deleted owner — money that actually left the account never vanishes from **Spend so far**.
 _Avoid_: Misc, extra
