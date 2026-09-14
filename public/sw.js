@@ -7,6 +7,7 @@
  * Strategy summary:
  *   - Non-GET (mutations / server actions)  → network-only
  *   - Cross-origin requests                  → network-only
+ *   - Same-origin /api/attachments/*         → network-first (tickets, confirmations offline)
  *   - Same-origin /api/*                     → network-only  (auth + live data)
  *   - Same-origin /_next/static/*            → cache-first   (immutable hashed assets)
  *   - Everything else (navigations, pages)   → network-first (private per-user data)
@@ -19,7 +20,7 @@
 
 // Bump on cache-policy changes so old caches (incl. any authenticated pages
 // cached under the previous stale-while-revalidate policy) are purged.
-const CACHE_VERSION = 'trip-planner-v2';
+const CACHE_VERSION = 'trip-planner-v3';
 
 // App shell resources to precache on install. Only truly public assets —
 // NEVER '/', which redirects to the authenticated app.
@@ -47,6 +48,21 @@ function isApiRoute(url) {
   }
 }
 
+/**
+ * Returns true for the authenticated attachment serve route
+ * (`/api/attachments/<id>`), the ONE api path the service worker may cache:
+ * ticket/booking files must be readable offline (ADR 0043, narrows ADR 0016).
+ * The cache is purged on sign-out, so this leaks nothing across users.
+ */
+function isAttachmentRoute(url) {
+  try {
+    const { pathname } = new URL(url);
+    return /^\/api\/attachments\/[^/]+$/.test(pathname);
+  } catch {
+    return false;
+  }
+}
+
 function isSameOrigin(url) {
   try {
     return new URL(url).origin === self.location.origin;
@@ -69,6 +85,10 @@ function getCacheStrategy(request) {
 
   // Rule 2: never cache cross-origin
   if (!sameOrigin) return 'network-only';
+
+  // Rule 3a: attachments (tickets) are cacheable network-first — the ONLY
+  // /api/* exception (ADR 0043). Cache purged on sign-out via CLEAR_CACHE.
+  if (isAttachmentRoute(url)) return 'network-first';
 
   // Rule 3: never cache API / auth routes
   if (isApiRoute(url)) return 'network-only';

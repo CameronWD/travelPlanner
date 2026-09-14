@@ -22,6 +22,11 @@ export function PwaRegister() {
     navigator.serviceWorker.register("/sw.js").catch(() => {
       // Fail silently — a missing or broken SW must never break the app.
     });
+    // Ask the browser to protect our cache from storage-pressure eviction —
+    // an installed PWA is generally granted this. Best-effort, fire-and-forget.
+    navigator.storage?.persist?.().catch(() => {
+      /* Fail silently */
+    });
   }, []);
 
   return null;
