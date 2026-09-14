@@ -8,15 +8,17 @@ import {
   buildItinerary,
   effectiveTodayISO,
   pickDayPlan,
+  isFreeFormDay,
 } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
-import { nearbyWishlistItems } from "@/lib/nearby";
+import { nearbyWishlistItems, dayIdeasWishlist } from "@/lib/nearby";
 import { chapterForDate } from "@/lib/chapters";
 import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
 import { DayMapPanel } from "@/components/trip/day-map-panel";
 import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
+import { DayIdeas } from "@/components/trip/day-ideas";
 import { MapLink } from "@/components/trip/map-link";
 import { TransportCountdown } from "@/components/trip/transport-countdown";
 import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
@@ -29,7 +31,7 @@ import {
 } from "@/components/trip/reminders-card";
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 import { ChapterChip } from "@/components/trip/chapter-chip";
-import { WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
+import { WISHLIST_IDEA_WHERE, THINGS_TO_DO_WHERE } from "@/lib/plan-scope";
 import { buildCostLabelMap } from "@/lib/cost-labels";
 import { buildUpcomingPayments } from "@/lib/upcoming-payments";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
@@ -60,7 +62,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
   const endDate = trip.endDate ?? trip.startDate;
 
   // Fetch all itinerary data (plus costs + reminders + chapters + located wishlist candidates)
-  const [stops, items, transports, accommodations, costs, reminders, chapters, wishlistLocated, allAttachments] = await Promise.all([
+  const [stops, items, transports, accommodations, costs, reminders, chapters, wishlist, allAttachments] = await Promise.all([
     db.stop.findMany({
       // Rough (date-less) stops don't appear on a dated "today" view.
       // Dated views follow the real plan — CONTEXT.md; consistent with
@@ -71,6 +73,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         id: true,
         name: true,
         country: true,
+        countryCode: true,
         lat: true,
         lng: true,
         timezone: true,
@@ -182,10 +185,8 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       where: {
         tripId,
         ...WISHLIST_IDEA_WHERE, // stopId: null, date: null — exclude plan-owned things-to-do (ADR 0022)
-        lat: { not: null },
-        lng: { not: null },
       },
-      select: { id: true, title: true, category: true, lat: true, lng: true },
+      select: { id: true, title: true, category: true, lat: true, lng: true, countryCode: true },
     }),
     db.attachment.findMany({
       where: { tripId },
@@ -399,6 +400,9 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       ? [{ lat: dayAccommodation.lat!, lng: dayAccommodation.lng! }]
       : []),
   ];
+  // Keep nearbyWishlistItems working from the broadened (all-ideas) query by
+  // filtering back down to located candidates only (Task 16).
+  const wishlistLocated = wishlist.filter((i) => i.lat != null && i.lng != null);
   const nearby = nearbyWishlistItems({
     anchors: nearbyAnchors,
     candidates: wishlistLocated.map((i) => ({
@@ -409,6 +413,25 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       lng: i.lng!,
     })),
   });
+
+  // ── Day ideas (free-form days — CONTEXT.md "Day ideas", ADR 0044). This IS
+  // the Travelling phase, so no phase check is needed here. ─────────────────
+  const freeForm = dayPlan ? isFreeFormDay(dayPlan) : false;
+  const dayStop = stops.find((s) => s.id === effectiveStop?.id) ?? null;
+  const thingsToDo =
+    freeForm && dayStop
+      ? await db.item.findMany({
+          where: { tripId, forkId: null, ...THINGS_TO_DO_WHERE, stopId: dayStop.id },
+          orderBy: { sortOrder: "asc" },
+          select: { id: true, title: true, category: true, startTime: true, endTime: true },
+        })
+      : [];
+  const wishlistIdeas = dayStop
+    ? dayIdeasWishlist({
+        stop: { lat: dayStop.lat, lng: dayStop.lng, countryCode: dayStop.countryCode },
+        candidates: wishlist,
+      })
+    : [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -472,8 +495,17 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
             )}
           </div>
 
-          {/* Nearby Wishlist items */}
-          <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
+          {/* Day ideas on free-form days; Nearby Wishlist on planned days */}
+          {freeForm ? (
+            <DayIdeas
+              tripId={tripId}
+              date={effectiveDate}
+              thingsToDo={thingsToDo}
+              wishlistIdeas={wishlistIdeas}
+            />
+          ) : (
+            <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
+          )}
         </section>
 
         {/* ── Right rail: where-you-are · next-departure · spend · tonight ── */}

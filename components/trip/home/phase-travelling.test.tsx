@@ -17,6 +17,9 @@ const {
   chapterFindManyMock,
   attachmentFindManyMock,
   buildItineraryMock,
+  pickDayPlanMock,
+  isFreeFormDayMock,
+  dayIdeasWishlistMock,
 } = vi.hoisted(() => ({
   tripFindUniqueMock: vi.fn(),
   stopFindManyMock: vi.fn(),
@@ -28,6 +31,9 @@ const {
   chapterFindManyMock: vi.fn(),
   attachmentFindManyMock: vi.fn(),
   buildItineraryMock: vi.fn(),
+  pickDayPlanMock: vi.fn(),
+  isFreeFormDayMock: vi.fn().mockReturnValue(false),
+  dayIdeasWishlistMock: vi.fn().mockReturnValue([]),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -52,21 +58,23 @@ vi.mock("@/lib/dates", async (importOriginal) => {
 vi.mock("@/lib/itinerary", () => ({
   buildItinerary: buildItineraryMock,
   effectiveTodayISO: vi.fn(),
-  pickDayPlan: vi.fn(),
+  pickDayPlan: pickDayPlanMock,
+  isFreeFormDay: isFreeFormDayMock,
 }));
 vi.mock("@/lib/day-map", () => ({ buildDayMapModel: vi.fn(), buildItemDirections: vi.fn() }));
-vi.mock("@/lib/nearby", () => ({ nearbyWishlistItems: vi.fn() }));
+vi.mock("@/lib/nearby", () => ({ nearbyWishlistItems: vi.fn(), dayIdeasWishlist: dayIdeasWishlistMock }));
 vi.mock("@/lib/chapters", () => ({ chapterForDate: vi.fn() }));
 vi.mock("@/lib/spend-so-far", () => ({ buildSpendSoFar: vi.fn() }));
 vi.mock("@/lib/transport", () => ({ TRANSPORT_MODE_META: {} }));
 vi.mock("@/lib/time-display", () => ({ zoneLabel: vi.fn() }));
-vi.mock("@/lib/plan-scope", () => ({ WISHLIST_IDEA_WHERE: {} }));
+vi.mock("@/lib/plan-scope", () => ({ WISHLIST_IDEA_WHERE: {}, THINGS_TO_DO_WHERE: {} }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => children }));
 vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: () => null }));
 vi.mock("@/components/trip/day-map-panel", () => ({ DayMapPanel: () => null }));
 vi.mock("@/components/trip/nearby-wishlist", () => ({ NearbyWishlist: () => null }));
+vi.mock("@/components/trip/day-ideas", () => ({ DayIdeas: () => null }));
 vi.mock("@/components/trip/map-link", () => ({ MapLink: () => null }));
 vi.mock("@/components/trip/transport-countdown", () => ({ TransportCountdown: () => null }));
 vi.mock("@/components/trip/spend-so-far-card", () => ({ SpendSoFarCard: () => null }));
@@ -79,6 +87,8 @@ import React from "react";
 
 const { TRAVELLING_DESKTOP_GRID_CLASS, PhaseTravelling } = await import("./phase-travelling");
 const { UpcomingPaymentsCard } = await import("@/components/trip/upcoming-payments-card");
+const { DayIdeas } = await import("@/components/trip/day-ideas");
+const { NearbyWishlist } = await import("@/components/trip/nearby-wishlist");
 
 // Server components aren't run through a renderer here (see file-header note),
 // so a mocked child is never actually invoked. To assert its props without
@@ -187,6 +197,81 @@ describe("PhaseTravelling fork-scoped plan queries", () => {
     expect(attachmentFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: { tripId: "trip-1" } }),
     );
+  });
+
+  it("broadens the wishlist-idea query to select countryCode without a lat/lng filter", async () => {
+    await PhaseTravelling({ tripId: "trip-1" });
+    // Second item.findMany call is the wishlist-idea query.
+    const wishlistCall = itemFindManyMock.mock.calls[1][0];
+    expect(wishlistCall.where).not.toHaveProperty("lat");
+    expect(wishlistCall.where).not.toHaveProperty("lng");
+    expect(wishlistCall.select).toEqual(
+      expect.objectContaining({ countryCode: true }),
+    );
+  });
+});
+
+describe("PhaseTravelling Day ideas mount (Task 16)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+      homeCurrency: "GBP",
+      chaptersEnabled: true,
+    });
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-1", name: "Munich", country: "Germany", countryCode: "de", lat: 48.1, lng: 11.6, timezone: "Europe/Berlin", arriveDate: "2026-01-01", departDate: "2026-01-10", sortOrder: 0 },
+    ]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    reminderFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([]);
+    isFreeFormDayMock.mockReturnValue(false);
+    dayIdeasWishlistMock.mockReturnValue([]);
+    pickDayPlanMock.mockReturnValue(null);
+  });
+
+  it("mounts NearbyWishlist (not DayIdeas) on a planned day", async () => {
+    isFreeFormDayMock.mockReturnValue(false);
+    pickDayPlanMock.mockReturnValue({ stop: { id: "stop-1" } });
+
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+
+    expect(findElementByType(tree, NearbyWishlist)).not.toBeNull();
+    expect(findElementByType(tree, DayIdeas)).toBeNull();
+  });
+
+  it("mounts DayIdeas (not NearbyWishlist) on a free-form day and fetches the stop's things-to-do", async () => {
+    isFreeFormDayMock.mockReturnValue(true);
+    pickDayPlanMock.mockReturnValue({ stop: { id: "stop-1" } });
+    itemFindManyMock.mockResolvedValue([
+      { id: "th1", title: "Residenz", category: "SIGHTSEEING", startTime: null, endTime: null },
+    ]);
+
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+
+    expect(findElementByType(tree, DayIdeas)).not.toBeNull();
+    expect(findElementByType(tree, NearbyWishlist)).toBeNull();
+    // Third item.findMany call is the things-to-do query, scoped to the day's stop.
+    const thingsToDoCall = itemFindManyMock.mock.calls[2][0];
+    expect(thingsToDoCall.where).toEqual(
+      expect.objectContaining({ tripId: "trip-1", forkId: null, stopId: "stop-1" }),
+    );
+  });
+
+  it("skips the things-to-do query on a free-form day with no current stop", async () => {
+    isFreeFormDayMock.mockReturnValue(true);
+    pickDayPlanMock.mockReturnValue({ stop: null });
+
+    await PhaseTravelling({ tripId: "trip-1" });
+
+    // Only the itinerary-items and wishlist-idea queries run — no third call.
+    expect(itemFindManyMock.mock.calls.length).toBe(2);
   });
 });
 

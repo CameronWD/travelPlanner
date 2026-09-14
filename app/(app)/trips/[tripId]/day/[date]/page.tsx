@@ -1,26 +1,31 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { BookOpen, CalendarDays } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
-import { todayISOInZone } from "@/lib/tz";
-import { buildItinerary } from "@/lib/itinerary";
+import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { buildItinerary, isFreeFormDay } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
-import { nearbyWishlistItems } from "@/lib/nearby";
+import { nearbyWishlistItems, dayIdeasWishlist } from "@/lib/nearby";
 import { flagTightConnections } from "@/lib/flags";
 import { daylight, utcHmToZone } from "@/lib/daylight";
 import { getDayWeather } from "@/lib/weather";
 import { tzAbbrev } from "@/lib/dates";
 import { zoneLabel } from "@/lib/time-display";
+import { computeTripPhase } from "@/lib/trip-phase";
+import { orderPlanStops } from "@/lib/plan-order";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Timeline } from "@/components/trip/timeline";
 import { DayNav } from "@/components/trip/day-nav";
 import { DayMapPanel } from "@/components/trip/day-map-panel";
 import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
+import { DayIdeas } from "@/components/trip/day-ideas";
 import { DayFeasibility } from "@/components/trip/day-feasibility";
 import { WeatherDaylightCard } from "@/components/trip/weather-daylight-card";
 import { AddItemButton } from "@/components/trip/item-form-dialog";
 import { JournalEditor } from "@/components/trip/journal-editor";
+import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
 import type { TransportMode } from "@/lib/enums";
 
 /** Reading-width wrapper applied to the timeline+editor stack. Exported for tests. */
@@ -67,7 +72,7 @@ export default async function DayPage({
         ? trip.endDate
         : date;
 
-  const [stops, items, transports, accommodations, journalEntry, journalPhotos, wishlistLocated, allAttachments] =
+  const [stops, items, transports, accommodations, journalEntry, journalPhotos, wishlist, allAttachments] =
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops don't appear on a dated day view.
@@ -77,6 +82,7 @@ export default async function DayPage({
           id: true,
           name: true,
           country: true,
+          countryCode: true,
           timezone: true,
           arriveDate: true,
           departDate: true,
@@ -165,8 +171,8 @@ export default async function DayPage({
         },
       }),
       db.item.findMany({
-        where: { tripId, forkId: null, date: null, stopId: null, lat: { not: null }, lng: { not: null } },
-        select: { id: true, title: true, category: true, lat: true, lng: true },
+        where: { tripId, forkId: null, ...WISHLIST_IDEA_WHERE },
+        select: { id: true, title: true, category: true, lat: true, lng: true, countryCode: true },
       }),
       db.attachment.findMany({
         where: { tripId },
@@ -324,6 +330,9 @@ export default async function DayPage({
       ? [{ lat: dayAccommodation.lat!, lng: dayAccommodation.lng! }]
       : []),
   ];
+  // Keep nearbyWishlistItems working from the broadened (all-ideas) query by
+  // filtering back down to located candidates only (Task 16).
+  const wishlistLocated = wishlist.filter((i) => i.lat != null && i.lng != null);
   const nearby = nearbyWishlistItems({
     anchors: nearbyAnchors,
     candidates: wishlistLocated.map((i) => ({
@@ -335,8 +344,28 @@ export default async function DayPage({
     })),
   });
 
+  // ── Day ideas (free-form days, Travelling phase only — CONTEXT.md "Day
+  // ideas", ADR 0044) ─────────────────────────────────────────────────────────
+  const today = todayISOInZone(currentTripTimezone(orderPlanStops(stops)));
+  const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
+  const freeForm = isFreeFormDay(dayPlan);
+  const dayStop = stops.find((s) => s.id === dayPlan.stop?.id) ?? null;
+  const thingsToDo =
+    freeForm && dayStop
+      ? await db.item.findMany({
+          where: { tripId, forkId: null, ...THINGS_TO_DO_WHERE, stopId: dayStop.id },
+          orderBy: { sortOrder: "asc" },
+          select: { id: true, title: true, category: true, startTime: true, endTime: true },
+        })
+      : [];
+  const wishlistIdeas = dayStop
+    ? dayIdeasWishlist({
+        stop: { lat: dayStop.lat, lng: dayStop.lng, countryCode: dayStop.countryCode },
+        candidates: wishlist,
+      })
+    : [];
+
   // ── Weather & daylight ────────────────────────────────────────────────────
-  const dayStop = stops.find((s) => s.id === dayPlan.stop?.id);
   const dlRaw =
     dayStop?.lat != null && dayStop?.lng != null
       ? daylight(dayStop.lat, dayStop.lng, effectiveDate)
@@ -431,7 +460,24 @@ export default async function DayPage({
       {/* Reading column: timeline + editor stack capped at max-w-3xl */}
       <div className={`${DAY_READING_WIDTH_CLASS} flex flex-col gap-4`}>
         {/* Nearby Wishlist items */}
-        <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
+        {freeForm && phase === "travelling" && dayStop ? (
+          <DayIdeas
+            tripId={tripId}
+            date={effectiveDate}
+            thingsToDo={thingsToDo}
+            wishlistIdeas={wishlistIdeas}
+          />
+        ) : freeForm ? (
+          <p className="text-sm text-muted-foreground">
+            Nothing planned yet —{" "}
+            <Link href={`/trips/${tripId}/wishlist`} className="underline hover:text-foreground">
+              browse your wishlist
+            </Link>{" "}
+            or add something below.
+          </p>
+        ) : (
+          <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
+        )}
 
         {/* Feasibility advisory */}
         <DayFeasibility entries={feasibility} />
