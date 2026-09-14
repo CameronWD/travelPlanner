@@ -213,6 +213,17 @@ describe("CommandPalette", () => {
     });
   });
 
+  describe("Mobile font size", () => {
+    it("keeps the search input at 16px on desktop (text-base sm:text-base, not sm:text-sm)", async () => {
+      renderPalette();
+      const input = await screen.findByRole("textbox", { name: /command search/i });
+      const classes = input.className.split(" ");
+      expect(classes).toContain("text-base");
+      expect(classes).toContain("sm:text-base");
+      expect(classes).not.toContain("sm:text-sm");
+    });
+  });
+
   describe("Switch trip", () => {
     it("shows other trips from listMyTrips under Go to", async () => {
       mockListMyTrips.mockResolvedValue([

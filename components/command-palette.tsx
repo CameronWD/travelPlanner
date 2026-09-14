@@ -288,7 +288,7 @@ function CommandPaletteInner({ onOpenChange, tripId }: CommandPaletteInnerProps)
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleInputKeyDown}
-          className="h-auto border-0 bg-transparent p-0 text-base shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          className="h-auto border-0 bg-transparent p-0 text-base sm:text-base shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           aria-label="Command search"
           aria-autocomplete="list"
           aria-controls="command-listbox"
