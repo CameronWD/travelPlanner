@@ -175,5 +175,8 @@ describe("DialogFooter", () => {
     expect(footer.className).toContain("border-t");
     // Cancels the scroll body's own bottom padding so the stuck footer sits flush.
     expect(footer.className).toContain("-mb-[calc(1.5rem+env(safe-area-inset-bottom))]");
+    // Pseudo-element covers the gap revealed during elastic/rubber-band overscroll at the bottom.
+    expect(footer.className).toContain("after:top-full");
+    expect(footer.className).toContain("after:bg-card");
   });
 });
