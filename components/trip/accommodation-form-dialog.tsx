@@ -333,7 +333,7 @@ function AccommodationForm({
       </Field>
 
       {/* Dates */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <DateField
           label="Check-in"
           required
@@ -354,7 +354,7 @@ function AccommodationForm({
       </div>
 
       {/* Times */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Check-in time" error={(errors as FormErrors).checkInTime?.[0]}>
           <Input
             type="time"

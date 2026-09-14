@@ -203,7 +203,7 @@ function ChapterForm({
 
       {/* Date row — only when dates are being set */}
       {setDatesNow && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <DateField
             label="Start date"
             required

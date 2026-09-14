@@ -466,7 +466,7 @@ function TransportForm({
       </Field>
 
       {/* Location comboboxes — replace From/To stop selects + place inputs */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="From" error={(errors as FormErrors).fromStopId?.[0]}>
           <LocationCombobox
             label="From"
@@ -522,7 +522,7 @@ function TransportForm({
       )}
 
       {/* Times */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Field label="Departure time" error={(errors as FormErrors).depAt?.[0]}>
           <Input
             type="datetime-local"
