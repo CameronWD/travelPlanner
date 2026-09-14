@@ -465,11 +465,11 @@ export function FeedbackLauncher({
     >
       {/*
         Below md the trip tab bar (components/trip/mobile-tab-bar.tsx) is fixed
-        to the bottom at the same z-40 and stands ~3.94rem tall (1px border +
-        py-3 + size-5 icon + gap-0.5 + text-xs) plus the safe area — at a 1rem
-        offset it would paint over this button and swallow the taps. 5rem is the
-        clearance the trip layout already reserves for that bar; from md up the
-        bar is hidden and the button drops back to 1rem.
+        to the bottom at the same z-40 — at a 1rem offset it would paint over
+        this button and swallow the taps. The bar publishes its height as
+        --tp-tab-bar-h (app/globals.css), and the offset is computed as
+        var(--tp-tab-bar-h) + 1rem; from md up the bar is hidden and the button
+        drops back to 1rem.
 
         `print:hidden` keeps it off the printed itinerary
         (app/(app)/trips/[tripId]/print/page.tsx hides app chrome by tag and by
@@ -490,7 +490,7 @@ export function FeedbackLauncher({
           size="icon"
           variant="secondary"
           aria-label="Leave feedback about TEEPEE"
-          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))] print:hidden"
+          className="fixed bottom-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] right-4 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))] print:hidden"
         >
           <MessageSquarePlus className="size-5" aria-hidden />
         </Button>

@@ -109,6 +109,18 @@
     0 12px 32px hsl(0 0% 0% / 0.48);
 }
 
+/*
+ * Height of the mobile trip tab bar (components/trip/mobile-tab-bar.tsx),
+ * excluding the safe-area inset. Single source of truth for everything that
+ * must clear the bar: the feedback FAB (components/feedback/feedback-launcher.tsx),
+ * the toast viewport (components/ui/toast.tsx), and the trip layout's bottom
+ * padding (app/(app)/trips/[tripId]/layout.tsx). Change it here and all four
+ * move together.
+ */
+:root {
+  --tp-tab-bar-h: 4rem;
+}
+
 /* ---------------------------------------------------------------------------
    Map tokens into Tailwind v4's theme so utilities resolve.
 --------------------------------------------------------------------------- */

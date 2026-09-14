@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { MobileTabBar } from "./mobile-tab-bar";
 
 // Use a vi.fn() so individual tests can override the return value per-test.
@@ -45,5 +45,13 @@ describe("MobileTabBar", () => {
     );
     expect(moreButton).toBeTruthy();
     expect(moreButton?.className).toContain("text-primary");
+  });
+
+  it("publishes its height via --tp-tab-bar-h so the FAB and toasts can clear it", () => {
+    render(<MobileTabBar tripId="t1" />);
+    const nav = screen.getByRole("navigation", { name: "Trip sections" });
+    expect(nav.className).toContain(
+      "h-[calc(var(--tp-tab-bar-h)+env(safe-area-inset-bottom))]",
+    );
   });
 });

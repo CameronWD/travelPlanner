@@ -13,8 +13,10 @@ describe("ToastViewport", () => {
     );
     // The viewport is rendered into a portal — query via the testid.
     const viewport = screen.getByTestId("toast-viewport");
+    // Clearance is computed from the tab bar's published height (--tp-tab-bar-h,
+    // app/globals.css) + 1rem gap + 2.75rem FAB + 0.5rem spare = tab bar + 4.25rem.
     expect(viewport.className).toContain(
-      "pb-[calc(8.25rem+env(safe-area-inset-bottom))]",
+      "pb-[calc(var(--tp-tab-bar-h)+4.25rem+env(safe-area-inset-bottom))]",
     );
     // From md up the toasts move to the opposite corner from the Feedback
     // trigger and panel, so there is nothing left to clear and no env() term to

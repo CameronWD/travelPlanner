@@ -17,21 +17,22 @@ const ToastViewport = React.forwardRef<
     className={cn(
       // The viewport itself must never be hit-testable. Radix only sets
       // pointerEvents:none on it while the stack is *empty*; with one toast on
-      // screen this <ol> — z-100, w-full below md, ~9.25rem of padding — is a
-      // live surface, and for the whole life of the toast it swallows taps on
-      // the Feedback trigger (components/feedback/feedback-launcher.tsx,
-      // 5–7.75rem) and the trip tab bar (components/trip/mobile-tab-bar.tsx,
-      // 0–3.94rem) sitting underneath it. Each Toast re-enables its own
-      // pointer events (pointer-events-auto in toastVariants below), so the
-      // cards stay clickable, closable and swipeable.
+      // screen this <ol> — z-100, w-full below md, a var(--tp-tab-bar-h)-scaled
+      // amount of padding — is a live surface, and for the whole life of the
+      // toast it swallows taps on the Feedback trigger
+      // (components/feedback/feedback-launcher.tsx) and the trip tab bar
+      // (components/trip/mobile-tab-bar.tsx) sitting underneath it. Each Toast
+      // re-enables its own pointer events (pointer-events-auto in
+      // toastVariants below), so the cards stay clickable, closable and
+      // swipeable.
       "pointer-events-none",
-      // Below md: bottom-right, above the Feedback trigger, which sits at
-      // bottom-[calc(5rem+env(safe-area-inset-bottom))] with a 2.75rem
-      // (size-11) button, so its top edge is at 7.75rem+safe-area —
-      // pb-[calc(8.25rem+safe-area)] clears it with 0.5rem to spare, carrying
-      // the same env() term as the trigger so the gap can't close on a device
-      // with a non-zero inset. The panel is full-screen at this size and wants
-      // its toasts on top of it, so this corner stays as it is.
+      // Below md: bottom-right, above the Feedback trigger. Clearance is
+      // computed from the tab bar's published height (--tp-tab-bar-h,
+      // app/globals.css): bar + 1rem gap to the 2.75rem (size-11) trigger
+      // + 0.5rem spare = var(--tp-tab-bar-h) + 4.25rem, carrying the same
+      // env() term as the trigger so the gap can't close on a device with a
+      // non-zero inset. The panel is full-screen at this size and wants its
+      // toasts on top of it, so this corner stays as it is.
       //
       // From md up: bottom-**left**. The docked Feedback panel now owns the
       // bottom-right (components/ui/sheet.tsx, side="docked":
@@ -43,7 +44,7 @@ const ToastViewport = React.forwardRef<
       // opposite corner instead. Nothing else lives bottom-left from md up —
       // the trigger is bottom-right, the tab bar is md:hidden — so the plain
       // md:bottom-4 offset is all that is needed there.
-      "fixed bottom-0 right-0 z-100 flex max-h-screen w-full flex-col-reverse gap-2 p-4 pb-[calc(8.25rem+env(safe-area-inset-bottom))] md:bottom-4 md:left-4 md:right-auto md:pb-4 sm:top-auto sm:max-w-sm",
+      "fixed bottom-0 right-0 z-100 flex max-h-screen w-full flex-col-reverse gap-2 p-4 pb-[calc(var(--tp-tab-bar-h)+4.25rem+env(safe-area-inset-bottom))] md:bottom-4 md:left-4 md:right-auto md:pb-4 sm:top-auto sm:max-w-sm",
       className,
     )}
     {...props}

@@ -417,6 +417,14 @@ describe("FeedbackLauncher", () => {
     expect(trigger.className).not.toContain("left-4");
   });
 
+  it("offsets the trigger above the mobile tab bar using its published height", () => {
+    render(<FeedbackLauncher />);
+    const trigger = screen.getByRole("button", { name: /leave feedback/i });
+    expect(trigger.className).toContain(
+      "bottom-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))]",
+    );
+  });
+
   it("opens a docked panel that leaves the page visible behind it", async () => {
     // This is the md-and-up case by definition — below md the panel covers the
     // page, so there is nothing to leave visible. Say so, rather than leaning

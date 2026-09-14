@@ -44,7 +44,7 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 flex border-t border-border bg-background/95 backdrop-blur pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 flex h-[calc(var(--tp-tab-bar-h)+env(safe-area-inset-bottom))] border-t border-border bg-background/95 backdrop-blur pb-[env(safe-area-inset-bottom)] md:hidden"
       aria-label="Trip sections"
     >
       {primary.map((item) => {
@@ -55,7 +55,7 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
             key={item.href}
             href={item.href}
             className={cn(
-              "flex flex-1 flex-col items-center gap-0.5 py-3 text-xs",
+              "flex flex-1 flex-col items-center justify-center gap-0.5 text-xs",
               active ? "text-primary" : "text-muted-foreground",
             )}
             aria-current={active ? "page" : undefined}
@@ -76,7 +76,7 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
             return (
               <button
                 className={cn(
-                  "flex flex-1 flex-col items-center gap-0.5 py-3 text-xs",
+                  "flex flex-1 flex-col items-center justify-center gap-0.5 text-xs",
                   moreActive ? "text-primary" : "text-muted-foreground",
                 )}
                 aria-label="More navigation"
