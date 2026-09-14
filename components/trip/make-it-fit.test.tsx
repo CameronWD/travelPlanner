@@ -21,6 +21,12 @@ const overStops = [
   stop({ id: "b", name: "Florence", nights: 4, sortOrder: 1 }),
 ];
 
+function renderMakeItFit() {
+  return render(
+    <MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />
+  );
+}
+
 describe("MakeItFit", () => {
   beforeEach(() => {
     setStopNights.mockReset().mockResolvedValue({ success: true });
@@ -123,5 +129,15 @@ describe("MakeItFit", () => {
     await waitFor(() => expect(setStopNights).toHaveBeenCalled());
     // dialog still shows the over headline
     expect(screen.getByText(/nights past/i)).toBeInTheDocument();
+  });
+
+  it("is full-bleed on mobile and wide (2xl) on desktop", () => {
+    renderMakeItFit();
+    fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+    const content = screen.getByRole("dialog");
+    // No unprefixed max-w-*: it would cap the mobile bottom sheet.
+    expect(content.className.split(" ")).not.toContain("max-w-2xl");
+    // Desktop gets the wide two-column diff.
+    expect(content.className).toContain("sm:max-w-2xl");
   });
 });

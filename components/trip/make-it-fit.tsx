@@ -181,7 +181,7 @@ function MakeItFitDialog({
     <>
     {dialog}
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Make it fit</DialogTitle>
           <DialogDescription>
