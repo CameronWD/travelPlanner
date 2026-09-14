@@ -16,6 +16,11 @@ import { addDays, daysBetween } from '@/lib/dates';
 /** Max day-pages to pre-warm, guarding against a mis-entered huge range. */
 export const MAX_WARM_DAYS = 60;
 
+export interface WarmAttachment { url: string; size: number }
+
+/** Attachments above this size are skipped by the warm (matches the upload cap). */
+export const MAX_WARM_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
 /**
  * The set of same-origin paths worth pre-caching for offline viewing of a trip:
  * the read-while-travelling essentials (including the user guide) + one page
@@ -25,14 +30,18 @@ export function tripOfflinePaths(
   tripId: string,
   startDate: string | null,
   endDate: string | null,
+  attachments: WarmAttachment[] = [],
 ): string[] {
   const base = `/trips/${tripId}`;
-  const paths = [base, `${base}/plan`, `${base}/summary`, `${base}/today`, `${base}/checklists`, `${base}/help`];
+  const paths = [base, `${base}/plan`, `${base}/summary`, `${base}/today`, `${base}/checklists`, `${base}/files`, `${base}/help`];
   if (startDate && endDate && endDate >= startDate) {
     const span = Math.min(daysBetween(startDate, endDate), MAX_WARM_DAYS - 1);
     for (let i = 0; i <= span; i++) {
       paths.push(`${base}/day/${addDays(startDate, i)}`);
     }
+  }
+  for (const att of attachments) {
+    if (att.size <= MAX_WARM_ATTACHMENT_BYTES) paths.push(att.url);
   }
   return paths;
 }
@@ -83,6 +92,21 @@ export function isApiRoute(url: string): boolean {
   }
 }
 
+/**
+ * Returns true for the authenticated attachment serve route
+ * (`/api/attachments/<id>`), the ONE api path the service worker may cache:
+ * ticket/booking files must be readable offline (ADR 0043, narrows ADR 0016).
+ * The cache is purged on sign-out, so this leaks nothing across users.
+ */
+export function isAttachmentRoute(url: string): boolean {
+  try {
+    const { pathname } = new URL(url);
+    return /^\/api\/attachments\/[^/]+$/.test(pathname);
+  } catch {
+    return false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Strategy selector
 // ---------------------------------------------------------------------------
@@ -93,6 +117,7 @@ export function isApiRoute(url: string): boolean {
  * Decision tree:
  * 1. Non-GET → network-only  (mutations / server actions must never be cached)
  * 2. Cross-origin → network-only  (tile servers, FX API, etc.)
+ * 3a. Same-origin /api/attachments/<id> → network-first  (tickets, confirmations offline)
  * 3. Same-origin /api/* → network-only  (auth & live data)
  * 4. Same-origin /_next/static/* → cache-first  (immutable hashed assets)
  * 5. Everything else (navigations, RSC, pages) → network-first
@@ -114,6 +139,12 @@ export function cacheStrategyFor({ method, url, sameOrigin }: StrategyInput): Ca
   // Rule 2: never cache cross-origin requests
   if (!sameOrigin) {
     return 'network-only';
+  }
+
+  // Rule 3a: attachments (tickets, confirmations) are cacheable network-first
+  // so they survive offline — the ONLY /api/* exception (ADR 0043).
+  if (isAttachmentRoute(url)) {
+    return 'network-first';
   }
 
   // Rule 3: never cache API / auth routes
