@@ -63,4 +63,12 @@ describe("markerToWishlistItemData", () => {
       "https://x.example",
     );
   });
+
+  it("copies the marker's countryCode", () => {
+    expect(markerToWishlistItemData(marker({ countryCode: "jp" })).countryCode).toBe("jp");
+  });
+
+  it("carries a null countryCode through when the marker has none", () => {
+    expect(markerToWishlistItemData(marker({ countryCode: null })).countryCode).toBeNull();
+  });
 });

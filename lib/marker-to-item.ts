@@ -6,6 +6,7 @@ export interface WishlistItemSeed {
   category: string;
   lat: number | null;
   lng: number | null;
+  countryCode: string | null;
   address: string | null;
   link: string | null;
   notes: string | null;
@@ -34,6 +35,7 @@ export function markerToWishlistItemData(marker: MarkerView): WishlistItemSeed {
     category: marker.category,
     lat: marker.lat,
     lng: marker.lng,
+    countryCode: marker.countryCode ?? null,
     address,
     link: marker.link,
     notes,

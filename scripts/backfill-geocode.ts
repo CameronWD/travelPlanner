@@ -29,7 +29,7 @@
  */
 
 import { db } from "../lib/db";
-import { geocodePlace } from "../lib/geocode";
+import { geocodePlace, geocodePlaceDetailed } from "../lib/geocode";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -83,15 +83,19 @@ async function backfillItems(): Promise<EntityStats> {
       continue;
     }
 
-    const coords = await geocodePlace(address);
+    const candidate = await geocodePlaceDetailed(address);
     await throttle();
 
-    if (coords) {
+    if (candidate) {
       await db.item.update({
         where: { id: row.id },
-        data: { lat: coords.lat, lng: coords.lng },
+        data: {
+          lat: candidate.lat,
+          lng: candidate.lng,
+          countryCode: candidate.countryCode?.toLowerCase() ?? null,
+        },
       });
-      log(`  [items] geocoded ${row.id}: ${coords.lat}, ${coords.lng}`);
+      log(`  [items] geocoded ${row.id}: ${candidate.lat}, ${candidate.lng}`);
       stats.geocoded++;
     } else {
       log(`  [items] FAILED to geocode ${row.id}: "${address}"`);

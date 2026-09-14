@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { itemSchema, type ItemInput } from "@/lib/validations/item";
 import { stopForDate } from "@/lib/itinerary";
-import { geocodePlace } from "@/lib/geocode";
+import { geocodePlaceDetailed } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
@@ -108,10 +108,12 @@ export async function createItem(
   // Best-effort geocode from address
   let lat: number | null = null;
   let lng: number | null = null;
+  let countryCode: string | null = null;
   if (data.address) {
-    const coords = await geocodePlace(data.address);
-    lat = coords?.lat ?? null;
-    lng = coords?.lng ?? null;
+    const candidate = await geocodePlaceDetailed(data.address);
+    lat = candidate?.lat ?? null;
+    lng = candidate?.lng ?? null;
+    countryCode = candidate?.countryCode?.toLowerCase() ?? null;
   }
 
   const created = await db.item.create({
@@ -130,6 +132,7 @@ export async function createItem(
       notes: data.notes ?? null,
       lat,
       lng,
+      countryCode,
       sortOrder,
     },
   });
@@ -231,6 +234,7 @@ export async function addMarkerToWishlist(
       category: seed.category,
       lat: seed.lat,
       lng: seed.lng,
+      countryCode: seed.countryCode,
       address: seed.address,
       link: seed.link,
       notes: seed.notes,
@@ -287,10 +291,12 @@ export async function updateItem(
   // Best-effort geocode from address
   let lat: number | null = null;
   let lng: number | null = null;
+  let countryCode: string | null = null;
   if (data.address) {
-    const coords = await geocodePlace(data.address);
-    lat = coords?.lat ?? null;
-    lng = coords?.lng ?? null;
+    const candidate = await geocodePlaceDetailed(data.address);
+    lat = candidate?.lat ?? null;
+    lng = candidate?.lng ?? null;
+    countryCode = candidate?.countryCode?.toLowerCase() ?? null;
   }
 
   const updated = await db.item.update({
@@ -308,6 +314,7 @@ export async function updateItem(
       notes: data.notes ?? null,
       lat,
       lng,
+      countryCode,
     },
   });
 
@@ -506,6 +513,7 @@ export async function scheduleItem(
         stopId: fullItem.stopId ?? null,
         lat: fullItem.lat ?? null,
         lng: fullItem.lng ?? null,
+        countryCode: fullItem.countryCode ?? null,
         address: fullItem.address ?? null,
         link: fullItem.link ?? null,
         notes: fullItem.notes ?? null,

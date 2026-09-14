@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const {
   requireTripAccessMock,
   revalidatePathMock,
-  geocodePlaceMock,
+  geocodePlaceDetailedMock,
   itemFindUniqueMock,
   itemFindFirstMock,
   itemCreateMock,
@@ -67,7 +67,7 @@ const {
       membership: { role: "owner" },
     }),
     revalidatePathMock: vi.fn(),
-    geocodePlaceMock: vi.fn().mockResolvedValue(null),
+    geocodePlaceDetailedMock: vi.fn().mockResolvedValue(null),
     itemFindUniqueMock: vi.fn(),
     itemFindFirstMock: vi.fn(),
     itemCreateMock: vi.fn(),
@@ -93,7 +93,7 @@ const {
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
-vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock }));
+vi.mock("@/lib/geocode", () => ({ geocodePlaceDetailed: geocodePlaceDetailedMock }));
 vi.mock("@/lib/globe", () => ({ getUserGlobe: getUserGlobeMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
 vi.mock("@/lib/fx", () => ({
@@ -386,7 +386,14 @@ describe("createItem", () => {
   it("geocodes the address when present and stores coords", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-1" });
-    geocodePlaceMock.mockResolvedValue({ lat: 48.8566, lng: 2.3522 });
+    geocodePlaceDetailedMock.mockResolvedValue({
+      lat: 48.8566,
+      lng: 2.3522,
+      city: "Paris",
+      country: "France",
+      countryCode: "fr",
+      name: "Eiffel Tower, Paris",
+    });
 
     const result = await createItem("trip-1", {
       ...VALID_INPUT,
@@ -394,30 +401,30 @@ describe("createItem", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(geocodePlaceMock).toHaveBeenCalledOnce();
-    expect(geocodePlaceMock).toHaveBeenCalledWith("Eiffel Tower, Paris");
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledOnce();
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledWith("Eiffel Tower, Paris");
     expect(itemCreateMock).toHaveBeenCalledWith({
-      data: expect.objectContaining({ lat: 48.8566, lng: 2.3522 }),
+      data: expect.objectContaining({ lat: 48.8566, lng: 2.3522, countryCode: "fr" }),
     });
   });
 
-  it("does not call geocode and stores null coords when no address", async () => {
+  it("does not call geocode and stores null coords/countryCode when no address", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-1" });
 
     const result = await createItem("trip-1", VALID_INPUT);
 
     expect(result.success).toBe(true);
-    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
     expect(itemCreateMock).toHaveBeenCalledWith({
-      data: expect.objectContaining({ lat: null, lng: null }),
+      data: expect.objectContaining({ lat: null, lng: null, countryCode: null }),
     });
   });
 
-  it("still creates the item when geocode returns null (null coords)", async () => {
+  it("still creates the item when geocode returns null (null coords/countryCode)", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-1" });
-    geocodePlaceMock.mockResolvedValue(null);
+    geocodePlaceDetailedMock.mockResolvedValue(null);
 
     const result = await createItem("trip-1", {
       ...VALID_INPUT,
@@ -425,9 +432,28 @@ describe("createItem", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(geocodePlaceMock).toHaveBeenCalledOnce();
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledOnce();
     expect(itemCreateMock).toHaveBeenCalledWith({
-      data: expect.objectContaining({ lat: null, lng: null }),
+      data: expect.objectContaining({ lat: null, lng: null, countryCode: null }),
+    });
+  });
+
+  it("lowercases an uppercase countryCode from the geocoder", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+    geocodePlaceDetailedMock.mockResolvedValue({
+      lat: 48.8566,
+      lng: 2.3522,
+      city: "Paris",
+      country: "France",
+      countryCode: "FR",
+      name: "Eiffel Tower, Paris",
+    });
+
+    await createItem("trip-1", { ...VALID_INPUT, address: "Eiffel Tower, Paris" });
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ countryCode: "fr" }),
     });
   });
 
@@ -521,7 +547,14 @@ describe("updateItem", () => {
   it("geocodes address on update when address is present", async () => {
     itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
     itemUpdateMock.mockResolvedValue({});
-    geocodePlaceMock.mockResolvedValue({ lat: 51.5074, lng: -0.1278 });
+    geocodePlaceDetailedMock.mockResolvedValue({
+      lat: 51.5074,
+      lng: -0.1278,
+      city: "London",
+      country: "United Kingdom",
+      countryCode: "gb",
+      name: "London Eye, London",
+    });
 
     const result = await updateItem("item-1", {
       ...VALID_INPUT,
@@ -529,25 +562,25 @@ describe("updateItem", () => {
     });
 
     expect(result.success).toBe(true);
-    expect(geocodePlaceMock).toHaveBeenCalledOnce();
-    expect(geocodePlaceMock).toHaveBeenCalledWith("London Eye, London");
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledOnce();
+    expect(geocodePlaceDetailedMock).toHaveBeenCalledWith("London Eye, London");
     expect(itemUpdateMock).toHaveBeenCalledWith({
       where: { id: "item-1" },
-      data: expect.objectContaining({ lat: 51.5074, lng: -0.1278 }),
+      data: expect.objectContaining({ lat: 51.5074, lng: -0.1278, countryCode: "gb" }),
     });
   });
 
-  it("stores null coords on update when no address", async () => {
+  it("stores null coords/countryCode on update when no address", async () => {
     itemFindUniqueMock.mockResolvedValue({ id: "item-1", tripId: "trip-1" });
     itemUpdateMock.mockResolvedValue({});
 
     const result = await updateItem("item-1", VALID_INPUT);
 
     expect(result.success).toBe(true);
-    expect(geocodePlaceMock).not.toHaveBeenCalled();
+    expect(geocodePlaceDetailedMock).not.toHaveBeenCalled();
     expect(itemUpdateMock).toHaveBeenCalledWith({
       where: { id: "item-1" },
-      data: expect.objectContaining({ lat: null, lng: null }),
+      data: expect.objectContaining({ lat: null, lng: null, countryCode: null }),
     });
   });
 
@@ -962,7 +995,7 @@ describe("scheduleItem copy-in placement", () => {
     expect(itemDeleteMock).toHaveBeenCalledWith({ where: { id: "placed-1" } });
   });
 
-  it("copy inherits title, category, lat, lng, address, link, notes from idea", async () => {
+  it("copy inherits title, category, lat, lng, countryCode, address, link, notes from idea", async () => {
     // NB: a genuine Wishlist idea can never carry a stopId (ADR 0022 / CONTEXT.md:
     // "attached to no Stop and no day") — an item with a stopId is a stop-attached
     // thing-to-do, not an idea, so it takes the in-place branch (see the
@@ -973,7 +1006,7 @@ describe("scheduleItem copy-in placement", () => {
       .mockResolvedValueOnce({
         id: "idea-1", tripId: "trip-1", forkId: null, date: null,
         title: "Eiffel Tower", category: "SIGHTSEEING",
-        stopId: null, lat: 48.8584, lng: 2.2945,
+        stopId: null, lat: 48.8584, lng: 2.2945, countryCode: "fr",
         address: "Paris", link: "https://example.com", notes: "bring camera",
       }); // full item row
     itemFindFirstMock.mockResolvedValue(null);
@@ -981,7 +1014,7 @@ describe("scheduleItem copy-in placement", () => {
     await scheduleItem("idea-1", { date: "2026-07-02", startTime: "10:00", endTime: "12:00" }, null);
     expect(itemCreateMock).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        stopId: null, lat: 48.8584, lng: 2.2945,
+        stopId: null, lat: 48.8584, lng: 2.2945, countryCode: "fr",
         address: "Paris", link: "https://example.com", notes: "bring camera",
         startTime: "10:00", endTime: "12:00",
       }),
@@ -1424,6 +1457,7 @@ describe("addMarkerToWishlist", () => {
       category: "SIGHTSEEING",
       lat: 35.6586,
       lng: 139.7454,
+      countryCode: "jp",
       address: "Tokyo, Japan",
       notes: "(when: late Sept)",
       sortOrder: 5,

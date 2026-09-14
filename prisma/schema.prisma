@@ -347,6 +347,7 @@ model Item {
   endTime   String? // "HH:mm"
   lat       Float?
   lng       Float?
+  countryCode String? // ISO 3166-1 alpha-2, lowercase, derived by geocoding — same as Stop/Marker
   address   String?
   link      String?
   booking   String?
