@@ -26,6 +26,10 @@ import type { TransportMode } from "@/lib/enums";
 /** Reading-width wrapper applied to the timeline+editor stack. Exported for tests. */
 export const DAY_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
 
+/** Header row: date/stop left, compact weather card right on desktop. Exported for tests. */
+export const DAY_HEADER_GRID_CLASS =
+  "flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start";
+
 export default async function DayPage({
   params,
 }: {
@@ -386,22 +390,27 @@ export default async function DayPage({
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Day header */}
-      <div className="flex flex-col gap-1">
-        <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
-          {formatLongDate(effectiveDate)}
-        </h2>
-        {dayPlan.stop && (
-          <p className="text-sm text-muted-foreground">
-            {dayPlan.stop.name}
-            {dayPlan.stop.country ? `, ${dayPlan.stop.country}` : ""}
-            {dayPlan.stop.timezone && (
-              <span className="text-xs text-muted-foreground">
-                {" · "}{zoneLabel(dayPlan.stop.timezone, effectiveDate)}
-              </span>
-            )}
-          </p>
-        )}
+      <div className={DAY_HEADER_GRID_CLASS}>
+        {/* Day header */}
+        <div className="flex flex-col gap-1">
+          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
+            {formatLongDate(effectiveDate)}
+          </h2>
+          {dayPlan.stop && (
+            <p className="text-sm text-muted-foreground">
+              {dayPlan.stop.name}
+              {dayPlan.stop.country ? `, ${dayPlan.stop.country}` : ""}
+              {dayPlan.stop.timezone && (
+                <span className="text-xs text-muted-foreground">
+                  {" · "}{zoneLabel(dayPlan.stop.timezone, effectiveDate)}
+                </span>
+              )}
+            </p>
+          )}
+        </div>
+
+        {/* Weather + daylight (compact, beside the header on desktop) */}
+        {dl && <WeatherDaylightCard compact weather={wx} daylight={dl} />}
       </div>
 
       {/* Prev / Next navigation */}
@@ -411,9 +420,6 @@ export default async function DayPage({
         startDate={trip.startDate}
         endDate={trip.endDate}
       />
-
-      {/* Weather + daylight */}
-      {dl && <WeatherDaylightCard weather={wx} daylight={dl} />}
 
       {/* Day map (collapsed toggle) */}
       <DayMapPanel tripId={tripId} model={dayMapModel} />

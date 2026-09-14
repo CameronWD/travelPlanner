@@ -1,5 +1,6 @@
 import { Sun } from "lucide-react";
 import type { DayWeather } from "@/lib/weather";
+import { cn } from "@/lib/cn";
 
 interface DaylightProps {
   /** Local sunrise time as "HH:MM" in the stop's timezone, or null on polar day/night. */
@@ -19,6 +20,8 @@ interface DaylightProps {
 interface Props {
   weather: DayWeather | null;
   daylight: DaylightProps;
+  /** Intrinsic width, tighter type scale — for placing beside the day header instead of full-width. */
+  compact?: boolean;
 }
 
 function formatDayLength(minutes: number): string {
@@ -27,16 +30,21 @@ function formatDayLength(minutes: number): string {
   return `${h}h ${m}m`;
 }
 
-export function WeatherDaylightCard({ weather, daylight }: Props) {
+export function WeatherDaylightCard({ weather, daylight, compact = false }: Props) {
   const hasBothBlocks = weather !== null;
 
   return (
-    <div>
+    <div className={compact ? "w-fit" : undefined}>
       {/* Gradient card */}
-      <div className="flex gap-3 rounded-2xl bg-gradient-to-br from-sky-500 to-teal-500 p-4 text-white shadow-soft-lg">
+      <div
+        className={cn(
+          "flex gap-3 rounded-2xl bg-gradient-to-br from-sky-500 to-teal-500 p-4 text-white shadow-soft-lg",
+          compact && "p-3 text-sm",
+        )}
+      >
         {/* Left block: weather (only when weather is present) */}
         {weather && (
-          <div className="flex flex-1 flex-col gap-1">
+          <div className={cn("flex flex-col gap-1", compact ? "flex" : "flex-1")}>
             <Sun className="size-6 shrink-0" aria-hidden />
             <span className="font-display text-2xl font-bold">
               {weather.highC}° / {weather.lowC}°
@@ -54,7 +62,12 @@ export function WeatherDaylightCard({ weather, daylight }: Props) {
         )}
 
         {/* Right block: daylight */}
-        <div className="flex flex-1 flex-col justify-center gap-1 text-xs font-semibold">
+        <div
+          className={cn(
+            "flex flex-col justify-center gap-1 text-xs font-semibold",
+            compact ? "flex" : "flex-1",
+          )}
+        >
           {daylight.polarDay ? (
             <span>Daylight all day</span>
           ) : daylight.polarNight ? (

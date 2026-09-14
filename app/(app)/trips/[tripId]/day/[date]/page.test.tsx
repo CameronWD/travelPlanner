@@ -25,10 +25,16 @@ vi.mock("@/components/trip/weather-daylight-card", () => ({ WeatherDaylightCard:
 vi.mock("@/components/trip/item-form-dialog", () => ({ AddItemButton: () => null }));
 vi.mock("@/components/trip/journal-editor", () => ({ JournalEditor: () => null }));
 
-const { DAY_READING_WIDTH_CLASS } = await import("./page");
+const { DAY_READING_WIDTH_CLASS, DAY_HEADER_GRID_CLASS } = await import("./page");
 
 describe("Day page reading-width cap", () => {
   it("timeline+editor stack carries max-w-3xl to cap reading line length", () => {
     expect(DAY_READING_WIDTH_CLASS).toContain("max-w-3xl");
+  });
+});
+
+describe("Day page header layout", () => {
+  it("lays the header and weather side by side on desktop", () => {
+    expect(DAY_HEADER_GRID_CLASS).toContain("lg:grid-cols-[minmax(0,1fr)_auto]");
   });
 });

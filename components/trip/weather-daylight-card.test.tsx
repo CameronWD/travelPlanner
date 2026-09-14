@@ -87,4 +87,16 @@ describe("WeatherDaylightCard", () => {
     expect(card?.className).toMatch(/from-sky-500/);
     expect(card?.className).toMatch(/text-white/);
   });
+
+  it("compact variant does not stretch its blocks", () => {
+    const { container } = render(
+      <WeatherDaylightCard
+        compact
+        weather={forecastWeather}
+        daylight={baseDaylight}
+      />,
+    );
+    const card = container.querySelector(".bg-gradient-to-br");
+    expect(card?.className).not.toMatch(/flex-1/);
+  });
 });
