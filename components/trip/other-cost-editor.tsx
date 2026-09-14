@@ -444,28 +444,37 @@ export function OtherCostEditor({
                     </span>
                   )}
                 </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{formatMoney(cost.costMinor, cost.currency)}</span>
-                  {cost.paidMinor !== null && cost.paidMinor !== undefined && (
-                    <>
-                      <span className="text-muted-foreground/40">→</span>
-                      <span className="text-emerald-600 dark:text-emerald-400">
-                        {formatMoney(cost.paidMinor, cost.currency)} paid
-                      </span>
-                    </>
-                  )}
-                  {homeCurrency &&
-                    cost.rateToHome &&
-                    cost.currency.toUpperCase() !== homeCurrency.toUpperCase() && (
-                      <span className="text-muted-foreground/60">
-                        ≈&nbsp;
-                        {formatMoney(
-                          convertMinor(cost.costMinor, cost.currency, homeCurrency, cost.rateToHome),
-                          homeCurrency,
+                {(() => {
+                  const isPaid = Boolean(cost.paidAt);
+                  const shownMinor =
+                    isPaid && cost.paidMinor !== null && cost.paidMinor !== undefined
+                      ? cost.paidMinor
+                      : cost.costMinor;
+
+                  return (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span
+                        className={cn(
+                          isPaid && "text-emerald-600 dark:text-emerald-400",
                         )}
+                      >
+                        {formatMoney(shownMinor, cost.currency)}
+                        {isPaid && " paid"}
                       </span>
-                    )}
-                </div>
+                      {homeCurrency &&
+                        cost.rateToHome &&
+                        cost.currency.toUpperCase() !== homeCurrency.toUpperCase() && (
+                          <span className="text-muted-foreground/60">
+                            ≈&nbsp;
+                            {formatMoney(
+                              convertMinor(shownMinor, cost.currency, homeCurrency, cost.rateToHome),
+                              homeCurrency,
+                            )}
+                          </span>
+                        )}
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="flex shrink-0 items-center gap-0.5">

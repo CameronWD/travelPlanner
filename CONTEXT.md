@@ -83,7 +83,7 @@ A money amount attached to a Transport, Accommodation, or Item — recorded in i
 
 The cost amount is the Traveller's best number for what the thing costs *today*: a guess while sketching, the real price once it is booked. A known price is therefore not a special case needing a fictional estimate — it simply *is* the cost amount, and a Cost paid at exactly its cost amount shows no variance because none occurred. The paid amount is what was actually charged. Every Cost has a cost amount, because a Cost with no number is not a Cost.
 
-An individual Cost is *shown* as **one current number** — the cost amount while unpaid (marked approximate), the paid amount once **Paid** — never both side by side. Aggregates (the **Budget** roll-ups, **Spend so far**) still pair cost vs paid, because a total is only meaningful as both; per-Cost variance surfaces only in **Spend so far**.
+An individual Cost is *shown* as **one current number** — the cost amount while unpaid (the paid state is what gets marked), the paid amount once **Paid** — never both side by side. Aggregates (the **Budget** roll-ups, **Spend so far**) still pair cost vs paid, because a total is only meaningful as both; per-Cost variance surfaces only in **Spend so far**.
 _Avoid_: Price, expense, spend; "estimated"/"actual" for the two amounts (the cost amount covers known prices, not just guesses)
 
 **Paid**:

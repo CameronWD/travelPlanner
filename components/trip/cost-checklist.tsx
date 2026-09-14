@@ -116,7 +116,12 @@ export function CostChecklist({ rows }: CostChecklistProps) {
             <span className="flex-1 truncate text-sm">{row.label}</span>
 
             <span className="shrink-0 text-sm text-muted-foreground">
-              {formatMoney(row.costMinor, row.currency)}
+              {formatMoney(
+                isPaid && row.paidMinor !== null && row.paidMinor !== undefined
+                  ? row.paidMinor
+                  : row.costMinor,
+                row.currency,
+              )}
             </span>
 
             {isPaid && (

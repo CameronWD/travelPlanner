@@ -306,6 +306,40 @@ describe("OtherCostEditor", () => {
     expect(screen.queryByText(/≈.*11\.00/)).not.toBeInTheDocument();
   });
 
+  it("shows only the cost amount in the list row while unpaid, even with a stale paidMinor", () => {
+    const staleCost: CostRow = {
+      ...sampleCost,
+      id: "cost-stale",
+      costMinor: 12000,
+      paidMinor: 11800,
+      paidAt: null,
+      label: "Ferry",
+    };
+
+    render(<OtherCostEditor {...baseProps} costs={[staleCost]} />);
+
+    expect(screen.getByText(/120\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/118\.00/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/paid/i)).not.toBeInTheDocument();
+  });
+
+  it("shows only the paid amount in the list row once paid", () => {
+    const paidCost: CostRow = {
+      ...sampleCost,
+      id: "cost-paid",
+      costMinor: 12000,
+      paidMinor: 11800,
+      paidAt: new Date("2026-06-04"),
+      label: "Museum pass",
+    };
+
+    render(<OtherCostEditor {...baseProps} costs={[paidCost]} />);
+
+    expect(screen.getByText(/118\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/120\.00/)).not.toBeInTheDocument();
+    expect(screen.getByText(/paid/i)).toBeInTheDocument();
+  });
+
   it("renders the Add cost button above the cost list", () => {
     render(<OtherCostEditor {...baseProps} costs={[sampleCost]} />);
 

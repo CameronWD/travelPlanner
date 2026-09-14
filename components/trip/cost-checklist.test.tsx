@@ -37,6 +37,32 @@ describe("CostChecklist", () => {
     expect(screen.getByRole("checkbox", { name: /pensione roma/i })).toBeChecked();
   });
 
+  it("shows the cost amount for an unpaid row, even with a stale paidMinor", () => {
+    render(
+      <CostChecklist
+        rows={[
+          { id: "c3", label: "Ferry", costMinor: 12000, paidMinor: 11800,
+            currency: "GBP", paidAt: null },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/120\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/118\.00/)).not.toBeInTheDocument();
+  });
+
+  it("shows the paid amount for a paid row", () => {
+    render(
+      <CostChecklist
+        rows={[
+          { id: "c4", label: "Museum pass", costMinor: 12000, paidMinor: 11800,
+            currency: "GBP", paidAt: new Date("2026-06-04") },
+        ]}
+      />,
+    );
+    expect(screen.getByText(/118\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/120\.00/)).not.toBeInTheDocument();
+  });
+
   it("asks how much before marking paid, prefilled with the cost", async () => {
     const user = userEvent.setup();
     render(<CostChecklist rows={rows} />);

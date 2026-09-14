@@ -46,4 +46,25 @@ describe("CostSummary", () => {
     );
     expect(screen.getByLabelText(/paid/i)).toBeInTheDocument();
   });
+
+  it("shows only the cost amount while unpaid, even if a stale paidMinor exists", () => {
+    render(
+      <CostSummary
+        cost={{ ...baseCost, costMinor: 12000, paidMinor: 11800, paidAt: null }}
+      />,
+    );
+    expect(screen.getByText(/120\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/118\.00/)).not.toBeInTheDocument();
+  });
+
+  it("shows only the paid amount once paid", () => {
+    render(
+      <CostSummary
+        cost={{ ...baseCost, costMinor: 12000, paidMinor: 11800, paidAt: new Date() }}
+      />,
+    );
+    expect(screen.getByText(/118\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/120\.00/)).not.toBeInTheDocument();
+    expect(screen.getByText(/paid/i)).toBeInTheDocument();
+  });
 });
