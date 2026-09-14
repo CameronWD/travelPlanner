@@ -54,7 +54,7 @@ vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNod
 // React import needed for JSX in mocks above
 import React from "react";
 
-const { PAST_DESKTOP_GRID_CLASS, PhasePast } = await import("./phase-past");
+const { PAST_DESKTOP_GRID_CLASS, PAST_CTAS_ROW_CLASS, PhasePast } = await import("./phase-past");
 const { RouteMapLoader } = await import("@/components/trip/route-map-loader");
 
 // Server components aren't run through a renderer here (see file-header note),
@@ -78,6 +78,13 @@ function findElementByType(node: unknown, type: unknown): { props: Record<string
 describe("PhasePast desktop rail width", () => {
   it("desktop grid uses 21.25rem rail (340 px) matching the mockup spec", () => {
     expect(PAST_DESKTOP_GRID_CLASS).toContain("21.25rem");
+  });
+});
+
+describe("PhasePast CTA row (mobile overflow fix)", () => {
+  it("stacks the two CTA buttons below sm so full label text never clips at 320px", () => {
+    expect(PAST_CTAS_ROW_CLASS).toContain("flex-col");
+    expect(PAST_CTAS_ROW_CLASS).toContain("sm:flex-row");
   });
 });
 

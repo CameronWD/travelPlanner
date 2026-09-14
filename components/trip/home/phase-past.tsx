@@ -61,6 +61,14 @@ interface PhasePastProps {
 export const PAST_DESKTOP_GRID_CLASS =
   "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
 
+/**
+ * Exported for className assertion in tests — must match the JSX below.
+ * Stacked below `sm` so the two CTA buttons' full label text (e.g. "Plan
+ * another trip") never gets clipped at 320–374px viewports; side by side
+ * from `sm` up, matching the original desktop layout exactly.
+ */
+export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row";
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -288,7 +296,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   ) : null;
 
   const ctas = (
-    <div className="flex gap-3">
+    <div className={PAST_CTAS_ROW_CLASS}>
       <Button asChild variant="primary" className="flex-1">
         <Link href={`${base}/journal`}>
           <NotebookPen className="size-4" aria-hidden="true" />
