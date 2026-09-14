@@ -44,7 +44,7 @@ export function WeatherDaylightCard({ weather, daylight, compact = false }: Prop
       >
         {/* Left block: weather (only when weather is present) */}
         {weather && (
-          <div className={cn("flex flex-col gap-1", compact ? "flex" : "flex-1")}>
+          <div className={cn("flex flex-col gap-1", compact ? undefined : "flex-1")}>
             <Sun className="size-6 shrink-0" aria-hidden />
             <span className="font-display text-2xl font-bold">
               {weather.highC}° / {weather.lowC}°
@@ -65,7 +65,7 @@ export function WeatherDaylightCard({ weather, daylight, compact = false }: Prop
         <div
           className={cn(
             "flex flex-col justify-center gap-1 text-xs font-semibold",
-            compact ? "flex" : "flex-1",
+            compact ? undefined : "flex-1",
           )}
         >
           {daylight.polarDay ? (

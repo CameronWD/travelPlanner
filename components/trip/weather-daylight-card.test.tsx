@@ -98,5 +98,13 @@ describe("WeatherDaylightCard", () => {
     );
     const card = container.querySelector(".bg-gradient-to-br");
     expect(card?.className).not.toMatch(/flex-1/);
+    expect(container.innerHTML).not.toContain("flex-1");
+  });
+
+  it("non-compact variant stretches its blocks (control for the compact guard above)", () => {
+    const { container } = render(
+      <WeatherDaylightCard weather={forecastWeather} daylight={baseDaylight} />,
+    );
+    expect(container.innerHTML).toContain("flex-1");
   });
 });
