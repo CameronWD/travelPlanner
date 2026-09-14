@@ -451,6 +451,151 @@ describe("Timeline — untimed day row address regression (Task 8 fix)", () => {
 // Task 7: reachable Unschedule control (P1-5 UI half)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Task 9: accommodation-times day ordering via orderDayEntries
+// ---------------------------------------------------------------------------
+
+const TIMED_ITEM_TITLE = "Museum Visit";
+
+const dayWithCheckoutAndItems: DayPlan = {
+  dateISO: "2025-07-05",
+  stop: {
+    id: "stop-1",
+    name: "Tokyo",
+    timezone: "Asia/Tokyo",
+    arriveDate: "2025-07-01",
+    departDate: "2025-07-05",
+    sortOrder: 0,
+  },
+  timedItems: [
+    {
+      kind: "item",
+      item: {
+        id: "item-museum",
+        title: TIMED_ITEM_TITLE,
+        category: "SIGHTSEEING",
+        date: "2025-07-05",
+        startTime: "11:00",
+      },
+    },
+  ],
+  untimedItems: [],
+  transportEntries: [],
+  accommodationEntries: [
+    {
+      kind: "accommodation-checkout",
+      accommodation: {
+        id: "acc-1",
+        stopId: "stop-1",
+        name: "Tokyo Hotel",
+        checkIn: "2025-07-01",
+        checkOut: "2025-07-05",
+        checkOutTime: null,
+      },
+    },
+  ],
+};
+
+const dayWithTimedCheckout: DayPlan = {
+  dateISO: "2025-07-05",
+  stop: {
+    id: "stop-1",
+    name: "Tokyo",
+    timezone: "Asia/Tokyo",
+    arriveDate: "2025-07-01",
+    departDate: "2025-07-05",
+    sortOrder: 0,
+  },
+  timedItems: [
+    {
+      kind: "item",
+      item: {
+        id: "item-bakery",
+        title: "Bakery",
+        category: "FOOD",
+        date: "2025-07-05",
+        startTime: "08:00",
+      },
+    },
+  ],
+  untimedItems: [],
+  transportEntries: [],
+  accommodationEntries: [
+    {
+      kind: "accommodation-checkout",
+      accommodation: {
+        id: "acc-1",
+        stopId: "stop-1",
+        name: "Tokyo Hotel",
+        checkIn: "2025-07-01",
+        checkOut: "2025-07-05",
+        checkOutTime: "10:00",
+      },
+    },
+  ],
+};
+
+const dayWithCheckinAndTransport: DayPlan = {
+  dateISO: "2025-07-05",
+  stop: {
+    id: "stop-2",
+    name: "Osaka",
+    timezone: "Asia/Tokyo",
+    arriveDate: "2025-07-05",
+    departDate: "2025-07-08",
+    sortOrder: 1,
+  },
+  timedItems: [],
+  untimedItems: [],
+  transportEntries: [
+    {
+      kind: "transport-arrival",
+      transport: {
+        id: "tr-1",
+        mode: "TRAIN",
+        depPlace: "Tokyo",
+        arrPlace: "Osaka",
+      },
+      arrTimeLabel: "09:30",
+    },
+  ],
+  accommodationEntries: [
+    {
+      kind: "accommodation-checkin",
+      accommodation: {
+        id: "acc-2",
+        stopId: "stop-2",
+        name: "Osaka Hotel",
+        checkIn: "2025-07-05",
+        checkOut: "2025-07-08",
+        checkInTime: null,
+      },
+    },
+  ],
+};
+
+describe("Timeline — accommodation-times day ordering (Task 9)", () => {
+  it("renders an untimed check-out before everything else on the day", () => {
+    const { container } = render(<Timeline day={dayWithCheckoutAndItems} variant="day" />);
+    const text = container.textContent ?? "";
+    expect(text.indexOf("Check-out")).toBeLessThan(text.indexOf(TIMED_ITEM_TITLE));
+  });
+
+  it("slots a timed check-out at its time and shows the time in the gutter", () => {
+    render(<Timeline day={dayWithTimedCheckout} variant="day" />);
+    expect(screen.getByText("10:00")).toBeInTheDocument();
+    // 08:00 bakery renders above the 10:00 check-out
+    const text = document.body.textContent ?? "";
+    expect(text.indexOf("Bakery")).toBeLessThan(text.indexOf("Check-out"));
+  });
+
+  it("renders an untimed check-in after transport entries", () => {
+    const { container } = render(<Timeline day={dayWithCheckinAndTransport} variant="day" />);
+    const text = container.textContent ?? "";
+    expect(text.indexOf("Arrives")).toBeLessThan(text.indexOf("Check-in"));
+  });
+});
+
 describe("Timeline — Unschedule control (Task 7)", () => {
   it("renders the Unschedule button for a timed item when showUnschedule is true and variant is day", () => {
     render(<Timeline day={dayPlan} variant="day" showUnschedule />);

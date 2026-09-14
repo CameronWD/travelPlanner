@@ -10,13 +10,14 @@ import {
 import { cn } from "@/lib/cn";
 import { CategoryPill, categoryAccent } from "./category-pill";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
-import type {
-  DayPlan,
-  TransportDepartureEntry,
-  TransportArrivalEntry,
-  AccommodationCheckinEntry,
-  AccommodationCheckoutEntry,
-  ItemEntry,
+import {
+  orderDayEntries,
+  type DayPlan,
+  type TransportDepartureEntry,
+  type TransportArrivalEntry,
+  type AccommodationCheckinEntry,
+  type AccommodationCheckoutEntry,
+  type ItemEntry,
 } from "@/lib/itinerary";
 import type { Category } from "@/lib/categories";
 import type { TransportMode } from "@/lib/enums";
@@ -82,46 +83,63 @@ export function Timeline({ day, variant = "agenda", itemDirections, attachmentsB
     );
   }
 
+  const { entries, anytime } = orderDayEntries(day);
+
   return (
     <div className={cn("flex flex-col", isDay ? "gap-3" : "gap-1.5")}>
-      {/* Accommodation check-ins (shown first as they set the context) */}
-      {day.accommodationEntries
-        .filter((e) => e.kind === "accommodation-checkin")
-        .map((e) => (
-          <AccomCheckinRow key={`ci-${e.accommodation.id}`} entry={e} isDay={isDay} attachments={attachmentsByTarget?.[e.accommodation.id] ?? []} />
-        ))}
-
-      {/* Timed entries: transport departures/arrivals interleaved with timed items */}
-      {/* We render them in two groups — transport first for departure context, then timed items */}
-      {day.transportEntries.map((e) => (
-        <TransportRow key={`tr-${e.transport.id}-${e.kind}`} entry={e} isDay={isDay} attachments={attachmentsByTarget?.[e.transport.id] ?? []} />
-      ))}
-
-      {day.timedItems.map((e) => (
-        <TimedItemRow
-          key={`ti-${e.item.id}`}
-          entry={e}
-          isDay={isDay}
-          directions={itemDirections?.[e.item.id]}
-          attachments={attachmentsByTarget?.[e.item.id] ?? []}
-          showUnschedule={showUnschedule}
-        />
-      ))}
-
-      {/* Accommodation check-outs */}
-      {day.accommodationEntries
-        .filter((e) => e.kind === "accommodation-checkout")
-        .map((e) => (
-          <AccomCheckoutRow key={`co-${e.accommodation.id}`} entry={e} isDay={isDay} attachments={attachmentsByTarget?.[e.accommodation.id] ?? []} />
-        ))}
+      {entries.map((entry) => {
+        switch (entry.kind) {
+          case "accommodation-checkout":
+            return (
+              <AccomCheckoutRow
+                key={`co-${entry.accommodation.id}`}
+                entry={entry}
+                isDay={isDay}
+                attachments={attachmentsByTarget?.[entry.accommodation.id] ?? []}
+              />
+            );
+          case "accommodation-checkin":
+            return (
+              <AccomCheckinRow
+                key={`ci-${entry.accommodation.id}`}
+                entry={entry}
+                isDay={isDay}
+                attachments={attachmentsByTarget?.[entry.accommodation.id] ?? []}
+              />
+            );
+          case "transport-departure":
+          case "transport-arrival":
+            return (
+              <TransportRow
+                key={`tr-${entry.transport.id}-${entry.kind}`}
+                entry={entry}
+                isDay={isDay}
+                attachments={attachmentsByTarget?.[entry.transport.id] ?? []}
+              />
+            );
+          case "item":
+            return (
+              <TimedItemRow
+                key={`ti-${entry.item.id}`}
+                entry={entry}
+                isDay={isDay}
+                directions={itemDirections?.[entry.item.id]}
+                attachments={attachmentsByTarget?.[entry.item.id] ?? []}
+                showUnschedule={showUnschedule}
+              />
+            );
+          default:
+            return null;
+        }
+      })}
 
       {/* Untimed items */}
-      {day.untimedItems.length > 0 && (
+      {anytime.length > 0 && (
         <div className={cn("flex flex-col", isDay ? "gap-2 mt-1" : "gap-1")}>
           <p className="text-xs sm:text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70 mt-1">
             Anytime
           </p>
-          {day.untimedItems.map((e) => (
+          {anytime.map((e) => (
             <UntimedItemRow
               key={`ui-${e.item.id}`}
               entry={e}
@@ -453,7 +471,7 @@ function AccomCheckinRow({
           : "px-2 py-1 rounded-lg",
       )}
     >
-      <TimeGutter time={null} isDay={isDay} />
+      <TimeGutter time={a.checkInTime ?? null} isDay={isDay} />
       <LogIn
         className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400"
         aria-hidden="true"
@@ -493,7 +511,7 @@ function AccomCheckoutRow({
           : "px-2 py-1 rounded-lg",
       )}
     >
-      <TimeGutter time={null} isDay={isDay} />
+      <TimeGutter time={a.checkOutTime ?? null} isDay={isDay} />
       <LogOut
         className="size-4 shrink-0 text-rose-600 dark:text-rose-400"
         aria-hidden="true"

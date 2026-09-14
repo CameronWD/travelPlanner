@@ -164,8 +164,8 @@ describe("AccommodationFormDialog", () => {
     );
 
     // Find the check-in and check-out inputs by label
-    const checkInInput = screen.getByLabelText(/check-in/i);
-    const checkOutInput = screen.getByLabelText(/check-out/i);
+    const checkInInput = screen.getByLabelText(/^check-in\*?$/i);
+    const checkOutInput = screen.getByLabelText(/^check-out\*?$/i);
 
     // Set check-out BEFORE check-in (inverted)
     await user.clear(checkInInput);
@@ -197,8 +197,8 @@ describe("AccommodationFormDialog", () => {
       />,
     );
 
-    const checkInInput = screen.getByLabelText(/check-in/i);
-    const checkOutInput = screen.getByLabelText(/check-out/i);
+    const checkInInput = screen.getByLabelText(/^check-in\*?$/i);
+    const checkOutInput = screen.getByLabelText(/^check-out\*?$/i);
 
     // Set inverted order
     await user.clear(checkInInput);

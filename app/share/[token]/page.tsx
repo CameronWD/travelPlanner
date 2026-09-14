@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
-import { buildItinerary } from "@/lib/itinerary";
+import { buildItinerary, orderDayEntries } from "@/lib/itinerary";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enums";
@@ -128,6 +128,8 @@ export default async function SharePage({
         address: true,
         checkIn: true,
         checkOut: true,
+        checkInTime: true,
+        checkOutTime: true,
         // confirmation intentionally omitted (private booking ref)
         // notes intentionally omitted
       },
@@ -202,6 +204,8 @@ export default async function SharePage({
       address: a.address,
       checkIn: a.checkIn,
       checkOut: a.checkOut,
+      checkInTime: a.checkInTime,
+      checkOutTime: a.checkOutTime,
     })),
   });
 
@@ -410,132 +414,151 @@ export default async function SharePage({
                         </p>
                       )}
 
-                      {/* Accommodation check-ins */}
-                      {day.accommodationEntries
-                        .filter((e) => e.kind === "accommodation-checkin")
-                        .map((entry) => (
-                          <div
-                            key={`ci-${entry.accommodation.id}`}
-                            className="flex items-center gap-2 text-sm rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/30 px-3 py-1.5"
-                          >
-                            <LogIn
-                              className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
-                              aria-hidden="true"
-                            />
-                            <span className="font-medium text-foreground">
-                              Check-in — {entry.accommodation.name}
-                            </span>
-                          </div>
-                        ))}
-
-                      {/* Transport entries */}
-                      {day.transportEntries.map((entry) => {
-                        const t = entry.transport;
-                        const isDep = entry.kind === "transport-departure";
-                        const depEntry = isDep ? entry : null;
-                        const arrEntry = !isDep ? entry : null;
-                        const gutterTime = isDep
-                          ? (depEntry?.depTimeLabel ?? null)
-                          : (arrEntry?.arrTimeLabel ?? null);
-
+                      {(() => {
+                        const { entries, anytime } = orderDayEntries(day);
                         return (
-                          <div
-                            key={`${entry.kind}-${t.id}`}
-                            className="flex items-start gap-2 text-sm rounded-lg bg-primary/5 border border-primary/10 px-3 py-1.5"
-                          >
-                            {gutterTime && (
-                              <span className="font-mono text-xs text-muted-foreground shrink-0 pt-0.5 w-8 sm:w-10 text-right">
-                                {gutterTime}
-                              </span>
+                          <>
+                            {entries.map((entry) => {
+                              switch (entry.kind) {
+                                case "accommodation-checkin": {
+                                  const a = entry.accommodation;
+                                  return (
+                                    <div
+                                      key={`ci-${a.id}`}
+                                      className="flex items-center gap-2 text-sm rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/30 px-3 py-1.5"
+                                    >
+                                      {a.checkInTime && (
+                                        <span className="font-mono text-xs text-muted-foreground shrink-0 w-8 sm:w-10 text-right">
+                                          {a.checkInTime}
+                                        </span>
+                                      )}
+                                      <LogIn
+                                        className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                                        aria-hidden="true"
+                                      />
+                                      <span className="font-medium text-foreground">
+                                        Check-in — {a.name}
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                case "accommodation-checkout": {
+                                  const a = entry.accommodation;
+                                  return (
+                                    <div
+                                      key={`co-${a.id}`}
+                                      className="flex items-center gap-2 text-sm rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-800/30 px-3 py-1.5"
+                                    >
+                                      {a.checkOutTime && (
+                                        <span className="font-mono text-xs text-muted-foreground shrink-0 w-8 sm:w-10 text-right">
+                                          {a.checkOutTime}
+                                        </span>
+                                      )}
+                                      <LogOut
+                                        className="size-3.5 shrink-0 text-rose-600 dark:text-rose-400"
+                                        aria-hidden="true"
+                                      />
+                                      <span className="font-medium text-foreground">
+                                        Check-out — {a.name}
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                case "transport-departure":
+                                case "transport-arrival": {
+                                  const t = entry.transport;
+                                  const isDep = entry.kind === "transport-departure";
+                                  const depEntry = isDep ? entry : null;
+                                  const arrEntry = !isDep ? entry : null;
+                                  const gutterTime = isDep
+                                    ? (depEntry?.depTimeLabel ?? null)
+                                    : (arrEntry?.arrTimeLabel ?? null);
+
+                                  return (
+                                    <div
+                                      key={`${entry.kind}-${t.id}`}
+                                      className="flex items-start gap-2 text-sm rounded-lg bg-primary/5 border border-primary/10 px-3 py-1.5"
+                                    >
+                                      {gutterTime && (
+                                        <span className="font-mono text-xs text-muted-foreground shrink-0 pt-0.5 w-8 sm:w-10 text-right">
+                                          {gutterTime}
+                                        </span>
+                                      )}
+                                      <div className="min-w-0 flex-1">
+                                        <span className="font-medium text-foreground">
+                                          {isDep ? "Departs" : "Arrives"} — {modeLabel(t.mode)}
+                                        </span>
+                                        {(t.depPlace || t.arrPlace) && (
+                                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                                            {t.depPlace && <span className="min-w-0 truncate">{t.depPlace}</span>}
+                                            {t.depPlace && t.arrPlace && (
+                                              <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
+                                            )}
+                                            {t.arrPlace && <span className="min-w-0 truncate">{t.arrPlace}</span>}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                case "item": {
+                                  const { item } = entry;
+                                  const timeLabel = item.endTime
+                                    ? `${item.startTime} – ${item.endTime}`
+                                    : item.startTime;
+                                  return (
+                                    <div
+                                      key={item.id}
+                                      className="flex items-start gap-2 text-sm px-2 py-0.5"
+                                    >
+                                      <span className="font-mono text-xs text-muted-foreground shrink-0 pt-0.5 w-8 sm:w-10 text-right">
+                                        {item.startTime}
+                                      </span>
+                                      <div className="min-w-0 flex-1">
+                                        <span className="font-medium text-foreground">
+                                          {item.title}
+                                        </span>
+                                        {timeLabel && item.endTime && (
+                                          <span className="ml-1 text-xs text-muted-foreground">
+                                            ({timeLabel})
+                                          </span>
+                                        )}
+                                        {item.address && (
+                                          <div className="text-xs text-muted-foreground">
+                                            {item.address}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                                default:
+                                  return null;
+                              }
+                            })}
+
+                            {/* Untimed items */}
+                            {anytime.length > 0 && (
+                              <div className="mt-0.5">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70 mb-1">
+                                  Anytime
+                                </p>
+                                {anytime.map((entry) => (
+                                  <div
+                                    key={entry.item.id}
+                                    className="flex items-start gap-2 text-sm px-2 py-0.5"
+                                  >
+                                    <div className="h-1.5 w-1.5 mt-2 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden="true" />
+                                    <span className="text-foreground/80">
+                                      {entry.item.title}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
                             )}
-                            <div className="min-w-0 flex-1">
-                              <span className="font-medium text-foreground">
-                                {isDep ? "Departs" : "Arrives"} — {modeLabel(t.mode)}
-                              </span>
-                              {(t.depPlace || t.arrPlace) && (
-                                <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                                  {t.depPlace && <span className="min-w-0 truncate">{t.depPlace}</span>}
-                                  {t.depPlace && t.arrPlace && (
-                                    <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
-                                  )}
-                                  {t.arrPlace && <span className="min-w-0 truncate">{t.arrPlace}</span>}
-                                </div>
-                              )}
-                            </div>
-                          </div>
+                          </>
                         );
-                      })}
-
-                      {/* Timed items */}
-                      {day.timedItems.map((entry) => {
-                        const { item } = entry;
-                        const timeLabel = item.endTime
-                          ? `${item.startTime} – ${item.endTime}`
-                          : item.startTime;
-                        return (
-                          <div
-                            key={item.id}
-                            className="flex items-start gap-2 text-sm px-2 py-0.5"
-                          >
-                            <span className="font-mono text-xs text-muted-foreground shrink-0 pt-0.5 w-8 sm:w-10 text-right">
-                              {item.startTime}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <span className="font-medium text-foreground">
-                                {item.title}
-                              </span>
-                              {timeLabel && item.endTime && (
-                                <span className="ml-1 text-xs text-muted-foreground">
-                                  ({timeLabel})
-                                </span>
-                              )}
-                              {item.address && (
-                                <div className="text-xs text-muted-foreground">
-                                  {item.address}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* Untimed items */}
-                      {day.untimedItems.length > 0 && (
-                        <div className="mt-0.5">
-                          <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70 mb-1">
-                            Anytime
-                          </p>
-                          {day.untimedItems.map((entry) => (
-                            <div
-                              key={entry.item.id}
-                              className="flex items-start gap-2 text-sm px-2 py-0.5"
-                            >
-                              <div className="h-1.5 w-1.5 mt-2 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden="true" />
-                              <span className="text-foreground/80">
-                                {entry.item.title}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      {/* Accommodation check-outs */}
-                      {day.accommodationEntries
-                        .filter((e) => e.kind === "accommodation-checkout")
-                        .map((entry) => (
-                          <div
-                            key={`co-${entry.accommodation.id}`}
-                            className="flex items-center gap-2 text-sm rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-800/30 px-3 py-1.5"
-                          >
-                            <LogOut
-                              className="size-3.5 shrink-0 text-rose-600 dark:text-rose-400"
-                              aria-hidden="true"
-                            />
-                            <span className="font-medium text-foreground">
-                              Check-out — {entry.accommodation.name}
-                            </span>
-                          </div>
-                        ))}
+                      })()}
                     </div>
                   </div>
                 );

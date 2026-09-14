@@ -13,7 +13,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
 import { zoneLabel } from "@/lib/time-display";
-import { buildItinerary } from "@/lib/itinerary";
+import { buildItinerary, orderDayEntries } from "@/lib/itinerary";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
 import { PrintButton } from "./print-button";
 import type { BudgetStop, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
@@ -112,6 +112,8 @@ export default async function PrintPage({
           address: true,
           checkIn: true,
           checkOut: true,
+          checkInTime: true,
+          checkOutTime: true,
           confirmation: true,
         },
       }),
@@ -218,6 +220,8 @@ export default async function PrintPage({
       address: a.address,
       checkIn: a.checkIn,
       checkOut: a.checkOut,
+      checkInTime: a.checkInTime,
+      checkOutTime: a.checkOutTime,
       confirmation: a.confirmation,
     })),
   });
@@ -405,102 +409,124 @@ export default async function PrintPage({
                     <p className="text-sm text-muted-foreground italic">No activities planned.</p>
                   )}
 
-                  {/* Accommodation entries */}
-                  {day.accommodationEntries.map((entry) => (
-                    <div
-                      key={`${entry.kind}-${entry.accommodation.id}`}
-                      className="mb-2 flex items-center gap-2 text-sm"
-                    >
-                      {entry.kind === "accommodation-checkin" ? (
-                        <LogIn className="size-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
-                      ) : (
-                        <LogOut className="size-3.5 shrink-0 text-rose-600" aria-hidden="true" />
-                      )}
-                      <span>
-                        {entry.kind === "accommodation-checkin" ? "Check-in" : "Check-out"} —{" "}
-                        <span className="font-medium">{entry.accommodation.name}</span>
-                      </span>
-                    </div>
-                  ))}
-
-                  {/* Transport entries */}
-                  {day.transportEntries.map((entry) => {
-                    const t = entry.transport;
-                    const isDep = entry.kind === "transport-departure";
-                    const depEntry = isDep ? entry : null;
-                    const arrEntry = !isDep ? entry : null;
-
+                  {(() => {
+                    const { entries, anytime } = orderDayEntries(day);
                     return (
-                      <div
-                        key={`${entry.kind}-${t.id}`}
-                        className="mb-2 flex items-start gap-2 text-sm"
-                      >
-                        <span className="font-mono text-xs text-muted-foreground w-11 text-right shrink-0 pt-0.5">
-                          {isDep
-                            ? (depEntry?.depTimeLabel ?? "")
-                            : (arrEntry?.arrTimeLabel ?? "")}
-                        </span>
-                        <div>
-                          <span className="font-medium">
-                            {isDep ? "Departs" : "Arrives"} — {modeLabel(t.mode)}
-                          </span>
-                          {t.reference && (
-                            <span className="ml-1 font-mono text-xs text-muted-foreground">
-                              ({t.reference})
-                            </span>
-                          )}
-                          {(t.depPlace || t.arrPlace) && (
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              {t.depPlace && <span>{t.depPlace}</span>}
-                              {t.depPlace && t.arrPlace && (
-                                <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
-                              )}
-                              {t.arrPlace && <span>{t.arrPlace}</span>}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                      <>
+                        {entries.map((entry) => {
+                          switch (entry.kind) {
+                            case "accommodation-checkin":
+                            case "accommodation-checkout": {
+                              const a = entry.accommodation;
+                              const time =
+                                entry.kind === "accommodation-checkin"
+                                  ? a.checkInTime
+                                  : a.checkOutTime;
+                              return (
+                                <div
+                                  key={`${entry.kind}-${a.id}`}
+                                  className="mb-2 flex items-center gap-2 text-sm"
+                                >
+                                  {time && (
+                                    <span className="font-mono text-xs text-muted-foreground w-11 text-right shrink-0">
+                                      {time}
+                                    </span>
+                                  )}
+                                  {entry.kind === "accommodation-checkin" ? (
+                                    <LogIn className="size-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
+                                  ) : (
+                                    <LogOut className="size-3.5 shrink-0 text-rose-600" aria-hidden="true" />
+                                  )}
+                                  <span>
+                                    {entry.kind === "accommodation-checkin" ? "Check-in" : "Check-out"} —{" "}
+                                    <span className="font-medium">{a.name}</span>
+                                  </span>
+                                </div>
+                              );
+                            }
+                            case "transport-departure":
+                            case "transport-arrival": {
+                              const t = entry.transport;
+                              const isDep = entry.kind === "transport-departure";
+                              const depEntry = isDep ? entry : null;
+                              const arrEntry = !isDep ? entry : null;
 
-                  {/* Timed items */}
-                  {day.timedItems.map((entry) => {
-                    const { item } = entry;
-                    const timeLabel = item.endTime
-                      ? `${item.startTime} – ${item.endTime}`
-                      : item.startTime;
-                    return (
-                      <div key={item.id} className="mb-1.5 flex items-start gap-2 text-sm">
-                        <span className="font-mono text-xs text-muted-foreground w-11 text-right shrink-0 pt-0.5">
-                          {item.startTime}
-                        </span>
-                        <div>
-                          <span className="font-medium">{item.title}</span>
-                          {timeLabel && item.endTime && (
-                            <span className="ml-1 text-xs text-muted-foreground">({timeLabel})</span>
-                          )}
-                          {item.address && (
-                            <div className="text-xs text-muted-foreground">{item.address}</div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
+                              return (
+                                <div
+                                  key={`${entry.kind}-${t.id}`}
+                                  className="mb-2 flex items-start gap-2 text-sm"
+                                >
+                                  <span className="font-mono text-xs text-muted-foreground w-11 text-right shrink-0 pt-0.5">
+                                    {isDep
+                                      ? (depEntry?.depTimeLabel ?? "")
+                                      : (arrEntry?.arrTimeLabel ?? "")}
+                                  </span>
+                                  <div>
+                                    <span className="font-medium">
+                                      {isDep ? "Departs" : "Arrives"} — {modeLabel(t.mode)}
+                                    </span>
+                                    {t.reference && (
+                                      <span className="ml-1 font-mono text-xs text-muted-foreground">
+                                        ({t.reference})
+                                      </span>
+                                    )}
+                                    {(t.depPlace || t.arrPlace) && (
+                                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                        {t.depPlace && <span>{t.depPlace}</span>}
+                                        {t.depPlace && t.arrPlace && (
+                                          <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
+                                        )}
+                                        {t.arrPlace && <span>{t.arrPlace}</span>}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            case "item": {
+                              const { item } = entry;
+                              const timeLabel = item.endTime
+                                ? `${item.startTime} – ${item.endTime}`
+                                : item.startTime;
+                              return (
+                                <div key={item.id} className="mb-1.5 flex items-start gap-2 text-sm">
+                                  <span className="font-mono text-xs text-muted-foreground w-11 text-right shrink-0 pt-0.5">
+                                    {item.startTime}
+                                  </span>
+                                  <div>
+                                    <span className="font-medium">{item.title}</span>
+                                    {timeLabel && item.endTime && (
+                                      <span className="ml-1 text-xs text-muted-foreground">({timeLabel})</span>
+                                    )}
+                                    {item.address && (
+                                      <div className="text-xs text-muted-foreground">{item.address}</div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            }
+                            default:
+                              return null;
+                          }
+                        })}
 
-                  {/* Untimed items */}
-                  {day.untimedItems.length > 0 && (
-                    <div className="mt-1">
-                      {day.untimedItems.map((entry) => (
-                        <div
-                          key={entry.item.id}
-                          className="mb-1 flex items-start gap-2 text-sm"
-                        >
-                          <Clock className="size-3.5 mt-0.5 shrink-0 text-muted-foreground/40" aria-hidden="true" />
-                          <span>{entry.item.title}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                        {/* Untimed items */}
+                        {anytime.length > 0 && (
+                          <div className="mt-1">
+                            {anytime.map((entry) => (
+                              <div
+                                key={entry.item.id}
+                                className="mb-1 flex items-start gap-2 text-sm"
+                              >
+                                <Clock className="size-3.5 mt-0.5 shrink-0 text-muted-foreground/40" aria-hidden="true" />
+                                <span>{entry.item.title}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               );
             })}

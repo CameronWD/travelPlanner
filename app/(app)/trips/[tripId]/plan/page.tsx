@@ -86,6 +86,8 @@ export default async function TripPlanPage({
             address: true,
             checkIn: true,
             checkOut: true,
+            checkInTime: true,
+            checkOutTime: true,
             confirmation: true,
             notes: true,
             lat: true,

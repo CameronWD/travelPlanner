@@ -22,6 +22,8 @@ export interface AccommodationCardAccommodation {
   address?: string | null;
   checkIn: string;
   checkOut: string;
+  checkInTime?: string | null;
+  checkOutTime?: string | null;
   confirmation?: string | null;
   notes?: string | null;
   lat?: number | null;

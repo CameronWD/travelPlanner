@@ -36,6 +36,8 @@ interface FormErrors {
   address?: string[];
   checkIn?: string[];
   checkOut?: string[];
+  checkInTime?: string[];
+  checkOutTime?: string[];
   confirmation?: string[];
   notes?: string[];
   costMinor?: string[];
@@ -218,6 +220,8 @@ function AccommodationForm({
   const [checkOut, setCheckOut] = React.useState(
     accommodation?.checkOut ?? stopDateRange.departDate,
   );
+  const [checkInTime, setCheckInTime] = React.useState(accommodation?.checkInTime ?? "");
+  const [checkOutTime, setCheckOutTime] = React.useState(accommodation?.checkOutTime ?? "");
   const [confirmation, setConfirmation] = React.useState(
     accommodation?.confirmation ?? "",
   );
@@ -281,6 +285,8 @@ function AccommodationForm({
         address: address.trim() || undefined,
         checkIn,
         checkOut,
+        ...(checkInTime ? { checkInTime } : {}),
+        ...(checkOutTime ? { checkOutTime } : {}),
         confirmation: confirmation.trim() || undefined,
         notes: notes.trim() || undefined,
         ...(costMinor !== undefined && {
@@ -345,6 +351,26 @@ function AccommodationForm({
           error={(errors as FormErrors).checkOut?.[0]}
           disabled={isPending}
         />
+      </div>
+
+      {/* Times */}
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Check-in time" error={(errors as FormErrors).checkInTime?.[0]}>
+          <Input
+            type="time"
+            value={checkInTime}
+            onChange={(e) => setCheckInTime(e.target.value)}
+            disabled={isPending}
+          />
+        </Field>
+        <Field label="Check-out time" error={(errors as FormErrors).checkOutTime?.[0]}>
+          <Input
+            type="time"
+            value={checkOutTime}
+            onChange={(e) => setCheckOutTime(e.target.value)}
+            disabled={isPending}
+          />
+        </Field>
       </div>
 
       {/* Soft date warnings */}
