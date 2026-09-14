@@ -5,6 +5,8 @@ import {
   buildItinerary,
   effectiveTodayISO,
   pickDayPlan,
+  orderDayEntries,
+  isFreeFormDay,
   type ItineraryStop,
   type ItineraryItem,
   type ItineraryTransport,
@@ -71,6 +73,8 @@ const makeAccom = (overrides: Partial<ItineraryAccommodation> & Pick<ItineraryAc
   address: null,
   confirmation: null,
   notes: null,
+  checkInTime: null,
+  checkOutTime: null,
   ...overrides,
 });
 
@@ -689,5 +693,193 @@ describe("pickDayPlan", () => {
 
   it("returns null for empty plans", () => {
     expect(pickDayPlan([], "2026-07-01")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// orderDayEntries
+// ---------------------------------------------------------------------------
+
+describe("orderDayEntries", () => {
+  const BASE = {
+    startDate: "2026-07-01",
+    endDate: "2026-07-10",
+    stops: [PARIS, ROME],
+  };
+
+  it("puts an untimed check-out first and an untimed check-in after transport", () => {
+    const plans = buildItinerary({
+      ...BASE,
+      items: [
+        makeItem({
+          id: "item-untimed",
+          date: "2026-07-05",
+          startTime: null,
+          title: "Free time",
+        }),
+      ],
+      transports: [
+        makeTransport({
+          id: "t-1",
+          mode: "TRAIN",
+          fromStopId: "stop-paris",
+          toStopId: "stop-rome",
+          depAt: new Date("2026-07-05T08:00:00Z"),
+        }),
+      ],
+      accommodations: [
+        makeAccom({
+          id: "acc-out",
+          stopId: "stop-paris",
+          checkIn: "2026-07-01",
+          checkOut: "2026-07-05",
+          checkOutTime: null,
+        }),
+        makeAccom({
+          id: "acc-in",
+          stopId: "stop-rome",
+          checkIn: "2026-07-05",
+          checkOut: "2026-07-10",
+          checkInTime: null,
+        }),
+      ],
+    });
+    const day = plans.find((d) => d.dateISO === "2026-07-05")!;
+    const kinds = orderDayEntries(day).entries.map((e) => e.kind);
+    expect(kinds.indexOf("accommodation-checkout")).toBe(0);
+    expect(kinds.indexOf("accommodation-checkin")).toBeGreaterThan(
+      kinds.indexOf("transport-departure"),
+    );
+  });
+
+  it("slots a timed check-out among timed items by time (bakery 08:00 before 10:00 checkout)", () => {
+    const plans = buildItinerary({
+      ...BASE,
+      items: [
+        makeItem({
+          id: "item-bakery",
+          date: "2026-07-05",
+          startTime: "08:00",
+          title: "Bakery",
+        }),
+        makeItem({
+          id: "item-museum",
+          date: "2026-07-05",
+          startTime: "11:00",
+          title: "Museum",
+        }),
+      ],
+      transports: [],
+      accommodations: [
+        makeAccom({
+          id: "acc-out",
+          stopId: "stop-paris",
+          checkIn: "2026-07-01",
+          checkOut: "2026-07-05",
+          checkOutTime: "10:00",
+        }),
+      ],
+    });
+    const day = plans.find((d) => d.dateISO === "2026-07-05")!;
+    const ordered = orderDayEntries(day).entries;
+    const labels = ordered.map((e) =>
+      e.kind === "item" ? e.item.title : e.kind,
+    );
+    expect(labels).toEqual(["Bakery", "accommodation-checkout", "Museum"]);
+  });
+
+  it("ties at the same minute break checkout < item < checkin", () => {
+    const plans = buildItinerary({
+      ...BASE,
+      items: [
+        makeItem({
+          id: "item-noon",
+          date: "2026-07-05",
+          startTime: "12:00",
+          title: "Noon thing",
+        }),
+      ],
+      transports: [],
+      accommodations: [
+        makeAccom({
+          id: "acc-out",
+          stopId: "stop-paris",
+          checkIn: "2026-07-01",
+          checkOut: "2026-07-05",
+          checkOutTime: "12:00",
+        }),
+        makeAccom({
+          id: "acc-in",
+          stopId: "stop-rome",
+          checkIn: "2026-07-05",
+          checkOutTime: null,
+          checkOut: "2026-07-10",
+          checkInTime: "12:00",
+        }),
+      ],
+    });
+    const day = plans.find((d) => d.dateISO === "2026-07-05")!;
+    const ordered = orderDayEntries(day).entries;
+    const kinds = ordered.map((e) => e.kind);
+    expect(kinds).toEqual([
+      "accommodation-checkout",
+      "item",
+      "accommodation-checkin",
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isFreeFormDay
+// ---------------------------------------------------------------------------
+
+describe("isFreeFormDay", () => {
+  const BASE = {
+    startDate: "2026-07-01",
+    endDate: "2026-07-10",
+    stops: [PARIS, ROME],
+  };
+
+  it("is true when the day has no scheduled items, even with a check-out", () => {
+    const plans = buildItinerary({
+      ...BASE,
+      items: [],
+      transports: [],
+      accommodations: [
+        makeAccom({
+          id: "acc-out",
+          stopId: "stop-paris",
+          checkIn: "2026-07-01",
+          checkOut: "2026-07-05",
+          checkOutTime: null,
+        }),
+      ],
+    });
+    const day = plans.find((d) => d.dateISO === "2026-07-05")!;
+    expect(isFreeFormDay(day)).toBe(true);
+  });
+
+  it("is false when a timed or untimed item exists", () => {
+    const plansTimed = buildItinerary({
+      ...BASE,
+      items: [
+        makeItem({ id: "item-timed", date: "2026-07-05", startTime: "09:00" }),
+      ],
+      transports: [],
+      accommodations: [],
+    });
+    const dayTimed = plansTimed.find((d) => d.dateISO === "2026-07-05")!;
+    expect(isFreeFormDay(dayTimed)).toBe(false);
+
+    const plansUntimed = buildItinerary({
+      ...BASE,
+      items: [
+        makeItem({ id: "item-untimed", date: "2026-07-05", startTime: null }),
+      ],
+      transports: [],
+      accommodations: [],
+    });
+    const dayUntimed = plansUntimed.find((d) => d.dateISO === "2026-07-05")!;
+    expect(isFreeFormDay(dayUntimed)).toBe(false);
   });
 });

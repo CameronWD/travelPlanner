@@ -58,6 +58,8 @@ export interface ItineraryAccommodation {
   name: string;
   checkIn: string; // YYYY-MM-DD
   checkOut: string; // YYYY-MM-DD
+  checkInTime?: string | null; // HH:MM
+  checkOutTime?: string | null; // HH:MM
   address?: string | null;
   confirmation?: string | null;
   notes?: string | null;
@@ -410,4 +412,70 @@ export function pickDayPlan(
   dateISO: string,
 ): DayPlan | null {
   return dayPlans.find((d) => d.dateISO === dateISO) ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Day entry ordering
+// ---------------------------------------------------------------------------
+
+export interface OrderedDay {
+  /** Everything above the Anytime section, in reading order. */
+  entries: DayEntry[];
+  /** Untimed items, rendered under an "Anytime" header. */
+  anytime: ItemEntry[];
+}
+
+/** Tie-break rank inside the timed merge: leave before do before arrive. */
+const TIMED_RANK: Record<string, number> = {
+  "accommodation-checkout": 0,
+  item: 1,
+  "accommodation-checkin": 2,
+};
+
+function timedKey(entry: DayEntry): string | null {
+  switch (entry.kind) {
+    case "item":
+      return entry.item.startTime ?? null;
+    case "accommodation-checkin":
+      return entry.accommodation.checkInTime ?? null;
+    case "accommodation-checkout":
+      return entry.accommodation.checkOutTime ?? null;
+    default:
+      return null;
+  }
+}
+
+/**
+ * Flatten a DayPlan into reading order (CONTEXT.md "Accommodation"):
+ * untimed check-outs → transport → untimed check-ins → the timed merge
+ * (timed items + timed check-ins/outs by HH:MM). Untimed items stay a
+ * separate "Anytime" bucket.
+ */
+export function orderDayEntries(day: DayPlan): OrderedDay {
+  const checkouts = day.accommodationEntries.filter((e) => e.kind === "accommodation-checkout");
+  const checkins = day.accommodationEntries.filter((e) => e.kind === "accommodation-checkin");
+  const timed: DayEntry[] = [
+    ...checkouts.filter((e) => e.accommodation.checkOutTime),
+    ...day.timedItems,
+    ...checkins.filter((e) => e.accommodation.checkInTime),
+  ].sort((a, b) => {
+    const ta = timedKey(a)!;
+    const tb = timedKey(b)!;
+    if (ta !== tb) return ta < tb ? -1 : 1;
+    return (TIMED_RANK[a.kind] ?? 1) - (TIMED_RANK[b.kind] ?? 1);
+  });
+  return {
+    entries: [
+      ...checkouts.filter((e) => !e.accommodation.checkOutTime),
+      ...day.transportEntries,
+      ...checkins.filter((e) => !e.accommodation.checkInTime),
+      ...timed,
+    ],
+    anytime: day.untimedItems,
+  };
+}
+
+/** No scheduled Items on this day — the Day ideas trigger (CONTEXT.md "free-form"). */
+export function isFreeFormDay(day: DayPlan): boolean {
+  return day.timedItems.length === 0 && day.untimedItems.length === 0;
 }
