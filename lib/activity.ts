@@ -189,8 +189,8 @@ const FIELD_SPECS: Record<ActivityEntityType, FieldSpec[]> = {
     { key: "address", label: "Address" },
     { key: "checkIn", label: "Check-in", format: (v) => dateFormat(v) },
     { key: "checkOut", label: "Check-out", format: (v) => dateFormat(v) },
-    { key: "checkInTime", label: "check-in time" },
-    { key: "checkOutTime", label: "check-out time" },
+    { key: "checkInTime", label: "Check-in time" },
+    { key: "checkOutTime", label: "Check-out time" },
     { key: "confirmation", label: "Confirmation" },
   ],
   CHAPTER: [
