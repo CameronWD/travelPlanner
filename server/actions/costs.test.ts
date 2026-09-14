@@ -507,6 +507,42 @@ describe("updateCost", () => {
     expect(call.data).not.toHaveProperty("paidMinor");
   });
 
+  it("writes dueDate: null when the input omits it (e.g. ticking Paid clears a stored due date)", async () => {
+    // CONTEXT.md "Due date" only applies to unpaid costs — unlike paidMinor,
+    // there is no "preserve as history" rule for it. cost-editor.tsx /
+    // other-cost-editor.tsx omit `dueDate` from the payload whenever the Paid
+    // box is ticked, and that omission must clear any previously stored due
+    // date rather than leaving it stale.
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", currency: "AUD" });
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costUpdateMock.mockResolvedValue({});
+
+    const result = await updateCost("cost-1", VALID_TRANSPORT_INPUT);
+
+    expect(result.success).toBe(true);
+    const call = costUpdateMock.mock.calls[0][0];
+    expect(call.data.dueDate).toBeNull();
+  });
+
+  it("persists a provided dueDate", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", currency: "AUD" });
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costUpdateMock.mockResolvedValue({});
+
+    const result = await updateCost("cost-1", {
+      ...VALID_TRANSPORT_INPUT,
+      dueDate: "2026-11-20",
+    });
+
+    expect(result.success).toBe(true);
+    const call = costUpdateMock.mock.calls[0][0];
+    expect(call.data.dueDate).toBe("2026-11-20");
+  });
+
   it("re-snapshots rate = 1 when updating to same currency as home", async () => {
     costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1" });
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });

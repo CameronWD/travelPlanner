@@ -231,4 +231,22 @@ describe("CostEditor", () => {
       expect.objectContaining({ dueDate: "2026-11-20" }),
     );
   });
+
+  it("ticking Paid on a cost with a stored due date clears it — updateCost is called with no dueDate key", async () => {
+    // Regression: parseFormToInput omits `dueDate` whenever form.paid is
+    // true, and updateCost writes `dueDate: data.dueDate ?? null`
+    // unconditionally — so ticking Paid and saving must clear a previously
+    // stored due date, never carry it forward.
+    const costWithDueDate: CostRow = { ...sampleCost, dueDate: "2026-11-20" };
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} costs={[costWithDueDate]} />);
+
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    await user.click(screen.getByRole("checkbox", { name: /paid/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+
+    expect(updateCost).toHaveBeenCalled();
+    const call = (updateCost as ReturnType<typeof vi.fn>).mock.calls[0][1];
+    expect(call).not.toHaveProperty("dueDate");
+  });
 });
