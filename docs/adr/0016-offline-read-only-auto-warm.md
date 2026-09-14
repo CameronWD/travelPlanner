@@ -10,5 +10,5 @@ A traveller who loses signal abroad needs to *read* their itinerary — not edit
 ## Consequences
 
 - Edits (creating/updating Stops, costs, checklists, etc.) fail while offline. v1 signals this via the banner alone — per-action "can't edit offline" toasts are **explicitly deferred**: implementing them would require touching every mutation site across the app, and the cost was judged too high for the signal gained at this stage. This is a recorded choice, not an oversight.
-- File attachments are not pre-warmed; they are large, are served from object storage on a separate origin, and are out of scope for the warm set.
+- File attachments were originally excluded from the warm set; ADR 0043 narrows this — they are now warmed through the authenticated same-origin serve route.
 - The service worker is production-only (it is not registered in `next dev`). Offline behaviour is therefore testable via `next build` and a local production server or a deployed environment — not the development server.
