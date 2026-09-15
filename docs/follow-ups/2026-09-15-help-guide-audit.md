@@ -630,3 +630,38 @@ passing, because the guard asserts the string appears *somewhere* in a file unde
 prefix but wrong as a whole, and it cannot catch a label that has grown an
 interpolated value in the middle. Worth remembering before trusting the guard as
 proof a quotation is right.
+
+---
+
+## Parked after the final whole-branch review (2026-09-15)
+
+Findings that were real but ruled not worth another fix round. Recorded here so
+they are not rediscovered from scratch, and not silently dropped.
+
+- **`components/trip/help-expand-all.tsx:8`** — the doc comment still says it is
+  "the ONLY client component in the guide". That became false when
+  `components/trip/help-hash-open.tsx` was added. Cosmetic: the property the
+  comment exists to protect (no client-side *disclosure state*) is still intact,
+  and the guard test still holds in substance. Fix when next touching the file.
+- **Back button after a contents-link click.** Clicking a contents entry pushes a
+  history entry that `replaceState` then rewrites to the fragment-less URL, so one
+  Back press lands on a visually identical `/help`. Inherent to the approach; the
+  alternatives poison the Back button worse.
+- **`help-hash-open.test.tsx` test 3 ("collapse sticks")** is weaker than its name.
+  jsdom cannot prove the body is visually hidden, so `hash === ""` is the best
+  available proxy. A real browser test would be needed to assert it properly.
+- **`GUIDE_UI_STRINGS` is a substring guard, not an exact-match one.** It catches
+  renames, not misquotation — `"Editing variant"` passed while the guide misquoted
+  the banner. `"Booking reference"` and `"New trip"` are unfailable today for the
+  same reason, each being a substring of a longer live string.
+- **App issue, not a guide issue:** the legend's MapPin is ambiguous because the app
+  uses that icon both decoratively and as the real has-a-location signal. The fix
+  belongs in the UI.
+- **Known imprecision, deliberate:** the trip-settings section says only the trip's
+  creator sees Duplicate/Delete. The `ADMIN_EMAILS` override (ADR 0045) makes that
+  non-exhaustive, but the guide ships to every user and must not document operator
+  powers. Do not "correct" this by writing admin access into user-facing prose.
+- **Pre-existing, unchanged by this branch:** `duplicateTrip`
+  (`server/actions/trips.ts`) has no ownership check of its own — the Danger-zone
+  gate was the only thing making Duplicate owner-only, so any member could already
+  invoke the action directly.
