@@ -35,7 +35,7 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
   {
     id: "trip-shape",
     title: "The shape of your trip",
-    blurb: "Places, coloured bands and where you set off from.",
+    blurb: "Places, where you set off from, and the optional coloured bands.",
     group: "everyday",
   },
   {
@@ -81,6 +81,12 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     group: "everyday",
   },
   {
+    id: "search",
+    title: "Finding things fast",
+    blurb: "One box that jumps to any screen, or finds anything you've added.",
+    group: "everyday",
+  },
+  {
     id: "away",
     title: "While you're away",
     blurb: "The one screen you'll actually use on the road.",
@@ -120,6 +126,18 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     group: "advanced",
   },
   {
+    id: "globe",
+    title: "Your Globe",
+    blurb: "The places you'd go someday, kept across every trip.",
+    group: "advanced",
+  },
+  {
+    id: "trip-settings",
+    title: "Your trip's settings",
+    blurb: "Who's on the trip, sharing it, and getting rid of it.",
+    group: "advanced",
+  },
+  {
     id: "word-list",
     title: "Word list",
     blurb: "Every term the app uses, in plain English.",
@@ -146,13 +164,14 @@ export const GUIDE_TRIP_SEGMENTS = [
   "files",
   "activity",
   "compare",
+  "settings",
 ] as const;
 
 export type GuideTripSegment = (typeof GUIDE_TRIP_SEGMENTS)[number];
 
 /**
  * Nav labels the guide tells the reader to look for. Asserted against the
- * real nav. "Settings" is deliberately absent — it is out of scope.
+ * real nav.
  */
 export const GUIDE_NAV_LABELS = [
   "Home",
@@ -165,6 +184,7 @@ export const GUIDE_NAV_LABELS = [
   "Checklists",
   "Files",
   "Activity",
+  "Settings",
 ] as const;
 
 /**
@@ -185,11 +205,16 @@ export const GUIDE_NAV_LABELS = [
 export const GUIDE_UI_STRINGS = [
   // Adding things
   "Add Thing to Do",
+  "Start time",
+  "End time",
+  "Booking reference",
   "Add to this day",
   "Show day map",
   "Add from Globe",
   "Add Accommodation",
+  "Booking confirmation",
   "Add transport",
+  "Booking reference / number",
   "Schedule this",
   "in this plan",
   // Budget
@@ -205,6 +230,8 @@ export const GUIDE_UI_STRINGS = [
   "Packing",
   "Booking parser",
   "Create calendar feed",
+  // Working together
+  "Mark all read",
   // Flags, fitting and the home screen
   "Next steps",
   "Make it fit",
@@ -213,6 +240,8 @@ export const GUIDE_UI_STRINGS = [
   "Or drop a stop",
   "Apply trim",
   // Chapters, dates and pins
+  "Group into chapters",
+  "Turn off chapters",
   "New Chapter",
   "Suggest from countries",
   "Firm up all stops",
@@ -222,6 +251,22 @@ export const GUIDE_UI_STRINGS = [
   "New variant",
   "Compare plans",
   "Editing variant",
+  // Search
+  "Search or jump",
+  "Search needs a connection",
+  "New trip",
+  "Toggle theme",
+  // Trip settings
+  "Add a Traveller by email",
+  "Public share link",
+  "Include in feed",
+  "Road winding factor",
+  "Name for the duplicate",
+  "Delete trip",
+  "Delete forever",
+  // Globe
+  "Add Marker",
+  "Place search",
 ] as const;
 
 /** Sections in one group, in document order. */

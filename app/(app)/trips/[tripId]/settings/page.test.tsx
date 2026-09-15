@@ -16,10 +16,17 @@ const mockDb = vi.hoisted(() => ({
   chapter: { findMany: vi.fn() },
 }));
 
+const requireTripAccessMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    user: { id: "owner-1", email: "owner@example.com" },
+    membership: { userId: "owner-1", role: "owner" },
+  })),
+);
+
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/guards", () => ({
-  requireTripAccess: vi.fn(async () => ({ membership: { role: "owner" } })),
+  requireTripAccess: requireTripAccessMock,
 }));
 vi.mock("@/server/actions/share", () => ({ getShareLink: vi.fn(async () => null) }));
 vi.mock("@/server/actions/calendar-feed", () => ({ getCalendarFeed: vi.fn(async () => null) }));
@@ -86,5 +93,34 @@ describe("SettingsPage chapter gating (Task 13)", () => {
     );
     expect(screen.getByText("Chapters")).toBeInTheDocument();
     expect(screen.getByTestId("chapters-manager")).toBeInTheDocument();
+  });
+});
+
+describe("SettingsPage Danger zone admin gate (ADR 0045)", () => {
+  it("shows the Danger zone to an admin who is only a member", async () => {
+    process.env.ADMIN_EMAILS = "admin@example.com";
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "admin@example.com" },
+      membership: { userId: "u1", role: "member" },
+    });
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+
+    await renderSettings();
+
+    expect(screen.getByText("Danger zone")).toBeInTheDocument();
+    delete process.env.ADMIN_EMAILS;
+  });
+
+  it("hides the Danger zone from an ordinary member", async () => {
+    delete process.env.ADMIN_EMAILS;
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "someone@example.com" },
+      membership: { userId: "u2", role: "member" },
+    });
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+
+    await renderSettings();
+
+    expect(screen.queryByText("Danger zone")).not.toBeInTheDocument();
   });
 });

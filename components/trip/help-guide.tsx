@@ -1,6 +1,8 @@
 import * as React from "react";
 import { ChevronRight } from "lucide-react";
 import { HelpLegend } from "@/components/trip/help-legend";
+import { HelpExpandAll } from "@/components/trip/help-expand-all";
+import { HelpHashOpen } from "@/components/trip/help-hash-open";
 import {
   HELP_SECTIONS,
   guideTripHref,
@@ -26,14 +28,27 @@ import {
  */
 
 /**
- * Print CSS: expand every section so a printout is complete.
+ * Print CSS — and the matching `:target` CSS — for opening a closed
+ * <details> with no script.
  *
- * Two rules are needed because engines disagree on how a closed <details>
- * hides its content. Older engines set `display: none` on the children, so
- * overriding their `display` is enough. Chromium >= 131, Safari >= 18.4 and
- * Firefox >= 139 instead put the content in a `::details-content` box with
- * `content-visibility: hidden`, where the children's own `display` is
- * irrelevant — those need the second rule. Keep both.
+ * Two rules are needed in each case because engines disagree on how a closed
+ * <details> hides its content. Older engines set `display: none` on the
+ * children, so overriding their `display` is enough. Chromium >= 131, Safari
+ * >= 18.4 and Firefox >= 139 instead put the content in a
+ * `::details-content` box with `content-visibility: hidden`, where the
+ * children's own `display` is irrelevant — those need the second rule. Keep
+ * both, for print AND for `:target`.
+ *
+ * The `:target` pair is what makes a contents link to a closed section work
+ * without JavaScript: the browser sets `:target` on the linked <details> as
+ * it scrolls to it, and these rules force its content visible even though
+ * the `open` attribute is never set.
+ *
+ * That is a FALLBACK, not the main path. Because these rules are `!important`
+ * and keyed on `:target`, a section opened this way cannot be closed again —
+ * `open` flips to false but the body stays visible. HelpHashOpen (rendered
+ * below) sets `open` for real and strips the fragment, so `:target` stops
+ * matching wherever script runs. Keep these rules for where it doesn't.
  *
  * `.help-print-hide` has no user in this file. It is a hook for the page
  * chrome around the guide (nav, buttons) to opt out of the printout.
@@ -45,6 +60,8 @@ export const HELP_PRINT_STYLE = `
     details::details-content { content-visibility: visible !important; }
     .help-print-hide { display: none !important; }
   }
+  details:target > *:not(summary) { display: block !important; }
+  details:target::details-content { content-visibility: visible !important; }
 `;
 
 /** A link into the trip, degrading to bold text when there is no trip. */
@@ -71,17 +88,38 @@ function Go({
   );
 }
 
+/**
+ * Link to the Globe.
+ *
+ * Not a <Go>: the Globe is account-level, at /globe, so it is neither a trip
+ * segment nor dependent on a tripId — it is a real link on the standalone
+ * /help page too.
+ */
+function GlobeLink({ children }: { children: React.ReactNode }) {
+  return (
+    <a
+      href="/globe"
+      className="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+    >
+      {children}
+    </a>
+  );
+}
+
 /** One collapsible section. */
 function Section({
   section,
+  open,
   children,
 }: {
   section: HelpSection;
+  open?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <details
       id={section.id}
+      open={open}
       className="group rounded-xl border border-border bg-card px-4 py-3"
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
@@ -117,6 +155,35 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
   return (
     <div className="flex flex-col gap-8">
       <style>{HELP_PRINT_STYLE}</style>
+      <HelpHashOpen />
+
+      {/* ── Contents ──
+          Server-rendered anchors. With script, HelpHashOpen opens whichever
+          section is linked to and clears the fragment so it can be closed
+          again; without script, the :target rules above still open it. */}
+      <nav
+        aria-label="Contents"
+        className="help-print-hide rounded-xl border border-border bg-muted/40 px-4 py-3"
+      >
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-display text-base font-semibold text-foreground">
+            What&rsquo;s in here
+          </h2>
+          <HelpExpandAll />
+        </div>
+        <ol className="flex flex-col gap-1">
+          {HELP_SECTIONS.map((s) => (
+            <li key={s.id}>
+              <a
+                href={`#${s.id}`}
+                className="text-sm text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+              >
+                {s.title}
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
 
       {/* ── Always-visible key ── */}
       <section aria-labelledby="help-legend-heading">
@@ -139,7 +206,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
         </h2>
         <div className="flex flex-col gap-3">
           {/* One <Section> per everyday id, in HELP_SECTIONS order. */}
-          <Section section={sectionById("sixty-seconds")}>
+          <Section section={sectionById("sixty-seconds")} open>
             <p>
               The whole app is one loop. Six steps, and you have a planned trip.
             </p>
@@ -203,7 +270,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               places, and the rest of the app fills itself in around them.
             </p>
             <p>
-              It reads top to bottom, in the order you&rsquo;ll travel. Three
+              It reads top to bottom, in the order you&rsquo;ll travel. Two
               things make up the shape:
             </p>
             <ul className={`list-disc ${LIST_CLASS}`}>
@@ -213,18 +280,29 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 its dates and how many nights you&rsquo;re there.
               </li>
               <li>
-                <strong className="font-semibold">A Chapter</strong> — a coloured
-                band grouping a stretch of the trip into one piece, the way
-                you&rsquo;d talk about &ldquo;the Italy bit&rdquo;. It sits over
-                a run of days; the places inside it are still ordinary Stops.
-              </li>
-              <li>
                 <strong className="font-semibold">The Home base</strong> — where
                 you set off from. It shows as a card above the first place and,
                 if you&rsquo;re coming home again, below the last one, so the
                 plan reads out from home and back to it.
               </li>
             </ul>
+            <p>
+              A long trip can have one more thing:{" "}
+              <strong className="font-semibold">Chapters</strong>, coloured
+              bands that group a stretch of the trip into one piece, the way
+              you&rsquo;d talk about &ldquo;the Italy bit&rdquo;. A new trip
+              doesn&rsquo;t have them — they&rsquo;re off until you ask for
+              them. Open the{" "}
+              <strong className="font-semibold">Chapters</strong> menu at the
+              bottom of the{" "}
+              <Go tripId={tripId} segment="plan">
+                Plan
+              </Go>{" "}
+              and choose{" "}
+              <strong className="font-semibold">Group into chapters</strong> to
+              switch them on. There&rsquo;s a section further down on what
+              they do.
+            </p>
             <p>
               In the gaps between the Stop cards you&rsquo;ll find the flights,
               trains and drives that join them. Inside each card you&rsquo;ll
@@ -257,8 +335,19 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 the colour it shows in and how it&rsquo;s grouped on the Budget.
               </li>
               <li>
+                <strong className="font-semibold">Stop</strong> — which place it
+                belongs to. It&rsquo;s already filled in from the card you
+                tapped, so you can skip past it.
+              </li>
+              <li>
                 <strong className="font-semibold">Date</strong> — leave this
                 blank for now, and read the box below before you fill it in.
+              </li>
+              <li>
+                <strong className="font-semibold">Start time</strong> and{" "}
+                <strong className="font-semibold">End time</strong> — optional,
+                and only available once there&rsquo;s a date. This is where a
+                booked time goes.
               </li>
               <li>
                 <strong className="font-semibold">Address</strong> — worth
@@ -310,9 +399,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 Calendar
               </Go>
               , on that day&rsquo;s own page, and on the screen you&rsquo;ll live
-              off while you&rsquo;re travelling. Two routes move something
-              you&rsquo;ve already got onto a day; the third is for putting
-              something new straight onto one.
+              off while you&rsquo;re travelling. Two routes work on something
+              you&rsquo;ve already got; the third is for putting something new
+              straight onto a day.
             </p>
             <ul className={`list-disc ${LIST_CLASS}`}>
               <li>
@@ -333,11 +422,11 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 </Go>{" "}
                 appears alongside it, as long as you&rsquo;ve put something on it
                 — in a column beside the grid on a wide screen, stacked
-                underneath on a phone. Drag an idea onto a day and it{" "}
-                <strong className="font-semibold">moves</strong> there: the idea
-                now has that date, so it leaves the board. If you&rsquo;d rather keep it on the board, tap the
-                little calendar button beside it instead — that puts a copy on
-                the day and leaves the idea where it is.
+                underneath on a phone. Drag an idea onto a day and it puts a{" "}
+                <strong className="font-semibold">copy</strong> there: the idea
+                stays on the board, now ticked so you can see it&rsquo;s in the
+                plan. The little calendar button beside it does exactly the
+                same thing, for when dragging is fiddly.
               </li>
               <li>
                 <strong className="font-semibold">
@@ -392,29 +481,23 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             <p>
               If you&rsquo;re part of a Globe, an{" "}
               <strong className="font-semibold">Add from Globe</strong> button
-              appears up at the top of the board. A Globe is an
-              everywhere-someday map shared across all your trips, not just this
-              one. Each place on it is a{" "}
-              <strong className="font-semibold">Marker</strong>, and Markers stay
-              put: pulling one in copies it into this trip&rsquo;s Wishlist. The
-              board also suggests Markers near where this trip is going, so you
-              don&rsquo;t have to remember what you saved two years ago.
+              appears at the top of the board, pulling in places you saved on
+              some earlier trip. Can&rsquo;t see it? Open your{" "}
+              <GlobeLink>Globe</GlobeLink> once — that first visit is what
+              creates it. There&rsquo;s a section on the Globe further down.
             </p>
             <p>
-              One thing that catches people out: there are two ways an idea gets
-              onto a day, and they behave differently.{" "}
+              One thing that catches people out: putting an idea on a day never
+              takes it off the board. Every route does the same thing —{" "}
               <strong className="font-semibold">Schedule this</strong> on an
-              idea&rsquo;s card — and the little calendar button on the Wishlist
-              column beside the Calendar — puts a{" "}
-              <strong className="font-semibold">copy</strong> on the day you
-              pick. The idea itself stays on the board, now with a tick and{" "}
-              &ldquo;in this plan&rdquo; beside it. That&rsquo;s the one to reach
-              for, because the Wishlist is shared by every version of the plan,
-              so the same idea can sit on day three of one and day five of
-              another. Dragging an idea onto a day instead{" "}
-              <strong className="font-semibold">moves</strong> it: the idea takes
-              that date, so it leaves the board and gets no tick. It isn&rsquo;t
-              lost — it&rsquo;s on the day you dropped it on.
+              idea&rsquo;s card, the little calendar button on the Wishlist
+              column beside the Calendar, and dragging an idea straight onto a
+              day all put a <strong className="font-semibold">copy</strong> on
+              the day you pick. The idea itself stays on the board, now with a
+              tick and &ldquo;in this plan&rdquo; beside it. That&rsquo;s
+              deliberate, because the Wishlist is shared by every version of the
+              plan, so the same idea can sit on day three of one and day five of
+              another.
             </p>
           </Section>
 
@@ -431,9 +514,11 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               you sleep. Tap{" "}
               <strong className="font-semibold">Add Accommodation</strong> on a
               place&rsquo;s card and fill in the check-in and check-out dates,
-              the address, and the confirmation number off the booking email. The
-              app checks those dates against your nights there, so a night with
-              nowhere booked gets pointed out rather than discovered.
+              the address, and the{" "}
+              <strong className="font-semibold">Booking confirmation</strong>{" "}
+              off the booking email. The app checks those dates against your
+              nights there, so a night with nowhere booked gets pointed out
+              rather than discovered.
             </p>
             <p>
               <strong className="font-semibold">Transport</strong> is how you get
@@ -442,7 +527,11 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <strong className="font-semibold">Add transport</strong> buttons
               sit in the gaps between the Stop cards, so the leg you&rsquo;re
               adding is the one you&rsquo;re looking at. Record the mode, where
-              and when it leaves and arrives, and the flight or train number.
+              and when it leaves and arrives, and the{" "}
+              <strong className="font-semibold">
+                Booking reference / number
+              </strong>{" "}
+              — one box, whatever you&rsquo;re travelling on.
             </p>
             <p>
               Both of them take a{" "}
@@ -537,10 +626,12 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               </Go>{" "}
               is where tickets, confirmations and passport scans go. Upload them
               here and they&rsquo;re grouped by what they belong to. You can also
-              attach a file directly to a place, a booking or a thing to do —
-              the paperclip button sits on every card, so it&rsquo;s the number
-              next to it that
-              tells you something&rsquo;s attached — and it turns up here as
+              attach a file without coming here. A place, and the bookings on
+              it, carry a paperclip button on a wide screen — on a phone, look
+              under the card&rsquo;s ⋯ menu. Either way, the number beside it
+              tells you something&rsquo;s attached. A thing to do is the
+              exception: it takes its files in its own form, once you&rsquo;ve
+              saved it. Whichever way you attach something, it turns up here as
               well.
             </p>
           </Section>
@@ -579,8 +670,68 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               The bell at the top of the screen is the short version. Its count
               only ever counts the other one&rsquo;s changes, so you&rsquo;re
               never nudged about your own — though the list you open from it
-              shows the most recent changes from both of you. Reading it clears
-              the count.
+              shows the most recent changes from both of you. Opening that list
+              doesn&rsquo;t clear the count on its own:{" "}
+              <strong className="font-semibold">Mark all read</strong> at the
+              top of it does, and so does opening{" "}
+              <Go tripId={tripId} segment="activity">
+                Activity
+              </Go>
+              , which clears it as you read.
+            </p>
+          </Section>
+
+          <Section section={sectionById("search")}>
+            <p>
+              Once a trip has a few weeks in it, scrolling to find one booking
+              gets old. There&rsquo;s one box that solves it, and it&rsquo;s
+              worth learning early: the{" "}
+              <strong className="font-semibold">Search or jump…</strong> bar at
+              the top of every screen. On a phone it&rsquo;s the magnifying
+              glass. From a keyboard, <strong className="font-semibold">⌘K</strong>{" "}
+              opens it from anywhere — <strong className="font-semibold">Ctrl+K</strong>{" "}
+              if you&rsquo;re on Windows.
+            </p>
+            <p>Start typing and it offers three kinds of answer:</p>
+            <ul className={`list-disc ${LIST_CLASS}`}>
+              <li>
+                <strong className="font-semibold">Go to</strong> — every screen
+                in this trip, so &ldquo;bud&rdquo; is enough to land on{" "}
+                <Go tripId={tripId} segment="budget">
+                  Budget
+                </Go>
+                . Your other trips are in here too, marked{" "}
+                <strong className="font-semibold">Switch →</strong>, which is
+                the quickest way to cross from one trip to another.
+              </li>
+              <li>
+                <strong className="font-semibold">Do</strong> — a short list of
+                things rather than places: start a{" "}
+                <strong className="font-semibold">New trip</strong>, open your
+                Globe, jump to adding a Stop or an idea, or{" "}
+                <strong className="font-semibold">Toggle theme</strong> to flip
+                between light and dark.
+              </li>
+              <li>
+                <strong className="font-semibold">Find</strong> — the actual
+                searching. It looks through this trip&rsquo;s places, the things
+                you&rsquo;ve planned to do, your flights and trains, and where
+                you&rsquo;re staying. Trains and flights also match on their
+                reference, so pasting a booking code finds the leg. Each result
+                takes you to where that thing lives.
+              </li>
+            </ul>
+            <p>
+              Two things worth knowing.{" "}
+              <strong className="font-semibold">Find</strong> only ever searches
+              the real plan — anything that only exists inside a variant
+              won&rsquo;t come back, which is deliberate, so a search never
+              hands you something that isn&rsquo;t really happening. And Find
+              needs a signal: offline it says{" "}
+              <strong className="font-semibold">
+                Search needs a connection
+              </strong>
+              , though jumping between screens carries on working.
             </p>
           </Section>
 
@@ -691,6 +842,24 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
           {/* One <Section> per advanced id. */}
           <Section section={sectionById("chapters")}>
             <p>
+              Chapters are off to begin with, so if you&rsquo;ve never turned
+              them on this whole section is about something you won&rsquo;t see
+              yet. Open the{" "}
+              <strong className="font-semibold">Chapters</strong> menu at the
+              bottom of the{" "}
+              <Go tripId={tripId} segment="plan">
+                Plan
+              </Go>{" "}
+              and choose{" "}
+              <strong className="font-semibold">Group into chapters</strong>.
+              The same menu has{" "}
+              <strong className="font-semibold">Turn off chapters</strong> when
+              you&rsquo;ve had enough of them — your bands aren&rsquo;t thrown
+              away, they just stop showing. Switch them back on and they come
+              back redrawn around wherever your places have moved to in the
+              meantime, so a band never comes back stale.
+            </p>
+            <p>
               A <strong className="font-semibold">Chapter</strong> is a coloured
               band over a stretch of dates. It gives you something to group by:
               the plan, the{" "}
@@ -728,7 +897,8 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               </li>
             </ul>
             <p>
-              Two shortcuts on the{" "}
+              Both ways of making one live in that same{" "}
+              <strong className="font-semibold">Chapters</strong> menu on the{" "}
               <Go tripId={tripId} segment="plan">
                 Plan
               </Go>
@@ -778,11 +948,14 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               you&rsquo;d rather go a leg at a time.
             </p>
             <p>
-              Nothing is locked afterwards. Change one place from three nights to
-              five and everything after it shifts along by two — the ripple. It
-              is the same engine that re-dates the plan when you drag a place
-              into a different position, which is why you don&rsquo;t have to
-              clear dates before reordering.
+              Nothing is locked afterwards. Change one place from three nights
+              to five and the places after it shift along to make room — but
+              only as far as they have to. A gap already sitting in the plan
+              absorbs the change, and everything past that gap stays exactly
+              where it is. That&rsquo;s the ripple, and it is the same engine
+              that re-dates the plan when you drag a place into a different
+              position, which is why you don&rsquo;t have to clear dates before
+              reordering.
             </p>
             <p>
               <strong className="font-semibold">Pinned</strong> is how you say
@@ -849,20 +1022,23 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               for this — open it and tap{" "}
               <strong className="font-semibold">New variant</strong> to get one
               of each to look at side by side instead of arguing in the
-              abstract. It travels with you across every screen on the trip,
-              though it steps aside once you&rsquo;re travelling or the trip is
-              over. (You&rsquo;ll see this called a Fork here and there — same
-              thing.)
+              abstract. It stays with you across the Plan, the Budget and the
+              Wishlist — the screens that follow the variant you&rsquo;re
+              editing. Everywhere else,
+              including every dated screen, keeps showing the real plan, and the
+              switcher steps aside altogether once you&rsquo;re travelling or
+              the trip is over. (You&rsquo;ll see this called a Fork here and
+              there — same thing.)
             </p>
             <p>
               A variant is a full plan, not a sketch. You edit it with exactly the
               same tools, and it gets its own dates, its own Flags and its own
               total. While you&rsquo;re in one, a banner along the top says{" "}
-              <strong className="font-semibold">
-                Editing variant &mdash; not live
-              </strong>
-              , and that&rsquo;s the whole point: editing a variant never touches
-              the real plan, the dated screens, the{" "}
+              <strong className="font-semibold">Editing variant</strong>, names
+              the one you&rsquo;re in, and tells you it isn&rsquo;t live —{" "}
+              your calendar, summary and sharing still follow your real plan.
+              That&rsquo;s the whole point: editing a variant never touches the
+              real plan, the dated screens, the{" "}
               <Go tripId={tripId} segment="summary">
                 Summary
               </Go>{" "}
@@ -892,6 +1068,121 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               Variants are only offered before you leave. Once the trip is under
               way there&rsquo;s nothing left to compare.
             </p>
+          </Section>
+
+          <Section section={sectionById("globe")}>
+            <p>
+              Everything else in here belongs to one trip. Your{" "}
+              <GlobeLink>Globe</GlobeLink> doesn&rsquo;t. It&rsquo;s the map of
+              everywhere you&rsquo;d like to go one day, kept across all your
+              trips, so the restaurant someone recommended has a home even when
+              there&rsquo;s no trip to put it on yet.
+            </p>
+            <p>
+              Each place on it is a{" "}
+              <strong className="font-semibold">Marker</strong>.{" "}
+              <strong className="font-semibold">Add Marker</strong> drops one:
+              use <strong className="font-semibold">Place search</strong> to
+              find it and the app pins it for you. Give it a category and a
+              note about why you saved it — in two years&rsquo; time
+              &ldquo;Tokyo&rdquo; on its own tells you nothing. You can hang a
+              file off a Marker too, for the screenshot you saved it from.
+            </p>
+            <p>
+              The point of it is what happens when a trip finally goes that way.
+              On a trip&rsquo;s{" "}
+              <Go tripId={tripId} segment="wishlist">
+                Wishlist
+              </Go>
+              , <strong className="font-semibold">Add from Globe</strong> pulls
+              a Marker in, and the board suggests Markers near where
+              you&rsquo;re going without you having to remember them. Pulling
+              one in takes a <strong className="font-semibold">copy</strong> —
+              the Marker stays on the Globe for the next trip, and editing the
+              copy inside the trip doesn&rsquo;t change it.
+            </p>
+            <p>
+              Your Globe is made the first time you open it. That&rsquo;s the
+              whole trick to it: if{" "}
+              <strong className="font-semibold">Add from Globe</strong>{" "}
+              isn&rsquo;t on your Wishlist yet, open your{" "}
+              <GlobeLink>Globe</GlobeLink> once and the button is there from
+              then on. A Globe can also be shared, so two of you collect into
+              the same one.
+            </p>
+          </Section>
+
+          <Section section={sectionById("trip-settings")}>
+            <p>
+              <Go tripId={tripId} segment="settings">
+                Settings
+              </Go>{" "}
+              is the housekeeping — you&rsquo;ll open it a handful of times and
+              then forget it exists. It&rsquo;s in the{" "}
+              <strong className="font-semibold">More</strong> menu.
+            </p>
+            <p>
+              <strong className="font-semibold">Travellers</strong> is who can
+              see the trip.{" "}
+              <strong className="font-semibold">Add a Traveller by email</strong>{" "}
+              names the person you want on it. Nothing is sent to them — the
+              invite simply sits there marked{" "}
+              <strong className="font-semibold">Pending</strong>, and turns into
+              real access the next time they sign in with that address. Tell
+              them yourself, in other words. You can cancel one while
+              it&rsquo;s still pending.
+            </p>
+            <p>
+              A <strong className="font-semibold">Public share link</strong> is
+              the other way to let someone see the trip: a read-only page for
+              people who aren&rsquo;t planning it with you — a parent who wants
+              to know where you&rsquo;ll be. Anyone with the link can open it,
+              so treat it as public, and turn it off when you&rsquo;re done.
+              It&rsquo;s a different thing from adding a Traveller, who gets to
+              edit.
+            </p>
+            <p>
+              <strong className="font-semibold">Create calendar feed</strong> is
+              the one-way feed into your phone&rsquo;s calendar described
+              earlier, and{" "}
+              <strong className="font-semibold">Include in feed</strong> chooses
+              how much of the trip goes into it.{" "}
+              <strong className="font-semibold">Regenerate</strong> makes a
+              fresh link and kills the old one, which is what you want if
+              you&rsquo;ve shared it too widely.
+            </p>
+            <p>
+              <strong className="font-semibold">Road winding factor</strong> and
+              the setting beside it are how the app guesses driving times. Real
+              roads are longer than the straight line between two places and you
+              don&rsquo;t drive them flat out; if its estimates feel wrong for
+              where you&rsquo;re going, nudge these.
+            </p>
+            <p>
+              At the bottom, in red, are the two that can&rsquo;t be taken back
+              — and only the person who created the trip sees them.
+            </p>
+            <ul className={`list-disc ${LIST_CLASS}`}>
+              <li>
+                <strong className="font-semibold">Duplicate</strong> starts a
+                brand-new trip from this one&rsquo;s bones — the same places,
+                chapters, wishlist and checklists, and the legs that join the
+                places up, stripped back to just the mode. Every date is wiped,
+                ready to sketch again. Give it a{" "}
+                <strong className="font-semibold">Name for the duplicate</strong>{" "}
+                and you&rsquo;re done. The trip you copied isn&rsquo;t touched.
+              </li>
+              <li>
+                <strong className="font-semibold">Delete trip</strong> removes
+                it and everything in it — every place, every thing to do, every
+                cost and payment, the checklists, the journal, and the files
+                you&rsquo;ve uploaded. It asks you to type the trip&rsquo;s name
+                first, and then{" "}
+                <strong className="font-semibold">Delete forever</strong> means
+                it. There is no undo and no copy kept, so if you only want it
+                out of the way, consider whether you actually want it gone.
+              </li>
+            </ul>
           </Section>
         </div>
       </section>
@@ -972,8 +1263,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <div>
                 <dt className="font-semibold text-foreground">Transport</dt>
                 <dd className="text-muted-foreground">
-                  A flight, train, drive or ferry between two places, with times
-                  and a reference number.
+                  A leg between two places, with times and a reference number.
+                  It can be a flight, train, bus, car or ferry — and anything
+                  that isn&rsquo;t one of those goes under Other.
                 </dd>
               </div>
               <div>
@@ -1029,7 +1321,8 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 <dt className="font-semibold text-foreground">Firm up</dt>
                 <dd className="text-muted-foreground">
                   Turning rough places into real dates by flowing the nights
-                  forward from where the trip starts.
+                  forward — from the trip&rsquo;s start, or from where the place
+                  before it ends.
                 </dd>
               </div>
               <div>

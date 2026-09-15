@@ -47,6 +47,14 @@ describe("HELP_SECTIONS", () => {
     }
   });
 
+  it("never calls the Plan an 'itinerary' (CONTEXT.md forbids it)", () => {
+    // The nav item is "Plan". "Itinerary" is internal vocabulary
+    // (ItineraryManager) that the reader never sees on screen.
+    for (const s of HELP_SECTIONS) {
+      expect(`${s.title} ${s.blurb}`.toLowerCase()).not.toContain("itinerar");
+    }
+  });
+
   it("never mentions Discreet mode, which was removed", () => {
     for (const s of HELP_SECTIONS) {
       expect(`${s.title} ${s.blurb}`.toLowerCase()).not.toContain("discreet");

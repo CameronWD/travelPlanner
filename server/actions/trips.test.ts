@@ -627,6 +627,50 @@ describe("deleteTrip", () => {
   });
 });
 
+describe("deleteTrip — admin override", () => {
+  afterEach(() => {
+    delete process.env.ADMIN_EMAILS;
+  });
+
+  it("lets a non-owner member delete when their email is in ADMIN_EMAILS", async () => {
+    process.env.ADMIN_EMAILS = "admin@example.com";
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "admin@example.com" },
+      membership: { userId: "u1", role: "member" },
+    });
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
+    tripDeleteMock.mockResolvedValue({});
+
+    await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
+    expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
+  });
+
+  it("still refuses a non-owner member who is not an admin", async () => {
+    delete process.env.ADMIN_EMAILS;
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "someone@example.com" },
+      membership: { userId: "u2", role: "member" },
+    });
+
+    const result = await deleteTrip(TRIP_ID);
+    expect(result).toEqual({
+      success: false,
+      error: "Only the trip owner can delete the trip.",
+    });
+    expect(tripDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("still requires membership — an admin gets no bypass of requireTripAccess", async () => {
+    // requireTripAccess notFound()s for non-members; deleteTrip must not
+    // catch or route around that, so the rejection propagates.
+    process.env.ADMIN_EMAILS = "admin@example.com";
+    requireTripAccessMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
+
+    await expect(deleteTrip("trip_someone_elses")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(tripDeleteMock).not.toHaveBeenCalled();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // setTripHardEndDate
 // ---------------------------------------------------------------------------
