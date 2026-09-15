@@ -132,6 +132,21 @@ describe("HelpGuide", () => {
     // must be described as something you turn on, not as a third given.
     expect(shape).toMatch(/turn(ed)? (them )?on|switch (them )?on|Group into chapters/);
   });
+
+  it("documents Search, including that Find is real-plan only", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#search")?.textContent ?? "";
+    expect(body).toContain("Search or jump");
+    expect(body).toContain("Go to");
+    expect(body).toContain("Find");
+    expect(body).toContain("connection");
+  });
+
+  it("never calls Search a command palette", () => {
+    // CONTEXT.md: "command palette" is the code name, as Fork is to variant.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    expect(container.textContent?.toLowerCase()).not.toContain("command palette");
+  });
 });
 
 describe("HELP_PRINT_STYLE", () => {

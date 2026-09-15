@@ -81,6 +81,12 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     group: "everyday",
   },
   {
+    id: "search",
+    title: "Finding things fast",
+    blurb: "One box that jumps to any screen, or finds anything you've added.",
+    group: "everyday",
+  },
+  {
     id: "away",
     title: "While you're away",
     blurb: "The one screen you'll actually use on the road.",
@@ -224,6 +230,11 @@ export const GUIDE_UI_STRINGS = [
   "New variant",
   "Compare plans",
   "Editing variant",
+  // Search
+  "Search or jump",
+  "Search needs a connection",
+  "New trip",
+  "Toggle theme",
 ] as const;
 
 /** Sections in one group, in document order. */

@@ -595,6 +595,60 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
+          <Section section={sectionById("search")}>
+            <p>
+              Once a trip has a few weeks in it, scrolling to find one booking
+              gets old. There&rsquo;s one box that solves it, and it&rsquo;s
+              worth learning early: the{" "}
+              <strong className="font-semibold">Search or jump…</strong> bar at
+              the top of every screen. On a phone it&rsquo;s the magnifying
+              glass. From a keyboard, <strong className="font-semibold">⌘K</strong>{" "}
+              opens it from anywhere — <strong className="font-semibold">Ctrl+K</strong>{" "}
+              if you&rsquo;re on Windows.
+            </p>
+            <p>Start typing and it offers three kinds of answer:</p>
+            <ul className={`list-disc ${LIST_CLASS}`}>
+              <li>
+                <strong className="font-semibold">Go to</strong> — every screen
+                in this trip, so &ldquo;bud&rdquo; is enough to land on{" "}
+                <Go tripId={tripId} segment="budget">
+                  Budget
+                </Go>
+                . Your other trips are in here too, marked{" "}
+                <strong className="font-semibold">Switch →</strong>, which is
+                the quickest way to cross from one trip to another.
+              </li>
+              <li>
+                <strong className="font-semibold">Do</strong> — a short list of
+                things rather than places: start a{" "}
+                <strong className="font-semibold">New trip</strong>, open your
+                Globe, jump to adding a Stop or an idea, or{" "}
+                <strong className="font-semibold">Toggle theme</strong> to flip
+                between light and dark.
+              </li>
+              <li>
+                <strong className="font-semibold">Find</strong> — the actual
+                searching. It looks through this trip&rsquo;s places, the things
+                you&rsquo;ve planned to do, your flights and trains, and where
+                you&rsquo;re staying. Trains and flights also match on their
+                reference, so pasting a booking code finds the leg. Each result
+                takes you to where that thing lives.
+              </li>
+            </ul>
+            <p>
+              Two things worth knowing.{" "}
+              <strong className="font-semibold">Find</strong> only ever searches
+              the real plan — anything that only exists inside a variant
+              won&rsquo;t come back, which is deliberate, so a search never
+              hands you something that isn&rsquo;t really happening. And Find
+              needs a signal: offline it says{" "}
+              <strong className="font-semibold">
+                Search needs a connection
+              </strong>
+              , though jumping between screens carries on working.
+            </p>
+          </Section>
+
           <Section section={sectionById("away")}>
             <p>
               Once you&rsquo;re travelling, the trip&rsquo;s{" "}
