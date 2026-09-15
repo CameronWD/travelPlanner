@@ -2,6 +2,7 @@ import * as React from "react";
 import { ChevronRight } from "lucide-react";
 import { HelpLegend } from "@/components/trip/help-legend";
 import { HelpExpandAll } from "@/components/trip/help-expand-all";
+import { HelpHashOpen } from "@/components/trip/help-hash-open";
 import {
   HELP_SECTIONS,
   guideTripHref,
@@ -42,6 +43,12 @@ import {
  * without JavaScript: the browser sets `:target` on the linked <details> as
  * it scrolls to it, and these rules force its content visible even though
  * the `open` attribute is never set.
+ *
+ * That is a FALLBACK, not the main path. Because these rules are `!important`
+ * and keyed on `:target`, a section opened this way cannot be closed again —
+ * `open` flips to false but the body stays visible. HelpHashOpen (rendered
+ * below) sets `open` for real and strips the fragment, so `:target` stops
+ * matching wherever script runs. Keep these rules for where it doesn't.
  *
  * `.help-print-hide` has no user in this file. It is a hook for the page
  * chrome around the guide (nav, buttons) to opt out of the printout.
@@ -148,10 +155,12 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
   return (
     <div className="flex flex-col gap-8">
       <style>{HELP_PRINT_STYLE}</style>
+      <HelpHashOpen />
 
       {/* ── Contents ──
-          Server-rendered anchors. The :target rules above open whichever
-          section is linked to, so these work with no script at all. */}
+          Server-rendered anchors. With script, HelpHashOpen opens whichever
+          section is linked to and clears the fragment so it can be closed
+          again; without script, the :target rules above still open it. */}
       <nav
         aria-label="Contents"
         className="help-print-hide rounded-xl border border-border bg-muted/40 px-4 py-3"
