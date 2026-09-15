@@ -49,6 +49,10 @@ carries **Duplicate** as well as **Delete**; an admin gains both.
 - A privileged email is not committed to the repository.
 - The power is invisible in the app: nothing announces it, and the in-app
   guide does not mention it, because the guide ships to every user.
+- An admin delete leaves no audit trail: the Trip's `Activity` rows cascade
+  away with the Trip itself, so nothing records who deleted it or when.
+  Inherent to deleting the Trip, not specific to admins — but worth knowing
+  before an operator goes looking for the evidence afterwards.
 - If a genuine operator console is ever wanted — listing Trips the operator
   is not on — that is a different decision and will need its own ADR, since
   it must knowingly break the no-enumeration guarantee.
