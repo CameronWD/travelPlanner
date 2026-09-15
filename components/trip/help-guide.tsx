@@ -203,7 +203,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               places, and the rest of the app fills itself in around them.
             </p>
             <p>
-              It reads top to bottom, in the order you&rsquo;ll travel. Three
+              It reads top to bottom, in the order you&rsquo;ll travel. Two
               things make up the shape:
             </p>
             <ul className={`list-disc ${LIST_CLASS}`}>
@@ -213,18 +213,29 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 its dates and how many nights you&rsquo;re there.
               </li>
               <li>
-                <strong className="font-semibold">A Chapter</strong> — a coloured
-                band grouping a stretch of the trip into one piece, the way
-                you&rsquo;d talk about &ldquo;the Italy bit&rdquo;. It sits over
-                a run of days; the places inside it are still ordinary Stops.
-              </li>
-              <li>
                 <strong className="font-semibold">The Home base</strong> — where
                 you set off from. It shows as a card above the first place and,
                 if you&rsquo;re coming home again, below the last one, so the
                 plan reads out from home and back to it.
               </li>
             </ul>
+            <p>
+              A long trip can have one more thing:{" "}
+              <strong className="font-semibold">Chapters</strong>, coloured
+              bands that group a stretch of the trip into one piece, the way
+              you&rsquo;d talk about &ldquo;the Italy bit&rdquo;. A new trip
+              doesn&rsquo;t have them — they&rsquo;re off until you ask for
+              them. Open the{" "}
+              <strong className="font-semibold">Chapters</strong> menu at the
+              bottom of the{" "}
+              <Go tripId={tripId} segment="plan">
+                Plan
+              </Go>{" "}
+              and choose{" "}
+              <strong className="font-semibold">Group into chapters</strong> to
+              switch them on. There&rsquo;s a section further down on what
+              they do.
+            </p>
             <p>
               In the gaps between the Stop cards you&rsquo;ll find the flights,
               trains and drives that join them. Inside each card you&rsquo;ll
@@ -691,6 +702,23 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
           {/* One <Section> per advanced id. */}
           <Section section={sectionById("chapters")}>
             <p>
+              Chapters are off to begin with, so if you&rsquo;ve never turned
+              them on this whole section is about something you won&rsquo;t see
+              yet. Open the{" "}
+              <strong className="font-semibold">Chapters</strong> menu at the
+              bottom of the{" "}
+              <Go tripId={tripId} segment="plan">
+                Plan
+              </Go>{" "}
+              and choose{" "}
+              <strong className="font-semibold">Group into chapters</strong>.
+              The same menu has{" "}
+              <strong className="font-semibold">Turn off chapters</strong> when
+              you&rsquo;ve had enough of them — your bands aren&rsquo;t thrown
+              away, they just stop showing, and come back exactly as they were
+              if you switch them on again.
+            </p>
+            <p>
               A <strong className="font-semibold">Chapter</strong> is a coloured
               band over a stretch of dates. It gives you something to group by:
               the plan, the{" "}
@@ -728,7 +756,8 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               </li>
             </ul>
             <p>
-              Two shortcuts on the{" "}
+              Both ways of making one live in that same{" "}
+              <strong className="font-semibold">Chapters</strong> menu on the{" "}
               <Go tripId={tripId} segment="plan">
                 Plan
               </Go>

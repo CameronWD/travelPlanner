@@ -35,7 +35,7 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
   {
     id: "trip-shape",
     title: "The shape of your trip",
-    blurb: "Places, coloured bands and where you set off from.",
+    blurb: "Places, where you set off from, and the optional coloured bands.",
     group: "everyday",
   },
   {
@@ -213,6 +213,8 @@ export const GUIDE_UI_STRINGS = [
   "Or drop a stop",
   "Apply trim",
   // Chapters, dates and pins
+  "Group into chapters",
+  "Turn off chapters",
   "New Chapter",
   "Suggest from countries",
   "Firm up all stops",

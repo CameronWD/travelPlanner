@@ -112,6 +112,26 @@ describe("HelpGuide", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     expect((container.textContent ?? "").toLowerCase()).not.toContain("discreet");
   });
+
+  it("tells the reader Chapters are optional and how to switch them on", () => {
+    // schema.prisma: chaptersEnabled defaults to false. A guide that teaches
+    // Chapters as always-present sends a new user looking for bands that
+    // aren't there.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const shape = container.querySelector("details#trip-shape")?.textContent ?? "";
+    const chapters = container.querySelector("details#chapters")?.textContent ?? "";
+
+    expect(shape).toContain("Group into chapters");
+    expect(chapters).toContain("Group into chapters");
+  });
+
+  it("does not present Chapters as part of the shape every trip has", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const shape = container.querySelector("details#trip-shape")?.textContent ?? "";
+    // The two things always present are the Stop and the Home base. Chapters
+    // must be described as something you turn on, not as a third given.
+    expect(shape).toMatch(/turn(ed)? (them )?on|switch (them )?on|Group into chapters/);
+  });
 });
 
 describe("HELP_PRINT_STYLE", () => {
