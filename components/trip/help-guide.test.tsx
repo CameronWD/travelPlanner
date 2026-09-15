@@ -147,6 +147,21 @@ describe("HelpGuide", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     expect(container.textContent?.toLowerCase()).not.toContain("command palette");
   });
+
+  it("documents the trip settings, including how to delete a trip", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#trip-settings")?.textContent ?? "";
+    expect(body).toContain("Delete trip");
+    expect(body).toContain("Add a Traveller by email");
+    expect(body).toContain("Public share link");
+  });
+
+  it("is honest that an invite is not emailed to anyone", () => {
+    // CONTEXT.md: an Invite "is never delivered as a link or message".
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#trip-settings")?.textContent ?? "";
+    expect(body).toMatch(/nothing is sent|no email|isn't emailed|not emailed/i);
+  });
 });
 
 describe("HELP_PRINT_STYLE", () => {

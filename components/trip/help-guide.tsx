@@ -976,6 +976,78 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               way there&rsquo;s nothing left to compare.
             </p>
           </Section>
+
+          <Section section={sectionById("trip-settings")}>
+            <p>
+              <Go tripId={tripId} segment="settings">
+                Settings
+              </Go>{" "}
+              is the housekeeping — you&rsquo;ll open it a handful of times and
+              then forget it exists. It&rsquo;s in the{" "}
+              <strong className="font-semibold">More</strong> menu.
+            </p>
+            <p>
+              <strong className="font-semibold">Travellers</strong> is who can
+              see the trip.{" "}
+              <strong className="font-semibold">Add a Traveller by email</strong>{" "}
+              names the person you want on it. Nothing is sent to them — the
+              invite simply sits there marked{" "}
+              <strong className="font-semibold">Pending</strong>, and turns into
+              real access the next time they sign in with that address. Tell
+              them yourself, in other words. You can cancel one while
+              it&rsquo;s still pending.
+            </p>
+            <p>
+              A <strong className="font-semibold">Public share link</strong> is
+              the other way to let someone see the trip: a read-only page for
+              people who aren&rsquo;t planning it with you — a parent who wants
+              to know where you&rsquo;ll be. Anyone with the link can open it,
+              so treat it as public, and turn it off when you&rsquo;re done.
+              It&rsquo;s a different thing from adding a Traveller, who gets to
+              edit.
+            </p>
+            <p>
+              <strong className="font-semibold">Create calendar feed</strong> is
+              the one-way feed into your phone&rsquo;s calendar described
+              earlier, and{" "}
+              <strong className="font-semibold">Include in feed</strong> chooses
+              how much of the trip goes into it.{" "}
+              <strong className="font-semibold">Regenerate</strong> makes a
+              fresh link and kills the old one, which is what you want if
+              you&rsquo;ve shared it too widely.
+            </p>
+            <p>
+              <strong className="font-semibold">Road winding factor</strong> and
+              the setting beside it are how the app guesses driving times. Real
+              roads are longer than the straight line between two places and you
+              don&rsquo;t drive them flat out; if its estimates feel wrong for
+              where you&rsquo;re going, nudge these.
+            </p>
+            <p>
+              At the bottom, in red, are the two that can&rsquo;t be taken back
+              — and only the person who created the trip sees them.
+            </p>
+            <ul className={`list-disc ${LIST_CLASS}`}>
+              <li>
+                <strong className="font-semibold">Duplicate</strong> starts a
+                brand-new trip from this one&rsquo;s bones — the same places,
+                chapters, wishlist and checklists, with every date wiped, ready
+                to sketch again. Give it a{" "}
+                <strong className="font-semibold">Name for the duplicate</strong>{" "}
+                and you&rsquo;re done. The trip you copied isn&rsquo;t touched.
+              </li>
+              <li>
+                <strong className="font-semibold">Delete trip</strong> removes
+                it and everything in it — every place, every thing to do, every
+                cost and payment, the checklists, the journal, and the files
+                you&rsquo;ve uploaded. It asks you to type the trip&rsquo;s name
+                first, and then{" "}
+                <strong className="font-semibold">Delete forever</strong> means
+                it. There is no undo and no copy kept, so if you only want it
+                out of the way, consider whether you actually want it gone.
+              </li>
+            </ul>
+          </Section>
         </div>
       </section>
 

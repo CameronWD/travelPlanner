@@ -126,6 +126,12 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     group: "advanced",
   },
   {
+    id: "trip-settings",
+    title: "Your trip's settings",
+    blurb: "Who's on the trip, sharing it, and getting rid of it.",
+    group: "advanced",
+  },
+  {
     id: "word-list",
     title: "Word list",
     blurb: "Every term the app uses, in plain English.",
@@ -152,13 +158,14 @@ export const GUIDE_TRIP_SEGMENTS = [
   "files",
   "activity",
   "compare",
+  "settings",
 ] as const;
 
 export type GuideTripSegment = (typeof GUIDE_TRIP_SEGMENTS)[number];
 
 /**
  * Nav labels the guide tells the reader to look for. Asserted against the
- * real nav. "Settings" is deliberately absent — it is out of scope.
+ * real nav.
  */
 export const GUIDE_NAV_LABELS = [
   "Home",
@@ -171,6 +178,7 @@ export const GUIDE_NAV_LABELS = [
   "Checklists",
   "Files",
   "Activity",
+  "Settings",
 ] as const;
 
 /**
@@ -235,6 +243,14 @@ export const GUIDE_UI_STRINGS = [
   "Search needs a connection",
   "New trip",
   "Toggle theme",
+  // Trip settings
+  "Add a Traveller by email",
+  "Public share link",
+  "Include in feed",
+  "Road winding factor",
+  "Name for the duplicate",
+  "Delete trip",
+  "Delete forever",
 ] as const;
 
 /** Sections in one group, in document order. */
