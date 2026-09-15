@@ -8,14 +8,15 @@ const MIN_BODY_CHARS = 200;
 
 describe("HelpGuide", () => {
   it("renders a heading for every section", () => {
-    // Each title now also appears once as a contents link, so assert
-    // presence rather than uniqueness.
-    render(<HelpGuide tripId="t1" />);
+    // Scoped to the section's own <summary>, not just "this text exists
+    // somewhere" — the contents nav also links the title, so an unscoped
+    // query would stay green even if a summary lost its title.
+    const { container } = render(<HelpGuide tripId="t1" />);
     for (const s of HELP_SECTIONS) {
-      expect(
-        screen.getAllByText(s.title).length,
-        `missing section: ${s.title}`,
-      ).toBeGreaterThan(0);
+      const summary = container.querySelector(`details#${s.id} summary`);
+      expect(summary?.textContent, `missing section: ${s.title}`).toContain(
+        s.title,
+      );
     }
   });
 
