@@ -205,11 +205,16 @@ export const GUIDE_NAV_LABELS = [
 export const GUIDE_UI_STRINGS = [
   // Adding things
   "Add Thing to Do",
+  "Start time",
+  "End time",
+  "Booking reference",
   "Add to this day",
   "Show day map",
   "Add from Globe",
   "Add Accommodation",
+  "Booking confirmation",
   "Add transport",
+  "Booking reference / number",
   "Schedule this",
   "in this plan",
   // Budget
@@ -225,6 +230,8 @@ export const GUIDE_UI_STRINGS = [
   "Packing",
   "Booking parser",
   "Create calendar feed",
+  // Working together
+  "Mark all read",
   // Flags, fitting and the home screen
   "Next steps",
   "Make it fit",

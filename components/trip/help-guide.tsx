@@ -326,8 +326,19 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 the colour it shows in and how it&rsquo;s grouped on the Budget.
               </li>
               <li>
+                <strong className="font-semibold">Stop</strong> — which place it
+                belongs to. It&rsquo;s already filled in from the card you
+                tapped, so you can skip past it.
+              </li>
+              <li>
                 <strong className="font-semibold">Date</strong> — leave this
                 blank for now, and read the box below before you fill it in.
+              </li>
+              <li>
+                <strong className="font-semibold">Start time</strong> and{" "}
+                <strong className="font-semibold">End time</strong> — optional,
+                and only available once there&rsquo;s a date. This is where a
+                booked time goes.
               </li>
               <li>
                 <strong className="font-semibold">Address</strong> — worth
@@ -379,9 +390,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 Calendar
               </Go>
               , on that day&rsquo;s own page, and on the screen you&rsquo;ll live
-              off while you&rsquo;re travelling. Two routes move something
-              you&rsquo;ve already got onto a day; the third is for putting
-              something new straight onto one.
+              off while you&rsquo;re travelling. Two routes work on something
+              you&rsquo;ve already got; the third is for putting something new
+              straight onto a day.
             </p>
             <ul className={`list-disc ${LIST_CLASS}`}>
               <li>
@@ -402,11 +413,11 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 </Go>{" "}
                 appears alongside it, as long as you&rsquo;ve put something on it
                 — in a column beside the grid on a wide screen, stacked
-                underneath on a phone. Drag an idea onto a day and it{" "}
-                <strong className="font-semibold">moves</strong> there: the idea
-                now has that date, so it leaves the board. If you&rsquo;d rather keep it on the board, tap the
-                little calendar button beside it instead — that puts a copy on
-                the day and leaves the idea where it is.
+                underneath on a phone. Drag an idea onto a day and it puts a{" "}
+                <strong className="font-semibold">copy</strong> there: the idea
+                stays on the board, now ticked so you can see it&rsquo;s in the
+                plan. The little calendar button beside it does exactly the
+                same thing, for when dragging is fiddly.
               </li>
               <li>
                 <strong className="font-semibold">
@@ -466,20 +477,17 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               down.
             </p>
             <p>
-              One thing that catches people out: there are two ways an idea gets
-              onto a day, and they behave differently.{" "}
+              One thing that catches people out: putting an idea on a day never
+              takes it off the board. Every route does the same thing —{" "}
               <strong className="font-semibold">Schedule this</strong> on an
-              idea&rsquo;s card — and the little calendar button on the Wishlist
-              column beside the Calendar — puts a{" "}
-              <strong className="font-semibold">copy</strong> on the day you
-              pick. The idea itself stays on the board, now with a tick and{" "}
-              &ldquo;in this plan&rdquo; beside it. That&rsquo;s the one to reach
-              for, because the Wishlist is shared by every version of the plan,
-              so the same idea can sit on day three of one and day five of
-              another. Dragging an idea onto a day instead{" "}
-              <strong className="font-semibold">moves</strong> it: the idea takes
-              that date, so it leaves the board and gets no tick. It isn&rsquo;t
-              lost — it&rsquo;s on the day you dropped it on.
+              idea&rsquo;s card, the little calendar button on the Wishlist
+              column beside the Calendar, and dragging an idea straight onto a
+              day all put a <strong className="font-semibold">copy</strong> on
+              the day you pick. The idea itself stays on the board, now with a
+              tick and &ldquo;in this plan&rdquo; beside it. That&rsquo;s
+              deliberate, because the Wishlist is shared by every version of the
+              plan, so the same idea can sit on day three of one and day five of
+              another.
             </p>
           </Section>
 
@@ -496,9 +504,11 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               you sleep. Tap{" "}
               <strong className="font-semibold">Add Accommodation</strong> on a
               place&rsquo;s card and fill in the check-in and check-out dates,
-              the address, and the confirmation number off the booking email. The
-              app checks those dates against your nights there, so a night with
-              nowhere booked gets pointed out rather than discovered.
+              the address, and the{" "}
+              <strong className="font-semibold">Booking confirmation</strong>{" "}
+              off the booking email. The app checks those dates against your
+              nights there, so a night with nowhere booked gets pointed out
+              rather than discovered.
             </p>
             <p>
               <strong className="font-semibold">Transport</strong> is how you get
@@ -507,7 +517,11 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <strong className="font-semibold">Add transport</strong> buttons
               sit in the gaps between the Stop cards, so the leg you&rsquo;re
               adding is the one you&rsquo;re looking at. Record the mode, where
-              and when it leaves and arrives, and the flight or train number.
+              and when it leaves and arrives, and the{" "}
+              <strong className="font-semibold">
+                Booking reference / number
+              </strong>{" "}
+              — one box, whatever you&rsquo;re travelling on.
             </p>
             <p>
               Both of them take a{" "}
@@ -603,10 +617,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               is where tickets, confirmations and passport scans go. Upload them
               here and they&rsquo;re grouped by what they belong to. You can also
               attach a file directly to a place, a booking or a thing to do —
-              the paperclip button sits on every card, so it&rsquo;s the number
-              next to it that
-              tells you something&rsquo;s attached — and it turns up here as
-              well.
+              those cards each carry a paperclip button, and it&rsquo;s the
+              number next to it that tells you something&rsquo;s attached — and
+              it turns up here as well.
             </p>
           </Section>
 
@@ -644,8 +657,14 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               The bell at the top of the screen is the short version. Its count
               only ever counts the other one&rsquo;s changes, so you&rsquo;re
               never nudged about your own — though the list you open from it
-              shows the most recent changes from both of you. Reading it clears
-              the count.
+              shows the most recent changes from both of you. Opening that list
+              doesn&rsquo;t clear the count on its own:{" "}
+              <strong className="font-semibold">Mark all read</strong> at the
+              top of it does, and so does opening{" "}
+              <Go tripId={tripId} segment="activity">
+                Activity
+              </Go>
+              , which clears it as you read.
             </p>
           </Section>
 
@@ -823,8 +842,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               The same menu has{" "}
               <strong className="font-semibold">Turn off chapters</strong> when
               you&rsquo;ve had enough of them — your bands aren&rsquo;t thrown
-              away, they just stop showing, and come back exactly as they were
-              if you switch them on again.
+              away, they just stop showing. Switch them back on and they come
+              back redrawn around wherever your places have moved to in the
+              meantime, so a band never comes back stale.
             </p>
             <p>
               A <strong className="font-semibold">Chapter</strong> is a coloured
@@ -915,11 +935,14 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               you&rsquo;d rather go a leg at a time.
             </p>
             <p>
-              Nothing is locked afterwards. Change one place from three nights to
-              five and everything after it shifts along by two — the ripple. It
-              is the same engine that re-dates the plan when you drag a place
-              into a different position, which is why you don&rsquo;t have to
-              clear dates before reordering.
+              Nothing is locked afterwards. Change one place from three nights
+              to five and the places after it shift along to make room — but
+              only as far as they have to. A gap already sitting in the plan
+              absorbs the change, and everything past that gap stays exactly
+              where it is. That&rsquo;s the ripple, and it is the same engine
+              that re-dates the plan when you drag a place into a different
+              position, which is why you don&rsquo;t have to clear dates before
+              reordering.
             </p>
             <p>
               <strong className="font-semibold">Pinned</strong> is how you say
@@ -986,20 +1009,22 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               for this — open it and tap{" "}
               <strong className="font-semibold">New variant</strong> to get one
               of each to look at side by side instead of arguing in the
-              abstract. It travels with you across every screen on the trip,
-              though it steps aside once you&rsquo;re travelling or the trip is
-              over. (You&rsquo;ll see this called a Fork here and there — same
-              thing.)
+              abstract. It follows you across the Plan, the Budget and the
+              Wishlist — the screens a variant can change. Everywhere else,
+              including every dated screen, keeps showing the real plan, and the
+              switcher steps aside altogether once you&rsquo;re travelling or
+              the trip is over. (You&rsquo;ll see this called a Fork here and
+              there — same thing.)
             </p>
             <p>
               A variant is a full plan, not a sketch. You edit it with exactly the
               same tools, and it gets its own dates, its own Flags and its own
               total. While you&rsquo;re in one, a banner along the top says{" "}
-              <strong className="font-semibold">
-                Editing variant &mdash; not live
-              </strong>
-              , and that&rsquo;s the whole point: editing a variant never touches
-              the real plan, the dated screens, the{" "}
+              <strong className="font-semibold">Editing variant</strong>, names
+              the one you&rsquo;re in, and tells you it isn&rsquo;t live —{" "}
+              your calendar, summary and sharing still follow your real plan.
+              That&rsquo;s the whole point: editing a variant never touches the
+              real plan, the dated screens, the{" "}
               <Go tripId={tripId} segment="summary">
                 Summary
               </Go>{" "}
@@ -1123,8 +1148,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <li>
                 <strong className="font-semibold">Duplicate</strong> starts a
                 brand-new trip from this one&rsquo;s bones — the same places,
-                chapters, wishlist and checklists, with every date wiped, ready
-                to sketch again. Give it a{" "}
+                chapters, wishlist and checklists, and the legs that join the
+                places up, stripped back to just the mode. Every date is wiped,
+                ready to sketch again. Give it a{" "}
                 <strong className="font-semibold">Name for the duplicate</strong>{" "}
                 and you&rsquo;re done. The trip you copied isn&rsquo;t touched.
               </li>
@@ -1219,8 +1245,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <div>
                 <dt className="font-semibold text-foreground">Transport</dt>
                 <dd className="text-muted-foreground">
-                  A flight, train, drive or ferry between two places, with times
-                  and a reference number.
+                  A leg between two places, with times and a reference number.
+                  It can be a flight, train, bus, car or ferry — and anything
+                  that isn&rsquo;t one of those goes under Other.
                 </dd>
               </div>
               <div>
@@ -1276,7 +1303,8 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 <dt className="font-semibold text-foreground">Firm up</dt>
                 <dd className="text-muted-foreground">
                   Turning rough places into real dates by flowing the nights
-                  forward from where the trip starts.
+                  forward — from the trip&rsquo;s start, or from where the place
+                  before it ends.
                 </dd>
               </div>
               <div>

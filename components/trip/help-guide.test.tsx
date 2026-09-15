@@ -203,6 +203,121 @@ describe("HelpGuide", () => {
     expect(all.slice(1).every((d) => !d.hasAttribute("open"))).toBe(true);
   });
 
+  // ── Accuracy sweep (2026-09-15) ──
+  // One test per claim the audit found to be false. Each is scoped to the
+  // section that carried the claim. See
+  // docs/follow-ups/2026-09-15-help-guide-audit.md for the evidence.
+
+  it("does not claim dragging a Wishlist idea onto a day moves it", () => {
+    // calendar-views.tsx handleDropItem sends EVERY wishlist-rail drag through
+    // scheduleItem, whose copy-in branch leaves the idea row untouched
+    // (ADR 0019). Drag and the calendar button are the same operation.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#giving-a-day")?.textContent ?? "";
+    expect(body).toContain("the idea stays on the board");
+    expect(body).not.toContain("it leaves the board");
+  });
+
+  it("says both routes from the Wishlist onto a day put a copy there", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#undecided")?.textContent ?? "";
+    expect(body).toContain("The idea itself stays on the board");
+    expect(body).not.toContain("leaves the board");
+  });
+
+  it("says how the notification count is actually cleared", () => {
+    // notification-bell.tsx has no mark-read-on-open: markAllRead fires only
+    // from the explicit button, or from MarkReadOnView on the Activity page.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#together")?.textContent ?? "";
+    expect(body).toContain("Mark all read");
+    expect(body).not.toContain("Reading it clears the count");
+  });
+
+  it("does not promise disabled Chapters come back exactly as they were", () => {
+    // server/actions/trips.ts setChaptersEnabled re-runs recomputeChapterSpans
+    // on re-enable, so bands self-heal to wherever member stops now sit.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#chapters")?.textContent ?? "";
+    expect(body).toContain("redrawn around wherever your places have moved to");
+    expect(body).not.toContain("exactly as they were");
+  });
+
+  it("describes the ripple as span-scoped, not a whole-plan shift", () => {
+    // ADR 0038: a date edit ripples only on collision. lib/reorder.ts
+    // collisionPush breaks as soon as existing slack absorbs the change.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#dates-and-pins")?.textContent ?? "";
+    expect(body).toContain("only as far as they have to");
+  });
+
+  it("does not quote the variant banner as text the app never renders", () => {
+    // variant-banner.tsx interpolates the variant name and carries a second
+    // sentence; "Editing variant — not live" is never rendered as such.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#forks")?.textContent ?? "";
+    expect(body).toContain("your calendar, summary and sharing still follow");
+    expect(body).not.toContain("Editing variant — not live");
+  });
+
+  it("names the three screens a variant actually follows you onto", () => {
+    // trip-nav.tsx appends ?plan= on plan-scoped links only; the dated screens
+    // always follow the real plan.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#forks")?.textContent ?? "";
+    expect(body).toContain("the Plan, the Budget and the Wishlist");
+  });
+
+  it("uses the real field names on the accommodation and transport forms", () => {
+    // accommodation-form-dialog.tsx:393 / transport-form-dialog.tsx:556.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#sleeping-moving")?.textContent ?? "";
+    expect(body).toContain("Booking confirmation");
+    expect(body).toContain("Booking reference / number");
+  });
+
+  it("lists the time fields on the thing-to-do form", () => {
+    // item-form-dialog.tsx:465,477 — the guide told readers times were optional
+    // without ever saying where a time is entered.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#things-to-do")?.textContent ?? "";
+    expect(body).toContain("Start time");
+    expect(body).toContain("End time");
+  });
+
+  it("does not claim the paperclip is on every card", () => {
+    // Attachments are limited to Stop, Transport, Accommodation, Item and
+    // Marker — CONTEXT.md, card-action-cluster.tsx.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#getting-ready")?.textContent ?? "";
+    expect(body).toContain("those cards each carry a paperclip");
+    expect(body).not.toContain("every card");
+  });
+
+  it("lists every transport mode the app really offers", () => {
+    // lib/enums.ts TRANSPORT_MODES: FLIGHT, TRAIN, BUS, CAR, FERRY, OTHER.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#word-list")?.textContent ?? "";
+    expect(body).toContain("bus, car or ferry");
+    expect(body).toContain("Other");
+  });
+
+  it("says Duplicate carries the transport legs over too", () => {
+    // ADR 0018 / lib/duplicate-trip.ts: transport connections ARE copied,
+    // stripped of times, reference and cost. The list omitted them entirely.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#trip-settings")?.textContent ?? "";
+    expect(body).toContain("the legs that join the places up");
+  });
+
+  it("does not say firming up always anchors on the trip start", () => {
+    // CONTEXT.md: the anchor is the trip start OR the depart date of the
+    // preceding scheduled Stop — which is how a per-Chapter firm up works.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#word-list")?.textContent ?? "";
+    expect(body).toContain("or from where the place before it ends");
+  });
+
   it("opens a section that is the current :target, without script", () => {
     render(<HelpGuide tripId="t1" />);
     // The print rules already prove why two rules are needed; the same pair is
