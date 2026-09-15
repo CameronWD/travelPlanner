@@ -8,9 +8,14 @@ const MIN_BODY_CHARS = 200;
 
 describe("HelpGuide", () => {
   it("renders a heading for every section", () => {
+    // Each title now also appears once as a contents link, so assert
+    // presence rather than uniqueness.
     render(<HelpGuide tripId="t1" />);
     for (const s of HELP_SECTIONS) {
-      expect(screen.getByText(s.title), `missing section: ${s.title}`).toBeTruthy();
+      expect(
+        screen.getAllByText(s.title).length,
+        `missing section: ${s.title}`,
+      ).toBeGreaterThan(0);
     }
   });
 
@@ -176,6 +181,33 @@ describe("HelpGuide", () => {
   it("links the Globe even with no trip in scope, since it is account-level", () => {
     const { container } = render(<HelpGuide />);
     expect(container.querySelector('a[href="/globe"]')).toBeTruthy();
+  });
+
+  it("offers a contents list linking every section by anchor", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const nav = container.querySelector('nav[aria-label="Contents"]');
+    expect(nav).toBeTruthy();
+    for (const s of HELP_SECTIONS) {
+      expect(
+        nav?.querySelector(`a[href="#${s.id}"]`),
+        `contents is missing a link to ${s.id}`,
+      ).toBeTruthy();
+    }
+  });
+
+  it("opens the first section so the page never lands looking empty", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const all = Array.from(container.querySelectorAll("details"));
+    expect(all[0].hasAttribute("open")).toBe(true);
+    expect(all.slice(1).every((d) => !d.hasAttribute("open"))).toBe(true);
+  });
+
+  it("opens a section that is the current :target, without script", () => {
+    render(<HelpGuide tripId="t1" />);
+    // The print rules already prove why two rules are needed; the same pair is
+    // required for :target, or a contents link lands on a collapsed row.
+    expect(HELP_PRINT_STYLE).toContain("details:target");
+    expect(HELP_PRINT_STYLE).toContain("details:target::details-content");
   });
 });
 

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { ChevronRight } from "lucide-react";
 import { HelpLegend } from "@/components/trip/help-legend";
+import { HelpExpandAll } from "@/components/trip/help-expand-all";
 import {
   HELP_SECTIONS,
   guideTripHref,
@@ -26,14 +27,21 @@ import {
  */
 
 /**
- * Print CSS: expand every section so a printout is complete.
+ * Print CSS — and the matching `:target` CSS — for opening a closed
+ * <details> with no script.
  *
- * Two rules are needed because engines disagree on how a closed <details>
- * hides its content. Older engines set `display: none` on the children, so
- * overriding their `display` is enough. Chromium >= 131, Safari >= 18.4 and
- * Firefox >= 139 instead put the content in a `::details-content` box with
- * `content-visibility: hidden`, where the children's own `display` is
- * irrelevant — those need the second rule. Keep both.
+ * Two rules are needed in each case because engines disagree on how a closed
+ * <details> hides its content. Older engines set `display: none` on the
+ * children, so overriding their `display` is enough. Chromium >= 131, Safari
+ * >= 18.4 and Firefox >= 139 instead put the content in a
+ * `::details-content` box with `content-visibility: hidden`, where the
+ * children's own `display` is irrelevant — those need the second rule. Keep
+ * both, for print AND for `:target`.
+ *
+ * The `:target` pair is what makes a contents link to a closed section work
+ * without JavaScript: the browser sets `:target` on the linked <details> as
+ * it scrolls to it, and these rules force its content visible even though
+ * the `open` attribute is never set.
  *
  * `.help-print-hide` has no user in this file. It is a hook for the page
  * chrome around the guide (nav, buttons) to opt out of the printout.
@@ -45,6 +53,8 @@ export const HELP_PRINT_STYLE = `
     details::details-content { content-visibility: visible !important; }
     .help-print-hide { display: none !important; }
   }
+  details:target > *:not(summary) { display: block !important; }
+  details:target::details-content { content-visibility: visible !important; }
 `;
 
 /** A link into the trip, degrading to bold text when there is no trip. */
@@ -92,14 +102,17 @@ function GlobeLink({ children }: { children: React.ReactNode }) {
 /** One collapsible section. */
 function Section({
   section,
+  open,
   children,
 }: {
   section: HelpSection;
+  open?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <details
       id={section.id}
+      open={open}
       className="group rounded-xl border border-border bg-card px-4 py-3"
     >
       <summary className="flex cursor-pointer list-none items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
@@ -136,6 +149,33 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
     <div className="flex flex-col gap-8">
       <style>{HELP_PRINT_STYLE}</style>
 
+      {/* ── Contents ──
+          Server-rendered anchors. The :target rules above open whichever
+          section is linked to, so these work with no script at all. */}
+      <nav
+        aria-label="Contents"
+        className="help-print-hide rounded-xl border border-border bg-muted/40 px-4 py-3"
+      >
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-display text-base font-semibold text-foreground">
+            What&rsquo;s in here
+          </h2>
+          <HelpExpandAll />
+        </div>
+        <ol className="flex flex-col gap-1">
+          {HELP_SECTIONS.map((s) => (
+            <li key={s.id}>
+              <a
+                href={`#${s.id}`}
+                className="text-sm text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+              >
+                {s.title}
+              </a>
+            </li>
+          ))}
+        </ol>
+      </nav>
+
       {/* ── Always-visible key ── */}
       <section aria-labelledby="help-legend-heading">
         <h2
@@ -157,7 +197,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
         </h2>
         <div className="flex flex-col gap-3">
           {/* One <Section> per everyday id, in HELP_SECTIONS order. */}
-          <Section section={sectionById("sixty-seconds")}>
+          <Section section={sectionById("sixty-seconds")} open>
             <p>
               The whole app is one loop. Six steps, and you have a planned trip.
             </p>
