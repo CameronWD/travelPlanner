@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { requireUser, requireTripAccess } from "@/lib/guards";
+import { isAdminEmail } from "@/lib/admin";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { recordActivity } from "@/server/actions/activity";
@@ -242,15 +243,19 @@ export type DeleteTripResult =
   | { success: false; error: string };
 
 /**
- * Delete a trip. Owner-only.
+ * Delete a trip. Owner-only, plus any operator listed in ADMIN_EMAILS who is
+ * already a member of the trip (ADR 0045) — membership is still required.
  *
  * Cascade-deletes all stops, items, costs, members, invites, etc. via Prisma's
  * onDelete: Cascade relations. After deletion, redirects to /trips.
  */
 export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
-  const { membership } = await requireTripAccess(tripId);
+  const { user, membership } = await requireTripAccess(tripId);
 
-  if (membership.role !== "owner") {
+  // Owner, or an operator listed in ADMIN_EMAILS. Membership is still
+  // required — requireTripAccess above already notFound()s for non-members,
+  // and an admin gets no bypass of it (ADR 0045).
+  if (membership.role !== "owner" && !isAdminEmail(user.email)) {
     return { success: false, error: "Only the trip owner can delete the trip." };
   }
 

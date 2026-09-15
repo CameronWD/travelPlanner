@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { isAdminEmail } from "@/lib/admin";
 import { getShareLink } from "@/server/actions/share";
 import { getCalendarFeed } from "@/server/actions/calendar-feed";
 import {
@@ -26,8 +27,11 @@ export default async function SettingsPage({
 }) {
   const { tripId } = await params;
 
-  const { membership } = await requireTripAccess(tripId);
+  const { user, membership } = await requireTripAccess(tripId);
+  // Admins get the Danger zone (Duplicate + Delete) on any trip they are a
+  // member of. They are still not owners for anything else. See ADR 0045.
   const isOwner = membership.role === "owner";
+  const canManageTrip = isOwner || isAdminEmail(user.email);
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -191,8 +195,8 @@ export default async function SettingsPage({
         </CardContent>
       </Card>
 
-      {/* ── Danger zone (owner only) — includes Duplicate ── */}
-      {isOwner && (
+      {/* ── Danger zone (owner or admin) — includes Duplicate ── */}
+      {canManageTrip && (
         <Card className="bg-destructive/5 border-destructive/30">
           <CardHeader className="p-5 pb-0">
             <CardTitle className="font-display text-base font-bold tracking-tight text-destructive">Danger zone</CardTitle>
