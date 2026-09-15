@@ -482,8 +482,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               If you&rsquo;re part of a Globe, an{" "}
               <strong className="font-semibold">Add from Globe</strong> button
               appears at the top of the board, pulling in places you saved on
-              some earlier trip. There&rsquo;s a section on the Globe further
-              down.
+              some earlier trip. Can&rsquo;t see it? Open your{" "}
+              <GlobeLink>Globe</GlobeLink> once — that first visit is what
+              creates it. There&rsquo;s a section on the Globe further down.
             </p>
             <p>
               One thing that catches people out: putting an idea on a day never
@@ -1021,8 +1022,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               for this — open it and tap{" "}
               <strong className="font-semibold">New variant</strong> to get one
               of each to look at side by side instead of arguing in the
-              abstract. It follows you across the Plan, the Budget and the
-              Wishlist — the screens a variant can change. Everywhere else,
+              abstract. It stays with you across the Plan, the Budget and the
+              Wishlist — the screens that follow the variant you&rsquo;re
+              editing. Everywhere else,
               including every dated screen, keeps showing the real plan, and the
               switcher steps aside altogether once you&rsquo;re travelling or
               the trip is over. (You&rsquo;ll see this called a Fork here and
@@ -1100,9 +1102,13 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               copy inside the trip doesn&rsquo;t change it.
             </p>
             <p>
-              A Globe can be shared, so two of you collect into the same one.
-              That&rsquo;s why the Wishlist only offers this when you&rsquo;re
-              part of one.
+              Your Globe is made the first time you open it. That&rsquo;s the
+              whole trick to it: if{" "}
+              <strong className="font-semibold">Add from Globe</strong>{" "}
+              isn&rsquo;t on your Wishlist yet, open your{" "}
+              <GlobeLink>Globe</GlobeLink> once and the button is there from
+              then on. A Globe can also be shared, so two of you collect into
+              the same one.
             </p>
           </Section>
 

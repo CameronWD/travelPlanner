@@ -116,6 +116,14 @@ describe("HelpGuide", () => {
     expect(text).not.toContain("add an activity");
   });
 
+  it("never calls the Plan an 'itinerary'", () => {
+    // Binding like the "activity" rule: the tab is called the Plan, and
+    // "itinerary" is a word the UI never shows the reader. The guide is clean
+    // today — this keeps it that way.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    expect((container.textContent ?? "").toLowerCase()).not.toContain("itinerar");
+  });
+
   it("never mentions Discreet mode", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     expect((container.textContent ?? "").toLowerCase()).not.toContain("discreet");
@@ -148,6 +156,12 @@ describe("HelpGuide", () => {
     expect(body).toContain("Go to");
     expect(body).toContain("Find");
     expect(body).toContain("connection");
+    // The section's most load-bearing claim: server/actions/search.ts scopes
+    // every Find query with REAL_PLAN, so nothing that lives only inside a
+    // variant can come back. Without this the sentence could be deleted and
+    // the test would still pass under its own name.
+    expect(body).toContain("only ever searches the real plan");
+    expect(body).toContain("only exists inside a variant");
   });
 
   it("never calls Search a command palette", () => {
@@ -266,6 +280,34 @@ describe("HelpGuide", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     const body = container.querySelector("details#forks")?.textContent ?? "";
     expect(body).toContain("the Plan, the Budget and the Wishlist");
+  });
+
+  it("does not claim the Wishlist is a screen a variant can change", () => {
+    // It contradicted the next paragraph, which says the Wishlist is shared by
+    // every variant — and the paragraph is the true one: Wishlist ideas are
+    // forkId: null (wishlist/page.tsx:55). Only the scheduled copies are
+    // fork-scoped. What follows the variant is the screen, not the ideas.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const body = container.querySelector("details#forks")?.textContent ?? "";
+    expect(body).not.toContain("the screens a variant can change");
+    expect(body).toContain("The Wishlist, the checklists and the journal are shared");
+  });
+
+  it("says a Globe appears on first visit, not that sharing is the gate", () => {
+    // wishlist/page.tsx:84,270 gates Add from Globe on getUserGlobe(user.id),
+    // and lib/globe.ts getOrCreateUserGlobe creates the Globe lazily on first
+    // access to /globe. A solo user gets one; sharing has nothing to do with
+    // it. The old wording sent them looking for a sharing arrangement.
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const globe = container.querySelector("details#globe")?.textContent ?? "";
+    expect(globe).toContain("made the first time you open it");
+    expect(globe).not.toMatch(/only offers this when you/);
+    // The true half survives: a Globe really can be shared.
+    expect(globe).toMatch(/can also be shared/);
+
+    // And the Wishlist section points at the same fix rather than at sharing.
+    const wishlist = container.querySelector("details#undecided")?.textContent ?? "";
+    expect(wishlist).toMatch(/that first visit is what creates it/);
   });
 
   it("uses the real field names on the accommodation and transport forms", () => {
