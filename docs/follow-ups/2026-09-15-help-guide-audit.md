@@ -259,7 +259,48 @@ Accommodation, Item and Marker. `home-base-card.tsx`, `trip-card.tsx`,
 also contradicted its own first half, which had just named the three things that
 take a file.
 
-**Correction:** "on every card" replaced with "on those cards".
+**First correction (WRONG — superseded, see C10b):** "on every card" replaced
+with "those cards each carry a paperclip button".
+
+---
+
+### C10b — the C10 correction was itself wrong *(caught in review)*
+
+**The first fix traded one false claim for another.** "those cards each carry a
+paperclip button" narrowed the *set* of cards correctly but re-asserted the
+paperclip for all three named targets and on every screen size. Both are wrong.
+
+**Source of truth:** `stop-card.tsx:435, 459-464, 552-576`,
+`item-card.tsx:122`, `card-action-cluster.tsx:96-107, 148-156`.
+
+Three separate facts, verified individually:
+
+1. **The paperclip is desktop-only.** On the Stop card it is wrapped in
+   `<div className="hidden sm:block">` (`stop-card.tsx:435`); in
+   `CardActionCluster` likewise (`card-action-cluster.tsx:97-98`). On a phone
+   both fold into the `⋯` `MoreActionsMenu` as an "Attachments (N)" item that
+   opens a bottom sheet. So the sentence was wrong on **every phone** — for
+   every target it named.
+2. **A thing to do parked under a Stop has no paperclip at all.** Its row in
+   `stop-card.tsx:552-576` renders only the `DayPickerMenu` and a pencil.
+   `item-card.tsx:122` renders `CardActionCluster` under
+   `mode === "wishlist"` only; the non-wishlist branch is a bare edit button.
+   A thing to do takes files through the **Attachments** field on its own edit
+   form (`item-form-dialog.tsx:532`), which requires saving it first.
+3. Only the Stop and the two booking types carry the paperclip affordance at
+   all, and then only on a wide screen.
+
+**Correction:** the sentence now says a place and the bookings on it carry the
+paperclip on a wide screen, with the phone `⋯` menu named — matching the
+established pattern already used in the `together` section for the speech
+bubble — and calls out the thing to do as the exception that takes files in its
+own form.
+
+**Lesson for this document:** C10 was the one correction made from a summarised
+finding rather than from reading the rendering code end to end. The summary said
+"only Stop, Transport, Accommodation, Item and Marker", which is true of the
+*data model* (`CONTEXT.md`) and false of the *affordance*. Checking what a model
+permits is not the same as checking what a card renders.
 
 ---
 

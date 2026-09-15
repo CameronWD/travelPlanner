@@ -285,13 +285,23 @@ describe("HelpGuide", () => {
     expect(body).toContain("End time");
   });
 
-  it("does not claim the paperclip is on every card", () => {
-    // Attachments are limited to Stop, Transport, Accommodation, Item and
-    // Marker — CONTEXT.md, card-action-cluster.tsx.
+  it("is accurate about which cards carry a paperclip, and on which screen", () => {
+    // Three separate facts, all of which earlier wordings got wrong:
+    //  - the paperclip is desktop-only (stop-card.tsx:435 `hidden sm:block`,
+    //    card-action-cluster.tsx:98); on a phone it is in the ⋯ menu's sheet;
+    //  - a thing to do parked under a Stop has NO paperclip at all
+    //    (stop-card.tsx:552-576 is day picker + pencil only, and
+    //    item-card.tsx:122 renders the cluster in wishlist mode only) — its
+    //    files go through the Attachments field on its own form;
+    //  - so "every card" and "those cards each carry a paperclip" are both
+    //    false. Attachments are limited to Stop, Transport, Accommodation,
+    //    Item and Marker (CONTEXT.md).
     const { container } = render(<HelpGuide tripId="t1" />);
     const body = container.querySelector("details#getting-ready")?.textContent ?? "";
-    expect(body).toContain("those cards each carry a paperclip");
+    expect(body).toContain("carry a paperclip button on a wide screen");
+    expect(body).toContain("takes its files in its own form");
     expect(body).not.toContain("every card");
+    expect(body).not.toContain("those cards each carry a paperclip");
   });
 
   it("lists every transport mode the app really offers", () => {

@@ -616,10 +616,13 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               </Go>{" "}
               is where tickets, confirmations and passport scans go. Upload them
               here and they&rsquo;re grouped by what they belong to. You can also
-              attach a file directly to a place, a booking or a thing to do —
-              those cards each carry a paperclip button, and it&rsquo;s the
-              number next to it that tells you something&rsquo;s attached — and
-              it turns up here as well.
+              attach a file without coming here. A place, and the bookings on
+              it, carry a paperclip button on a wide screen — on a phone, look
+              under the card&rsquo;s ⋯ menu. Either way, the number beside it
+              tells you something&rsquo;s attached. A thing to do is the
+              exception: it takes its files in its own form, once you&rsquo;ve
+              saved it. Whichever way you attach something, it turns up here as
+              well.
             </p>
           </Section>
 
