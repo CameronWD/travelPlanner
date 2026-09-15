@@ -126,6 +126,12 @@ export const HELP_SECTIONS: readonly HelpSection[] = [
     group: "advanced",
   },
   {
+    id: "globe",
+    title: "Your Globe",
+    blurb: "The places you'd go someday, kept across every trip.",
+    group: "advanced",
+  },
+  {
     id: "trip-settings",
     title: "Your trip's settings",
     blurb: "Who's on the trip, sharing it, and getting rid of it.",
@@ -251,6 +257,9 @@ export const GUIDE_UI_STRINGS = [
   "Name for the duplicate",
   "Delete trip",
   "Delete forever",
+  // Globe
+  "Add Marker",
+  "Place search",
 ] as const;
 
 /** Sections in one group, in document order. */

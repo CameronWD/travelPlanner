@@ -91,6 +91,8 @@ describe("HelpGuide", () => {
 
   it("renders no trip links at all without a tripId", () => {
     const { container } = render(<HelpGuide />);
+    // /globe is account-level, not trip-scoped, so it is a valid link even
+    // without a tripId. This assertion is scoped to trip hrefs only.
     expect(container.querySelector('a[href^="/trips/"]')).toBeNull();
   });
 
@@ -161,6 +163,19 @@ describe("HelpGuide", () => {
     const { container } = render(<HelpGuide tripId="t1" />);
     const body = container.querySelector("details#trip-settings")?.textContent ?? "";
     expect(body).toMatch(/nothing is sent|no email|isn't emailed|not emailed/i);
+  });
+
+  it("documents the Globe as its own thing, linked to the real /globe page", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const section = container.querySelector("details#globe");
+    expect(section).toBeTruthy();
+    expect(section?.textContent).toContain("Marker");
+    expect(section?.querySelector('a[href="/globe"]')).toBeTruthy();
+  });
+
+  it("links the Globe even with no trip in scope, since it is account-level", () => {
+    const { container } = render(<HelpGuide />);
+    expect(container.querySelector('a[href="/globe"]')).toBeTruthy();
   });
 });
 

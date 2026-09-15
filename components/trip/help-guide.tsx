@@ -71,6 +71,24 @@ function Go({
   );
 }
 
+/**
+ * Link to the Globe.
+ *
+ * Not a <Go>: the Globe is account-level, at /globe, so it is neither a trip
+ * segment nor dependent on a tripId — it is a real link on the standalone
+ * /help page too.
+ */
+function GlobeLink({ children }: { children: React.ReactNode }) {
+  return (
+    <a
+      href="/globe"
+      className="font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+    >
+      {children}
+    </a>
+  );
+}
+
 /** One collapsible section. */
 function Section({
   section,
@@ -403,13 +421,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             <p>
               If you&rsquo;re part of a Globe, an{" "}
               <strong className="font-semibold">Add from Globe</strong> button
-              appears up at the top of the board. A Globe is an
-              everywhere-someday map shared across all your trips, not just this
-              one. Each place on it is a{" "}
-              <strong className="font-semibold">Marker</strong>, and Markers stay
-              put: pulling one in copies it into this trip&rsquo;s Wishlist. The
-              board also suggests Markers near where this trip is going, so you
-              don&rsquo;t have to remember what you saved two years ago.
+              appears at the top of the board, pulling in places you saved on
+              some earlier trip. There&rsquo;s a section on the Globe further
+              down.
             </p>
             <p>
               One thing that catches people out: there are two ways an idea gets
@@ -974,6 +988,44 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             <p>
               Variants are only offered before you leave. Once the trip is under
               way there&rsquo;s nothing left to compare.
+            </p>
+          </Section>
+
+          <Section section={sectionById("globe")}>
+            <p>
+              Everything else in here belongs to one trip. Your{" "}
+              <GlobeLink>Globe</GlobeLink> doesn&rsquo;t. It&rsquo;s the map of
+              everywhere you&rsquo;d like to go one day, kept across all your
+              trips, so the restaurant someone recommended has a home even when
+              there&rsquo;s no trip to put it on yet.
+            </p>
+            <p>
+              Each place on it is a{" "}
+              <strong className="font-semibold">Marker</strong>.{" "}
+              <strong className="font-semibold">Add Marker</strong> drops one:
+              use <strong className="font-semibold">Place search</strong> to
+              find it and the app pins it for you. Give it a category and a
+              note about why you saved it — in two years&rsquo; time
+              &ldquo;Tokyo&rdquo; on its own tells you nothing. You can hang a
+              file off a Marker too, for the screenshot you saved it from.
+            </p>
+            <p>
+              The point of it is what happens when a trip finally goes that way.
+              On a trip&rsquo;s{" "}
+              <Go tripId={tripId} segment="wishlist">
+                Wishlist
+              </Go>
+              , <strong className="font-semibold">Add from Globe</strong> pulls
+              a Marker in, and the board suggests Markers near where
+              you&rsquo;re going without you having to remember them. Pulling
+              one in takes a <strong className="font-semibold">copy</strong> —
+              the Marker stays on the Globe for the next trip, and editing the
+              copy inside the trip doesn&rsquo;t change it.
+            </p>
+            <p>
+              A Globe can be shared, so two of you collect into the same one.
+              That&rsquo;s why the Wishlist only offers this when you&rsquo;re
+              part of one.
             </p>
           </Section>
 
