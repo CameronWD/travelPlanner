@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/attachments", () => ({
@@ -211,6 +211,7 @@ describe("AttachmentList", () => {
     await user.upload(container.querySelector('input[type="file"]') as HTMLInputElement, raw);
 
     expect(compressImage).toHaveBeenCalledWith(raw);
+    await waitFor(() => expect(uploadAttachment).toHaveBeenCalledTimes(1));
     const fd = vi.mocked(uploadAttachment).mock.calls[0][0] as FormData;
     expect((fd.get("file") as File).name).toBe("photo.webp");
   });
