@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
+import { isAdminEmail } from "@/lib/admin";
 import type { FeedbackStatus } from "@/lib/enums";
 import {
   createFeedbackNoteSchema,
@@ -104,15 +105,18 @@ export async function createFeedbackNote(
 }
 
 /**
- * Every Feedback note, from every Traveller, oldest first — the panel reads as
- * a log. Signed-in access only; there is nothing per-user to scope.
+ * The caller's own Feedback notes, oldest first — the panel reads as a private
+ * log to the operator, not a shared forum. An Admin (ADMIN_EMAILS) sees every
+ * author's notes; `feedback:pull` reads the database directly and is
+ * unaffected by this scoping.
  */
 export async function listFeedbackNotes(): Promise<
   ActionResult<{ notes: FeedbackNoteView[] }>
 > {
-  await requireUser();
+  const user = await requireUser();
 
   const rows = await db.feedbackNote.findMany({
+    ...(isAdminEmail(user.email) ? {} : { where: { authorId: user.id } }),
     orderBy: { authoredAt: "asc" },
     select: VIEW_SELECT,
   });

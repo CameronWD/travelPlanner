@@ -68,6 +68,7 @@ const row = {
 
 afterEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
 });
 
 describe("createFeedbackNote", () => {
@@ -116,7 +117,7 @@ describe("createFeedbackNote", () => {
 });
 
 describe("listFeedbackNotes", () => {
-  it("returns every traveller's notes, oldest first", async () => {
+  it("returns only the caller's own notes, oldest first", async () => {
     requireUserMock.mockResolvedValue(author);
     feedbackNoteFindManyMock.mockResolvedValue([row]);
 
@@ -126,10 +127,38 @@ describe("listFeedbackNotes", () => {
     if (!result.success) return;
     expect(result.notes).toHaveLength(1);
     expect(result.notes[0].authorName).toBe("Cam");
+    expect(feedbackNoteFindManyMock.mock.calls[0][0].where).toEqual({
+      authorId: "u1",
+    });
     expect(feedbackNoteFindManyMock.mock.calls[0][0].orderBy).toEqual({
       authoredAt: "asc",
     });
+  });
+
+  it("returns every author's notes to an Admin (ADMIN_EMAILS match)", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "operator@example.com");
+    requireUserMock.mockResolvedValue({
+      ...author,
+      email: "Operator@Example.com", // case-insensitive match is part of the contract
+    });
+    feedbackNoteFindManyMock.mockResolvedValue([row]);
+
+    const result = await listFeedbackNotes();
+
+    expect(result.success).toBe(true);
     expect(feedbackNoteFindManyMock.mock.calls[0][0].where).toBeUndefined();
+  });
+
+  it("does not treat a signed-in non-admin as an Admin when ADMIN_EMAILS is set", async () => {
+    vi.stubEnv("ADMIN_EMAILS", "operator@example.com");
+    requireUserMock.mockResolvedValue({ ...author, email: "sister@example.com" });
+    feedbackNoteFindManyMock.mockResolvedValue([]);
+
+    await listFeedbackNotes();
+
+    expect(feedbackNoteFindManyMock.mock.calls[0][0].where).toEqual({
+      authorId: "u1",
+    });
   });
 });
 
