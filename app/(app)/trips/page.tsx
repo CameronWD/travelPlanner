@@ -117,9 +117,14 @@ export default async function TripsPage() {
           title="No trips yet"
           description="Create your first trip and start planning your next adventure together."
           action={
-            <Button asChild>
-              <Link href="/trips/new">New trip</Link>
-            </Button>
+            <div className="flex flex-col items-center gap-2">
+              <Button asChild>
+                <Link href="/trips/new">New trip</Link>
+              </Button>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/help">New here? How to use TEEPEE</Link>
+              </Button>
+            </div>
           }
         />
       ) : (
