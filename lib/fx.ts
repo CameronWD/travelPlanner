@@ -164,6 +164,14 @@ export async function resolveRateForTrip(
     return { rate: stored.rate, persist: null };
   }
 
+  // Read-through cache. A non-manual rate inside the staleness window is good
+  // enough: without this the ExchangeRate row is only a failure fallback and
+  // every budget render makes an outbound Frankfurter call. There is no rate
+  // limiting in front of /api/fx, so that is a per-request external call.
+  if (stored && !isRateStale(stored.fetchedAt.getTime(), Date.now())) {
+    return { rate: stored.rate, persist: null };
+  }
+
   const fetched = await fetcher(B, Q);
 
   if (fetched !== null) {

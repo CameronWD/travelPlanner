@@ -75,6 +75,11 @@ type StoredRate = {
   manual: boolean;
 };
 
+/** A fetchedAt old enough to be stale (25h ago), so the fetch path still runs. */
+function staleFetchedAt(): Date {
+  return new Date(Date.now() - 25 * 60 * 60 * 1000);
+}
+
 function makeDb(stored: StoredRate | null) {
   const upsertMock = vi.fn().mockResolvedValue({});
   return {
@@ -153,7 +158,7 @@ describe("getRateForTrip", () => {
       base: "EUR",
       quote: "AUD",
       rate: 1.5,
-      fetchedAt: new Date(),
+      fetchedAt: staleFetchedAt(),
       manual: false,
     };
     const fetcherMock = vi.fn().mockResolvedValue(1.65);
@@ -176,7 +181,7 @@ describe("getRateForTrip", () => {
       base: "EUR",
       quote: "AUD",
       rate: 1.5,
-      fetchedAt: new Date(),
+      fetchedAt: staleFetchedAt(),
       manual: false,
     };
     const fetcherMock = vi.fn().mockResolvedValue(null);
@@ -254,7 +259,7 @@ describe("resolveRateForTrip", () => {
   it("falls back to the stale stored rate with no persist when the fetch fails", async () => {
     const stale: StoredRate = {
       id: "r1", tripId: "trip-1", base: "EUR", quote: "AUD",
-      rate: 1.5, fetchedAt: new Date(), manual: false,
+      rate: 1.5, fetchedAt: staleFetchedAt(), manual: false,
     };
     const fetcherMock = vi.fn().mockResolvedValue(null);
     const db = makeDb(stale);
@@ -277,6 +282,53 @@ describe("resolveRateForTrip", () => {
     });
 
     expect(result).toEqual({ rate: null, persist: null });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveRateForTrip — read-through cache (no network when the rate is fresh)
+// ---------------------------------------------------------------------------
+
+describe("resolveRateForTrip — read-through cache", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("does not fetch when a non-manual stored rate is still fresh", async () => {
+    const fresh: StoredRate = {
+      id: "r1", tripId: "trip-1", base: "AUD", quote: "JPY",
+      rate: 1.55, fetchedAt: new Date(), manual: false,
+    };
+    const fetcherMock = vi.fn();
+    const db = makeDb(fresh);
+
+    const result = await resolveRateForTrip("trip-1", "AUD", "JPY", {
+      db: db as never,
+      fetcher: fetcherMock,
+    });
+
+    expect(fetcherMock).not.toHaveBeenCalled();
+    expect(result).toEqual({ rate: 1.55, persist: null });
+  });
+
+  it("fetches once the stored rate passes the staleness threshold", async () => {
+    const stale: StoredRate = {
+      id: "r1", tripId: "trip-1", base: "AUD", quote: "JPY",
+      rate: 1.55,
+      fetchedAt: new Date(Date.now() - FX_STALE_AFTER_MS - 1000),
+      manual: false,
+    };
+    const fetcherMock = vi.fn().mockResolvedValue(1.7);
+    const db = makeDb(stale);
+
+    const result = await resolveRateForTrip("trip-1", "AUD", "JPY", {
+      db: db as never,
+      fetcher: fetcherMock,
+    });
+
+    expect(fetcherMock).toHaveBeenCalledWith("AUD", "JPY");
+    expect(result).toEqual({
+      rate: 1.7,
+      persist: { base: "AUD", quote: "JPY", rate: 1.7 },
+    });
   });
 });
 
