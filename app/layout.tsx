@@ -5,6 +5,7 @@ import { ThemeProvider } from "@/components/ui/theme-provider";
 import { MotionProvider } from "@/components/ui/motion-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { PwaRegister } from "@/components/pwa-register";
+import { VercelAnalytics } from "@/components/analytics";
 
 // Space Grotesk is a variable font (weight axis 300–700): omitting `weight`
 // keeps the full range, covering the 600 used across the heading scale and
@@ -56,6 +57,7 @@ export default function RootLayout({
             {children}
             <Toaster />
             <PwaRegister />
+            <VercelAnalytics />
           </MotionProvider>
         </ThemeProvider>
       </body>
