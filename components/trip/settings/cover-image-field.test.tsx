@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+const { refreshMock } = vi.hoisted(() => ({ refreshMock: vi.fn() }));
+
 vi.mock("@/server/actions/cover", () => ({
   setTripCover: vi.fn().mockResolvedValue({ success: true }),
   removeTripCover: vi.fn().mockResolvedValue({ success: true }),
@@ -12,7 +14,7 @@ vi.mock("@/lib/image-compress", async (importOriginal) => {
 });
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: refreshMock }),
 }));
 
 import { setTripCover, removeTripCover } from "@/server/actions/cover";
@@ -45,6 +47,8 @@ describe("CoverImageField", () => {
     expect(formData).toBeInstanceOf(FormData);
     expect(formData.get("tripId")).toBe("t1");
     expect(formData.get("file")).toBe(file);
+
+    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
   });
 
   it("shows a Remove button when hasCover is true, clicking it calls removeTripCover(tripId); Remove is absent when hasCover is false", async () => {
@@ -96,6 +100,7 @@ describe("CoverImageField", () => {
         title: "Upload failed — nothing was saved. Please try again.",
       }),
     );
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
   it("shows the oversize message and never calls the action when compression can't fit the cap", async () => {
@@ -113,6 +118,7 @@ describe("CoverImageField", () => {
       expect.objectContaining({ title: expect.stringMatching(/~4 MB/) }),
     );
     expect(setTripCover).not.toHaveBeenCalled();
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 
   it("no longer blames file size for an unexplained throw", async () => {
@@ -128,5 +134,6 @@ describe("CoverImageField", () => {
     expect(toast).toHaveBeenCalledWith(
       expect.objectContaining({ title: "Upload failed. Please try again." }),
     );
+    expect(refreshMock).not.toHaveBeenCalled();
   });
 });
