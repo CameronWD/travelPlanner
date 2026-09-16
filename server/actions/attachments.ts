@@ -129,7 +129,16 @@ export async function uploadAttachment(
     });
 
     const storageKey = generateKey({ globe: globeId }, attachment.id, file.name);
-    await getStorage().save(storageKey, bytes, file.type);
+    try {
+      await getStorage().save(storageKey, bytes, file.type);
+    } catch (err) {
+      // Blob write failed: remove the placeholder row so no orphan Attachment
+      // (empty url, no storageKey) is left behind. Best-effort delete — the
+      // failure we report is the write, not the cleanup.
+      console.error("uploadAttachment: storage write failed", err);
+      await db.attachment.delete({ where: { id: attachment.id } }).catch(() => {});
+      return { success: false, error: "Upload failed — nothing was saved. Please try again." };
+    }
 
     const publicUrl = `/api/attachments/${attachment.id}`;
     await db.attachment.update({
@@ -169,7 +178,16 @@ export async function uploadAttachment(
   const storageKey = generateKey({ trip: tripId }, attachment.id, file.name);
 
   // Persist the file bytes.
-  await getStorage().save(storageKey, bytes, file.type);
+  try {
+    await getStorage().save(storageKey, bytes, file.type);
+  } catch (err) {
+    // Blob write failed: remove the placeholder row so no orphan Attachment
+    // (empty url, no storageKey) is left behind. Best-effort delete — the
+    // failure we report is the write, not the cleanup.
+    console.error("uploadAttachment: storage write failed", err);
+    await db.attachment.delete({ where: { id: attachment.id } }).catch(() => {});
+    return { success: false, error: "Upload failed — nothing was saved. Please try again." };
+  }
 
   // Update the row with the final url + storage key.
   const publicUrl = `/api/attachments/${attachment.id}`;

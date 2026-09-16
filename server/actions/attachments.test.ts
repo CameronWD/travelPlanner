@@ -131,6 +131,7 @@ beforeEach(() => {
   });
   attachmentCreateMock.mockResolvedValue({ id: ATTACHMENT_ID });
   attachmentUpdateMock.mockResolvedValue({});
+  attachmentDeleteMock.mockResolvedValue({});
   storageSaveMock.mockResolvedValue(undefined);
   storageDeleteMock.mockResolvedValue(undefined);
 });
@@ -276,6 +277,48 @@ describe("uploadAttachment", () => {
     expect(requireTripAccessMock).not.toHaveBeenCalled();
     // storage key is globe-scoped
     expect(storageSaveMock).toHaveBeenCalledWith(expect.stringMatching(/^globes\/g1\//), expect.anything(), expect.any(String));
+  });
+
+  describe("storage write failure", () => {
+    it("trip path: deletes the placeholder row and reports failure", async () => {
+      storageSaveMock.mockRejectedValueOnce(new Error("EROFS: read-only file system"));
+
+      const result = await uploadAttachment(makeFormData());
+
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error).toBe("Upload failed — nothing was saved. Please try again.");
+      expect(attachmentDeleteMock).toHaveBeenCalledWith({
+        where: { id: ATTACHMENT_ID },
+      });
+      expect(attachmentUpdateMock).not.toHaveBeenCalled();
+      expect(recordActivityMock).not.toHaveBeenCalled();
+      expect(revalidatePathMock).not.toHaveBeenCalled();
+    });
+
+    it("globe path: deletes the placeholder row and reports failure", async () => {
+      storageSaveMock.mockRejectedValueOnce(new Error("EROFS: read-only file system"));
+
+      const result = await uploadAttachment(makeFormData({ globeId: "g1" }));
+
+      expect(result.success).toBe(false);
+      expect(attachmentDeleteMock).toHaveBeenCalledWith({
+        where: { id: ATTACHMENT_ID },
+      });
+      expect(attachmentUpdateMock).not.toHaveBeenCalled();
+      expect(revalidatePathMock).not.toHaveBeenCalled();
+    });
+
+    it("still succeeds when the write works (row-first order preserved)", async () => {
+      const result = await uploadAttachment(makeFormData());
+
+      expect(result.success).toBe(true);
+      expect(attachmentDeleteMock).not.toHaveBeenCalled();
+      // row created before blob written — the id feeds the storage key
+      expect(attachmentCreateMock.mock.invocationCallOrder[0]).toBeLessThan(
+        storageSaveMock.mock.invocationCallOrder[0],
+      );
+    });
   });
 });
 
