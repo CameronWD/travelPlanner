@@ -20,8 +20,17 @@ export function isAiConfigured(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
+/**
+ * Model for all AI calls. Defaults to the cheap tier: every function here is a
+ * short, schema-constrained task (suggest activities, draft a packing list,
+ * extract fields from a confirmation), which is what Haiku is for —
+ * $1/$5 per MTok vs $5/$25 for Opus.
+ *
+ * Raise AI_MODEL to "claude-sonnet-5" or "claude-opus-4-8" if output quality
+ * disappoints; it takes effect without a code change or redeploy.
+ */
 function getModel(): string {
-  return process.env.AI_MODEL ?? "claude-opus-4-8";
+  return process.env.AI_MODEL ?? "claude-haiku-4-5";
 }
 
 // ---------------------------------------------------------------------------
