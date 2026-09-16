@@ -6,6 +6,7 @@ import { AlertCircle } from "lucide-react";
 import { AiSuggestButton } from "./ai-suggest-button";
 import { Button } from "@/components/ui/button";
 import { aiParseBooking } from "@/server/actions/ai";
+import { MAX_BOOKING_TEXT_CHARS } from "@/lib/ai-limits";
 import type { ParseBookingOutput } from "@/lib/ai";
 
 // ---------------------------------------------------------------------------
@@ -67,9 +68,15 @@ export function AiBookingParser({ tripId, aiConfigured }: AiBookingParserProps) 
           className="w-full rounded-xl border border-border bg-background px-3 py-2 text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none min-h-[100px] sm:text-sm"
           placeholder="Paste booking confirmation email or text here…"
           value={text}
+          maxLength={MAX_BOOKING_TEXT_CHARS}
           onChange={(e) => setText(e.target.value)}
           disabled={pending || !aiConfigured}
         />
+        {text.length > MAX_BOOKING_TEXT_CHARS * 0.9 && (
+          <p className="text-xs text-muted-foreground text-right">
+            {text.length.toLocaleString()} / {MAX_BOOKING_TEXT_CHARS.toLocaleString()} characters
+          </p>
+        )}
         <div className="flex justify-end">
           <AiSuggestButton
             aiConfigured={aiConfigured}
