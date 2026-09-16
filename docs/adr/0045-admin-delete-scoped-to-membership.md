@@ -43,7 +43,9 @@ carries **Duplicate** as well as **Delete**; an admin gains both.
 
 - The privacy property that motivated the `notFound()` in `requireTripAccess`
   survives intact. "Admin" here means "not blocked by ownership", not
-  "sees everything".
+  "sees everything" — except for the one deliberate read-grant this env var
+  also carries, recorded separately in ADR 0046 (an Admin reads every
+  author's Feedback note; that grant has nothing to do with Trips).
 - Granting or revoking admin is an env change, not a deploy of new code and
   not a migration.
 - A privileged email is not committed to the repository.
