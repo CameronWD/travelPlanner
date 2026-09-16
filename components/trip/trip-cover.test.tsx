@@ -18,6 +18,17 @@ describe("TripCover", () => {
     expect(img!.alt).toContain("My Adventure");
   });
 
+  it("letterboxes the cover photo instead of cropping it", () => {
+    const { container } = render(
+      <TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} />,
+    );
+    const img = container.querySelector("img");
+    expect(img).not.toBeNull();
+    expect(img!.className).toContain("object-contain");
+    expect(img!.className).not.toContain("object-cover");
+    expect(img!.className).toContain("bg-muted");
+  });
+
   it("renders an svg with circle pins when hasCover is false and stops are provided", () => {
     const { container } = render(
       <TripCover

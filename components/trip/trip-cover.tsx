@@ -28,7 +28,7 @@ export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, clas
       <img
         src={`/api/trips/${tripId}/cover`}
         alt={`${name} cover`}
-        className={`size-full object-cover ${className ?? ""}`}
+        className={`size-full object-contain bg-muted ${className ?? ""}`}
       />
     );
   }
