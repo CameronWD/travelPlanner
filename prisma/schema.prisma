@@ -50,6 +50,8 @@ model User {
   globesCreated      Globe[]       @relation("GlobeCreatedBy")
   markersCreated     Marker[]      @relation("MarkerCreatedBy")
   feedbackNotes      FeedbackNote[]
+  digestPreferences  DigestPreference[]
+  digestDispatches   DigestDispatch[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -147,6 +149,8 @@ model Trip {
   journalEntries JournalEntry[]
   chapters       Chapter[]
   activities     Activity[]
+  digestPreferences DigestPreference[]
+  digestDispatches  DigestDispatch[]
 
   forks          Fork[]
 
@@ -507,20 +511,22 @@ model PackingTemplate {
   @@index([ownerId])
 }
 
+/// A Traveller's dated note (CONTEXT.md "Reminder"). Carries a date and never
+/// a time: TEEPEE dispatches at a few fixed hours, so a promised 14:30 would
+/// be a lie — an Alarm is what fires precisely. Surfaces in that day's Digest
+/// and on Home. See ADR 0047.
 model Reminder {
-  id         String   @id @default(cuid())
-  tripId     String
-  title      String
-  fireAt     DateTime
-  sent       Boolean  @default(false)
-  targetType String?
-  targetId   String?
+  id     String @id @default(cuid())
+  tripId String
+  title  String
+  date   String // "YYYY-MM-DD"
 
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
   @@index([tripId])
+  @@index([date])
 }
 
 model ShareLink {
@@ -544,6 +550,11 @@ model CalendarFeed {
   includeAccommodation Boolean @default(true)
   includeActivities    Boolean @default(true)
 
+  // Alarms the external calendar app fires (CONTEXT.md "Alarm"). Default on so
+  // an existing feed starts alerting as soon as its subscriber allows it.
+  alarmTransport Boolean @default(true)
+  alarmCheckOut  Boolean @default(true)
+
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 }
 
@@ -553,6 +564,7 @@ model PushSubscription {
   endpoint  String   @unique
   p256dh    String
   auth      String
+  timezone  String? // IANA zone captured from the browser at subscribe time (ADR 0047)
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -713,4 +725,42 @@ model FeedbackNote {
 
   @@index([status, authoredAt])
   @@index([authorId])
+}
+
+/// One Traveller's Digest opt-in for one Trip (ADR 0047). Absent row means
+/// "never chosen" and is treated as enabled — subscribing a device is itself
+/// the opt-in, so an existing subscriber is not silently muted by a missing row.
+model DigestPreference {
+  id      String  @id @default(cuid())
+  userId  String
+  tripId  String
+  enabled Boolean @default(true)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, tripId])
+  @@index([tripId])
+}
+
+/// Idempotency ledger: one row per Digest actually claimed for a person, Trip,
+/// local date and slot. Claimed BEFORE sending, so a re-run (or two overlapping
+/// cron runs) can never double-send. Replaces the old per-cost COST_DUE marker.
+model DigestDispatch {
+  id        String @id @default(cuid())
+  userId    String
+  tripId    String
+  localDate String // "YYYY-MM-DD" in the subscriber's own timezone
+  slot      String // "MORNING" | "EVENING"
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, tripId, localDate, slot])
+  @@index([tripId])
 }
