@@ -28,7 +28,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import { sendPush, buildNotificationPayload, isPushConfigured } from "@/lib/push";
-import { daysBetween } from "@/lib/dates";
+import { addDays, daysBetween } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import { buildCostLabelMap, costLabel } from "@/lib/cost-labels";
 
@@ -206,8 +206,18 @@ export async function GET(req: NextRequest) {
     const ALERT_OFFSETS_DAYS = [3, 0] as const;
     const todayUTC = now.toISOString().slice(0, 10);
 
+    // Only two calendar days can ever produce an alert, so ask the database
+    // for exactly those two instead of pulling every unpaid dated cost in
+    // every trip and filtering in JS. Cost.dueDate is a "YYYY-MM-DD" string
+    // with an @@index, so this is an indexed lookup. `take` is a backstop
+    // against one pathological day, mirroring the first pass's take: 200.
+    const alertDates = ALERT_OFFSETS_DAYS.map((offset) =>
+      addDays(todayUTC, offset),
+    );
+
     const dueCosts = await db.cost.findMany({
-      where: { dueDate: { not: null }, paidAt: null, forkId: null },
+      where: { dueDate: { in: alertDates }, paidAt: null, forkId: null },
+      take: 500,
       select: {
         id: true,
         tripId: true,

@@ -318,7 +318,7 @@ describe("GET /api/cron/reminders — due-date payment alerts", () => {
     expect(reminderCreateMock).not.toHaveBeenCalled();
   });
 
-  it("queries only unpaid, non-forked, due-dated costs", async () => {
+  it("queries only unpaid, non-forked costs due on an alert date, bounded", async () => {
     vi.stubEnv("CRON_SECRET", "right");
     reminderFindManyMock.mockResolvedValue([]);
     costFindManyMock.mockResolvedValue([]);
@@ -328,10 +328,11 @@ describe("GET /api/cron/reminders — due-date payment alerts", () => {
     expect(costFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          dueDate: { not: null },
+          dueDate: { in: [threeDaysFromNow, todayUTC] },
           paidAt: null,
           forkId: null,
         }),
+        take: 500,
       }),
     );
   });

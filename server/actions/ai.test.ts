@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { MAX_BOOKING_TEXT_CHARS } from "@/lib/ai-limits";
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -353,5 +354,42 @@ describe("aiParseBooking", () => {
     const result = await aiParseBooking("trip-1", "some text");
 
     expect(result).toEqual({ ok: false, reason: "disabled" });
+  });
+
+  // -------------------------------------------------------------------------
+  // Length cap — bounds the prompt before it reaches a metered API.
+  // -------------------------------------------------------------------------
+
+  it("rejects text over the cap without calling the lib", async () => {
+    const tooLong = "x".repeat(MAX_BOOKING_TEXT_CHARS + 1);
+
+    const result = await aiParseBooking("trip-1", tooLong);
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe("error");
+      expect(result.message).toMatch(/too long/i);
+    }
+    expect(parseBookingConfirmationMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts text exactly at the cap", async () => {
+    const atLimit = "x".repeat(MAX_BOOKING_TEXT_CHARS);
+    parseBookingConfirmationMock.mockResolvedValue({
+      ok: true,
+      data: { kind: "unknown" },
+    });
+
+    await aiParseBooking("trip-1", atLimit);
+
+    expect(parseBookingConfirmationMock).toHaveBeenCalledWith({ text: atLimit });
+  });
+
+  it("checks trip access even when the text is over the cap", async () => {
+    const tooLong = "x".repeat(MAX_BOOKING_TEXT_CHARS + 1);
+
+    await aiParseBooking("trip-1", tooLong);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
   });
 });

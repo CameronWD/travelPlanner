@@ -116,7 +116,7 @@ describe("suggestActivities", () => {
     expect(mockParse).toHaveBeenCalledOnce();
   });
 
-  it("uses default model claude-opus-4-8 when AI_MODEL is not set", async () => {
+  it("uses default model claude-haiku-4-5 when AI_MODEL is not set", async () => {
     setEnv("sk-test-key", undefined);
     mockParse.mockResolvedValueOnce({
       parsed_output: { suggestions: [] },
@@ -126,7 +126,7 @@ describe("suggestActivities", () => {
     await suggestActivities({ stopName: "Tokyo" });
 
     expect(mockParse).toHaveBeenCalledWith(
-      expect.objectContaining({ model: "claude-opus-4-8" }),
+      expect.objectContaining({ model: "claude-haiku-4-5" }),
     );
   });
 
