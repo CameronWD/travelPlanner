@@ -56,7 +56,12 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-18
-          pg_dump --version
+          # /usr/bin/pg_dump is postgresql-common's wrapper and keeps
+          # resolving to the runner's preinstalled client 16, so every later
+          # step must use the versioned binaries directly.
+          /usr/lib/postgresql/18/bin/pg_dump --version
+          /usr/lib/postgresql/18/bin/pg_dump --version | grep -q " 18\." \
+            || { echo "::error::postgresql-client-18 binary not found where expected"; exit 1; }
 
       - name: Dump the database
         if: steps.config.outputs.configured == 'true'
@@ -64,7 +69,7 @@ jobs:
           stamp=$(date -u +%Y%m%dT%H%M%SZ)
           echo "stamp=${stamp}" >> "$GITHUB_ENV"
           # -Fc: compressed custom format; restores selectively via pg_restore.
-          pg_dump --format=custom --no-owner --no-privileges \
+          /usr/lib/postgresql/18/bin/pg_dump --format=custom --no-owner --no-privileges \
             --file="neon-${stamp}.dump" "${NEON_DIRECT_URL}"
           ls -la "neon-${stamp}.dump"
         env:
@@ -75,7 +80,7 @@ jobs:
         run: |
           # pg_restore --list parses the archive TOC without a database —
           # catches truncated/corrupt dumps before we call this a backup.
-          entries=$(pg_restore --list "neon-${stamp}.dump" | wc -l)
+          entries=$(/usr/lib/postgresql/18/bin/pg_restore --list "neon-${stamp}.dump" | wc -l)
           echo "Archive TOC entries: ${entries}"
           if [ "${entries}" -lt 10 ]; then
             echo "::error title=DB backup suspicious::Archive lists only ${entries} TOC entries — dump looks empty or truncated."
