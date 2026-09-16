@@ -38,3 +38,26 @@ export async function compressImage(file: File): Promise<File> {
     return file;
   }
 }
+
+/**
+ * Practical ceiling for a browser upload. Vercel serverless functions reject
+ * request bodies over ~4.5 MB regardless of the app's own 10 MB
+ * `validateUpload` cap, so a bigger FormData never reaches the server action —
+ * it dies at the platform edge as an opaque thrown error. Checking here, after
+ * compression, turns that into an accurate message instead of a doomed request.
+ */
+export const MAX_BROWSER_UPLOAD_BYTES = 4 * 1024 * 1024;
+
+/**
+ * Accurate "too big to upload" copy for a file that is about to be sent, or
+ * null when it fits. Call AFTER compressImage — an image that reaches here
+ * oversize is one the browser could not decode/shrink (e.g. HEIC outside
+ * Safari), which is exactly what the image wording explains.
+ */
+export function oversizeUploadMessage(file: File): string | null {
+  if (file.size <= MAX_BROWSER_UPLOAD_BYTES) return null;
+  const mb = (file.size / 1024 / 1024).toFixed(1);
+  return file.type.startsWith("image/")
+    ? `This image is ${mb} MB and couldn't be shrunk in this browser — more than the ~4 MB the app can upload. Try a smaller copy or a JPEG/PNG version.`
+    : `This file is ${mb} MB — more than the ~4 MB the app can upload. Try a smaller copy.`;
+}

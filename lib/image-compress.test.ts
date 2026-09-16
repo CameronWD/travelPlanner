@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const imageCompressionMock = vi.fn();
 vi.mock("browser-image-compression", () => ({ default: imageCompressionMock }));
 
-import { compressImage } from "./image-compress";
+import { compressImage, oversizeUploadMessage } from "./image-compress";
 
 function makeFile(bytes: number, name: string, type: string): File {
   return new File([new Uint8Array(bytes)], name, { type });
@@ -64,5 +64,27 @@ describe("compressImage", () => {
     });
     const out = await compressImage(jpg);
     expect(out).toBe(jpg);
+  });
+});
+
+describe("oversizeUploadMessage", () => {
+  it("returns null for a file at or under the cap", () => {
+    const small = new File([new Uint8Array(1024)], "a.webp", { type: "image/webp" });
+    expect(oversizeUploadMessage(small)).toBeNull();
+  });
+
+  it("names the size and suggests alternatives for an oversize image", () => {
+    const big = new File([new Uint8Array(5 * 1024 * 1024)], "big.heic", { type: "image/heic" });
+    const msg = oversizeUploadMessage(big);
+    expect(msg).toMatch(/5\.0 MB/);
+    expect(msg).toMatch(/couldn't be shrunk/i);
+  });
+
+  it("uses the non-image wording for an oversize PDF", () => {
+    const pdf = new File([new Uint8Array(6 * 1024 * 1024)], "doc.pdf", { type: "application/pdf" });
+    const msg = oversizeUploadMessage(pdf);
+    expect(msg).toMatch(/6\.0 MB/);
+    expect(msg).toMatch(/smaller copy/i);
+    expect(msg).not.toMatch(/shrunk/i);
   });
 });
