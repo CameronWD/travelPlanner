@@ -217,18 +217,20 @@ describe("AttachmentList", () => {
 
   it("shows the oversize message and never calls the server when compression can't fit the cap", async () => {
     const user = userEvent.setup();
-    const stillHuge = new File([new Uint8Array(5 * 1024 * 1024)], "big.heic", { type: "image/heic" });
-    vi.mocked(compressImage).mockResolvedValueOnce(stillHuge);
+    vi.mocked(compressImage).mockResolvedValueOnce(
+      new File([new Uint8Array(5 * 1024 * 1024)], "big.webp", { type: "image/webp" }),
+    );
     const { container } = render(
       <AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />,
     );
 
     await user.upload(
       container.querySelector('input[type="file"]') as HTMLInputElement,
-      new File([new Uint8Array(10)], "big.heic", { type: "image/heic" }),
+      new File([new Uint8Array(10)], "big.jpg", { type: "image/jpeg" }),
     );
 
-    expect(await screen.findByText(/~4 MB/)).toBeInTheDocument();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/~4 MB/);
     expect(uploadAttachment).not.toHaveBeenCalled();
   });
 });
