@@ -6,7 +6,14 @@ vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn().mockResolvedValue({ success: true }),
   deleteAttachment: vi.fn().mockResolvedValue({ success: true }),
 }));
+
+vi.mock("@/lib/image-compress", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/image-compress")>();
+  return { ...real, compressImage: vi.fn(async (f: File) => f) };
+});
+
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
+import { compressImage } from "@/lib/image-compress";
 
 import { AttachmentList } from "./attachment-list";
 import type { AttachmentView } from "./attachment-list";
@@ -190,5 +197,38 @@ describe("AttachmentList", () => {
 
     await user.click(screen.getByRole("button", { name: /cancel/i }));
     expect(deleteAttachment).not.toHaveBeenCalled();
+  });
+
+  it("compresses an image before uploading it", async () => {
+    const user = userEvent.setup();
+    const compressed = new File([new Uint8Array(10)], "photo.webp", { type: "image/webp" });
+    vi.mocked(compressImage).mockResolvedValueOnce(compressed);
+    const { container } = render(
+      <AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />,
+    );
+
+    const raw = new File([new Uint8Array(5000)], "big.jpg", { type: "image/jpeg" });
+    await user.upload(container.querySelector('input[type="file"]') as HTMLInputElement, raw);
+
+    expect(compressImage).toHaveBeenCalledWith(raw);
+    const fd = vi.mocked(uploadAttachment).mock.calls[0][0] as FormData;
+    expect((fd.get("file") as File).name).toBe("photo.webp");
+  });
+
+  it("shows the oversize message and never calls the server when compression can't fit the cap", async () => {
+    const user = userEvent.setup();
+    const stillHuge = new File([new Uint8Array(5 * 1024 * 1024)], "big.heic", { type: "image/heic" });
+    vi.mocked(compressImage).mockResolvedValueOnce(stillHuge);
+    const { container } = render(
+      <AttachmentList tripId="trip-1" targetType="TRIP" attachments={[]} />,
+    );
+
+    await user.upload(
+      container.querySelector('input[type="file"]') as HTMLInputElement,
+      new File([new Uint8Array(10)], "big.heic", { type: "image/heic" }),
+    );
+
+    expect(await screen.findByText(/~4 MB/)).toBeInTheDocument();
+    expect(uploadAttachment).not.toHaveBeenCalled();
   });
 });

@@ -17,6 +17,7 @@ import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments
 import type { TargetType } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -114,14 +115,24 @@ export function AttachmentList({
 
     setUploadError(null);
 
-    const fd = new FormData();
-    if (tripId) fd.set("tripId", tripId);
-    if (globeId) fd.set("globeId", globeId);
-    fd.set("targetType", targetType);
-    if (targetId) fd.set("targetId", targetId);
-    fd.set("file", file);
-
     startTransition(async () => {
+      // Phone photos routinely exceed the upload cap raw; shrink images
+      // client-side first (non-images pass through untouched).
+      const compressed = await compressImage(file);
+      const oversize = oversizeUploadMessage(compressed);
+      if (oversize) {
+        setUploadError(oversize);
+        if (inputRef.current) inputRef.current.value = "";
+        return;
+      }
+
+      const fd = new FormData();
+      if (tripId) fd.set("tripId", tripId);
+      if (globeId) fd.set("globeId", globeId);
+      fd.set("targetType", targetType);
+      if (targetId) fd.set("targetId", targetId);
+      fd.set("file", compressed);
+
       const result = await uploadAttachment(fd);
       if (!result.success) {
         setUploadError(result.error);
