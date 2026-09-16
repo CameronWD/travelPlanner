@@ -1,25 +1,35 @@
 name: Reminders cron
 
-# Trigger the push-reminder dispatcher on a schedule. Vercel Hobby cron only
-# runs once per day, so we drive the every-5-minutes cadence from here instead.
-# The endpoint is auth'd by CRON_SECRET (fail-closed if unset). GitHub may delay
-# scheduled runs under load, and disables schedules after 60 days of repo
-# inactivity — fine for a low-stakes reminder ping.
+# Trigger the push-reminder dispatcher on a schedule. The endpoint is auth'd
+# by CRON_SECRET (fail-closed if unset). GitHub may delay scheduled runs under
+# load, and disables schedules after 60 days of repo inactivity — fine for a
+# low-stakes reminder ping.
+#
+# CADENCE: daily, off-peak minute. Every authorized hit wakes Neon (~5 min of
+# compute), so cadence is the CU-hour lever: daily ≈ 3 CU-h/month vs ~60 for
+# hourly on the 100 CU-h free tier. Daily is enough while the reminders
+# feature has no production users (zero Reminder rows / push subscriptions as
+# of 2026-09-16), and the payment-alert pass is UTC-day granular by design.
+#
+# ⚠️ BUMP TO HOURLY ("23 * * * *") BEFORE LATE NOVEMBER 2026: the first real
+# payment alert lands Nov 28 (cost due 2026-12-01) and travel starts early
+# December — from then, user-set reminders being up to a day late stops being
+# acceptable.
 #
 # The job skips cleanly when APP_URL or CRON_SECRET are missing rather than
 # failing: an unconfigured repo should stay quiet, not email a failure every
 # five minutes. See docs/DEPLOY.md §5 for the repo Secret + Variable to set.
 #
 # A non-2xx response from a *configured* endpoint (e.g. the app itself is
-# down) is logged clearly but does NOT fail the job either: on the */5
-# schedule, failing here would mean ~288 failure emails/day for one outage.
+# down) is logged clearly but does NOT fail the job: transient outages are
+# not worth a failure email per scheduled run.
 # curl runs without --fail so an HTTP error status isn't treated as a curl
 # failure. A genuine transport-level problem (DNS, TLS, connection refused —
 # i.e. APP_URL itself is misconfigured) still makes curl exit non-zero and
 # still fails the job — that case is worth surfacing loudly.
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "23 23 * * *"
   workflow_dispatch: {}
 
 permissions: {}
