@@ -141,7 +141,7 @@ describe("FeedbackLauncher", () => {
     expect(screen.queryByPlaceholderText(/what's on your mind/i)).toBeNull();
   });
 
-  it("shows every traveller's existing notes when opened", async () => {
+  it("renders the notes the action returns, with delete gated to the viewer's own", async () => {
     const user = userEvent.setup();
     render(<FeedbackLauncher />);
 

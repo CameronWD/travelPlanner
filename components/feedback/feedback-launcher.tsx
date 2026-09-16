@@ -234,8 +234,9 @@ function isQueued(queue: QueuedFeedbackNote[], clientKey: string): boolean {
  * modal instead (see `docked`). Toasts (`components/ui/toast.tsx`) keep out of
  * its way: above the trigger below md, in the opposite corner from md up.
  *
- * The panel reads as a log: every traveller's notes oldest-first, with anything
- * still queued on this device beneath them. Losing a written note is the
+ * The panel reads as a log: the viewer's own notes oldest-first (an Admin
+ * sees every author's), with anything still queued on this device beneath
+ * them. Losing a written note is the
  * failure this whole feature exists to prevent, so an online send queues the
  * note *before* it goes out and only dequeues once the server confirms.
  *
