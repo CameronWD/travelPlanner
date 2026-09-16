@@ -27,7 +27,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
-import { sendPush, buildNotificationPayload } from "@/lib/push";
+import { sendPush, buildNotificationPayload, isPushConfigured } from "@/lib/push";
 import { daysBetween } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import { buildCostLabelMap, costLabel } from "@/lib/cost-labels";
@@ -131,6 +131,24 @@ async function pushToTripMembers(
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Missing VAPID config is a hard stop BEFORE any DB query. "Push failed"
+  // and "push isn't configured" are different states: the first is a delivery
+  // outcome worth consuming a reminder for (see the mark-sent-regardless
+  // comment below), the second is a misconfiguration where consuming
+  // reminders would be silent data loss — sendPush() would skip every send
+  // while the loop marked them sent. Bailing here also avoids waking Neon
+  // for work that cannot be delivered. 503 (not 500) so the scheduler can
+  // fail loudly on this specific state.
+  if (!isPushConfigured()) {
+    return NextResponse.json(
+      {
+        error:
+          "Push is not configured: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT must be set. No reminders were read or consumed.",
+      },
+      { status: 503 },
+    );
   }
 
   const now = new Date();

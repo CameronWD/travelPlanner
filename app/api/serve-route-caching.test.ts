@@ -27,6 +27,7 @@ const {
   tripFindUniqueMock,
   attachmentFindUniqueMock,
   storageReadMock,
+  storagePresignMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn().mockResolvedValue({ id: "u1" }),
   requireTripAccessMock: vi.fn().mockResolvedValue({
@@ -37,6 +38,9 @@ const {
   tripFindUniqueMock: vi.fn(),
   attachmentFindUniqueMock: vi.fn(),
   storageReadMock: vi.fn(),
+  // Resolves null by default = a driver without presigning (local disk), so
+  // every pre-existing test keeps exercising the streamed-bytes path.
+  storagePresignMock: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("@/lib/guards", () => ({
@@ -59,6 +63,8 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
+// Default: presigning unavailable (local-disk behaviour) so the pre-existing
+// tests keep exercising the streamed-bytes path; redirect tests override it.
 vi.mock("@/lib/storage", async (importOriginal) => {
   // Keep pure helpers real; mock getStorage() to return a controlled read spy.
   const real = await importOriginal<typeof import("@/lib/storage")>();
@@ -68,6 +74,7 @@ vi.mock("@/lib/storage", async (importOriginal) => {
       save: vi.fn(),
       delete: vi.fn(),
       read: storageReadMock,
+      presignDownload: storagePresignMock,
     })),
   };
 });
@@ -186,5 +193,62 @@ describe("GET /api/attachments/:id — caching policy", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toContain("private");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Presigned-redirect policy (both routes)
+// ---------------------------------------------------------------------------
+
+describe("presigned-redirect policy", () => {
+  it("attachment: 302s to the presigned URL with no-store, without reading bytes", async () => {
+    attachmentFindUniqueMock.mockResolvedValue({
+      id: "a1",
+      tripId: "t1",
+      globeId: null,
+      filename: "itinerary.pdf",
+      mime: "application/pdf",
+      storageKey: "trips/t1/uid-itinerary.pdf",
+    });
+    storagePresignMock.mockResolvedValueOnce("https://acc.r2.cloudflarestorage.com/bucket/trips/t1/uid-itinerary.pdf?X-Amz-Signature=sig");
+    storageReadMock.mockClear();
+
+    const res = await attachmentGET(new NextRequest("http://test.local/api/attachments/a1"), {
+      params: Promise.resolve({ id: "a1" }),
+    });
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toContain("X-Amz-Signature=sig");
+    // The redirect must never be cached: its target expires.
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    // Bytes must not flow through the function on this path.
+    expect(storageReadMock).not.toHaveBeenCalled();
+    // The signed URL carries the same headers the streamed path would set.
+    expect(storagePresignMock).toHaveBeenCalledWith("trips/t1/uid-itinerary.pdf", {
+      expiresIn: 300,
+      contentType: "application/pdf",
+      contentDisposition: 'inline; filename="itinerary.pdf"',
+      cacheControl: "private, max-age=3600",
+    });
+  });
+
+  it("cover: 302s to the presigned URL with no-store, without reading bytes", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/cover.webp" });
+    storagePresignMock.mockResolvedValueOnce("https://acc.r2.cloudflarestorage.com/bucket/trips/t1/cover.webp?X-Amz-Signature=sig");
+    storageReadMock.mockClear();
+
+    const res = await coverGET(new NextRequest("http://test.local/api/trips/t1/cover"), {
+      params: Promise.resolve({ tripId: "t1" }),
+    });
+
+    expect(res.status).toBe(302);
+    expect(res.headers.get("Location")).toContain("X-Amz-Signature=sig");
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(storageReadMock).not.toHaveBeenCalled();
+    expect(storagePresignMock).toHaveBeenCalledWith("trips/t1/cover.webp", {
+      expiresIn: 300,
+      contentType: "image/webp",
+      cacheControl: "private, max-age=300",
+    });
   });
 });

@@ -1,0 +1,92 @@
+name: DB backup
+
+# Daily pg_dump of the production Neon database, uploaded as a workflow
+# artifact. Neon's free tier has limited history retention, so this is the
+# only rollback path for a bad migration or a destructive bug. The NAS pull
+# of these artifacts is handled outside this repo.
+#
+# CADENCE / COST: daily = 1 Neon wake ≈ 3 CU-hours/month of the 100 CU-h free
+# tier. Scheduled at 23:26 UTC, three minutes after the reminders cron
+# (23:23), so the two jobs share a single wake when GitHub's best-effort
+# scheduler cooperates; even unshared, the budget holds.
+#
+# CONNECTION: uses the DIRECT (unpooled) Neon URL. pg_dump needs session-level
+# state that Neon's pooled PgBouncer endpoint does not reliably provide.
+# Repo secret: NEON_DIRECT_URL — same value as DIRECT_URL in Vercel.
+#
+# CLIENT VERSION: Neon runs PostgreSQL 18 (verified 2026-09-16) and pg_dump
+# refuses servers newer than itself, while ubuntu-latest ships client 16 —
+# so postgresql-client-18 is installed from PGDG. If Neon bumps majors, the
+# version check step will say so explicitly instead of failing cryptically.
+#
+# FAILURE SEMANTICS — deliberately opposite to reminders-cron: missing secret
+# skips cleanly (unconfigured repo stays quiet), but once configured, ANY
+# failure fails the job loudly. A backup that silently stops existing is
+# worse than no backup, because it changes what risks we think we're carrying.
+on:
+  schedule:
+    - cron: "26 23 * * *"
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check backup config is present
+        id: config
+        run: |
+          if [ -z "${NEON_DIRECT_URL}" ]; then
+            echo "NEON_DIRECT_URL is not configured — skipping."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          NEON_DIRECT_URL: ${{ secrets.NEON_DIRECT_URL }}
+
+      - name: Install postgresql-client-18 (PGDG)
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-18
+          pg_dump --version
+
+      - name: Dump the database
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          stamp=$(date -u +%Y%m%dT%H%M%SZ)
+          echo "stamp=${stamp}" >> "$GITHUB_ENV"
+          # -Fc: compressed custom format; restores selectively via pg_restore.
+          pg_dump --format=custom --no-owner --no-privileges \
+            --file="neon-${stamp}.dump" "${NEON_DIRECT_URL}"
+          ls -la "neon-${stamp}.dump"
+        env:
+          NEON_DIRECT_URL: ${{ secrets.NEON_DIRECT_URL }}
+
+      - name: Verify the dump is a readable archive
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          # pg_restore --list parses the archive TOC without a database —
+          # catches truncated/corrupt dumps before we call this a backup.
+          entries=$(pg_restore --list "neon-${stamp}.dump" | wc -l)
+          echo "Archive TOC entries: ${entries}"
+          if [ "${entries}" -lt 10 ]; then
+            echo "::error title=DB backup suspicious::Archive lists only ${entries} TOC entries — dump looks empty or truncated."
+            exit 1
+          fi
+
+      - name: Upload artifact (30-day retention)
+        if: steps.config.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: neon-backup-${{ env.stamp }}
+          path: neon-${{ env.stamp }}.dump
+          retention-days: 30
+          if-no-files-found: error

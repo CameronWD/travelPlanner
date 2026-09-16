@@ -15,7 +15,15 @@ import { getStorage } from "@/lib/storage";
  *   1. requireUser() before any DB access — unauthenticated callers can't
  *      distinguish "no cover" from "not a member".
  *   2. requireTripAccess(tripId) — user must be a trip member.
+ *
+ * Serving mirrors /api/attachments/[id] too: 302 to a presigned URL when the
+ * storage driver can presign (bytes go storage → browser directly, keeping
+ * the function inside Vercel Hobby's 10s wall-time cap), streamed bytes as
+ * the local-disk fallback.
  */
+
+/** See PRESIGN_EXPIRY_SECONDS in app/api/attachments/[id]/route.ts. */
+const PRESIGN_EXPIRY_SECONDS = 300;
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ tripId: string }> },
@@ -41,22 +49,37 @@ export async function GET(
     );
   }
 
-  // 3. Read the bytes from storage.
-  const buf = await getStorage().read(trip.coverImageKey);
-  if (!buf) {
-    return NextResponse.json(
-      { error: "File not found in storage" },
-      { status: 404, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
-  // 4. Derive content-type from the key's extension (cover is always an image).
+  // 3. Derive content-type from the key's extension (cover is always an image).
   const ext = trip.coverImageKey.split(".").pop()?.toLowerCase();
   const mime =
     ext === "png" ? "image/png"
     : ext === "webp" ? "image/webp"
     : ext === "gif" ? "image/gif"
     : "image/jpeg";
+
+  // 4. Preferred path: 302 to a presigned URL (header values are signed).
+  const storage = getStorage();
+  const presignedUrl = await storage.presignDownload(trip.coverImageKey, {
+    expiresIn: PRESIGN_EXPIRY_SECONDS,
+    contentType: mime,
+    cacheControl: "private, max-age=300",
+  });
+  if (presignedUrl) {
+    return NextResponse.redirect(presignedUrl, {
+      status: 302,
+      // Never cache the redirect: it points at a URL that expires.
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
+  // 5. Fallback (local disk): read the bytes and stream them ourselves.
+  const buf = await storage.read(trip.coverImageKey);
+  if (!buf) {
+    return NextResponse.json(
+      { error: "File not found in storage" },
+      { status: 404, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   const headers = new Headers();
   headers.set("Content-Type", mime);
