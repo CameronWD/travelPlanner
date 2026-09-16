@@ -35,13 +35,19 @@ export async function GET(
   });
 
   if (!trip?.coverImageKey) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Not found" },
+      { status: 404, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   // 3. Read the bytes from storage.
   const buf = await getStorage().read(trip.coverImageKey);
   if (!buf) {
-    return NextResponse.json({ error: "File not found in storage" }, { status: 404 });
+    return NextResponse.json(
+      { error: "File not found in storage" },
+      { status: 404, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   // 4. Derive content-type from the key's extension (cover is always an image).

@@ -46,7 +46,10 @@ export async function GET(
   });
 
   if (!attachment) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Not found" },
+      { status: 404, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   // 2. Access check — branches on globe-scoped vs trip-scoped attachment.
@@ -67,14 +70,17 @@ export async function GET(
   if (!attachment.storageKey) {
     return NextResponse.json(
       { error: "Attachment not fully uploaded" },
-      { status: 404 },
+      { status: 404, headers: { "Cache-Control": "no-store" } },
     );
   }
 
   // 4. Read the bytes from storage.
   const buf = await getStorage().read(attachment.storageKey);
   if (!buf) {
-    return NextResponse.json({ error: "File not found in storage" }, { status: 404 });
+    return NextResponse.json(
+      { error: "File not found in storage" },
+      { status: 404, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   // 5. Build the response with appropriate headers.
