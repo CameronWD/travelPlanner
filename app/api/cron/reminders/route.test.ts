@@ -16,6 +16,7 @@ const {
   pushFindManyMock,
   pushDeleteManyMock,
   sendPushMock,
+  isPushConfiguredMock,
   tripFindUniqueMock,
   costFindManyMock,
   itemFindManyMock,
@@ -30,6 +31,7 @@ const {
   pushFindManyMock: vi.fn(),
   pushDeleteManyMock: vi.fn(),
   sendPushMock: vi.fn(),
+  isPushConfiguredMock: vi.fn(),
   tripFindUniqueMock: vi.fn(),
   costFindManyMock: vi.fn(),
   itemFindManyMock: vi.fn(),
@@ -60,6 +62,7 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/push", () => ({
   sendPush: sendPushMock,
+  isPushConfigured: isPushConfiguredMock,
   buildNotificationPayload: ({
     title,
     body,
@@ -109,6 +112,9 @@ const todayUTC = new Date().toISOString().slice(0, 10);
 const threeDaysFromNow = addDays(todayUTC, 3);
 
 beforeEach(() => {
+  // Push is configured by default; the VAPID-misconfiguration guard has its
+  // own describe block below.
+  isPushConfiguredMock.mockReturnValue(true);
   // Sensible no-op defaults for the second pass so pre-existing (first-pass)
   // tests don't need to know about it.
   costFindManyMock.mockResolvedValue([]);
@@ -158,6 +164,27 @@ describe("GET /api/cron/reminders — auth (fail-closed)", () => {
     reminderFindManyMock.mockResolvedValue([]);
     const res = await GET(req({ header: "Bearer right" }));
     expect(res.status).toBe(200);
+  });
+});
+
+describe("GET /api/cron/reminders — VAPID misconfiguration guard", () => {
+  it("returns 503 before any DB query when push is not configured", async () => {
+    vi.stubEnv("CRON_SECRET", "right");
+    isPushConfiguredMock.mockReturnValue(false);
+    const res = await GET(req({ secret: "right" }));
+    expect(res.status).toBe(503);
+    // The whole point: no reminder is read, consumed, or marked sent, and
+    // Neon is never woken, while VAPID is missing.
+    expect(reminderFindManyMock).not.toHaveBeenCalled();
+    expect(reminderUpdateMock).not.toHaveBeenCalled();
+    expect(costFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it("auth still runs first: bad secret is 401 even when push is unconfigured", async () => {
+    vi.stubEnv("CRON_SECRET", "right");
+    isPushConfiguredMock.mockReturnValue(false);
+    const res = await GET(req({ secret: "wrong" }));
+    expect(res.status).toBe(401);
   });
 });
 
