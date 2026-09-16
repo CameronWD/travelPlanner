@@ -9,9 +9,10 @@ vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn().mockResolvedValue({ success: true }),
   deleteAttachment: vi.fn().mockResolvedValue({ success: true }),
 }));
-vi.mock("@/lib/image-compress", () => ({
-  compressImage: vi.fn(async (f: File) => f),
-}));
+vi.mock("@/lib/image-compress", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/image-compress")>();
+  return { ...real, compressImage: vi.fn(async (f: File) => f) };
+});
 
 import { saveJournalEntry } from "@/server/actions/journal";
 import { uploadAttachment } from "@/server/actions/attachments";
@@ -88,5 +89,20 @@ describe("JournalEditor", () => {
     const sent = formData.get("file") as File;
     expect(sent.name).toBe("photo.webp");
     expect(sent.type).toBe("image/webp");
+  });
+
+  it("shows the oversize message and skips upload when the photo can't be shrunk under the cap", async () => {
+    const user = userEvent.setup();
+    const stillHuge = new File([new Uint8Array(5 * 1024 * 1024)], "big.jpg", { type: "image/webp" });
+    vi.mocked(compressImage).mockResolvedValueOnce(stillHuge);
+    const { container } = render(<JournalEditor {...BASE_PROPS} />);
+
+    await user.upload(
+      container.querySelector('input[type="file"]') as HTMLInputElement,
+      new File([new Uint8Array(10)], "big.jpg", { type: "image/jpeg" }),
+    );
+
+    expect(await screen.findByText(/~4 MB/)).toBeInTheDocument();
+    expect(uploadAttachment).not.toHaveBeenCalled();
   });
 });

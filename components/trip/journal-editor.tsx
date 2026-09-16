@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/cn";
 import { saveJournalEntry } from "@/server/actions/journal";
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
-import { compressImage } from "@/lib/image-compress";
+import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 
 // ---------------------------------------------------------------------------
@@ -47,6 +47,12 @@ function PhotoStrip({
     setUploadError(null);
     startTransition(async () => {
       const compressed = await compressImage(file);
+      const oversize = oversizeUploadMessage(compressed);
+      if (oversize) {
+        setUploadError(oversize);
+        if (inputRef.current) inputRef.current.value = "";
+        return;
+      }
       const fd = new FormData();
       fd.set("tripId", tripId);
       fd.set("targetType", "JOURNAL");
