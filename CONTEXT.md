@@ -186,6 +186,10 @@ _Avoid_: Like, rating, rank
 A person on the Trip with their own login. A Trip is shared between Travellers (normally two). Distinct from generic app "user".
 _Avoid_: Member, user, participant
 
+**Admin**:
+The app's operator — an account whose email is listed in the deployment's admin list, recognised at request time rather than stored on the user. Admin standing is about running TEEPEE, not planning holidays: it grants operator affordances (deleting a Trip they are on — see ADR 0045 — and reading every author's **Feedback note**), never planning powers, and grants nothing on Trips the Admin isn't a **Traveller** of. Distinct from a Trip **owner** (a per-Trip membership role any Traveller can hold).
+_Avoid_: superuser, moderator, staff; owner (that's the per-Trip role)
+
 **Invite**:
 A pending, email-addressed grant of access to a Trip — it names the email of the person a Traveller wants to bring on. An Invite becomes Traveller membership automatically the next time that person is signed in under a matching email; it is never delivered as a link or message, so it lives only as a record on the Trip, not something the invitee receives. It is **Pending** until matched, and can be cancelled while still Pending. Distinct from a **Traveller** (an Invite is the not-yet-joined precursor) and from the read-only public **share link** (which grants no membership).
 _Avoid_: invitation link/email, membership request, share
@@ -217,7 +221,7 @@ A remark a **Traveller** writes *about TEEPEE* while using it — a defect, an a
 _Avoid_: Note (that's trip content), Flag (that's a plan problem), bug, issue, ticket, report, comment
 
 **Feedback panel**:
-The surface a Feedback note is written in: a floating button in the bottom-right of every signed-in screen that opens a panel docked above it — the notes already written, newest last, each labelled with where it came from, above a box to write the next one. It takes the familiar shape and position of a site's chat widget, so it reads as somewhere to say something rather than as part of the plan. The page stays visible and usable behind it; on a phone it fills the screen. It is deliberately reachable from *anywhere*, because a remark you have to navigate to is a remark you don't make.
+The surface a Feedback note is written in: a floating button in the bottom-right of every signed-in screen that opens a panel docked above it — the notes *the viewer wrote*, newest last, each labelled with where it came from, above a box to write the next one. Notes are private to their author: a Traveller's panel is their own message log to the operator, not a shared forum; only an **Admin** sees every author's notes (in the panel and via the Feedback inbox). It takes the familiar shape and position of a site's chat widget, so it reads as somewhere to say something rather than as part of the plan. The page stays visible and usable behind it; on a phone it fills the screen. It is deliberately reachable from *anywhere*, because a remark you have to navigate to is a remark you don't make.
 _Avoid_: Feedback form, bug reporter, widget, chat (it is a log, not a conversation)
 
 **Feedback inbox**:
