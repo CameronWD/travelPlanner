@@ -46,9 +46,11 @@ a distinct name in `CONTEXT.md`.
   **Due date** at three days out and on the day, **Checklist** items falling
   due, that day's **Reminder**s, and — once the Trip is **Travelling** —
   tomorrow's Transport, check-in/check-out and timed **Item**s. When there is
-  nothing to say, nothing is sent. The separate `COST_DUE` push is absorbed:
-  its marker row survives as the idempotency ledger and now gates a line in
-  the Digest rather than a push of its own.
+  nothing to say, nothing is sent. The separate `COST_DUE` push is absorbed,
+  and so is its per-cost marker row: idempotency moves up a level to a
+  dispatch ledger keyed (person, Trip, local date, morning/evening), claimed
+  before sending. Every line in a Digest is derived fresh from the data on
+  each run, so nothing needs a marker of its own.
 
 - **Dispatch runs at fixed UTC hours and filters by the subscriber's local
   hour.** The timezone is captured from the browser when a device subscribes
@@ -100,9 +102,11 @@ warning instead of a missed train.
 
 ## Consequences
 
-- **The Reminder model changes meaning, not just delivery.** `Reminder.fireAt`
-  stops being a firing instant and becomes a date. Existing `COST_DUE` marker
-  rows keep working as the ledger they already are.
+- **The Reminder model changes meaning, not just delivery.** `Reminder` stops
+  carrying a firing instant, a `sent` flag and a target reference, and becomes
+  a Trip, a title and a date. The `COST_DUE` marker rows are dropped with the
+  columns that described them — verified zero in production before the
+  migration runs.
 
 - **`pushToTripMembers` is retired.** Dispatch becomes per-person: a
   Traveller's own Digest, to their own subscriptions, in their own timezone,
