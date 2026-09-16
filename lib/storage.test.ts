@@ -233,6 +233,7 @@ describe("localDiskStorage (round-trip)", async () => {
 // ---------------------------------------------------------------------------
 
 const sendMock = vi.fn();
+const getSignedUrlMock = vi.fn();
 vi.mock("@aws-sdk/client-s3", () => {
   class S3Client {
     send = sendMock;
@@ -248,6 +249,12 @@ vi.mock("@aws-sdk/client-s3", () => {
   }
   return { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand };
 });
+
+vi.mock("@aws-sdk/s3-request-presigner", () => ({
+  // Lazy delegation: the factory runs during the test file's hoisted imports,
+  // before the const below initialises (same trick as S3Client's send field).
+  getSignedUrl: (...args: unknown[]) => getSignedUrlMock(...args),
+}));
 
 describe("S3-compatible storage (R2 driver)", () => {
   const R2_ENV: Record<string, string> = {
@@ -327,6 +334,27 @@ describe("S3-compatible storage (R2 driver)", () => {
     const { getStorage } = await import("./storage");
     expect(() => getStorage()).toThrow(/R2_BUCKET_NAME is required/);
   });
+
+  it("presignDownload() signs a GetObjectCommand carrying the response-header overrides", async () => {
+    getSignedUrlMock.mockResolvedValueOnce("https://signed.example/url");
+    const { getStorage } = await import("./storage");
+    const url = await getStorage().presignDownload("trips/t1/uid-a.png", {
+      expiresIn: 300,
+      contentType: "image/png",
+      contentDisposition: 'inline; filename="a.png"',
+      cacheControl: "private, max-age=3600",
+    });
+    expect(url).toBe("https://signed.example/url");
+    const [, cmd, opts] = getSignedUrlMock.mock.calls[0] as [unknown, { input: Record<string, unknown> }, { expiresIn: number }];
+    expect(cmd.input).toMatchObject({
+      Bucket: "trip-files",
+      Key: "trips/t1/uid-a.png",
+      ResponseContentType: "image/png",
+      ResponseContentDisposition: 'inline; filename="a.png"',
+      ResponseCacheControl: "private, max-age=3600",
+    });
+    expect(opts.expiresIn).toBe(300);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -367,5 +395,25 @@ describe("S3-compatible storage (S3 driver)", () => {
       Bucket: "trip-files-s3",
       Key: "trips/t1/x.png",
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// presignDownload — local driver has no presigning
+// ---------------------------------------------------------------------------
+
+describe("presignDownload (local driver)", () => {
+  it("returns null so callers fall back to read()", async () => {
+    const prev = process.env.STORAGE_DRIVER;
+    delete process.env.STORAGE_DRIVER;
+    try {
+      const { getStorage } = await import("./storage");
+      await expect(
+        getStorage().presignDownload("trips/t1/x.png", { expiresIn: 300 }),
+      ).resolves.toBeNull();
+    } finally {
+      if (prev === undefined) delete process.env.STORAGE_DRIVER;
+      else process.env.STORAGE_DRIVER = prev;
+    }
   });
 });

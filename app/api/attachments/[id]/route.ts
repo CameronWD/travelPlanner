@@ -17,11 +17,23 @@ import { getStorage } from "@/lib/storage";
  *   3. The storage key is never exposed; the route looks it up from the db row.
  *
  * Returns:
- *   - 200 + binary body  on success
+ *   - 302 → presigned URL when the storage driver can presign (S3/R2): bytes
+ *     then flow storage → browser directly, so a slow download can't hold
+ *     this function open past Vercel Hobby's 10s wall-time cap
+ *   - 200 + binary body  when the driver can't presign (local disk)
  *   - 404                if the attachment doesn't exist in the db or storage
  *   - 401/redirect       if unauthenticated (from requireUser inside requireTripAccess)
  *   - 403/404            if the user is not a trip member (from requireTripAccess)
  */
+
+/**
+ * Presigned URL lifetime (seconds). The 302 is followed immediately and
+ * S3/R2 check expiry at request start (an in-flight download is never cut
+ * off), so this only needs to cover clock skew, quick retries, and viewers
+ * re-requesting ranges shortly after — while keeping a leaked URL
+ * short-lived. The 302 response itself is no-store.
+ */
+const PRESIGN_EXPIRY_SECONDS = 300;
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -74,16 +86,7 @@ export async function GET(
     );
   }
 
-  // 4. Read the bytes from storage.
-  const buf = await getStorage().read(attachment.storageKey);
-  if (!buf) {
-    return NextResponse.json(
-      { error: "File not found in storage" },
-      { status: 404, headers: { "Cache-Control": "no-store" } },
-    );
-  }
-
-  // 5. Build the response with appropriate headers.
+  // 4. Response headers (used by both the presigned and the streamed path).
   const isInline =
     attachment.mime.startsWith("image/") || attachment.mime === "application/pdf";
 
@@ -93,6 +96,32 @@ export async function GET(
   const disposition = isInline
     ? `inline; filename="${safeName}"`
     : `attachment; filename="${safeName}"`;
+
+  // 5. Preferred path: 302 to a presigned URL so the bytes never pass through
+  // this function. The header values are baked into the signature.
+  const storage = getStorage();
+  const presignedUrl = await storage.presignDownload(attachment.storageKey, {
+    expiresIn: PRESIGN_EXPIRY_SECONDS,
+    contentType: attachment.mime,
+    contentDisposition: disposition,
+    cacheControl: "private, max-age=3600",
+  });
+  if (presignedUrl) {
+    return NextResponse.redirect(presignedUrl, {
+      status: 302,
+      // Never cache the redirect: it points at a URL that expires.
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
+  // 6. Fallback (local disk): read the bytes and stream them ourselves.
+  const buf = await storage.read(attachment.storageKey);
+  if (!buf) {
+    return NextResponse.json(
+      { error: "File not found in storage" },
+      { status: 404, headers: { "Cache-Control": "no-store" } },
+    );
+  }
 
   const headers = new Headers();
   headers.set("Content-Type", attachment.mime);

@@ -15,8 +15,10 @@
  *   For S3 you need:
  *     AWS_REGION, S3_BUCKET_NAME, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
  *
- *   The serve route at app/api/attachments/[id]/route.ts streams bytes from
- *   storage, so production needs `read()` too (or swap to signed URL redirects).
+ *   The serve routes (app/api/attachments/[id], app/api/trips/[tripId]/cover)
+ *   redirect to a presigned URL when the driver supports it (S3/R2), falling
+ *   back to streaming bytes via `read()` (local disk). `read()` also stays for
+ *   the seed scripts.
  */
 
 import fs from "node:fs/promises";
@@ -27,10 +29,23 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 // ---------------------------------------------------------------------------
 // Interface
 // ---------------------------------------------------------------------------
+
+/** Response-header overrides baked into a presigned download URL's signature. */
+export interface PresignDownloadOptions {
+  /** Seconds until the URL stops accepting new requests. */
+  expiresIn: number;
+  /** Value for the object response's Content-Type header. */
+  contentType?: string;
+  /** Value for the object response's Content-Disposition header. */
+  contentDisposition?: string;
+  /** Value for the object response's Cache-Control header. */
+  cacheControl?: string;
+}
 
 export interface Storage {
   /** Persist `data` under `key`. Creates intermediate directories as needed. */
@@ -39,6 +54,19 @@ export interface Storage {
   delete(key: string): Promise<void>;
   /** Return the raw bytes for `key`, or null if not found. */
   read(key: string): Promise<Buffer | null>;
+  /**
+   * Return a short-lived presigned GET URL for `key`, or null when this
+   * driver cannot presign (local disk). Callers MUST handle null by falling
+   * back to `read()` — serving bytes through the function — so local dev
+   * keeps working without object storage.
+   *
+   * Presigning does not check existence: a URL for a missing key is returned
+   * and 404s at the storage host when followed.
+   */
+  presignDownload(
+    key: string,
+    opts: PresignDownloadOptions,
+  ): Promise<string | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,6 +120,12 @@ const localDiskStorage: Storage = {
       }
       throw err;
     }
+  },
+
+  // Local disk has no presigning equivalent (there is no storage host for
+  // the browser to fetch from). Explicit null → callers stream via read().
+  async presignDownload() {
+    return null;
   },
 };
 
@@ -187,6 +221,24 @@ function makeS3Storage(driver: "r2" | "s3"): Storage {
         if (isNotFound(err)) return null;
         throw err;
       }
+    },
+
+    async presignDownload(key, opts) {
+      // The Response* params are part of the signature, so the values the
+      // serve routes decide on (MIME, disposition, caching) can't be
+      // tampered with by whoever holds the URL. R2 supports SigV4 presigned
+      // GETs and these response-header overrides via its S3-compatible API.
+      return getSignedUrl(
+        client,
+        new GetObjectCommand({
+          Bucket: bucket,
+          Key: key,
+          ResponseContentType: opts.contentType,
+          ResponseContentDisposition: opts.contentDisposition,
+          ResponseCacheControl: opts.cacheControl,
+        }),
+        { expiresIn: opts.expiresIn },
+      );
     },
   };
 }
