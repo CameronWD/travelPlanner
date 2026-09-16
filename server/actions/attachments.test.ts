@@ -291,6 +291,11 @@ describe("uploadAttachment", () => {
       expect(attachmentDeleteMock).toHaveBeenCalledWith({
         where: { id: ATTACHMENT_ID },
       });
+      // Best-effort cleanup of whatever the failed write may have partially
+      // written, keyed the same way the successful path would have been.
+      expect(storageDeleteMock).toHaveBeenCalledWith(
+        `trips/${TRIP_ID}/${ATTACHMENT_ID}-test.pdf`,
+      );
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
       expect(recordActivityMock).not.toHaveBeenCalled();
       expect(revalidatePathMock).not.toHaveBeenCalled();
@@ -305,6 +310,9 @@ describe("uploadAttachment", () => {
       expect(attachmentDeleteMock).toHaveBeenCalledWith({
         where: { id: ATTACHMENT_ID },
       });
+      expect(storageDeleteMock).toHaveBeenCalledWith(
+        `globes/g1/${ATTACHMENT_ID}-test.pdf`,
+      );
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
       expect(revalidatePathMock).not.toHaveBeenCalled();
     });

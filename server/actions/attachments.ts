@@ -136,7 +136,16 @@ export async function uploadAttachment(
       // (empty url, no storageKey) is left behind. Best-effort delete — the
       // failure we report is the write, not the cleanup.
       console.error("uploadAttachment: storage write failed", err);
-      await db.attachment.delete({ where: { id: attachment.id } }).catch(() => {});
+      await db.attachment
+        .delete({ where: { id: attachment.id } })
+        .catch((cleanupErr) =>
+          console.error("uploadAttachment: orphan-row cleanup failed", cleanupErr),
+        );
+      // A failed save may still have partially written the blob — clear it
+      // too, best-effort, so it never lingers with no row pointing at it.
+      await getStorage()
+        .delete(storageKey)
+        .catch(() => {});
       return { success: false, error: "Upload failed — nothing was saved. Please try again." };
     }
 
@@ -185,7 +194,16 @@ export async function uploadAttachment(
     // (empty url, no storageKey) is left behind. Best-effort delete — the
     // failure we report is the write, not the cleanup.
     console.error("uploadAttachment: storage write failed", err);
-    await db.attachment.delete({ where: { id: attachment.id } }).catch(() => {});
+    await db.attachment
+      .delete({ where: { id: attachment.id } })
+      .catch((cleanupErr) =>
+        console.error("uploadAttachment: orphan-row cleanup failed", cleanupErr),
+      );
+    // A failed save may still have partially written the blob — clear it
+    // too, best-effort, so it never lingers with no row pointing at it.
+    await getStorage()
+      .delete(storageKey)
+      .catch(() => {});
     return { success: false, error: "Upload failed — nothing was saved. Please try again." };
   }
 
