@@ -44,7 +44,14 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
   const storage = getStorage();
   const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : file.type === "image/gif" ? "gif" : "jpg";
   const key = generateKey({ trip: tripId }, crypto.randomUUID(), `cover.${ext}`);
-  await storage.save(key, bytes, file.type);
+  try {
+    await storage.save(key, bytes, file.type);
+  } catch (err) {
+    // Blob-first order: nothing has been written to the Trip row yet, so a
+    // failed write needs no cleanup — just report it honestly.
+    console.error("setTripCover: storage write failed", err);
+    return { success: false, error: "Upload failed — nothing was saved. Please try again." };
+  }
 
   // Best-effort cleanup of the previous cover blob.
   if (trip.coverImageKey && trip.coverImageKey !== key) {

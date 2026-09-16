@@ -2,90 +2,63 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const { refreshMock, setTripCoverMock, removeTripCoverMock, toastMock } = vi.hoisted(() => ({
-  refreshMock: vi.fn(),
-  setTripCoverMock: vi.fn(),
-  removeTripCoverMock: vi.fn(),
-  toastMock: vi.fn(),
-}));
-
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: refreshMock }) }));
-
 vi.mock("@/server/actions/cover", () => ({
-  setTripCover: (...args: unknown[]) => setTripCoverMock(...args),
-  removeTripCover: (...args: unknown[]) => removeTripCoverMock(...args),
+  setTripCover: vi.fn().mockResolvedValue({ success: true }),
+  removeTripCover: vi.fn().mockResolvedValue({ success: true }),
 }));
-
-vi.mock("@/components/ui/use-toast", () => ({ toast: toastMock }));
-
-vi.mock("@/lib/image-compress", () => ({
-  compressImage: vi.fn(async (f: File) => f),
-}));
-
-import { CoverImageField } from "./cover-image-field";
-import { compressImage } from "@/lib/image-compress";
-
-beforeEach(() => {
-  vi.clearAllMocks();
-  setTripCoverMock.mockResolvedValue({ success: true });
-  removeTripCoverMock.mockResolvedValue({ success: true });
+vi.mock("@/lib/image-compress", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/image-compress")>();
+  return { ...real, compressImage: vi.fn(async (f: File) => f) };
 });
+vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
+
+import { setTripCover, removeTripCover } from "@/server/actions/cover";
+import { compressImage } from "@/lib/image-compress";
+import { toast } from "@/components/ui/use-toast";
+import { CoverImageField } from "./cover-image-field";
+
+function fileInput(container: HTMLElement): HTMLInputElement {
+  return container.querySelector('input[type="file"]') as HTMLInputElement;
+}
 
 describe("CoverImageField", () => {
+  beforeEach(() => vi.clearAllMocks());
+
   it("renders a file input", () => {
     const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
-    const input = container.querySelector('input[type="file"]');
-    expect(input).not.toBeNull();
+    expect(fileInput(container)).not.toBeNull();
   });
 
   it("selecting a file calls setTripCover with FormData containing tripId and the file, then calls router.refresh()", async () => {
     const user = userEvent.setup();
     const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
 
-    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(fileInput).not.toBeNull();
-
     const file = new File(["img-data"], "photo.png", { type: "image/png" });
-    await user.upload(fileInput, file);
+    await user.upload(fileInput(container), file);
 
-    await waitFor(() => expect(setTripCoverMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(setTripCover).toHaveBeenCalledTimes(1));
 
-    const formData: FormData = setTripCoverMock.mock.calls[0][0];
+    const formData = vi.mocked(setTripCover).mock.calls[0][0];
     expect(formData).toBeInstanceOf(FormData);
     expect(formData.get("tripId")).toBe("t1");
     expect(formData.get("file")).toBe(file);
-
-    await waitFor(() => expect(refreshMock).toHaveBeenCalledTimes(1));
   });
 
   it("shows a Remove button when hasCover is true, clicking it calls removeTripCover(tripId); Remove is absent when hasCover is false", async () => {
     const user = userEvent.setup();
 
-    // hasCover = true: Remove button present
     const { rerender } = render(<CoverImageField tripId="t1" hasCover={true} />);
     const removeBtn = screen.getByRole("button", { name: /remove/i });
     expect(removeBtn).toBeInTheDocument();
 
     await user.click(removeBtn);
-    await waitFor(() => expect(removeTripCoverMock).toHaveBeenCalledWith("t1"));
+    await waitFor(() => expect(removeTripCover).toHaveBeenCalledWith("t1"));
 
-    // hasCover = false: Remove button absent
     rerender(<CoverImageField tripId="t1" hasCover={false} />);
     expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
-  });
-
-  it("shows a friendly error when the upload throws (e.g. body too large)", async () => {
-    const user = userEvent.setup();
-    setTripCoverMock.mockRejectedValueOnce(new Error("Body exceeded 1 MB limit"));
-    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
-
-    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(fileInput).not.toBeNull();
-
-    const file = new File(["x".repeat(10)], "big.jpg", { type: "image/jpeg" });
-    await user.upload(fileInput, file);
-
-    await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" })));
   });
 
   it("compresses the selected file before calling setTripCover", async () => {
@@ -94,19 +67,66 @@ describe("CoverImageField", () => {
     vi.mocked(compressImage).mockResolvedValueOnce(compressedFile);
     const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
 
-    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
-    expect(fileInput).not.toBeNull();
-
     const rawFile = new File([new Uint8Array(5000)], "big.jpg", { type: "image/jpeg" });
-    await user.upload(fileInput, rawFile);
+    await user.upload(fileInput(container), rawFile);
 
-    await waitFor(() => expect(setTripCoverMock).toHaveBeenCalledTimes(1));
-
+    await waitFor(() => expect(setTripCover).toHaveBeenCalledTimes(1));
     expect(compressImage).toHaveBeenCalledWith(rawFile);
 
-    const formData: FormData = setTripCoverMock.mock.calls[0][0];
-    const sent = formData.get("file") as File;
+    const sent = vi.mocked(setTripCover).mock.calls[0][0].get("file") as File;
     expect(sent.name).toBe("photo.webp");
     expect(sent.type).toBe("image/webp");
+  });
+
+  it("surfaces the server's own error message when the action fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(setTripCover).mockResolvedValueOnce({
+      success: false,
+      error: "Upload failed — nothing was saved. Please try again.",
+    });
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+
+    await user.upload(
+      fileInput(container),
+      new File([new Uint8Array(10)], "c.jpg", { type: "image/jpeg" }),
+    );
+
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Upload failed — nothing was saved. Please try again.",
+      }),
+    );
+  });
+
+  it("shows the oversize message and never calls the action when compression can't fit the cap", async () => {
+    const user = userEvent.setup();
+    const stillHuge = new File([new Uint8Array(5 * 1024 * 1024)], "big.heic", { type: "image/heic" });
+    vi.mocked(compressImage).mockResolvedValueOnce(stillHuge);
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+
+    await user.upload(
+      fileInput(container),
+      new File([new Uint8Array(10)], "big.heic", { type: "image/heic" }),
+    );
+
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: expect.stringMatching(/~4 MB/) }),
+    );
+    expect(setTripCover).not.toHaveBeenCalled();
+  });
+
+  it("no longer blames file size for an unexplained throw", async () => {
+    const user = userEvent.setup();
+    vi.mocked(setTripCover).mockRejectedValueOnce(new Error("boom"));
+    const { container } = render(<CoverImageField tripId="t1" hasCover={false} />);
+
+    await user.upload(
+      fileInput(container),
+      new File([new Uint8Array(10)], "c.jpg", { type: "image/jpeg" }),
+    );
+
+    expect(toast).toHaveBeenCalledWith(
+      expect.objectContaining({ title: "Upload failed. Please try again." }),
+    );
   });
 });

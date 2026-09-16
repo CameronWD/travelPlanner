@@ -4,7 +4,7 @@ import * as React from "react";
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { setTripCover, removeTripCover } from "@/server/actions/cover";
-import { compressImage } from "@/lib/image-compress";
+import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -18,16 +18,23 @@ export function CoverImageField({ tripId, hasCover }: { tripId: string; hasCover
     const file = e.target.files?.[0];
     if (!file) return;
     startTransition(async () => {
+      const compressed = await compressImage(file);
+      const oversize = oversizeUploadMessage(compressed);
+      if (oversize) {
+        toast({ variant: "destructive", title: oversize });
+        return;
+      }
+      const fd = new FormData();
+      fd.set("tripId", tripId);
+      fd.set("file", compressed);
       try {
-        const compressed = await compressImage(file);
-        const fd = new FormData();
-        fd.set("tripId", tripId);
-        fd.set("file", compressed);
         const r = await setTripCover(fd);
         if (!r.success) toast({ variant: "destructive", title: r.error });
         else router.refresh();
       } catch {
-        toast({ variant: "destructive", title: "Upload failed — the image may be too large (max 10 MB)." });
+        // The action reports its own failures; reaching here means the request
+        // itself died (network, platform limit) — don't invent a size excuse.
+        toast({ variant: "destructive", title: "Upload failed. Please try again." });
       }
     });
   }

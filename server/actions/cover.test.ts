@@ -140,6 +140,19 @@ describe("setTripCover", () => {
     await setTripCover(fd);
     expect(storageDeleteMock).toHaveBeenCalledWith("trips/t1/old");
   });
+
+  it("returns a friendly failure and leaves the trip untouched when the blob write fails", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
+    storageSaveMock.mockRejectedValueOnce(new Error("EROFS: read-only file system"));
+
+    const result = await setTripCover(makeFormData());
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.error).toBe("Upload failed — nothing was saved. Please try again.");
+    expect(tripUpdateMock).not.toHaveBeenCalled();
+    expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
