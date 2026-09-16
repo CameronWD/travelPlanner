@@ -13,6 +13,11 @@ export interface TripCoverProps {
   roundTrip?: boolean;
   /** Extra classes for the cover container (controls aspect/size). */
   className?: string;
+  /** Cache-bust token for the cover URL — pass Trip.coverImageKey. A new
+   *  upload generates a new key, so the img URL changes exactly when the
+   *  image does and the browser's max-age cache of the old bytes is never
+   *  shown for a new cover. */
+  coverVersion?: string | null;
 }
 
 function monogram(name: string): string {
@@ -21,12 +26,12 @@ function monogram(name: string): string {
 }
 
 /** Decision component: photo → route-render → monogram. */
-export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, className }: TripCoverProps) {
+export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, className, coverVersion }: TripCoverProps) {
   if (hasCover) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable
       <img
-        src={`/api/trips/${tripId}/cover`}
+        src={`/api/trips/${tripId}/cover${coverVersion ? `?v=${encodeURIComponent(coverVersion)}` : ""}`}
         alt={`${name} cover`}
         className={`size-full object-contain bg-muted ${className ?? ""}`}
       />

@@ -47,6 +47,7 @@ export interface TripCardProps {
   coverStops: { lat: number; lng: number }[];
   home?: LatLng | null;
   roundTrip?: boolean;
+  coverVersion?: string | null;
 }
 
 /** Dot colour class per trip phase, matching the design tokens. */
@@ -76,6 +77,7 @@ export function TripCard({
   coverStops,
   home,
   roundTrip,
+  coverVersion,
 }: TripCardProps) {
   const dateRange =
     startDate && endDate ? formatDateRange(startDate, endDate) : "No dates yet";
@@ -96,7 +98,7 @@ export function TripCard({
       >
         {/* Cover */}
         <div className="relative h-28 w-full overflow-hidden">
-          <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} home={home} roundTrip={roundTrip} />
+          <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} home={home} roundTrip={roundTrip} coverVersion={coverVersion} />
           {phase && (
             <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-soft">
               <span

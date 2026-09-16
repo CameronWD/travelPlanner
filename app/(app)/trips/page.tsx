@@ -63,8 +63,8 @@ export default async function TripsPage() {
     );
   }
 
-  // Build cover key presence per trip from the memberships query already in hand.
-  const hasCoverByTrip = new Map(trips.map((t) => [t.id, t.coverImageKey != null]));
+  // Build cover key map per trip from the memberships query already in hand.
+  const coverKeyByTrip = new Map(trips.map((t) => [t.id, t.coverImageKey]));
 
   // Build a map of tripId → lastReadActivityAt for the current user.
   const membershipByTripId = new Map(
@@ -139,7 +139,8 @@ export default async function TripsPage() {
                 stopCount={trip._count.stops}
                 phase={describePhase({ startDate: trip.startDate, endDate: trip.endDate, today: todayByTripId.get(trip.id) ?? today })}
                 unreadCount={unreadByTrip[trip.id] ?? 0}
-                hasCover={hasCoverByTrip.get(trip.id) ?? false}
+                hasCover={(coverKeyByTrip.get(trip.id) ?? null) != null}
+                coverVersion={coverKeyByTrip.get(trip.id) ?? null}
                 coverStops={coverStopsByTrip.get(trip.id) ?? []}
                 home={trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null}
                 roundTrip={trip.roundTrip ?? false}

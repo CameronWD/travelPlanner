@@ -61,4 +61,28 @@ describe("TripCover", () => {
     expect(container.querySelectorAll("circle")).toHaveLength(0);
     expect(screen.getByText("A")).toBeInTheDocument();
   });
+
+  it("versions the cover URL so a replaced photo busts the browser cache", () => {
+    const { container } = render(
+      <TripCover
+        tripId="t1"
+        name="Trip"
+        hasCover={true}
+        coverVersion="trips/t1/abc-cover.webp"
+        stops={[]}
+      />,
+    );
+    const img = container.querySelector("img") as HTMLImageElement;
+    expect(img.getAttribute("src")).toBe(
+      `/api/trips/t1/cover?v=${encodeURIComponent("trips/t1/abc-cover.webp")}`,
+    );
+  });
+
+  it("keeps the bare cover URL when no version is provided", () => {
+    const { container } = render(
+      <TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} />,
+    );
+    const img = container.querySelector("img") as HTMLImageElement;
+    expect(img.getAttribute("src")).toBe("/api/trips/t1/cover");
+  });
 });

@@ -67,6 +67,7 @@ export default async function TripHomePage({
         stops={coverStops.map((s) => ({ lat: s.lat as number, lng: s.lng as number }))}
         home={trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null}
         roundTrip={trip.roundTrip ?? false}
+        coverVersion={trip.coverImageKey}
       />
     </div>
   );
