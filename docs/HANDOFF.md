@@ -264,11 +264,24 @@ The reminder delivery endpoint is `GET /api/cron/reminders`. It is authenticated
 
 Without `CRON_SECRET` the endpoint returns `401` for all requests (fail-closed).
 
-The schedule is **four fixed UTC hours**, not a frequent poll: each run dispatches only to
+The schedule is **five fixed UTC hours**, not a frequent poll: each run dispatches only to
 subscribers whose *local* hour falls in the morning (06–08) or evening (20–22) window, so
-the hours are chosen to land inside those windows for the zones served — 06:00Z = 07:00
-CET, 09:00Z = 20:00 AEDT, 19:00Z = 20:00 CET, 20:00Z = 07:00 AEDT. Adding a zone means
-adding a UTC hour (see `docs/DEPLOY.md` §5 for the half-hour-zone limitation).
+the hours are chosen to land inside those windows for the zones served (✔ = the run that
+delivers; an "absorbed" run finds the slot already claimed and sends nothing):
+
+| UTC | Europe/Vienna (CET) | Australia/Brisbane (AEST) | Australia/Sydney (AEDT) |
+|---|---|---|---|
+| 06:00 | 07:00 **MORNING ✔** | 16:00 — | 17:00 — |
+| 09:00 | 10:00 — | 19:00 — | 20:00 **EVENING ✔** |
+| 10:00 | 11:00 — | 20:00 **EVENING ✔** | 21:00 EVENING (absorbed) |
+| 19:00 | 20:00 **EVENING ✔** | 05:00 — | 06:00 **MORNING ✔** (next day) |
+| 20:00 | 21:00 (absorbed) | 06:00 **MORNING ✔** (next day) | 07:00 MORNING (absorbed) |
+
+The 10:00Z run is what covers UTC+10 — Brisbane year-round, Sydney outside AEDT — which
+otherwise gets a morning Digest and never the 8pm one. Sydney's morning Digest lands at
+06:00 local, not 07:00, because 19:00Z reaches it first. Adding a zone means adding a UTC
+hour (see `docs/DEPLOY.md` §5 for the whole-hour and half-hour-zone limitations);
+`lib/digest-schedule.test.ts` fails if the schedule and the windows drift apart.
 
 **Vercel Cron** — add to `vercel.json`:
 
@@ -277,7 +290,7 @@ adding a UTC hour (see `docs/DEPLOY.md` §5 for the half-hour-zone limitation).
   "crons": [
     {
       "path": "/api/cron/reminders?secret=<CRON_SECRET>",
-      "schedule": "0 6,9,19,20 * * *"
+      "schedule": "0 6,9,10,19,20 * * *"
     }
   ]
 }
@@ -288,7 +301,7 @@ adding a UTC hour (see `docs/DEPLOY.md` §5 for the half-hour-zone limitation).
 ```yaml
 on:
   schedule:
-    - cron: "0 6,9,19,20 * * *"
+    - cron: "0 6,9,10,19,20 * * *"
 jobs:
   ping:
     runs-on: ubuntu-latest

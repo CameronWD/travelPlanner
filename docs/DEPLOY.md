@@ -103,21 +103,49 @@ In the GitHub repo settings:
 - **Secrets and variables → Actions → Secrets:** add `CRON_SECRET` (same value as Vercel).
 - **Variables:** add `APP_URL` = `https://<your-vercel-domain>` (no trailing slash).
 
-The `Reminders cron` workflow then pings `/api/cron/reminders` at four fixed UTC hours —
-**06:00, 09:00, 19:00 and 20:00** (`0 6,9,19,20 * * *`). The schedule is deliberately not
-"every N minutes": each run asks the route to dispatch only to subscribers whose *local*
-hour is inside the morning (06–08) or evening (20–22) window, so the four hours exist to
-land inside those windows for the zones we serve — 06:00Z = 07:00 CET, 09:00Z = 20:00
-AEDT, 19:00Z = 20:00 CET, 20:00Z = 07:00 AEDT. Trigger it once manually (Actions tab →
-Reminders cron → Run workflow) to confirm it returns 200.
+The `Reminders cron` workflow then pings `/api/cron/reminders` at five fixed UTC hours —
+**06:00, 09:00, 10:00, 19:00 and 20:00** (`0 6,9,10,19,20 * * *`). The schedule is
+deliberately not "every N minutes": each run asks the route to dispatch only to subscribers
+whose *local* hour is inside the morning (06–08) or evening (20–22) window, so the five
+hours exist to land inside those windows for the zones we serve. Where each run actually
+lands (✔ = the run that delivers):
+
+| UTC | Europe/Vienna (CET) | Australia/Brisbane (AEST, UTC+10) | Australia/Sydney (AEDT, UTC+11) |
+|---|---|---|---|
+| 06:00 | 07:00 **MORNING ✔** | 16:00 — | 17:00 — |
+| 09:00 | 10:00 — | 19:00 — | 20:00 **EVENING ✔** |
+| 10:00 | 11:00 — | 20:00 **EVENING ✔** | 21:00 EVENING (absorbed) |
+| 19:00 | 20:00 **EVENING ✔** | 05:00 — | 06:00 **MORNING ✔** (next day) |
+| 20:00 | 21:00 EVENING (absorbed) | 06:00 **MORNING ✔** (next day) | 07:00 MORNING (absorbed) |
+
+An "absorbed" run sends nothing: the dispatch ledger is keyed (user, trip, local date,
+slot), so the second run inside a window is a no-op. That redundancy is deliberate cover
+for a GitHub run delayed past its hour. Note the consequence for Sydney under AEDT — the
+morning Digest arrives at **06:00 local, not 07:00**, because the 19:00Z run gets there
+first and claims the slot.
+
+Trigger it once manually (Actions tab → Reminders cron → Run workflow) to confirm it
+returns 200. `lib/digest-schedule.test.ts` holds this schedule against the route's windows,
+so removing an hour fails the suite rather than silently cutting a zone off.
 
 **Limitation — the schedule is not universal.** Because the UTC hours are fixed and the
-filter is a whole local hour, only zones whose offset lines one of those four hours up
-with 07:00 or 20:00 local are served. A traveller in a half-hour zone (`Asia/Kolkata`,
-`Asia/Kathmandu`) never lands inside a window: they would get no Digest at all, silently,
-with nothing in the logs to say why. Supporting such a zone means adding the matching UTC
-hour(s) to the `cron:` list in `.github/workflows/reminders-cron.yml` — there is no
-fallback that covers them automatically.
+filter is a whole local hour, only zones whose offset lines one of those hours up with the
+06–08 or 20–22 local window are served. Two cases to know about:
+
+- **Whole-hour zones we do not cover yet.** UTC+10 is the near miss and the reason the
+  10:00Z run exists: `Australia/Brisbane` never observes daylight saving, and
+  `Australia/Sydney` is UTC+10 (AEST) for roughly seven months of the year. Without
+  10:00Z, both get a morning Digest and **never the 8pm one** — the part of the feature
+  people actually notice. Any other whole-hour offset needs the same check before a
+  traveller relies on it.
+- **Half-hour zones cannot be served at all.** A traveller in `Asia/Kolkata` (UTC+5:30) or
+  `Asia/Kathmandu` (UTC+5:45) never lands inside a window at any whole UTC hour: they get
+  no Digest at all, silently, with nothing in the logs to say why.
+
+Supporting a new zone means adding the matching UTC hour(s) to the `cron:` list in
+`.github/workflows/reminders-cron.yml` — there is no fallback that covers them
+automatically, and a half-hour zone would additionally need the window logic itself to
+change.
 
 **Set all four VAPID variables in Vercel *before* the first deploy** —
 `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` and

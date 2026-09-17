@@ -50,6 +50,7 @@ export function RemindersPanel({ tripId, initial }: RemindersPanelProps) {
   const [enabled, setEnabled] = React.useState(initial.enabled);
   const [isPending, startTransition] = React.useTransition();
   const [testing, setTesting] = React.useState(false);
+  const [saveError, setSaveError] = React.useState<string | null>(null);
   const [testResult, setTestResult] = React.useState<
     { ok: true; sent: number } | { ok: false; error: string } | null
   >(null);
@@ -58,10 +59,20 @@ export function RemindersPanel({ tripId, initial }: RemindersPanelProps) {
   const zone = device?.timezone ?? null;
 
   const handleToggle = (next: boolean) => {
+    const previous = enabled;
     setEnabled(next);
     setTestResult(null);
+    setSaveError(null);
     startTransition(async () => {
-      await setDigestEnabled(tripId, next);
+      try {
+        await setDigestEnabled(tripId, next);
+      } catch {
+        // Roll the switch back rather than leave it showing a state the server
+        // never accepted — and say so here rather than let the rejection reach
+        // the error boundary and take the whole Settings page down with it.
+        setEnabled(previous);
+        setSaveError("Couldn't save that — check your connection and try again.");
+      }
     });
   };
 
@@ -104,11 +115,17 @@ export function RemindersPanel({ tripId, initial }: RemindersPanelProps) {
         />
       </div>
 
+      {saveError && <p className="text-xs text-destructive">{saveError}</p>}
+
       <p className="text-xs text-muted-foreground">
-        One push a day, carrying whatever is true that day — a payment due,
-        checklist items falling due, that day&rsquo;s reminders, and once
-        you&rsquo;re travelling, tomorrow&rsquo;s plan. It is yours alone:
-        switching it off here changes nothing for the other traveller.
+        One push in the evening, carrying whatever is true that day — a payment
+        due, checklist items falling due, that day&rsquo;s reminders, and
+        tomorrow&rsquo;s plan once tomorrow falls inside the trip. On a travel
+        day — one with transport or a check-out — a second, shorter one arrives
+        around 7am with that day&rsquo;s plan, as cover for a calendar alarm your
+        phone quietly declined to fire; it never repeats what last night&rsquo;s
+        already said. It is yours alone: switching it off here changes nothing
+        for the other traveller.
       </p>
 
       {/* ── The device it reaches ── */}

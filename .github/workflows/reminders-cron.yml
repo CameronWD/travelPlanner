@@ -5,13 +5,17 @@ name: Reminders cron
 # load, and disables schedules after 60 days of repo inactivity — tolerable
 # here because the route matches a three-hour local window, not an exact hour.
 #
-# CADENCE: four fixed UTC hours. The route dispatches only to subscribers whose
+# CADENCE: five fixed UTC hours. The route dispatches only to subscribers whose
 # LOCAL hour falls in a morning (06–08) or evening (20–22) window, so the
 # schedule's job is simply to have a run land inside each window for each zone
 # we serve — the filtering is the route's, not the cron's. Every authorized hit
-# wakes Neon (~5 min of compute), which is the CU-hour lever: four runs a day
-# ≈ 12 CU-h/month against the 100 CU-h free tier, and each extra zone is one
+# wakes Neon (~5 min of compute), which is the CU-hour lever: five runs a day
+# ≈ 15 CU-h/month against the 100 CU-h free tier, and each extra zone is one
 # more hour at roughly 3 CU-h/month (ADR 0047).
+#
+# The two halves of this — these UTC hours and the route's local windows — are
+# one contract, and lib/digest-schedule.test.ts fails if you edit either side
+# alone. Do not "tidy" an hour out of the list without running it.
 #
 # The job skips cleanly when APP_URL or CRON_SECRET are missing rather than
 # failing: an unconfigured repo should stay quiet, not email a failure on every
@@ -26,13 +30,25 @@ name: Reminders cron
 # still fails the job — that case is worth surfacing loudly.
 on:
   schedule:
-    # Each run dispatches only to subscribers whose LOCAL hour is 07 or 20
-    # (app/api/cron/reminders/route.ts). These four UTC hours cover the two
-    # zones that matter: Australia/Sydney (UTC+11 in December) and Central
-    # Europe (UTC+1). 06:00Z = 07:00 CET · 09:00Z = 20:00 AEDT ·
-    # 19:00Z = 20:00 CET · 20:00Z = 07:00 AEDT. Adding a zone is one more
-    # hour here, at roughly 3 CU-h/month each (ADR 0047).
-    - cron: "0 6,9,19,20 * * *"
+    # Each run dispatches only to subscribers whose LOCAL hour falls in the
+    # morning (06–08) or evening (20–22) window (app/api/cron/reminders/route.ts).
+    # These five UTC hours cover Central Europe (UTC+1/+2) and eastern
+    # Australia in BOTH of its offsets — AEDT (UTC+11, December) and AEST
+    # (UTC+10, the other seven months, and Brisbane all year round). Where each
+    # run lands, ✔ marking the one that actually delivers:
+    #
+    #   UTC    Vienna CET       Brisbane AEST         Sydney AEDT
+    #   06:00  07:00 MORNING ✔  16:00 —               17:00 —
+    #   09:00  10:00 —          19:00 —               20:00 EVENING ✔
+    #   10:00  11:00 —          20:00 EVENING ✔       21:00 EVENING (absorbed)
+    #   19:00  20:00 EVENING ✔  05:00 —               06:00 MORNING ✔ (next day)
+    #   20:00  21:00 (absorbed) 06:00 MORNING ✔ (+1d) 07:00 MORNING (absorbed)
+    #
+    # An "absorbed" run sends nothing: the dispatch ledger is keyed
+    # (user, trip, local date, slot), so the second run in a window is a no-op.
+    # Adding a zone is one more hour here, at roughly 3 CU-h/month each
+    # (ADR 0047). Half-hour zones cannot be served at all — see docs/DEPLOY.md §5.
+    - cron: "0 6,9,10,19,20 * * *"
   workflow_dispatch: {}
 
 permissions: {}
@@ -67,7 +83,7 @@ jobs:
             # 503 is the route's dedicated "push is not configured" signal
             # (VAPID env vars missing on the deployment). Unlike a transient
             # outage this is a persistent misconfiguration, so fail the job —
-            # on this schedule that is at most four loud emails a day, not spam.
+            # on this schedule that is at most five loud emails a day, not spam.
             echo "::error title=Reminders cron misconfigured::HTTP 503 — the app reports push is not configured (VAPID env vars missing on the deployment). Failing the job so this is not silent."
             exit 1
           fi

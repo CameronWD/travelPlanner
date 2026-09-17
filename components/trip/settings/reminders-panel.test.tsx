@@ -171,6 +171,46 @@ describe("RemindersPanel", () => {
     expect(await screen.findByText(/sent to 2 devices/i)).toBeInTheDocument();
   });
 
+  it("mentions the travel-day morning digest, not just the evening one", () => {
+    render(
+      <RemindersPanel
+        tripId="t1"
+        initial={{
+          enabled: true,
+          device: { timezone: "Europe/Rome", subscribedAt: SUBSCRIBED_AT },
+        }}
+      />,
+    );
+
+    // A dawn push nobody was told about reads as a bug, so the copy has to
+    // name it: evening always, plus a short one around 7am on a travel day.
+    expect(screen.getByText(/one push in the evening/i)).toBeInTheDocument();
+    expect(screen.getByText(/around 7am/i)).toBeInTheDocument();
+    expect(screen.getByText(/travel day/i)).toBeInTheDocument();
+  });
+
+  it("rolls the switch back and explains itself when the save fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(setDigestEnabled).mockRejectedValue(new Error("offline"));
+
+    render(
+      <RemindersPanel
+        tripId="t1"
+        initial={{
+          enabled: true,
+          device: { timezone: "Europe/Rome", subscribedAt: SUBSCRIBED_AT },
+        }}
+      />,
+    );
+
+    const toggle = screen.getByLabelText(/your digest/i);
+    await user.click(toggle);
+
+    expect(await screen.findByText(/couldn't save that/i)).toBeInTheDocument();
+    // Rolled back: the checkbox must not claim a state the server refused.
+    expect(toggle).toBeChecked();
+  });
+
   it("explains that a silent day is by design", () => {
     render(
       <RemindersPanel

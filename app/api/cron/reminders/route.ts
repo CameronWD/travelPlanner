@@ -10,25 +10,36 @@
  *
  * ---
  * SCHEDULING
- * The workflow fires at four fixed UTC hours (.github/workflows/reminders-cron.yml,
- * `0 6,9,19,20 * * *`) and this route filters each run by the subscriber's
+ * The workflow fires at five fixed UTC hours (.github/workflows/reminders-cron.yml,
+ * `0 6,9,10,19,20 * * *`) and this route filters each run by the subscriber's
  * LOCAL hour, so the fixed schedule lands at the right wall-clock time in each
- * traveller's zone. Those four hours cover the two zones that matter today:
+ * traveller's zone. Where each run lands, and which of them actually delivers:
  *
- *     06:00Z → 07:00 CET (morning)    19:00Z → 20:00 CET (evening)
- *     09:00Z → 20:00 AEDT (evening)   20:00Z → 07:00 AEDT (morning, next day)
+ *     UTC   Europe/Vienna (CET)  Australia/Brisbane (AEST)  Australia/Sydney (AEDT)
+ *     06:00 07:00 MORNING ✔      16:00 —                    17:00 —
+ *     09:00 10:00 —              19:00 —                    20:00 EVENING ✔
+ *     10:00 11:00 —              20:00 EVENING ✔            21:00 EVENING (absorbed)
+ *     19:00 20:00 EVENING ✔      05:00 —                    06:00 MORNING ✔ (next day)
+ *     20:00 21:00 EVENING (abs.) 06:00 MORNING ✔ (next day) 07:00 MORNING (absorbed)
  *
- * The match is a three-hour WINDOW rather than an exact hour because GitHub
- * Actions delays scheduled runs under load: an exact-hour test would mean a run
- * that slipped past the hour boundary silently skipped *everyone*, and nobody
- * is retried later since eligibility is itself by hour. Widening cannot
- * double-send — dispatchDigest's ledger is keyed (user, trip, local date, slot),
- * so a second run inside the same window is absorbed as "already-sent".
+ * "Absorbed" is not waste: a second run inside the same window finds the ledger
+ * row already claimed for that (user, trip, local date, slot) and sends nothing.
+ * That redundancy is deliberate cover for a delayed run, which is also why the
+ * match is a three-hour WINDOW rather than an exact hour — GitHub Actions
+ * delays scheduled runs under load, and an exact-hour test would mean a run
+ * that slipped past the boundary silently skipped *everyone*, with no retry
+ * since eligibility is itself by hour.
+ *
+ * The 10:00Z run exists because UTC+10 is real and permanent: Australia/Brisbane
+ * never observes daylight saving, and Australia/Sydney is UTC+10 for roughly
+ * seven months of the year. Without it those zones get a morning Digest and
+ * never the 8pm one, which is the product (ADR 0008 records the first trip as
+ * Brisbane → Europe → Brisbane).
  *
  * A subscriber outside both windows is simply passed over, so adding a UTC hour
  * for a new region costs nothing here. Because the local date is read in the
- * subscriber's zone too, the 20:00Z run correctly dates an AEDT traveller's
- * Digest to the *following* calendar day.
+ * subscriber's zone too, the 19:00Z and 20:00Z runs correctly date an Australian
+ * traveller's morning Digest to the *following* calendar day.
  *
  * ---
  * AUTHENTICATION
@@ -45,26 +56,19 @@ import { timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import { isPushConfigured } from "@/lib/push";
 import { dispatchDigest } from "@/lib/digest-dispatch";
-import type { DigestSlot } from "@/lib/digest";
-import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
+import { slotForZone } from "@/lib/digest-schedule";
+import { instantToZonedDateISO } from "@/lib/tz";
 
 // Force Node.js runtime — required for Prisma + web-push (not edge-compatible)
 export const runtime = "nodejs";
 
-// ---------------------------------------------------------------------------
-// Slot windows
-// ---------------------------------------------------------------------------
-
-// The local wall-clock hours a Digest is sent in. These are LOCAL hours, not
-// UTC ones: the workflow's four UTC hours (06/09/19/20 — see SCHEDULING above)
-// exist only so that every zone we care about has a run landing inside one of
-// these two windows. Each is three hours wide so that a GitHub Actions run
-// delayed past its hour still finds its subscribers instead of silently
-// skipping the day — the dispatch ledger, not the narrowness of the window, is
-// what prevents a double send. Changing either window means revisiting that
-// cron expression.
-const MORNING_WINDOW_LOCAL_HOURS: readonly number[] = [6, 7, 8];
-const EVENING_WINDOW_LOCAL_HOURS: readonly number[] = [20, 21, 22];
+// The local wall-clock hours a Digest is sent in — and the slot resolver that
+// reads them — live in lib/digest-schedule.ts, where a test can hold them
+// against the workflow's cron expression. They are LOCAL hours, not UTC ones:
+// the workflow's five UTC hours (06/09/10/19/20 — see SCHEDULING above) exist
+// only so that every zone we serve has a run landing inside each window.
+// Changing either window means revisiting that cron expression, and
+// lib/digest-schedule.test.ts fails if you change one without the other.
 
 /** A backstop against one pathological account, not a real limit. */
 const MAX_TRIPS_PER_USER = 50;
@@ -106,20 +110,6 @@ function isAuthorized(req: NextRequest): boolean {
   if (querySecret && safeEqual(querySecret, secret)) return true;
 
   return false;
-}
-
-// ---------------------------------------------------------------------------
-// Slot resolution
-// ---------------------------------------------------------------------------
-
-/** The Digest slot a zone is currently in, or null when it is in neither. */
-function slotForZone(now: Date, timeZone: string): DigestSlot | null {
-  // instantToZonedTime yields "HH:MM" and falls back to UTC on an unknown
-  // zone, so a junk timezone string degrades to "wrong hour", never a throw.
-  const localHour = Number(instantToZonedTime(now, timeZone).slice(0, 2));
-  if (EVENING_WINDOW_LOCAL_HOURS.includes(localHour)) return "EVENING";
-  if (MORNING_WINDOW_LOCAL_HOURS.includes(localHour)) return "MORNING";
-  return null;
 }
 
 // ---------------------------------------------------------------------------
