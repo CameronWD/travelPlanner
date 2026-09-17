@@ -13,8 +13,16 @@
 -- identified by `targetType`, so both columns are dropped only afterwards.
 -- docs/DEPLOY.md §5 still asks for the row count before deploying, because a
 -- non-zero one means a code path we do not know about is writing them.
+-- Deliberately not `to_char("fireAt" AT TIME ZONE 'UTC', ...)`. `fireAt` is a
+-- Postgres TIMESTAMP WITHOUT TIME ZONE, so `AT TIME ZONE 'UTC'` converts it to a
+-- timestamptz, and `to_char` on a timestamptz renders in the session's
+-- `TimeZone` setting, not UTC. Neon's session default happens to be UTC, so the
+-- two forms agree here today, but that makes the result depend on session
+-- config rather than on the data. The plain `to_char("fireAt", ...)` reads the
+-- stored UTC timestamp's fields directly and cannot be shifted by the session
+-- timezone, so it is used instead.
 ALTER TABLE "Reminder" ADD COLUMN "date" TEXT;
-UPDATE "Reminder" SET "date" = to_char("fireAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD');
+UPDATE "Reminder" SET "date" = to_char("fireAt", 'YYYY-MM-DD');
 DELETE FROM "Reminder" WHERE "targetType" = 'COST_DUE';
 ALTER TABLE "Reminder" ALTER COLUMN "date" SET NOT NULL;
 ALTER TABLE "Reminder" DROP COLUMN "fireAt";
