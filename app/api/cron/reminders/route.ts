@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         error:
-          "Push is not configured: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT must be set. No reminders were read or consumed.",
+          "Push is not configured: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT must be set. No Digest was built, claimed or sent.",
       },
       { status: 503 },
     );

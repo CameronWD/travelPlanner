@@ -264,6 +264,12 @@ The reminder delivery endpoint is `GET /api/cron/reminders`. It is authenticated
 
 Without `CRON_SECRET` the endpoint returns `401` for all requests (fail-closed).
 
+The schedule is **four fixed UTC hours**, not a frequent poll: each run dispatches only to
+subscribers whose *local* hour falls in the morning (06–08) or evening (20–22) window, so
+the hours are chosen to land inside those windows for the zones served — 06:00Z = 07:00
+CET, 09:00Z = 20:00 AEDT, 19:00Z = 20:00 CET, 20:00Z = 07:00 AEDT. Adding a zone means
+adding a UTC hour (see `docs/DEPLOY.md` §5 for the half-hour-zone limitation).
+
 **Vercel Cron** — add to `vercel.json`:
 
 ```json
@@ -271,7 +277,7 @@ Without `CRON_SECRET` the endpoint returns `401` for all requests (fail-closed).
   "crons": [
     {
       "path": "/api/cron/reminders?secret=<CRON_SECRET>",
-      "schedule": "* * * * *"
+      "schedule": "0 6,9,19,20 * * *"
     }
   ]
 }
@@ -282,7 +288,7 @@ Without `CRON_SECRET` the endpoint returns `401` for all requests (fail-closed).
 ```yaml
 on:
   schedule:
-    - cron: "* * * * *"
+    - cron: "0 6,9,19,20 * * *"
 jobs:
   ping:
     runs-on: ubuntu-latest
@@ -293,6 +299,22 @@ jobs:
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
 ```
+
+### Reminders reach a phone
+
+Three one-time steps on an iPhone, all of them easy to miss and each silently fatal on its
+own:
+
+1. **Install TEEPEE to the Home Screen.** Safari → Share → *Add to Home Screen*, then open
+   the app from that icon. iOS refuses web push from an ordinary Safari tab, so the Enable
+   button cannot work until this is done.
+2. **Press Enable in Settings → Reminders** (inside the app, on that phone) and allow the
+   permission prompt. This is what registers the device and records its timezone — the
+   Digest is scheduled off that timezone, and a device with none recorded is skipped on
+   every run. "Send me a test" on the same panel confirms it end to end.
+3. **Turn off *Remove Alerts*** on the subscribed calendar, for Alarms rather than the
+   Digest: Settings → Apps → Calendar → Accounts → Subscribed Calendars → this trip. iOS
+   strips the Calendar feed's Alarms by default and never says so.
 
 ---
 

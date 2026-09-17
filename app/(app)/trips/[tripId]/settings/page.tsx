@@ -4,6 +4,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { isAdminEmail } from "@/lib/admin";
 import { getShareLink } from "@/server/actions/share";
 import { getCalendarFeed } from "@/server/actions/calendar-feed";
+import { getDigestSettings } from "@/server/actions/digest";
 import {
   Card,
   CardContent,
@@ -15,6 +16,7 @@ import { CoverImageField } from "@/components/trip/settings/cover-image-field";
 import { InvitePanel } from "@/components/trip/settings/invite-panel";
 import { SharePanel } from "@/components/trip/settings/share-panel";
 import { CalendarFeedPanel } from "@/components/trip/settings/calendar-feed-panel";
+import { RemindersPanel } from "@/components/trip/settings/reminders-panel";
 import { DrivingEstimatesPanel } from "@/components/trip/settings/driving-estimates-panel";
 import { DangerZone } from "@/components/trip/settings/danger-zone";
 import { DuplicateTripDialog } from "@/components/trip/duplicate-trip-dialog";
@@ -68,9 +70,10 @@ export default async function SettingsPage({
 
   if (!trip) notFound();
 
-  const [shareLink, calendarFeed, chapters] = await Promise.all([
+  const [shareLink, calendarFeed, digestSettings, chapters] = await Promise.all([
     getShareLink(tripId),
     getCalendarFeed(tripId),
+    getDigestSettings(tripId),
     // A disabled trip renders as if it had no chapters (Task 13) — skip the
     // query entirely rather than fetch-then-discard.
     trip.chaptersEnabled
@@ -148,6 +151,17 @@ export default async function SettingsPage({
       <Card>
         <CardContent className="p-5">
           <SharePanel tripId={tripId} initialToken={shareLink?.token ?? null} />
+        </CardContent>
+      </Card>
+
+      {/* ── Reminders — the app's own outward push, above the Calendar feed
+          card because the two are the trip's outward-delivery sections. ── */}
+      <Card>
+        <CardHeader className="p-5 pb-0">
+          <CardTitle className="font-display text-base font-bold tracking-tight">Reminders</CardTitle>
+        </CardHeader>
+        <CardContent className="p-5 pt-3">
+          <RemindersPanel tripId={tripId} initial={digestSettings} />
         </CardContent>
       </Card>
 

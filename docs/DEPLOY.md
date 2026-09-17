@@ -103,8 +103,28 @@ In the GitHub repo settings:
 - **Secrets and variables → Actions → Secrets:** add `CRON_SECRET` (same value as Vercel).
 - **Variables:** add `APP_URL` = `https://<your-vercel-domain>` (no trailing slash).
 
-The `Reminders cron` workflow then pings `/api/cron/reminders` every 5 minutes. Trigger it
-once manually (Actions tab → Reminders cron → Run workflow) to confirm it returns 200.
+The `Reminders cron` workflow then pings `/api/cron/reminders` at four fixed UTC hours —
+**06:00, 09:00, 19:00 and 20:00** (`0 6,9,19,20 * * *`). The schedule is deliberately not
+"every N minutes": each run asks the route to dispatch only to subscribers whose *local*
+hour is inside the morning (06–08) or evening (20–22) window, so the four hours exist to
+land inside those windows for the zones we serve — 06:00Z = 07:00 CET, 09:00Z = 20:00
+AEDT, 19:00Z = 20:00 CET, 20:00Z = 07:00 AEDT. Trigger it once manually (Actions tab →
+Reminders cron → Run workflow) to confirm it returns 200.
+
+**Limitation — the schedule is not universal.** Because the UTC hours are fixed and the
+filter is a whole local hour, only zones whose offset lines one of those four hours up
+with 07:00 or 20:00 local are served. A traveller in a half-hour zone (`Asia/Kolkata`,
+`Asia/Kathmandu`) never lands inside a window: they would get no Digest at all, silently,
+with nothing in the logs to say why. Supporting such a zone means adding the matching UTC
+hour(s) to the `cron:` list in `.github/workflows/reminders-cron.yml` — there is no
+fallback that covers them automatically.
+
+**Set all four VAPID variables in Vercel *before* the first deploy** —
+`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` and
+`NEXT_PUBLIC_VAPID_PUBLIC_KEY` (step 4's table). `NEXT_PUBLIC_*` values are inlined into
+the client bundle **at build time**, so adding `NEXT_PUBLIC_VAPID_PUBLIC_KEY` in the
+dashboard after a deploy does nothing until you redeploy: the Enable button keeps
+reporting that notifications need setup even though the server-side keys are present.
 
 ## 6. First sign-in
 
