@@ -18,6 +18,11 @@ const {
   feedUpdateManyMock: vi.fn().mockResolvedValue({ count: 1 }),
 }));
 
+// Alias to match the brief's naming for the alarms action tests below — same
+// underlying mock as db.calendarFeed.updateMany, which updateCalendarFeedAlarms
+// also calls.
+const calendarFeedUpdateManyMock = feedUpdateManyMock;
+
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({
@@ -38,6 +43,7 @@ import {
   rotateCalendarFeed,
   revokeCalendarFeed,
   updateCalendarFeedFilter,
+  updateCalendarFeedAlarms,
 } from "./calendar-feed";
 
 const TRIP_ID = "trip-abc";
@@ -105,5 +111,25 @@ describe("calendar feed actions", () => {
       data: filter,
     });
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+  });
+});
+
+describe("updateCalendarFeedAlarms", () => {
+  it("checks trip access first", async () => {
+    await updateCalendarFeedAlarms("trip-1", { alarmTransport: false, alarmCheckOut: true });
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+  });
+
+  it("writes both flags with updateMany so a missing feed is a no-op", async () => {
+    await updateCalendarFeedAlarms("trip-1", { alarmTransport: false, alarmCheckOut: true });
+    expect(calendarFeedUpdateManyMock).toHaveBeenCalledWith({
+      where: { tripId: "trip-1" },
+      data: { alarmTransport: false, alarmCheckOut: true },
+    });
+  });
+
+  it("revalidates the settings page", async () => {
+    await updateCalendarFeedAlarms("trip-1", { alarmTransport: true, alarmCheckOut: true });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/settings");
   });
 });

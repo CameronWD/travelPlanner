@@ -173,6 +173,14 @@ export default async function SettingsPage({
                   }
                 : undefined
             }
+            initialAlarms={
+              calendarFeed
+                ? {
+                    alarmTransport: calendarFeed.alarmTransport,
+                    alarmCheckOut: calendarFeed.alarmCheckOut,
+                  }
+                : undefined
+            }
           />
         </CardContent>
       </Card>
