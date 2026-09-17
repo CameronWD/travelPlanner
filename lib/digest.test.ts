@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDigest, type DigestInput } from "@/lib/digest";
+import { asTestDigest, buildDigest, type DigestInput, type DigestPayload } from "@/lib/digest";
 
 function input(over: Partial<DigestInput> = {}): DigestInput {
   return {
@@ -216,5 +216,58 @@ describe("buildDigest", () => {
       );
       expect(d?.body).toBe("Check out of Hotel Sacher by 10:00");
     });
+  });
+});
+
+describe("asTestDigest", () => {
+  it("marks a real digest as a test without touching its body or url", () => {
+    const real = buildDigest(
+      input({ payments: [{ id: "c1", label: "Airbnb", amountLabel: "£240", daysUntil: 3 }] }),
+    );
+
+    const test = asTestDigest(real, "trip-1");
+
+    expect(test.title).toBe("Test · Coming up");
+    expect(test.body).toBe(real!.body);
+    expect(test.url).toBe(real!.url);
+  });
+
+  it("marks a 'Tomorrow' digest too, so no test push impersonates the 8pm one", () => {
+    const real = buildDigest(
+      input({
+        phase: "travelling",
+        schedule: {
+          transports: [{ id: "t1", mode: "TRAIN", route: "Vienna → Prague", localTime: "09:40" }],
+          stays: [],
+          items: [],
+        },
+      }),
+    );
+
+    expect(asTestDigest(real, "trip-1").title).toBe("Test · Tomorrow");
+  });
+
+  it("returns the placeholder when there is no digest to send", () => {
+    // The whole point of the button: on a quiet day it must still prove the
+    // pipe works rather than refusing (ADR 0047 calls it the push-half probe).
+    const test = asTestDigest(null, "trip-1");
+
+    expect(test).toEqual({
+      title: "Test · TEEPEE",
+      body: "Push is working. Your digest arrives in the evening when there's something to say.",
+      url: "/trips/trip-1/settings",
+    });
+  });
+
+  it("points the placeholder at the settings page the button lives on", () => {
+    expect(asTestDigest(null, "trip-abc").url).toBe("/trips/trip-abc/settings");
+  });
+
+  it("does not mutate the digest it was given", () => {
+    const real: DigestPayload = { title: "Tomorrow", body: "line", url: "/trips/trip-1" };
+
+    asTestDigest(real, "trip-1");
+
+    expect(real.title).toBe("Tomorrow");
   });
 });

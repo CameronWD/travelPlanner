@@ -343,13 +343,59 @@ describe("dispatchDigest", () => {
     expect(digestDispatchDeleteMock).not.toHaveBeenCalled();
   });
 
-  it("does not delete a ledger row it never claimed when a forced digest is empty", async () => {
+  it("sends the placeholder instead of refusing when a forced digest is empty", async () => {
     dbData.reminder = [];
 
     const result = await dispatch({ force: true });
 
-    expect(result).toEqual({ sent: 0, skipped: true, reason: "empty" });
+    // The button's job is proving the pipe works, so an empty day must still
+    // put something on the device — flagged as a placeholder, never as content.
+    expect(result).toEqual({ sent: 1, skipped: false, placeholder: true });
     expect(digestDispatchDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("puts the placeholder wording on the wire when a forced digest is empty", async () => {
+    dbData.reminder = [];
+
+    await dispatch({ force: true });
+
+    const payload = JSON.parse(sendPushMock.mock.calls[0][1] as string);
+    expect(payload.title).toBe("Test · TEEPEE");
+    expect(payload.body).toBe(
+      "Push is working. Your digest arrives in the evening when there's something to say.",
+    );
+  });
+
+  it("marks a forced send that does have content as a test", async () => {
+    const result = await dispatch({ force: true });
+
+    // Real content goes out verbatim — but titled so it cannot be mistaken
+    // for the scheduled 8pm digest a few hours later.
+    expect(result).toEqual({ sent: 1, skipped: false });
+    const payload = JSON.parse(sendPushMock.mock.calls[0][1] as string);
+    expect(payload.title).toMatch(/^Test · /);
+  });
+
+  it("leaves a scheduled empty digest silent and releases the slot", async () => {
+    dbData.reminder = [];
+
+    const result = await dispatch();
+
+    // Unforced, nothing changes: a quiet evening still sends nothing at all.
+    expect(result).toEqual({ sent: 0, skipped: true, reason: "empty" });
+    expect(sendPushMock).not.toHaveBeenCalled();
+    // Without the release, a quiet morning burns the slot and a plan edit
+    // later the same day could never produce a digest.
+    expect(digestDispatchDeleteMock).toHaveBeenCalledWith({
+      where: {
+        userId_tripId_localDate_slot: {
+          userId: USER_ID,
+          tripId: TRIP_ID,
+          localDate: LOCAL_DATE,
+          slot: "EVENING",
+        },
+      },
+    });
   });
 
   it("force bypasses both the preference and the ledger", async () => {

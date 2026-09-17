@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/digest", () => ({
   setDigestEnabled: vi.fn().mockResolvedValue({ ok: true }),
-  sendTestDigest: vi.fn().mockResolvedValue({ ok: true, sent: 1 }),
+  sendTestDigest: vi.fn().mockResolvedValue({ ok: true, sent: 1, placeholder: false }),
 }));
 
 // Stubbed so these tests are about the panel's own branching, not the push
@@ -32,7 +32,7 @@ const SUBSCRIBED_AT = new Date("2026-09-03T10:00:00Z");
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(setDigestEnabled).mockResolvedValue({ ok: true });
-  vi.mocked(sendTestDigest).mockResolvedValue({ ok: true, sent: 1 });
+  vi.mocked(sendTestDigest).mockResolvedValue({ ok: true, sent: 1, placeholder: false });
   vi.mocked(deviceTimeZone).mockReturnValue("Europe/Rome");
 });
 
@@ -169,9 +169,9 @@ describe("RemindersPanel", () => {
     ).toBeInTheDocument();
   });
 
-  it("reports how many devices a successful test reached", async () => {
+  it("names the real digest when a successful test carried content", async () => {
     const user = userEvent.setup();
-    vi.mocked(sendTestDigest).mockResolvedValue({ ok: true, sent: 2 });
+    vi.mocked(sendTestDigest).mockResolvedValue({ ok: true, sent: 2, placeholder: false });
 
     render(
       <RemindersPanel
@@ -185,7 +185,32 @@ describe("RemindersPanel", () => {
 
     await user.click(screen.getByRole("button", { name: /send me a test/i }));
 
-    expect(await screen.findByText(/sent to 2 devices/i)).toBeInTheDocument();
+    expect(await screen.findByText("Sent today's digest to 2 devices.")).toBeInTheDocument();
+  });
+
+  it("says a quiet day is a quiet day when the test was a placeholder", async () => {
+    const user = userEvent.setup();
+    vi.mocked(sendTestDigest).mockResolvedValue({ ok: true, sent: 1, placeholder: true });
+
+    render(
+      <RemindersPanel
+        tripId="t1"
+        initial={{
+          enabled: true,
+          device: { timezone: "Europe/Rome", subscribedAt: SUBSCRIBED_AT },
+        }}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: /send me a test/i }));
+
+    // The push arrived, so this is not an error — but the Traveller still
+    // needs to know why it did not look like a digest.
+    expect(
+      await screen.findByText(
+        "Sent a test to 1 device. There's nothing to report today, so your real digest would stay silent.",
+      ),
+    ).toBeInTheDocument();
   });
 
   it("mentions the travel-day morning digest, not just the evening one", () => {

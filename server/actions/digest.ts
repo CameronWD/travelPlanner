@@ -18,7 +18,12 @@ export interface DigestSettings {
 }
 
 export type SendTestDigestResult =
-  | { ok: true; sent: number }
+  /**
+   * `placeholder` distinguishes the two successes: false means the real
+   * Digest went out, true means there was nothing to say today and the probe
+   * payload went instead. Both delivered; they need different copy.
+   */
+  | { ok: true; sent: number; placeholder: boolean }
   | { ok: false; error: string };
 
 // ---------------------------------------------------------------------------
@@ -89,9 +94,11 @@ export async function setDigestEnabled(
  * 1. Push must be configured on this deployment at all.
  * 2. The user must own at least one PushSubscription.
  *
- * Beyond that, this must never report success when nothing was delivered:
- * `dispatchDigest`'s `sent: 0` (whatever the reason, including "empty") is
- * surfaced as a truthful, specific failure rather than `{ ok: true }`.
+ * Beyond that, this must never report success when nothing was delivered: a
+ * `sent: 0` from `dispatchDigest` is surfaced as a failure rather than
+ * `{ ok: true }`. An *empty* day is no longer one of those cases — the forced
+ * dispatch sends a placeholder instead (lib/digest.ts asTestDigest), because
+ * this button probes the push pipe and a quiet day says nothing about it.
  */
 export async function sendTestDigest(tripId: string): Promise<SendTestDigestResult> {
   const { user } = await requireTripAccess(tripId);
@@ -125,15 +132,8 @@ export async function sendTestDigest(tripId: string): Promise<SendTestDigestResu
   });
 
   if (result.sent === 0) {
-    if (result.reason === "empty") {
-      return {
-        ok: false,
-        error:
-          "Nothing to send right now — a test needs at least one thing due, a reminder today, or tomorrow's plan.",
-      };
-    }
     return { ok: false, error: "The test Digest could not be delivered." };
   }
 
-  return { ok: true, sent: result.sent };
+  return { ok: true, sent: result.sent, placeholder: result.placeholder === true };
 }

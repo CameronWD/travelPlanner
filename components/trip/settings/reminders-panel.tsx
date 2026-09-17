@@ -10,6 +10,7 @@ import {
   setDigestEnabled,
   sendTestDigest,
   type DigestSettings,
+  type SendTestDigestResult,
 } from "@/server/actions/digest";
 
 export interface RemindersPanelProps {
@@ -41,10 +42,11 @@ function formatSubscribedAt(value: Date): string {
  *
  *   1. the switch itself,
  *   2. the device it would reach — or the button to subscribe one,
- *   3. a test send that reports exactly why it failed, not "something went
- *      wrong": the three failures (no device, no VAPID keys on the deployment,
- *      nothing due today) each need a different fix, so each error string from
- *      `sendTestDigest` is surfaced verbatim,
+ *   3. a test send that always delivers and reports exactly what it delivered:
+ *      the real Digest, or — on a day with nothing to say — a placeholder that
+ *      proves the pipe. The failures that remain (no device, no VAPID keys on
+ *      the deployment, nothing got through) each need a different fix, so each
+ *      error string from `sendTestDigest` is surfaced verbatim,
  *   4. the note that a silent day is by design.
  *
  * A device with no stored timezone is called out rather than papered over: the
@@ -58,9 +60,7 @@ export function RemindersPanel({ tripId, initial }: RemindersPanelProps) {
   const [isPending, startTransition] = React.useTransition();
   const [testing, setTesting] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
-  const [testResult, setTestResult] = React.useState<
-    { ok: true; sent: number } | { ok: false; error: string } | null
-  >(null);
+  const [testResult, setTestResult] = React.useState<SendTestDigestResult | null>(null);
 
   const device = initial.device;
   const zone = device?.timezone ?? null;
@@ -236,11 +236,16 @@ export function RemindersPanel({ tripId, initial }: RemindersPanelProps) {
             Send me a test
           </Button>
         </div>
-        {testResult?.ok === true && (
-          <p className="text-xs text-foreground">
-            Sent to {testResult.sent} {testResult.sent === 1 ? "device" : "devices"}.
-          </p>
-        )}
+        {testResult?.ok === true && (() => {
+          const devices = `${testResult.sent} ${testResult.sent === 1 ? "device" : "devices"}`;
+          return (
+            <p className="text-xs text-foreground">
+              {testResult.placeholder
+                ? `Sent a test to ${devices}. There's nothing to report today, so your real digest would stay silent.`
+                : `Sent today's digest to ${devices}.`}
+            </p>
+          );
+        })()}
         {testResult?.ok === false && (
           <p className="text-xs text-destructive">{testResult.error}</p>
         )}
