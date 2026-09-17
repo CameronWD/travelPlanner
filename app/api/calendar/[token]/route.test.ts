@@ -212,8 +212,8 @@ describe("GET /api/calendar/[token] — Alarms", () => {
     const body = await res.text();
 
     expect(body).toContain("BEGIN:VALARM");
-    expect(body).toContain("TRIGGER:-PT3H"); // FLIGHT lead time
-    expect(body).toContain("TRIGGER:-PT2H"); // non-flight lead time
+    expect(body).toContain("TRIGGER:-PT180M"); // FLIGHT lead time
+    expect(body).toContain("TRIGGER:-PT120M"); // non-flight lead time
 
     // Guards the feed select itself: if alarmTransport/alarmCheckOut are ever
     // dropped from it, this fails even though the mock's return value doesn't.
