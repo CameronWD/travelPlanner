@@ -82,6 +82,36 @@ describe("subscribeToPush", () => {
     await subscribeToPush(STUB_SUB);
     expect(requireUserMock).toHaveBeenCalledTimes(1);
   });
+
+  it("stores the device timezone on create and update", async () => {
+    pushSubUpsertMock.mockResolvedValue({});
+
+    await subscribeToPush({
+      endpoint: "https://push.example/1",
+      keys: { p256dh: "p", auth: "a" },
+      timezone: "Australia/Sydney",
+    });
+
+    expect(pushSubUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ timezone: "Australia/Sydney" }),
+        update: expect.objectContaining({ timezone: "Australia/Sydney" }),
+      }),
+    );
+  });
+
+  it("omits the timezone when the client did not send one", async () => {
+    pushSubUpsertMock.mockResolvedValue({});
+
+    await subscribeToPush({
+      endpoint: "https://push.example/1",
+      keys: { p256dh: "p", auth: "a" },
+    });
+
+    const arg = pushSubUpsertMock.mock.calls[0][0];
+    expect(arg.create.timezone).toBeUndefined();
+    expect(arg.update.timezone).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

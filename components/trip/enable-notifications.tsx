@@ -42,6 +42,23 @@ function isPushSupported(): boolean {
   );
 }
 
+/**
+ * iOS only permits web push from a PWA installed to the Home Screen — a normal
+ * Safari tab cannot subscribe at all (ADR 0047). Detect that state so the
+ * button explains itself instead of failing.
+ */
+export function isIosWithoutInstall(): boolean {
+  if (typeof window === "undefined") return false;
+  const ua = navigator.userAgent;
+  const isIos = /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (!isIos) return false;
+  const standalone =
+    window.matchMedia?.("(display-mode: standalone)").matches === true ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return !standalone;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -67,6 +84,22 @@ export function EnableNotifications({ className }: EnableNotificationsProps) {
 
   const supported = isPushSupported();
   const configured = !!VAPID_PUBLIC_KEY;
+
+  if (isIosWithoutInstall()) {
+    return (
+      <div className={className}>
+        <Button variant="outline" size="sm" disabled className="gap-2">
+          <BellOff className="size-4" aria-hidden="true" />
+          Add to Home Screen first
+        </Button>
+        <p className="mt-1 text-xs text-muted-foreground">
+          iPhone only sends reminders to an installed app. Tap Share, then
+          &ldquo;Add to Home Screen&rdquo;, open TEEPEE from there, and this
+          button will work.
+        </p>
+      </div>
+    );
+  }
 
   if (!supported || !configured) {
     return (
@@ -138,6 +171,7 @@ export function EnableNotifications({ className }: EnableNotificationsProps) {
           p256dh: (json.keys as Record<string, string>)?.p256dh ?? "",
           auth: (json.keys as Record<string, string>)?.auth ?? "",
         },
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
       setStatus("enabled");
