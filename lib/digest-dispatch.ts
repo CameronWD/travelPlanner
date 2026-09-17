@@ -510,7 +510,7 @@ export async function dispatchDigest(opts: {
   tripId: string;
   localDate: string;
   slot: DigestSlot;
-  /** Test sends skip both the preference check and the ledger. */
+  /** The Settings test send: skips the preference check and the ledger, and marks the payload as a test. */
   force?: boolean;
 }): Promise<DispatchDigestResult> {
   const { userId, tripId, localDate, slot, force = false } = opts;
@@ -604,7 +604,9 @@ export async function dispatchDigest(opts: {
     // twice because a response was lost is strictly better than never sending.
     if (subscriptions.length > 0 && sent === 0) {
       console.error(
-        "[digest] no push was delivered — releasing the claimed slot so the next run retries:",
+        force
+          ? "[digest] no push was delivered for a forced test send — nothing was claimed, so there is no slot to release:"
+          : "[digest] no push was delivered — releasing the claimed slot so the next run retries:",
         { userId, tripId, localDate, slot, subscriptions: subscriptions.length },
       );
       await releaseClaim();

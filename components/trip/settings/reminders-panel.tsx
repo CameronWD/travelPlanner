@@ -10,6 +10,7 @@ import {
   setDigestEnabled,
   sendTestDigest,
   type DigestSettings,
+  type SendTestDigestResult,
 } from "@/server/actions/digest";
 
 export interface RemindersPanelProps {
@@ -59,9 +60,7 @@ export function RemindersPanel({ tripId, initial }: RemindersPanelProps) {
   const [isPending, startTransition] = React.useTransition();
   const [testing, setTesting] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
-  const [testResult, setTestResult] = React.useState<
-    { ok: true; sent: number; placeholder: boolean } | { ok: false; error: string } | null
-  >(null);
+  const [testResult, setTestResult] = React.useState<SendTestDigestResult | null>(null);
 
   const device = initial.device;
   const zone = device?.timezone ?? null;
@@ -237,17 +236,16 @@ export function RemindersPanel({ tripId, initial }: RemindersPanelProps) {
             Send me a test
           </Button>
         </div>
-        {testResult?.ok === true && (
-          <p className="text-xs text-foreground">
-            {testResult.placeholder
-              ? `Sent a test to ${testResult.sent} ${
-                  testResult.sent === 1 ? "device" : "devices"
-                }. There's nothing to report today, so your real digest would stay silent.`
-              : `Sent today's digest to ${testResult.sent} ${
-                  testResult.sent === 1 ? "device" : "devices"
-                }.`}
-          </p>
-        )}
+        {testResult?.ok === true && (() => {
+          const devices = `${testResult.sent} ${testResult.sent === 1 ? "device" : "devices"}`;
+          return (
+            <p className="text-xs text-foreground">
+              {testResult.placeholder
+                ? `Sent a test to ${devices}. There's nothing to report today, so your real digest would stay silent.`
+                : `Sent today's digest to ${devices}.`}
+            </p>
+          );
+        })()}
         {testResult?.ok === false && (
           <p className="text-xs text-destructive">{testResult.error}</p>
         )}

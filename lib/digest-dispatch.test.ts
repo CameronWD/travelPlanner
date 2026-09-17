@@ -384,6 +384,18 @@ describe("dispatchDigest", () => {
     // Unforced, nothing changes: a quiet evening still sends nothing at all.
     expect(result).toEqual({ sent: 0, skipped: true, reason: "empty" });
     expect(sendPushMock).not.toHaveBeenCalled();
+    // Without the release, a quiet morning burns the slot and a plan edit
+    // later the same day could never produce a digest.
+    expect(digestDispatchDeleteMock).toHaveBeenCalledWith({
+      where: {
+        userId_tripId_localDate_slot: {
+          userId: USER_ID,
+          tripId: TRIP_ID,
+          localDate: LOCAL_DATE,
+          slot: "EVENING",
+        },
+      },
+    });
   });
 
   it("force bypasses both the preference and the ledger", async () => {

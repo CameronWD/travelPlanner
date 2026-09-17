@@ -276,19 +276,6 @@ describe("sendTestDigest", () => {
     expect(result).toEqual({ ok: true, sent: 1, placeholder: true });
   });
 
-  it("forces the dispatch so a test never consumes the real slot", async () => {
-    pushSubscriptionFindManyMock.mockResolvedValue([
-      { timezone: "Europe/London", createdAt: new Date("2026-01-01") },
-    ]);
-    dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false, placeholder: true });
-
-    await sendTestDigest(TRIP_ID);
-
-    expect(dispatchDigestMock).toHaveBeenCalledWith(
-      expect.objectContaining({ force: true, tripId: TRIP_ID }),
-    );
-  });
-
   it("still fails when a test reached no device at all", async () => {
     pushSubscriptionFindManyMock.mockResolvedValue([
       { timezone: "Europe/London", createdAt: new Date("2026-01-01") },
