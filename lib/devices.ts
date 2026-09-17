@@ -44,6 +44,10 @@ export function needsTouch(lastSeenAt: Date, now: Date): boolean {
  * Deliberately changes register at the staleness threshold: a relative age
  * reads as reassurance ("seen 4 days ago" — fine), an absolute date reads as a
  * question ("unseen since 28 Aug 2026" — is that thing still alive?).
+ *
+ * The date is rendered in the reader's own timezone on purpose — a Brisbane
+ * traveller should see their own calendar's date, not UTC's. The test runner
+ * is pinned to UTC so the assertion is stable across timezones.
  */
 export function formatLastSeen(lastSeenAt: Date, now: Date): string {
   if (isDeviceStale(lastSeenAt, now)) {
