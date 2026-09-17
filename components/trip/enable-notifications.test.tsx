@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 
 /**
  * Tests for EnableNotifications.
@@ -13,6 +13,11 @@ import { render, screen } from "@testing-library/react";
 
 vi.mock("@/server/actions/push", () => ({
   subscribeToPush: vi.fn(),
+}));
+
+vi.mock("@/lib/tz", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/tz")>()),
+  deviceTimeZone: vi.fn(() => "Europe/Vienna"),
 }));
 
 const DESKTOP_UA =
@@ -62,13 +67,27 @@ function stubMatchMedia(matches: boolean) {
   );
 }
 
-function stubPushSupport() {
+function stubPushSupport(existingSubscription?: unknown) {
   vi.stubGlobal("Notification", {});
   vi.stubGlobal("PushManager", {});
   Object.defineProperty(window.navigator, "serviceWorker", {
-    value: {},
+    value: {
+      ready: Promise.resolve({
+        pushManager: {
+          getSubscription: vi.fn(async () => existingSubscription ?? null),
+        },
+      }),
+    },
     configurable: true,
   });
+}
+
+/** A PushSubscription as the browser hands it back. */
+function fakeSubscription(endpoint = "https://push.example/abc") {
+  return {
+    endpoint,
+    toJSON: () => ({ keys: { p256dh: "p-key", auth: "a-key" } }),
+  };
 }
 
 afterEach(() => {
@@ -114,5 +133,104 @@ describe("EnableNotifications — desktop with push configured", () => {
     expect(
       screen.getByRole("button", { name: /Enable trip reminders/i }),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * ADR 0047 promises the device zone is "captured … and refreshed on each
+ * visit". Before PushTimezoneSync there was no refresh path of any kind: the
+ * Enable button is rendered only while no device exists, the service worker has
+ * no `pushsubscriptionchange` handler, and nothing calls `unsubscribeFromPush`.
+ * A traveller who subscribed in Brisbane and flew to Vienna would have taken
+ * the evening Digest at 11:00 local for the entire trip.
+ */
+describe("PushTimezoneSync", () => {
+  async function mountSync(storedZone: string | null) {
+    const { PushTimezoneSync } = await import("./enable-notifications");
+    render(<PushTimezoneSync storedZone={storedZone} />);
+    const { subscribeToPush } = await import("@/server/actions/push");
+    return vi.mocked(subscribeToPush);
+  }
+
+  it("re-records the subscription against the zone the browser is in now", async () => {
+    stubNavigator({ userAgent: DESKTOP_UA, platform: "Win32", maxTouchPoints: 0 });
+    stubPushSupport(fakeSubscription());
+    vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "test-vapid-key");
+    vi.resetModules();
+
+    const subscribeToPush = await mountSync("Australia/Brisbane");
+
+    await waitFor(() =>
+      expect(subscribeToPush).toHaveBeenCalledWith({
+        endpoint: "https://push.example/abc",
+        keys: { p256dh: "p-key", auth: "a-key" },
+        timezone: "Europe/Vienna",
+      }),
+    );
+  });
+
+  it("writes nothing when the stored zone already matches the browser", async () => {
+    stubNavigator({ userAgent: DESKTOP_UA, platform: "Win32", maxTouchPoints: 0 });
+    stubPushSupport(fakeSubscription());
+    vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "test-vapid-key");
+    vi.resetModules();
+
+    const subscribeToPush = await mountSync("Europe/Vienna");
+
+    // Given a tick to be wrong in.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(subscribeToPush).not.toHaveBeenCalled();
+  });
+
+  it("does not subscribe a browser that never subscribed itself", async () => {
+    stubNavigator({ userAgent: DESKTOP_UA, platform: "Win32", maxTouchPoints: 0 });
+    stubPushSupport(); // getSubscription() → null
+    vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "test-vapid-key");
+    vi.resetModules();
+
+    const subscribeToPush = await mountSync("Australia/Brisbane");
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(subscribeToPush).not.toHaveBeenCalled();
+  });
+
+  it("stays silent on a deployment with no VAPID key", async () => {
+    stubNavigator({ userAgent: DESKTOP_UA, platform: "Win32", maxTouchPoints: 0 });
+    stubPushSupport(fakeSubscription());
+    vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "");
+    vi.resetModules();
+
+    const subscribeToPush = await mountSync("Australia/Brisbane");
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(subscribeToPush).not.toHaveBeenCalled();
+  });
+
+  it("stays silent when the browser has no push API at all", async () => {
+    stubNavigator({ userAgent: DESKTOP_UA, platform: "Win32", maxTouchPoints: 0 });
+    vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "test-vapid-key");
+    vi.resetModules();
+
+    const subscribeToPush = await mountSync("Australia/Brisbane");
+
+    await new Promise((r) => setTimeout(r, 0));
+    expect(subscribeToPush).not.toHaveBeenCalled();
+  });
+
+  it("re-records only once, however many times React runs the effect", async () => {
+    stubNavigator({ userAgent: DESKTOP_UA, platform: "Win32", maxTouchPoints: 0 });
+    stubPushSupport(fakeSubscription());
+    vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "test-vapid-key");
+    vi.resetModules();
+
+    const { PushTimezoneSync } = await import("./enable-notifications");
+    const { subscribeToPush } = await import("@/server/actions/push");
+    const { rerender } = render(<PushTimezoneSync storedZone="Australia/Brisbane" />);
+    rerender(<PushTimezoneSync storedZone="Australia/Brisbane" />);
+    rerender(<PushTimezoneSync storedZone="Australia/Brisbane" />);
+
+    await waitFor(() => expect(subscribeToPush).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(subscribeToPush).toHaveBeenCalledTimes(1);
   });
 });

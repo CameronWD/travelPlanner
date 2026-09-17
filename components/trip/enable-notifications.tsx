@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bell, BellOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { deviceTimeZone } from "@/lib/tz";
 import { subscribeToPush } from "@/server/actions/push";
 
 // ---------------------------------------------------------------------------
@@ -57,6 +58,83 @@ export function isIosWithoutInstall(): boolean {
     window.matchMedia?.("(display-mode: standalone)").matches === true ||
     (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
   return !standalone;
+}
+
+/**
+ * Record a browser PushSubscription against the signed-in user, stamped with
+ * the zone this browser is in *right now*.
+ *
+ * `subscribeToPush` upserts on `endpoint`, so re-sending an existing
+ * subscription is idempotent and cheap — which is what makes the refresh below
+ * safe to run on every visit.
+ */
+async function persistSubscription(subscription: PushSubscription) {
+  const json = subscription.toJSON();
+  const zone = deviceTimeZone();
+  return subscribeToPush({
+    endpoint: subscription.endpoint,
+    keys: {
+      p256dh: (json.keys as Record<string, string>)?.p256dh ?? "",
+      auth: (json.keys as Record<string, string>)?.auth ?? "",
+    },
+    ...(zone ? { timezone: zone } : {}),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// PushTimezoneSync
+// ---------------------------------------------------------------------------
+
+/**
+ * Keep the stored device timezone honest (ADR 0047: the zone is "captured from
+ * the browser when a device subscribes **and refreshed on each visit**").
+ *
+ * Without this there is no refresh path at all: `handleEnable` is the only
+ * place a zone is ever written, its button is rendered only while no device
+ * exists, `public/sw.js` has no `pushsubscriptionchange` handler, and nothing
+ * calls `unsubscribeFromPush`. A traveller who subscribes in Brisbane in
+ * October and flies to Vienna on 1 December then gets the whole trip's evening
+ * Digest at Brisbane 20:00 — 11:00 Vienna — and the travel-day morning one at
+ * 21:00 the evening *before*, with no screen able to correct it.
+ *
+ * Mounted headless in the trip layout, so "each visit" means each visit rather
+ * than each visit to Settings. It is deliberately silent: the fix is a write
+ * nobody asked for, and the Settings panel is where the state is explained.
+ *
+ * Guards, in order:
+ *   - unsupported browser or unconfigured deployment → nothing to refresh;
+ *   - no live subscription → this browser is not a subscribed device, and
+ *     creating one here would be subscribing somebody without asking;
+ *   - live zone already equals the stored one → no write;
+ *   - a ref keyed on the stored zone, so the effect cannot loop (the write
+ *     does not refresh the server prop, so nothing re-triggers it anyway).
+ */
+export function PushTimezoneSync({ storedZone }: { storedZone: string | null }) {
+  const reconciled = useRef<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    if (reconciled.current === storedZone) return;
+    reconciled.current = storedZone;
+
+    if (!isPushSupported() || !VAPID_PUBLIC_KEY) return;
+    const zone = deviceTimeZone();
+    if (!zone || zone === storedZone) return;
+
+    void (async () => {
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        if (!subscription) return;
+        await persistSubscription(subscription);
+      } catch (err) {
+        // A failed refresh leaves the old zone in place — wrong, but no worse
+        // than before, and the Settings panel says so out loud.
+        console.error("[PushTimezoneSync] failed to refresh the device timezone:", err);
+      }
+    })();
+  }, [storedZone]);
+
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,15 +242,7 @@ export function EnableNotifications({ className }: EnableNotificationsProps) {
       });
 
       // 4. Persist to the server
-      const json = subscription.toJSON();
-      await subscribeToPush({
-        endpoint: subscription.endpoint,
-        keys: {
-          p256dh: (json.keys as Record<string, string>)?.p256dh ?? "",
-          auth: (json.keys as Record<string, string>)?.auth ?? "",
-        },
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      });
+      await persistSubscription(subscription);
 
       setStatus("enabled");
     } catch (err) {

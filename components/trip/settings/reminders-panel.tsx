@@ -4,6 +4,7 @@ import * as React from "react";
 import { Send, Smartphone, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EnableNotifications } from "@/components/trip/enable-notifications";
+import { deviceTimeZone } from "@/lib/tz";
 import {
   setDigestEnabled,
   sendTestDigest,
@@ -13,6 +14,11 @@ import {
 export interface RemindersPanelProps {
   tripId: string;
   initial: DigestSettings;
+}
+
+/** A browser does not change timezone mid-render; there is nothing to watch. */
+function subscribeToNothing(): () => void {
+  return () => {};
 }
 
 /** "3 Sep 2026" — fixed locale so the server and the client agree. */
@@ -58,6 +64,21 @@ export function RemindersPanel({ tripId, initial }: RemindersPanelProps) {
   const device = initial.device;
   const zone = device?.timezone ?? null;
 
+  // The zone *this* browser is in — null on the server, so the first client
+  // render matches the markup it hydrates and the answer arrives immediately
+  // after. `PushTimezoneSync` (trip layout) is what actually corrects the
+  // stored value; this is only how the panel avoids reading a stale zone out
+  // as current while that happens.
+  const liveZone = React.useSyncExternalStore(
+    subscribeToNothing,
+    deviceTimeZone,
+    () => null,
+  );
+
+  // Only a mismatch we can name is worth showing: no stored zone is already
+  // covered by its own warning below.
+  const zoneIsStale = !!zone && !!liveZone && zone !== liveZone;
+
   const handleToggle = (next: boolean) => {
     const previous = enabled;
     setEnabled(next);
@@ -101,7 +122,11 @@ export function RemindersPanel({ tripId, initial }: RemindersPanelProps) {
           </label>
           {device && (
             <p className="mt-0.5 text-xs text-muted-foreground">
-              {zone ? `8pm · ${zone}` : "8pm · timezone unknown"}
+              {!zone
+                ? "8pm · timezone unknown"
+                : zoneIsStale
+                  ? `8pm · ${zone} — not this device's zone`
+                  : `8pm · ${zone}`}
             </p>
           )}
         </div>
@@ -146,6 +171,18 @@ export function RemindersPanel({ tripId, initial }: RemindersPanelProps) {
                 send at and it is skipped every run — no digest will ever reach
                 it. Open TEEPEE on that device and press Enable again to record
                 one.
+              </span>
+            </p>
+          )}
+          {zoneIsStale && (
+            <p className="flex items-start gap-2 text-xs text-destructive">
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                You are in {liveZone}, but the digest is still scheduled against{" "}
+                {zone} — so it arrives at 8pm {zone}, which is some other hour
+                here. TEEPEE re-records the zone whenever you open the trip;
+                reload this page, and if this is still showing, the update is
+                not getting through.
               </span>
             </p>
           )}

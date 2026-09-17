@@ -14,7 +14,17 @@ vi.mock("@/components/trip/enable-notifications", () => ({
   EnableNotifications: () => <button type="button">Enable trip reminders</button>,
 }));
 
+// The browser's own zone decides whether the stored one is still current. It
+// cannot be set by moving the test runner's clock, so it is stubbed; the
+// default agrees with the zone most of these tests store, so only the tests
+// that are *about* a device having moved see a mismatch.
+vi.mock("@/lib/tz", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/tz")>()),
+  deviceTimeZone: vi.fn(() => "Europe/Rome"),
+}));
+
 import { setDigestEnabled, sendTestDigest } from "@/server/actions/digest";
+import { deviceTimeZone } from "@/lib/tz";
 import { RemindersPanel } from "./reminders-panel";
 
 const SUBSCRIBED_AT = new Date("2026-09-03T10:00:00Z");
@@ -23,6 +33,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(setDigestEnabled).mockResolvedValue({ ok: true });
   vi.mocked(sendTestDigest).mockResolvedValue({ ok: true, sent: 1 });
+  vi.mocked(deviceTimeZone).mockReturnValue("Europe/Rome");
 });
 
 describe("RemindersPanel", () => {
@@ -209,6 +220,64 @@ describe("RemindersPanel", () => {
     expect(await screen.findByText(/couldn't save that/i)).toBeInTheDocument();
     // Rolled back: the checkbox must not claim a state the server refused.
     expect(toggle).toBeChecked();
+  });
+
+  it("says so when the stored zone is not the zone this device is in", () => {
+    // The actual trip: both travellers enable in Brisbane in October and fly
+    // to Europe on 1 December. Reading "8pm · Australia/Brisbane" back as
+    // current is a lie — that is 11:00 Vienna.
+    vi.mocked(deviceTimeZone).mockReturnValue("Europe/Vienna");
+
+    render(
+      <RemindersPanel
+        tripId="t1"
+        initial={{
+          enabled: true,
+          device: { timezone: "Australia/Brisbane", subscribedAt: SUBSCRIBED_AT },
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText(/8pm · Australia\/Brisbane — not this device's zone/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/You are in Europe\/Vienna/)).toBeInTheDocument();
+  });
+
+  it("does not cry drift when the stored zone is the one this device is in", () => {
+    vi.mocked(deviceTimeZone).mockReturnValue("Australia/Brisbane");
+
+    render(
+      <RemindersPanel
+        tripId="t1"
+        initial={{
+          enabled: true,
+          device: { timezone: "Australia/Brisbane", subscribedAt: SUBSCRIBED_AT },
+        }}
+      />,
+    );
+
+    expect(screen.getByText("8pm · Australia/Brisbane")).toBeInTheDocument();
+    expect(screen.queryByText(/not this device's zone/)).not.toBeInTheDocument();
+  });
+
+  it("leaves a device with no stored zone to its own warning", () => {
+    // "You are in X but it is scheduled against null" is noise on top of the
+    // harder problem the null-timezone warning already states.
+    vi.mocked(deviceTimeZone).mockReturnValue("Europe/Vienna");
+
+    render(
+      <RemindersPanel
+        tripId="t1"
+        initial={{
+          enabled: true,
+          device: { timezone: null, subscribedAt: SUBSCRIBED_AT },
+        }}
+      />,
+    );
+
+    expect(screen.getByText(/skipped every run/i)).toBeInTheDocument();
+    expect(screen.queryByText(/not this device's zone/)).not.toBeInTheDocument();
   });
 
   it("explains that a silent day is by design", () => {
