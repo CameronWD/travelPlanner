@@ -1457,26 +1457,11 @@ export function buildEuTrip(): DemoTrip {
 
     // --- Reminders --------------------------------------------------------
     reminders: [
-      { title: "Pay the balance on the Lapland igloo", fireAt: "2026-11-01T23:00:00Z" },
-      { title: "Apply for ETIAS authorisation", fireAt: "2026-10-15T23:00:00Z" },
-      {
-        title: "Check in online for the flight to Helsinki",
-        fireAt: "2026-12-05T09:00:00Z",
-        targetType: "TRANSPORT",
-        targetKey: "eu:tr:bne-rvn",
-      },
-      {
-        title: "Husky safari pickup — be at reception 08:45",
-        fireAt: "2026-12-08T06:30:00Z",
-        targetType: "ITEM",
-        targetKey: "eu:item:husky-safari",
-      },
-      {
-        title: "Eiffel summit tickets — arrive 30 min early",
-        fireAt: "2026-12-31T12:30:00Z",
-        targetType: "ITEM",
-        targetKey: "eu:item:eiffel-summit",
-      },
+      { title: "Pay the balance on the Lapland igloo", date: "2026-11-02" },
+      { title: "Apply for ETIAS authorisation", date: "2026-10-16" },
+      { title: "Check in online for the flight to Helsinki", date: "2026-12-05" },
+      { title: "Husky safari pickup — be at reception 08:45", date: "2026-12-08" },
+      { title: "Eiffel summit tickets — arrive 30 min early", date: "2026-12-31" },
     ],
 
     // --- Journal ----------------------------------------------------------

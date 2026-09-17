@@ -13,6 +13,13 @@ import { type ActionResult, validationResult } from "@/lib/action-result";
 
 export type ReminderActionResult = ActionResult<{ id?: string }>;
 
+/** A Reminder as the Home card renders it: a title against a calendar date. */
+export interface ReminderItem {
+  id: string;
+  title: string;
+  date: string;
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -35,8 +42,38 @@ async function requireReminderAccess(
   return reminder;
 }
 
+/**
+ * Reminders now render on the trip Home in every Phase, not only on Today —
+ * both paths have to be revalidated or a freshly-written note is invisible
+ * on the very screen it was written from.
+ */
 function revalidateReminderPaths(tripId: string) {
+  revalidatePath(`/trips/${tripId}`);
   revalidatePath(`/trips/${tripId}/today`);
+}
+
+// ---------------------------------------------------------------------------
+// Reads
+// ---------------------------------------------------------------------------
+
+/**
+ * Reminders for a trip dated on or after `fromDate`, soonest first.
+ *
+ * Called by the trip Home (server side) so the card can render in any Phase.
+ * Access-checked: `requireTripAccess` is the first statement.
+ */
+export async function listRemindersForTrip(
+  tripId: string,
+  fromDate: string,
+): Promise<ReminderItem[]> {
+  await requireTripAccess(tripId);
+
+  return db.reminder.findMany({
+    where: { tripId, date: { gte: fromDate } },
+    orderBy: { date: "asc" },
+    take: 20,
+    select: { id: true, title: true, date: true },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -47,7 +84,7 @@ function revalidateReminderPaths(tripId: string) {
  * Add a new reminder to a trip.
  *
  * - Access-checked: user must be a trip member.
- * - Validates title (non-empty) + fireAt (parseable ISO date).
+ * - Validates title (non-empty) + date ("YYYY-MM-DD", no time component).
  */
 export async function addReminder(
   tripId: string,
@@ -60,16 +97,10 @@ export async function addReminder(
     return validationResult(parsed.error);
   }
 
-  const { title, fireAt, targetType, targetId } = parsed.data;
+  const { title, date } = parsed.data;
 
   const reminder = await db.reminder.create({
-    data: {
-      tripId,
-      title,
-      fireAt: new Date(fireAt),
-      targetType: targetType ?? null,
-      targetId: targetId ?? null,
-    },
+    data: { tripId, title, date },
     select: { id: true },
   });
 
@@ -78,7 +109,7 @@ export async function addReminder(
 }
 
 /**
- * Update a reminder's title and/or fireAt.
+ * Update a reminder's title and/or date.
  *
  * - Access-checked via requireReminderAccess → requireTripAccess.
  */
@@ -93,16 +124,11 @@ export async function updateReminder(
     return validationResult(parsed.error);
   }
 
-  const { title, fireAt, targetType, targetId } = parsed.data;
+  const { title, date } = parsed.data;
 
   await db.reminder.update({
     where: { id },
-    data: {
-      title,
-      fireAt: new Date(fireAt),
-      targetType: targetType ?? null,
-      targetId: targetId ?? null,
-    },
+    data: { title, date },
   });
 
   revalidateReminderPaths(reminder.tripId);
