@@ -102,6 +102,22 @@ warning instead of a missed train.
 
 ## Consequences
 
+- **Three further points drifted between this decision and what shipped**
+  (recorded 2026-09-17, during implementation). The Digest carries
+  *tomorrow's* Reminders, not "that day's": a Reminder dated 28 Nov is read
+  out the evening of the 27th, alongside the rest of tomorrow's plan, because
+  one delivered at 9pm on the day it names would arrive as that day is
+  already ending — a product-owner call made during the final review.
+  Digest Checklist items are due *or overdue*, not merely "falling due": a
+  Checklist item persists until done and keeps reappearing while overdue,
+  which is the property that distinguishes it from a Reminder. And dispatch
+  fires at **five** UTC hours, not four — `0 6,9,10,19,20 * * *` — the added
+  10:00 run exists because `Australia/Brisbane` sits at UTC+10 year-round and
+  `Australia/Sydney` sits at UTC+10 for roughly seven months of the year, so
+  without it neither zone ever landed inside the 20:00–22:59 evening window
+  and would have received no evening Digest at all; the December trip starts
+  and ends in Brisbane.
+
 - **Two rules widened once the Digest absorbed the separate pushes** (recorded
   2026-09-17, during implementation). A Due date now appears on every evening
   from three days out to the day itself, not only on two of them: the old
