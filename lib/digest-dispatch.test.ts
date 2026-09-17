@@ -31,6 +31,7 @@ const {
   pushSubscriptionFindManyMock,
   pushSubscriptionDeleteManyMock,
   sendPushMock,
+  buildDigestMock,
 } = vi.hoisted(() => {
   type Row = Record<string, unknown>;
 
@@ -99,6 +100,7 @@ const {
     pushSubscriptionFindManyMock: findMany("pushSubscription"),
     pushSubscriptionDeleteManyMock: vi.fn(),
     sendPushMock: vi.fn(),
+    buildDigestMock: vi.fn(),
   };
 });
 
@@ -128,6 +130,15 @@ vi.mock("@/lib/push", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/push")>()),
   sendPush: sendPushMock,
 }));
+
+// The pure builder runs for real — the spy exists only so one test can make it
+// throw. `vi.clearAllMocks()` clears calls, not implementations, so the
+// passthrough set here survives every `beforeEach`.
+vi.mock("@/lib/digest", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/digest")>();
+  buildDigestMock.mockImplementation(actual.buildDigest);
+  return { ...actual, buildDigest: buildDigestMock };
+});
 
 // Import after the mocks.
 import {
@@ -277,6 +288,56 @@ describe("dispatchDigest", () => {
         },
       },
     });
+  });
+
+  it("releases the claim when collecting the digest throws", async () => {
+    costFindManyMock.mockRejectedValueOnce(new Error("db went away"));
+
+    // A claim must not outlive the work it claimed: holding the slot would mute
+    // this person for the rest of the day and make every retry say "already-sent".
+    await expect(dispatch()).rejects.toThrow("db went away");
+
+    expect(digestDispatchDeleteMock).toHaveBeenCalledWith({
+      where: {
+        userId_tripId_localDate_slot: {
+          userId: USER_ID,
+          tripId: TRIP_ID,
+          localDate: LOCAL_DATE,
+          slot: "EVENING",
+        },
+      },
+    });
+    expect(sendPushMock).not.toHaveBeenCalled();
+  });
+
+  it("releases the claim when building the digest throws", async () => {
+    buildDigestMock.mockImplementationOnce(() => {
+      throw new Error("malformed digest input");
+    });
+
+    await expect(dispatch()).rejects.toThrow("malformed digest input");
+
+    expect(digestDispatchDeleteMock).toHaveBeenCalledTimes(1);
+    expect(sendPushMock).not.toHaveBeenCalled();
+  });
+
+  it("releases the claim when the subscription lookup throws", async () => {
+    pushSubscriptionFindManyMock.mockRejectedValueOnce(new Error("connection reset"));
+
+    await expect(dispatch()).rejects.toThrow("connection reset");
+
+    expect(digestDispatchDeleteMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not release a claim it never made when a forced send throws", async () => {
+    buildDigestMock.mockImplementationOnce(() => {
+      throw new Error("malformed digest input");
+    });
+
+    await expect(dispatch({ force: true })).rejects.toThrow("malformed digest input");
+
+    // force never wrote a ledger row, so it must never delete one either.
+    expect(digestDispatchDeleteMock).not.toHaveBeenCalled();
   });
 
   it("does not delete a ledger row it never claimed when a forced digest is empty", async () => {

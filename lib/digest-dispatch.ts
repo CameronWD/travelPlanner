@@ -438,41 +438,64 @@ export async function dispatchDigest(opts: {
     }
   }
 
-  const digest = buildDigest(await collectDigestInput({ tripId, localDate, slot }));
+  /**
+   * Hand the slot back. Only ever releases a row this call actually created,
+   * so a `force: true` test send can never delete a real run's claim.
+   */
+  const releaseClaim = async () => {
+    if (!claimed) return;
+    await db.digestDispatch.delete({
+      where: { userId_tripId_localDate_slot: { userId, tripId, localDate, slot } },
+    });
+    claimed = false;
+  };
 
-  if (!digest) {
-    // Release the slot — otherwise a quiet evening burns it and a plan edit
-    // later the same day could never produce a Digest.
-    if (claimed) {
-      await db.digestDispatch.delete({
-        where: { userId_tripId_localDate_slot: { userId, tripId, localDate, slot } },
-      });
+  try {
+    const digest = buildDigest(await collectDigestInput({ tripId, localDate, slot }));
+
+    if (!digest) {
+      // Release the slot — otherwise a quiet evening burns it and a plan edit
+      // later the same day could never produce a Digest.
+      await releaseClaim();
+      return { sent: 0, skipped: true, reason: "empty" };
     }
-    return { sent: 0, skipped: true, reason: "empty" };
+
+    const subscriptions = await db.pushSubscription.findMany({
+      where: { userId },
+      select: { id: true, endpoint: true, p256dh: true, auth: true },
+    });
+
+    const payload = buildNotificationPayload(digest);
+    let sent = 0;
+    const goneIds: string[] = [];
+
+    for (const sub of subscriptions) {
+      const result = await sendPush(
+        { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
+        payload,
+      );
+      if (result.sent) sent += 1;
+      else if ("gone" in result && result.gone) goneIds.push(sub.id);
+    }
+
+    // Prune stale subscriptions — a 404/410 means the device is gone for good.
+    if (goneIds.length > 0) {
+      await db.pushSubscription.deleteMany({ where: { id: { in: goneIds } } });
+    }
+
+    return { sent, skipped: false };
+  } catch (err) {
+    // A claim must never outlive the work it was claiming. Without this, one
+    // failed collect holds the slot until tomorrow: the person silently gets
+    // no Digest and every retry answers "already-sent" — a loud failure turned
+    // into a quiet one. The error is rethrown so the caller still counts and
+    // logs it.
+    try {
+      await releaseClaim();
+    } catch (releaseErr) {
+      // Surfacing the original failure matters more than this one.
+      console.error("[digest] failed to release a claimed dispatch row:", releaseErr);
+    }
+    throw err;
   }
-
-  const subscriptions = await db.pushSubscription.findMany({
-    where: { userId },
-    select: { id: true, endpoint: true, p256dh: true, auth: true },
-  });
-
-  const payload = buildNotificationPayload(digest);
-  let sent = 0;
-  const goneIds: string[] = [];
-
-  for (const sub of subscriptions) {
-    const result = await sendPush(
-      { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
-      payload,
-    );
-    if (result.sent) sent += 1;
-    else if ("gone" in result && result.gone) goneIds.push(sub.id);
-  }
-
-  // Prune stale subscriptions — a 404/410 means the device is gone for good.
-  if (goneIds.length > 0) {
-    await db.pushSubscription.deleteMany({ where: { id: { in: goneIds } } });
-  }
-
-  return { sent, skipped: false };
 }
