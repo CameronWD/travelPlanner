@@ -99,7 +99,7 @@ export async function sendTestDigest(tripId: string): Promise<SendTestDigestResu
   if (!isPushConfigured()) {
     return {
       ok: false,
-      error: "Push notifications are not configured on this deployment.",
+      error: "Push is not configured on this deployment — the VAPID keys are missing.",
     };
   }
 

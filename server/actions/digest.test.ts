@@ -248,7 +248,7 @@ describe("sendTestDigest", () => {
 
     expect(result).toEqual({
       ok: false,
-      error: expect.stringMatching(/push.*not configured/i),
+      error: "Push is not configured on this deployment — the VAPID keys are missing.",
     });
     expect(dispatchDigestMock).not.toHaveBeenCalled();
   });
