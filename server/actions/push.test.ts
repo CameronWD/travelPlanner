@@ -59,13 +59,30 @@ describe("subscribeToPush", () => {
         endpoint: STUB_SUB.endpoint,
         p256dh: STUB_SUB.keys.p256dh,
         auth: STUB_SUB.keys.auth,
+        label: null,
+        lastSeenAt: expect.any(Date),
       },
       update: {
         userId: "user-1",
         p256dh: STUB_SUB.keys.p256dh,
         auth: STUB_SUB.keys.auth,
+        lastSeenAt: expect.any(Date),
       },
     });
+  });
+
+  it("derives the label from the user agent on create only", async () => {
+    pushSubUpsertMock.mockResolvedValue({});
+
+    await subscribeToPush({
+      ...STUB_SUB,
+      userAgent:
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15",
+    });
+
+    const arg = pushSubUpsertMock.mock.calls[0][0];
+    expect(arg.create.label).toBe("iPhone");
+    expect(arg.update).not.toHaveProperty("label");
   });
 
   it("returns { ok: false } when db throws", async () => {

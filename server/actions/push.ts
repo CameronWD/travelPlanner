@@ -2,6 +2,7 @@
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
+import { deviceLabelFromUserAgent } from "@/lib/device-label";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -23,6 +24,7 @@ export async function subscribeToPush(sub: {
   endpoint: string;
   keys: { p256dh: string; auth: string };
   timezone?: string;
+  userAgent?: string;
 }): Promise<PushActionResult> {
   const user = await requireUser();
 
@@ -40,12 +42,18 @@ export async function subscribeToPush(sub: {
         endpoint: sub.endpoint,
         p256dh: sub.keys.p256dh,
         auth: sub.keys.auth,
+        // Captured once, here, at the moment a Device is enabled. Absent from
+        // `update` on purpose (ADR 0048): re-deriving it would let a browser
+        // upgrade rename a Device that has been listed for months.
+        label: deviceLabelFromUserAgent(sub.userAgent),
+        lastSeenAt: new Date(),
         ...tz,
       },
       update: {
         userId: user.id,
         p256dh: sub.keys.p256dh,
         auth: sub.keys.auth,
+        lastSeenAt: new Date(),
         ...tz,
       },
     });
