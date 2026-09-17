@@ -73,10 +73,24 @@ describe("RemindersCard relative labels", () => {
     );
     expect(screen.queryByText(/\d{1,2}:\d{2}/)).not.toBeInTheDocument();
   });
+
+  it("labels a date already gone by as 'passed'", () => {
+    render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[{ id: "r1", title: "Apply for ETIAS", date: "2026-10-16" }]}
+      />,
+    );
+    expect(screen.getByText("passed")).toBeInTheDocument();
+  });
 });
 
-describe("RemindersCard passed section", () => {
-  it("puts a reminder dated before today under 'Passed', not in the upcoming list", () => {
+describe("RemindersCard does not linger", () => {
+  // A Reminder is said once, on its day, and is not something you complete
+  // (CONTEXT.md "Reminder"). A "Passed" drawer would make it a task and
+  // duplicate the Checklist, so the card must not grow one back.
+  it("renders no Passed section, even with a reminder dated before today", () => {
     render(
       <RemindersCard
         tripId="trip-1"
@@ -88,41 +102,54 @@ describe("RemindersCard passed section", () => {
       />,
     );
 
-    expect(screen.getByText("Passed (1)")).toBeInTheDocument();
-
-    const passed = screen.getByRole("list", { name: "Passed reminders" });
-    expect(passed).toHaveTextContent("Apply for ETIAS");
-
-    const upcoming = screen.getByRole("list", { name: "Upcoming reminders" });
-    expect(upcoming).not.toHaveTextContent("Apply for ETIAS");
-    expect(upcoming).toHaveTextContent("Print the insurance docs");
-  });
-
-  it("labels a passed reminder 'passed'", () => {
-    render(
-      <RemindersCard
-        tripId="trip-1"
-        today={TODAY}
-        reminders={[{ id: "r1", title: "Apply for ETIAS", date: "2026-10-16" }]}
-      />,
-    );
-    expect(screen.getByText("passed")).toBeInTheDocument();
-  });
-
-  it("omits the Passed section entirely when nothing has passed", () => {
-    render(
-      <RemindersCard
-        tripId="trip-1"
-        today={TODAY}
-        reminders={[{ id: "r1", title: "Pack", date: "2026-11-29" }]}
-      />,
-    );
     expect(screen.queryByText(/^Passed/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("list", { name: "Passed reminders" }),
+    ).not.toBeInTheDocument();
+    expect(document.querySelector("details")).toBeNull();
   });
 
   it("shows the empty state when there is nothing upcoming", () => {
     render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} />);
     expect(screen.getByText("No upcoming reminders.")).toBeInTheDocument();
+  });
+});
+
+describe("RemindersCard malformed stored date", () => {
+  // Reminder.date is a plain String column and parseISODate throws on anything
+  // that isn't YYYY-MM-DD. This card renders on every phase of Home, so a
+  // single bad legacy row must not take the whole front door down with it.
+  it("still renders, showing the raw stored value and no relative label", () => {
+    render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[{ id: "r1", title: "Print docs", date: "not-a-date" }]}
+      />,
+    );
+
+    expect(screen.getByText("Print docs")).toBeInTheDocument();
+    expect(screen.getByText("not-a-date")).toBeInTheDocument();
+    expect(screen.queryByText("today")).not.toBeInTheDocument();
+    expect(screen.queryByText("passed")).not.toBeInTheDocument();
+  });
+
+  it("keeps the rest of the card working alongside a bad row", () => {
+    render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[
+          { id: "r1", title: "Print docs", date: "not-a-date" },
+          { id: "r2", title: "Pack", date: "2026-11-29" },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("tomorrow")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Add Reminder" }),
+    ).toBeInTheDocument();
   });
 });
 
@@ -160,7 +187,11 @@ describe("RemindersCard Digest opt-in", () => {
         reminders={[{ id: "r1", title: "Pack", date: "2026-11-29" }]}
       />,
     );
-    expect(screen.queryByText(/daily digest/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/enable/i)).not.toBeInTheDocument();
+    // Assert the absence of the specific control, not of any copy containing
+    // "enable" — a broad matcher would make queryByText throw on multiple
+    // matches instead of failing cleanly once the card's wording grows.
+    expect(
+      screen.queryByRole("button", { name: "Enable trip reminders" }),
+    ).not.toBeInTheDocument();
   });
 });

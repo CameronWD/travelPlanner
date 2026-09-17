@@ -15,8 +15,6 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-export type { ReminderItem };
-
 interface RemindersCardProps {
   tripId: string;
   reminders: ReminderItem[];
@@ -37,12 +35,24 @@ interface RemindersCardProps {
  * A Reminder carries a date and never a time (CONTEXT.md "Reminder"), so the
  * label is whole days only — no "in 3h", which would imply a firing moment
  * TEEPEE cannot honour.
+ *
+ * `relative` is null when the stored date cannot be read as a calendar date.
+ * `Reminder.date` is a plain String column and `parseISODate` throws a
+ * RangeError on anything that isn't YYYY-MM-DD; because this card now renders
+ * on every phase of Home, one malformed legacy row would blank the entire
+ * front door rather than a single section. Falling back to the raw stored
+ * value keeps the note readable and the page standing.
  */
-export function formatWhen(
+function formatWhen(
   date: string,
   today: string,
-): { relative: string; absolute: string } {
-  const days = daysBetween(today, date);
+): { relative: string | null; absolute: string } {
+  let days: number;
+  try {
+    days = daysBetween(today, date);
+  } catch {
+    return { relative: null, absolute: date };
+  }
 
   let relative: string;
   if (days < 0) {
@@ -162,7 +172,6 @@ function ReminderRow({
 }) {
   const [isPending, startTransition] = useTransition();
   const { relative, absolute } = formatWhen(reminder.date, today);
-  const isPast = reminder.date < today;
 
   function handleDelete() {
     startTransition(async () => {
@@ -173,14 +182,16 @@ function ReminderRow({
   return (
     <li className="flex items-start justify-between gap-3 py-2">
       <div className="min-w-0 flex-1">
-        <p
-          className={`truncate text-sm font-medium ${isPast ? "text-muted-foreground" : "text-foreground"}`}
-        >
+        <p className="truncate text-sm font-medium text-foreground">
           {reminder.title}
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          <span className="font-medium">{relative}</span>
-          <span className="mx-1 opacity-50">·</span>
+          {relative && (
+            <>
+              <span className="font-medium">{relative}</span>
+              <span className="mx-1 opacity-50">·</span>
+            </>
+          )}
           <span>{absolute}</span>
         </p>
       </div>
@@ -211,10 +222,12 @@ function ReminderRow({
  * Server data (including `today`) is passed in via props from the page.
  */
 export function RemindersCard({ tripId, reminders, today }: RemindersCardProps) {
-  const sorted = [...reminders].sort((a, b) => a.date.localeCompare(b.date));
-
-  const upcoming = sorted.filter((r) => r.date >= today);
-  const past = sorted.filter((r) => r.date < today);
+  // No "passed" drawer, deliberately: a Reminder is said once, on its day, and
+  // is not something you complete (CONTEXT.md "Reminder"). A drawer of missed
+  // notes would quietly turn Reminders into tasks and duplicate what a
+  // Checklist item already does properly — that is where a thing that must
+  // survive being missed belongs.
+  const upcoming = [...reminders].sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <div className="rounded-xl border border-border bg-card px-4 py-4">
@@ -243,23 +256,6 @@ export function RemindersCard({ tripId, reminders, today }: RemindersCardProps) 
       <div className="mt-3">
         <AddReminderForm tripId={tripId} onAdded={() => {}} />
       </div>
-
-      {/* Passed reminders (collapsed) */}
-      {past.length > 0 && (
-        <details className="mt-4">
-          <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
-            Passed ({past.length})
-          </summary>
-          <ul
-            className="mt-2 divide-y divide-border"
-            aria-label="Passed reminders"
-          >
-            {past.map((r) => (
-              <ReminderRow key={r.id} reminder={r} today={today} />
-            ))}
-          </ul>
-        </details>
-      )}
     </div>
   );
 }

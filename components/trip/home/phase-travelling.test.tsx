@@ -78,7 +78,6 @@ vi.mock("@/components/trip/day-ideas", () => ({ DayIdeas: () => null }));
 vi.mock("@/components/trip/map-link", () => ({ MapLink: () => null }));
 vi.mock("@/components/trip/transport-countdown", () => ({ TransportCountdown: () => null }));
 vi.mock("@/components/trip/spend-so-far-card", () => ({ SpendSoFarCard: () => null }));
-vi.mock("@/components/trip/reminders-card", () => ({ RemindersCard: () => null }));
 vi.mock("@/components/trip/attachment-links", () => ({ AttachmentLinks: () => null }));
 vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: () => null }));
 vi.mock("@/components/trip/upcoming-payments-card", () => ({ UpcomingPaymentsCard: () => null }));
