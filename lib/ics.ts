@@ -42,7 +42,15 @@ export interface IcsAccommodation {
   address?: string | null;
   confirmation?: string | null;
   notes?: string | null;
+  checkOutTime?: string | null;
+  stopId?: string | null;
 }
+
+export interface IcsAlarmOptions {
+  transport: boolean;
+  checkOut: boolean;
+}
+
 export interface IcsInput {
   tripName: string;
   stops: IcsStop[];
@@ -50,9 +58,17 @@ export interface IcsInput {
   transports: IcsTransport[];
   accommodations: IcsAccommodation[];
   generatedAt: Date;
+  /** Absent means no Alarms are published at all. */
+  alarms?: IcsAlarmOptions;
 }
 
 const CRLF = "\r\n";
+
+/** Lead times for Alarms published into the feed (ADR 0047). */
+export const FLIGHT_ALARM_LEAD_MINUTES = 180;
+export const TRANSPORT_ALARM_LEAD_MINUTES = 120;
+/** Local wall-clock time a check-out Alarm fires on the check-out day. */
+export const CHECK_OUT_ALARM_LOCAL_TIME = "08:00";
 
 /** Escape RFC-5545 TEXT values. */
 function esc(v: string): string {
@@ -102,6 +118,17 @@ function buildDescription(parts: (string | null | undefined)[]): string | null {
   return joined ? joined : null;
 }
 
+/** A DISPLAY VALARM block. `triggerLine` is the full TRIGGER content line. */
+function alarmBlock(triggerLine: string, description: string): string[] {
+  return [
+    "BEGIN:VALARM",
+    "ACTION:DISPLAY",
+    triggerLine,
+    `DESCRIPTION:${esc(description)}`,
+    "END:VALARM",
+  ];
+}
+
 export function buildICS(input: IcsInput): string {
   const { tripName, stops, items, transports, accommodations, generatedAt } = input;
   const tzById = new Map(stops.map((s) => [s.id, s.timezone] as const));
@@ -123,6 +150,7 @@ export function buildICS(input: IcsInput): string {
     location?: string | null,
     description?: string | null,
     category?: string | null,
+    alarmLines?: string[],
   ) => {
     lines.push("BEGIN:VEVENT");
     lines.push(`UID:${uid}`);
@@ -133,6 +161,7 @@ export function buildICS(input: IcsInput): string {
     if (location) lines.push(`LOCATION:${esc(location)}`);
     if (description) lines.push(`DESCRIPTION:${esc(description)}`);
     if (category) lines.push(`CATEGORIES:${esc(category)}`);
+    if (alarmLines) lines.push(...alarmLines);
     lines.push("END:VEVENT");
   };
 
@@ -167,12 +196,29 @@ export function buildICS(input: IcsInput): string {
     const arr = toDate(t.arrAt) ?? new Date(dep.getTime() + 60 * 60 * 1000);
     const route = [t.depPlace, t.arrPlace].filter(Boolean).join(" → ") || "Transport";
     const summary = `✈ ${route}${t.reference ? ` ${t.reference}` : ""}`;
-    event(`transport-${t.id}@trip-planner`, summary, `DTSTART:${utcStamp(dep)}`, `DTEND:${utcStamp(arr)}`, null, null, "Transport");
+    const alarm =
+      input.alarms?.transport === true
+        ? alarmBlock(
+            `TRIGGER:-PT${t.mode === "FLIGHT" ? FLIGHT_ALARM_LEAD_MINUTES / 60 : TRANSPORT_ALARM_LEAD_MINUTES / 60}H`,
+            `${route} departs soon`,
+          )
+        : undefined;
+    event(`transport-${t.id}@trip-planner`, summary, `DTSTART:${utcStamp(dep)}`, `DTEND:${utcStamp(arr)}`, null, null, "Transport", alarm);
   }
 
   // Accommodation (multi-day all-day block)
   for (const a of accommodations) {
     const desc = buildDescription([a.notes, a.confirmation ? `Confirmation: ${a.confirmation}` : null]);
+    const tz = (a.stopId && tzById.get(a.stopId)) || "UTC";
+    const alarm =
+      input.alarms?.checkOut === true
+        ? alarmBlock(
+            `TRIGGER;VALUE=DATE-TIME:${utcStamp(
+              zonedWallTimeToInstant(a.checkOut, CHECK_OUT_ALARM_LOCAL_TIME, tz),
+            )}`,
+            `Check out of ${a.name}${a.checkOutTime ? ` by ${a.checkOutTime}` : ""}`,
+          )
+        : undefined;
     event(
       `accom-${a.id}@trip-planner`,
       `🛏 Stay: ${a.name}`,
@@ -181,6 +227,7 @@ export function buildICS(input: IcsInput): string {
       a.address,
       desc,
       "Accommodation",
+      alarm,
     );
   }
 

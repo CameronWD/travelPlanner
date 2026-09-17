@@ -80,3 +80,112 @@ describe("buildICS", () => {
     expect(ics).toContain("line1\\nline2");
   });
 });
+
+describe("alarms", () => {
+  const base = {
+    tripName: "Trip",
+    stops: [{ id: "stop-1", name: "Vienna", timezone: "Europe/Vienna" }],
+    items: [],
+    transports: [],
+    accommodations: [],
+    generatedAt: new Date("2026-09-16T00:00:00Z"),
+  };
+
+  const flight = {
+    id: "t1",
+    mode: "FLIGHT",
+    depPlace: "Sydney",
+    arrPlace: "Vienna",
+    depAt: new Date("2026-12-01T09:40:00Z"),
+    arrAt: new Date("2026-12-01T21:40:00Z"),
+  };
+  const train = { ...flight, id: "t2", mode: "TRAIN" };
+
+  it("emits no VALARM when alarms are not requested", () => {
+    const ics = buildICS({ ...base, transports: [flight] });
+    expect(ics).not.toContain("BEGIN:VALARM");
+  });
+
+  it("gives a flight a three-hour lead", () => {
+    const ics = buildICS({
+      ...base,
+      transports: [flight],
+      alarms: { transport: true, checkOut: false },
+    });
+    expect(ics).toContain("BEGIN:VALARM");
+    expect(ics).toContain("TRIGGER:-PT3H");
+    expect(ics).toContain("ACTION:DISPLAY");
+  });
+
+  it("gives other transport a two-hour lead", () => {
+    const ics = buildICS({
+      ...base,
+      transports: [train],
+      alarms: { transport: true, checkOut: false },
+    });
+    expect(ics).toContain("TRIGGER:-PT2H");
+    expect(ics).not.toContain("TRIGGER:-PT3H");
+  });
+
+  it("omits transport alarms when only check-out alarms are on", () => {
+    const ics = buildICS({
+      ...base,
+      transports: [flight],
+      alarms: { transport: false, checkOut: true },
+    });
+    expect(ics).not.toContain("BEGIN:VALARM");
+  });
+
+  it("triggers a check-out alarm at 08:00 in the stop's timezone", () => {
+    const ics = buildICS({
+      ...base,
+      accommodations: [
+        {
+          id: "a1",
+          name: "Hotel Sacher",
+          checkIn: "2026-12-02",
+          checkOut: "2026-12-05",
+          checkOutTime: "10:00",
+          stopId: "stop-1",
+        },
+      ],
+      alarms: { transport: false, checkOut: true },
+    });
+    // Europe/Vienna is UTC+1 in December, so 08:00 local is 07:00Z.
+    expect(ics).toContain("TRIGGER;VALUE=DATE-TIME:20261205T070000Z");
+  });
+
+  it("falls back to UTC when the stay's stop has no timezone", () => {
+    const ics = buildICS({
+      ...base,
+      stops: [],
+      accommodations: [
+        { id: "a1", name: "Hostel", checkIn: "2026-12-02", checkOut: "2026-12-05", stopId: "stop-gone" },
+      ],
+      alarms: { transport: false, checkOut: true },
+    });
+    expect(ics).toContain("TRIGGER;VALUE=DATE-TIME:20261205T080000Z");
+  });
+
+  it("names the check-out in the alarm description", () => {
+    const ics = buildICS({
+      ...base,
+      accommodations: [
+        { id: "a1", name: "Hotel Sacher", checkIn: "2026-12-02", checkOut: "2026-12-05", checkOutTime: "10:00", stopId: "stop-1" },
+      ],
+      alarms: { transport: false, checkOut: true },
+    });
+    expect(ics).toContain("DESCRIPTION:Check out of Hotel Sacher by 10:00");
+  });
+
+  it("keeps the alarm inside its own VEVENT", () => {
+    const ics = buildICS({
+      ...base,
+      transports: [flight],
+      alarms: { transport: true, checkOut: false },
+    });
+    const event = ics.slice(ics.indexOf("BEGIN:VEVENT"), ics.indexOf("END:VEVENT"));
+    expect(event).toContain("BEGIN:VALARM");
+    expect(event).toContain("END:VALARM");
+  });
+});
