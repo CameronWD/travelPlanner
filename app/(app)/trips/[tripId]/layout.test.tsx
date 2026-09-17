@@ -5,18 +5,15 @@ import { render, screen } from "@testing-library/react";
 // components are mocked; leaf components are marker-mocked so we can assert
 // presence/absence and props without depending on their internals.
 //
-// PushTimezoneSync (components/trip/enable-notifications.tsx) re-records a
-// device's timezone when it has moved — the fix for a traveller who enables
-// notifications in Brisbane and then flies to Europe, where every Digest
-// would otherwise keep firing on Brisbane time. It is mounted here with
-// `storedZone` read from the user's newest PushSubscription. The mount point
-// itself was previously untested: deleting the mount, or wiring the wrong
-// zone through, left the whole suite green.
+// Device reporting (formerly PushTimezoneSync, mounted here with a
+// `pushSubscription.findFirst` query feeding it) moved to DeviceSync, mounted
+// app-wide in app/(app)/layout.tsx instead — see
+// components/account/device-sync.test.tsx for its coverage. This layout no
+// longer reads pushSubscription at all.
 
 const mockDb = vi.hoisted(() => ({
   trip: { findUnique: vi.fn() },
   attachment: { findMany: vi.fn() },
-  pushSubscription: { findFirst: vi.fn() },
 }));
 
 const requireTripAccessMock = vi.hoisted(() =>
@@ -46,11 +43,6 @@ vi.mock("@/components/offline-warmer", () => ({ OfflineWarmer: () => null }));
 vi.mock("@/components/feedback/feedback-trip-marker", () => ({
   FeedbackTripMarker: () => null,
 }));
-vi.mock("@/components/trip/enable-notifications", () => ({
-  PushTimezoneSync: ({ storedZone }: { storedZone: string | null }) => (
-    <div data-testid="push-timezone-sync" data-stored-zone={storedZone ?? ""} />
-  ),
-}));
 
 const { default: TripLayout } = await import("./layout");
 
@@ -68,7 +60,6 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockDb.trip.findUnique.mockResolvedValue(BASE_TRIP);
   mockDb.attachment.findMany.mockResolvedValue([]);
-  mockDb.pushSubscription.findFirst.mockResolvedValue(null);
 });
 
 async function renderLayout() {
@@ -79,29 +70,12 @@ async function renderLayout() {
   render(jsx);
 }
 
-describe("TripLayout PushTimezoneSync mount", () => {
-  it("mounts PushTimezoneSync with the newest subscription's stored timezone", async () => {
-    mockDb.pushSubscription.findFirst.mockResolvedValue({ timezone: "Australia/Brisbane" });
-
+describe("TripLayout", () => {
+  it("renders without querying pushSubscription — device reporting moved to DeviceSync app-wide", async () => {
     await renderLayout();
 
-    expect(mockDb.pushSubscription.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { userId: "owner-1" },
-        orderBy: { createdAt: "desc" },
-      }),
-    );
-    const el = screen.getByTestId("push-timezone-sync");
-    expect(el).toBeInTheDocument();
-    expect(el.getAttribute("data-stored-zone")).toBe("Australia/Brisbane");
-  });
-
-  it("passes null when the user has no stored subscription timezone", async () => {
-    mockDb.pushSubscription.findFirst.mockResolvedValue(null);
-
-    await renderLayout();
-
-    const el = screen.getByTestId("push-timezone-sync");
-    expect(el.getAttribute("data-stored-zone")).toBe("");
+    expect(mockDb.trip.findUnique).toHaveBeenCalled();
+    expect(screen.getByText("Test Trip")).toBeInTheDocument();
+    expect(screen.queryByTestId("push-timezone-sync")).not.toBeInTheDocument();
   });
 });
