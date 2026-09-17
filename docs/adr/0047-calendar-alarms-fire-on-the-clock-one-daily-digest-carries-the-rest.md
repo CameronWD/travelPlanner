@@ -43,7 +43,7 @@ a distinct name in `CONTEXT.md`.
 
 - **A Digest is everything TEEPEE itself sends, at most once a day.** One
   push per person per Trip, carrying whatever is true that day: a **Cost**'s
-  **Due date** at three days out and on the day, **Checklist** items falling
+  **Due date** on each of the three days before it and on the day, **Checklist** items falling
   due, that day's **Reminder**s, and — once the Trip is **Travelling** —
   tomorrow's Transport, check-in/check-out and timed **Item**s. When there is
   nothing to say, nothing is sent. The separate `COST_DUE` push is absorbed,
@@ -101,6 +101,16 @@ warning instead of a missed train.
   done from home — precisely when the payment and checklist lines fire.
 
 ## Consequences
+
+- **Two rules widened once the Digest absorbed the separate pushes** (recorded
+  2026-09-17, during implementation). A Due date now appears on every evening
+  from three days out to the day itself, not only on two of them: the old
+  two-day rule existed because each alert was its own interruption, and inside
+  a once-daily Digest a running "comes out in 2 days" line costs nothing extra.
+  And the itinerary section is gated on *tomorrow falling inside the Trip*
+  rather than on today's **Phase** being Travelling — the night before
+  departure is Final prep, so the phase rule would have hidden the outbound
+  flight from the one Digest most worth reading.
 
 - **The Reminder model changes meaning, not just delivery.** `Reminder` stops
   carrying a firing instant, a `sent` flag and a target reference, and becomes
