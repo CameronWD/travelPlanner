@@ -227,7 +227,7 @@ describe("sendTestDigest", () => {
       slot: "EVENING",
       force: true,
     });
-    expect(result).toEqual({ ok: true, sent: 2 });
+    expect(result).toEqual({ ok: true, sent: 2, placeholder: false });
   });
 
   it("falls back to UTC when the device's timezone is null", async () => {
@@ -265,18 +265,43 @@ describe("sendTestDigest", () => {
     expect(dispatchDigestMock).not.toHaveBeenCalled();
   });
 
-  it("surfaces the nothing-to-send error when dispatch reports zero sent and reason empty", async () => {
+  it("reports a placeholder send as a success, not as nothing-to-send", async () => {
     pushSubscriptionFindManyMock.mockResolvedValue([
       { timezone: "Europe/London", createdAt: new Date("2026-01-01") },
     ]);
-    dispatchDigestMock.mockResolvedValue({ sent: 0, skipped: true, reason: "empty" });
+    dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false, placeholder: true });
 
     const result = await sendTestDigest(TRIP_ID);
 
+    expect(result).toEqual({ ok: true, sent: 1, placeholder: true });
+  });
+
+  it("forces the dispatch so a test never consumes the real slot", async () => {
+    pushSubscriptionFindManyMock.mockResolvedValue([
+      { timezone: "Europe/London", createdAt: new Date("2026-01-01") },
+    ]);
+    dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false, placeholder: true });
+
+    await sendTestDigest(TRIP_ID);
+
+    expect(dispatchDigestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ force: true, tripId: TRIP_ID }),
+    );
+  });
+
+  it("still fails when a test reached no device at all", async () => {
+    pushSubscriptionFindManyMock.mockResolvedValue([
+      { timezone: "Europe/London", createdAt: new Date("2026-01-01") },
+    ]);
+    dispatchDigestMock.mockResolvedValue({ sent: 0, skipped: false, placeholder: true });
+
+    const result = await sendTestDigest(TRIP_ID);
+
+    // Removing the empty-content refusal must not weaken the rule that this
+    // never claims success when nothing was delivered.
     expect(result).toEqual({
       ok: false,
-      error:
-        "Nothing to send right now — a test needs at least one thing due, a reminder today, or tomorrow's plan.",
+      error: "The test Digest could not be delivered.",
     });
   });
 
@@ -299,6 +324,6 @@ describe("sendTestDigest", () => {
 
     const result = await sendTestDigest(TRIP_ID);
 
-    expect(result).toEqual({ ok: true, sent: 3 });
+    expect(result).toEqual({ ok: true, sent: 3, placeholder: false });
   });
 });
