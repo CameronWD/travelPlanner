@@ -5,6 +5,7 @@ import { Send, Smartphone, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EnableNotifications } from "@/components/trip/enable-notifications";
 import { deviceTimeZone } from "@/lib/tz";
+import { servedSlotsForZone } from "@/lib/digest-schedule";
 import {
   setDigestEnabled,
   sendTestDigest,
@@ -78,6 +79,18 @@ export function RemindersPanel({ tripId, initial }: RemindersPanelProps) {
   // Only a mismatch we can name is worth showing: no stored zone is already
   // covered by its own warning below.
   const zoneIsStale = !!zone && !!liveZone && zone !== liveZone;
+
+  // Does the schedule reach this zone at all? The cron fires at fixed UTC
+  // hours and the route filters on a whole local hour, so a zone whose offset
+  // lines none of those hours up with the morning or evening window is
+  // considered on every run and reached on none of them — invisible to the
+  // only person it affects. Judged today rather than in the abstract: the
+  // answer moves with daylight saving (lib/digest-schedule.ts).
+  const zoneIsUnserved = React.useSyncExternalStore(
+    subscribeToNothing,
+    () => (zone ? servedSlotsForZone(new Date(), zone).size === 0 : false),
+    () => false,
+  );
 
   const handleToggle = (next: boolean) => {
     const previous = enabled;
@@ -171,6 +184,19 @@ export function RemindersPanel({ tripId, initial }: RemindersPanelProps) {
                 send at and it is skipped every run — no digest will ever reach
                 it. Open TEEPEE on that device and press Enable again to record
                 one.
+              </span>
+            </p>
+          )}
+          {zoneIsUnserved && (
+            <p className="flex items-start gap-2 text-xs text-destructive">
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+              <span>
+                Nothing is scheduled to reach {zone}. TEEPEE dispatches at a few
+                fixed UTC hours, and today none of them land in that zone&rsquo;s
+                evening or morning — so this device is considered on every run
+                and sent to on none of them, with nothing in the logs to say so.
+                Covering it means adding an hour to the cron schedule (see
+                docs/DEPLOY.md §5).
               </span>
             </p>
           )}

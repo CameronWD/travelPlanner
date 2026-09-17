@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -34,6 +34,12 @@ beforeEach(() => {
   vi.mocked(setDigestEnabled).mockResolvedValue({ ok: true });
   vi.mocked(sendTestDigest).mockResolvedValue({ ok: true, sent: 1 });
   vi.mocked(deviceTimeZone).mockReturnValue("Europe/Rome");
+});
+
+afterEach(() => {
+  // Whether a zone is served moves with daylight saving, so those tests pin
+  // the date — put it back or the rest of the file drifts with the calendar.
+  vi.useRealTimers();
 });
 
 describe("RemindersPanel", () => {
@@ -278,6 +284,45 @@ describe("RemindersPanel", () => {
 
     expect(screen.getByText(/skipped every run/i)).toBeInTheDocument();
     expect(screen.queryByText(/not this device's zone/)).not.toBeInTheDocument();
+  });
+
+  it("says when the schedule reaches the stored zone at no hour at all", () => {
+    // A device in America/New_York under EST: the cron's UTC hours land at
+    // 01:00, 04:00, 05:00, 14:00 and 15:00 local, none of them in a window.
+    // The cron considers it every run and reaches it never, silently.
+    vi.setSystemTime(new Date("2026-12-05T12:00:00Z"));
+    vi.mocked(deviceTimeZone).mockReturnValue("America/New_York");
+
+    render(
+      <RemindersPanel
+        tripId="t1"
+        initial={{
+          enabled: true,
+          device: { timezone: "America/New_York", subscribedAt: SUBSCRIBED_AT },
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText(/Nothing is scheduled to reach America\/New_York/),
+    ).toBeInTheDocument();
+  });
+
+  it("stays quiet for a zone the schedule does reach", () => {
+    vi.setSystemTime(new Date("2026-12-05T12:00:00Z"));
+    vi.mocked(deviceTimeZone).mockReturnValue("Europe/Rome");
+
+    render(
+      <RemindersPanel
+        tripId="t1"
+        initial={{
+          enabled: true,
+          device: { timezone: "Europe/Rome", subscribedAt: SUBSCRIBED_AT },
+        }}
+      />,
+    );
+
+    expect(screen.queryByText(/Nothing is scheduled to reach/)).not.toBeInTheDocument();
   });
 
   it("explains that a silent day is by design", () => {
