@@ -74,16 +74,6 @@ describe("RemindersCard relative labels", () => {
     expect(screen.queryByText(/\d{1,2}:\d{2}/)).not.toBeInTheDocument();
   });
 
-  it("labels a date already gone by as 'passed'", () => {
-    render(
-      <RemindersCard
-        tripId="trip-1"
-        today={TODAY}
-        reminders={[{ id: "r1", title: "Apply for ETIAS", date: "2026-10-16" }]}
-      />,
-    );
-    expect(screen.getByText("passed")).toBeInTheDocument();
-  });
 });
 
 describe("RemindersCard does not linger", () => {

@@ -199,7 +199,11 @@ export function buildICS(input: IcsInput): string {
     const alarm =
       input.alarms?.transport === true
         ? alarmBlock(
-            `TRIGGER:-PT${t.mode === "FLIGHT" ? FLIGHT_ALARM_LEAD_MINUTES / 60 : TRANSPORT_ALARM_LEAD_MINUTES / 60}H`,
+            // Minutes, not hours: an RFC-5545 duration takes whole numbers
+            // only, so dividing by 60 emits "-PT1.5H" — which no calendar app
+            // has to honour — the moment a lead stops being a multiple of 60.
+            // The constants are already declared in minutes; say so.
+            `TRIGGER:-PT${t.mode === "FLIGHT" ? FLIGHT_ALARM_LEAD_MINUTES : TRANSPORT_ALARM_LEAD_MINUTES}M`,
             `${route} departs soon`,
           )
         : undefined;

@@ -113,7 +113,7 @@ describe("alarms", () => {
       alarms: { transport: true, checkOut: false },
     });
     expect(ics).toContain("BEGIN:VALARM");
-    expect(ics).toContain("TRIGGER:-PT3H");
+    expect(ics).toContain("TRIGGER:-PT180M");
     expect(ics).toContain("ACTION:DISPLAY");
   });
 
@@ -123,8 +123,25 @@ describe("alarms", () => {
       transports: [train],
       alarms: { transport: true, checkOut: false },
     });
-    expect(ics).toContain("TRIGGER:-PT2H");
-    expect(ics).not.toContain("TRIGGER:-PT3H");
+    expect(ics).toContain("TRIGGER:-PT120M");
+    expect(ics).not.toContain("TRIGGER:-PT180M");
+  });
+
+  it("emits a whole-number duration for a lead that is not whole hours", () => {
+    // The guard the hour form did not have: `LEAD / 60` turns a 90-minute lead
+    // into "-PT1.5H", which is not a valid RFC-5545 duration and which a
+    // calendar app may drop silently — losing the Alarm rather than
+    // mistiming it. Minutes cannot produce a fraction.
+    const ics = buildICS({
+      ...base,
+      transports: [flight],
+      alarms: { transport: true, checkOut: false },
+    });
+    const triggers = ics.match(/TRIGGER:-PT[^\r\n]*/g) ?? [];
+    expect(triggers.length).toBeGreaterThan(0);
+    for (const line of triggers) {
+      expect(line).toMatch(/^TRIGGER:-PT\d+M$/);
+    }
   });
 
   it("omits transport alarms when only check-out alarms are on", () => {

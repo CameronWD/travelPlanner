@@ -54,10 +54,11 @@ function formatWhen(
     return { relative: null, absolute: date };
   }
 
+  // No "passed" case: `listRemindersForTrip` queries `date >= today` and the
+  // card is given the trip's own today, so a Reminder already gone by never
+  // reaches here. A branch for it only looked like the card had a past to show.
   let relative: string;
-  if (days < 0) {
-    relative = "passed";
-  } else if (days === 0) {
+  if (days === 0) {
     relative = "today";
   } else if (days === 1) {
     relative = "tomorrow";

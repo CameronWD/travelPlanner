@@ -98,7 +98,9 @@ The two hard blockers (both solved on the spike):
 ## Reminders reality check (recorded 2026-09-16)
 
 The reminders feature has **zero production usage**: no `Reminder` rows ever,
-no `COST_DUE` markers, no push subscriptions. None of the reminder pipeline
+no push subscriptions. (It had no `COST_DUE` marker rows either — that whole
+mechanism has since been retired, its idempotency absorbed into the
+`DigestDispatch` ledger under ADR 0047.) None of the reminder pipeline
 has ever been exercised end-to-end in production. Phase 1's web-push success
 proves the crypto and the HTTP path under `nodejs_compat`, not delivery to a
 real device — that remains unvalidated on **both** platforms.
