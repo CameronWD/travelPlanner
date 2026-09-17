@@ -20,6 +20,7 @@
  */
 import { db } from "@/lib/db";
 import {
+  asTestDigest,
   buildDigest,
   type DigestChecklistLine,
   type DigestInput,
@@ -488,14 +489,21 @@ export interface DispatchDigestResult {
   sent: number;
   skipped: boolean;
   reason?: DispatchSkipReason;
+  /**
+   * Set only when a forced test send found nothing to say and delivered the
+   * placeholder instead. Absent on every other path, so the scheduled result
+   * shape is unchanged.
+   */
+  placeholder?: true;
 }
 
 /**
  * Send at most one Digest for a (user, trip, local date, slot).
  *
  * Order is load-bearing: preference → claim → build → send. `force` is for the
- * Settings "send me a test" button, which skips both the preference check and
- * the ledger so a test send never consumes the real slot.
+ * Settings "send me a test" button: it skips both the preference check and the
+ * ledger so a test send never consumes the real slot, and it swaps the payload
+ * through `asTestDigest` so the press always puts *something* on the device.
  */
 export async function dispatchDigest(opts: {
   userId: string;
@@ -548,11 +556,18 @@ export async function dispatchDigest(opts: {
   };
 
   try {
-    const digest = buildDigest(await collectDigestInput({ tripId, localDate, slot }));
+    const built = buildDigest(await collectDigestInput({ tripId, localDate, slot }));
+
+    // A forced send is the Settings test button, and it must never refuse: an
+    // empty day gets the placeholder, a day with content gets that content
+    // marked as a test (lib/digest.ts asTestDigest).
+    const digest = force ? asTestDigest(built, tripId) : built;
+    const placeholder = force && !built;
 
     if (!digest) {
       // Release the slot — otherwise a quiet evening burns it and a plan edit
-      // later the same day could never produce a Digest.
+      // later the same day could never produce a Digest. Unreachable when
+      // `force` is set, because asTestDigest never returns null.
       await releaseClaim();
       return { sent: 0, skipped: true, reason: "empty" };
     }
@@ -595,7 +610,7 @@ export async function dispatchDigest(opts: {
       await releaseClaim();
     }
 
-    return { sent, skipped: false };
+    return placeholder ? { sent, skipped: false, placeholder: true } : { sent, skipped: false };
   } catch (err) {
     // A claim must never outlive the work it was claiming. Without this, one
     // failed collect holds the slot until tomorrow: the person silently gets
