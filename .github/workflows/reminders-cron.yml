@@ -47,7 +47,10 @@ on:
     # An "absorbed" run sends nothing: the dispatch ledger is keyed
     # (user, trip, local date, slot), so the second run in a window is a no-op.
     # Adding a zone is one more hour here, at roughly 3 CU-h/month each
-    # (ADR 0047). Half-hour zones cannot be served at all — see docs/DEPLOY.md §5.
+    # (ADR 0047) — a half-hour zone included, and with no code change: the
+    # route filters on the subscriber's local HOUR, so a 15:00Z run is 20:30
+    # in Asia/Kolkata and 20:45 in Asia/Kathmandu, hour 20 either way, which
+    # already matches EVENING. See docs/DEPLOY.md §5.
     - cron: "0 6,9,10,19,20 * * *"
   workflow_dispatch: {}
 

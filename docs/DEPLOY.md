@@ -158,14 +158,23 @@ filter is a whole local hour, only zones whose offset lines one of those hours u
   10:00Z, both get a morning Digest and **never the 8pm one** — the part of the feature
   people actually notice. Any other whole-hour offset needs the same check before a
   traveller relies on it.
-- **Half-hour zones cannot be served at all.** A traveller in `Asia/Kolkata` (UTC+5:30) or
-  `Asia/Kathmandu` (UTC+5:45) never lands inside a window at any whole UTC hour: they get
-  no Digest at all, silently, with nothing in the logs to say why.
+- **Half-hour zones cost one more hour — not a code change.** `Asia/Kolkata` (UTC+5:30)
+  and `Asia/Kathmandu` (UTC+5:45) land in no window on the five hours above, so today they
+  get no Digest at all. But the filter reads the subscriber's local **hour**, and a half
+  hour of offset does not move it out of one: a run at **15:00Z** is 20:30 in Kolkata and
+  20:45 in Kathmandu — hour 20 either way, already inside the evening window. So a
+  half-hour zone is served exactly like any other, by adding its hour.
+  `lib/digest-schedule.test.ts` asserts both halves of that.
 
 Supporting a new zone means adding the matching UTC hour(s) to the `cron:` list in
 `.github/workflows/reminders-cron.yml` — there is no fallback that covers them
-automatically, and a half-hour zone would additionally need the window logic itself to
-change.
+automatically. That is the whole job, for whole-hour and half-hour zones alike; the window
+logic in `lib/digest-schedule.ts` never needs to change.
+
+A device on a zone this schedule misses is told so in the Trip's **Settings → Reminders**
+panel, which judges the stored zone against these same hours via `servedSlotsForZone`.
+There is still nothing in the cron logs — the run considers the device and simply matches
+no window — so the panel is the only place it surfaces.
 
 **Set all four VAPID variables in Vercel *before* the first deploy** —
 `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` and
