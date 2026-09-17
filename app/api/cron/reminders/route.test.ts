@@ -1,77 +1,41 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { addDays } from "@/lib/dates";
 
 /**
- * Tests for the cron reminders endpoint — focused on the fail-closed auth gate
- * (highest-risk code) plus the basic processing path, plus the due-date
- * payment-alert second pass (Task 13, CONTEXT.md "Due date").
+ * Tests for the cron Digest dispatcher — focused on the fail-closed auth gate
+ * and the VAPID guard (highest-risk code), plus the slot routing: which
+ * subscribers are at 07:00 or 20:00 in their OWN timezone at the instant the
+ * run happens, and which trips each of them gets a Digest for.
+ *
+ * `@/lib/digest-dispatch` is mocked throughout: what a Digest *says* is
+ * lib/digest.test.ts's job. Here we only assert who is dispatched to, with
+ * which slot, on which local date. `@/lib/tz` is deliberately NOT mocked — the
+ * real Intl conversion is the thing under test.
  */
 
 const {
-  reminderFindManyMock,
-  reminderUpdateMock,
-  reminderFindFirstMock,
-  reminderCreateMock,
   pushFindManyMock,
-  pushDeleteManyMock,
-  sendPushMock,
+  tripMemberFindManyMock,
   isPushConfiguredMock,
-  tripFindUniqueMock,
-  costFindManyMock,
-  itemFindManyMock,
-  accommodationFindManyMock,
-  transportFindManyMock,
-  stopFindManyMock,
+  dispatchDigestMock,
 } = vi.hoisted(() => ({
-  reminderFindManyMock: vi.fn(),
-  reminderUpdateMock: vi.fn(),
-  reminderFindFirstMock: vi.fn(),
-  reminderCreateMock: vi.fn(),
   pushFindManyMock: vi.fn(),
-  pushDeleteManyMock: vi.fn(),
-  sendPushMock: vi.fn(),
+  tripMemberFindManyMock: vi.fn(),
   isPushConfiguredMock: vi.fn(),
-  tripFindUniqueMock: vi.fn(),
-  costFindManyMock: vi.fn(),
-  itemFindManyMock: vi.fn(),
-  accommodationFindManyMock: vi.fn(),
-  transportFindManyMock: vi.fn(),
-  stopFindManyMock: vi.fn(),
+  dispatchDigestMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
   db: {
-    reminder: {
-      findMany: reminderFindManyMock,
-      update: reminderUpdateMock,
-      findFirst: reminderFindFirstMock,
-      create: reminderCreateMock,
-    },
-    pushSubscription: {
-      findMany: pushFindManyMock,
-      deleteMany: pushDeleteManyMock,
-    },
-    trip: { findUnique: tripFindUniqueMock },
-    cost: { findMany: costFindManyMock },
-    item: { findMany: itemFindManyMock },
-    accommodation: { findMany: accommodationFindManyMock },
-    transport: { findMany: transportFindManyMock },
-    stop: { findMany: stopFindManyMock },
+    pushSubscription: { findMany: pushFindManyMock },
+    tripMember: { findMany: tripMemberFindManyMock },
   },
 }));
 vi.mock("@/lib/push", () => ({
-  sendPush: sendPushMock,
   isPushConfigured: isPushConfiguredMock,
-  buildNotificationPayload: ({
-    title,
-    body,
-    url,
-  }: {
-    title: string;
-    body: string;
-    url: string;
-  }) => JSON.stringify({ title, body, url }),
+}));
+vi.mock("@/lib/digest-dispatch", () => ({
+  dispatchDigest: dispatchDigestMock,
 }));
 
 import { GET } from "./route";
@@ -85,48 +49,22 @@ function req(opts: { secret?: string; header?: string } = {}): NextRequest {
   });
 }
 
-function dueCost(overrides: Partial<{
-  id: string;
-  tripId: string;
-  dueDate: string;
-  costMinor: number;
-  currency: string;
-  label: string | null;
-  ownerType: string;
-  ownerId: string | null;
-}> = {}) {
-  return {
-    id: "cost-1",
-    tripId: "trip-1",
-    dueDate: "2026-09-17",
-    costMinor: 50000,
-    currency: "AUD",
-    label: "Flight to NRT",
-    ownerType: "OTHER",
-    ownerId: null,
-    ...overrides,
-  };
+/** A PushSubscription row as the route selects it. */
+function sub(userId: string, timezone: string | null) {
+  return { userId, timezone };
 }
-
-const todayUTC = new Date().toISOString().slice(0, 10);
-const threeDaysFromNow = addDays(todayUTC, 3);
 
 beforeEach(() => {
   // Push is configured by default; the VAPID-misconfiguration guard has its
   // own describe block below.
   isPushConfiguredMock.mockReturnValue(true);
-  // Sensible no-op defaults for the second pass so pre-existing (first-pass)
-  // tests don't need to know about it.
-  costFindManyMock.mockResolvedValue([]);
-  tripFindUniqueMock.mockResolvedValue({ members: [] });
-  itemFindManyMock.mockResolvedValue([]);
-  accommodationFindManyMock.mockResolvedValue([]);
-  transportFindManyMock.mockResolvedValue([]);
-  stopFindManyMock.mockResolvedValue([]);
-  reminderFindFirstMock.mockResolvedValue(null);
+  pushFindManyMock.mockResolvedValue([]);
+  tripMemberFindManyMock.mockResolvedValue([]);
+  dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false });
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.clearAllMocks();
   vi.unstubAllEnvs();
 });
@@ -136,48 +74,48 @@ describe("GET /api/cron/reminders — auth (fail-closed)", () => {
     vi.stubEnv("CRON_SECRET", "");
     const res = await GET(req({ secret: "anything" }));
     expect(res.status).toBe(401);
-    expect(reminderFindManyMock).not.toHaveBeenCalled();
+    expect(pushFindManyMock).not.toHaveBeenCalled();
   });
 
   it("returns 401 when the provided secret is wrong", async () => {
     vi.stubEnv("CRON_SECRET", "right");
     const res = await GET(req({ secret: "wrong" }));
     expect(res.status).toBe(401);
-    expect(reminderFindManyMock).not.toHaveBeenCalled();
+    expect(pushFindManyMock).not.toHaveBeenCalled();
   });
 
   it("returns 200 with the correct secret via query param", async () => {
     vi.stubEnv("CRON_SECRET", "right");
-    reminderFindManyMock.mockResolvedValue([]);
     const res = await GET(req({ secret: "right" }));
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      processed: 0,
+      considered: 0,
+      dispatched: 0,
       sent: 0,
       skipped: 0,
-      dueAlerts: 0,
     });
   });
 
   it("returns 200 with the correct secret via Authorization header", async () => {
     vi.stubEnv("CRON_SECRET", "right");
-    reminderFindManyMock.mockResolvedValue([]);
     const res = await GET(req({ header: "Bearer right" }));
     expect(res.status).toBe(200);
   });
 });
 
 describe("GET /api/cron/reminders — VAPID misconfiguration guard", () => {
-  it("returns 503 before any DB query when push is not configured", async () => {
+  it("returns 503 before touching the database when VAPID is unconfigured", async () => {
     vi.stubEnv("CRON_SECRET", "right");
     isPushConfiguredMock.mockReturnValue(false);
     const res = await GET(req({ secret: "right" }));
     expect(res.status).toBe(503);
-    // The whole point: no reminder is read, consumed, or marked sent, and
-    // Neon is never woken, while VAPID is missing.
-    expect(reminderFindManyMock).not.toHaveBeenCalled();
-    expect(reminderUpdateMock).not.toHaveBeenCalled();
-    expect(costFindManyMock).not.toHaveBeenCalled();
+    // The whole point: dispatchDigest claims its ledger slot BEFORE sending,
+    // so a run attempted while push cannot deliver would burn every
+    // subscriber's slot for the day. Nothing is read and nobody is dispatched
+    // to while VAPID is missing — and Neon is never woken for it.
+    expect(pushFindManyMock).not.toHaveBeenCalled();
+    expect(tripMemberFindManyMock).not.toHaveBeenCalled();
+    expect(dispatchDigestMock).not.toHaveBeenCalled();
   });
 
   it("auth still runs first: bad secret is 401 even when push is unconfigured", async () => {
@@ -188,230 +126,230 @@ describe("GET /api/cron/reminders — VAPID misconfiguration guard", () => {
   });
 });
 
-describe("GET /api/cron/reminders — processing", () => {
-  it("processes a due reminder, skips push when unconfigured, and marks it sent", async () => {
+describe("GET /api/cron/reminders — slot dispatch", () => {
+  beforeEach(() => {
     vi.stubEnv("CRON_SECRET", "right");
-    reminderFindManyMock.mockResolvedValue([
-      {
-        id: "rem-1",
-        tripId: "trip-1",
-        title: "Check in opens",
-      },
-    ]);
-    tripFindUniqueMock.mockResolvedValue({ members: [{ userId: "user-1" }] });
-    pushFindManyMock.mockResolvedValue([
-      { id: "sub-1", endpoint: "https://e", p256dh: "p", auth: "a" },
-    ]);
-    sendPushMock.mockResolvedValue({ sent: false, skipped: true });
-
-    const res = await GET(req({ secret: "right" }));
-
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
-      processed: 1,
-      sent: 0,
-      skipped: 1,
-      dueAlerts: 0,
-    });
-    expect(reminderUpdateMock).toHaveBeenCalledWith({
-      where: { id: "rem-1" },
-      data: { sent: true },
-    });
-  });
-
-  it("processes at most 200 due reminders per run, oldest first", async () => {
-    vi.stubEnv("CRON_SECRET", "right");
-    reminderFindManyMock.mockResolvedValue([]);
-
-    await GET(req({ secret: "right" }));
-
-    expect(reminderFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({ take: 200, orderBy: { fireAt: "asc" } }),
-    );
-  });
-});
-
-describe("GET /api/cron/reminders — due-date payment alerts", () => {
-  it("pushes a 3-days-before alert for an unpaid cost due in 3 days and records a COST_DUE marker", async () => {
-    vi.stubEnv("CRON_SECRET", "right");
-    reminderFindManyMock.mockResolvedValue([]);
-    costFindManyMock.mockResolvedValue([dueCost({ dueDate: threeDaysFromNow })]);
-    tripFindUniqueMock.mockResolvedValue({ members: [{ userId: "user-1" }] });
-    pushFindManyMock.mockResolvedValue([
-      { id: "sub-1", endpoint: "https://e", p256dh: "p", auth: "a" },
-    ]);
-    sendPushMock.mockResolvedValue({ sent: true });
-
-    const res = await GET(req({ secret: "right" }));
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.dueAlerts).toBe(1);
-
-    expect(sendPushMock).toHaveBeenCalledTimes(1);
-    const payload = JSON.parse(sendPushMock.mock.calls[0][1] as string);
-    expect(payload.title).toBe("Payment coming up");
-    expect(payload.body).toBe("Flight to NRT · $500.00 comes out in 3 days");
-    expect(payload.url).toBe("/trips/trip-1/budget");
-
-    expect(reminderCreateMock).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        tripId: "trip-1",
-        title: "Flight to NRT · $500.00 comes out in 3 days",
-        sent: true,
-        targetType: "COST_DUE",
-        targetId: "cost-1",
-      }),
-    });
-  });
-
-  it("pushes a due-today alert with 'comes out today' wording", async () => {
-    vi.stubEnv("CRON_SECRET", "right");
-    reminderFindManyMock.mockResolvedValue([]);
-    costFindManyMock.mockResolvedValue([dueCost({ dueDate: todayUTC })]);
-    tripFindUniqueMock.mockResolvedValue({ members: [{ userId: "user-1" }] });
-    pushFindManyMock.mockResolvedValue([]);
-
-    const res = await GET(req({ secret: "right" }));
-    const body = await res.json();
-
-    expect(body.dueAlerts).toBe(1);
-    expect(reminderCreateMock).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        title: "Flight to NRT · $500.00 comes out today",
-      }),
-    });
-  });
-
-  it("skips a cost whose marker for this alert already exists", async () => {
-    vi.stubEnv("CRON_SECRET", "right");
-    reminderFindManyMock.mockResolvedValue([]);
-    costFindManyMock.mockResolvedValue([dueCost({ dueDate: threeDaysFromNow })]);
-    reminderFindFirstMock.mockResolvedValue({ id: "existing-marker" });
-
-    const res = await GET(req({ secret: "right" }));
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.dueAlerts).toBe(0);
-    expect(sendPushMock).not.toHaveBeenCalled();
-    expect(reminderCreateMock).not.toHaveBeenCalled();
-  });
-
-  it("ignores paid costs and costs due at other offsets", async () => {
-    vi.stubEnv("CRON_SECRET", "right");
-    reminderFindManyMock.mockResolvedValue([]);
-    // The db query itself filters paidAt: null; here we simulate costs whose
-    // offsets don't match the alert schedule to prove the offset check works.
-    costFindManyMock.mockResolvedValue([
-      dueCost({ id: "cost-far", dueDate: addDays(todayUTC, 10) }),
-      dueCost({ id: "cost-past", dueDate: addDays(todayUTC, -1) }),
-      dueCost({ id: "cost-one-day", dueDate: addDays(todayUTC, 1) }),
-    ]);
-
-    const res = await GET(req({ secret: "right" }));
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.dueAlerts).toBe(0);
-    expect(sendPushMock).not.toHaveBeenCalled();
-    expect(reminderCreateMock).not.toHaveBeenCalled();
-  });
-
-  it("queries only unpaid, non-forked costs due on an alert date, bounded", async () => {
-    vi.stubEnv("CRON_SECRET", "right");
-    reminderFindManyMock.mockResolvedValue([]);
-    costFindManyMock.mockResolvedValue([]);
-
-    await GET(req({ secret: "right" }));
-
-    expect(costFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          dueDate: { in: [threeDaysFromNow, todayUTC] },
-          paidAt: null,
-          forkId: null,
-        }),
-        take: 500,
-      }),
-    );
-  });
-
-  it("resolves an owned cost's label via the trip's items and includes it in the push body", async () => {
-    vi.stubEnv("CRON_SECRET", "right");
-    reminderFindManyMock.mockResolvedValue([]);
-    costFindManyMock.mockResolvedValue([
-      dueCost({
-        id: "cost-item",
-        dueDate: todayUTC,
-        ownerType: "ITEM",
-        ownerId: "item-1",
-        label: null,
-      }),
-    ]);
-    itemFindManyMock.mockResolvedValue([{ id: "item-1", title: "Louvre tickets" }]);
-    tripFindUniqueMock.mockResolvedValue({ members: [{ userId: "user-1" }] });
-    pushFindManyMock.mockResolvedValue([
-      { id: "sub-1", endpoint: "https://e", p256dh: "p", auth: "a" },
-    ]);
-    sendPushMock.mockResolvedValue({ sent: true });
-
-    const res = await GET(req({ secret: "right" }));
-    const body = await res.json();
-
-    expect(body.dueAlerts).toBe(1);
-    const payload = JSON.parse(sendPushMock.mock.calls[0][1] as string);
-    expect(payload.body).toBe("Louvre tickets · $500.00 comes out today");
-  });
-
-  it("creates a distinct marker per calendar day so a cost due at both offsets can't double-send on one day", async () => {
     vi.useFakeTimers();
-    try {
-      vi.stubEnv("CRON_SECRET", "right");
-      reminderFindManyMock.mockResolvedValue([]);
-      tripFindUniqueMock.mockResolvedValue({ members: [] });
+  });
 
-      const dueDate = "2026-09-20";
+  it("dispatches an evening digest to a subscriber whose local time is 20:00", async () => {
+    // Europe/Vienna is UTC+1 in December, so 19:00Z is 20:00 local.
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
 
-      // Day 1: today = dueDate - 3 → the 3-day alert fires.
-      vi.setSystemTime(new Date("2026-09-17T08:00:00.000Z"));
-      costFindManyMock.mockResolvedValue([dueCost({ dueDate })]);
-      reminderFindFirstMock.mockResolvedValue(null);
+    const res = await GET(req({ secret: "right" }));
 
-      const res1 = await GET(req({ secret: "right" }));
-      expect((await res1.json()).dueAlerts).toBe(1);
-      expect(reminderCreateMock).toHaveBeenCalledTimes(1);
-      const fireAt1 = (
-        reminderCreateMock.mock.calls[0][0] as { data: { fireAt: Date } }
-      ).data.fireAt;
+    expect(res.status).toBe(200);
+    expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
+    expect(dispatchDigestMock).toHaveBeenCalledWith({
+      userId: "user-1",
+      tripId: "trip-1",
+      localDate: "2026-12-01",
+      slot: "EVENING",
+    });
+    expect(await res.json()).toEqual({
+      considered: 1,
+      dispatched: 1,
+      sent: 1,
+      skipped: 0,
+    });
+  });
 
-      // Re-running the cron later the same day must not resend: a marker
-      // for this exact fireAt now exists.
-      reminderFindFirstMock.mockResolvedValue({ id: "marker-1" });
-      const resSameDay = await GET(req({ secret: "right" }));
-      expect((await resSameDay.json()).dueAlerts).toBe(0);
-      expect(reminderCreateMock).toHaveBeenCalledTimes(1);
+  it("dispatches a morning digest at local 07:00", async () => {
+    // 06:00Z is 07:00 in Vienna (UTC+1 in December).
+    vi.setSystemTime(new Date("2026-12-01T06:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
 
-      // Day 2: today = dueDate → the due-today alert fires, keyed by a
-      // fireAt distinct from Day 1's marker, so it isn't blocked by it.
-      vi.setSystemTime(new Date("2026-09-20T08:00:00.000Z"));
-      reminderFindFirstMock.mockResolvedValue(null);
-      const res2 = await GET(req({ secret: "right" }));
-      expect((await res2.json()).dueAlerts).toBe(1);
-      expect(reminderCreateMock).toHaveBeenCalledTimes(2);
-      const fireAt2 = (
-        reminderCreateMock.mock.calls[1][0] as { data: { fireAt: Date } }
-      ).data.fireAt;
+    await GET(req({ secret: "right" }));
 
-      expect(fireAt1.toISOString()).not.toBe(fireAt2.toISOString());
+    expect(dispatchDigestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ slot: "MORNING", localDate: "2026-12-01" }),
+    );
+  });
 
-      // And re-running Day 2 again must not resend either.
-      reminderFindFirstMock.mockResolvedValue({ id: "marker-2" });
-      const resDay2Again = await GET(req({ secret: "right" }));
-      expect((await resDay2Again.json()).dueAlerts).toBe(0);
-      expect(reminderCreateMock).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.useRealTimers();
-    }
+  it("reads the local date in the subscriber's zone, not UTC", async () => {
+    // One instant, two zones, two different answers — the assertion that
+    // would fail if the route used UTC anywhere. At 20:00Z, Sydney
+    // (UTC+11 in December) is already 07:00 on the NEXT day, so the Sydney
+    // traveller gets a MORNING digest dated 2026-12-02; Vienna is at 21:00
+    // local, which is neither slot hour.
+    vi.setSystemTime(new Date("2026-12-01T20:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([
+      sub("user-syd", "Australia/Sydney"),
+      sub("user-vie", "Europe/Vienna"),
+    ]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
+    expect(dispatchDigestMock).toHaveBeenCalledWith({
+      userId: "user-syd",
+      tripId: "trip-1",
+      localDate: "2026-12-02",
+      slot: "MORNING",
+    });
+    expect(await res.json()).toEqual({
+      considered: 2,
+      dispatched: 1,
+      sent: 1,
+      skipped: 0,
+    });
+  });
+
+  it("skips a subscriber whose local hour is neither 7 nor 20", async () => {
+    // 12:00Z is 13:00 in Vienna — no slot.
+    vi.setSystemTime(new Date("2026-12-01T12:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(dispatchDigestMock).not.toHaveBeenCalled();
+    // Not even the trip lookup runs for a subscriber outside a slot hour.
+    expect(tripMemberFindManyMock).not.toHaveBeenCalled();
+    expect(await res.json()).toEqual({
+      considered: 1,
+      dispatched: 0,
+      sent: 0,
+      skipped: 0,
+    });
+  });
+
+  it("skips subscriptions with no stored timezone", async () => {
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([
+      sub("user-1", null),
+      sub("user-2", "Europe/Vienna"),
+    ]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+
+    const res = await GET(req({ secret: "right" }));
+
+    // A row with no timezone cannot be scheduled — there is no local hour to
+    // compare against. It is never guessed at and never dispatched to.
+    expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
+    expect(dispatchDigestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-2" }),
+    );
+    expect((await res.json()).considered).toBe(1);
+    // The query itself asks only for rows that can be scheduled.
+    expect(pushFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { timezone: { not: null } },
+        select: { userId: true, timezone: true },
+      }),
+    );
+  });
+
+  it("dispatches once per user per trip when a user has several devices in one zone", async () => {
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    // Phone, laptop and tablet, all in Vienna. dispatchDigest already pushes
+    // to every subscription the user owns, so dispatching per subscription
+    // would put three identical Digests on the same phone.
+    pushFindManyMock.mockResolvedValue([
+      sub("user-1", "Europe/Vienna"),
+      sub("user-1", "Europe/Vienna"),
+      sub("user-1", "Europe/Vienna"),
+    ]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
+    expect(await res.json()).toEqual({
+      considered: 1,
+      dispatched: 1,
+      sent: 1,
+      skipped: 0,
+    });
+  });
+
+  it("dispatches per trip for a user in two trips", async () => {
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
+    tripMemberFindManyMock.mockResolvedValue([
+      { tripId: "trip-1" },
+      { tripId: "trip-2" },
+    ]);
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(dispatchDigestMock).toHaveBeenCalledTimes(2);
+    expect(dispatchDigestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ tripId: "trip-1", slot: "EVENING" }),
+    );
+    expect(dispatchDigestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ tripId: "trip-2", slot: "EVENING" }),
+    );
+    expect(await res.json()).toEqual({
+      considered: 1,
+      dispatched: 2,
+      sent: 2,
+      skipped: 0,
+    });
+  });
+
+  it("counts a skipped dispatch without counting it as sent", async () => {
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
+    tripMemberFindManyMock.mockResolvedValue([
+      { tripId: "trip-1" },
+      { tripId: "trip-2" },
+    ]);
+    dispatchDigestMock
+      .mockResolvedValueOnce({ sent: 0, skipped: true, reason: "empty" })
+      .mockResolvedValueOnce({ sent: 2, skipped: false });
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(await res.json()).toEqual({
+      considered: 1,
+      dispatched: 2,
+      sent: 2,
+      skipped: 1,
+    });
+  });
+
+  it("bounds the per-user trip lookup with take: 50", async () => {
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
+
+    await GET(req({ secret: "right" }));
+
+    expect(tripMemberFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1" },
+        select: { tripId: true },
+        take: 50,
+      }),
+    );
+  });
+
+  it("reports partial counts and 500 when dispatch throws", async () => {
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
+    tripMemberFindManyMock.mockResolvedValue([
+      { tripId: "trip-1" },
+      { tripId: "trip-2" },
+    ]);
+    dispatchDigestMock
+      .mockResolvedValueOnce({ sent: 1, skipped: false })
+      .mockRejectedValueOnce(new Error("boom"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({
+      error: "Internal server error",
+      considered: 1,
+      dispatched: 1,
+      sent: 1,
+      skipped: 0,
+    });
+    errorSpy.mockRestore();
   });
 });
