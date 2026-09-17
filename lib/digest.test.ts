@@ -42,6 +42,40 @@ describe("buildDigest", () => {
     expect(d?.body).toBe("09:40 train Vienna → Prague");
   });
 
+  it("titles the evening-before-departure digest 'Tomorrow'", () => {
+    // The night before the outbound flight the trip is still in final-prep,
+    // but the digest is carrying tomorrow's itinerary — the title follows the
+    // schedule, not the phase.
+    const d = buildDigest(
+      input({
+        phase: "final-prep",
+        checklist: [{ id: "k1", text: "check in online", daysUntil: 0 }],
+        schedule: {
+          transports: [{ id: "t1", mode: "FLIGHT", route: "Sydney → Vienna", localTime: "06:15" }],
+          stays: [],
+          items: [],
+        },
+      }),
+    );
+    expect(d?.title).toBe("Tomorrow");
+    expect(d?.body.split("\n")).toEqual([
+      "Checklist: check in online due today",
+      "06:15 flight Sydney → Vienna",
+    ]);
+  });
+
+  it("titles a travelling evening digest with no schedule 'Coming up'", () => {
+    // Nothing planned tomorrow, so there is no "tomorrow" to promise — even
+    // mid-trip. This is what stops the title rule regressing to the phase.
+    const d = buildDigest(
+      input({
+        phase: "travelling",
+        payments: [{ id: "c1", label: "Airbnb", amountLabel: "£240", daysUntil: 2 }],
+      }),
+    );
+    expect(d?.title).toBe("Coming up");
+  });
+
   it("says 'comes out today' at zero days", () => {
     const d = buildDigest(
       input({ payments: [{ id: "c1", label: "Airbnb", amountLabel: "£240", daysUntil: 0 }] }),

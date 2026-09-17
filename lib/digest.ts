@@ -59,6 +59,11 @@ export interface DigestItemLine {
 export interface DigestInput {
   tripId: string;
   slot: DigestSlot;
+  /**
+   * The Trip's phase on the digest's local date. Part of the input contract —
+   * the title rule reads the schedule rather than the phase (see below), but
+   * the dispatcher still computes it and consumers may key off it.
+   */
   phase: TripPhase;
   payments: DigestPaymentLine[];
   checklist: DigestChecklistLine[];
@@ -158,12 +163,16 @@ export function buildDigest(input: DigestInput): DigestPayload | null {
       ? [...lines.slice(0, DIGEST_MAX_LINES), `+${lines.length - DIGEST_MAX_LINES} more`]
       : lines;
 
-  const title =
-    input.slot === "MORNING"
-      ? "Today"
-      : input.phase === "travelling"
-        ? "Tomorrow"
-        : "Coming up";
+  // "Tomorrow" is a promise about the *itinerary*, so it follows the schedule
+  // rather than the phase. The night before departure the trip is still in
+  // final-prep, yet that digest carries tomorrow's outbound flight — heading it
+  // "Coming up" would bury the single most useful digest of the trip.
+  const hasSchedule =
+    input.schedule.transports.length > 0 ||
+    input.schedule.stays.length > 0 ||
+    input.schedule.items.length > 0;
+
+  const title = input.slot === "MORNING" ? "Today" : hasSchedule ? "Tomorrow" : "Coming up";
 
   const isPaymentOnly = paymentLineCount > 0 && paymentLineCount === lines.length;
   const url = isPaymentOnly ? `/trips/${input.tripId}/budget` : `/trips/${input.tripId}`;

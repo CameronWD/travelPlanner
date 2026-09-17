@@ -207,6 +207,9 @@ describe("dispatchDigest", () => {
     expect(digestDispatchCreateMock.mock.invocationCallOrder[0]).toBeLessThan(
       sendPushMock.mock.invocationCallOrder[0],
     );
+    // And the claim STAYS claimed: releasing it after a successful send would
+    // re-open the slot for the next cron run to send all over again.
+    expect(digestDispatchDeleteMock).not.toHaveBeenCalled();
     expect(result).toEqual({ sent: 1, skipped: false });
   });
 
@@ -554,8 +557,8 @@ describe("collectDigestInput", () => {
     expect(input.reminders).toEqual([{ id: "rem-today", title: "Print insurance docs" }]);
   });
 
-  it("leaves the schedule empty while the trip is still being planned", async () => {
-    seedPlanningTrip();
+  it("leaves the schedule empty when the target day is before the trip starts", async () => {
+    seedPlanningTrip(); // departs 2026-12-20; the EVENING target is 2026-12-02
     dbData.item = [
       { id: "item-1", tripId: TRIP_ID, forkId: null, date: "2026-12-02", title: "Museum", startTime: "10:00" },
     ];
@@ -564,6 +567,108 @@ describe("collectDigestInput", () => {
 
     expect(input.phase).toBe("planning");
     expect(input.schedule).toEqual({ transports: [], stays: [], items: [] });
+  });
+
+  it("leaves the schedule empty when the target day is after the trip ends", async () => {
+    dbData.trip = [
+      { id: TRIP_ID, startDate: "2026-11-01", endDate: "2026-11-20", homeName: "Sydney" },
+    ];
+    dbData.item = [
+      { id: "item-1", tripId: TRIP_ID, forkId: null, date: "2026-12-02", title: "Museum", startTime: "10:00" },
+    ];
+
+    const input = await collect();
+
+    expect(input.phase).toBe("past");
+    expect(input.schedule).toEqual({ transports: [], stays: [], items: [] });
+  });
+
+  it("carries tomorrow's itinerary on the evening before departure", async () => {
+    // The trip departs tomorrow, so today's phase is still final-prep — but
+    // this is the digest that must announce the outbound flight.
+    dbData.trip = [
+      { id: TRIP_ID, startDate: "2026-12-02", endDate: "2026-12-12", homeName: "Sydney" },
+    ];
+    dbData.stop = [
+      { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Vienna", timezone: "Europe/Vienna" },
+    ];
+    dbData.transport = [
+      {
+        id: "tr-outbound",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "FLIGHT",
+        fromStopId: null, // the Home base is not a Stop
+        toStopId: "stop-1",
+        depPlace: null,
+        arrPlace: null,
+        depAt: new Date("2026-12-02T05:15:00Z"), // 06:15 in Vienna
+        reference: "QF29",
+        depIsHome: true,
+        arrIsHome: false,
+      },
+    ];
+
+    const input = await collect({ slot: "EVENING" });
+
+    expect(input.phase).toBe("final-prep");
+    expect(input.schedule.transports).toEqual([
+      { id: "tr-outbound", mode: "FLIGHT", route: "Sydney → Vienna", localTime: "06:15" },
+    ]);
+  });
+
+  it("scopes every plan-entity read to the real plan", async () => {
+    // A Fork must never drive reminders (CONTEXT.md **Fork**). The fork rows in
+    // the tests above prove the leak is closed for the three date-matched
+    // queries; this pins the rule on the label-map and stop reads too, where a
+    // fork row cannot change the output only because ids are unique.
+    seedTravellingTrip();
+    dbData.stop = [
+      { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Vienna", timezone: "Europe/Vienna" },
+    ];
+    dbData.accommodation = [
+      {
+        id: "acc-1",
+        tripId: TRIP_ID,
+        forkId: null,
+        name: "Airbnb Vienna",
+        checkIn: "2026-12-02",
+        checkOut: "2026-12-05",
+        checkInTime: null,
+        checkOutTime: null,
+      },
+    ];
+    dbData.cost = [
+      {
+        id: "cost-1",
+        tripId: TRIP_ID,
+        forkId: null,
+        paidAt: null,
+        dueDate: LOCAL_DATE,
+        costMinor: 24000,
+        currency: "EUR",
+        label: null,
+        ownerType: "ACCOMMODATION",
+        ownerId: "acc-1",
+      },
+    ];
+
+    await collect({ slot: "EVENING" });
+
+    // Checklists and Reminders are trip-wide, so they carry no forkId.
+    const planScoped = {
+      cost: costFindManyMock,
+      stop: stopFindManyMock,
+      transport: transportFindManyMock,
+      item: itemFindManyMock,
+      accommodation: accommodationFindManyMock,
+    };
+    for (const [name, mock] of Object.entries(planScoped)) {
+      expect(mock, `${name} was never queried`).toHaveBeenCalled();
+      for (const [args] of mock.mock.calls) {
+        expect(args?.where, `${name} read beyond the real plan`).toHaveProperty("forkId", null);
+      }
+    }
   });
 
   it("reads tomorrow's plan for the EVENING slot", async () => {
@@ -601,6 +706,7 @@ describe("collectDigestInput", () => {
     dbData.stop = [
       { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Tokyo", timezone: "Asia/Tokyo" },
       { id: "stop-2", tripId: TRIP_ID, forkId: null, name: "Osaka", timezone: "Asia/Tokyo" },
+      { id: "stop-f1", tripId: TRIP_ID, forkId: "fork-1", name: "Fork Kyoto", timezone: "Asia/Tokyo" },
     ];
     dbData.transport = [
       {
@@ -629,6 +735,21 @@ describe("collectDigestInput", () => {
         depPlace: null,
         arrPlace: null,
         depAt: new Date("2026-12-02T23:30:00Z"),
+        reference: null,
+        depIsHome: false,
+        arrIsHome: false,
+      },
+      {
+        // A what-if leg on the same day: a Fork must never drive reminders.
+        id: "tr-fork",
+        tripId: TRIP_ID,
+        forkId: "fork-1",
+        mode: "FLIGHT",
+        fromStopId: "stop-f1",
+        toStopId: "stop-2",
+        depPlace: null,
+        arrPlace: null,
+        depAt: new Date("2026-12-01T22:30:00Z"),
         reference: null,
         depIsHome: false,
         arrIsHome: false,
@@ -673,6 +794,17 @@ describe("collectDigestInput", () => {
         checkIn: "2026-12-06",
         checkOut: "2026-12-08",
         checkInTime: null,
+        checkOutTime: null,
+      },
+      {
+        // A what-if stay on the same day: a Fork must never drive reminders.
+        id: "acc-fork",
+        tripId: TRIP_ID,
+        forkId: "fork-1",
+        name: "What-if hostel",
+        checkIn: "2026-12-02",
+        checkOut: "2026-12-04",
+        checkInTime: "14:00",
         checkOutTime: null,
       },
     ];

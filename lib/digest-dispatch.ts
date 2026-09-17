@@ -78,7 +78,19 @@ export async function collectDigestInput(opts: {
     endDate: trip?.endDate ?? null,
     today: localDate,
   });
-  const travelling = phase === "travelling";
+
+  // The EVENING Digest is tomorrow's look-ahead; the MORNING one is travel-day
+  // insurance for today.
+  const targetDate = slot === "EVENING" ? addDays(localDate, 1) : localDate;
+
+  // The schedule is gated on the TARGET day falling inside the trip, not on
+  // today's phase. On the eve of departure the phase is still "final-prep",
+  // yet that is precisely the digest that should carry tomorrow's outbound
+  // flight (ADR 0047). `endDate` falls back to `startDate` exactly as
+  // computeTripPhase's soft end does.
+  const tripStart = trip?.startDate ?? null;
+  const tripEnd = trip?.endDate ?? tripStart;
+  const targetIsInTrip = !!tripStart && targetDate >= tripStart && targetDate <= tripEnd!;
 
   const [dueCosts, checklistRows, reminderRows] = await Promise.all([
     db.cost.findMany({
@@ -112,8 +124,8 @@ export async function collectDigestInput(opts: {
   ]);
 
   const ownedCosts = dueCosts.filter((c) => c.ownerType !== "OTHER");
-  const needStops = ownedCosts.length > 0 || travelling;
-  const needTransports = ownedCosts.length > 0 || travelling;
+  const needStops = ownedCosts.length > 0 || targetIsInTrip;
+  const needTransports = ownedCosts.length > 0 || targetIsInTrip;
 
   // One stop lookup serves both jobs: naming a transport cost's endpoints and
   // reading a departure's wall clock.
@@ -165,12 +177,10 @@ export async function collectDigestInput(opts: {
     title: row.title,
   }));
 
-  const schedule = travelling
+  const schedule = targetIsInTrip
     ? await collectSchedule({
         tripId,
-        // The EVENING Digest is tomorrow's look-ahead; the MORNING one is
-        // travel-day insurance for today.
-        targetDate: slot === "EVENING" ? addDays(localDate, 1) : localDate,
+        targetDate,
         homeName: trip?.homeName ?? null,
         transportRows,
         stopById,
@@ -258,7 +268,7 @@ async function buildPaymentLines(args: {
 }
 
 /**
- * Tomorrow's (or today's) plan, for a Trip that is actually under way.
+ * Tomorrow's (or today's) plan, for a target day that falls inside the Trip.
  *
  * Departures are matched in the **departure stop's** timezone, not UTC: a
  * 07:00 Tokyo train leaves on 2026-12-02 local even though its instant is
@@ -374,10 +384,13 @@ function transportRoute(
 // dispatchDigest
 // ---------------------------------------------------------------------------
 
+/** Why a dispatch produced no push. Tasks 7 and 8 branch on these strings. */
+export type DispatchSkipReason = "disabled" | "already-sent" | "empty";
+
 export interface DispatchDigestResult {
   sent: number;
   skipped: boolean;
-  reason?: string;
+  reason?: DispatchSkipReason;
 }
 
 /**
