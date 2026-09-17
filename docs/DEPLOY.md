@@ -97,6 +97,26 @@ Procedure for this (and any future destructive) migration:
    legacy paid-without-date rows via the Budget page checklist (the app
    surfaces them — see `docs/things-to-fix.md` P2-8).
 
+### Before deploying `20260916000000_digest_and_alarms`
+
+That migration drops `Reminder.fireAt`, `sent`, `targetType` and `targetId`, and
+backfills the new `date` column from `fireAt` before dropping it. It no longer
+empties the table, so a real Reminder survives the deploy — but the count is
+still worth having, because it is the one number that says whether the world
+matches what ADR 0047 was written against. **Immediately before deploying**, run
+against production:
+
+```sql
+SELECT count(*) FROM "Reminder";
+```
+
+Expect `0`. **If it is non-zero, stop and find out why before deploying.**
+Nothing in the deployed app has ever been able to write a `Reminder`: the add
+form sat inside `RemindersCard`, which rendered only in the Travelling phase, and
+no Trip has reached it (ADR 0047). So a non-zero count means something is running
+that this migration was not designed around, and the `targetType = 'COST_DUE'`
+delete may be throwing away rows a Traveller wrote.
+
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:
