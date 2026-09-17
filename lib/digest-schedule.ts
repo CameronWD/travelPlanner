@@ -22,6 +22,17 @@ import { instantToZonedTime } from "@/lib/tz";
 export const MORNING_WINDOW_LOCAL_HOURS: readonly number[] = [6, 7, 8];
 export const EVENING_WINDOW_LOCAL_HOURS: readonly number[] = [20, 21, 22];
 
+/**
+ * The UTC hours the cron actually fires at — the other half of that contract,
+ * mirrored from `.github/workflows/reminders-cron.yml`.
+ *
+ * It lives here so a *running* surface can answer "will this device ever be
+ * reached?" without re-deriving the schedule: `lib/digest-schedule.test.ts`
+ * reads the YAML and fails if this list and the cron expression drift apart, so
+ * there is still exactly one place to edit and one place that can be wrong.
+ */
+export const DIGEST_CRON_UTC_HOURS: readonly number[] = [6, 9, 10, 19, 20];
+
 /** The Digest slot a zone is currently in, or null when it is in neither. */
 export function slotForZone(now: Date, timeZone: string): DigestSlot | null {
   // instantToZonedTime yields "HH:MM" and falls back to UTC on an unknown
@@ -30,4 +41,31 @@ export function slotForZone(now: Date, timeZone: string): DigestSlot | null {
   if (EVENING_WINDOW_LOCAL_HOURS.includes(localHour)) return "EVENING";
   if (MORNING_WINDOW_LOCAL_HOURS.includes(localHour)) return "MORNING";
   return null;
+}
+
+/**
+ * Which Digest slots the current schedule actually reaches in `timeZone`, on
+ * the day `now` falls on.
+ *
+ * Judged at a given instant rather than across the year because the answer
+ * genuinely changes with daylight saving: `America/New_York` picks up a morning
+ * run under EDT and nothing at all under EST. A traveller is owed the truth
+ * about today, not an average.
+ *
+ * An empty set means the schedule silently reaches that device never — which is
+ * otherwise invisible to the only person it affects, since the cron considers
+ * them on every run, matches no window, and says nothing.
+ */
+export function servedSlotsForZone(now: Date, timeZone: string): Set<DigestSlot> {
+  const slots = new Set<DigestSlot>();
+  const dayStart = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  for (const hour of DIGEST_CRON_UTC_HOURS) {
+    const slot = slotForZone(new Date(dayStart + hour * 3_600_000), timeZone);
+    if (slot) slots.add(slot);
+  }
+  return slots;
 }

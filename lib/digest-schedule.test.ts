@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
+  DIGEST_CRON_UTC_HOURS,
   MORNING_WINDOW_LOCAL_HOURS,
   EVENING_WINDOW_LOCAL_HOURS,
+  servedSlotsForZone,
   slotForZone,
 } from "./digest-schedule";
 
@@ -100,13 +102,55 @@ describe("the cron schedule against the Digest windows", () => {
     }
   }
 
-  it("never lands in a window for a half-hour zone — the documented limitation", () => {
-    // Not a wish: it is what the fixed-hour design costs, recorded in
-    // docs/DEPLOY.md §5. If this ever starts passing, the docs are now wrong.
+  it("exports the same UTC hours the workflow fires at", () => {
+    // The constant is what a running surface reads to answer "will this device
+    // ever be reached?" (lib/digest-schedule.ts, the Settings panel). If it
+    // drifts from the YAML, that answer is confidently wrong.
+    expect([...DIGEST_CRON_UTC_HOURS].sort((a, b) => a - b)).toEqual(
+      scheduledUtcHours(),
+    );
+  });
+
+  it("does not reach a half-hour zone today — but would with one more cron hour", () => {
+    // docs/DEPLOY.md §5 used to claim a half-hour zone "would additionally need
+    // the window logic itself to change". It would not: slotForZone reads the
+    // local HOUR, so 15:00Z is 20:30 in Asia/Kolkata and 20:45 in
+    // Asia/Kathmandu — both inside the evening window already. The limitation
+    // is the hour list, not the code, and a maintainer who believes otherwise
+    // rewrites working logic.
     for (const zone of ["Asia/Kolkata", "Asia/Kathmandu"]) {
       for (const instant of INSTANTS) {
         expect(slotsHit(zone, instant).size).toBe(0);
+
+        const at = new Date(
+          Date.UTC(instant.year, instant.month, instant.day, 15, 0, 0),
+        );
+        expect(slotForZone(at, zone)).toBe("EVENING");
       }
+    }
+  });
+
+  it("reports the slots a zone is actually served in, for the day in question", () => {
+    // What the Settings panel warns from. December: New York is on EST and no
+    // scheduled hour lands anywhere near its morning or evening — the device is
+    // considered on every run and reached never, which is invisible without
+    // this. July it is on EDT and 10:00Z becomes 06:00 local, a morning run
+    // only — still no evening Digest, which is the part people notice.
+    const december = new Date(Date.UTC(2026, 11, 15, 12));
+    const july = new Date(Date.UTC(2026, 6, 15, 12));
+
+    expect([...servedSlotsForZone(december, "America/New_York")]).toEqual([]);
+    expect([...servedSlotsForZone(july, "America/New_York")]).toEqual(["MORNING"]);
+
+    for (const zone of SERVED_ZONES) {
+      expect(
+        [...servedSlotsForZone(december, zone)].sort(),
+        `${zone} is a zone the deployment commits to serving`,
+      ).toEqual(["EVENING", "MORNING"]);
+      expect([...servedSlotsForZone(july, zone)].sort()).toEqual([
+        "EVENING",
+        "MORNING",
+      ]);
     }
   });
 

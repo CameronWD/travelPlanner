@@ -35,7 +35,12 @@ import { computeTripPhase } from "@/lib/trip-phase";
 import { buildCostLabelMap, costLabel } from "@/lib/cost-labels";
 import { formatMoney } from "@/lib/money";
 import { addDays, daysBetween } from "@/lib/dates";
-import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
+import {
+  currentTripTimezone,
+  guessTimezoneForCountry,
+  instantToZonedDateISO,
+  instantToZonedTime,
+} from "@/lib/tz";
 
 /** Days before a due date that a payment or checklist line starts appearing. */
 export const DIGEST_LOOKAHEAD_DAYS = 3;
@@ -70,7 +75,13 @@ export async function collectDigestInput(opts: {
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { id: true, startDate: true, endDate: true, homeName: true },
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      homeName: true,
+      homeCountryCode: true,
+    },
   });
 
   const phase = computeTripPhase({
@@ -88,9 +99,21 @@ export async function collectDigestInput(opts: {
   // yet that is precisely the digest that should carry tomorrow's outbound
   // flight (ADR 0047). `endDate` falls back to `startDate` exactly as
   // computeTripPhase's soft end does.
+  //
+  // The window is one day WIDER than the trip at each end, because `startDate`
+  // is the day the first Stop *arrives* (lib/firm-up.ts) and an overnight
+  // long-haul outbound departs the day before it. A gate closed exactly on
+  // startDate reproduces, one day earlier, the same hole ADR 0047's amendment
+  // was written to close: no evening Digest names the outbound flight and the
+  // travel-day morning Digest is empty. The gate costs little either way —
+  // `collectSchedule` filters by the exact target date regardless; this is only
+  // a cheap "don't even look" guard for trips that are nowhere near today.
   const tripStart = trip?.startDate ?? null;
   const tripEnd = trip?.endDate ?? tripStart;
-  const targetIsInTrip = !!tripStart && targetDate >= tripStart && targetDate <= tripEnd!;
+  const targetIsInTrip =
+    !!tripStart &&
+    targetDate >= addDays(tripStart, -1) &&
+    targetDate <= addDays(tripEnd!, 1);
 
   const [dueCosts, checklistRows, reminderRows] = await Promise.all([
     db.cost.findMany({
@@ -111,13 +134,25 @@ export async function collectDigestInput(opts: {
         ownerId: true,
       },
     }),
+    // No lower bound, deliberately. A Checklist item "persists until done" and
+    // keeps reappearing while overdue (CONTEXT.md **Checklist**) — that is the
+    // whole distinction from a Reminder, which is said once. A `gte: localDate`
+    // here would give a Checklist item a Reminder's lifecycle: miss the day the
+    // visa application was due and it drops out of the Digest silently. The
+    // payment window above keeps BOTH bounds on purpose (CONTEXT.md **Due
+    // date** scopes it to the three days before and the day itself).
     db.checklistItem.findMany({
-      where: { tripId, done: false, dueDate: { gte: localDate, lte: windowEnd } },
+      where: { tripId, done: false, dueDate: { lte: windowEnd } },
       orderBy: { dueDate: "asc" },
       select: { id: true, text: true, dueDate: true },
     }),
+    // A Reminder is read out the EVENING BEFORE its date, alongside tomorrow's
+    // plan (CONTEXT.md **Reminder**): one delivered at 9pm on the day it was
+    // for arrives as that day is ending. `targetDate` is exactly that day for
+    // the evening slot — and today for the morning slot, which never renders
+    // reminders anyway (lib/digest.ts collectLines).
     db.reminder.findMany({
-      where: { tripId, date: localDate },
+      where: { tripId, date: targetDate },
       orderBy: { createdAt: "asc" },
       select: { id: true, title: true },
     }),
@@ -132,10 +167,22 @@ export async function collectDigestInput(opts: {
   const stops = needStops
     ? await db.stop.findMany({
         where: { tripId, forkId: null },
-        select: { id: true, name: true, timezone: true },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          name: true,
+          timezone: true,
+          arriveDate: true,
+          departDate: true,
+        },
       })
     : [];
   const stopById = new Map(stops.map((s) => [s.id, s] as const));
+
+  // The Trip's own clock — what "the traveller's watch" reads on a leg that has
+  // no departure Stop. See `transportZone` for why that is not the arrival
+  // Stop's zone.
+  const tripZone = resolveTripZone(trip?.homeCountryCode ?? null, stops);
 
   // Likewise one transport lookup, with the union of the fields both jobs need.
   const transportRows = needTransports
@@ -184,6 +231,7 @@ export async function collectDigestInput(opts: {
         homeName: trip?.homeName ?? null,
         transportRows,
         stopById,
+        tripZone,
       })
     : { transports: [], stays: [], items: [] };
 
@@ -203,7 +251,36 @@ type TransportRow = {
   toStopId: string | null;
 };
 
-type StopRow = { id: string; name: string; timezone: string | null };
+type StopRow = {
+  id: string;
+  name: string;
+  timezone: string | null;
+  arriveDate: string | null;
+  departDate: string | null;
+};
+
+/**
+ * The Trip's own timezone — the one a traveller standing at their **Home base**
+ * is living in.
+ *
+ * A Home base is not a Stop (CONTEXT.md **Home base**), so it carries no
+ * `timezone` field of its own; the closest thing the Trip stores is
+ * `homeCountryCode`. That is a country, not a city, so in a country spanning
+ * several zones the guess can be an hour out (`au` resolves to Australia/Sydney,
+ * which is AEDT while Brisbane stays AEST). It is still the right family of
+ * answer: the calendar DATE and the ordering come out correct, which is what
+ * the Digest files a departure under, and it is never the *destination's*
+ * clock. When the country is unknown or unmapped, fall back to the zone of the
+ * Stop the trip is currently at.
+ */
+function resolveTripZone(
+  homeCountryCode: string | null,
+  stops: StopRow[],
+): string {
+  const guessed = guessTimezoneForCountry(homeCountryCode);
+  if (guessed !== "UTC") return guessed;
+  return currentTripTimezone(stops);
+}
 
 type DueCostRow = {
   id: string;
@@ -281,8 +358,9 @@ async function collectSchedule(args: {
   homeName: string | null;
   transportRows: TransportRow[];
   stopById: Map<string, StopRow>;
+  tripZone: string;
 }): Promise<DigestInput["schedule"]> {
-  const { tripId, targetDate, homeName, transportRows, stopById } = args;
+  const { tripId, targetDate, homeName, transportRows, stopById, tripZone } = args;
 
   const [stayRows, itemRows] = await Promise.all([
     db.accommodation.findMany({
@@ -311,7 +389,7 @@ async function collectSchedule(args: {
   const transports: DigestTransportLine[] = [];
   for (const t of transportRows) {
     if (!t.depAt) continue;
-    const zone = transportZone(t, stopById);
+    const zone = transportZone(t, stopById, tripZone);
     if (instantToZonedDateISO(t.depAt, zone) !== targetDate) continue;
     transports.push({
       id: t.id,
@@ -351,11 +429,30 @@ async function collectSchedule(args: {
   return { transports, stays, items };
 }
 
-/** The zone a departure's wall clock should be read in. */
-function transportZone(t: TransportRow, stopById: Map<string, StopRow>): string {
-  const from = t.fromStopId ? stopById.get(t.fromStopId) : undefined;
+/**
+ * The zone a departure's wall clock should be read in.
+ *
+ * A leg with NO departure Stop is the **outbound** leg from the Home base, and
+ * a Home base is not a Stop (CONTEXT.md **Home base**) — so `fromStopId` is
+ * always null there. Falling through to the arrival Stop's zone reads a
+ * Brisbane 06:00 departure as 21:00 the previous evening in Vienna: the Digest
+ * then both mistimes the flight and files it under the wrong day, while the
+ * published `VALARM` — a relative offset from the true UTC instant — stays
+ * right. The Digest exists to back the Alarm up, so it must not contradict it.
+ */
+function transportZone(
+  t: TransportRow,
+  stopById: Map<string, StopRow>,
+  tripZone: string,
+): string {
+  if (!t.fromStopId) return tripZone;
+  const from = stopById.get(t.fromStopId);
+  if (from?.timezone) return from.timezone;
+  // A departure Stop that is still rough has no zone of its own; the arrival
+  // Stop is the nearer answer for a mid-trip leg, and the trip's own zone is
+  // the last resort (never a bare "UTC", which is nobody's wall clock).
   const to = t.toStopId ? stopById.get(t.toStopId) : undefined;
-  return from?.timezone ?? to?.timezone ?? "UTC";
+  return to?.timezone ?? tripZone;
 }
 
 /**
@@ -483,6 +580,21 @@ export async function dispatchDigest(opts: {
       await db.pushSubscription.deleteMany({ where: { id: { in: goneIds } } });
     }
 
+    // Nothing reached a device that had one. `sendPush` swallows every
+    // non-404/410 error and returns `{ sent: false }` without throwing, so a
+    // gateway 500 otherwise leaves this loop exiting *normally* with the ledger
+    // row standing: the redundancy run inside the same window answers
+    // "already-sent" and the day's Digest is lost with `failed: 0` in the cron
+    // response and nothing in the logs. Hand the slot back instead. Sending
+    // twice because a response was lost is strictly better than never sending.
+    if (subscriptions.length > 0 && sent === 0) {
+      console.error(
+        "[digest] no push was delivered — releasing the claimed slot so the next run retries:",
+        { userId, tripId, localDate, slot, subscriptions: subscriptions.length },
+      );
+      await releaseClaim();
+    }
+
     return { sent, skipped: false };
   } catch (err) {
     // A claim must never outlive the work it was claiming. Without this, one
@@ -493,8 +605,14 @@ export async function dispatchDigest(opts: {
     try {
       await releaseClaim();
     } catch (releaseErr) {
-      // Surfacing the original failure matters more than this one.
-      console.error("[digest] failed to release a claimed dispatch row:", releaseErr);
+      // Surfacing the original failure matters more than this one — but name
+      // the row, or the operator reads "release failed" with no way to find the
+      // stuck ledger entry that is now muting someone for the rest of the day.
+      console.error(
+        "[digest] failed to release a claimed dispatch row:",
+        { userId, tripId, localDate, slot },
+        releaseErr,
+      );
     }
     throw err;
   }

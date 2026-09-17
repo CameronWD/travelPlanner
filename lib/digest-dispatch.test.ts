@@ -150,6 +150,8 @@ import {
 const USER_ID = "user-1";
 const TRIP_ID = "trip-1";
 const LOCAL_DATE = "2026-12-01";
+/** The day an EVENING digest looks ahead to. */
+const TOMORROW = "2026-12-02";
 
 /** Trip that is still being planned on LOCAL_DATE (departs 2026-12-20). */
 function seedPlanningTrip() {
@@ -179,8 +181,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   resetDb();
   seedPlanningTrip();
-  // The simplest non-empty EVENING digest: one Reminder dated today.
-  dbData.reminder = [{ id: "rem-1", tripId: TRIP_ID, title: "Print insurance docs", date: LOCAL_DATE }];
+  // The simplest non-empty EVENING digest: one Reminder dated TOMORROW, which
+  // is when an evening Digest reads reminders out (CONTEXT.md **Reminder**).
+  dbData.reminder = [{ id: "rem-1", tripId: TRIP_ID, title: "Print insurance docs", date: TOMORROW }];
   seedSubscription("sub-1");
   digestPreferenceFindUniqueMock.mockResolvedValue(null);
   digestDispatchCreateMock.mockResolvedValue({ id: "dd-1" });
@@ -380,6 +383,64 @@ describe("dispatchDigest", () => {
 
     expect(result).toEqual({ sent: 0, skipped: false });
     expect(pushSubscriptionDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("releases the claim when a device existed but nothing was delivered", async () => {
+    // sendPush swallows every non-404/410 error and returns { sent: false }
+    // without throwing, so a gateway 500 exits this loop *normally*. Leaving
+    // the ledger row standing means the redundancy run inside the same window
+    // answers "already-sent" and the day's Digest is lost with failed: 0 in the
+    // cron response and nothing in the logs. Sending twice on a lost response
+    // is strictly better than never sending.
+    sendPushMock.mockResolvedValue({ sent: false });
+
+    const result = await dispatch();
+
+    expect(result).toEqual({ sent: 0, skipped: false });
+    expect(digestDispatchDeleteMock).toHaveBeenCalledWith({
+      where: {
+        userId_tripId_localDate_slot: {
+          userId: USER_ID,
+          tripId: TRIP_ID,
+          localDate: LOCAL_DATE,
+          slot: "EVENING",
+        },
+      },
+    });
+  });
+
+  it("keeps the claim when at least one device took the push", async () => {
+    seedSubscription("sub-2");
+    sendPushMock.mockImplementation(async (sub: { endpoint: string }) =>
+      sub.endpoint.endsWith("sub-2") ? { sent: false } : { sent: true },
+    );
+
+    const result = await dispatch();
+
+    // Releasing here would re-open the slot and send the whole digest again to
+    // the device that already got it.
+    expect(result).toEqual({ sent: 1, skipped: false });
+    expect(digestDispatchDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("does not release a slot it never claimed when a forced test send fails", async () => {
+    sendPushMock.mockResolvedValue({ sent: false });
+
+    const result = await dispatch({ force: true });
+
+    expect(result).toEqual({ sent: 0, skipped: false });
+    expect(digestDispatchDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("does not touch the ledger when the user owns no device at all", async () => {
+    dbData.pushSubscription = [];
+
+    const result = await dispatch();
+
+    // Nothing failed — there was nowhere to send. The slot stays claimed, and
+    // a device subscribed later today does not get a backdated digest.
+    expect(result).toEqual({ sent: 0, skipped: false });
+    expect(digestDispatchDeleteMock).not.toHaveBeenCalled();
   });
 
   it("sends to every subscription the user owns", async () => {
@@ -590,9 +651,9 @@ describe("collectDigestInput", () => {
     expect(input.payments[0].label).toBe("Travel insurance");
   });
 
-  it("collects only undone checklist items inside the lookahead window", async () => {
+  it("collects undone checklist items up to the window end, overdue ones included", async () => {
     dbData.checklistItem = [
-      { id: "chk-1", tripId: TRIP_ID, done: false, dueDate: "2026-12-02", text: "Apply for the visa" },
+      { id: "chk-1", tripId: TRIP_ID, done: false, dueDate: TOMORROW, text: "Apply for the visa" },
       { id: "chk-done", tripId: TRIP_ID, done: true, dueDate: LOCAL_DATE, text: "Buy an eSIM" },
       { id: "chk-late", tripId: TRIP_ID, done: false, dueDate: "2026-12-05", text: "Pack" },
       { id: "chk-undated", tripId: TRIP_ID, done: false, dueDate: null, text: "Someday" },
@@ -605,17 +666,36 @@ describe("collectDigestInput", () => {
     ]);
   });
 
-  it("matches reminders on exactly the local date", async () => {
-    dbData.reminder = [
-      { id: "rem-today", tripId: TRIP_ID, title: "Print insurance docs", date: LOCAL_DATE },
-      { id: "rem-tomorrow", tripId: TRIP_ID, title: "Ring the landlord", date: "2026-12-02" },
-      { id: "rem-yesterday", tripId: TRIP_ID, title: "Old news", date: "2026-11-30" },
+  it("keeps an overdue checklist item in the digest until it is done", async () => {
+    // A Checklist item "persists until done" and keeps reappearing while
+    // overdue (CONTEXT.md **Checklist**) — that property is the whole
+    // distinction from a Reminder. A lower bound on dueDate would give it a
+    // Reminder's lifecycle: miss the day, lose the item, silently.
+    dbData.checklistItem = [
+      { id: "chk-overdue", tripId: TRIP_ID, done: false, dueDate: "2026-11-28", text: "Apply for the visa" },
+      { id: "chk-overdue-done", tripId: TRIP_ID, done: true, dueDate: "2026-11-28", text: "Buy an eSIM" },
     ];
 
     const input = await collect();
 
-    // A Reminder is said once, on its day — never carried forward or pulled in early.
-    expect(input.reminders).toEqual([{ id: "rem-today", title: "Print insurance docs" }]);
+    expect(input.checklist).toEqual([
+      { id: "chk-overdue", text: "Apply for the visa", daysUntil: -3 },
+    ]);
+  });
+
+  it("reads out tomorrow's reminders in the evening slot", async () => {
+    dbData.reminder = [
+      { id: "rem-today", tripId: TRIP_ID, title: "Old news", date: LOCAL_DATE },
+      { id: "rem-tomorrow", tripId: TRIP_ID, title: "Ring the landlord", date: TOMORROW },
+      { id: "rem-later", tripId: TRIP_ID, title: "Too early", date: "2026-12-03" },
+    ];
+
+    const input = await collect({ slot: "EVENING" });
+
+    // A Reminder is read out the evening BEFORE its date, alongside tomorrow's
+    // plan (CONTEXT.md **Reminder**): one delivered at 9pm on the day it was
+    // for arrives as that day is ending.
+    expect(input.reminders).toEqual([{ id: "rem-tomorrow", title: "Ring the landlord" }]);
   });
 
   it("leaves the schedule empty when the target day is before the trip starts", async () => {
@@ -648,7 +728,13 @@ describe("collectDigestInput", () => {
     // The trip departs tomorrow, so today's phase is still final-prep — but
     // this is the digest that must announce the outbound flight.
     dbData.trip = [
-      { id: TRIP_ID, startDate: "2026-12-02", endDate: "2026-12-12", homeName: "Sydney" },
+      {
+        id: TRIP_ID,
+        startDate: TOMORROW,
+        endDate: "2026-12-12",
+        homeName: "Sydney",
+        homeCountryCode: "au",
+      },
     ];
     dbData.stop = [
       { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Vienna", timezone: "Europe/Vienna" },
@@ -663,7 +749,9 @@ describe("collectDigestInput", () => {
         toStopId: "stop-1",
         depPlace: null,
         arrPlace: null,
-        depAt: new Date("2026-12-02T05:15:00Z"), // 06:15 in Vienna
+        // 16:15 UTC is 2026-12-02 03:15 in Sydney (AEDT) and still
+        // 2026-12-01 17:15 in Vienna.
+        depAt: new Date("2026-12-01T16:15:00Z"),
         reference: "QF29",
         depIsHome: true,
         arrIsHome: false,
@@ -674,7 +762,179 @@ describe("collectDigestInput", () => {
 
     expect(input.phase).toBe("final-prep");
     expect(input.schedule.transports).toEqual([
-      { id: "tr-outbound", mode: "FLIGHT", route: "Sydney → Vienna", localTime: "06:15" },
+      { id: "tr-outbound", mode: "FLIGHT", route: "Sydney → Vienna", localTime: "03:15" },
+    ]);
+  });
+
+  it("times a home-base departure in the trip's own zone, not the destination's", async () => {
+    // A Home base is not a Stop (CONTEXT.md **Home base**), so the outbound leg
+    // always has fromStopId: null. Reading it in the ARRIVAL stop's zone puts a
+    // Brisbane 06:00 departure at 21:00 the previous evening in Vienna — the
+    // Digest then mistimes the flight AND files it under the wrong day, while
+    // the published VALARM (relative to the true UTC instant) stays correct.
+    // The Digest exists to back the Alarm up; it must not contradict it.
+    dbData.trip = [
+      {
+        id: TRIP_ID,
+        startDate: TOMORROW,
+        endDate: "2026-12-12",
+        homeName: "Brisbane",
+        homeCountryCode: "au",
+      },
+    ];
+    dbData.stop = [
+      { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Vienna", timezone: "Europe/Vienna" },
+    ];
+    dbData.transport = [
+      {
+        id: "tr-outbound",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "FLIGHT",
+        fromStopId: null,
+        toStopId: "stop-1",
+        depPlace: null,
+        arrPlace: null,
+        // 2026-12-01T20:00Z: 2026-12-02 in eastern Australia, but still
+        // 2026-12-01 21:00 in Vienna.
+        depAt: new Date("2026-12-01T20:00:00Z"),
+        reference: "QF29",
+        depIsHome: true,
+        arrIsHome: false,
+      },
+    ];
+
+    const input = await collect({ slot: "EVENING" });
+
+    // Australia/Sydney, via the trip's homeCountryCode: a country-level guess,
+    // so inside a multi-zone country the wall clock can be an hour off
+    // (Brisbane keeps AEST while Sydney is on AEDT). The DAY is right, which is
+    // what decides whether the flight appears at all — and it is never read in
+    // Vienna, where this departure would fall on the wrong date entirely.
+    expect(input.schedule.transports).toEqual([
+      { id: "tr-outbound", mode: "FLIGHT", route: "Brisbane → Vienna", localTime: "07:00" },
+    ]);
+  });
+
+  it("still reads a stop-to-stop leg in its departure stop's zone", async () => {
+    // The home-base rule must not swallow the ordinary case: a leg that HAS a
+    // departure Stop is timed there, not in the trip's home zone.
+    dbData.trip = [
+      {
+        id: TRIP_ID,
+        startDate: "2026-11-25",
+        endDate: "2026-12-10",
+        homeName: "Brisbane",
+        homeCountryCode: "au",
+      },
+    ];
+    dbData.stop = [
+      { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Tokyo", timezone: "Asia/Tokyo" },
+      { id: "stop-2", tripId: TRIP_ID, forkId: null, name: "Osaka", timezone: "Asia/Tokyo" },
+    ];
+    dbData.transport = [
+      {
+        id: "tr-1",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "TRAIN",
+        fromStopId: "stop-1",
+        toStopId: "stop-2",
+        depPlace: null,
+        arrPlace: null,
+        depAt: new Date("2026-12-01T22:00:00Z"), // 07:00 on the 2nd in Tokyo
+        reference: null,
+        depIsHome: false,
+        arrIsHome: false,
+      },
+    ];
+
+    const input = await collect({ slot: "EVENING" });
+
+    expect(input.schedule.transports).toEqual([
+      { id: "tr-1", mode: "TRAIN", route: "Tokyo → Osaka", localTime: "07:00" },
+    ]);
+  });
+
+  it("names an outbound leg that departs the day BEFORE the trip's start date", async () => {
+    // startDate is the day the first Stop ARRIVES (lib/firm-up.ts), so an
+    // overnight long-haul outbound leaves the day before it. A gate closed
+    // exactly on startDate means no evening Digest ever names that flight and
+    // the travel-day morning Digest comes back empty — the same hole ADR 0047's
+    // amendment closed, one day earlier.
+    dbData.trip = [
+      {
+        id: TRIP_ID,
+        startDate: "2026-12-03", // the first stop is reached on the 3rd
+        endDate: "2026-12-12",
+        homeName: "Brisbane",
+        homeCountryCode: "au",
+      },
+    ];
+    dbData.stop = [
+      { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Vienna", timezone: "Europe/Vienna" },
+    ];
+    dbData.transport = [
+      {
+        id: "tr-outbound",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "FLIGHT",
+        fromStopId: null,
+        toStopId: "stop-1",
+        depPlace: null,
+        arrPlace: null,
+        depAt: new Date("2026-12-01T20:00:00Z"), // 2026-12-02 07:00 at home
+        reference: "QF29",
+        depIsHome: true,
+        arrIsHome: false,
+      },
+    ];
+
+    const input = await collect({ slot: "EVENING" });
+
+    expect(input.schedule.transports).toEqual([
+      { id: "tr-outbound", mode: "FLIGHT", route: "Brisbane → Vienna", localTime: "07:00" },
+    ]);
+  });
+
+  it("names the outbound leg again in the travel-day MORNING digest", async () => {
+    // The morning slot is cover for an Alarm the calendar app silently declined
+    // to fire, and departure day is the day it matters most. Before the fix it
+    // returned nothing at all, because departure day is still outside the gate.
+    dbData.trip = [
+      {
+        id: TRIP_ID,
+        startDate: "2026-12-02", // arrives tomorrow; departs today
+        endDate: "2026-12-12",
+        homeName: "Brisbane",
+        homeCountryCode: "au",
+      },
+    ];
+    dbData.stop = [
+      { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Vienna", timezone: "Europe/Vienna" },
+    ];
+    dbData.transport = [
+      {
+        id: "tr-outbound",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "FLIGHT",
+        fromStopId: null,
+        toStopId: "stop-1",
+        depPlace: null,
+        arrPlace: null,
+        depAt: new Date("2026-11-30T20:00:00Z"), // 2026-12-01 07:00 at home
+        reference: "QF29",
+        depIsHome: true,
+        arrIsHome: false,
+      },
+    ];
+
+    const input = await collect({ slot: "MORNING" });
+
+    expect(input.schedule.transports).toEqual([
+      { id: "tr-outbound", mode: "FLIGHT", route: "Brisbane → Vienna", localTime: "07:00" },
     ]);
   });
 

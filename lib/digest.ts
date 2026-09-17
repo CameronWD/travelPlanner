@@ -91,6 +91,13 @@ function formatPayment(line: DigestPaymentLine): string {
 }
 
 function formatChecklist(line: DigestChecklistLine): string {
+  // A Checklist item persists until done and keeps reappearing while overdue
+  // (CONTEXT.md **Checklist**), so `daysUntil` can be negative — and "due in -2
+  // days" is not a sentence. Say it plainly instead.
+  if (line.daysUntil < 0) {
+    const days = -line.daysUntil;
+    return `Checklist: ${line.text} — ${days} ${days === 1 ? "day" : "days"} overdue`;
+  }
   return line.daysUntil === 0
     ? `Checklist: ${line.text} due today`
     : `Checklist: ${line.text} due in ${line.daysUntil} days`;

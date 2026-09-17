@@ -124,6 +124,23 @@ describe("buildDigest", () => {
     ]);
   });
 
+  it("says an overdue checklist item is overdue, not 'due in -3 days'", () => {
+    // A Checklist item persists until done and keeps reappearing while overdue
+    // (CONTEXT.md **Checklist**), so daysUntil is genuinely negative here.
+    const d = buildDigest(
+      input({
+        checklist: [
+          { id: "k1", text: "visa application", daysUntil: -3 },
+          { id: "k2", text: "order euros", daysUntil: -1 },
+        ],
+      }),
+    );
+    expect(d?.body.split("\n")).toEqual([
+      "Checklist: visa application — 3 days overdue",
+      "Checklist: order euros — 1 day overdue",
+    ]);
+  });
+
   it("caps the body at six lines and counts the rest", () => {
     const d = buildDigest(
       input({
