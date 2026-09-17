@@ -30,11 +30,17 @@ vi.mock("@/lib/guards", () => ({
 }));
 vi.mock("@/server/actions/share", () => ({ getShareLink: vi.fn(async () => null) }));
 vi.mock("@/server/actions/calendar-feed", () => ({ getCalendarFeed: vi.fn(async () => null) }));
+vi.mock("@/server/actions/digest", () => ({
+  getDigestSettings: vi.fn(async () => ({ enabled: true, device: null })),
+}));
 vi.mock("@/components/trip/settings/trip-details-form", () => ({ TripDetailsForm: () => null }));
 vi.mock("@/components/trip/settings/cover-image-field", () => ({ CoverImageField: () => null }));
 vi.mock("@/components/trip/settings/invite-panel", () => ({ InvitePanel: () => null }));
 vi.mock("@/components/trip/settings/share-panel", () => ({ SharePanel: () => null }));
 vi.mock("@/components/trip/settings/calendar-feed-panel", () => ({ CalendarFeedPanel: () => null }));
+vi.mock("@/components/trip/settings/reminders-panel", () => ({
+  RemindersPanel: () => <div data-testid="reminders-panel" />,
+}));
 vi.mock("@/components/trip/settings/driving-estimates-panel", () => ({ DrivingEstimatesPanel: () => null }));
 vi.mock("@/components/trip/settings/danger-zone", () => ({ DangerZone: () => null }));
 vi.mock("@/components/trip/duplicate-trip-dialog", () => ({ DuplicateTripDialog: () => null }));
@@ -42,6 +48,7 @@ vi.mock("@/components/trip/chapters-manager", () => ({
   ChaptersManager: () => <div data-testid="chapters-manager" />,
 }));
 
+const { getDigestSettings } = await import("@/server/actions/digest");
 const { default: SettingsPage } = await import("./page");
 
 const BASE_TRIP = {
@@ -93,6 +100,29 @@ describe("SettingsPage chapter gating (Task 13)", () => {
     );
     expect(screen.getByText("Chapters")).toBeInTheDocument();
     expect(screen.getByTestId("chapters-manager")).toBeInTheDocument();
+  });
+});
+
+describe("SettingsPage Reminders card", () => {
+  it("mounts the Digest panel with this traveller's settings", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+
+    await renderSettings();
+
+    expect(getDigestSettings).toHaveBeenCalledWith("trip-1");
+    expect(screen.getByTestId("reminders-panel")).toBeInTheDocument();
+    expect(screen.getByText("Reminders")).toBeInTheDocument();
+  });
+
+  it("places Reminders immediately above the Calendar feed card", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+
+    await renderSettings();
+
+    const titles = screen
+      .getAllByRole("heading", { level: 3 })
+      .map((h) => h.textContent);
+    expect(titles.indexOf("Calendar feed")).toBe(titles.indexOf("Reminders") + 1);
   });
 });
 

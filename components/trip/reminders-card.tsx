@@ -4,57 +4,69 @@ import { useState, useTransition } from "react";
 import { Bell, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { EnableNotifications } from "@/components/trip/enable-notifications";
-import { addReminder, deleteReminder } from "@/server/actions/reminders";
+import { daysBetween, formatDayLabel } from "@/lib/dates";
+import {
+  addReminder,
+  deleteReminder,
+  type ReminderItem,
+} from "@/server/actions/reminders";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export interface ReminderItem {
-  id: string;
-  title: string;
-  fireAt: Date;
-  sent: boolean;
-}
-
 interface RemindersCardProps {
   tripId: string;
   reminders: ReminderItem[];
+  /**
+   * The trip's "today" as a YYYY-MM-DD string, computed on the server from the
+   * trip's current timezone. The card never reads the machine clock: a
+   * `new Date()` here would label a note by the *viewing device's* day, which
+   * is the timezone bug class this codebase pins its tests against.
+   */
+  today: string;
 }
 
 // ---------------------------------------------------------------------------
 // Relative + absolute label
 // ---------------------------------------------------------------------------
 
-function formatWhen(fireAt: Date): { relative: string; absolute: string } {
-  const now = new Date();
-  const diffMs = fireAt.getTime() - now.getTime();
-  const diffMin = Math.round(diffMs / 60_000);
-  const diffHr = Math.round(diffMs / 3_600_000);
-  const diffDay = Math.round(diffMs / 86_400_000);
-
-  let relative: string;
-  if (diffMs < 0) {
-    relative = "overdue";
-  } else if (diffMin < 60) {
-    relative = `in ${diffMin}m`;
-  } else if (diffHr < 24) {
-    relative = `in ${diffHr}h`;
-  } else if (diffDay === 1) {
-    relative = "tomorrow";
-  } else {
-    relative = `in ${diffDay}d`;
+/**
+ * A Reminder carries a date and never a time (CONTEXT.md "Reminder"), so the
+ * label is whole days only — no "in 3h", which would imply a firing moment
+ * TEEPEE cannot honour.
+ *
+ * `relative` is null when the stored date cannot be read as a calendar date.
+ * `Reminder.date` is a plain String column and `parseISODate` throws a
+ * RangeError on anything that isn't YYYY-MM-DD; because this card now renders
+ * on every phase of Home, one malformed legacy row would blank the entire
+ * front door rather than a single section. Falling back to the raw stored
+ * value keeps the note readable and the page standing.
+ */
+function formatWhen(
+  date: string,
+  today: string,
+): { relative: string | null; absolute: string } {
+  let days: number;
+  try {
+    days = daysBetween(today, date);
+  } catch {
+    return { relative: null, absolute: date };
   }
 
-  const absolute = fireAt.toLocaleString("en-GB", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  // No "passed" case: `listRemindersForTrip` queries `date >= today` and the
+  // card is given the trip's own today, so a Reminder already gone by never
+  // reaches here. A branch for it only looked like the card had a past to show.
+  let relative: string;
+  if (days === 0) {
+    relative = "today";
+  } else if (days === 1) {
+    relative = "tomorrow";
+  } else {
+    relative = `in ${days} days`;
+  }
 
-  return { relative, absolute };
+  return { relative, absolute: formatDayLabel(date) };
 }
 
 // ---------------------------------------------------------------------------
@@ -70,13 +82,13 @@ function AddReminderForm({
 }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
-  const [fireAt, setFireAt] = useState("");
+  const [date, setDate] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   function reset() {
     setTitle("");
-    setFireAt("");
+    setDate("");
     setError(null);
     setOpen(false);
   }
@@ -86,7 +98,7 @@ function AddReminderForm({
     setError(null);
 
     startTransition(async () => {
-      const result = await addReminder(tripId, { title, fireAt });
+      const result = await addReminder(tripId, { title, date });
       if (result.success) {
         reset();
         onAdded();
@@ -123,11 +135,11 @@ function AddReminderForm({
         autoFocus
       />
       <Input
-        type="datetime-local"
-        value={fireAt}
-        onChange={(e) => setFireAt(e.target.value)}
+        type="date"
+        value={date}
+        onChange={(e) => setDate(e.target.value)}
         required
-        aria-label="Reminder date and time"
+        aria-label="Reminder date"
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex gap-2">
@@ -152,9 +164,15 @@ function AddReminderForm({
 // Reminder row
 // ---------------------------------------------------------------------------
 
-function ReminderRow({ reminder }: { reminder: ReminderItem }) {
+function ReminderRow({
+  reminder,
+  today,
+}: {
+  reminder: ReminderItem;
+  today: string;
+}) {
   const [isPending, startTransition] = useTransition();
-  const { relative, absolute } = formatWhen(reminder.fireAt);
+  const { relative, absolute } = formatWhen(reminder.date, today);
 
   function handleDelete() {
     startTransition(async () => {
@@ -165,14 +183,16 @@ function ReminderRow({ reminder }: { reminder: ReminderItem }) {
   return (
     <li className="flex items-start justify-between gap-3 py-2">
       <div className="min-w-0 flex-1">
-        <p
-          className={`truncate text-sm font-medium ${reminder.sent ? "text-muted-foreground line-through" : "text-foreground"}`}
-        >
+        <p className="truncate text-sm font-medium text-foreground">
           {reminder.title}
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          <span className="font-medium">{relative}</span>
-          <span className="mx-1 opacity-50">·</span>
+          {relative && (
+            <>
+              <span className="font-medium">{relative}</span>
+              <span className="mx-1 opacity-50">·</span>
+            </>
+          )}
           <span>{absolute}</span>
         </p>
       </div>
@@ -195,19 +215,20 @@ function ReminderRow({ reminder }: { reminder: ReminderItem }) {
 // ---------------------------------------------------------------------------
 
 /**
- * RemindersCard — shows upcoming reminders for a trip with add/delete and the
- * enable-notifications control. Renders as a "use client" component; server
- * data is passed in via props from the page.
+ * RemindersCard — a Trip's dated notes, with add/delete. Rendered on the trip
+ * Home in *every* Phase (it used to sit behind the Travelling gate, which is
+ * why nobody could write one on a trip that had not started yet).
+ *
+ * The Digest opt-in is not here — that lives on the Trip's Settings page.
+ * Server data (including `today`) is passed in via props from the page.
  */
-export function RemindersCard({ tripId, reminders }: RemindersCardProps) {
-  // Sort: unsent first (ascending fireAt), then sent
-  const sorted = [...reminders].sort((a, b) => {
-    if (a.sent !== b.sent) return a.sent ? 1 : -1;
-    return a.fireAt.getTime() - b.fireAt.getTime();
-  });
-
-  const upcoming = sorted.filter((r) => !r.sent);
-  const past = sorted.filter((r) => r.sent);
+export function RemindersCard({ tripId, reminders, today }: RemindersCardProps) {
+  // No "passed" drawer, deliberately: a Reminder is said once, on its day, and
+  // is not something you complete (CONTEXT.md "Reminder"). A drawer of missed
+  // notes would quietly turn Reminders into tasks and duplicate what a
+  // Checklist item already does properly — that is where a thing that must
+  // survive being missed belongs.
+  const upcoming = [...reminders].sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <div className="rounded-xl border border-border bg-card px-4 py-4">
@@ -219,16 +240,11 @@ export function RemindersCard({ tripId, reminders }: RemindersCardProps) {
         </h3>
       </div>
 
-      {/* Enable notifications control */}
-      <div className="mb-4">
-        <EnableNotifications />
-      </div>
-
       {/* Upcoming reminders */}
       {upcoming.length > 0 ? (
         <ul className="divide-y divide-border" aria-label="Upcoming reminders">
           {upcoming.map((r) => (
-            <ReminderRow key={r.id} reminder={r} />
+            <ReminderRow key={r.id} reminder={r} today={today} />
           ))}
         </ul>
       ) : (
@@ -241,23 +257,6 @@ export function RemindersCard({ tripId, reminders }: RemindersCardProps) {
       <div className="mt-3">
         <AddReminderForm tripId={tripId} onAdded={() => {}} />
       </div>
-
-      {/* Sent reminders (collapsed) */}
-      {past.length > 0 && (
-        <details className="mt-4">
-          <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
-            {past.length} sent reminder{past.length !== 1 ? "s" : ""}
-          </summary>
-          <ul
-            className="mt-2 divide-y divide-border"
-            aria-label="Sent reminders"
-          >
-            {past.map((r) => (
-              <ReminderRow key={r.id} reminder={r} />
-            ))}
-          </ul>
-        </details>
-      )}
     </div>
   );
 }

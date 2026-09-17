@@ -18,6 +18,8 @@ export type CalendarFeedState = {
   includeTransport: boolean;
   includeAccommodation: boolean;
   includeActivities: boolean;
+  alarmTransport: boolean;
+  alarmCheckOut: boolean;
 };
 
 /**
@@ -37,6 +39,8 @@ export async function getCalendarFeed(
       includeTransport: true,
       includeAccommodation: true,
       includeActivities: true,
+      alarmTransport: true,
+      alarmCheckOut: true,
     },
   });
 
@@ -138,6 +142,30 @@ export async function updateCalendarFeedFilter(
       includeTransport: filter.includeTransport,
       includeAccommodation: filter.includeAccommodation,
       includeActivities: filter.includeActivities,
+    },
+  });
+
+  revalidatePath(`/trips/${tripId}/settings`);
+}
+
+/**
+ * Update which Alarms the trip's calendar feed publishes (CONTEXT.md "Alarm").
+ * No-op when no feed exists. Same token — calendars pick the change up on their
+ * next refresh, which can be up to a day on Google (ADR 0047).
+ *
+ * Access-checked: the calling user must be a member of the trip.
+ */
+export async function updateCalendarFeedAlarms(
+  tripId: string,
+  alarms: { alarmTransport: boolean; alarmCheckOut: boolean },
+): Promise<void> {
+  await requireTripAccess(tripId);
+
+  await db.calendarFeed.updateMany({
+    where: { tripId },
+    data: {
+      alarmTransport: alarms.alarmTransport,
+      alarmCheckOut: alarms.alarmCheckOut,
     },
   });
 

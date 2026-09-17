@@ -25,10 +25,6 @@ import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import { zoneLabel } from "@/lib/time-display";
 import type { TransportMode } from "@/lib/enums";
-import {
-  RemindersCard,
-  type ReminderItem,
-} from "@/components/trip/reminders-card";
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 import { ChapterChip } from "@/components/trip/chapter-chip";
 import { WISHLIST_IDEA_WHERE, THINGS_TO_DO_WHERE } from "@/lib/plan-scope";
@@ -61,8 +57,10 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
   const startDate = trip.startDate;
   const endDate = trip.endDate ?? trip.startDate;
 
-  // Fetch all itinerary data (plus costs + reminders + chapters + located wishlist candidates)
-  const [stops, items, transports, accommodations, costs, reminders, chapters, wishlist, allAttachments] = await Promise.all([
+  // Fetch all itinerary data (plus costs + chapters + located wishlist candidates).
+  // Reminders are NOT fetched here: the Reminders card is rendered by the trip
+  // Home page in every Phase, not only while Travelling.
+  const [stops, items, transports, accommodations, costs, chapters, wishlist, allAttachments] = await Promise.all([
     db.stop.findMany({
       // Rough (date-less) stops don't appear on a dated "today" view.
       // Dated views follow the real plan — CONTEXT.md; consistent with
@@ -154,21 +152,6 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
         ownerId: true,
         label: true,
         category: true,
-      },
-    }),
-    // COST_DUE rows are cron idempotency markers (see CONTEXT.md "Due date"),
-    // not user-facing reminders — exclude them so they don't show up in the
-    // Reminders card's sent-history (and become user-deletable, which would
-    // re-arm a duplicate push that day). NOT-exclusion (rather than
-    // `targetType: null`) so any future legitimately-typed reminders still show.
-    db.reminder.findMany({
-      where: { tripId, NOT: { targetType: "COST_DUE" } },
-      orderBy: { fireAt: "asc" },
-      select: {
-        id: true,
-        title: true,
-        fireAt: true,
-        sent: true,
       },
     }),
     // A disabled trip renders as if it had no chapters (Task 13) — skip the
@@ -608,17 +591,6 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
           )}
         </div>
       </div>
-
-      {/* ── Reminders (full-width, below the grid) ── */}
-      <section className="flex flex-col gap-1">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-          Reminders
-        </h3>
-        <RemindersCard
-          tripId={tripId}
-          reminders={reminders as ReminderItem[]}
-        />
-      </section>
 
       {/* ── Quick links ── */}
       <div className="flex flex-wrap gap-3 text-sm">

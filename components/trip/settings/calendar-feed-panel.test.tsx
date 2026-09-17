@@ -8,9 +8,14 @@ vi.mock("@/server/actions/calendar-feed", () => ({
   rotateCalendarFeed: vi.fn(async () => ({ token: "rotated-token" })),
   revokeCalendarFeed: vi.fn(async () => undefined),
   updateCalendarFeedFilter: vi.fn(async () => undefined),
+  updateCalendarFeedAlarms: vi.fn(async () => undefined),
 }));
 
-import { rotateCalendarFeed, updateCalendarFeedFilter } from "@/server/actions/calendar-feed";
+import {
+  rotateCalendarFeed,
+  updateCalendarFeedFilter,
+  updateCalendarFeedAlarms,
+} from "@/server/actions/calendar-feed";
 
 describe("CalendarFeedPanel", () => {
   beforeEach(() => {
@@ -108,5 +113,39 @@ describe("CalendarFeedPanel", () => {
     // Cancel
     await user.click(screen.getByRole("button", { name: /cancel/i }));
     expect(rotateCalendarFeed).not.toHaveBeenCalled();
+  });
+
+  it("persists the new alarm flags when 'Alarm before departures' is toggled off", async () => {
+    const user = userEvent.setup();
+    render(
+      <CalendarFeedPanel
+        tripId="trip-1"
+        initialToken="tok-abc"
+        initialAlarms={{ alarmTransport: true, alarmCheckOut: true }}
+      />,
+    );
+
+    await user.click(screen.getByRole("checkbox", { name: "Alarm before departures" }));
+
+    expect(updateCalendarFeedAlarms).toHaveBeenCalledWith("trip-1", {
+      alarmTransport: false,
+      alarmCheckOut: true,
+    });
+  });
+
+  it("renders the iOS Remove Alerts instruction verbatim", () => {
+    render(<CalendarFeedPanel tripId="trip-1" initialToken="tok-abc" />);
+
+    expect(screen.getByText(/On iPhone, do this once:/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Settings → Apps → Calendar → Accounts → Subscribed Calendars → this trip →/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/turn/)).toBeInTheDocument();
+    expect(screen.getByText("Remove Alerts")).toBeInTheDocument();
+    expect(
+      screen.getByText(/iOS strips alarms from subscribed calendars by default/),
+    ).toBeInTheDocument();
   });
 });

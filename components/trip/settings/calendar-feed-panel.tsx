@@ -8,6 +8,7 @@ import {
   rotateCalendarFeed,
   revokeCalendarFeed,
   updateCalendarFeedFilter,
+  updateCalendarFeedAlarms,
 } from "@/server/actions/calendar-feed";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
@@ -19,6 +20,10 @@ export interface CalendarFeedPanelProps {
     includeAccommodation: boolean;
     includeActivities: boolean;
   };
+  initialAlarms?: {
+    alarmTransport: boolean;
+    alarmCheckOut: boolean;
+  };
 }
 
 export function CalendarFeedPanel({
@@ -29,10 +34,15 @@ export function CalendarFeedPanel({
     includeAccommodation: true,
     includeActivities: true,
   },
+  initialAlarms = {
+    alarmTransport: true,
+    alarmCheckOut: true,
+  },
 }: CalendarFeedPanelProps) {
   const [token, setToken] = React.useState<string | null>(initialToken);
   const [copied, setCopied] = React.useState(false);
   const [filter, setFilter] = React.useState(initialFilter);
+  const [alarms, setAlarms] = React.useState(initialAlarms);
   const [isPending, startTransition] = React.useTransition();
   const { confirm, dialog } = useConfirm();
 
@@ -44,6 +54,17 @@ export function CalendarFeedPanel({
     setFilter(next);
     startTransition(async () => {
       await updateCalendarFeedFilter(tripId, next);
+    });
+  };
+
+  const setAlarm = (
+    key: "alarmTransport" | "alarmCheckOut",
+    value: boolean,
+  ) => {
+    const next = { ...alarms, [key]: value };
+    setAlarms(next);
+    startTransition(async () => {
+      await updateCalendarFeedAlarms(tripId, next);
     });
   };
 
@@ -131,6 +152,32 @@ export function CalendarFeedPanel({
             {label}
           </label>
         ))}
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium text-foreground">Alarms</legend>
+        {([
+          ["alarmTransport", "Alarm before departures"],
+          ["alarmCheckOut", "Alarm on check-out mornings"],
+        ] as const).map(([key, label]) => (
+          <label key={key} className="flex items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              className="size-4 accent-primary"
+              checked={alarms[key]}
+              disabled={isPending}
+              onChange={(e) => setAlarm(key, e.target.checked)}
+            />
+            {label}
+          </label>
+        ))}
+        <p className="mt-2 text-xs text-muted-foreground">
+          <strong className="font-medium text-foreground">On iPhone, do this once:</strong>{" "}
+          Settings → Apps → Calendar → Accounts → Subscribed Calendars → this trip →
+          turn <strong className="font-medium text-foreground">Remove Alerts</strong> off.
+          iOS strips alarms from subscribed calendars by default, and nothing tells you
+          it has.
+        </p>
       </fieldset>
 
       <div className="flex flex-wrap gap-2">

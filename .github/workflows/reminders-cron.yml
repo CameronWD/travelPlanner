@@ -1,24 +1,25 @@
 name: Reminders cron
 
-# Trigger the push-reminder dispatcher on a schedule. The endpoint is auth'd
-# by CRON_SECRET (fail-closed if unset). GitHub may delay scheduled runs under
-# load, and disables schedules after 60 days of repo inactivity — fine for a
-# low-stakes reminder ping.
+# Trigger the Digest dispatcher on a schedule. The endpoint is auth'd by
+# CRON_SECRET (fail-closed if unset). GitHub may delay scheduled runs under
+# load, and disables schedules after 60 days of repo inactivity — tolerable
+# here because the route matches a three-hour local window, not an exact hour.
 #
-# CADENCE: daily, off-peak minute. Every authorized hit wakes Neon (~5 min of
-# compute), so cadence is the CU-hour lever: daily ≈ 3 CU-h/month vs ~60 for
-# hourly on the 100 CU-h free tier. Daily is enough while the reminders
-# feature has no production users (zero Reminder rows / push subscriptions as
-# of 2026-09-16), and the payment-alert pass is UTC-day granular by design.
+# CADENCE: five fixed UTC hours. The route dispatches only to subscribers whose
+# LOCAL hour falls in a morning (06–08) or evening (20–22) window, so the
+# schedule's job is simply to have a run land inside each window for each zone
+# we serve — the filtering is the route's, not the cron's. Every authorized hit
+# wakes Neon (~5 min of compute), which is the CU-hour lever: five runs a day
+# ≈ 15 CU-h/month against the 100 CU-h free tier, and each extra zone is one
+# more hour at roughly 3 CU-h/month (ADR 0047).
 #
-# ⚠️ BUMP TO HOURLY ("23 * * * *") BEFORE LATE NOVEMBER 2026: the first real
-# payment alert lands Nov 28 (cost due 2026-12-01) and travel starts early
-# December — from then, user-set reminders being up to a day late stops being
-# acceptable.
+# The two halves of this — these UTC hours and the route's local windows — are
+# one contract, and lib/digest-schedule.test.ts fails if you edit either side
+# alone. Do not "tidy" an hour out of the list without running it.
 #
 # The job skips cleanly when APP_URL or CRON_SECRET are missing rather than
-# failing: an unconfigured repo should stay quiet, not email a failure every
-# five minutes. See docs/DEPLOY.md §5 for the repo Secret + Variable to set.
+# failing: an unconfigured repo should stay quiet, not email a failure on every
+# run. See docs/DEPLOY.md §5 for the repo Secret + Variable to set.
 #
 # A non-2xx response from a *configured* endpoint (e.g. the app itself is
 # down) is logged clearly but does NOT fail the job: transient outages are
@@ -29,7 +30,28 @@ name: Reminders cron
 # still fails the job — that case is worth surfacing loudly.
 on:
   schedule:
-    - cron: "23 23 * * *"
+    # Each run dispatches only to subscribers whose LOCAL hour falls in the
+    # morning (06–08) or evening (20–22) window (app/api/cron/reminders/route.ts).
+    # These five UTC hours cover Central Europe (UTC+1/+2) and eastern
+    # Australia in BOTH of its offsets — AEDT (UTC+11, December) and AEST
+    # (UTC+10, the other seven months, and Brisbane all year round). Where each
+    # run lands, ✔ marking the one that actually delivers:
+    #
+    #   UTC    Vienna CET       Brisbane AEST         Sydney AEDT
+    #   06:00  07:00 MORNING ✔  16:00 —               17:00 —
+    #   09:00  10:00 —          19:00 —               20:00 EVENING ✔
+    #   10:00  11:00 —          20:00 EVENING ✔       21:00 EVENING (absorbed)
+    #   19:00  20:00 EVENING ✔  05:00 —               06:00 MORNING ✔ (next day)
+    #   20:00  21:00 (absorbed) 06:00 MORNING ✔ (+1d) 07:00 MORNING (absorbed)
+    #
+    # An "absorbed" run sends nothing: the dispatch ledger is keyed
+    # (user, trip, local date, slot), so the second run in a window is a no-op.
+    # Adding a zone is one more hour here, at roughly 3 CU-h/month each
+    # (ADR 0047) — a half-hour zone included, and with no code change: the
+    # route filters on the subscriber's local HOUR, so a 15:00Z run is 20:30
+    # in Asia/Kolkata and 20:45 in Asia/Kathmandu, hour 20 either way, which
+    # already matches EVENING. See docs/DEPLOY.md §5.
+    - cron: "0 6,9,10,19,20 * * *"
   workflow_dispatch: {}
 
 permissions: {}
@@ -64,7 +86,7 @@ jobs:
             # 503 is the route's dedicated "push is not configured" signal
             # (VAPID env vars missing on the deployment). Unlike a transient
             # outage this is a persistent misconfiguration, so fail the job —
-            # on the daily schedule that is one loud email per day, not spam.
+            # on this schedule that is at most five loud emails a day, not spam.
             echo "::error title=Reminders cron misconfigured::HTTP 503 — the app reports push is not configured (VAPID env vars missing on the deployment). Failing the job so this is not silent."
             exit 1
           fi

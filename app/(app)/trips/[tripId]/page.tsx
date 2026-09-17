@@ -8,6 +8,8 @@ import { PhasePlanning } from "@/components/trip/home/phase-planning";
 import { PhaseTravelling } from "@/components/trip/home/phase-travelling";
 import { PhasePast } from "@/components/trip/home/phase-past";
 import { TripCover } from "@/components/trip/trip-cover";
+import { RemindersCard } from "@/components/trip/reminders-card";
+import { listRemindersForTrip } from "@/server/actions/reminders";
 import { orderPlanStops } from "@/lib/plan-order";
 
 export default async function TripHomePage({
@@ -72,6 +74,11 @@ export default async function TripHomePage({
     </div>
   );
 
+  // Reminders are a Trip's dated notes and belong on Home in *every* Phase —
+  // they used to render only inside PhaseTravelling, so on a trip that had not
+  // started nobody could see or write one.
+  const reminders = await listRemindersForTrip(tripId, today);
+
   const phaseEl = (() => {
     switch (phase) {
       case "sketching":
@@ -85,5 +92,13 @@ export default async function TripHomePage({
     }
   })();
 
-  return <>{cover}{phaseEl}</>;
+  return (
+    <>
+      {cover}
+      {phaseEl}
+      <section className="mt-6 flex flex-col gap-1">
+        <RemindersCard tripId={tripId} reminders={reminders} today={today} />
+      </section>
+    </>
+  );
 }

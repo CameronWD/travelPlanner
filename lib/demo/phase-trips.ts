@@ -241,17 +241,15 @@ export function buildFinalPrepTrip(today: string): DemoTrip {
     { kind: "PACKING", text: "Snacks for the trail", done: false },
   ];
 
-  // Reminder firing ~2 days from today (i.e., the day before departure)
+  // Reminders dated ~2 days from today (i.e., the day before departure)
   const reminders: DemoReminder[] = [
     {
       title: "Check in online & confirm train times for Blue Mountains trip",
-      fireAt: `${addDays(today, 2)}T08:00:00+10:00`,
-      sent: false,
+      date: addDays(today, 2),
     },
     {
       title: "Pack bag tonight — departure tomorrow morning",
-      fireAt: `${addDays(today, 2)}T19:00:00+10:00`,
-      sent: false,
+      date: addDays(today, 2),
     },
   ];
 

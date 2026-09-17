@@ -1,18 +1,45 @@
 /**
  * GET /api/cron/reminders
  *
- * Processes due reminders and dispatches web-push notifications to trip members.
+ * The Digest dispatcher (CONTEXT.md **Digest**, ADR 0047). Every run asks a
+ * single question — which subscribers are in their morning or evening *window
+ * in their own timezone right now* — and sends each of them at most one Digest
+ * per Trip. Nothing here broadcasts to a Trip's membership: a Digest is
+ * per-person, and `dispatchDigest` pushes to that person's own devices and
+ * prunes dead ones.
  *
  * ---
  * SCHEDULING
- * Wire this endpoint to a scheduler that calls it periodically (e.g. every minute):
+ * The workflow fires at five fixed UTC hours (.github/workflows/reminders-cron.yml,
+ * `0 6,9,10,19,20 * * *`) and this route filters each run by the subscriber's
+ * LOCAL hour, so the fixed schedule lands at the right wall-clock time in each
+ * traveller's zone. Where each run lands, and which of them actually delivers:
  *
- *   Vercel Cron (vercel.json):
- *     { "crons": [{ "path": "/api/cron/reminders?secret=<CRON_SECRET>", "schedule": "* * * * *" }] }
+ *     UTC   Europe/Vienna (CET)  Australia/Brisbane (AEST)  Australia/Sydney (AEDT)
+ *     06:00 07:00 MORNING ✔      16:00 —                    17:00 —
+ *     09:00 10:00 —              19:00 —                    20:00 EVENING ✔
+ *     10:00 11:00 —              20:00 EVENING ✔            21:00 EVENING (absorbed)
+ *     19:00 20:00 EVENING ✔      05:00 —                    06:00 MORNING ✔ (next day)
+ *     20:00 21:00 EVENING (abs.) 06:00 MORNING ✔ (next day) 07:00 MORNING (absorbed)
  *
- *   GitHub Actions (cron job):
- *     curl -s "https://your-app.com/api/cron/reminders" \
- *       -H "Authorization: Bearer $CRON_SECRET"
+ * "Absorbed" is not waste: a second run inside the same window finds the ledger
+ * row already claimed for that (user, trip, local date, slot) and sends nothing.
+ * That redundancy is deliberate cover for a delayed run, which is also why the
+ * match is a three-hour WINDOW rather than an exact hour — GitHub Actions
+ * delays scheduled runs under load, and an exact-hour test would mean a run
+ * that slipped past the boundary silently skipped *everyone*, with no retry
+ * since eligibility is itself by hour.
+ *
+ * The 10:00Z run exists because UTC+10 is real and permanent: Australia/Brisbane
+ * never observes daylight saving, and Australia/Sydney is UTC+10 for roughly
+ * seven months of the year. Without it those zones get a morning Digest and
+ * never the 8pm one, which is the product (ADR 0008 records the first trip as
+ * Brisbane → Europe → Brisbane).
+ *
+ * A subscriber outside both windows is simply passed over, so adding a UTC hour
+ * for a new region costs nothing here. Because the local date is read in the
+ * subscriber's zone too, the 19:00Z and 20:00Z runs correctly date an Australian
+ * traveller's morning Digest to the *following* calendar day.
  *
  * ---
  * AUTHENTICATION
@@ -27,13 +54,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
-import { sendPush, buildNotificationPayload, isPushConfigured } from "@/lib/push";
-import { addDays, daysBetween } from "@/lib/dates";
-import { formatMoney } from "@/lib/money";
-import { buildCostLabelMap, costLabel } from "@/lib/cost-labels";
+import { isPushConfigured } from "@/lib/push";
+import { dispatchDigest } from "@/lib/digest-dispatch";
+import { slotForZone } from "@/lib/digest-schedule";
+import { instantToZonedDateISO } from "@/lib/tz";
 
 // Force Node.js runtime — required for Prisma + web-push (not edge-compatible)
 export const runtime = "nodejs";
+
+// The local wall-clock hours a Digest is sent in — and the slot resolver that
+// reads them — live in lib/digest-schedule.ts, where a test can hold them
+// against the workflow's cron expression. They are LOCAL hours, not UTC ones:
+// the workflow's five UTC hours (06/09/10/19/20 — see SCHEDULING above) exist
+// only so that every zone we serve has a run landing inside each window.
+// Changing either window means revisiting that cron expression, and
+// lib/digest-schedule.test.ts fails if you change one without the other.
+
+/** A backstop against one pathological account, not a real limit. */
+const MAX_TRIPS_PER_USER = 50;
+
+// A backstop against one pathological run, not a real limit: it bounds the work
+// a single invocation can take on. If the subscriber list ever approaches this,
+// the fix is a cursor over the scan (paging across runs), NOT a bigger number —
+// a run that hits the cap drops everyone past it for that slot.
+const MAX_SUBSCRIPTIONS_PER_RUN = 2000;
 
 // ---------------------------------------------------------------------------
 // Auth helper
@@ -69,62 +113,6 @@ function isAuthorized(req: NextRequest): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Push-to-trip-members helper (shared by the Reminder pass and the due-date
-// payment-alert pass below).
-// ---------------------------------------------------------------------------
-
-/**
- * Sends `payload` to every push subscription belonging to a trip's members,
- * pruning subscriptions the push service reports as gone (404/410).
- */
-async function pushToTripMembers(
-  tripId: string,
-  payload: string,
-): Promise<{ sent: number; skipped: number }> {
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: { members: { select: { userId: true } } },
-  });
-  const memberUserIds = trip?.members.map((m) => m.userId) ?? [];
-  if (memberUserIds.length === 0) return { sent: 0, skipped: 0 };
-
-  // Fetch push subscriptions for all trip members
-  const subscriptions = await db.pushSubscription.findMany({
-    where: { userId: { in: memberUserIds } },
-    select: { id: true, endpoint: true, p256dh: true, auth: true },
-  });
-
-  let sent = 0;
-  let skipped = 0;
-  const goneIds: string[] = [];
-
-  for (const sub of subscriptions) {
-    const result = await sendPush(
-      { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
-      payload,
-    );
-
-    if (result.sent) {
-      sent++;
-    } else if ("skipped" in result && result.skipped) {
-      skipped++;
-    } else if ("gone" in result && result.gone) {
-      // Subscription is stale — collect for cleanup
-      goneIds.push(sub.id);
-    }
-  }
-
-  // Prune stale subscriptions
-  if (goneIds.length > 0) {
-    await db.pushSubscription.deleteMany({
-      where: { id: { in: goneIds } },
-    });
-  }
-
-  return { sent, skipped };
-}
-
-// ---------------------------------------------------------------------------
 // Route handler
 // ---------------------------------------------------------------------------
 
@@ -133,205 +121,114 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Missing VAPID config is a hard stop BEFORE any DB query. "Push failed"
-  // and "push isn't configured" are different states: the first is a delivery
-  // outcome worth consuming a reminder for (see the mark-sent-regardless
-  // comment below), the second is a misconfiguration where consuming
-  // reminders would be silent data loss — sendPush() would skip every send
-  // while the loop marked them sent. Bailing here also avoids waking Neon
-  // for work that cannot be delivered. 503 (not 500) so the scheduler can
-  // fail loudly on this specific state.
+  // Missing VAPID config is a hard stop BEFORE any DB query, and this bail is
+  // what protects the whole run: dispatchDigest claims its ledger slot BEFORE
+  // it sends, so dispatching while delivery cannot succeed would burn every
+  // subscriber's slot for the day — silent, un-resendable data loss. Bailing
+  // here also avoids waking Neon for work that cannot be delivered. 503 (not
+  // 500) so the scheduler can fail loudly on this specific state.
   if (!isPushConfigured()) {
     return NextResponse.json(
       {
         error:
-          "Push is not configured: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT must be set. No reminders were read or consumed.",
+          "Push is not configured: VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT must be set. No Digest was built, claimed or sent.",
       },
       { status: 503 },
     );
   }
 
   const now = new Date();
-  let processed = 0;
+  /** Distinct (user, zone) pairs examined this run. */
+  let considered = 0;
+  /** dispatchDigest calls made (a skipped dispatch still counts as one). */
+  let dispatched = 0;
+  /** Pushes actually delivered. */
   let sent = 0;
+  /** Dispatches that produced no push — disabled, already sent, or empty. */
   let skipped = 0;
-  let dueAlerts = 0;
+  /** Dispatches that threw. One bad trip must not cost everyone else their Digest. */
+  let failed = 0;
 
   try {
-    // Find all due, unsent reminders
-    const dueReminders = await db.reminder.findMany({
-      where: {
-        fireAt: { lte: now },
-        sent: false,
-      },
-      // Bounded batch: after an outage the backlog drains across successive
-      // */5 runs instead of one request that can outlive a serverless timeout.
-      orderBy: { fireAt: "asc" },
-      take: 200,
-      select: {
-        id: true,
-        tripId: true,
-        title: true,
-      },
+    // A subscription with no stored timezone cannot be scheduled: there is no
+    // local hour to compare against, and guessing one would deliver the Digest
+    // at the wrong time of day. Those rows are simply never dispatched to.
+    const subscriptions = await db.pushSubscription.findMany({
+      where: { timezone: { not: null } },
+      select: { userId: true, timezone: true },
+      take: MAX_SUBSCRIPTIONS_PER_RUN,
     });
 
-    for (const reminder of dueReminders) {
-      processed++;
+    if (subscriptions.length === MAX_SUBSCRIPTIONS_PER_RUN) {
+      // Truncation drops real people's Digests, so say so loudly. Silent
+      // truncation is the failure mode this whole log line exists to prevent.
+      console.warn(
+        `[cron/reminders] Subscription scan hit the ${MAX_SUBSCRIPTIONS_PER_RUN}-row cap — subscribers beyond it were not considered this run. Move the scan to a cursor.`,
+      );
+    }
 
-      // Build the notification payload
-      const payload = buildNotificationPayload({
-        title: reminder.title,
-        body: "Trip reminder",
-        url: `/trips/${reminder.tripId}`,
-      });
-
-      const result = await pushToTripMembers(reminder.tripId, payload);
-      sent += result.sent;
-      skipped += result.skipped;
-
-      // Mark reminder as sent regardless of push result
-      // (prevents repeated firing even if push is not configured)
-      await db.reminder.update({
-        where: { id: reminder.id },
-        data: { sent: true },
+    // Deduplicate on (userId, timezone), NOT on subscription: dispatchDigest
+    // already pushes to every device the user owns, so one person with three
+    // phones in one zone is ONE dispatch per trip, not three identical pushes.
+    const pairs = new Map<string, { userId: string; timezone: string }>();
+    for (const s of subscriptions) {
+      if (!s.timezone) continue;
+      pairs.set(JSON.stringify([s.userId, s.timezone]), {
+        userId: s.userId,
+        timezone: s.timezone,
       });
     }
 
-    // ── Second pass: due-date payment alerts (CONTEXT.md "Due date") ───────
-    // Unpaid, non-forked costs with a due date get a push at 3 days out and
-    // on the day the money leaves the account. Idempotency is a marker
-    // Reminder row keyed by (targetType, targetId, fireAt) — one per cost per
-    // calendar day, so re-running the cron (or hitting both offsets on
-    // different days) never double-sends for the same day.
-    const ALERT_OFFSETS_DAYS = [3, 0] as const;
-    const todayUTC = now.toISOString().slice(0, 10);
+    for (const { userId, timezone } of pairs.values()) {
+      considered++;
 
-    // Only two calendar days can ever produce an alert, so ask the database
-    // for exactly those two instead of pulling every unpaid dated cost in
-    // every trip and filtering in JS. Cost.dueDate is a "YYYY-MM-DD" string
-    // with an @@index, so this is an indexed lookup. `take` is a backstop
-    // against one pathological day, mirroring the first pass's take: 200.
-    const alertDates = ALERT_OFFSETS_DAYS.map((offset) =>
-      addDays(todayUTC, offset),
-    );
+      const slot = slotForZone(now, timezone);
+      if (!slot) continue;
 
-    const dueCosts = await db.cost.findMany({
-      where: { dueDate: { in: alertDates }, paidAt: null, forkId: null },
-      take: 500,
-      select: {
-        id: true,
-        tripId: true,
-        dueDate: true,
-        costMinor: true,
-        currency: true,
-        label: true,
-        ownerType: true,
-        ownerId: true,
-      },
-    });
+      // The local date is read in the subscriber's zone as well, so a run that
+      // fires at 20:00Z dates an AEDT traveller's morning Digest to tomorrow.
+      const localDate = instantToZonedDateISO(now, timezone);
 
-    // Batch owner-name resolution: one set of lookups per trip, not per cost.
-    const costsByTrip = new Map<string, typeof dueCosts>();
-    for (const cost of dueCosts) {
-      const list = costsByTrip.get(cost.tripId);
-      if (list) list.push(cost);
-      else costsByTrip.set(cost.tripId, [cost]);
-    }
-
-    const labelByCostId = new Map<string, string>();
-    for (const [tripId, costsForTrip] of costsByTrip) {
-      const [items, accommodations, transports, stops] = await Promise.all([
-        db.item.findMany({
-          where: { tripId, forkId: null },
-          select: { id: true, title: true },
-        }),
-        db.accommodation.findMany({
-          where: { tripId, forkId: null },
-          select: { id: true, name: true },
-        }),
-        db.transport.findMany({
-          where: { tripId, forkId: null },
-          select: { id: true, mode: true, fromStopId: true, toStopId: true },
-        }),
-        db.stop.findMany({
-          where: { tripId, forkId: null },
-          select: { id: true, name: true },
-        }),
-      ]);
-
-      // Transport has no free-text place of its own when it's linked to a
-      // stop — depPlace/arrPlace and fromStopId/toStopId are mutually
-      // exclusive (Task 12) — so resolve stop-linked transports via the
-      // trip's stop names, mirroring the budget page's caller-side
-      // resolution (app/(app)/trips/[tripId]/budget/page.tsx).
-      const stopName = new Map(stops.map((s) => [s.id, s.name] as const));
-      const ownerNames = buildCostLabelMap({
-        items,
-        accommodations,
-        transports: transports.map((t) => ({
-          id: t.id,
-          mode: t.mode,
-          depPlace: t.fromStopId ? (stopName.get(t.fromStopId) ?? null) : null,
-          arrPlace: t.toStopId ? (stopName.get(t.toStopId) ?? null) : null,
-        })),
+      const memberships = await db.tripMember.findMany({
+        where: { userId },
+        select: { tripId: true },
+        take: MAX_TRIPS_PER_USER,
       });
 
-      for (const cost of costsForTrip) {
-        labelByCostId.set(cost.id, costLabel(cost, ownerNames));
+      for (const { tripId } of memberships) {
+        // Contained per trip on purpose. Without this, one bad trip aborts the
+        // run and every subscriber after it loses that day's Digest with no
+        // retry — eligibility is by local hour, so the next run is a day away.
+        // The dispatcher also claims its ledger row before building and
+        // releases it only on the empty path, so a throw after the claim burns
+        // that slot for good. One failure, one lost Digest.
+        try {
+          const result = await dispatchDigest({ userId, tripId, localDate, slot });
+          dispatched++;
+          sent += result.sent;
+          if (result.skipped) skipped++;
+        } catch (err) {
+          failed++;
+          console.error(
+            `[cron/reminders] Digest dispatch failed for user ${userId} trip ${tripId}:`,
+            err,
+          );
+        }
       }
     }
 
-    for (const cost of dueCosts) {
-      const daysUntil = daysBetween(todayUTC, cost.dueDate!);
-      if (!ALERT_OFFSETS_DAYS.includes(daysUntil as 3 | 0)) continue;
-
-      const alertInstant = new Date(`${todayUTC}T00:00:00.000Z`);
-      const existing = await db.reminder.findFirst({
-        where: {
-          targetType: "COST_DUE",
-          targetId: cost.id,
-          fireAt: alertInstant,
-        },
-        select: { id: true },
-      });
-      if (existing) continue;
-
-      const label = labelByCostId.get(cost.id) ?? "Cost";
-      const money = formatMoney(cost.costMinor, cost.currency);
-      const body =
-        daysUntil === 0
-          ? `${label} · ${money} comes out today`
-          : `${label} · ${money} comes out in ${daysUntil} days`;
-
-      const payload = buildNotificationPayload({
-        title: "Payment coming up",
-        body,
-        url: `/trips/${cost.tripId}/budget`,
-      });
-
-      const result = await pushToTripMembers(cost.tripId, payload);
-      sent += result.sent;
-      skipped += result.skipped;
-
-      await db.reminder.create({
-        data: {
-          tripId: cost.tripId,
-          title: body,
-          fireAt: alertInstant,
-          sent: true,
-          targetType: "COST_DUE",
-          targetId: cost.id,
-        },
-      });
-
-      dueAlerts++;
-    }
-
-    return NextResponse.json({ processed, sent, skipped, dueAlerts });
+    return NextResponse.json({ considered, dispatched, sent, skipped, failed });
   } catch (err) {
     console.error("[cron/reminders] Error:", err);
     return NextResponse.json(
-      { error: "Internal server error", processed, sent, skipped, dueAlerts },
+      {
+        error: "Internal server error",
+        considered,
+        dispatched,
+        sent,
+        skipped,
+        failed,
+      },
       { status: 500 },
     );
   }

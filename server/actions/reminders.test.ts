@@ -11,6 +11,7 @@ const {
   revalidatePathMock,
   notFoundMock,
   reminderFindUniqueMock,
+  reminderFindManyMock,
   reminderCreateMock,
   reminderUpdateMock,
   reminderDeleteMock,
@@ -24,6 +25,7 @@ const {
     throw new Error("NOT_FOUND");
   }),
   reminderFindUniqueMock: vi.fn(),
+  reminderFindManyMock: vi.fn(),
   reminderCreateMock: vi.fn(),
   reminderUpdateMock: vi.fn(),
   reminderDeleteMock: vi.fn(),
@@ -38,6 +40,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     reminder: {
       findUnique: reminderFindUniqueMock,
+      findMany: reminderFindManyMock,
       create: reminderCreateMock,
       update: reminderUpdateMock,
       delete: reminderDeleteMock,
@@ -50,6 +53,7 @@ import {
   addReminder,
   updateReminder,
   deleteReminder,
+  listRemindersForTrip,
 } from "@/server/actions/reminders";
 
 const TRIP_ID = "trip-1";
@@ -57,7 +61,7 @@ const REMINDER_ID = "rem-1";
 
 const VALID_INPUT = {
   title: "Book hotel",
-  fireAt: "2026-07-01T09:00:00Z",
+  date: "2026-07-01",
 };
 
 afterEach(() => {
@@ -97,22 +101,80 @@ describe("addReminder", () => {
     expect(reminderCreateMock).not.toHaveBeenCalled();
   });
 
-  it("returns validation errors when fireAt is not a valid date", async () => {
+  it("returns validation errors when the date is not a valid date", async () => {
     const result = await addReminder(TRIP_ID, {
       ...VALID_INPUT,
-      fireAt: "not-a-date",
+      date: "not-a-date",
     });
     expect(result).toMatchObject({ success: false });
     if (!result.success) {
-      expect(result.errors.fireAt).toBeDefined();
+      expect(result.errors.date).toBeDefined();
     }
     expect(reminderCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects a date that is not YYYY-MM-DD", async () => {
+    const result = await addReminder(TRIP_ID, {
+      title: "Print docs",
+      date: "28 Nov",
+    });
+    expect(result.success).toBe(false);
+    expect(reminderCreateMock).not.toHaveBeenCalled();
+  });
+
+  // A Reminder carries a date and never a time (CONTEXT.md "Reminder") — the
+  // string the Traveller picked must reach the row untouched, with no Date
+  // round-trip that could shunt it a day either way.
+  it("stores the date verbatim, with no time component", async () => {
+    reminderCreateMock.mockResolvedValue({ id: "r1" });
+    await addReminder(TRIP_ID, { title: "Print docs", date: "2026-11-28" });
+    expect(reminderCreateMock).toHaveBeenCalledWith({
+      data: { tripId: TRIP_ID, title: "Print docs", date: "2026-11-28" },
+      select: { id: true },
+    });
+  });
+
+  it("revalidates Home as well as Today", async () => {
+    reminderCreateMock.mockResolvedValue({ id: "r1" });
+    await addReminder(TRIP_ID, { title: "Print docs", date: "2026-11-28" });
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/today`);
   });
 
   it("calls requireTripAccess to verify membership", async () => {
     reminderCreateMock.mockResolvedValue({ id: REMINDER_ID });
     await addReminder(TRIP_ID, VALID_INPUT);
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listRemindersForTrip
+// ---------------------------------------------------------------------------
+
+describe("listRemindersForTrip", () => {
+  it("checks trip access before reading anything", async () => {
+    reminderFindManyMock.mockResolvedValue([]);
+    await listRemindersForTrip(TRIP_ID, "2026-07-01");
+    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+  });
+
+  it("returns reminders dated on or after fromDate, soonest first, capped at 20", async () => {
+    reminderFindManyMock.mockResolvedValue([
+      { id: "r1", title: "Print docs", date: "2026-07-02" },
+    ]);
+
+    const result = await listRemindersForTrip(TRIP_ID, "2026-07-01");
+
+    expect(reminderFindManyMock).toHaveBeenCalledWith({
+      where: { tripId: TRIP_ID, date: { gte: "2026-07-01" } },
+      orderBy: { date: "asc" },
+      take: 20,
+      select: { id: true, title: true, date: true },
+    });
+    expect(result).toEqual([
+      { id: "r1", title: "Print docs", date: "2026-07-02" },
+    ]);
   });
 });
 

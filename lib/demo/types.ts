@@ -40,7 +40,7 @@ export interface DemoFork extends DemoPlan { key: Key; name: string; sortOrder: 
 
 export interface DemoNote { author: Who; targetType: "TRIP" | "STOP" | "ITEM" | "TRANSPORT" | "ACCOMMODATION" | "JOURNAL" | "MARKER"; targetKey: Key | "TRIP"; body: string; }
 export interface DemoChecklistItem { kind: "PRETRIP" | "PACKING"; text: string; done: boolean; dueDate?: string | null; assignedTo?: Who | null; }
-export interface DemoReminder { title: string; fireAt: string; targetType?: "ITEM" | "TRANSPORT" | null; targetKey?: Key | null; sent?: boolean; }
+export interface DemoReminder { title: string; date: string; }
 export interface DemoJournalEntry { date: string; author: Who; body: string; }
 export interface DemoAttachment { targetType: "TRIP" | "STOP" | "ITEM" | "TRANSPORT" | "ACCOMMODATION" | "JOURNAL" | "MARKER"; targetKey?: Key | "TRIP" | null; filename: string; mime: string; body: string; }
 export interface DemoActivity { actor: Who; verb: "CREATED" | "UPDATED" | "DELETED" | "NOTED" | "PROMOTED"; entityType: string; entityKey?: Key | null; entityLabel: string; changes?: unknown; at?: string; daysAgo?: number; }

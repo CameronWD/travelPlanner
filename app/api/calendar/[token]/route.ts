@@ -14,6 +14,8 @@ export async function GET(
       includeTransport: true,
       includeAccommodation: true,
       includeActivities: true,
+      alarmTransport: true,
+      alarmCheckOut: true,
       trip: { select: { id: true, name: true } },
     },
   });
@@ -37,7 +39,17 @@ export async function GET(
     }),
     db.accommodation.findMany({
       where: { tripId, forkId: null },
-      select: { id: true, name: true, checkIn: true, checkOut: true, address: true, confirmation: true, notes: true },
+      select: {
+        id: true,
+        name: true,
+        checkIn: true,
+        checkOut: true,
+        address: true,
+        confirmation: true,
+        notes: true,
+        checkOutTime: true,
+        stopId: true,
+      },
     }),
   ]);
 
@@ -49,6 +61,7 @@ export async function GET(
     transports: feed.includeTransport ? transports : [],
     accommodations: feed.includeAccommodation ? accommodations : [],
     generatedAt: new Date(),
+    alarms: { transport: feed.alarmTransport, checkOut: feed.alarmCheckOut },
   });
 
   const headers = new Headers();

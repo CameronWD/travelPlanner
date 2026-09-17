@@ -344,6 +344,25 @@ export function instantToZonedTime(
   }
 }
 
+/**
+ * The IANA zone the *browser running this code* is currently in, or null when
+ * the platform will not name one.
+ *
+ * It exists as a named function rather than an inline
+ * `Intl.DateTimeFormat().resolvedOptions().timeZone` so the one thing that
+ * decides when a Digest arrives can be stubbed in a test: a device that flew
+ * from Brisbane to Vienna is exactly the case that has to be exercised, and it
+ * cannot be by changing the test runner's clock. Server-side it answers the
+ * host's zone, which is meaningless — only call it from client code.
+ */
+export function deviceTimeZone(): string | null {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
 /** Today's calendar date (YYYY-MM-DD) in an IANA timezone (things-to-fix P0-2). */
 export function todayISOInZone(timeZone: string): string {
   return instantToZonedDateISO(new Date(), timeZone);

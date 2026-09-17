@@ -675,20 +675,13 @@ export async function persistTrip(
     });
   }
 
-  // Reminders
+  // Reminders — a dated note, no time and no target (CONTEXT.md "Reminder")
   for (const r of trip.reminders ?? []) {
-    const targetId =
-      r.targetKey && r.targetKey !== "TRIP"
-        ? (id.get(r.targetKey) ?? null)
-        : null;
     await db.reminder.create({
       data: {
         tripId,
         title: r.title,
-        fireAt: new Date(r.fireAt),
-        sent: r.sent ?? false,
-        targetType: r.targetType ?? null,
-        targetId,
+        date: r.date,
       },
     });
   }

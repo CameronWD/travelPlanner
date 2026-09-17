@@ -22,10 +22,17 @@ export type PushActionResult = { ok: true } | { ok: false; error: string };
 export async function subscribeToPush(sub: {
   endpoint: string;
   keys: { p256dh: string; auth: string };
+  timezone?: string;
 }): Promise<PushActionResult> {
   const user = await requireUser();
 
   try {
+    // Omit `timezone` entirely when the client didn't send one — writing
+    // `null` here would wipe a good stored zone whenever an older client
+    // re-subscribes, and a subscription with no zone never fires (the
+    // dispatcher can't know when 8pm is for it).
+    const tz = sub.timezone ? { timezone: sub.timezone } : {};
+
     await db.pushSubscription.upsert({
       where: { endpoint: sub.endpoint },
       create: {
@@ -33,11 +40,13 @@ export async function subscribeToPush(sub: {
         endpoint: sub.endpoint,
         p256dh: sub.keys.p256dh,
         auth: sub.keys.auth,
+        ...tz,
       },
       update: {
         userId: user.id,
         p256dh: sub.keys.p256dh,
         auth: sub.keys.auth,
+        ...tz,
       },
     });
 

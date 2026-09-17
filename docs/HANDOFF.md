@@ -264,6 +264,25 @@ The reminder delivery endpoint is `GET /api/cron/reminders`. It is authenticated
 
 Without `CRON_SECRET` the endpoint returns `401` for all requests (fail-closed).
 
+The schedule is **five fixed UTC hours**, not a frequent poll: each run dispatches only to
+subscribers whose *local* hour falls in the morning (06–08) or evening (20–22) window, so
+the hours are chosen to land inside those windows for the zones served (✔ = the run that
+delivers; an "absorbed" run finds the slot already claimed and sends nothing):
+
+| UTC | Europe/Vienna (CET) | Australia/Brisbane (AEST) | Australia/Sydney (AEDT) |
+|---|---|---|---|
+| 06:00 | 07:00 **MORNING ✔** | 16:00 — | 17:00 — |
+| 09:00 | 10:00 — | 19:00 — | 20:00 **EVENING ✔** |
+| 10:00 | 11:00 — | 20:00 **EVENING ✔** | 21:00 EVENING (absorbed) |
+| 19:00 | 20:00 **EVENING ✔** | 05:00 — | 06:00 **MORNING ✔** (next day) |
+| 20:00 | 21:00 (absorbed) | 06:00 **MORNING ✔** (next day) | 07:00 MORNING (absorbed) |
+
+The 10:00Z run is what covers UTC+10 — Brisbane year-round, Sydney outside AEDT — which
+otherwise gets a morning Digest and never the 8pm one. Sydney's morning Digest lands at
+06:00 local, not 07:00, because 19:00Z reaches it first. Adding a zone means adding a UTC
+hour (see `docs/DEPLOY.md` §5 for the whole-hour and half-hour-zone limitations);
+`lib/digest-schedule.test.ts` fails if the schedule and the windows drift apart.
+
 **Vercel Cron** — add to `vercel.json`:
 
 ```json
@@ -271,7 +290,7 @@ Without `CRON_SECRET` the endpoint returns `401` for all requests (fail-closed).
   "crons": [
     {
       "path": "/api/cron/reminders?secret=<CRON_SECRET>",
-      "schedule": "* * * * *"
+      "schedule": "0 6,9,10,19,20 * * *"
     }
   ]
 }
@@ -282,7 +301,7 @@ Without `CRON_SECRET` the endpoint returns `401` for all requests (fail-closed).
 ```yaml
 on:
   schedule:
-    - cron: "* * * * *"
+    - cron: "0 6,9,10,19,20 * * *"
 jobs:
   ping:
     runs-on: ubuntu-latest
@@ -293,6 +312,22 @@ jobs:
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
 ```
+
+### Reminders reach a phone
+
+Three one-time steps on an iPhone, all of them easy to miss and each silently fatal on its
+own:
+
+1. **Install TEEPEE to the Home Screen.** Safari → Share → *Add to Home Screen*, then open
+   the app from that icon. iOS refuses web push from an ordinary Safari tab, so the Enable
+   button cannot work until this is done.
+2. **Press Enable in Settings → Reminders** (inside the app, on that phone) and allow the
+   permission prompt. This is what registers the device and records its timezone — the
+   Digest is scheduled off that timezone, and a device with none recorded is skipped on
+   every run. "Send me a test" on the same panel confirms it end to end.
+3. **Turn off *Remove Alerts*** on the subscribed calendar, for Alarms rather than the
+   Digest: Settings → Apps → Calendar → Accounts → Subscribed Calendars → this trip. iOS
+   strips the Calendar feed's Alarms by default and never says so.
 
 ---
 

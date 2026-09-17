@@ -91,7 +91,7 @@ The state of a Cost whose money has actually left the Traveller's account, carry
 _Avoid_: Settled, cleared, reconciled, booked (booking is not paying)
 
 **Due date**:
-An optional date on an *unpaid* **Cost** for money that is committed but not yet taken — a scheduled Airbnb charge, a balance due before arrival. It marks when the money leaves the account, turning the Cost into an upcoming payment: listed as **Upcoming payments** (soonest first, "comes out in X days") on the **Budget** and the **Home**, pushed as a notification 3 days before and on the day, and nudged on the due day to be confirmed **Paid**. Marking the Cost paid silences it everywhere; a Cost with no Due date simply never alerts. It is awareness of committed money, not a **Flag** (nothing about the plan is wrong).
+An optional date on an *unpaid* **Cost** for money that is committed but not yet taken — a scheduled Airbnb charge, a balance due before arrival. It marks when the money leaves the account, turning the Cost into an upcoming payment: listed as **Upcoming payments** (soonest first, "comes out in X days") on the **Budget** and the **Home**, carried in the **Digest** on each of the three days before it and on the day, and nudged on the due day to be confirmed **Paid**. Marking the Cost paid silences it everywhere; a Cost with no Due date simply never alerts. It is awareness of committed money, not a **Flag** (nothing about the plan is wrong).
 _Avoid_: Payment date (that's **paidAt**, when it actually happened), deadline, billing date
 
 **Other cost**:
@@ -175,8 +175,20 @@ A recorded thing a Traveller did on the Trip — created, changed or removed a S
 _Avoid_: Log, audit, event, history, update (as a noun)
 
 **Calendar feed**:
-A private, read-only subscription of a Trip's Timeline that an external calendar app (Google/Apple/Outlook) can follow by URL. It reflects the Trip's scheduled Items, Transport and Accommodation and refreshes on the *external* app's own schedule (not instantly). One per Trip, shared by both Travellers, and revocable (resetting it invalidates the old URL). One-way: the app publishes the feed; it never reads changes back from the external calendar.
+A private, read-only subscription of a Trip's Timeline that an external calendar app (Google/Apple/Outlook) can follow by URL. It reflects the Trip's scheduled Items, Transport and Accommodation and refreshes on the *external* app's own schedule (not instantly). One per Trip, shared by both Travellers, and revocable (resetting it invalidates the old URL). It also publishes **Alarm**s the external app fires on its own. One-way: the app publishes the feed; it never reads changes back from the external calendar.
 _Avoid_: Sync (implies two-way), integration
+
+**Alarm**:
+A timed alert fired by a Traveller's *own* calendar app, from alarm data TEEPEE publishes inside the **Calendar feed** — three hours before a flight, two hours before other **Transport**, the morning of a check-out. TEEPEE never sends an Alarm and cannot know whether one fired: it only writes the request into the feed, and the external app honours it on its own refresh schedule, which can be up to a day behind (see **Calendar feed**). Alarms are the only clock-precise alerting TEEPEE offers, and they are a property of the Trip's feed — shared by both **Traveller**s, silenced individually by muting the subscription in your own calendar app. Anything TEEPEE itself sends arrives in the **Digest** instead.
+_Avoid_: Reminder (that is a Traveller's own dated note), notification, push, alert
+
+**Digest**:
+The once-a-day push TEEPEE sends a Traveller who has switched it on (per person, per Trip, from the Trip's Settings) — the single outward interruption the app allows itself. It carries whatever is true that day and nothing more: a **Cost**'s **Due date** on each of the three days before it and on the day, **Checklist** items due or overdue, tomorrow's **Reminder**s, and — when tomorrow falls inside the Trip — tomorrow's **Transport**, check-in/check-out and timed **Item**s. It arrives in the evening, in the timezone of the device that subscribed — 8pm where the schedule reaches that zone cleanly, later within the evening where it does not — and is *not sent at all* when there is nothing to say. A second, shorter Digest goes out in the early morning on a travel day only — a day holding **Transport** or a check-out — as cover for an **Alarm** the Traveller's calendar app silently declined to fire; it carries that day's plan and nothing else, never repeating what last night's Digest already said. Distinct from a **notification** (the bell's unread partner **Activity**, in-app only) and from an **Alarm** (fired by the Traveller's calendar app, not by TEEPEE).
+_Avoid_: Notification, alert, summary, roundup, daily email
+
+**Reminder**:
+A dated note a Traveller writes for themselves on a Trip — "print the insurance docs" against 28 Nov. It carries a *date and never a time*: it is read out in the **Digest** the *evening before* that date, alongside tomorrow's plan, and shows on **Home** until the day itself. The evening-before delivery is the point — a note dated 28 Nov that only arrived at 9pm on the 28th would reach the Traveller as the day it was for was ending. It deliberately cannot be set to go off at a chosen moment, because TEEPEE dispatches only a few times a day and a promised 14:30 would be a lie — an **Alarm** is the thing that fires precisely. Shared between both **Traveller**s like the rest of the Trip. Distinct from a **Checklist** item (a tickable task with optional due date, which *persists until done* and keeps reappearing while overdue) — a Reminder is said once, the night before, and is not something you complete.
+_Avoid_: Alert, task, to-do, alarm, notification
 
 **Vote**:
 A traveller's interest mark on a Wishlist Item (e.g. must-do / keen / meh) used to decide together what makes the cut.
