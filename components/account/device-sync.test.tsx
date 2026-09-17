@@ -11,12 +11,15 @@ vi.mock("@/lib/tz", () => ({ deviceTimeZone: deviceTimeZoneMock }));
 
 import { DeviceSync } from "@/components/account/device-sync";
 
-function stubPush(subscription: unknown) {
+function stubPush(subscription: unknown, extraPushManager: Record<string, unknown> = {}) {
   Object.defineProperty(navigator, "serviceWorker", {
     configurable: true,
     value: {
       ready: Promise.resolve({
-        pushManager: { getSubscription: vi.fn().mockResolvedValue(subscription) },
+        pushManager: {
+          getSubscription: vi.fn().mockResolvedValue(subscription),
+          ...extraPushManager,
+        },
       }),
     },
   });
@@ -60,6 +63,26 @@ describe("DeviceSync", () => {
     stubPush(null);
     render(<DeviceSync />);
     await waitFor(() => expect(reconcileDeviceMock).not.toHaveBeenCalled());
+  });
+
+  // The assertion above only proves reconcileDevice was never called — it
+  // cannot tell "correctly did nothing" apart from "tried to subscribe and
+  // had the failure swallowed by the try/catch". This test closes that gap
+  // by spying directly on subscribe(): creating a subscription here would be
+  // opting a Traveller into push they never agreed to, invisibly.
+  it("never calls pushManager.subscribe when this browser holds no subscription", async () => {
+    const subscribe = vi.fn();
+    stubPush(null, { subscribe });
+    render(<DeviceSync />);
+
+    const { serviceWorker } = navigator;
+    const { pushManager } = await serviceWorker.ready;
+    // Wait for a signal that the effect's async path actually ran to
+    // completion before asserting the negative — otherwise this passes
+    // vacuously before getSubscription is even called.
+    await waitFor(() => expect(pushManager.getSubscription).toHaveBeenCalled());
+
+    expect(subscribe).not.toHaveBeenCalled();
   });
 
   it("renders nothing", () => {
