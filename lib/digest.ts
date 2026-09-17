@@ -186,3 +186,36 @@ export function buildDigest(input: DigestInput): DigestPayload | null {
 
   return { title, body: capped.join("\n"), url };
 }
+
+/**
+ * The payload a Settings "send me a test" press should deliver.
+ *
+ * Two jobs, and the second is why this exists at all:
+ *
+ * 1. **Never refuse.** A quiet day makes `buildDigest` return null, which is
+ *    correct for the 8pm run — silence when there is nothing to say is the
+ *    Digest's whole contract (CONTEXT.md **Digest**). But the test button is
+ *    the probe for the push half (ADR 0047), and a probe that declines to fire
+ *    on a quiet day answers a question nobody asked. The placeholder goes out
+ *    instead.
+ * 2. **Never impersonate the real thing.** A real digest is sent verbatim so
+ *    the Traveller sees true content and true formatting on their lock screen,
+ *    but titled `Test · Tomorrow` rather than `Tomorrow` — otherwise a test
+ *    pressed at 3pm and the genuine digest at 8pm are indistinguishable, and
+ *    the second one reads as a double-send.
+ */
+export function asTestDigest(
+  digest: DigestPayload | null,
+  tripId: string,
+): DigestPayload {
+  if (!digest) {
+    return {
+      title: "Test · TEEPEE",
+      body: "Push is working. Your digest arrives in the evening when there's something to say.",
+      // The settings page, because that is where the button was pressed and
+      // where the explanation of a silent day already lives.
+      url: `/trips/${tripId}/settings`,
+    };
+  }
+  return { ...digest, title: `Test · ${digest.title}` };
+}
