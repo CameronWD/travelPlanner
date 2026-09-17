@@ -93,6 +93,7 @@ describe("GET /api/cron/reminders — auth (fail-closed)", () => {
       dispatched: 0,
       sent: 0,
       skipped: 0,
+      failed: 0,
     });
   });
 
@@ -153,6 +154,7 @@ describe("GET /api/cron/reminders — slot dispatch", () => {
       dispatched: 1,
       sent: 1,
       skipped: 0,
+      failed: 0,
     });
   });
 
@@ -170,11 +172,12 @@ describe("GET /api/cron/reminders — slot dispatch", () => {
   });
 
   it("reads the local date in the subscriber's zone, not UTC", async () => {
-    // One instant, two zones, two different answers — the assertion that
-    // would fail if the route used UTC anywhere. At 20:00Z, Sydney
-    // (UTC+11 in December) is already 07:00 on the NEXT day, so the Sydney
-    // traveller gets a MORNING digest dated 2026-12-02; Vienna is at 21:00
-    // local, which is neither slot hour.
+    // One instant, two zones, two different answers — the assertion that would
+    // fail if the route used UTC anywhere. At 20:00Z, Sydney (UTC+11 in
+    // December) is already 07:00 on the NEXT day, so the Sydney traveller gets
+    // a MORNING digest dated 2026-12-02; Vienna is at 21:00 on 2026-12-01, so
+    // the same instant produces the OTHER slot on the PREVIOUS date. Slot and
+    // date both have to be read per-zone for this to hold.
     vi.setSystemTime(new Date("2026-12-01T20:00:00.000Z"));
     pushFindManyMock.mockResolvedValue([
       sub("user-syd", "Australia/Sydney"),
@@ -184,22 +187,29 @@ describe("GET /api/cron/reminders — slot dispatch", () => {
 
     const res = await GET(req({ secret: "right" }));
 
-    expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
+    expect(dispatchDigestMock).toHaveBeenCalledTimes(2);
     expect(dispatchDigestMock).toHaveBeenCalledWith({
       userId: "user-syd",
       tripId: "trip-1",
       localDate: "2026-12-02",
       slot: "MORNING",
     });
+    expect(dispatchDigestMock).toHaveBeenCalledWith({
+      userId: "user-vie",
+      tripId: "trip-1",
+      localDate: "2026-12-01",
+      slot: "EVENING",
+    });
     expect(await res.json()).toEqual({
       considered: 2,
-      dispatched: 1,
-      sent: 1,
+      dispatched: 2,
+      sent: 2,
       skipped: 0,
+      failed: 0,
     });
   });
 
-  it("skips a subscriber whose local hour is neither 7 nor 20", async () => {
+  it("skips a subscriber whose local hour is in neither window", async () => {
     // 12:00Z is 13:00 in Vienna — no slot.
     vi.setSystemTime(new Date("2026-12-01T12:00:00.000Z"));
     pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
@@ -208,15 +218,58 @@ describe("GET /api/cron/reminders — slot dispatch", () => {
     const res = await GET(req({ secret: "right" }));
 
     expect(dispatchDigestMock).not.toHaveBeenCalled();
-    // Not even the trip lookup runs for a subscriber outside a slot hour.
+    // Not even the trip lookup runs for a subscriber outside both windows.
     expect(tripMemberFindManyMock).not.toHaveBeenCalled();
     expect(await res.json()).toEqual({
       considered: 1,
       dispatched: 0,
       sent: 0,
       skipped: 0,
+      failed: 0,
     });
   });
+
+  // The windows are three hours wide so a GitHub Actions run delayed past its
+  // scheduled hour still finds its subscribers. These pin both the width and
+  // the edges: an hour past the window is still a skip, not a late send.
+  it.each([
+    { utc: "2026-12-01T21:00:00.000Z", localHour: "22:00", slot: "EVENING" },
+    { utc: "2026-12-01T19:00:00.000Z", localHour: "20:00", slot: "EVENING" },
+    { utc: "2026-12-01T05:00:00.000Z", localHour: "06:00", slot: "MORNING" },
+    { utc: "2026-12-01T07:00:00.000Z", localHour: "08:00", slot: "MORNING" },
+  ])(
+    "dispatches $slot to a subscriber at local $localHour (delayed-run window)",
+    async ({ utc, slot }) => {
+      vi.setSystemTime(new Date(utc));
+      pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
+      tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+
+      await GET(req({ secret: "right" }));
+
+      expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
+      expect(dispatchDigestMock).toHaveBeenCalledWith(
+        expect.objectContaining({ slot }),
+      );
+    },
+  );
+
+  it.each([
+    { utc: "2026-12-01T22:00:00.000Z", localHour: "23:00" },
+    { utc: "2026-12-01T08:00:00.000Z", localHour: "09:00" },
+    { utc: "2026-12-01T04:00:00.000Z", localHour: "05:00" },
+    { utc: "2026-12-01T18:00:00.000Z", localHour: "19:00" },
+  ])(
+    "still skips a subscriber at local $localHour, one hour outside the window",
+    async ({ utc }) => {
+      vi.setSystemTime(new Date(utc));
+      pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
+      tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+
+      await GET(req({ secret: "right" }));
+
+      expect(dispatchDigestMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("skips subscriptions with no stored timezone", async () => {
     vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
@@ -235,13 +288,42 @@ describe("GET /api/cron/reminders — slot dispatch", () => {
       expect.objectContaining({ userId: "user-2" }),
     );
     expect((await res.json()).considered).toBe(1);
-    // The query itself asks only for rows that can be scheduled.
+    // The query itself asks only for rows that can be scheduled, and is
+    // bounded so one pathological run cannot be unbounded work.
     expect(pushFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { timezone: { not: null } },
         select: { userId: true, timezone: true },
+        take: 2000,
       }),
     );
+  });
+
+  it("warns when the subscriber scan hits its cap, so truncation is not silent", async () => {
+    vi.setSystemTime(new Date("2026-12-01T12:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue(
+      Array.from({ length: 2000 }, (_, i) => sub(`user-${i}`, "Europe/Vienna")),
+    );
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(res.status).toBe(200);
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("2000-row cap"),
+    );
+    warnSpy.mockRestore();
+  });
+
+  it("does not warn when the scan comes back under the cap", async () => {
+    vi.setSystemTime(new Date("2026-12-01T12:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await GET(req({ secret: "right" }));
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 
   it("dispatches once per user per trip when a user has several devices in one zone", async () => {
@@ -264,6 +346,7 @@ describe("GET /api/cron/reminders — slot dispatch", () => {
       dispatched: 1,
       sent: 1,
       skipped: 0,
+      failed: 0,
     });
   });
 
@@ -289,6 +372,7 @@ describe("GET /api/cron/reminders — slot dispatch", () => {
       dispatched: 2,
       sent: 2,
       skipped: 0,
+      failed: 0,
     });
   });
 
@@ -310,6 +394,7 @@ describe("GET /api/cron/reminders — slot dispatch", () => {
       dispatched: 2,
       sent: 2,
       skipped: 1,
+      failed: 0,
     });
   });
 
@@ -328,7 +413,46 @@ describe("GET /api/cron/reminders — slot dispatch", () => {
     );
   });
 
-  it("reports partial counts and 500 when dispatch throws", async () => {
+  it("keeps going for the next subscriber when one dispatch throws, and counts it as failed", async () => {
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([
+      sub("user-1", "Europe/Vienna"),
+      sub("user-2", "Europe/Vienna"),
+    ]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+    dispatchDigestMock
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce({ sent: 1, skipped: false });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await GET(req({ secret: "right" }));
+
+    // The run survives: user-2 is still dispatched to. Without the per-trip
+    // catch, one bad trip would cost every later subscriber their Digest —
+    // and they get no retry, because eligibility is by local hour.
+    expect(res.status).toBe(200);
+    expect(dispatchDigestMock).toHaveBeenCalledTimes(2);
+    expect(dispatchDigestMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ userId: "user-2" }),
+    );
+    expect(await res.json()).toEqual({
+      considered: 2,
+      dispatched: 1,
+      sent: 1,
+      skipped: 0,
+      failed: 1,
+    });
+    // The failure is logged with enough to find it — a burnt ledger slot is
+    // invisible otherwise.
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("user-1"),
+      expect.any(Error),
+    );
+    expect(errorSpy.mock.calls[0][0]).toContain("trip-1");
+    errorSpy.mockRestore();
+  });
+
+  it("keeps going for a user's next trip when one of their trips throws", async () => {
     vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
     pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
     tripMemberFindManyMock.mockResolvedValue([
@@ -336,8 +460,34 @@ describe("GET /api/cron/reminders — slot dispatch", () => {
       { tripId: "trip-2" },
     ]);
     dispatchDigestMock
-      .mockResolvedValueOnce({ sent: 1, skipped: false })
-      .mockRejectedValueOnce(new Error("boom"));
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce({ sent: 2, skipped: false });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      considered: 1,
+      dispatched: 1,
+      sent: 2,
+      skipped: 0,
+      failed: 1,
+    });
+    errorSpy.mockRestore();
+  });
+
+  it("reports partial counts and 500 when the run itself fails", async () => {
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([
+      sub("user-1", "Europe/Vienna"),
+      sub("user-2", "Europe/Vienna"),
+    ]);
+    // The per-trip catch contains dispatch failures; the outer catch still
+    // owns everything else — here the trip lookup dies on the second user.
+    tripMemberFindManyMock
+      .mockResolvedValueOnce([{ tripId: "trip-1" }])
+      .mockRejectedValueOnce(new Error("connection lost"));
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const res = await GET(req({ secret: "right" }));
@@ -345,10 +495,11 @@ describe("GET /api/cron/reminders — slot dispatch", () => {
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({
       error: "Internal server error",
-      considered: 1,
+      considered: 2,
       dispatched: 1,
       sent: 1,
       skipped: 0,
+      failed: 0,
     });
     errorSpy.mockRestore();
   });

@@ -2,10 +2,11 @@
  * GET /api/cron/reminders
  *
  * The Digest dispatcher (CONTEXT.md **Digest**, ADR 0047). Every run asks a
- * single question — which subscribers are at 07:00 or 20:00 *in their own
- * timezone right now* — and sends each of them at most one Digest per Trip.
- * Nothing here broadcasts to a Trip's membership: a Digest is per-person, and
- * `dispatchDigest` pushes to that person's own devices and prunes dead ones.
+ * single question — which subscribers are in their morning or evening *window
+ * in their own timezone right now* — and sends each of them at most one Digest
+ * per Trip. Nothing here broadcasts to a Trip's membership: a Digest is
+ * per-person, and `dispatchDigest` pushes to that person's own devices and
+ * prunes dead ones.
  *
  * ---
  * SCHEDULING
@@ -17,10 +18,17 @@
  *     06:00Z → 07:00 CET (morning)    19:00Z → 20:00 CET (evening)
  *     09:00Z → 20:00 AEDT (evening)   20:00Z → 07:00 AEDT (morning, next day)
  *
- * A subscriber whose local hour is neither 7 nor 20 is simply passed over, so
- * adding a UTC hour for a new region costs nothing here. Because the local
- * date is read in the subscriber's zone too, the 20:00Z run correctly dates an
- * AEDT traveller's Digest to the *following* calendar day.
+ * The match is a three-hour WINDOW rather than an exact hour because GitHub
+ * Actions delays scheduled runs under load: an exact-hour test would mean a run
+ * that slipped past the hour boundary silently skipped *everyone*, and nobody
+ * is retried later since eligibility is itself by hour. Widening cannot
+ * double-send — dispatchDigest's ledger is keyed (user, trip, local date, slot),
+ * so a second run inside the same window is absorbed as "already-sent".
+ *
+ * A subscriber outside both windows is simply passed over, so adding a UTC hour
+ * for a new region costs nothing here. Because the local date is read in the
+ * subscriber's zone too, the 20:00Z run correctly dates an AEDT traveller's
+ * Digest to the *following* calendar day.
  *
  * ---
  * AUTHENTICATION
@@ -44,18 +52,28 @@ import { instantToZonedDateISO, instantToZonedTime } from "@/lib/tz";
 export const runtime = "nodejs";
 
 // ---------------------------------------------------------------------------
-// Slot hours
+// Slot windows
 // ---------------------------------------------------------------------------
 
-// The two local wall-clock hours a Digest is sent at. They are LOCAL hours, not
+// The local wall-clock hours a Digest is sent in. These are LOCAL hours, not
 // UTC ones: the workflow's four UTC hours (06/09/19/20 — see SCHEDULING above)
-// exist only so that every zone we care about has a run landing on one of these
-// two. Changing either constant means revisiting that cron expression.
-const MORNING_LOCAL_HOUR = 7;
-const EVENING_LOCAL_HOUR = 20;
+// exist only so that every zone we care about has a run landing inside one of
+// these two windows. Each is three hours wide so that a GitHub Actions run
+// delayed past its hour still finds its subscribers instead of silently
+// skipping the day — the dispatch ledger, not the narrowness of the window, is
+// what prevents a double send. Changing either window means revisiting that
+// cron expression.
+const MORNING_WINDOW_LOCAL_HOURS: readonly number[] = [6, 7, 8];
+const EVENING_WINDOW_LOCAL_HOURS: readonly number[] = [20, 21, 22];
 
 /** A backstop against one pathological account, not a real limit. */
 const MAX_TRIPS_PER_USER = 50;
+
+// A backstop against one pathological run, not a real limit: it bounds the work
+// a single invocation can take on. If the subscriber list ever approaches this,
+// the fix is a cursor over the scan (paging across runs), NOT a bigger number —
+// a run that hits the cap drops everyone past it for that slot.
+const MAX_SUBSCRIPTIONS_PER_RUN = 2000;
 
 // ---------------------------------------------------------------------------
 // Auth helper
@@ -99,8 +117,8 @@ function slotForZone(now: Date, timeZone: string): DigestSlot | null {
   // instantToZonedTime yields "HH:MM" and falls back to UTC on an unknown
   // zone, so a junk timezone string degrades to "wrong hour", never a throw.
   const localHour = Number(instantToZonedTime(now, timeZone).slice(0, 2));
-  if (localHour === EVENING_LOCAL_HOUR) return "EVENING";
-  if (localHour === MORNING_LOCAL_HOUR) return "MORNING";
+  if (EVENING_WINDOW_LOCAL_HOURS.includes(localHour)) return "EVENING";
+  if (MORNING_WINDOW_LOCAL_HOURS.includes(localHour)) return "MORNING";
   return null;
 }
 
@@ -138,6 +156,8 @@ export async function GET(req: NextRequest) {
   let sent = 0;
   /** Dispatches that produced no push — disabled, already sent, or empty. */
   let skipped = 0;
+  /** Dispatches that threw. One bad trip must not cost everyone else their Digest. */
+  let failed = 0;
 
   try {
     // A subscription with no stored timezone cannot be scheduled: there is no
@@ -146,7 +166,16 @@ export async function GET(req: NextRequest) {
     const subscriptions = await db.pushSubscription.findMany({
       where: { timezone: { not: null } },
       select: { userId: true, timezone: true },
+      take: MAX_SUBSCRIPTIONS_PER_RUN,
     });
+
+    if (subscriptions.length === MAX_SUBSCRIPTIONS_PER_RUN) {
+      // Truncation drops real people's Digests, so say so loudly. Silent
+      // truncation is the failure mode this whole log line exists to prevent.
+      console.warn(
+        `[cron/reminders] Subscription scan hit the ${MAX_SUBSCRIPTIONS_PER_RUN}-row cap — subscribers beyond it were not considered this run. Move the scan to a cursor.`,
+      );
+    }
 
     // Deduplicate on (userId, timezone), NOT on subscription: dispatchDigest
     // already pushes to every device the user owns, so one person with three
@@ -177,18 +206,39 @@ export async function GET(req: NextRequest) {
       });
 
       for (const { tripId } of memberships) {
-        const result = await dispatchDigest({ userId, tripId, localDate, slot });
-        dispatched++;
-        sent += result.sent;
-        if (result.skipped) skipped++;
+        // Contained per trip on purpose. Without this, one bad trip aborts the
+        // run and every subscriber after it loses that day's Digest with no
+        // retry — eligibility is by local hour, so the next run is a day away.
+        // The dispatcher also claims its ledger row before building and
+        // releases it only on the empty path, so a throw after the claim burns
+        // that slot for good. One failure, one lost Digest.
+        try {
+          const result = await dispatchDigest({ userId, tripId, localDate, slot });
+          dispatched++;
+          sent += result.sent;
+          if (result.skipped) skipped++;
+        } catch (err) {
+          failed++;
+          console.error(
+            `[cron/reminders] Digest dispatch failed for user ${userId} trip ${tripId}:`,
+            err,
+          );
+        }
       }
     }
 
-    return NextResponse.json({ considered, dispatched, sent, skipped });
+    return NextResponse.json({ considered, dispatched, sent, skipped, failed });
   } catch (err) {
     console.error("[cron/reminders] Error:", err);
     return NextResponse.json(
-      { error: "Internal server error", considered, dispatched, sent, skipped },
+      {
+        error: "Internal server error",
+        considered,
+        dispatched,
+        sent,
+        skipped,
+        failed,
+      },
       { status: 500 },
     );
   }
