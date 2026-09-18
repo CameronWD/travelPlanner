@@ -31,7 +31,7 @@ vi.mock("@/lib/guards", () => ({
 vi.mock("@/server/actions/share", () => ({ getShareLink: vi.fn(async () => null) }));
 vi.mock("@/server/actions/calendar-feed", () => ({ getCalendarFeed: vi.fn(async () => null) }));
 vi.mock("@/server/actions/digest", () => ({
-  getDigestSettings: vi.fn(async () => ({ enabled: true, devices: [] })),
+  getDigestSettings: vi.fn(async () => ({ enabled: true, deviceCount: 0 })),
 }));
 vi.mock("@/components/trip/settings/trip-details-form", () => ({ TripDetailsForm: () => null }));
 vi.mock("@/components/trip/settings/cover-image-field", () => ({ CoverImageField: () => null }));

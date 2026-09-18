@@ -70,10 +70,30 @@ export async function reconcileDevice(
     where: { endpoint: input.endpoint },
   });
 
+  // `readLocalDeviceState` (components/account/device-state.ts) coalesces a
+  // subscription whose `toJSON()` omitted key material to
+  // `{ p256dh: "", auth: "" }` rather than `null` — an object, so it passes
+  // `DeviceSync`'s `!state.keys` guard straight through. Treated here as "no
+  // usable keys" rather than written or relied on anywhere below: a push
+  // service needs both to encrypt a payload, so a pair of empty strings is
+  // not a degraded key, it is no key at all.
+  const keysUsable = !!input.keys?.p256dh && !!input.keys?.auth;
+
   // Self-heal. The browser holds a live subscription we have no record of —
   // the Traveller already granted permission on this Device, so recreating the
   // row is restoring a fact, not subscribing somebody without asking.
   if (!existing) {
+    if (!keysUsable) {
+      // Creating a row with no usable keys would produce a Device that
+      // LOOKS confirmed — it has a server row, `myDevice` would match it —
+      // but can never actually receive a push. That is worse than not
+      // self-healing at all: it reads as fixed when it isn't, which is
+      // exactly the "looks healthy, isn't" failure this whole branch exists
+      // to close. Reporting unknown leaves the door open for a later
+      // reconcile (once the browser reports real keys) or an explicit
+      // Enable, which always carries fresh ones.
+      return { known: false, healed: false };
+    }
     await db.pushSubscription.create({
       data: {
         userId: user.id,
@@ -113,11 +133,18 @@ export async function reconcileDevice(
       // (see the function doc above). `subscribeToPush` already refreshes
       // both on every (re-)subscribe for the same reason; this keeps
       // `reconcileDevice` from being the one path that can't self-heal them.
+      //
+      // Only written when `keysUsable` — omitted entirely otherwise, so a
+      // subscription that reported empty key material can never overwrite a
+      // good stored pair. Without this guard, a `toJSON()` that dropped its
+      // keys would silently and permanently break a Device's push, since
+      // this write is unconditional whenever the zone moves or a touch is
+      // due — neither of which has anything to do with whether the keys in
+      // this particular call are trustworthy.
       data: {
         lastSeenAt: now,
-        p256dh: input.keys.p256dh,
-        auth: input.keys.auth,
         ...(zoneMoved ? { timezone: input.timezone } : {}),
+        ...(keysUsable ? { p256dh: input.keys.p256dh, auth: input.keys.auth } : {}),
       },
     });
   }

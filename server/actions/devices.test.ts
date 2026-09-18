@@ -158,6 +158,67 @@ describe("reconcileDevice", () => {
     const data = updateMock.mock.calls[0][0].data;
     expect(data).not.toHaveProperty("label");
   });
+
+  // `readLocalDeviceState` coalesces missing key material to
+  // `{ p256dh: "", auth: "" }` rather than null, so this is a real shape a
+  // caller can send — and it must never overwrite a good stored key pair
+  // with an unusable one, which would permanently and silently break that
+  // Device's push.
+  it("never overwrites stored keys with empty ones on an otherwise-triggered write", async () => {
+    findUniqueMock.mockResolvedValue(row({ timezone: "Europe/Vienna", p256dh: "good-p", auth: "good-a" }));
+    await reconcileDevice({
+      endpoint: "https://web.push.apple.com/AAA",
+      keys: { p256dh: "", auth: "" },
+      timezone: "Australia/Brisbane", // forces the write via zoneMoved
+    });
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    const data = updateMock.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty("p256dh");
+    expect(data).not.toHaveProperty("auth");
+  });
+
+  it("still refreshes usable keys alongside a triggered write", async () => {
+    findUniqueMock.mockResolvedValue(row({ timezone: "Europe/Vienna", p256dh: "old-p", auth: "old-a" }));
+    await reconcileDevice({
+      endpoint: "https://web.push.apple.com/AAA",
+      keys: { p256dh: "new-p", auth: "new-a" },
+      timezone: "Australia/Brisbane",
+    });
+    expect(updateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ p256dh: "new-p", auth: "new-a" }),
+      }),
+    );
+  });
+
+  // Half a key pair is as unusable as none — a push service needs both to
+  // encrypt anything.
+  it("treats a half-empty key pair as unusable too", async () => {
+    findUniqueMock.mockResolvedValue(row({ timezone: "Europe/Vienna", p256dh: "good-p", auth: "good-a" }));
+    await reconcileDevice({
+      endpoint: "https://web.push.apple.com/AAA",
+      keys: { p256dh: "new-p", auth: "" },
+      timezone: "Australia/Brisbane",
+    });
+    const data = updateMock.mock.calls[0][0].data;
+    expect(data).not.toHaveProperty("p256dh");
+    expect(data).not.toHaveProperty("auth");
+  });
+
+  // A self-heal that can't actually produce a working Device is worse than
+  // no self-heal — it would look confirmed (a server row exists) while
+  // remaining permanently unreachable. Better to report unknown and let a
+  // later reconcile, or an explicit Enable, try again with real keys.
+  it("refuses to self-heal a missing row when the reported keys are unusable", async () => {
+    findUniqueMock.mockResolvedValue(null);
+    const result = await reconcileDevice({
+      endpoint: "https://web.push.apple.com/BBB",
+      keys: { p256dh: "", auth: "" },
+      timezone: "Australia/Brisbane",
+    });
+    expect(result).toEqual({ known: false, healed: false });
+    expect(createMock).not.toHaveBeenCalled();
+  });
 });
 
 describe("listDevices", () => {

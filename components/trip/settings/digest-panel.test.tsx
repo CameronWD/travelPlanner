@@ -412,6 +412,11 @@ describe("DigestPanel", () => {
     await user.click(await screen.findByRole("button", { name: /send me a test/i }));
 
     expect(await screen.findByText("Sent today's digest to 2 devices.")).toBeInTheDocument();
+    // `sent` is HTTP 2xx from the push service — the exact number that read
+    // "delivered" on 2026-09-17 while nothing arrived — so a success here
+    // must still point at the one surface that could explain a no-show.
+    expect(screen.getByText(/lost permission/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Devices" })).toHaveAttribute("href", "/account");
   });
 
   it("says a quiet day is a quiet day when the test was a placeholder", async () => {
@@ -437,6 +442,10 @@ describe("DigestPanel", () => {
         "Sent a test to 1 device. There's nothing to report today, so your real digest would stay silent.",
       ),
     ).toBeInTheDocument();
+    // The placeholder still arrived via the real push pipe — the same
+    // unreliable `sent` count applies, so the caveat belongs here too.
+    expect(screen.getByText(/lost permission/i)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Devices" })).toHaveAttribute("href", "/account");
   });
 
   it("mentions the travel-day morning digest, not just the evening one", async () => {
