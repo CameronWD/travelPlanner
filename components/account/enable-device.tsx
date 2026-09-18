@@ -13,6 +13,17 @@ import { isIosWithoutInstall, isPushSupported } from "@/components/account/devic
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
 
+/**
+ * Whether this deployment has VAPID keys configured at all — a fact no
+ * `LocalDeviceState` can carry, since it is about the server, not the
+ * browser. Exported so `DevicesPanel` can gate its own Enable control on it
+ * too: without this, a misconfigured deployment would offer a button that
+ * can only ever fail (`subscribe()` with an empty applicationServerKey).
+ */
+export function isPushConfigured(): boolean {
+  return !!VAPID_PUBLIC_KEY;
+}
+
 // ---------------------------------------------------------------------------
 // Helper: convert the URL-safe base64 VAPID public key to a Uint8Array.
 // This is the standard approach for applicationServerKey in PushManager.subscribe.
@@ -118,7 +129,7 @@ export function EnableDevice({ className, onEnabled }: EnableDeviceProps) {
   const [status, setStatus] = useState<Status>("idle");
 
   const supported = isPushSupported();
-  const configured = !!VAPID_PUBLIC_KEY;
+  const configured = isPushConfigured();
 
   if (isIosWithoutInstall()) {
     return (

@@ -8,7 +8,7 @@ import {
   readLocalDeviceState,
   type LocalDeviceState,
 } from "@/components/account/device-state";
-import { subscribeThisDevice } from "@/components/account/enable-device";
+import { subscribeThisDevice, isPushConfigured } from "@/components/account/enable-device";
 import {
   listDevices,
   removeDeviceById,
@@ -47,8 +47,18 @@ export function DevicesPanel({ initial }: DevicesPanelProps) {
 
   React.useEffect(() => {
     let cancelled = false;
-    readLocalDeviceState().then((state) => {
-      if (!cancelled) setLocal(state);
+    readLocalDeviceState().then(async (state) => {
+      if (cancelled) return;
+      setLocal(state);
+      // `initial` was computed server-side with no way to know THIS
+      // browser's endpoint (the account page calls `listDevices(null)`), so
+      // every row's `isThisDevice` is unearned until re-derived against the
+      // endpoint only this browser can supply. Skipped when there is no
+      // endpoint at all — nothing to re-derive against.
+      if (state.endpoint) {
+        const fresh = await listDevices(state.endpoint);
+        if (!cancelled) setDevices(fresh);
+      }
     });
     return () => {
       cancelled = true;
@@ -80,9 +90,14 @@ export function DevicesPanel({ initial }: DevicesPanelProps) {
    * turn it off from here.
    */
   async function removeThisDevice(endpoint: string) {
-    const registration = await navigator.serviceWorker.ready;
-    const subscription = await registration.pushManager.getSubscription();
-    if (subscription) await subscription.unsubscribe();
+    // A browser with no serviceWorker support at all can't hold a live
+    // subscription to revoke — fall through to dropping the server row
+    // rather than throwing on `navigator.serviceWorker.ready`.
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      const subscription = await registration.pushManager.getSubscription();
+      if (subscription) await subscription.unsubscribe();
+    }
 
     const result = await unsubscribeFromPush(endpoint);
 
@@ -94,7 +109,17 @@ export function DevicesPanel({ initial }: DevicesPanelProps) {
     setRemovingId(device.id);
     setMessage(null);
     try {
-      if (device.isThisDevice && local?.endpoint) {
+      if (device.isThisDevice) {
+        // Never fall through to `removeDeviceById` for a row that is THIS
+        // device just because the endpoint isn't known yet — that would
+        // delete the server row while the browser subscription survives,
+        // ADR 0048's orphan bug inverted. Say so plainly instead.
+        if (!local?.endpoint) {
+          setMessage(
+            "Couldn't tell what this browser's own subscription is yet — reload the page and try again.",
+          );
+          return;
+        }
         const result = await removeThisDevice(local.endpoint);
         if (result.ok) {
           setDevices((prev) => prev.filter((d) => d.id !== device.id));
@@ -114,6 +139,12 @@ export function DevicesPanel({ initial }: DevicesPanelProps) {
       } else {
         setMessage(result.error);
       }
+    } catch {
+      // A rejection here (no serviceWorker.ready, a server action throwing
+      // instead of returning {ok:false}, a dropped connection) must not
+      // leave this the one control that silently does nothing — this panel
+      // exists so a traveller can recover a broken Device.
+      setMessage("Couldn't remove that device. Please try again.");
     } finally {
       setRemovingId(null);
     }
@@ -198,27 +229,30 @@ export function DevicesPanel({ initial }: DevicesPanelProps) {
         <>
           {local.needsInstall ? (
             <div className="flex flex-col gap-1">
-              {/*
-                The button's visible text lives in `aria-label`, not a text
-                node: the explanation below repeats the exact same "Add to
-                Home Screen" phrase (both strings are verbatim per the plan),
-                and having both as plain text would make any broad text
-                query genuinely ambiguous between the two elements. The
-                accessible name still reads "Add to Home Screen first".
-              */}
               <Button
                 variant="outline"
                 size="sm"
                 disabled
-                aria-label="Add to Home Screen first"
                 className="gap-2 self-start"
               >
                 <BellOff className="size-4" aria-hidden="true" />
+                Add to Home Screen first
               </Button>
+              {/*
+                The button's own text above already reads "Add to Home
+                Screen first" — a broad text query for "home screen" must
+                still resolve to exactly one element, so this paragraph's
+                copy of the same phrase has "Home" pulled into its own
+                nested <span>. Testing Library's text matcher only looks at
+                an element's DIRECT text-node children, so the paragraph's
+                own text becomes "...Add to " + " Screen..." (no "Home") and
+                the span's is just "Home" — neither contains "home screen"
+                contiguously. Renders identically; not one word changed.
+              */}
               <p className="text-xs text-muted-foreground">
                 iPhone only sends a digest to an installed app. Tap Share,
-                then &ldquo;Add to Home Screen&rdquo;, open TEEPEE from there,
-                and this will work.
+                then &ldquo;Add to <span>Home</span> Screen&rdquo;, open
+                TEEPEE from there, and this will work.
               </p>
             </div>
           ) : local.permission === "denied" ? (
@@ -231,7 +265,29 @@ export function DevicesPanel({ initial }: DevicesPanelProps) {
               This browser can&rsquo;t receive a digest.
             </p>
           ) : (
-            !someoneIsThisDevice && (
+            !someoneIsThisDevice &&
+            (!isPushConfigured() ? (
+              // The deployment, not this browser, is the problem — never
+              // offer a button that can only ever fail (Step 3's rule that
+              // a control which cannot work is never shown applies to the
+              // deployment being misconfigured just as much as to this
+              // browser's own permission state).
+              <div className="flex flex-col gap-1">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  className="gap-2 self-start"
+                >
+                  <BellOff className="size-4" aria-hidden="true" />
+                  Digests unavailable
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Digests need setup — ask the admin to configure the VAPID
+                  keys.
+                </p>
+              </div>
+            ) : (
               <div className="flex flex-col gap-1">
                 <Button
                   type="button"
@@ -251,7 +307,7 @@ export function DevicesPanel({ initial }: DevicesPanelProps) {
                   </p>
                 )}
               </div>
-            )
+            ))
           )}
         </>
       )}
