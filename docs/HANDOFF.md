@@ -251,9 +251,9 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY="<same public key as VAPID_PUBLIC_KEY>"
 CRON_SECRET="<random secret — openssl rand -hex 32>"
 ```
 
-`NEXT_PUBLIC_VAPID_PUBLIC_KEY` must match `VAPID_PUBLIC_KEY`. It is exposed to the browser for the push subscription registration in `components/trip/enable-notifications.tsx`.
+`NEXT_PUBLIC_VAPID_PUBLIC_KEY` must match `VAPID_PUBLIC_KEY`. It is exposed to the browser for the push subscription registration in `components/account/push-subscribe.ts`.
 
-Without VAPID vars, push is disabled and notifications are stored but never delivered (no crash, graceful degradation).
+Without VAPID vars, push is disabled: the Enable control is disabled application-wide and the Digest is never sent (no crash, graceful degradation).
 
 ### Wire up the cron job
 
