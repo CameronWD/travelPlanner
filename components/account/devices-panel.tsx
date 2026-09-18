@@ -49,24 +49,34 @@ export function DevicesPanel({ initial }: DevicesPanelProps) {
     let cancelled = false;
     readLocalDeviceState().then(async (state) => {
       if (cancelled) return;
-      setLocal(state);
       // `initial` was computed server-side with no way to know THIS
       // browser's endpoint (the account page calls `listDevices(null)`), so
       // every row's `isThisDevice` is unearned until re-derived against the
       // endpoint only this browser can supply. Skipped when there is no
-      // endpoint at all — nothing to re-derive against.
-      if (state.endpoint) {
-        try {
-          const fresh = await listDevices(state.endpoint);
-          if (!cancelled) setDevices(fresh);
-        } catch (err) {
-          // `devices` stays whatever it already was (the server-rendered
-          // `initial` list, or a previous successful refresh) — safe, if
-          // possibly stale, since no isThisDevice claim is wrong, only
-          // unrefreshed. This only trades a silent failure for an
-          // observable one.
-          console.error("[DevicesPanel] failed to refresh the device list:", err);
-        }
+      // endpoint at all — nothing to re-derive against, so `local` can be
+      // set immediately.
+      if (!state.endpoint) {
+        setLocal(state);
+        return;
+      }
+      // `local` is deliberately NOT set until the refetch below settles.
+      // Setting it first (as this used to) let React commit a render with
+      // `localResolved: true` but `devices` still the stale, all-false
+      // `initial` list — flashing "Enable on this device" for a moment on a
+      // device that was already known. Holding `local` back until `devices`
+      // is as fresh as it will get keeps both flipping together.
+      try {
+        const fresh = await listDevices(state.endpoint);
+        if (!cancelled) setDevices(fresh);
+      } catch (err) {
+        // `devices` stays whatever it already was (the server-rendered
+        // `initial` list, or a previous successful refresh) — safe, if
+        // possibly stale, since no isThisDevice claim is wrong, only
+        // unrefreshed. This only trades a silent failure for an
+        // observable one.
+        console.error("[DevicesPanel] failed to refresh the device list:", err);
+      } finally {
+        if (!cancelled) setLocal(state);
       }
     });
     return () => {
@@ -247,7 +257,11 @@ export function DevicesPanel({ initial }: DevicesPanelProps) {
         ))}
       </div>
 
-      {message && <p className="text-xs text-foreground">{message}</p>}
+      {message && (
+        <p role="status" aria-live="polite" className="text-xs text-foreground">
+          {message}
+        </p>
+      )}
 
       {localResolved && local && (
         <>
