@@ -28,11 +28,11 @@ const STUB_SUB = {
 
 const STUB_PAYLOAD = JSON.stringify({ title: "Test", body: "Body", url: "/" });
 
-describe("buildNotificationPayload", () => {
+describe("buildDigestPayload", () => {
   it("returns a JSON string with title, body, url", async () => {
     // Reset env to ensure clean import
-    const { buildNotificationPayload } = await import("@/lib/push");
-    const result = buildNotificationPayload({
+    const { buildDigestPayload } = await import("@/lib/push");
+    const result = buildDigestPayload({
       title: "Flight reminder",
       body: "Board in 1h",
       url: "/trips/abc/today",
@@ -46,8 +46,8 @@ describe("buildNotificationPayload", () => {
   });
 
   it("serialises correctly for non-ASCII strings", async () => {
-    const { buildNotificationPayload } = await import("@/lib/push");
-    const result = buildNotificationPayload({
+    const { buildDigestPayload } = await import("@/lib/push");
+    const result = buildDigestPayload({
       title: "日本語タイトル",
       body: "Hello 🌏",
       url: "/trips/jp",

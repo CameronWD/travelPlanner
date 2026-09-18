@@ -31,7 +31,7 @@ import {
   type DigestStayLine,
   type DigestTransportLine,
 } from "@/lib/digest";
-import { buildNotificationPayload, sendPush } from "@/lib/push";
+import { buildDigestPayload, sendPush } from "@/lib/push";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { buildCostLabelMap, costLabel } from "@/lib/cost-labels";
 import { formatMoney } from "@/lib/money";
@@ -577,7 +577,7 @@ export async function dispatchDigest(opts: {
       select: { id: true, endpoint: true, p256dh: true, auth: true },
     });
 
-    const payload = buildNotificationPayload(digest);
+    const payload = buildDigestPayload(digest);
     let sent = 0;
     const goneIds: string[] = [];
 
