@@ -8,10 +8,10 @@ vi.mock("@/server/actions/digest", () => ({
 }));
 
 // Stubbed so these tests are about the panel's own branching, not the push
-// API detection inside EnableNotifications (which has its own tests and
-// renders an "unavailable" state under jsdom).
-vi.mock("@/components/trip/enable-notifications", () => ({
-  EnableNotifications: () => <button type="button">Enable trip reminders</button>,
+// API detection inside EnableDevice (which has its own tests and renders an
+// "unavailable" state under jsdom).
+vi.mock("@/components/account/enable-device", () => ({
+  EnableDevice: () => <button type="button">Enable on this device</button>,
 }));
 
 // The browser's own zone decides whether the stored one is still current. It
@@ -97,7 +97,7 @@ describe("RemindersPanel", () => {
       <RemindersPanel tripId="t1" initial={{ enabled: true, device: null }} />,
     );
     expect(
-      screen.getByRole("button", { name: /enable trip reminders/i }),
+      screen.getByRole("button", { name: /enable on this device/i }),
     ).toBeInTheDocument();
     unmount();
 
@@ -111,7 +111,7 @@ describe("RemindersPanel", () => {
       />,
     );
     expect(
-      screen.queryByRole("button", { name: /enable trip reminders/i }),
+      screen.queryByRole("button", { name: /enable on this device/i }),
     ).not.toBeInTheDocument();
   });
 

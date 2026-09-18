@@ -1,14 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 /**
- * Tests for EnableNotifications.
+ * Tests for EnableDevice.
  *
  * Mocks: server/actions/push
  *
  * navigator.userAgent / platform / maxTouchPoints / standalone and
  * window.matchMedia are stubbed per test and torn down in afterEach so
- * state never leaks into other test files sharing this worker.
+ * state never leaks into other test files sharing this worker. The
+ * isIosWithoutInstall / isPushSupported checks these exercise now live in
+ * @/components/account/device-state (Task 5) — EnableDevice imports them
+ * from there rather than defining its own copies.
  */
 
 vi.mock("@/server/actions/push", () => ({
@@ -94,36 +97,36 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("EnableNotifications — iOS without install", () => {
+describe("EnableDevice — iOS without install", () => {
   it("renders 'Add to Home Screen first' and no enable button for an iOS user-agent without standalone", async () => {
     stubNavigator({ userAgent: IPHONE_UA, standalone: false });
     stubMatchMedia(false);
 
-    const { EnableNotifications } = await import("./enable-notifications");
-    render(<EnableNotifications />);
+    const { EnableDevice } = await import("./enable-device");
+    render(<EnableDevice />);
 
     expect(
       screen.getByRole("button", { name: "Add to Home Screen first" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/Tap Share/)).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Enable trip reminders/i }),
+      screen.queryByRole("button", { name: /Enable on this device/i }),
     ).not.toBeInTheDocument();
   });
 });
 
-describe("EnableNotifications — desktop with push configured", () => {
+describe("EnableDevice — desktop with push configured", () => {
   it("renders the enable button for a desktop user-agent with the VAPID key set", async () => {
     stubNavigator({ userAgent: DESKTOP_UA, platform: "Win32", maxTouchPoints: 0 });
     stubPushSupport();
     vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "test-vapid-key");
     vi.resetModules();
 
-    const { EnableNotifications } = await import("./enable-notifications");
-    render(<EnableNotifications />);
+    const { EnableDevice } = await import("./enable-device");
+    render(<EnableDevice />);
 
     expect(
-      screen.getByRole("button", { name: /Enable trip reminders/i }),
+      screen.getByRole("button", { name: /Enable on this device/i }),
     ).toBeInTheDocument();
   });
 });

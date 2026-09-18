@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Send, Smartphone, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { EnableNotifications } from "@/components/trip/enable-notifications";
+import { EnableDevice } from "@/components/account/enable-device";
 import { deviceTimeZone } from "@/lib/tz";
 import { servedSlotsForZone } from "@/lib/digest-schedule";
 import {
@@ -218,7 +218,7 @@ export function RemindersPanel({ tripId, initial }: RemindersPanelProps) {
           <p className="text-sm text-muted-foreground">
             No device subscribed yet, so there is nowhere to send your digest.
           </p>
-          <EnableNotifications />
+          <EnableDevice />
         </div>
       )}
 

@@ -5,6 +5,7 @@ import { Bell, BellOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { deviceTimeZone } from "@/lib/tz";
 import { subscribeToPush } from "@/server/actions/push";
+import { isIosWithoutInstall, isPushSupported } from "@/components/account/device-state";
 
 // ---------------------------------------------------------------------------
 // VAPID public key — exposed as NEXT_PUBLIC_VAPID_PUBLIC_KEY
@@ -30,36 +31,6 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return outputArray;
 }
 
-// ---------------------------------------------------------------------------
-// Detect support
-// ---------------------------------------------------------------------------
-
-function isPushSupported(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    "Notification" in window &&
-    "serviceWorker" in navigator &&
-    "PushManager" in window
-  );
-}
-
-/**
- * iOS only permits web push from a PWA installed to the Home Screen — a normal
- * Safari tab cannot subscribe at all (ADR 0047). Detect that state so the
- * button explains itself instead of failing.
- */
-export function isIosWithoutInstall(): boolean {
-  if (typeof window === "undefined") return false;
-  const ua = navigator.userAgent;
-  const isIos = /iPad|iPhone|iPod/.test(ua) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  if (!isIos) return false;
-  const standalone =
-    window.matchMedia?.("(display-mode: standalone)").matches === true ||
-    (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-  return !standalone;
-}
-
 /**
  * Record a browser PushSubscription against the signed-in user, stamped with
  * the zone this browser is in *right now*.
@@ -77,8 +48,46 @@ async function persistSubscription(subscription: PushSubscription) {
       p256dh: (json.keys as Record<string, string>)?.p256dh ?? "",
       auth: (json.keys as Record<string, string>)?.auth ?? "",
     },
+    userAgent: navigator.userAgent,
     ...(zone ? { timezone: zone } : {}),
   });
+}
+
+export type SubscribeThisDeviceResult =
+  | { ok: true }
+  | { ok: false; reason: "denied" | "error" };
+
+/**
+ * The actual browser mechanics of turning this Device on: request
+ * permission, subscribe via PushManager, persist the subscription.
+ *
+ * Pulled out of the `EnableDevice` button so `DevicesPanel` can drive the
+ * same subscribe flow from its own button — it renders its own copy for the
+ * needsInstall / denied / unsupported states (driven by the async
+ * `readLocalDeviceState`, Task 5) rather than `EnableDevice`'s synchronous
+ * `isPushSupported()` check, which reads real browser globals `EnableDevice`
+ * has no way to have injected for a test.
+ */
+export async function subscribeThisDevice(): Promise<SubscribeThisDeviceResult> {
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      return { ok: false, reason: "denied" };
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: applicationServerKey.buffer as ArrayBuffer,
+    });
+
+    const result = await persistSubscription(subscription);
+    return result.ok ? { ok: true } : { ok: false, reason: "error" };
+  } catch (err) {
+    console.error("[subscribeThisDevice] failed:", err);
+    return { ok: false, reason: "error" };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -87,21 +96,25 @@ async function persistSubscription(subscription: PushSubscription) {
 
 type Status = "idle" | "loading" | "enabled" | "denied" | "error";
 
-interface EnableNotificationsProps {
+interface EnableDeviceProps {
   /** Optional extra className for the wrapper */
   className?: string;
+  /** Called after a successful subscribe + persist, so a caller such as
+   * DevicesPanel can refresh whatever list of Devices it is showing. */
+  onEnabled?: () => void;
 }
 
 /**
- * Enable Notifications button.
+ * Enable Device button — the only way a browser subscribes itself to the
+ * Digest (CONTEXT.md **Device**).
  *
  * - When VAPID public key is not configured OR push is not supported,
  *   renders a disabled state with a hint — never crashes.
  * - On success, calls the subscribeToPush server action to persist the
- *   PushSubscription to the database.
+ *   PushSubscription to the database, then `onEnabled`.
  * - Graceful: all errors are caught and surfaced as UI state.
  */
-export function EnableNotifications({ className }: EnableNotificationsProps) {
+export function EnableDevice({ className, onEnabled }: EnableDeviceProps) {
   const [status, setStatus] = useState<Status>("idle");
 
   const supported = isPushSupported();
@@ -115,9 +128,9 @@ export function EnableNotifications({ className }: EnableNotificationsProps) {
           Add to Home Screen first
         </Button>
         <p className="mt-1 text-xs text-muted-foreground">
-          iPhone only sends reminders to an installed app. Tap Share, then
+          iPhone only sends a digest to an installed app. Tap Share, then
           &ldquo;Add to Home Screen&rdquo;, open TEEPEE from there, and this
-          button will work.
+          will work.
         </p>
       </div>
     );
@@ -128,12 +141,12 @@ export function EnableNotifications({ className }: EnableNotificationsProps) {
       <div className={className}>
         <Button variant="outline" size="sm" disabled className="gap-2">
           <BellOff className="size-4" aria-hidden="true" />
-          Notifications unavailable
+          Digests unavailable
         </Button>
         <p className="mt-1 text-xs text-muted-foreground">
           {!configured
-            ? "Notifications need setup — ask the admin to configure VAPID keys."
-            : "Your browser doesn't support push notifications."}
+            ? "Digests need setup — ask the admin to configure the VAPID keys."
+            : "This browser can't receive a digest."}
         </p>
       </div>
     );
@@ -144,7 +157,7 @@ export function EnableNotifications({ className }: EnableNotificationsProps) {
       <div className={className}>
         <Button variant="outline" size="sm" disabled className="gap-2">
           <Bell className="size-4 text-primary" aria-hidden="true" />
-          Reminders enabled
+          Digest enabled on this device
         </Button>
       </div>
     );
@@ -155,10 +168,11 @@ export function EnableNotifications({ className }: EnableNotificationsProps) {
       <div className={className}>
         <Button variant="outline" size="sm" disabled className="gap-2">
           <BellOff className="size-4" aria-hidden="true" />
-          Notifications blocked
+          Digests blocked
         </Button>
         <p className="mt-1 text-xs text-muted-foreground">
-          Allow notifications in your browser settings to enable reminders.
+          Allow them for TEEPEE in your browser or phone settings, then come
+          back.
         </p>
       </div>
     );
@@ -166,33 +180,13 @@ export function EnableNotifications({ className }: EnableNotificationsProps) {
 
   async function handleEnable() {
     setStatus("loading");
-
-    try {
-      // 1. Request permission
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        setStatus("denied");
-        return;
-      }
-
-      // 2. Get service worker registration
-      const registration = await navigator.serviceWorker.ready;
-
-      // 3. Subscribe via PushManager
-      const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: applicationServerKey.buffer as ArrayBuffer,
-      });
-
-      // 4. Persist to the server
-      await persistSubscription(subscription);
-
-      setStatus("enabled");
-    } catch (err) {
-      console.error("[EnableNotifications] failed:", err);
-      setStatus("error");
+    const result = await subscribeThisDevice();
+    if (!result.ok) {
+      setStatus(result.reason);
+      return;
     }
+    setStatus("enabled");
+    onEnabled?.();
   }
 
   return (
@@ -205,11 +199,11 @@ export function EnableNotifications({ className }: EnableNotificationsProps) {
         className="gap-2"
       >
         <Bell className="size-4" aria-hidden="true" />
-        Enable trip reminders
+        Enable on this device
       </Button>
       {status === "error" && (
         <p className="mt-1 text-xs text-destructive">
-          Failed to enable notifications. Please try again.
+          Couldn&rsquo;t enable digests on this device. Please try again.
         </p>
       )}
     </div>
