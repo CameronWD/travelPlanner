@@ -175,7 +175,7 @@ Supporting a new zone means adding the matching UTC hour(s) to the `cron:` list 
 automatically. That is the whole job, for whole-hour and half-hour zones alike; the window
 logic in `lib/digest-schedule.ts` never needs to change.
 
-A device on a zone this schedule misses is told so in the Trip's **Settings → Reminders**
+A device on a zone this schedule misses is told so in the Trip's **Settings → Digest**
 panel, which judges the stored zone against these same hours via `servedSlotsForZone`.
 There is still nothing in the cron logs — the run considers the device and simply matches
 no window — so the panel is the only place it surfaces.

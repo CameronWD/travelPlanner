@@ -22,7 +22,7 @@ The following are **disabled gracefully** without config — the UI hides or dis
 |---|---|
 | Google sign-in | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` absent |
 | Web-push notifications | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` absent |
-| Reminder delivery | `CRON_SECRET` absent or cron not wired |
+| Digest delivery | `CRON_SECRET` absent or cron not wired |
 | AI assistant | `ANTHROPIC_API_KEY` absent |
 
 In production you need: Postgres, Google OAuth, a strong `AUTH_SECRET`, and `ALLOW_DEV_LOGIN="false"`. Everything else is optional but recommended.
@@ -229,7 +229,7 @@ Geocoding requires no API key, but Nominatim's usage policy requires a real cont
 
 ---
 
-## 6. Reminders / Web Push
+## 6. Digest / Web Push
 
 > The repo ships a GitHub Actions cron (`.github/workflows/digest-cron.yml`) — the recommended path on Vercel Hobby (whose own cron is daily-only).
 
@@ -313,7 +313,7 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
 ```
 
-### Reminders reach a phone
+### Digest reaches a phone
 
 Three one-time steps on an iPhone, all of them easy to miss and each silently fatal on its
 own:
@@ -383,7 +383,7 @@ The app is platform-agnostic and will run on any Node.js host (Railway, Fly.io, 
 | `VAPID_PRIVATE_KEY` | No (push disabled) | Server-side VAPID private key | `npx web-push generate-vapid-keys` |
 | `VAPID_SUBJECT` | No (push disabled) | VAPID subject (`mailto:` or `https:`) | Your contact email/URL |
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | No (push disabled) | Browser-side VAPID public key (must match `VAPID_PUBLIC_KEY`) | Copy from `VAPID_PUBLIC_KEY` |
-| `CRON_SECRET` | No (reminders not sent) | Protects `/api/cron/digest` | `openssl rand -hex 32` |
+| `CRON_SECRET` | No (digest not sent) | Protects `/api/cron/digest` | `openssl rand -hex 32` |
 | `ANTHROPIC_API_KEY` | No (AI disabled) | Enables AI assistant features | [console.anthropic.com](https://console.anthropic.com/) |
 | `AI_MODEL` | No | Anthropic model ID (default: `claude-opus-4-8`) | Any valid Anthropic model ID |
 
