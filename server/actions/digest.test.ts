@@ -13,6 +13,7 @@ const {
   digestPreferenceFindUniqueMock,
   digestPreferenceUpsertMock,
   pushSubscriptionFindManyMock,
+  pushSubscriptionCountMock,
   tripFindManyMock,
   dispatchDigestMock,
   isPushConfiguredMock,
@@ -27,6 +28,7 @@ const {
   digestPreferenceFindUniqueMock: vi.fn(),
   digestPreferenceUpsertMock: vi.fn(),
   pushSubscriptionFindManyMock: vi.fn(),
+  pushSubscriptionCountMock: vi.fn(),
   tripFindManyMock: vi.fn(),
   dispatchDigestMock: vi.fn(),
   isPushConfiguredMock: vi.fn(),
@@ -46,6 +48,7 @@ vi.mock("@/lib/db", () => ({
     },
     pushSubscription: {
       findMany: pushSubscriptionFindManyMock,
+      count: pushSubscriptionCountMock,
     },
     trip: {
       findMany: tripFindManyMock,
@@ -91,7 +94,7 @@ afterEach(() => {
 describe("auth ordering", () => {
   it("getDigestSettings calls requireTripAccess first", async () => {
     digestPreferenceFindUniqueMock.mockResolvedValue(null);
-    pushSubscriptionFindManyMock.mockResolvedValue([]);
+    pushSubscriptionCountMock.mockResolvedValue(0);
     await getDigestSettings(TRIP_ID);
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
   });
@@ -125,7 +128,7 @@ describe("auth ordering", () => {
 describe("getDigestSettings", () => {
   it("reports enabled: true when no preference row exists", async () => {
     digestPreferenceFindUniqueMock.mockResolvedValue(null);
-    pushSubscriptionFindManyMock.mockResolvedValue([]);
+    pushSubscriptionCountMock.mockResolvedValue(0);
 
     const result = await getDigestSettings(TRIP_ID);
 
@@ -138,70 +141,37 @@ describe("getDigestSettings", () => {
 
   it("reports enabled: false when the preference row says so", async () => {
     digestPreferenceFindUniqueMock.mockResolvedValue({ enabled: false });
-    pushSubscriptionFindManyMock.mockResolvedValue([]);
+    pushSubscriptionCountMock.mockResolvedValue(0);
 
     const result = await getDigestSettings(TRIP_ID);
 
     expect(result.enabled).toBe(false);
   });
 
-  it("reports devices: [] when the user has no subscriptions", async () => {
+  it("reports deviceCount: 0 when the user has no subscriptions", async () => {
     digestPreferenceFindUniqueMock.mockResolvedValue(null);
-    pushSubscriptionFindManyMock.mockResolvedValue([]);
+    pushSubscriptionCountMock.mockResolvedValue(0);
 
     const result = await getDigestSettings(TRIP_ID);
 
-    expect(result.devices).toEqual([]);
+    expect(result.deviceCount).toBe(0);
   });
 
-  it("reports each device's timezone, createdAt and label", async () => {
+  // Two sources of truth for "how many devices" (this `count()` and
+  // `DevicesPanel`'s own `listDevices` findMany) is exactly the shape that
+  // produced the 2026-09-17 incident, so this is a `count()`, not a
+  // `findMany()` — pin the query shape, not just the number it returns.
+  it("counts this user's own subscriptions via count(), not findMany()", async () => {
     digestPreferenceFindUniqueMock.mockResolvedValue(null);
-    const newest = new Date("2026-09-01T00:00:00Z");
-    const older = new Date("2026-01-01T00:00:00Z");
-    // Simulate DB ordering by createdAt desc — newest first.
-    pushSubscriptionFindManyMock.mockResolvedValue([
-      { timezone: "Asia/Tokyo", createdAt: newest, label: "iPhone" },
-      { timezone: "Europe/London", createdAt: older, label: "Mac" },
-    ]);
+    pushSubscriptionCountMock.mockResolvedValue(2);
 
     const result = await getDigestSettings(TRIP_ID);
 
-    expect(result.devices).toEqual([
-      { timezone: "Asia/Tokyo", subscribedAt: newest, label: "iPhone" },
-      { timezone: "Europe/London", subscribedAt: older, label: "Mac" },
-    ]);
-    expect(pushSubscriptionFindManyMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { userId: USER_ID },
-        orderBy: { createdAt: "desc" },
-      }),
-    );
-  });
-
-  it("surfaces a null timezone honestly rather than inventing a default", async () => {
-    digestPreferenceFindUniqueMock.mockResolvedValue(null);
-    const createdAt = new Date("2026-09-01T00:00:00Z");
-    pushSubscriptionFindManyMock.mockResolvedValue([
-      { timezone: null, createdAt, label: null },
-    ]);
-
-    const result = await getDigestSettings(TRIP_ID);
-
-    expect(result.devices).toEqual([{ timezone: null, subscribedAt: createdAt, label: null }]);
-  });
-
-  // Reporting only the newest device is how "1 device · Brisbane" came to
-  // describe a machine the traveller wasn't holding (ADR 0048).
-  it("returns every device, not just the newest", async () => {
-    pushSubscriptionFindManyMock.mockResolvedValue([
-      { timezone: "Australia/Brisbane", createdAt: new Date("2026-09-17"), label: "iPhone" },
-      { timezone: "Europe/Vienna", createdAt: new Date("2026-09-01"), label: "Mac" },
-    ]);
-    digestPreferenceFindUniqueMock.mockResolvedValue({ enabled: true });
-
-    const settings = await getDigestSettings("trip-1");
-
-    expect(settings.devices).toHaveLength(2);
+    expect(result.deviceCount).toBe(2);
+    expect(pushSubscriptionCountMock).toHaveBeenCalledWith({
+      where: { userId: USER_ID },
+    });
+    expect(pushSubscriptionFindManyMock).not.toHaveBeenCalled();
   });
 });
 

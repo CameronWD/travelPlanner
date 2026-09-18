@@ -47,8 +47,9 @@ function subscribeToNothing(): () => void {
  *   4. the note that a silent day is by design.
  *
  * `readLocalDeviceState()` (Task 5) has no way to know this device's stored
- * timezone — only whether it currently holds a live subscription. Rather than
- * guess which row in `DigestSettings.devices` (no endpoint on the wire) is
+ * timezone — only whether it currently holds a live subscription. `initial`
+ * (from `getDigestSettings`) carries no rows to guess from either — just an
+ * `enabled` flag and a `deviceCount` — so rather than guess which device is
  * THIS browser, this asks the server the same way `DevicesPanel` already
  * does: `listDevices(local.endpoint)` resolves `isThisDevice` by literal
  * endpoint match, so the zone-specific warnings below are attributed
@@ -104,12 +105,12 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
   const hasLiveSubscription = !!local?.endpoint;
 
   // The freshest count of devices on file this browser can see. Before
-  // `listDevices` resolves, `initial.devices` (from `getDigestSettings`,
-  // computed at page load) is the best available answer; once it resolves,
-  // the live list wins — the same precedence that already made "no device on
-  // file at all" beat an optimistic local belief, now falling out of asking
-  // the server rather than a special case.
-  const deviceCount = deviceRows !== null ? deviceRows.length : initial.devices.length;
+  // `listDevices` resolves, `initial.deviceCount` (from `getDigestSettings`,
+  // a `count()` at page load) is the best available answer; once it
+  // resolves, the live list wins — the same precedence that already made "no
+  // device on file at all" beat an optimistic local belief, now falling out
+  // of asking the server rather than a special case.
+  const deviceCount = deviceRows !== null ? deviceRows.length : initial.deviceCount;
 
   // The one row `listDevices` itself says is THIS browser, resolved
   // server-side by literal endpoint match — never guessed from a count.
@@ -212,7 +213,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
               Manage devices
             </Link>
           </div>
-        ) : hasLiveSubscription ? (
+        ) : myDevice ? (
           <div className="flex flex-col gap-1.5">
             <p className="flex items-center gap-2 text-sm text-foreground">
               <Smartphone className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -220,7 +221,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
                 This device will receive it{storedZone ? ` · ${storedZone}` : ""}
               </span>
             </p>
-            {myDevice && myDevice.timezone === null && (
+            {myDevice.timezone === null && (
               <p className="flex items-start gap-2 text-xs text-destructive">
                 <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                 <span>
@@ -257,6 +258,26 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
               </p>
             )}
           </div>
+        ) : hasLiveSubscription ? (
+          // This browser holds a live subscription, but no row `listDevices`
+          // returned matches it — either the refetch hasn't resolved a
+          // matching row yet, or it failed outright (`deviceRows` stayed
+          // null). Either way, there is no server-confirmed evidence this
+          // device is reachable, so this must not say "will receive it": a
+          // claim the dispatcher cannot back up is exactly what let the
+          // 2026-09-17 test send report success while nothing arrived.
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-muted-foreground">
+              This device isn&rsquo;t confirmed yet — reload this page, or
+              check Manage devices to see what&rsquo;s on file.
+            </p>
+            <Link
+              href="/account"
+              className="self-start text-xs font-medium text-foreground underline underline-offset-2"
+            >
+              Manage devices
+            </Link>
+          </div>
         ) : (
           <div className="flex flex-col gap-2">
             <p className="text-sm text-muted-foreground">
@@ -287,11 +308,29 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
         </div>
         {testResult?.ok === true && (() => {
           const devices = `${testResult.sent} ${testResult.sent === 1 ? "device" : "devices"}`;
+          // `testResult.sent` is HTTP 2xx from the push service — exactly the
+          // number that read "delivered" on 2026-09-17 while an iPhone that
+          // had silently lost permission received nothing. Keep the headline
+          // (its exact wording is asserted elsewhere) in its own element so
+          // it stays a clean success message, and add the honest caveat
+          // alongside it rather than folding it in.
+          const headline = testResult.placeholder
+            ? `Sent a test to ${devices}. There's nothing to report today, so your real digest would stay silent.`
+            : `Sent today's digest to ${devices}.`;
           return (
             <p className="text-xs text-foreground">
-              {testResult.placeholder
-                ? `Sent a test to ${devices}. There's nothing to report today, so your real digest would stay silent.`
-                : `Sent today's digest to ${devices}.`}
+              <span>{headline}</span>{" "}
+              <span className="text-muted-foreground">
+                If it doesn&rsquo;t arrive, that device may have lost
+                permission — check{" "}
+                <Link
+                  href="/account"
+                  className="font-medium text-foreground underline underline-offset-2"
+                >
+                  Devices
+                </Link>{" "}
+                in Account.
+              </span>
             </p>
           );
         })()}

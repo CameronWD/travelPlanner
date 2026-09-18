@@ -103,7 +103,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: "Australia/Sydney", subscribedAt: SUBSCRIBED_AT, label: null }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -120,7 +120,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: false,
-          devices: [{ timezone: "Australia/Sydney", subscribedAt: SUBSCRIBED_AT, label: null }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -143,7 +143,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: "Europe/Rome", subscribedAt: SUBSCRIBED_AT, label: "iPhone" }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -161,7 +161,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: "Europe/Rome", subscribedAt: SUBSCRIBED_AT, label: "iPhone" }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -179,7 +179,7 @@ describe("DigestPanel", () => {
     listDevicesMock.mockResolvedValue([]);
 
     render(
-      <DigestPanel tripId="t1" initial={{ enabled: true, devices: [] }} />,
+      <DigestPanel tripId="t1" initial={{ enabled: true, deviceCount: 0 }} />,
     );
 
     await screen.findByText(/no device is set up yet/i);
@@ -192,7 +192,7 @@ describe("DigestPanel", () => {
     readLocalDeviceStateMock.mockResolvedValue(notSubscribedHere());
     listDevicesMock.mockResolvedValue([]);
 
-    render(<DigestPanel tripId="t1" initial={{ enabled: true, devices: [] }} />);
+    render(<DigestPanel tripId="t1" initial={{ enabled: true, deviceCount: 0 }} />);
 
     expect(
       await screen.findByText("No device is set up yet, so there’s nowhere to send this."),
@@ -212,7 +212,7 @@ describe("DigestPanel", () => {
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
     listDevicesMock.mockResolvedValue([]);
 
-    render(<DigestPanel tripId="t1" initial={{ enabled: true, devices: [] }} />);
+    render(<DigestPanel tripId="t1" initial={{ enabled: true, deviceCount: 0 }} />);
 
     expect(
       await screen.findByText("No device is set up yet, so there’s nowhere to send this."),
@@ -237,10 +237,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [
-            { timezone: "Australia/Brisbane", subscribedAt: SUBSCRIBED_AT, label: "iPhone" },
-            { timezone: "Europe/Vienna", subscribedAt: SUBSCRIBED_AT, label: "Mac" },
-          ],
+          deviceCount: 2,
         }}
       />,
     );
@@ -266,10 +263,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [
-            { timezone: "Australia/Brisbane", subscribedAt: SUBSCRIBED_AT, label: "iPhone" },
-            { timezone: null, subscribedAt: SUBSCRIBED_AT, label: "Mac" },
-          ],
+          deviceCount: 2,
         }}
       />,
     );
@@ -285,7 +279,12 @@ describe("DigestPanel", () => {
   // ARE on file — the panel must not fabricate a zone by falling back to
   // this browser's own live zone. That reads as "This device will receive
   // it" over a device the dispatcher cannot actually reach.
-  it("shows no zone, and no zone-specific warnings, when this browser's subscription matches no server row", async () => {
+  // Fix round 3, finding 1: when no row's `isThisDevice` is true, the panel
+  // must not claim delivery at all — not even the zone-less "This device
+  // will receive it" it used to fall back to. That claim is exactly what the
+  // dispatcher cannot back up: a subscription this browser holds that the
+  // server has no record of will never be reached.
+  it("makes no delivery claim when this browser's subscription matches no server row", async () => {
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
     vi.mocked(deviceTimeZone).mockReturnValue("Europe/Vienna");
     listDevicesMock.mockResolvedValue([
@@ -298,25 +297,23 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [
-            { timezone: "Australia/Brisbane", subscribedAt: SUBSCRIBED_AT, label: "iPhone" },
-            { timezone: null, subscribedAt: SUBSCRIBED_AT, label: "Mac" },
-          ],
+          deviceCount: 2,
         }}
       />,
     );
 
-    expect(await screen.findByText("This device will receive it")).toBeInTheDocument();
-    expect(screen.queryByText(/This device will receive it ·/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/isn.t confirmed yet/i)).toBeInTheDocument();
+    expect(screen.queryByText(/this device will receive it/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/still scheduled against/)).not.toBeInTheDocument();
     expect(screen.queryByText(/skipped every run/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Nothing is scheduled to reach/)).not.toBeInTheDocument();
   });
 
-  // Fix round 2: a rejected refetch must not throw, must not fabricate a
-  // zone, and must not vanish silently — it degrades exactly like the
-  // "no matching row" case above, but the failure has to be observable.
-  it("logs and degrades safely when the device refetch fails", async () => {
+  // Fix round 2, hardened in round 3 (finding 1): a rejected refetch must
+  // not throw, must not fabricate a zone, and must not vanish silently — and
+  // must not claim delivery either, since `deviceRows` stays null and
+  // `myDevice` can never be resolved from it.
+  it("logs and degrades safely, making no delivery claim, when the device refetch fails", async () => {
     const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
     listDevicesMock.mockRejectedValue(new Error("network down"));
@@ -326,15 +323,15 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: "Australia/Brisbane", subscribedAt: SUBSCRIBED_AT, label: "iPhone" }],
+          deviceCount: 1,
         }}
       />,
     );
 
-    // Renders without throwing, and never claims a zone it can't stand
+    // Renders without throwing, and never claims delivery it can't stand
     // behind — `deviceRows` stays null, so `myDevice` stays null too.
-    expect(await screen.findByText("This device will receive it")).toBeInTheDocument();
-    expect(screen.queryByText(/This device will receive it ·/)).not.toBeInTheDocument();
+    expect(await screen.findByText(/isn.t confirmed yet/i)).toBeInTheDocument();
+    expect(screen.queryByText(/this device will receive it/i)).not.toBeInTheDocument();
     await waitFor(() =>
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         "[DigestPanel] failed to refresh this device's server row:",
@@ -354,7 +351,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: null, subscribedAt: SUBSCRIBED_AT, label: null }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -370,7 +367,7 @@ describe("DigestPanel", () => {
       error: "Push is not configured on this deployment — the VAPID keys are missing.",
     });
 
-    render(<DigestPanel tripId="t1" initial={{ enabled: true, devices: [] }} />);
+    render(<DigestPanel tripId="t1" initial={{ enabled: true, deviceCount: 0 }} />);
 
     await user.click(await screen.findByRole("button", { name: /send me a test/i }));
 
@@ -389,7 +386,7 @@ describe("DigestPanel", () => {
       error: "No device is subscribed yet. Press Enable first.",
     });
 
-    render(<DigestPanel tripId="t1" initial={{ enabled: true, devices: [] }} />);
+    render(<DigestPanel tripId="t1" initial={{ enabled: true, deviceCount: 0 }} />);
 
     await user.click(await screen.findByRole("button", { name: /send me a test/i }));
 
@@ -407,7 +404,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: "Europe/Rome", subscribedAt: SUBSCRIBED_AT, label: null }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -426,7 +423,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: "Europe/Rome", subscribedAt: SUBSCRIBED_AT, label: null }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -448,7 +445,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: "Europe/Rome", subscribedAt: SUBSCRIBED_AT, label: null }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -469,7 +466,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: "Europe/Rome", subscribedAt: SUBSCRIBED_AT, label: null }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -495,7 +492,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: "Australia/Brisbane", subscribedAt: SUBSCRIBED_AT, label: null }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -520,7 +517,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: "Australia/Brisbane", subscribedAt: SUBSCRIBED_AT, label: null }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -543,7 +540,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: null, subscribedAt: SUBSCRIBED_AT, label: null }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -566,7 +563,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: "America/New_York", subscribedAt: SUBSCRIBED_AT, label: null }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -587,7 +584,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: "Europe/Rome", subscribedAt: SUBSCRIBED_AT, label: null }],
+          deviceCount: 1,
         }}
       />,
     );
@@ -602,7 +599,7 @@ describe("DigestPanel", () => {
         tripId="t1"
         initial={{
           enabled: true,
-          devices: [{ timezone: "Europe/Rome", subscribedAt: SUBSCRIBED_AT, label: null }],
+          deviceCount: 1,
         }}
       />,
     );

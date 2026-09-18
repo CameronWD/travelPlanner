@@ -14,11 +14,18 @@ import { todayISOInZone } from "@/lib/tz";
 export interface DigestSettings {
   enabled: boolean;
   /**
-   * Every **Device** this Traveller has, newest first — not just the newest.
-   * The panel used to show only `devices[0]`, which let one healthy laptop
-   * stand in for a phone that had quietly died (ADR 0048).
+   * How many Devices this Traveller has on file, at page-load time.
+   *
+   * Used only as `DigestPanel`'s pre-refetch fallback count, before
+   * `listDevices` resolves with the authoritative, `isThisDevice`-attributed
+   * list — so this is a `count()`, not a `findMany()`. It used to carry the
+   * full row shape (`timezone`, `subscribedAt`, `label`) from Task 8, but
+   * `DigestPanel` re-fetches the real rows itself via `listDevices` (ADR
+   * 0048) and neither of those fields ever had another consumer — two
+   * queries answering "how many devices" was exactly the kind of
+   * unobservable duplication this branch exists to remove.
    */
-  devices: Array<{ timezone: string | null; subscribedAt: Date; label: string | null }>;
+  deviceCount: number;
 }
 
 export type SendTestDigestResult =
@@ -36,7 +43,7 @@ export type SendTestDigestResult =
 
 /**
  * Read the current user's Digest settings for a trip: whether the Digest is
- * on, and every device that could receive it.
+ * on, and how many devices are on file for it.
  *
  * A missing DigestPreference row means enabled — subscribing a device is
  * itself the opt-in (see lib/digest-dispatch.ts), so this mirrors that
@@ -45,23 +52,17 @@ export type SendTestDigestResult =
 export async function getDigestSettings(tripId: string): Promise<DigestSettings> {
   const { user } = await requireTripAccess(tripId);
 
-  const [preference, devices] = await Promise.all([
+  const [preference, deviceCount] = await Promise.all([
     db.digestPreference.findUnique({
       where: { userId_tripId: { userId: user.id, tripId } },
       select: { enabled: true },
     }),
-    db.pushSubscription.findMany({
-      where: { userId: user.id },
-      select: { timezone: true, createdAt: true, label: true },
-      orderBy: { createdAt: "desc" },
-    }),
+    db.pushSubscription.count({ where: { userId: user.id } }),
   ]);
 
   return {
     enabled: preference ? preference.enabled : true,
-    // A device with no stored timezone is a device the dispatcher can't
-    // schedule for — surface that honestly rather than inventing "UTC".
-    devices: devices.map((d) => ({ timezone: d.timezone, subscribedAt: d.createdAt, label: d.label })),
+    deviceCount,
   };
 }
 
