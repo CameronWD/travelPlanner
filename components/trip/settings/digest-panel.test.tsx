@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { LocalDeviceState } from "@/components/account/device-state";
+import type { DeviceSummary } from "@/server/actions/devices";
 
 vi.mock("@/server/actions/digest", () => ({
   setDigestEnabled: vi.fn().mockResolvedValue({ ok: true }),
@@ -12,6 +13,11 @@ vi.mock("@/server/actions/digest", () => ({
 const readLocalDeviceStateMock = vi.hoisted(() => vi.fn());
 vi.mock("@/components/account/device-state", () => ({
   readLocalDeviceState: readLocalDeviceStateMock,
+}));
+
+const listDevicesMock = vi.hoisted(() => vi.fn());
+vi.mock("@/server/actions/devices", () => ({
+  listDevices: listDevicesMock,
 }));
 
 vi.mock("next/link", () => ({
@@ -57,6 +63,20 @@ function notSubscribedHere(overrides: Partial<LocalDeviceState> = {}): LocalDevi
   };
 }
 
+/** A row as `listDevices` (server/actions/devices.ts) returns it. */
+function deviceRow(overrides: Partial<DeviceSummary> = {}): DeviceSummary {
+  return {
+    id: "sub-1",
+    label: null,
+    timezone: "Europe/Rome",
+    subscribedAt: SUBSCRIBED_AT,
+    lastSeenAt: SUBSCRIBED_AT,
+    isThisDevice: false,
+    stale: false,
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(setDigestEnabled).mockResolvedValue({ ok: true });
@@ -66,6 +86,7 @@ beforeEach(() => {
   // something to resolve to, even tests that don't care about the device
   // line at all.
   readLocalDeviceStateMock.mockResolvedValue(notSubscribedHere());
+  listDevicesMock.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -113,6 +134,9 @@ describe("DigestPanel", () => {
 
   it("says the device will receive it, with its zone, when this browser is the one known device", async () => {
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
+    listDevicesMock.mockResolvedValue([
+      deviceRow({ isThisDevice: true, timezone: "Europe/Rome", label: "iPhone" }),
+    ]);
 
     render(
       <DigestPanel
@@ -130,6 +154,7 @@ describe("DigestPanel", () => {
 
   it("says this device isn't set up, and links to Account, when it holds no subscription but other devices exist", async () => {
     readLocalDeviceStateMock.mockResolvedValue(notSubscribedHere());
+    listDevicesMock.mockResolvedValue([deviceRow({ isThisDevice: false, timezone: "Europe/Rome" })]);
 
     render(
       <DigestPanel
@@ -151,6 +176,7 @@ describe("DigestPanel", () => {
 
   it("never offers its own Enable control — that control lives on Account now", async () => {
     readLocalDeviceStateMock.mockResolvedValue(notSubscribedHere());
+    listDevicesMock.mockResolvedValue([]);
 
     render(
       <DigestPanel tripId="t1" initial={{ enabled: true, devices: [] }} />,
@@ -164,6 +190,7 @@ describe("DigestPanel", () => {
 
   it("says no device is set up yet when the account has none on file at all", async () => {
     readLocalDeviceStateMock.mockResolvedValue(notSubscribedHere());
+    listDevicesMock.mockResolvedValue([]);
 
     render(<DigestPanel tripId="t1" initial={{ enabled: true, devices: [] }} />);
 
@@ -175,12 +202,15 @@ describe("DigestPanel", () => {
   });
 
   // The scenario the brief flagged as ambiguous: this browser has a live
-  // subscription, but the trip's account has zero devices on file (e.g. the
-  // server row was removed and DeviceSync has not yet re-healed it). The
+  // subscription, but the account has zero devices on file (e.g. the server
+  // row was removed and DeviceSync has not yet re-healed it). The
   // server-authoritative fact — "Send me a test" would fail right now with
   // no device to reach — wins over the browser's optimistic local belief.
+  // This now falls out of `listDevices` itself returning an empty list,
+  // rather than a special case comparing counts.
   it("says no device is set up yet even when this browser believes it holds a subscription", async () => {
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
+    listDevicesMock.mockResolvedValue([]);
 
     render(<DigestPanel tripId="t1" initial={{ enabled: true, devices: [] }} />);
 
@@ -190,9 +220,17 @@ describe("DigestPanel", () => {
     expect(screen.queryByText(/this device will receive it/i)).not.toBeInTheDocument();
   });
 
-  it("falls back to this device's own live zone when more than one device is on file", async () => {
+  // Fix round 1 finding #1/#3: attribution must work at ANY device count,
+  // via the server's own `isThisDevice`, never a "devices.length === 1"
+  // heuristic (which silenced every warning for a two-device traveller, and
+  // could misattribute at n=1 too if the one row on file wasn't actually
+  // this browser's).
+  it("attributes the stored zone correctly via isThisDevice among several devices on file", async () => {
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
-    vi.mocked(deviceTimeZone).mockReturnValue("Europe/Rome");
+    listDevicesMock.mockResolvedValue([
+      deviceRow({ id: "sub-brisbane", isThisDevice: true, timezone: "Australia/Brisbane", label: "iPhone" }),
+      deviceRow({ id: "sub-vienna", isThisDevice: false, timezone: "Europe/Vienna", label: "Mac" }),
+    ]);
 
     render(
       <DigestPanel
@@ -207,14 +245,21 @@ describe("DigestPanel", () => {
       />,
     );
 
-    // Neither stored row can be attributed to this browser, so it falls back
-    // to what this browser can say about itself: its own current zone.
-    expect(await screen.findByText("This device will receive it · Europe/Rome")).toBeInTheDocument();
+    expect(
+      await screen.findByText("This device will receive it · Australia/Brisbane"),
+    ).toBeInTheDocument();
   });
 
-  it("skips the zone-specific warnings when more than one device is on file", async () => {
+  // Fix round 1 finding #4: invert the old "skip warnings at 2+ devices"
+  // test — with isThisDevice available, the stale-zone warning MUST render
+  // once the server identifies which of several devices is this one.
+  it("renders the stale-zone warning for a multi-device traveller once isThisDevice identifies this browser", async () => {
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
     vi.mocked(deviceTimeZone).mockReturnValue("Europe/Vienna");
+    listDevicesMock.mockResolvedValue([
+      deviceRow({ id: "sub-brisbane", isThisDevice: true, timezone: "Australia/Brisbane", label: "iPhone" }),
+      deviceRow({ id: "sub-mac", isThisDevice: false, timezone: null, label: "Mac" }),
+    ]);
 
     render(
       <DigestPanel
@@ -229,9 +274,40 @@ describe("DigestPanel", () => {
       />,
     );
 
-    await screen.findByText(/this device will receive it/i);
-    // None of these warnings can be honestly attributed to THIS browser when
-    // it isn't clear which stored row (if any) is its own.
+    expect(
+      await screen.findByText(/still scheduled against Australia\/Brisbane/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/You are in Europe\/Vienna/)).toBeInTheDocument();
+  });
+
+  // Fix round 1 finding #2: when no row's `isThisDevice` is true — a stale
+  // local subscription with no matching server row, even while other devices
+  // ARE on file — the panel must not fabricate a zone by falling back to
+  // this browser's own live zone. That reads as "This device will receive
+  // it" over a device the dispatcher cannot actually reach.
+  it("shows no zone, and no zone-specific warnings, when this browser's subscription matches no server row", async () => {
+    readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
+    vi.mocked(deviceTimeZone).mockReturnValue("Europe/Vienna");
+    listDevicesMock.mockResolvedValue([
+      deviceRow({ id: "sub-brisbane", isThisDevice: false, timezone: "Australia/Brisbane", label: "iPhone" }),
+      deviceRow({ id: "sub-mac", isThisDevice: false, timezone: null, label: "Mac" }),
+    ]);
+
+    render(
+      <DigestPanel
+        tripId="t1"
+        initial={{
+          enabled: true,
+          devices: [
+            { timezone: "Australia/Brisbane", subscribedAt: SUBSCRIBED_AT, label: "iPhone" },
+            { timezone: null, subscribedAt: SUBSCRIBED_AT, label: "Mac" },
+          ],
+        }}
+      />,
+    );
+
+    expect(await screen.findByText("This device will receive it")).toBeInTheDocument();
+    expect(screen.queryByText(/This device will receive it ·/)).not.toBeInTheDocument();
     expect(screen.queryByText(/still scheduled against/)).not.toBeInTheDocument();
     expect(screen.queryByText(/skipped every run/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Nothing is scheduled to reach/)).not.toBeInTheDocument();
@@ -239,6 +315,7 @@ describe("DigestPanel", () => {
 
   it("says a device with no timezone is never dispatched to", async () => {
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
+    listDevicesMock.mockResolvedValue([deviceRow({ isThisDevice: true, timezone: null })]);
 
     render(
       <DigestPanel
@@ -379,6 +456,7 @@ describe("DigestPanel", () => {
     // Brisbane while standing in Vienna is a lie — that is 11:00 Vienna.
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
     vi.mocked(deviceTimeZone).mockReturnValue("Europe/Vienna");
+    listDevicesMock.mockResolvedValue([deviceRow({ isThisDevice: true, timezone: "Australia/Brisbane" })]);
 
     render(
       <DigestPanel
@@ -395,11 +473,15 @@ describe("DigestPanel", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/You are in Europe\/Vienna/)).toBeInTheDocument();
     expect(screen.getByText(/still scheduled against Australia\/Brisbane/)).toBeInTheDocument();
+    // The concrete part of the warning — what hour it actually arrives at —
+    // must survive, not just the fact that a mismatch exists.
+    expect(screen.getByText(/arrives at 8pm Australia\/Brisbane/)).toBeInTheDocument();
   });
 
   it("does not cry drift when the stored zone is the one this device is in", async () => {
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
     vi.mocked(deviceTimeZone).mockReturnValue("Australia/Brisbane");
+    listDevicesMock.mockResolvedValue([deviceRow({ isThisDevice: true, timezone: "Australia/Brisbane" })]);
 
     render(
       <DigestPanel
@@ -422,6 +504,7 @@ describe("DigestPanel", () => {
     // the harder problem the null-timezone warning already states.
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
     vi.mocked(deviceTimeZone).mockReturnValue("Europe/Vienna");
+    listDevicesMock.mockResolvedValue([deviceRow({ isThisDevice: true, timezone: null })]);
 
     render(
       <DigestPanel
@@ -444,6 +527,7 @@ describe("DigestPanel", () => {
     vi.setSystemTime(new Date("2026-12-05T12:00:00Z"));
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
     vi.mocked(deviceTimeZone).mockReturnValue("America/New_York");
+    listDevicesMock.mockResolvedValue([deviceRow({ isThisDevice: true, timezone: "America/New_York" })]);
 
     render(
       <DigestPanel
@@ -464,6 +548,7 @@ describe("DigestPanel", () => {
     vi.setSystemTime(new Date("2026-12-05T12:00:00Z"));
     readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
     vi.mocked(deviceTimeZone).mockReturnValue("Europe/Rome");
+    listDevicesMock.mockResolvedValue([deviceRow({ isThisDevice: true, timezone: "Europe/Rome" })]);
 
     render(
       <DigestPanel

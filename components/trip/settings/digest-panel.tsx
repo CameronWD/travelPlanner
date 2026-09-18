@@ -10,6 +10,7 @@ import {
   readLocalDeviceState,
   type LocalDeviceState,
 } from "@/components/account/device-state";
+import { listDevices, type DeviceSummary } from "@/server/actions/devices";
 import {
   setDigestEnabled,
   sendTestDigest,
@@ -30,7 +31,7 @@ function subscribeToNothing(): () => void {
 /**
  * The Digest opt-in for one Traveller on one Trip (CONTEXT.md **Digest**).
  *
- * Three things live here:
+ * Four things live here:
  *
  *   1. the switch itself,
  *   2. one line naming whether THIS device (the browser rendering this page)
@@ -46,14 +47,14 @@ function subscribeToNothing(): () => void {
  *   4. the note that a silent day is by design.
  *
  * `readLocalDeviceState()` (Task 5) has no way to know this device's stored
- * timezone — only whether it currently holds a live subscription — and
- * `DigestSettings.devices` (Task 8) has no endpoint to match a row back to
- * THIS browser. The one case where a device row can be attributed to this
- * browser without guessing is when there is exactly one device on file at
- * all and this browser is holding a live subscription: nothing else it could
- * be. Anywhere else — more than one device on file — the zone-specific
- * warnings below are skipped rather than pinned to the wrong device, which is
- * the exact failure mode ADR 0048 exists to close.
+ * timezone — only whether it currently holds a live subscription. Rather than
+ * guess which row in `DigestSettings.devices` (no endpoint on the wire) is
+ * THIS browser, this asks the server the same way `DevicesPanel` already
+ * does: `listDevices(local.endpoint)` resolves `isThisDevice` by literal
+ * endpoint match, so the zone-specific warnings below are attributed
+ * correctly at ANY device count — including exactly one, where a stale local
+ * subscription with no matching server row used to get misattributed to
+ * whatever row happened to be on file (ADR 0048's bug, reproduced at n=1).
  */
 export function DigestPanel({ tripId, initial }: DigestPanelProps) {
   const switchId = React.useId();
@@ -63,11 +64,18 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [testResult, setTestResult] = React.useState<SendTestDigestResult | null>(null);
   const [local, setLocal] = React.useState<LocalDeviceState | null>(null);
+  // The server-confirmed device list, keyed to whichever endpoint this
+  // browser holds — null until `listDevices` resolves, which happens after
+  // `local` does (it needs `local.endpoint` to ask the right question).
+  const [deviceRows, setDeviceRows] = React.useState<DeviceSummary[] | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
-    readLocalDeviceState().then((state) => {
-      if (!cancelled) setLocal(state);
+    readLocalDeviceState().then(async (state) => {
+      if (cancelled) return;
+      setLocal(state);
+      const rows = await listDevices(state.endpoint);
+      if (!cancelled) setDeviceRows(rows);
     });
     return () => {
       cancelled = true;
@@ -88,16 +96,22 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
   const localResolved = local !== null;
   const hasLiveSubscription = !!local?.endpoint;
 
-  // The one device row we can honestly attribute to THIS browser — see the
-  // component doc comment for why "exactly one device on file" is the only
-  // unambiguous case.
-  const myDevice =
-    hasLiveSubscription && initial.devices.length === 1 ? initial.devices[0] : null;
+  // The freshest count of devices on file this browser can see. Before
+  // `listDevices` resolves, `initial.devices` (from `getDigestSettings`,
+  // computed at page load) is the best available answer; once it resolves,
+  // the live list wins — the same precedence that already made "no device on
+  // file at all" beat an optimistic local belief, now falling out of asking
+  // the server rather than a special case.
+  const deviceCount = deviceRows !== null ? deviceRows.length : initial.devices.length;
+
+  // The one row `listDevices` itself says is THIS browser, resolved
+  // server-side by literal endpoint match — never guessed from a count.
+  const myDevice = deviceRows?.find((d) => d.isThisDevice) ?? null;
   const storedZone = myDevice?.timezone ?? null;
 
   // Only a mismatch we can name is worth showing: no stored zone is already
-  // covered by its own warning below, and an unattributed device (more than
-  // one on file) has no stored zone to compare against in the first place.
+  // covered by its own warning below, and an unmatched device (no confirmed
+  // row for this endpoint) has no stored zone to compare against at all.
   const zoneIsStale = !!storedZone && !!liveZone && storedZone !== liveZone;
 
   // Does the schedule reach this zone at all? The cron fires at fixed UTC
@@ -179,7 +193,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
 
       {/* ── Whether this device is set up to get it ── */}
       {localResolved &&
-        (initial.devices.length === 0 ? (
+        (deviceCount === 0 ? (
           <div className="flex flex-col gap-2">
             <p className="text-sm text-muted-foreground">
               No device is set up yet, so there&rsquo;s nowhere to send this.
@@ -196,8 +210,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
             <p className="flex items-center gap-2 text-sm text-foreground">
               <Smartphone className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
               <span className="truncate">
-                This device will receive it
-                {myDevice ? (myDevice.timezone ? ` · ${myDevice.timezone}` : "") : liveZone ? ` · ${liveZone}` : ""}
+                This device will receive it{storedZone ? ` · ${storedZone}` : ""}
               </span>
             </p>
             {myDevice && myDevice.timezone === null && (
@@ -229,9 +242,10 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
                 <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                 <span>
                   You are in {liveZone}, but the digest is still scheduled against{" "}
-                  {storedZone}, which is some other hour here. TEEPEE re-records
-                  the zone whenever you open TEEPEE; reload this page, and if this
-                  is still showing, the update is not getting through.
+                  {storedZone} — so it arrives at 8pm {storedZone}, which is some
+                  other hour here. TEEPEE re-records the zone every time you open
+                  the app; reload this page, and if this is still showing, the
+                  update is not getting through.
                 </span>
               </p>
             )}
