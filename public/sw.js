@@ -20,7 +20,7 @@
 
 // Bump on cache-policy changes so old caches (incl. any authenticated pages
 // cached under the previous stale-while-revalidate policy) are purged.
-const CACHE_VERSION = 'trip-planner-v3';
+const CACHE_VERSION = 'trip-planner-v4';
 
 // App shell resources to precache on install. Only truly public assets —
 // NEVER '/', which redirects to the authenticated app.
@@ -262,8 +262,11 @@ self.addEventListener('push', (event) => {
     const options = {
       body: data.body ?? '',
       data: { url: data.url ?? '/' },
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
+      // `/icon` — served by app/manifest.ts. NOT `/icons/icon-192.png`, which
+      // nothing has ever served: this path had never been exercised because no
+      // push had ever been delivered (follow-up item 5).
+      icon: '/icon',
+      badge: '/icon',
     };
 
     event.waitUntil(self.registration.showNotification(title, options));
