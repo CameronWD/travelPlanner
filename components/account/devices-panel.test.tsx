@@ -268,6 +268,27 @@ describe("DevicesPanel", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("logs and degrades safely when the device refetch fails", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const initial = [device({ isThisDevice: false })];
+    listDevicesMock.mockRejectedValue(new Error("network down"));
+
+    render(<DevicesPanel initial={initial} />);
+
+    // Renders without throwing, and keeps showing the server-rendered list
+    // rather than crashing or clearing it — no isThisDevice claim was ever
+    // wrong, it is just unrefreshed.
+    expect(await screen.findByText(/iPhone/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "[DevicesPanel] failed to refresh the device list:",
+        expect.any(Error),
+      ),
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
   it("never renders the word notification", async () => {
     const initial = [device()];
     listDevicesMock.mockResolvedValue(initial);

@@ -56,8 +56,17 @@ export function DevicesPanel({ initial }: DevicesPanelProps) {
       // endpoint only this browser can supply. Skipped when there is no
       // endpoint at all — nothing to re-derive against.
       if (state.endpoint) {
-        const fresh = await listDevices(state.endpoint);
-        if (!cancelled) setDevices(fresh);
+        try {
+          const fresh = await listDevices(state.endpoint);
+          if (!cancelled) setDevices(fresh);
+        } catch (err) {
+          // `devices` stays whatever it already was (the server-rendered
+          // `initial` list, or a previous successful refresh) — safe, if
+          // possibly stale, since no isThisDevice claim is wrong, only
+          // unrefreshed. This only trades a silent failure for an
+          // observable one.
+          console.error("[DevicesPanel] failed to refresh the device list:", err);
+        }
       }
     });
     return () => {

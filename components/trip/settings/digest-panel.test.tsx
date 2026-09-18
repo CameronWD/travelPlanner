@@ -1,6 +1,6 @@
 import * as React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { LocalDeviceState } from "@/components/account/device-state";
 import type { DeviceSummary } from "@/server/actions/devices";
@@ -311,6 +311,38 @@ describe("DigestPanel", () => {
     expect(screen.queryByText(/still scheduled against/)).not.toBeInTheDocument();
     expect(screen.queryByText(/skipped every run/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Nothing is scheduled to reach/)).not.toBeInTheDocument();
+  });
+
+  // Fix round 2: a rejected refetch must not throw, must not fabricate a
+  // zone, and must not vanish silently — it degrades exactly like the
+  // "no matching row" case above, but the failure has to be observable.
+  it("logs and degrades safely when the device refetch fails", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    readLocalDeviceStateMock.mockResolvedValue(subscribedHere());
+    listDevicesMock.mockRejectedValue(new Error("network down"));
+
+    render(
+      <DigestPanel
+        tripId="t1"
+        initial={{
+          enabled: true,
+          devices: [{ timezone: "Australia/Brisbane", subscribedAt: SUBSCRIBED_AT, label: "iPhone" }],
+        }}
+      />,
+    );
+
+    // Renders without throwing, and never claims a zone it can't stand
+    // behind — `deviceRows` stays null, so `myDevice` stays null too.
+    expect(await screen.findByText("This device will receive it")).toBeInTheDocument();
+    expect(screen.queryByText(/This device will receive it ·/)).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        "[DigestPanel] failed to refresh this device's server row:",
+        expect.any(Error),
+      ),
+    );
+
+    consoleErrorSpy.mockRestore();
   });
 
   it("says a device with no timezone is never dispatched to", async () => {

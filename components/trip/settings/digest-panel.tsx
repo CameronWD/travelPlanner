@@ -74,8 +74,15 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
     readLocalDeviceState().then(async (state) => {
       if (cancelled) return;
       setLocal(state);
-      const rows = await listDevices(state.endpoint);
-      if (!cancelled) setDeviceRows(rows);
+      try {
+        const rows = await listDevices(state.endpoint);
+        if (!cancelled) setDeviceRows(rows);
+      } catch (err) {
+        // `deviceRows` stays null, which already degrades safely — `myDevice`
+        // resolves to null, so no zone is claimed and the warnings stay
+        // withheld. This only trades a silent failure for an observable one.
+        console.error("[DigestPanel] failed to refresh this device's server row:", err);
+      }
     });
     return () => {
       cancelled = true;
