@@ -42,8 +42,8 @@ import { GET } from "./route";
 
 function req(opts: { secret?: string; header?: string } = {}): NextRequest {
   const url = opts.secret
-    ? `http://localhost/api/cron/reminders?secret=${opts.secret}`
-    : "http://localhost/api/cron/reminders";
+    ? `http://localhost/api/cron/digest?secret=${opts.secret}`
+    : "http://localhost/api/cron/digest";
   return new NextRequest(url, {
     headers: opts.header ? { authorization: opts.header } : {},
   });
@@ -69,7 +69,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("GET /api/cron/reminders — auth (fail-closed)", () => {
+describe("GET /api/cron/digest — auth (fail-closed)", () => {
   it("returns 401 when CRON_SECRET is unset", async () => {
     vi.stubEnv("CRON_SECRET", "");
     const res = await GET(req({ secret: "anything" }));
@@ -104,7 +104,7 @@ describe("GET /api/cron/reminders — auth (fail-closed)", () => {
   });
 });
 
-describe("GET /api/cron/reminders — VAPID misconfiguration guard", () => {
+describe("GET /api/cron/digest — VAPID misconfiguration guard", () => {
   it("returns 503 before touching the database when VAPID is unconfigured", async () => {
     vi.stubEnv("CRON_SECRET", "right");
     isPushConfiguredMock.mockReturnValue(false);
@@ -127,7 +127,7 @@ describe("GET /api/cron/reminders — VAPID misconfiguration guard", () => {
   });
 });
 
-describe("GET /api/cron/reminders — slot dispatch", () => {
+describe("GET /api/cron/digest — slot dispatch", () => {
   beforeEach(() => {
     vi.stubEnv("CRON_SECRET", "right");
     vi.useFakeTimers();

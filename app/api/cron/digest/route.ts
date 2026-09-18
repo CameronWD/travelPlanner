@@ -1,5 +1,5 @@
 /**
- * GET /api/cron/reminders
+ * GET /api/cron/digest
  *
  * The Digest dispatcher (CONTEXT.md **Digest**, ADR 0047). Every run asks a
  * single question — which subscribers are in their morning or evening *window
@@ -10,7 +10,7 @@
  *
  * ---
  * SCHEDULING
- * The workflow fires at five fixed UTC hours (.github/workflows/reminders-cron.yml,
+ * The workflow fires at five fixed UTC hours (.github/workflows/digest-cron.yml,
  * `0 6,9,10,19,20 * * *`) and this route filters each run by the subscriber's
  * LOCAL hour, so the fixed schedule lands at the right wall-clock time in each
  * traveller's zone. Where each run lands, and which of them actually delivers:
@@ -163,7 +163,7 @@ export async function GET(req: NextRequest) {
       // Truncation drops real people's Digests, so say so loudly. Silent
       // truncation is the failure mode this whole log line exists to prevent.
       console.warn(
-        `[cron/reminders] Subscription scan hit the ${MAX_SUBSCRIPTIONS_PER_RUN}-row cap — subscribers beyond it were not considered this run. Move the scan to a cursor.`,
+        `[cron/digest] Subscription scan hit the ${MAX_SUBSCRIPTIONS_PER_RUN}-row cap — subscribers beyond it were not considered this run. Move the scan to a cursor.`,
       );
     }
 
@@ -210,7 +210,7 @@ export async function GET(req: NextRequest) {
         } catch (err) {
           failed++;
           console.error(
-            `[cron/reminders] Digest dispatch failed for user ${userId} trip ${tripId}:`,
+            `[cron/digest] Digest dispatch failed for user ${userId} trip ${tripId}:`,
             err,
           );
         }
@@ -219,7 +219,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ considered, dispatched, sent, skipped, failed });
   } catch (err) {
-    console.error("[cron/reminders] Error:", err);
+    console.error("[cron/digest] Error:", err);
     return NextResponse.json(
       {
         error: "Internal server error",

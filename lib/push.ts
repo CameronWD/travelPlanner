@@ -38,18 +38,18 @@ if (!isPushConfigured()) {
 // Payload builder
 // ---------------------------------------------------------------------------
 
-export interface NotificationPayloadOptions {
+export interface DigestPayloadOptions {
   title: string;
   body: string;
   url: string;
 }
 
 /**
- * Pure JSON string builder for push notification payloads.
+ * Pure JSON string builder for the Digest push payload.
  * Used by the cron route to construct what is sent to `sendPush`.
  */
-export function buildNotificationPayload(
-  opts: NotificationPayloadOptions,
+export function buildDigestPayload(
+  opts: DigestPayloadOptions,
 ): string {
   return JSON.stringify({ title: opts.title, body: opts.body, url: opts.url });
 }
@@ -69,7 +69,7 @@ export type SendPushResult =
   | { sent: false; skipped?: true; gone?: true };
 
 /**
- * Send a push notification to a single subscription.
+ * Send the Digest push to a single subscription.
  *
  * - If VAPID is not configured → returns `{ sent: false, skipped: true }` (no throw).
  * - If the subscription is stale (404/410) → returns `{ sent: false, gone: true }`.

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireUser } from "@/lib/guards";
 import { dispatchDigest } from "@/lib/digest-dispatch";
 import { isPushConfigured } from "@/lib/push";
 import { todayISOInZone } from "@/lib/tz";
@@ -13,8 +13,19 @@ import { todayISOInZone } from "@/lib/tz";
 
 export interface DigestSettings {
   enabled: boolean;
-  /** Most recently subscribed device, or null when none. */
-  device: { timezone: string | null; subscribedAt: Date } | null;
+  /**
+   * How many Devices this Traveller has on file, at page-load time.
+   *
+   * Used only as `DigestPanel`'s pre-refetch fallback count, before
+   * `listDevices` resolves with the authoritative, `isThisDevice`-attributed
+   * list — so this is a `count()`, not a `findMany()`. It used to carry the
+   * full row shape (`timezone`, `subscribedAt`, `label`) from Task 8, but
+   * `DigestPanel` re-fetches the real rows itself via `listDevices` (ADR
+   * 0048) and neither of those fields ever had another consumer — two
+   * queries answering "how many devices" was exactly the kind of
+   * unobservable duplication this branch exists to remove.
+   */
+  deviceCount: number;
 }
 
 export type SendTestDigestResult =
@@ -32,7 +43,7 @@ export type SendTestDigestResult =
 
 /**
  * Read the current user's Digest settings for a trip: whether the Digest is
- * on, and the most recently subscribed device (if any).
+ * on, and how many devices are on file for it.
  *
  * A missing DigestPreference row means enabled — subscribing a device is
  * itself the opt-in (see lib/digest-dispatch.ts), so this mirrors that
@@ -41,25 +52,17 @@ export type SendTestDigestResult =
 export async function getDigestSettings(tripId: string): Promise<DigestSettings> {
   const { user } = await requireTripAccess(tripId);
 
-  const [preference, devices] = await Promise.all([
+  const [preference, deviceCount] = await Promise.all([
     db.digestPreference.findUnique({
       where: { userId_tripId: { userId: user.id, tripId } },
       select: { enabled: true },
     }),
-    db.pushSubscription.findMany({
-      where: { userId: user.id },
-      select: { timezone: true, createdAt: true },
-      orderBy: { createdAt: "desc" },
-    }),
+    db.pushSubscription.count({ where: { userId: user.id } }),
   ]);
-
-  const newest = devices[0] ?? null;
 
   return {
     enabled: preference ? preference.enabled : true,
-    // A device with no stored timezone is a device the dispatcher can't
-    // schedule for — surface that honestly rather than inventing "UTC".
-    device: newest ? { timezone: newest.timezone, subscribedAt: newest.createdAt } : null,
+    deviceCount,
   };
 }
 
@@ -136,4 +139,42 @@ export async function sendTestDigest(tripId: string): Promise<SendTestDigestResu
   }
 
   return { ok: true, sent: result.sent, placeholder: result.placeholder === true };
+}
+
+export interface TripDigestSetting {
+  tripId: string;
+  tripName: string;
+  enabled: boolean;
+}
+
+/**
+ * Every Trip this Traveller is on, with their own Digest switch for each.
+ *
+ * The Account view of the same `DigestPreference` rows the Trips' own Settings
+ * carry — one fact, two places (CONTEXT.md **Account**). It exists so "am I
+ * getting digests, and for what?" is answerable without opening every Trip.
+ */
+export async function listDigestSettingsForUser(): Promise<TripDigestSetting[]> {
+  const user = await requireUser();
+
+  const trips = await db.trip.findMany({
+    where: { members: { some: { userId: user.id } } },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      digestPreferences: {
+        where: { userId: user.id },
+        select: { enabled: true },
+      },
+    },
+  });
+
+  return trips.map((t) => ({
+    tripId: t.id,
+    tripName: t.name,
+    // A missing row means enabled (see `getDigestSettings`): subscribing a
+    // Device is itself the opt-in, so absence must not read as "off".
+    enabled: t.digestPreferences[0]?.enabled ?? true,
+  }));
 }

@@ -31,6 +31,12 @@ deploying human should be reading.
 
 ## 1. A rotated push endpoint orphans its subscription row
 
+**Half-addressed by ADR 0048.** `unsubscribeFromPush` now has a caller — the
+account-level Device list's `Remove` button. The other half is untouched:
+the service worker still has no `pushsubscriptionchange` handler, so an
+endpoint that rotates while the app is closed is still only healed on the
+Device's next visit, not the moment it rotates.
+
 **Where:** `public/sw.js`, `server/actions/push.ts`
 
 A push service may rotate an endpoint at any time. The service worker has no
@@ -61,6 +67,8 @@ Adding one fixes this properly.
 
 ## 3. "Reminders" names two different things in the UI
 
+**Addressed by ADR 0048 and the plan that follows it.**
+
 **Where:** `components/trip/settings/reminders-panel.tsx`,
 `components/trip/enable-notifications.tsx`, `app/api/cron/reminders/`,
 `docs/HANDOFF.md`
@@ -80,6 +88,9 @@ push, so the rename is not tangled up with debugging delivery.
 
 ## 4. The timezone refresh only runs on trip screens
 
+**Addressed by ADR 0048 and the plan that follows it** — `PushTimezoneSync`
+moves to the root authenticated layout.
+
 **Where:** `app/(app)/trips/[tripId]/layout.tsx`
 
 ADR 0047 says the device timezone is "refreshed on each visit".
@@ -89,6 +100,8 @@ scenario (a traveller mid-trip is on trip screens constantly). A global mount
 in `app/(app)/layout.tsx` would close the gap.
 
 ## 5. The first real notification will render without an icon
+
+**Addressed by ADR 0048 and the plan that follows it.**
 
 **Where:** `public/sw.js`
 

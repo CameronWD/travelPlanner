@@ -123,7 +123,11 @@ In the GitHub repo settings:
 - **Secrets and variables → Actions → Secrets:** add `CRON_SECRET` (same value as Vercel).
 - **Variables:** add `APP_URL` = `https://<your-vercel-domain>` (no trailing slash).
 
-The `Reminders cron` workflow then pings `/api/cron/reminders` at five fixed UTC hours —
+> **Note:** Land the cron route rename away from 06/09/10/19/20 UTC: GitHub reads the
+> workflow from `main` at schedule time, Vercel needs a minute or two to deploy, and a run
+> inside that gap 404s and costs one Digest.
+
+The `Digest cron` workflow then pings `/api/cron/digest` at five fixed UTC hours —
 **06:00, 09:00, 10:00, 19:00 and 20:00** (`0 6,9,10,19,20 * * *`). The schedule is
 deliberately not "every N minutes": each run asks the route to dispatch only to subscribers
 whose *local* hour is inside the morning (06–08) or evening (20–22) window, so the five
@@ -144,7 +148,7 @@ for a GitHub run delayed past its hour. Note the consequence for Sydney under AE
 morning Digest arrives at **06:00 local, not 07:00**, because the 19:00Z run gets there
 first and claims the slot.
 
-Trigger it once manually (Actions tab → Reminders cron → Run workflow) to confirm it
+Trigger it once manually (Actions tab → Digest cron → Run workflow) to confirm it
 returns 200. `lib/digest-schedule.test.ts` holds this schedule against the route's windows,
 so removing an hour fails the suite rather than silently cutting a zone off.
 
@@ -167,11 +171,11 @@ filter is a whole local hour, only zones whose offset lines one of those hours u
   `lib/digest-schedule.test.ts` asserts both halves of that.
 
 Supporting a new zone means adding the matching UTC hour(s) to the `cron:` list in
-`.github/workflows/reminders-cron.yml` — there is no fallback that covers them
+`.github/workflows/digest-cron.yml` — there is no fallback that covers them
 automatically. That is the whole job, for whole-hour and half-hour zones alike; the window
 logic in `lib/digest-schedule.ts` never needs to change.
 
-A device on a zone this schedule misses is told so in the Trip's **Settings → Reminders**
+A device on a zone this schedule misses is told so in the Trip's **Settings → Digest**
 panel, which judges the stored zone against these same hours via `servedSlotsForZone`.
 There is still nothing in the cron logs — the run considers the device and simply matches
 no window — so the panel is the only place it surfaces.

@@ -4,9 +4,9 @@ import { instantToZonedTime } from "@/lib/tz";
 /**
  * When a Digest is sent, expressed in the *subscriber's* local hours.
  *
- * These live here rather than inside app/api/cron/reminders/route.ts for one
+ * These live here rather than inside app/api/cron/digest/route.ts for one
  * reason: they are half of a contract whose other half is the cron expression
- * in .github/workflows/reminders-cron.yml, and that contract needs a test.
+ * in .github/workflows/digest-cron.yml, and that contract needs a test.
  * A Next.js route module may not export anything but its handlers and route
  * config, so the constants had nowhere to be asserted against while they lived
  * there — and a schedule that agrees with the windows only in prose is a
@@ -24,7 +24,7 @@ export const EVENING_WINDOW_LOCAL_HOURS: readonly number[] = [20, 21, 22];
 
 /**
  * The UTC hours the cron actually fires at — the other half of that contract,
- * mirrored from `.github/workflows/reminders-cron.yml`.
+ * mirrored from `.github/workflows/digest-cron.yml`.
  *
  * It lives here so a *running* surface can answer "will this device ever be
  * reached?" without re-deriving the schedule: `lib/digest-schedule.test.ts`

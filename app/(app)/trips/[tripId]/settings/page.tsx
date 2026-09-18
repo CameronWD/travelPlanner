@@ -16,7 +16,7 @@ import { CoverImageField } from "@/components/trip/settings/cover-image-field";
 import { InvitePanel } from "@/components/trip/settings/invite-panel";
 import { SharePanel } from "@/components/trip/settings/share-panel";
 import { CalendarFeedPanel } from "@/components/trip/settings/calendar-feed-panel";
-import { RemindersPanel } from "@/components/trip/settings/reminders-panel";
+import { DigestPanel } from "@/components/trip/settings/digest-panel";
 import { DrivingEstimatesPanel } from "@/components/trip/settings/driving-estimates-panel";
 import { DangerZone } from "@/components/trip/settings/danger-zone";
 import { DuplicateTripDialog } from "@/components/trip/duplicate-trip-dialog";
@@ -154,14 +154,14 @@ export default async function SettingsPage({
         </CardContent>
       </Card>
 
-      {/* ── Reminders — the app's own outward push, above the Calendar feed
+      {/* ── Digest — the app's own outward push, above the Calendar feed
           card because the two are the trip's outward-delivery sections. ── */}
       <Card>
         <CardHeader className="p-5 pb-0">
-          <CardTitle className="font-display text-base font-bold tracking-tight">Reminders</CardTitle>
+          <CardTitle className="font-display text-base font-bold tracking-tight">Digest</CardTitle>
         </CardHeader>
         <CardContent className="p-5 pt-3">
-          <RemindersPanel tripId={tripId} initial={digestSettings} />
+          <DigestPanel tripId={tripId} initial={digestSettings} />
         </CardContent>
       </Card>
 

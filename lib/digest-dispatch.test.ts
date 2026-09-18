@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * keep passing after someone dropped `paidAt: null` from the query.
  *
  * `@/lib/push` is only partially mocked: `sendPush` is a spy, but the real
- * `buildNotificationPayload` runs so the payload the device would receive is
+ * `buildDigestPayload` runs so the payload the device would receive is
  * asserted end to end.
  */
 

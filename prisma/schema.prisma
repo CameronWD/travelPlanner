@@ -559,13 +559,19 @@ model CalendarFeed {
 }
 
 model PushSubscription {
-  id        String   @id @default(cuid())
-  userId    String
-  endpoint  String   @unique
-  p256dh    String
-  auth      String
-  timezone  String? // IANA zone captured from the browser at subscribe time (ADR 0047)
+  id       String  @id @default(cuid())
+  userId   String
+  endpoint String  @unique
+  p256dh   String
+  auth     String
+  timezone String? // IANA zone, re-reported by the Device on every visit (ADR 0047)
+  label    String? // Coarse Device name from lib/device-label.ts; set once (ADR 0048)
+
   createdAt DateTime @default(now())
+  // Stamped by this Device's own browser on visit. A Device that loses
+  // permission stops reporting, which is the ONLY way TEEPEE can notice —
+  // the push service reports success either way (ADR 0048).
+  lastSeenAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

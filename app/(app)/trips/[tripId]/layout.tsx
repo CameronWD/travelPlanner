@@ -12,7 +12,6 @@ import { NotificationBell } from "@/components/trip/notification-bell";
 import { ForkSwitcher } from "@/components/trip/fork-switcher";
 import { OfflineWarmer } from "@/components/offline-warmer";
 import { FeedbackTripMarker } from "@/components/feedback/feedback-trip-marker";
-import { PushTimezoneSync } from "@/components/trip/enable-notifications";
 import {
   getUnreadActivityCount,
   getRecentActivity,
@@ -39,8 +38,8 @@ export default async function TripLayout({
 }) {
   const { tripId } = await params;
 
-  // Guard: 404 for non-members; returns user + membership for the rest
-  const { user } = await requireTripAccess(tripId);
+  // Guard: 404 for non-members
+  await requireTripAccess(tripId);
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -69,22 +68,13 @@ export default async function TripLayout({
     notFound();
   }
 
-  const [unreadCount, recent, forks, warmAttachments, pushDevice] = await Promise.all([
+  const [unreadCount, recent, forks, warmAttachments] = await Promise.all([
     getUnreadActivityCount(tripId),
     getRecentActivity(tripId, 10),
     listForks(tripId),
     db.attachment.findMany({
       where: { tripId },
       select: { url: true, size: true },
-    }),
-    // The zone last recorded for this person's newest device, handed to
-    // PushTimezoneSync so it can tell whether the browser has moved since.
-    // Reading it here rather than in the component keeps the refresh a no-op
-    // write on every visit but the one that matters.
-    db.pushSubscription.findFirst({
-      where: { userId: user.id },
-      orderBy: { createdAt: "desc" },
-      select: { timezone: true },
     }),
   ]);
 
@@ -171,7 +161,6 @@ export default async function TripLayout({
       <div className="py-6 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] md:pb-6">
         <OfflineWarmer paths={offlinePaths} />
         <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
-        <PushTimezoneSync storedZone={pushDevice?.timezone ?? null} />
         {children}
       </div>
 
