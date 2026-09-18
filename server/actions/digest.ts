@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, requireUser } from "@/lib/guards";
 import { dispatchDigest } from "@/lib/digest-dispatch";
 import { isPushConfigured } from "@/lib/push";
 import { todayISOInZone } from "@/lib/tz";
@@ -136,4 +136,42 @@ export async function sendTestDigest(tripId: string): Promise<SendTestDigestResu
   }
 
   return { ok: true, sent: result.sent, placeholder: result.placeholder === true };
+}
+
+export interface TripDigestSetting {
+  tripId: string;
+  tripName: string;
+  enabled: boolean;
+}
+
+/**
+ * Every Trip this Traveller is on, with their own Digest switch for each.
+ *
+ * The Account view of the same `DigestPreference` rows the Trips' own Settings
+ * carry — one fact, two places (CONTEXT.md **Account**). It exists so "am I
+ * getting digests, and for what?" is answerable without opening every Trip.
+ */
+export async function listDigestSettingsForUser(): Promise<TripDigestSetting[]> {
+  const user = await requireUser();
+
+  const trips = await db.trip.findMany({
+    where: { members: { some: { userId: user.id } } },
+    orderBy: { name: "asc" },
+    select: {
+      id: true,
+      name: true,
+      digestPreferences: {
+        where: { userId: user.id },
+        select: { enabled: true },
+      },
+    },
+  });
+
+  return trips.map((t) => ({
+    tripId: t.id,
+    tripName: t.name,
+    // A missing row means enabled (see `getDigestSettings`): subscribing a
+    // Device is itself the opt-in, so absence must not read as "off".
+    enabled: t.digestPreferences[0]?.enabled ?? true,
+  }));
 }

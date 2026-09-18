@@ -143,6 +143,12 @@ export default async function AppLayout({
                   <Link href="/help">How to use TEEPEE</Link>
                 </DropdownMenuItem>
 
+                <DropdownMenuItem asChild>
+                  <Link href="/account">Account</Link>
+                </DropdownMenuItem>
+
+                <DropdownMenuSeparator />
+
                 <SignOutMenuItem />
               </DropdownMenuContent>
             </DropdownMenu>

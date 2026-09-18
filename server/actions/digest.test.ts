@@ -8,10 +8,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const {
   requireTripAccessMock,
+  requireUserMock,
   revalidatePathMock,
   digestPreferenceFindUniqueMock,
   digestPreferenceUpsertMock,
   pushSubscriptionFindManyMock,
+  tripFindManyMock,
   dispatchDigestMock,
   isPushConfiguredMock,
   todayISOInZoneMock,
@@ -20,10 +22,12 @@ const {
     user: { id: "user-1" },
     membership: { role: "owner" },
   }),
+  requireUserMock: vi.fn().mockResolvedValue({ id: "user-1" }),
   revalidatePathMock: vi.fn(),
   digestPreferenceFindUniqueMock: vi.fn(),
   digestPreferenceUpsertMock: vi.fn(),
   pushSubscriptionFindManyMock: vi.fn(),
+  tripFindManyMock: vi.fn(),
   dispatchDigestMock: vi.fn(),
   isPushConfiguredMock: vi.fn(),
   todayISOInZoneMock: vi.fn(),
@@ -31,6 +35,7 @@ const {
 
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: requireTripAccessMock,
+  requireUser: requireUserMock,
 }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({
@@ -41,6 +46,9 @@ vi.mock("@/lib/db", () => ({
     },
     pushSubscription: {
       findMany: pushSubscriptionFindManyMock,
+    },
+    trip: {
+      findMany: tripFindManyMock,
     },
   },
 }));
@@ -59,6 +67,7 @@ import {
   getDigestSettings,
   setDigestEnabled,
   sendTestDigest,
+  listDigestSettingsForUser,
 } from "@/server/actions/digest";
 
 const TRIP_ID = "trip-1";
@@ -70,6 +79,7 @@ afterEach(() => {
     user: { id: USER_ID },
     membership: { role: "owner" },
   });
+  requireUserMock.mockResolvedValue({ id: USER_ID });
   isPushConfiguredMock.mockReturnValue(true);
   todayISOInZoneMock.mockReturnValue("2026-09-17");
 });
@@ -312,5 +322,58 @@ describe("sendTestDigest", () => {
     const result = await sendTestDigest(TRIP_ID);
 
     expect(result).toEqual({ ok: true, sent: 3, placeholder: false });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// listDigestSettingsForUser
+// ---------------------------------------------------------------------------
+
+describe("listDigestSettingsForUser", () => {
+  it("lists every trip the traveller is on, defaulting a missing preference to on", async () => {
+    tripFindManyMock.mockResolvedValue([
+      { id: "trip-1", name: "Europe Christmas 2026", digestPreferences: [{ enabled: false }] },
+      { id: "trip-2", name: "Japan 2027", digestPreferences: [] },
+    ]);
+
+    const result = await listDigestSettingsForUser();
+
+    // A MISSING row means enabled — subscribing a Device is itself the opt-in,
+    // so an absent preference must never read as a false "off".
+    expect(result).toEqual([
+      { tripId: "trip-1", tripName: "Europe Christmas 2026", enabled: false },
+      { tripId: "trip-2", tripName: "Japan 2027", enabled: true },
+    ]);
+  });
+
+  it("requires a signed-in user before querying anything", async () => {
+    tripFindManyMock.mockResolvedValue([]);
+
+    await listDigestSettingsForUser();
+
+    expect(requireUserMock).toHaveBeenCalled();
+  });
+
+  // Strengthened beyond the brief: the brief's own test would still pass for
+  // an implementation that fetched EVERY trip in the database (not just this
+  // traveller's) or read someone else's DigestPreference row, since the db
+  // call is mocked and returns whatever it's told regardless of the query
+  // shape. "Every trip the traveller is on" is the guarantee the describe
+  // block names — pin the query itself, not just its mocked output.
+  it("scopes the query to this traveller's own membership and preference rows", async () => {
+    tripFindManyMock.mockResolvedValue([]);
+
+    await listDigestSettingsForUser();
+
+    expect(tripFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { members: { some: { userId: USER_ID } } },
+        select: expect.objectContaining({
+          digestPreferences: expect.objectContaining({
+            where: { userId: USER_ID },
+          }),
+        }),
+      }),
+    );
   });
 });

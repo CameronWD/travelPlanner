@@ -131,4 +131,11 @@ describe("AppLayout", () => {
     const link = screen.getByRole("link", { name: /how to use teepee/i });
     expect(link.getAttribute("href")).toBe("/help");
   });
+
+  it("offers an Account link in the traveller dropdown, above Sign out", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const link = screen.getByRole("link", { name: /^account$/i });
+    expect(link.getAttribute("href")).toBe("/account");
+  });
 });
