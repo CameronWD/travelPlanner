@@ -6,7 +6,7 @@ name: DB backup
 # of these artifacts is handled outside this repo.
 #
 # CADENCE / COST: daily = 1 Neon wake ≈ 3 CU-hours/month of the 100 CU-h free
-# tier. Scheduled at 23:26 UTC, three minutes after the reminders cron
+# tier. Scheduled at 23:26 UTC, three minutes after the digest cron
 # (23:23), so the two jobs share a single wake when GitHub's best-effort
 # scheduler cooperates; even unshared, the budget holds.
 #
@@ -19,7 +19,7 @@ name: DB backup
 # so postgresql-client-18 is installed from PGDG. If Neon bumps majors, the
 # version check step will say so explicitly instead of failing cryptically.
 #
-# FAILURE SEMANTICS — deliberately opposite to reminders-cron: missing secret
+# FAILURE SEMANTICS — deliberately opposite to digest-cron: missing secret
 # skips cleanly (unconfigured repo stays quiet), but once configured, ANY
 # failure fails the job loudly. A backup that silently stops existing is
 # worse than no backup, because it changes what risks we think we're carrying.

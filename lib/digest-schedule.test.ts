@@ -27,7 +27,7 @@ const WORKFLOW = path.join(
   "..",
   ".github",
   "workflows",
-  "reminders-cron.yml",
+  "digest-cron.yml",
 );
 
 /** The UTC hours the workflow's `schedule:` actually fires at. */
@@ -96,7 +96,7 @@ describe("the cron schedule against the Digest windows", () => {
         expect(
           [...slots].sort(),
           `no scheduled UTC hour lands in a Digest window for ${zone}. ` +
-            "Add the missing hour to .github/workflows/reminders-cron.yml.",
+            "Add the missing hour to .github/workflows/digest-cron.yml.",
         ).toEqual(["EVENING", "MORNING"]);
       });
     }
