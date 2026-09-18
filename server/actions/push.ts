@@ -15,7 +15,7 @@ export type PushActionResult = { ok: true } | { ok: false; error: string };
 // ---------------------------------------------------------------------------
 
 /**
- * Subscribe the current user to web push notifications.
+ * Subscribe the current user to web push.
  *
  * Upserts a PushSubscription by endpoint, so re-subscribing with the same
  * endpoint updates the keys rather than creating a duplicate.
@@ -49,6 +49,14 @@ export async function subscribeToPush(sub: {
         lastSeenAt: new Date(),
         ...tz,
       },
+      // `userId: user.id` on `update` is deliberate, and asymmetric with
+      // `reconcileDevice` (server/actions/devices.ts), which refuses to touch
+      // a row it doesn't already own. This action only ever runs from a
+      // traveller explicitly pressing Enable on THIS physical device, so
+      // re-pointing an existing row at whoever is signed in now is the
+      // correct read of a shared machine changing hands — unlike
+      // `reconcileDevice`'s silent, background self-heal, which must never
+      // reassign a Device out from under the person it actually belongs to.
       update: {
         userId: user.id,
         p256dh: sub.keys.p256dh,

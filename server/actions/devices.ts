@@ -103,8 +103,20 @@ export async function reconcileDevice(
       // `label` is absent on purpose: it is captured once, when the Device is
       // enabled, and never re-derived. A browser update must not be able to
       // quietly rename a Device that has been in the list for months.
+      //
+      // `p256dh`/`auth` ARE refreshed here, unlike `label`, and deliberately
+      // so: those keys are cryptographic material, not a display fact. If a
+      // push service ever rotates them on the same endpoint, stale keys mean
+      // every push to this Device silently fails to decrypt — and unlike a
+      // wrong label, there is no other path back to correct them, since this
+      // reconcile call is the only signal the Device is still alive at all
+      // (see the function doc above). `subscribeToPush` already refreshes
+      // both on every (re-)subscribe for the same reason; this keeps
+      // `reconcileDevice` from being the one path that can't self-heal them.
       data: {
         lastSeenAt: now,
+        p256dh: input.keys.p256dh,
+        auth: input.keys.auth,
         ...(zoneMoved ? { timezone: input.timezone } : {}),
       },
     });
