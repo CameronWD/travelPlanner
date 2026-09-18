@@ -88,7 +88,22 @@ export function DevicesPanel({ initial }: DevicesPanelProps) {
     setEnableStatus("idle");
     const freshLocal = await readLocalDeviceState();
     setLocal(freshLocal);
-    setDevices(await listDevices(freshLocal.endpoint));
+    try {
+      setDevices(await listDevices(freshLocal.endpoint));
+    } catch (err) {
+      // The subscribe itself already succeeded server-side — only the list's
+      // refresh failed. Unlike the passive mount-effect refetches, this is
+      // the direct result of a button the traveller is watching: silence
+      // here leaves them staring at the same Enable button with no new
+      // device shown, which reads as "that did nothing" and invites another
+      // press — the exact false-signal problem this branch exists to close,
+      // arriving at the moment of recovery. So this gets a message, not just
+      // a log.
+      console.error("[DevicesPanel] failed to refresh the device list after enabling:", err);
+      setMessage(
+        "Enabled on this device, but the list didn't refresh — reload the page to see it.",
+      );
+    }
   }
 
   /**

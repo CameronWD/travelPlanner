@@ -289,6 +289,47 @@ describe("DevicesPanel", () => {
     consoleErrorSpy.mockRestore();
   });
 
+  // Fix round 3: unlike the passive mount-effect refetch above, this refetch
+  // runs immediately after the traveller presses Enable and is watching for
+  // a result. The subscribe itself already succeeded server-side — only the
+  // list's refresh failed — so silence here would leave them staring at the
+  // same Enable button with no new device shown, inviting a needless second
+  // press. This gets a visible message, not just a log.
+  it("tells the traveller when the list fails to refresh right after they enable this device", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    readLocalDeviceStateMock
+      .mockResolvedValueOnce({
+        permission: "default",
+        endpoint: null,
+        keys: null,
+        needsInstall: false,
+      })
+      .mockResolvedValue({
+        permission: "granted",
+        endpoint: "https://web.push.apple.com/BBB",
+        keys: { p256dh: "p", auth: "a" },
+        needsInstall: false,
+      });
+    listDevicesMock.mockRejectedValue(new Error("network down"));
+    const user = (await import("@testing-library/user-event")).default.setup({
+      advanceTimers: vi.advanceTimersByTime,
+    });
+
+    render(<DevicesPanel initial={[]} />);
+
+    await user.click(await screen.findByRole("button", { name: /enable on this device/i }));
+
+    expect(
+      await screen.findByText(/enabled on this device, but the list didn.t refresh/i),
+    ).toBeInTheDocument();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "[DevicesPanel] failed to refresh the device list after enabling:",
+      expect.any(Error),
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
   it("never renders the word notification", async () => {
     const initial = [device()];
     listDevicesMock.mockResolvedValue(initial);
