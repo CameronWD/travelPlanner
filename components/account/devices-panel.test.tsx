@@ -27,13 +27,12 @@ vi.mock("@/server/actions/devices", () => ({
   listDevices: listDevicesMock,
 }));
 vi.mock("@/server/actions/push", () => ({ unsubscribeFromPush: unsubscribeFromPushMock }));
-// `DevicesPanel` no longer only *imports* `EnableDevice`'s module for the
-// subscribe flow — it also reads whether this deployment has VAPID keys
-// configured at all (`isPushConfigured`). That fact is a module-level
-// constant computed once at import time from `process.env`, so it cannot be
-// toggled per test via `vi.stubEnv` the way `enable-device.test.tsx` does;
-// mocking the module is the only way to control it here.
-vi.mock("@/components/account/enable-device", () => ({
+// `DevicesPanel` imports `push-subscribe` for the subscribe flow AND for
+// whether this deployment has VAPID keys configured at all
+// (`isPushConfigured`). That fact is a module-level constant computed once at
+// import time from `process.env`, so it cannot be toggled per test via
+// `vi.stubEnv`; mocking the module is the only way to control it here.
+vi.mock("@/components/account/push-subscribe", () => ({
   isPushConfigured: isPushConfiguredMock,
   subscribeThisDevice: subscribeThisDeviceMock,
 }));

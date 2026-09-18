@@ -8,7 +8,7 @@ import {
   readLocalDeviceState,
   type LocalDeviceState,
 } from "@/components/account/device-state";
-import { subscribeThisDevice, isPushConfigured } from "@/components/account/enable-device";
+import { subscribeThisDevice, isPushConfigured } from "@/components/account/push-subscribe";
 import {
   listDevices,
   removeDeviceById,
