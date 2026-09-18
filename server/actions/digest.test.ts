@@ -145,28 +145,31 @@ describe("getDigestSettings", () => {
     expect(result.enabled).toBe(false);
   });
 
-  it("reports device: null when the user has no subscriptions", async () => {
+  it("reports devices: [] when the user has no subscriptions", async () => {
     digestPreferenceFindUniqueMock.mockResolvedValue(null);
     pushSubscriptionFindManyMock.mockResolvedValue([]);
 
     const result = await getDigestSettings(TRIP_ID);
 
-    expect(result.device).toBeNull();
+    expect(result.devices).toEqual([]);
   });
 
-  it("reports the most recently subscribed device's timezone and createdAt", async () => {
+  it("reports each device's timezone, createdAt and label", async () => {
     digestPreferenceFindUniqueMock.mockResolvedValue(null);
     const newest = new Date("2026-09-01T00:00:00Z");
     const older = new Date("2026-01-01T00:00:00Z");
     // Simulate DB ordering by createdAt desc — newest first.
     pushSubscriptionFindManyMock.mockResolvedValue([
-      { timezone: "Asia/Tokyo", createdAt: newest },
-      { timezone: "Europe/London", createdAt: older },
+      { timezone: "Asia/Tokyo", createdAt: newest, label: "iPhone" },
+      { timezone: "Europe/London", createdAt: older, label: "Mac" },
     ]);
 
     const result = await getDigestSettings(TRIP_ID);
 
-    expect(result.device).toEqual({ timezone: "Asia/Tokyo", subscribedAt: newest });
+    expect(result.devices).toEqual([
+      { timezone: "Asia/Tokyo", subscribedAt: newest, label: "iPhone" },
+      { timezone: "Europe/London", subscribedAt: older, label: "Mac" },
+    ]);
     expect(pushSubscriptionFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { userId: USER_ID },
@@ -179,12 +182,26 @@ describe("getDigestSettings", () => {
     digestPreferenceFindUniqueMock.mockResolvedValue(null);
     const createdAt = new Date("2026-09-01T00:00:00Z");
     pushSubscriptionFindManyMock.mockResolvedValue([
-      { timezone: null, createdAt },
+      { timezone: null, createdAt, label: null },
     ]);
 
     const result = await getDigestSettings(TRIP_ID);
 
-    expect(result.device).toEqual({ timezone: null, subscribedAt: createdAt });
+    expect(result.devices).toEqual([{ timezone: null, subscribedAt: createdAt, label: null }]);
+  });
+
+  // Reporting only the newest device is how "1 device · Brisbane" came to
+  // describe a machine the traveller wasn't holding (ADR 0048).
+  it("returns every device, not just the newest", async () => {
+    pushSubscriptionFindManyMock.mockResolvedValue([
+      { timezone: "Australia/Brisbane", createdAt: new Date("2026-09-17"), label: "iPhone" },
+      { timezone: "Europe/Vienna", createdAt: new Date("2026-09-01"), label: "Mac" },
+    ]);
+    digestPreferenceFindUniqueMock.mockResolvedValue({ enabled: true });
+
+    const settings = await getDigestSettings("trip-1");
+
+    expect(settings.devices).toHaveLength(2);
   });
 });
 

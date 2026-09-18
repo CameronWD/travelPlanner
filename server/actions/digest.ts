@@ -13,8 +13,12 @@ import { todayISOInZone } from "@/lib/tz";
 
 export interface DigestSettings {
   enabled: boolean;
-  /** Most recently subscribed device, or null when none. */
-  device: { timezone: string | null; subscribedAt: Date } | null;
+  /**
+   * Every **Device** this Traveller has, newest first — not just the newest.
+   * The panel used to show only `devices[0]`, which let one healthy laptop
+   * stand in for a phone that had quietly died (ADR 0048).
+   */
+  devices: Array<{ timezone: string | null; subscribedAt: Date; label: string | null }>;
 }
 
 export type SendTestDigestResult =
@@ -32,7 +36,7 @@ export type SendTestDigestResult =
 
 /**
  * Read the current user's Digest settings for a trip: whether the Digest is
- * on, and the most recently subscribed device (if any).
+ * on, and every device that could receive it.
  *
  * A missing DigestPreference row means enabled — subscribing a device is
  * itself the opt-in (see lib/digest-dispatch.ts), so this mirrors that
@@ -48,18 +52,16 @@ export async function getDigestSettings(tripId: string): Promise<DigestSettings>
     }),
     db.pushSubscription.findMany({
       where: { userId: user.id },
-      select: { timezone: true, createdAt: true },
+      select: { timezone: true, createdAt: true, label: true },
       orderBy: { createdAt: "desc" },
     }),
   ]);
-
-  const newest = devices[0] ?? null;
 
   return {
     enabled: preference ? preference.enabled : true,
     // A device with no stored timezone is a device the dispatcher can't
     // schedule for — surface that honestly rather than inventing "UTC".
-    device: newest ? { timezone: newest.timezone, subscribedAt: newest.createdAt } : null,
+    devices: devices.map((d) => ({ timezone: d.timezone, subscribedAt: d.createdAt, label: d.label })),
   };
 }
 
