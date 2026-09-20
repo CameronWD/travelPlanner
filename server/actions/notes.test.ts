@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "../../test/helpers/access-order";
 
 /**
  * Tests for notes server actions.
@@ -73,6 +74,7 @@ describe("addNote", () => {
     noteCreateMock.mockResolvedValue({ id: "note-1" });
     await addNote(TRIP_ID, VALID_INPUT);
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, noteCreateMock);
   });
 
   it("creates a note with the current user as authorId", async () => {
@@ -186,6 +188,7 @@ describe("deleteNote", () => {
     await deleteNote(NOTE_ID);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, noteDeleteMock);
   });
 
   it("deletes the note", async () => {
