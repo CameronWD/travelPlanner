@@ -172,7 +172,13 @@ describe("alarms", () => {
     expect(ics).toContain("TRIGGER;VALUE=DATE-TIME:20261205T070000Z");
   });
 
-  it("falls back to UTC when the stay's stop has no timezone", () => {
+  it("skips the check-out alarm (but still publishes the event) when the stay's stop has no timezone", () => {
+    // A rough Stop (no arriveDate) never makes it into `stops`, so its
+    // Accommodation's tz lookup misses. A UTC fallback here would fire the
+    // alarm at a confidently wrong hour — 08:00Z lands mid-morning in Europe,
+    // mid-afternoon in Australia — and TEEPEE can never tell whether an
+    // Alarm fired to catch the mistake. No Alarm beats a wrong one; the
+    // check-out itself must still be published.
     const ics = buildICS({
       ...base,
       stops: [],
@@ -181,7 +187,8 @@ describe("alarms", () => {
       ],
       alarms: { transport: false, checkOut: true },
     });
-    expect(ics).toContain("TRIGGER;VALUE=DATE-TIME:20261205T080000Z");
+    expect(ics).not.toContain("BEGIN:VALARM");
+    expect(ics).toContain("SUMMARY:🛏 Stay: Hostel");
   });
 
   it("names the check-out in the alarm description", () => {

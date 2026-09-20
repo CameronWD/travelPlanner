@@ -213,9 +213,21 @@ export function buildICS(input: IcsInput): string {
   // Accommodation (multi-day all-day block)
   for (const a of accommodations) {
     const desc = buildDescription([a.notes, a.confirmation ? `Confirmation: ${a.confirmation}` : null]);
-    const tz = (a.stopId && tzById.get(a.stopId)) || "UTC";
+    // A rough Stop (no arriveDate) has no stored timezone and is excluded
+    // from `stops`/`tzById` by the route's query, even though its
+    // Accommodation is still fetched and published below. Falling back to
+    // UTC — as DTSTART/DTEND safely do, since those are all-day VALUE=DATE
+    // dates with no zone to get wrong — would instead resolve the alarm's
+    // wall-clock trigger against the wrong zone and fire it at a confidently
+    // incorrect hour (08:00Z lands mid-morning in Europe, mid-afternoon in
+    // Australia). TEEPEE never sends the Alarm itself and cannot learn
+    // whether the Traveller's own calendar app fired it (CONTEXT.md's Alarm
+    // entry), so a wrong Alarm is never caught — it either wakes them at the
+    // wrong time or is trusted past a check-out they had to make. No Alarm
+    // is safer than a wrong one: skip it here, but still publish the event.
+    const tz = a.stopId ? tzById.get(a.stopId) : undefined;
     const alarm =
-      input.alarms?.checkOut === true
+      input.alarms?.checkOut === true && tz
         ? alarmBlock(
             `TRIGGER;VALUE=DATE-TIME:${utcStamp(
               zonedWallTimeToInstant(a.checkOut, CHECK_OUT_ALARM_LOCAL_TIME, tz),

@@ -280,6 +280,50 @@ describe("GET /api/calendar/[token] — Alarms", () => {
     );
   });
 
+  it("alarmCheckOut:true, but the stay's own Stop is rough (no timezone) → publishes the check-out event with no VALARM", async () => {
+    feedFindUniqueMock.mockResolvedValue({
+      includeTransport: false,
+      includeAccommodation: true,
+      includeActivities: false,
+      alarmTransport: false,
+      alarmCheckOut: true,
+      trip: { id: "trip-1", name: "Loose Trip" },
+    });
+    // The route only fetches stops with arriveDate set, so a rough Stop (no
+    // dates, no stored timezone) never appears here — even though the
+    // Accommodation pinned to it is still fetched below.
+    stopFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([
+      {
+        id: "accom-rough",
+        name: "Somewhere TBD",
+        checkIn: "2026-08-01",
+        checkOut: "2026-08-04",
+        address: null,
+        confirmation: null,
+        notes: null,
+        checkOutTime: "10:00",
+        stopId: "stop-rough",
+      },
+    ]);
+
+    const res = await GET(new Request("http://localhost/api/calendar/tok-1"), {
+      params: Promise.resolve({ token: "tok-1" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    // The check-out itself is still real and belongs in the feed.
+    expect(body).toContain(ACCOMMODATION_MARKER);
+    expect(body).toContain("CATEGORIES:Accommodation");
+    // But with no known timezone to resolve 08:00 against, a UTC fallback
+    // would fire hours off local time — worse than no Alarm at all, since
+    // TEEPEE can never observe whether it fired.
+    expect(body).not.toContain("BEGIN:VALARM");
+  });
+
   it("both alarm flags false → no BEGIN:VALARM at all, even with transport and accommodation present", async () => {
     feedFindUniqueMock.mockResolvedValue({
       includeTransport: true,
