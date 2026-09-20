@@ -218,6 +218,10 @@ _Avoid_: superuser, moderator, staff; owner (that's the per-Trip role)
 A pending, email-addressed grant of access to a Trip — it names the email of the person a Traveller wants to bring on. An Invite becomes Traveller membership automatically the next time that person is signed in under a matching email; it is never delivered as a link or message, so it lives only as a record on the Trip, not something the invitee receives. It is **Pending** until matched, and can be cancelled while still Pending. Distinct from a **Traveller** (an Invite is the not-yet-joined precursor) and from the read-only public **share link** (which grants no membership).
 _Avoid_: invitation link/email, membership request, share
 
+**Share link**:
+A labelled, read-only public window onto a Trip's **real plan**, made for one audience ("Mum & Dad", "The group chat") and handed out as a URL. A Trip may hold several at once, each with its own **scope** — which layers of detail that audience sees — and each revocable on its own, so cutting one audience off never touches another. A Share link grants no membership and no identity: whoever holds the URL sees the view, nothing more (contrast **Invite**, which becomes **Traveller** membership). Whatever the scope, some things are *never* shared on any link: money, **Note**s, confirmation numbers and booking references. Always reads the real plan — never a **Fork**.
+_Avoid_: bare "share" (say Share link), public link, guest access, viewer account (there is no viewer identity)
+
 **Trip cover image**:
 The single picture that represents a Trip wherever it's shown (currently the trips-list card and the Trip **Home** hero). A photo the Traveller uploads; when none is set the app falls back to an auto-generated **route render** — a stylised drawing of the Trip's located Stops as pins joined by a path, *not* a real tile map — and, for a Trip with no located Stops yet, a neutral monogram panel. The old hashed warm-gradient cover is retired.
 _Avoid_: thumbnail; avatar/image (that's a Traveller's photo); banner; "route map" alone (reserved for the interactive Leaflet map on the Summary / the **Day map**)
