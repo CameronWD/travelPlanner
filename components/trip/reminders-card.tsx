@@ -54,9 +54,18 @@ function formatWhen(
     return { relative: null, absolute: date };
   }
 
-  // No "passed" case: `listRemindersForTrip` queries `date >= today` and the
-  // card is given the trip's own today, so a Reminder already gone by never
-  // reaches here. A branch for it only looked like the card had a past to show.
+  // `listRemindersForTrip` queries `date >= today` and the card is given the
+  // trip's own today, so a Reminder already gone by is unreachable here in
+  // practice. But "unreachable in practice" isn't "impossible" — a stale prop
+  // or a clock skew could still hand this a past date — and this card has no
+  // copy for that: "31 days ago" would be prose invented for a state nobody
+  // has seen and nobody can test against reality. A null relative label is
+  // the safe shape instead: the row falls back to showing just the absolute
+  // date, which is always correct, rather than risking "in -31 days".
+  if (days < 0) {
+    return { relative: null, absolute: formatDayLabel(date) };
+  }
+
   let relative: string;
   if (days === 0) {
     relative = "today";

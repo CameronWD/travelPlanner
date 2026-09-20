@@ -103,6 +103,25 @@ describe("RemindersCard does not linger", () => {
     render(<RemindersCard tripId="trip-1" today={TODAY} reminders={[]} />);
     expect(screen.getByText("No upcoming reminders.")).toBeInTheDocument();
   });
+
+  // `listRemindersForTrip` queries `date >= today`, so a past-dated Reminder
+  // shouldn't reach this card in practice — but if one does (a stale prop, a
+  // clock skew), the card must not do arithmetic on it out loud. Pin the
+  // absence of the bad string rather than just the presence of a good one: a
+  // component that rendered nothing at all would also pass a check that only
+  // looked for "no label".
+  it("shows no relative label for a reminder dated before today, and never '-N days'", () => {
+    render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[{ id: "r1", title: "Apply for ETIAS", date: "2026-10-16" }]}
+      />,
+    );
+
+    expect(screen.getByText("Apply for ETIAS")).toBeInTheDocument();
+    expect(screen.queryByText(/-\d+ days/)).not.toBeInTheDocument();
+  });
 });
 
 describe("RemindersCard malformed stored date", () => {
