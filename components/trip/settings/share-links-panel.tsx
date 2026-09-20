@@ -121,8 +121,10 @@ function LinkRow({
   });
   const [error, setError] = React.useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [pendingAction, setPendingAction] = React.useState<"rotate" | "revoke" | "save" | null>(null);
 
   function handleSave() {
+    setPendingAction("save");
     startTransition(async () => {
       const result = await updateShareLink(tripId, link.id, { label, ...scope });
       if (result.success) {
@@ -136,16 +138,27 @@ function LinkRow({
   }
 
   function handleRotate() {
+    setPendingAction("rotate");
     startTransition(async () => {
       const result = await rotateShareLink(tripId, link.id);
-      if (result.success) onChanged(result.link);
+      if (result.success) {
+        onChanged(result.link);
+        setError(null);
+      } else {
+        setError(result.errors.form?.[0] ?? "Something went wrong.");
+      }
     });
   }
 
   function handleRevoke() {
+    setPendingAction("revoke");
     startTransition(async () => {
       const result = await revokeShareLink(tripId, link.id);
-      if (result.success) onRevoked(link.id);
+      if (result.success) {
+        onRevoked(link.id);
+      } else {
+        setError(result.errors.form?.[0] ?? "Something went wrong.");
+      }
     });
   }
 
@@ -163,7 +176,7 @@ function LinkRow({
             <Pencil className="size-4" aria-hidden="true" />
             Edit
           </Button>
-          <Button type="button" variant="ghost" size="sm" onClick={handleRotate} loading={isPending}>
+          <Button type="button" variant="ghost" size="sm" onClick={handleRotate} loading={isPending && pendingAction === "rotate"} disabled={isPending}>
             <RefreshCw className="size-4" aria-hidden="true" />
             Regenerate
           </Button>
@@ -172,7 +185,8 @@ function LinkRow({
             variant="ghost"
             size="sm"
             onClick={handleRevoke}
-            loading={isPending}
+            loading={isPending && pendingAction === "revoke"}
+            disabled={isPending}
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
             <Trash2 className="size-4" aria-hidden="true" />
@@ -182,6 +196,8 @@ function LinkRow({
       </div>
 
       <CopyUrlBar token={link.token} />
+
+      {!editing && error && <p className="text-xs text-destructive">{error}</p>}
 
       {editing && (
         <div className="space-y-3 rounded-xl bg-muted/30 p-3">

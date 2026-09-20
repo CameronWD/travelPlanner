@@ -88,6 +88,14 @@ describe("ShareLinksPanel", () => {
     expect(screen.getByText("Mum & Dad")).toBeInTheDocument();
   });
 
+  it("shows the error and keeps the row when revoke fails", async () => {
+    revokeShareLink.mockResolvedValue({ success: false, errors: { form: ["Share link not found."] } });
+    render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
+    await userEvent.click(screen.getByRole("button", { name: /revoke/i }));
+    expect(await screen.findByText("Share link not found.")).toBeInTheDocument();
+    expect(screen.getByText("Mum & Dad")).toBeInTheDocument();
+  });
+
   it("rotates a link and swaps in the fresh token", async () => {
     rotateShareLink.mockResolvedValue({ success: true, link: link({ token: "tok-9" }) });
     render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);

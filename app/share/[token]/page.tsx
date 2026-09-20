@@ -319,7 +319,7 @@ export default async function SharePage({
                 <span className="font-medium text-primary">{phaseDesc.countdown}</span>
               )}
               {phase === "past" && (
-                <span>This trip has ended · {phaseDesc.countdown}</span>
+                <span>{phaseDesc.countdown}</span>
               )}
             </div>
           </div>

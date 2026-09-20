@@ -163,6 +163,25 @@ describe("updateShareLink", () => {
     );
     expect(result.success).toBe(true);
   });
+
+  it("skips the write and returns the current row when input is empty", async () => {
+    shareFindFirstMock.mockResolvedValue(row());
+    const result = await updateShareLink(TRIP_ID, LINK_ID, {});
+    expect(shareUpdateManyMock).not.toHaveBeenCalled();
+    expect(shareFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: LINK_ID, tripId: TRIP_ID } }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.link.id).toBe(LINK_ID);
+  });
+
+  it("fails with a form error for an empty input when the row is gone", async () => {
+    shareFindFirstMock.mockResolvedValue(null);
+    const result = await updateShareLink(TRIP_ID, LINK_ID, {});
+    expect(shareUpdateManyMock).not.toHaveBeenCalled();
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors.form).toBeDefined();
+  });
 });
 
 describe("rotateShareLink", () => {

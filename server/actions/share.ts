@@ -129,6 +129,15 @@ export async function updateShareLink(
     data.label = label;
   }
 
+  if (Object.keys(data).length === 0) {
+    const row = await db.shareLink.findFirst({
+      where: { id: linkId, tripId },
+      select: LINK_SELECT,
+    });
+    if (!row) return fail({ form: ["Share link not found."] });
+    return ok({ link: toView(row) });
+  }
+
   const { count } = await db.shareLink.updateMany({
     where: { id: linkId, tripId },
     data,
