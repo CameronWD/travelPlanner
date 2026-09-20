@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "../../test/helpers/access-order";
 
 const {
   requireTripAccessMock,
@@ -55,6 +56,7 @@ describe("rescheduleItem", () => {
     arrangeTrip();
     await rescheduleItem(ITEM_ID, "2026-07-05");
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemUpdateMock);
   });
 
   it("sets date and reassigns stopId to the covering stop", async () => {
