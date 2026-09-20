@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "../../test/helpers/access-order";
 
 /**
  * Tests for the trips server actions.
@@ -396,6 +397,7 @@ describe("updateTrip", () => {
 
     expect(requireTripAccessMock).toHaveBeenCalledOnce();
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
   });
 
   it("updates the trip and returns success on valid input", async () => {
@@ -559,6 +561,7 @@ describe("deleteTrip", () => {
     await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, tripDeleteMock);
   });
 
   it("deletes the trip and redirects to /trips when caller is owner", async () => {
@@ -788,6 +791,7 @@ describe("setChaptersEnabled", () => {
 
     expect(requireTripAccessMock).toHaveBeenCalledOnce();
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
   });
 
   it("enabling: updates the trip AND recomputes chapter spans for the real plan and every fork", async () => {
