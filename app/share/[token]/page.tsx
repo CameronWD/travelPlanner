@@ -9,6 +9,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { db } from "@/lib/db";
+import type { ShareScope } from "@/lib/share-view";
 import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
 import { buildItinerary, orderDayEntries } from "@/lib/itinerary";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
@@ -58,7 +59,10 @@ export default async function SharePage({
   // Resolve the token → trip. Invalid/revoked tokens show notFound.
   const shareLink = await db.shareLink.findUnique({
     where: { token },
-    include: {
+    select: {
+      includeAccommodation: true,
+      includeTransport: true,
+      includeDailyPlans: true,
       trip: {
         select: {
           id: true,
@@ -83,73 +87,88 @@ export default async function SharePage({
   // has nothing dated to share yet.
   if (!trip.startDate || !trip.endDate) notFound();
 
-  // Fetch itinerary data — NO costs, no notes, no confirmations
-  const [rawStops, transports, accommodations, items] = await Promise.all([
-    db.stop.findMany({
-      // Rough (date-less) stops aren't part of the dated public itinerary.
-      where: { tripId, forkId: null, arriveDate: { not: null } },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        name: true,
-        country: true,
-        lat: true,
-        lng: true,
-        timezone: true,
-        arriveDate: true,
-        departDate: true,
-        sortOrder: true,
-        // notes intentionally omitted
-      },
-    }),
-    db.transport.findMany({
-      where: { tripId, forkId: null },
-      orderBy: { sortOrder: "asc" },
-      select: {
-        id: true,
-        mode: true,
-        fromStopId: true,
-        toStopId: true,
-        depPlace: true,
-        arrPlace: true,
-        depAt: true,
-        arrAt: true,
-        // reference (booking number) and notes intentionally omitted — private
-        sortOrder: true,
-      },
-    }),
-    db.accommodation.findMany({
-      where: { tripId, forkId: null },
-      orderBy: { checkIn: "asc" },
-      select: {
-        id: true,
-        stopId: true,
-        name: true,
-        address: true,
-        checkIn: true,
-        checkOut: true,
-        checkInTime: true,
-        checkOutTime: true,
-        // confirmation intentionally omitted (private booking ref)
-        // notes intentionally omitted
-      },
-    }),
-    db.item.findMany({
-      where: { tripId, forkId: null },
-      orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
-      select: {
-        id: true,
-        title: true,
-        category: true,
-        date: true,
-        startTime: true,
-        endTime: true,
-        stopId: true,
-        address: true,
-        // link, booking, notes intentionally omitted
-      },
-    }),
-  ]);
+  const scope: ShareScope = {
+    includeAccommodation: shareLink.includeAccommodation,
+    includeTransport: shareLink.includeTransport,
+    includeDailyPlans: shareLink.includeDailyPlans,
+  };
+
+  // Fetch itinerary data — NO costs, no notes, no confirmations. An off dial
+  // means the corresponding query never runs: hidden data never leaves the
+  // database, so no rendering bug can leak it.
+  const rawStops = await db.stop.findMany({
+    // Rough (date-less) stops aren't part of the dated public itinerary.
+    where: { tripId, forkId: null, arriveDate: { not: null } },
+    orderBy: { sortOrder: "asc" },
+    select: {
+      id: true,
+      name: true,
+      country: true,
+      lat: true,
+      lng: true,
+      timezone: true,
+      arriveDate: true,
+      departDate: true,
+      sortOrder: true,
+      // notes intentionally omitted
+    },
+  });
+
+  const transports = scope.includeTransport
+    ? await db.transport.findMany({
+        where: { tripId, forkId: null },
+        orderBy: { sortOrder: "asc" },
+        select: {
+          id: true,
+          mode: true,
+          fromStopId: true,
+          toStopId: true,
+          depPlace: true,
+          arrPlace: true,
+          depAt: true,
+          arrAt: true,
+          // reference (booking number) and notes intentionally omitted — private
+          sortOrder: true,
+        },
+      })
+    : [];
+
+  const accommodations = scope.includeAccommodation
+    ? await db.accommodation.findMany({
+        where: { tripId, forkId: null },
+        orderBy: { checkIn: "asc" },
+        select: {
+          id: true,
+          stopId: true,
+          name: true,
+          address: true,
+          checkIn: true,
+          checkOut: true,
+          checkInTime: true,
+          checkOutTime: true,
+          // confirmation intentionally omitted (private booking ref)
+          // notes intentionally omitted
+        },
+      })
+    : [];
+
+  const items = scope.includeDailyPlans
+    ? await db.item.findMany({
+        where: { tripId, forkId: null },
+        orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
+        select: {
+          id: true,
+          title: true,
+          category: true,
+          date: true,
+          startTime: true,
+          endTime: true,
+          stopId: true,
+          address: true,
+          // link, booking, notes intentionally omitted
+        },
+      })
+    : [];
 
   // Non-null at runtime: the query filters rough (date-less) stops out.
   // ADR 0038: a scheduled stop's position IS its dates — re-sort canonically
@@ -374,6 +393,9 @@ export default async function SharePage({
           )}
 
           {/* ── Day-by-day timeline ── */}
+          {(scope.includeAccommodation ||
+            scope.includeTransport ||
+            scope.includeDailyPlans) && (
           <section aria-labelledby="timeline-heading">
             <h2
               id="timeline-heading"
@@ -565,6 +587,7 @@ export default async function SharePage({
               })}
             </div>
           </section>
+          )}
 
           {/* ── Footer ── */}
           <footer className="border-t border-border pt-4 text-center text-xs text-muted-foreground">
