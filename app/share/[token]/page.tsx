@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/db";
 import type { ShareScope } from "@/lib/share-view";
+import { tonightsStay } from "@/lib/share-view";
 import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
 import { buildItinerary, orderDayEntries } from "@/lib/itinerary";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
@@ -17,6 +18,9 @@ import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enums";
 import { homeMapPoint } from "@/lib/route-map";
 import { orderPlanStops } from "@/lib/plan-order";
+import { describePhase } from "@/lib/trip-phase";
+import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+import { ShareTodayCard } from "./share-today-card";
 
 // ---------------------------------------------------------------------------
 // Metadata — noindex so search engines don't index private trips
@@ -230,6 +234,29 @@ export default async function SharePage({
 
   const totalNights = nightsBetween(trip.startDate, trip.endDate);
 
+  // Phase: which stage of its life the trip is in (ADR 0010), from the
+  // trip's own reference timezone — the public page has no visitor clock.
+  const timeZone = currentTripTimezone(stops);
+  const todayISO = todayISOInZone(timeZone);
+  const phaseDesc = describePhase({
+    startDate: trip.startDate,
+    endDate: trip.endDate,
+    today: todayISO,
+  });
+  const phase = phaseDesc.phase;
+
+  // DayPlan's stop is the itinerary projection's ItineraryStop shape, which
+  // carries no lat/lng — resolve today's stop from the `stops` array (which
+  // does) by id instead.
+  const todayPlan =
+    phase === "travelling"
+      ? (itinerary.find((d) => d.dateISO === todayISO) ?? null)
+      : null;
+  const todayStop = todayPlan?.stop
+    ? (stops.find((s) => s.id === todayPlan.stop!.id) ?? null)
+    : null;
+  const stay = phase === "travelling" ? tonightsStay(accommodations, todayISO) : null;
+
   // Build per-stop lookups
   const accomByStopId = new Map<string, (typeof accommodations)[number]>();
   for (const acc of accommodations) {
@@ -288,8 +315,31 @@ export default async function SharePage({
                 <MapPin className="size-4" aria-hidden="true" />
                 {stops.length} stop{stops.length !== 1 ? "s" : ""}
               </span>
+              {(phase === "planning" || phase === "final-prep") && (
+                <span className="font-medium text-primary">{phaseDesc.countdown}</span>
+              )}
+              {phase === "past" && (
+                <span>This trip has ended · {phaseDesc.countdown}</span>
+              )}
             </div>
           </div>
+
+          {/* ── Today card ── */}
+          {phase === "travelling" && (
+            <ShareTodayCard
+              countdown={phaseDesc.countdown}
+              timeZone={timeZone}
+              todayISO={todayISO}
+              stop={
+                todayStop
+                  ? { name: todayStop.name, country: todayStop.country, lat: todayStop.lat, lng: todayStop.lng }
+                  : null
+              }
+              day={todayPlan}
+              stay={stay ? { name: stay.name, address: stay.address } : null}
+              scope={scope}
+            />
+          )}
 
           {/* ── Route Map ── */}
           {mapStops.length > 0 && (
@@ -411,15 +461,26 @@ export default async function SharePage({
                   day.transportEntries.length > 0 ||
                   day.accommodationEntries.length > 0;
 
+                const isToday = phase === "travelling" && day.dateISO === todayISO;
+
                 return (
                   <div
                     key={day.dateISO}
-                    className="rounded-2xl border border-border bg-card"
+                    className={
+                      isToday
+                        ? "rounded-2xl border border-primary bg-card ring-1 ring-primary/40"
+                        : "rounded-2xl border border-border bg-card"
+                    }
                   >
                     {/* Day header */}
                     <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
-                      <h3 className="font-display text-base font-semibold text-foreground">
+                      <h3 className="font-display text-base font-semibold text-foreground flex items-center gap-2">
                         {formatLongDate(day.dateISO)}
+                        {isToday && (
+                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                            Today
+                          </span>
+                        )}
                       </h3>
                       {day.stop && (
                         <span className="text-xs text-muted-foreground">
