@@ -121,7 +121,7 @@ describe("requireTripAccess", () => {
     authMock.mockResolvedValue({ user: { id: "u1" } });
     findManyMock.mockImplementation(async ({ where }: { where: { tripId: string } }) => {
       if (where.tripId === "trip1") return [{ userId: "u1", role: "owner" }];
-      return []; // u1 is not a member of trip2
+      return []; // no TripMember row ties u1 to trip2
     });
 
     const trip1Result = await requireTripAccess("trip1");

@@ -1,10 +1,19 @@
 /**
- * Per-stop day bucketing for the plan editor — PURE, framework-free.
+ * Per-stop day grouping for the plan editor — PURE, framework-free.
  *
- * Groups a scheduled Stop's scheduled Items (date != null) into one bucket per
- * calendar day of the stay, arrive → depart inclusive. Items dated outside the
- * stay are excluded: ADR 0038 un-slots those back to things-to-do, so any that
- * appear here are transient and must not invent extra day rows.
+ * Two different grouping strategies live here, for two different callers:
+ *
+ * - `buildStopDays` buckets ONE Stop's already-known Items into calendar-day
+ *   rows, arrive → depart inclusive. Items dated outside that Stop's stay are
+ *   excluded: ADR 0038 un-slots those back to things-to-do, so any that
+ *   appear here are transient and must not invent extra day rows.
+ * - `groupScheduledItemsByStop` decides, for a WHOLE plan's Stops, which
+ *   Items each Stop card should even be handed in the first place — grouped
+ *   by DATE COVERAGE, not by `stopId`. On a Changeover day (ADR 0049) that
+ *   deliberately puts the same Item under both adjoining Stops' cards; Item
+ *   *ownership* (what `lib/budget.ts` counts a Cost against) is untouched by
+ *   this grouping. `stop-day-list.tsx` calls `buildStopDays` on whatever this
+ *   function handed it.
  */
 
 import { enumerateTripDays } from "@/lib/itinerary";

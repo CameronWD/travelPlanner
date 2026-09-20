@@ -21,7 +21,12 @@ import type { AttachmentView } from "./attachment-list";
 export interface StopDayListProps {
   tripId: string;
   stop: { id: string; arriveDate: string; departDate: string };
-  /** Scheduled items for this stop (stopId = stop.id, date != null). */
+  /**
+   * Scheduled items for this stop's slice of the Timeline, arrive → depart
+   * inclusive (`lib/stop-days.ts`'s `buildStopDays`, keyed by date coverage —
+   * NOT by `stopId`). On a Changeover day (ADR 0049) this includes Items
+   * owned by the adjoining Stop too; `ownerLabelFor` below marks those.
+   */
   items: StopDayItem[];
   stops: StopOption[];
   forkId?: string | null;

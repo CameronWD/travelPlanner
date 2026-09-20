@@ -1,10 +1,11 @@
 /**
  * Digest dispatch — the server half of the daily Digest (CONTEXT.md **Digest**,
- * ADR 0047).
+ * ADR 0047, amended by ADR 0050).
  *
- * `collectDigestInput` turns a (trip, local date, slot) into the plain data the
- * pure builder in `lib/digest.ts` needs; `dispatchDigest` turns a (user, trip,
- * local date, slot) into *at most one* push.
+ * `collectDigestInput` turns a (trip, local date, slot, recipient zone) into
+ * the plain data the pure builder in `lib/digest.ts` needs; `dispatchDigest`
+ * turns a (user, trip, local date, slot, recipient zone) into *at most one*
+ * push.
  *
  * Two properties matter more than anything else here:
  *
@@ -17,6 +18,22 @@
  *
  * Everything time-sensitive arrives as a parameter (`localDate`, `slot`). This
  * module never reads the machine's clock or timezone.
+ *
+ * The optional `zone` parameter (both functions) is ADR 0050's elected
+ * recipient zone — the timezone of the Device with the newest `lastSeenAt`
+ * across ALL of that person's Devices, resolved once by the caller
+ * (`app/api/cron/digest/route.ts`) and threaded through here rather than
+ * re-derived. `resolveTripZone` reads it as the first answer for "what is
+ * the Trip's own clock" (see that function). It is absent only for a forced
+ * test send (Settings "send me a test"), which carries no dispatching Device.
+ *
+ * `collectDigestInput` also skips a class of queries entirely on the MORNING
+ * slot: `needEveningContent` gates the due-payments, checklist and reminder
+ * reads, because `lib/digest.ts`'s `collectLines` only ever renders those
+ * three on the EVENING slot. Querying them for MORNING would wake Neon for
+ * rows the builder immediately discards — wasted reads with no user-visible
+ * effect, denominated in the same CU-hours ADR 0047's whole cadence argument
+ * cares about.
  */
 import { db } from "@/lib/db";
 import {
@@ -182,12 +199,14 @@ export async function collectDigestInput(opts: {
   ]);
 
   const ownedCosts = dueCosts.filter((c) => c.ownerType !== "OTHER");
-  const needStops = ownedCosts.length > 0 || targetIsInTrip;
-  const needTransports = ownedCosts.length > 0 || targetIsInTrip;
+  // Stops and transports are needed for the same two reasons — naming a due
+  // cost's endpoints, and building today/tomorrow's schedule — so this is one
+  // condition, not two independently-reasoned ones written twice.
+  const needStopsAndTransports = ownedCosts.length > 0 || targetIsInTrip;
 
   // One stop lookup serves both jobs: naming a transport cost's endpoints and
   // reading a departure's wall clock.
-  const stops = needStops
+  const stops = needStopsAndTransports
     ? await db.stop.findMany({
         where: { tripId, forkId: null },
         orderBy: { sortOrder: "asc" },
@@ -205,10 +224,19 @@ export async function collectDigestInput(opts: {
   // The Trip's own clock — what "the traveller's watch" reads on a leg that has
   // no departure Stop. See `transportZone` for why that is not the arrival
   // Stop's zone.
+  //
+  // INVARIANT: `stops` may be `[]` here (when `needStopsAndTransports` is
+  // false), which would make `currentTripTimezone(stops)` — `resolveTripZone`'s
+  // last-resort fallback — meaningless. That is safe ONLY because
+  // `needStopsAndTransports` is false exactly when `targetIsInTrip` is false
+  // (and there are no owned costs to name either), and `collectSchedule` below
+  // — the one caller that actually reads `tripZone` for anything more than a
+  // due-cost label — is gated on that same `targetIsInTrip`. If either gate
+  // is ever loosened independently of the other, this stops holding.
   const tripZone = resolveTripZone(zone ?? null, trip?.homeCountryCode ?? null, stops);
 
   // Likewise one transport lookup, with the union of the fields both jobs need.
-  const transportRows = needTransports
+  const transportRows = needStopsAndTransports
     ? await db.transport.findMany({
         where: { tripId, forkId: null },
         orderBy: { depAt: "asc" },
