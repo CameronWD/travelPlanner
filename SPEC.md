@@ -96,7 +96,7 @@ voting · Reminders/notifications · Photos/journal. AI assistant designed-for, 
 - **P3 Summary & map** — overview, route map, automatic Flags.
 - **P4 On-the-go** — Today view, map/directions links, time-zone display, offline read cache.
 - **P5 Together & prep** — Notes, Wishlist voting, pre-trip checklist, packing list+templates.
-- **P6 Docs & sharing** — Attachments (file storage), export/print, read-only share link.
+- **P6 Docs & sharing** — Attachments (file storage), export/print, read-only share links (per-audience, scoped).
 - **P7 Notifications & journal** — reminders/push, photos/journal.
 - **P8 (future)** — AI assistant.
 
