@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "../../test/helpers/access-order";
 
 /**
  * Tests for votes server actions.
@@ -68,6 +69,7 @@ describe("setVote", () => {
     voteUpsertMock.mockResolvedValue({});
     await setVote(TRIP_ID, ITEM_ID, "MUST");
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, voteUpsertMock);
   });
 
   it("verifies the item belongs to the trip", async () => {
@@ -156,6 +158,7 @@ describe("clearVote", () => {
     voteDeleteManyMock.mockResolvedValue({ count: 1 });
     await clearVote(TRIP_ID, ITEM_ID);
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, voteDeleteManyMock);
   });
 
   it("verifies the item belongs to the trip", async () => {
