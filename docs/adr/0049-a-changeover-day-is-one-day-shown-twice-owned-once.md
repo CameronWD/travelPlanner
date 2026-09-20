@@ -106,3 +106,41 @@ undiscoverable except by opening the Edit dialog.
 - The `handleMove` comment in `stop-day-list.tsx` becomes obsolete; the
   behaviour it describes is now the documented rule rather than a local
   workaround.
+- **Known gap, deliberately left open (2026-09-20 review): rule 4 governs
+  Item *moves* only, not a Stop *re-date*.** `scheduleItem` and
+  `rescheduleItem` both call `resolveOwningStop` before writing an Item's
+  date, so dragging an Item keeps its owner while that owner still covers
+  the target day. Re-dating a Stop is a different code path —
+  `shiftStopPayloadTx` (`server/actions/stop-flow.ts`) calling
+  `shiftItemDates` (`lib/payload-shift.ts`) — and that path is pure ADR 0038
+  offset math with no concept of an owning Stop at all: an Item un-slots
+  (`date: null`) purely because its offset from the OLD arrive date no
+  longer lands inside the NEW arrive/depart span, with no check for whether
+  some other Stop still covers its actual calendar date. Concretely: Munich
+  5–10, Strasbourg 10–12, a dinner on the 10th owned by Munich; shorten
+  Munich to 5–9 and the dinner un-slots to Munich's things-to-do, even
+  though Strasbourg still covers the 10th and rule 4 would have re-filed it
+  there instead. Phase A (this ADR) makes this newly visible in a way it
+  wasn't before: the dinner used to simply vanish off a card nobody was
+  looking at; now that Strasbourg's card renders the 10th as its own
+  changeover day, the dinner disappears from a card the Traveller never
+  touched. Extending rule 4 into the re-date/un-slot path is a deliberate
+  behaviour change — it would mean a Stop re-date can re-file an Item onto a
+  *different* Stop's Budget line, which today only an explicit Item move
+  does — and it deserves its own spec and review rather than being folded
+  into this fix wave. `lib/payload-shift.ts` and `server/actions/stop-flow.ts`
+  are intentionally untouched.
+- **Known gap, recorded but not changed (2026-09-20 review): the in-place
+  branch of `scheduleItem` now writes `stopId`, which it never touched
+  before rule 4.** That write is rule 4 working as designed when the target
+  date falls inside some Stop's stay. But when an Item is dated OUTSIDE
+  every Stop's stay (a gap day no Stop covers), `resolveOwningStop` falls
+  through to `stopForDate`, which returns `null` for a gap day — so the
+  Item's `stopId` is now nulled where before this rule existed it simply
+  kept whatever Stop it had. The visible effect: that Item's Cost moves from
+  its old Stop's Budget line to "Trip-wide / Other" (`lib/budget.ts`'s
+  unowned bucket) purely because it was rescheduled to a day with no owning
+  Stop. This follows rule 4 as written — an owner is preserved only "while
+  that owner still covers its date" — but was never an explicit decision
+  when the rule was written, since a Wishlist gap-day case wasn't the
+  scenario rule 4 was designed around. Left as-is for this fix wave.
