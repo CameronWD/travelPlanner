@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "../../test/helpers/access-order";
 
 /**
  * Tests for items server actions.
@@ -324,6 +325,7 @@ describe("createItem", () => {
     await createItem("trip-99", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-99");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemCreateMock);
   });
 
   it("rejects a stopId that belongs to a different trip", async () => {
@@ -498,6 +500,7 @@ describe("updateItem", () => {
     await updateItem("item-1", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemUpdateMock);
   });
 
   it("returns validation error and does not write", async () => {
@@ -626,6 +629,7 @@ describe("deleteItem", () => {
     await deleteItem("item-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-7");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemDeleteMock);
   });
 
   it("records DELETED activity with the snapshotted title as entityLabel", async () => {
@@ -773,6 +777,7 @@ describe("scheduleItem", () => {
     await scheduleItem("item-1", { date: "2026-08-10" }, null);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-3");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemCreateMock);
   });
 
   it("returns validation error for invalid date format", async () => {
@@ -864,10 +869,14 @@ describe("unscheduleItem", () => {
       .mockResolvedValueOnce({ id: "item-1", tripId: "trip-8" })
       .mockResolvedValueOnce({ id: "item-1", tripId: "trip-8", forkId: null, date: "2026-08-10", sourceItemId: null });
     itemDeleteMock.mockResolvedValue({});
+    itemUpdateMock.mockResolvedValue({});
 
     await unscheduleItem("item-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-8");
+    // sourceItemId: null takes the "unslotted" branch, which writes via
+    // item.update (clearing the date) rather than item.delete.
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemUpdateMock);
   });
 
   it("unscheduleItem records DELETED activity", async () => {
