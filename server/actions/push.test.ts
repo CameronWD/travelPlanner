@@ -10,10 +10,14 @@ const {
   requireUserMock,
   pushSubUpsertMock,
   pushSubDeleteManyMock,
+  pushSubFindUniqueMock,
+  pushSubUpdateMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn().mockResolvedValue({ id: "user-1" }),
   pushSubUpsertMock: vi.fn(),
   pushSubDeleteManyMock: vi.fn(),
+  pushSubFindUniqueMock: vi.fn(),
+  pushSubUpdateMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({
@@ -25,11 +29,17 @@ vi.mock("@/lib/db", () => ({
     pushSubscription: {
       upsert: pushSubUpsertMock,
       deleteMany: pushSubDeleteManyMock,
+      findUnique: pushSubFindUniqueMock,
+      update: pushSubUpdateMock,
     },
   },
 }));
 
-import { subscribeToPush, unsubscribeFromPush } from "@/server/actions/push";
+import {
+  healRotatedSubscription,
+  subscribeToPush,
+  unsubscribeFromPush,
+} from "@/server/actions/push";
 
 const STUB_SUB = {
   endpoint: "https://fcm.googleapis.com/fcm/send/stub",
@@ -170,5 +180,83 @@ describe("unsubscribeFromPush", () => {
 
     const call = pushSubDeleteManyMock.mock.calls[0][0];
     expect(call.where.userId).toBe("user-1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// healRotatedSubscription
+// ---------------------------------------------------------------------------
+
+describe("healRotatedSubscription", () => {
+  it("updates the rotated row in place, preserving label, timezone and createdAt", async () => {
+    pushSubFindUniqueMock.mockResolvedValue({
+      id: "row-1",
+      userId: "user-1",
+      endpoint: "https://old",
+      p256dh: "oldp",
+      auth: "olda",
+      label: "iPhone · Safari",
+      timezone: "Europe/Berlin",
+    });
+    pushSubUpdateMock.mockResolvedValue({ id: "row-1" });
+
+    const res = await healRotatedSubscription({
+      oldEndpoint: "https://old",
+      endpoint: "https://new",
+      keys: { p256dh: "newp", auth: "newa" },
+    });
+
+    expect(res).toEqual({ ok: true, mode: "updated" });
+    expect(pushSubUpdateMock).toHaveBeenCalledWith({
+      where: { endpoint: "https://old" },
+      data: expect.objectContaining({
+        endpoint: "https://new",
+        p256dh: "newp",
+        auth: "newa",
+      }),
+    });
+    // label is captured once and never re-derived (ADR 0048)
+    expect(pushSubUpdateMock.mock.calls[0][0].data).not.toHaveProperty("label");
+  });
+
+  it("refuses to touch another traveller's row and registers the new one instead", async () => {
+    pushSubFindUniqueMock.mockResolvedValue({
+      id: "row-1",
+      userId: "someone-else",
+      endpoint: "https://old",
+    });
+    pushSubUpsertMock.mockResolvedValue({ id: "row-2" });
+
+    const res = await healRotatedSubscription({
+      oldEndpoint: "https://old",
+      endpoint: "https://new",
+      keys: { p256dh: "newp", auth: "newa" },
+    });
+
+    expect(res).toEqual({ ok: true, mode: "registered" });
+    expect(pushSubUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("registers the new subscription and leaves the old row standing when the old endpoint is unknown", async () => {
+    pushSubUpsertMock.mockResolvedValue({ id: "row-2" });
+
+    const res = await healRotatedSubscription({
+      endpoint: "https://new",
+      keys: { p256dh: "newp", auth: "newa" },
+    });
+
+    expect(res).toEqual({ ok: true, mode: "registered" });
+    expect(pushSubDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses empty key material rather than creating a device that cannot receive", async () => {
+    const res = await healRotatedSubscription({
+      endpoint: "https://new",
+      keys: { p256dh: "", auth: "" },
+    });
+
+    expect(res).toEqual({ ok: false, error: "No usable key material." });
+    expect(pushSubUpsertMock).not.toHaveBeenCalled();
+    expect(pushSubUpdateMock).not.toHaveBeenCalled();
   });
 });
