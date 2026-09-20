@@ -58,6 +58,19 @@ export function StopDayList({
   );
   const dayISOs = React.useMemo(() => days.map((d) => d.dateISO), [days]);
 
+  // A Changeover day shows Items owned by the adjoining Stop too (ADR 0049).
+  // Naming that Stop is what keeps the Budget's per-Stop roll-up explicable —
+  // the money follows the owner, not the card you happen to be looking at.
+  const stopNameById = React.useMemo(
+    () => new Map(stops.map((s) => [s.id, s.name] as const)),
+    [stops],
+  );
+  const ownerLabelFor = React.useCallback(
+    (it: StopDayItem): string | null =>
+      it.stopId && it.stopId !== stop.id ? (stopNameById.get(it.stopId) ?? null) : null,
+    [stopNameById, stop.id],
+  );
+
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [addForDate, setAddForDate] = React.useState<string | null>(null);
   const [editing, setEditing] = React.useState<ItemCardItem | null>(null);
@@ -148,6 +161,7 @@ export function StopDayList({
                     key={it.id}
                     item={it}
                     timeLabel={it.startTime!}
+                    ownerLabel={ownerLabelFor(it)}
                     days={dayISOs}
                     isPending={isPending}
                     onEdit={() => setEditing(toItemCardItem(it))}
@@ -164,6 +178,7 @@ export function StopDayList({
                         key={it.id}
                         item={it}
                         timeLabel={null}
+                        ownerLabel={ownerLabelFor(it)}
                         days={dayISOs}
                         isPending={isPending}
                         onEdit={() => setEditing(toItemCardItem(it))}
@@ -249,6 +264,7 @@ function toItemCardItem(it: StopDayItem): ItemCardItem {
 function DayItemRow({
   item,
   timeLabel,
+  ownerLabel,
   days,
   isPending,
   onEdit,
@@ -256,6 +272,8 @@ function DayItemRow({
 }: {
   item: StopDayItem;
   timeLabel: string | null;
+  /** Set only when another Stop owns this Item — a Changeover day (ADR 0049). */
+  ownerLabel: string | null;
   days: string[];
   isPending: boolean;
   onEdit: () => void;
@@ -271,6 +289,11 @@ function DayItemRow({
         aria-hidden="true"
       />
       <span className="flex-1 truncate text-sm text-foreground">{item.title}</span>
+      {ownerLabel && (
+        <span className="shrink-0 text-xs italic text-muted-foreground/70">
+          {ownerLabel}
+        </span>
+      )}
       <Button
         variant="ghost"
         size="icon"

@@ -117,3 +117,43 @@ describe("expanded day", () => {
     expect(within(region).getAllByTitle("Unschedule").length).toBeGreaterThanOrEqual(3);
   });
 });
+
+describe("changeover day ownership (ADR 0049)", () => {
+  it("names the owning stop on an item this card does not own", async () => {
+    const user = userEvent.setup();
+    render(
+      <StopDayList
+        tripId="trip-1"
+        stop={{ id: "strasbourg", arriveDate: "2026-12-10", departDate: "2026-12-12" }}
+        items={[
+          { id: "i1", title: "Dinner", category: "FOOD", date: "2026-12-10", stopId: "munich" },
+        ]}
+        stops={[
+          { id: "munich", name: "Munich" },
+          { id: "strasbourg", name: "Strasbourg" },
+        ]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /10 Dec/ }));
+    expect(screen.getByTestId("day-detail-2026-12-10")).toHaveTextContent("Munich");
+  });
+
+  it("says nothing about ownership on an item this card owns", async () => {
+    const user = userEvent.setup();
+    render(
+      <StopDayList
+        tripId="trip-1"
+        stop={{ id: "strasbourg", arriveDate: "2026-12-10", departDate: "2026-12-12" }}
+        items={[
+          { id: "i1", title: "Dinner", category: "FOOD", date: "2026-12-10", stopId: "strasbourg" },
+        ]}
+        stops={[
+          { id: "munich", name: "Munich" },
+          { id: "strasbourg", name: "Strasbourg" },
+        ]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /10 Dec/ }));
+    expect(screen.getByTestId("day-detail-2026-12-10")).not.toHaveTextContent("Munich");
+  });
+});
