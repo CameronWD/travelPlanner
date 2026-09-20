@@ -100,4 +100,21 @@ describe("isIosWithoutInstall", () => {
     stubMatchMedia(false);
     expect(isIosWithoutInstall()).toBe(false);
   });
+
+  // Case 5: the legacy signal, on its own. `matchMedia` is the modern check,
+  // but older iOS relies on `navigator.standalone` — the one an already
+  // -installed older iPhone is most likely to actually be reporting. This is
+  // the only case in the file where `matchMedia` reports NOT standalone and
+  // `navigator.standalone` is what carries the installed state, so it is the
+  // only test that can catch that disjunct being deleted as "dead code".
+  it("is false for an iPhone reporting the legacy navigator.standalone flag", () => {
+    stubNavigator({
+      userAgent: IPHONE_UA,
+      platform: "iPhone",
+      maxTouchPoints: 5,
+      standalone: true,
+    });
+    stubMatchMedia(false);
+    expect(isIosWithoutInstall()).toBe(false);
+  });
 });
