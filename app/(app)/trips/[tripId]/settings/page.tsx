@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { isAdminEmail } from "@/lib/admin";
-import { getShareLink } from "@/server/actions/share";
+import { listShareLinks } from "@/server/actions/share";
 import { getCalendarFeed } from "@/server/actions/calendar-feed";
 import { getDigestSettings } from "@/server/actions/digest";
 import {
@@ -14,7 +14,7 @@ import {
 import { TripDetailsForm } from "@/components/trip/settings/trip-details-form";
 import { CoverImageField } from "@/components/trip/settings/cover-image-field";
 import { InvitePanel } from "@/components/trip/settings/invite-panel";
-import { SharePanel } from "@/components/trip/settings/share-panel";
+import { ShareLinksPanel } from "@/components/trip/settings/share-links-panel";
 import { CalendarFeedPanel } from "@/components/trip/settings/calendar-feed-panel";
 import { DigestPanel } from "@/components/trip/settings/digest-panel";
 import { DrivingEstimatesPanel } from "@/components/trip/settings/driving-estimates-panel";
@@ -70,8 +70,8 @@ export default async function SettingsPage({
 
   if (!trip) notFound();
 
-  const [shareLink, calendarFeed, digestSettings, chapters] = await Promise.all([
-    getShareLink(tripId),
+  const [shareLinks, calendarFeed, digestSettings, chapters] = await Promise.all([
+    listShareLinks(tripId),
     getCalendarFeed(tripId),
     getDigestSettings(tripId),
     // A disabled trip renders as if it had no chapters (Task 13) — skip the
@@ -150,7 +150,7 @@ export default async function SettingsPage({
       {/* ── Sharing ── */}
       <Card>
         <CardContent className="p-5">
-          <SharePanel tripId={tripId} initialToken={shareLink?.token ?? null} />
+          <ShareLinksPanel tripId={tripId} initialLinks={shareLinks} />
         </CardContent>
       </Card>
 

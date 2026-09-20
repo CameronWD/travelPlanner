@@ -318,9 +318,9 @@ Compact per-surface reference: **what it shows · data it must present · states
 
 **Activity** (`/activity`, `ActivityFeed`) — chronological (newest first): actor avatar + name + verb/entity headline + relative time; UPDATED rows show field old→new; NOTED rows show an excerpt. Marks all read on view.
 
-**Settings** (`/settings`) — `max-w-2xl` **Card** sections: trip details (name/dates/hard-end/currency), cover upload, invite panel (email → pending → member list), share link (copy/revoke), calendar feed (copy/revoke), driving estimates, **ChaptersManager**, and a **danger zone** (duplicate / delete, confirmed).
+**Settings** (`/settings`) — `max-w-2xl` **Card** sections: trip details (name/dates/hard-end/currency), cover upload, invite panel (email → pending → member list), share links (per-audience list: label + scope dials, copy/rotate/revoke), calendar feed (copy/revoke), driving estimates, **ChaptersManager**, and a **danger zone** (duplicate / delete, confirmed).
 
-**Share** (`/share/[token]`) — public, no-auth, read-only: trip name + dates + RouteMap + day-by-day agenda (accommodation/transport/items). **No costs, notes, confirmations, or links.** **Print** (`/print`) — printer-friendly itinerary **with** costs; A4 layout; print button hidden in print media.
+**Share** (`/share/[token]`) — public, no-auth, read-only, scoped per link (accommodation/transport/daily-plans dials); phase-aware — leads with a today card while Travelling. **No costs, notes, confirmations, or links — ever, on any link.** **Print** (`/print`) — printer-friendly itinerary **with** costs; A4 layout; print button hidden in print media.
 
 ## C11 · Cross-cutting patterns
 

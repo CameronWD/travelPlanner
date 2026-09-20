@@ -717,7 +717,7 @@ export async function persistTrip(
   // Share link
   if (trip.shareLink) {
     await db.shareLink.create({
-      data: { tripId, token: crypto.randomUUID() },
+      data: { tripId, token: crypto.randomUUID(), label: "Shared link" },
     });
   }
 

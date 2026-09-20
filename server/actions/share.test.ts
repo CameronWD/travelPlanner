@@ -1,21 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
-/**
- * Tests for share link server actions.
- *
- * Mocks:
- *   - lib/db        — so we can assert Prisma calls without hitting the database
- *   - lib/guards    — so requireTripAccess returns a predictable result
- *   - next/cache    — so revalidatePath is interceptable
- */
-
 const {
   requireTripAccessMock,
   revalidatePathMock,
+  shareFindManyMock,
   shareFindFirstMock,
   shareCreateMock,
-  shareUpsertMock,
+  shareUpdateManyMock,
   shareDeleteManyMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({
@@ -23,9 +15,10 @@ const {
     membership: { role: "owner" },
   }),
   revalidatePathMock: vi.fn(),
+  shareFindManyMock: vi.fn(),
   shareFindFirstMock: vi.fn(),
   shareCreateMock: vi.fn(),
-  shareUpsertMock: vi.fn(),
+  shareUpdateManyMock: vi.fn(),
   shareDeleteManyMock: vi.fn(),
 }));
 
@@ -34,197 +27,194 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     shareLink: {
+      findMany: shareFindManyMock,
       findFirst: shareFindFirstMock,
       create: shareCreateMock,
-      upsert: shareUpsertMock,
+      updateMany: shareUpdateManyMock,
       deleteMany: shareDeleteManyMock,
     },
   },
 }));
 
 import {
+  listShareLinks,
   createShareLink,
+  updateShareLink,
   rotateShareLink,
   revokeShareLink,
-  getShareLink,
 } from "./share";
 
 const TRIP_ID = "trip-abc";
+const LINK_ID = "link-1";
+
+const row = (over: Partial<Record<string, unknown>> = {}) => ({
+  id: LINK_ID,
+  token: "tok-1",
+  label: "Mum & Dad",
+  includeAccommodation: true,
+  includeTransport: true,
+  includeDailyPlans: true,
+  createdAt: new Date("2026-09-20T00:00:00Z"),
+  ...over,
+});
 
 afterEach(() => {
   vi.clearAllMocks();
 });
 
-// ---------------------------------------------------------------------------
-// createShareLink
-// ---------------------------------------------------------------------------
+describe("listShareLinks", () => {
+  it("is access-checked and returns views ordered oldest-first", async () => {
+    shareFindManyMock.mockResolvedValue([row()]);
+    const links = await listShareLinks(TRIP_ID);
+    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expect(shareFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tripId: TRIP_ID },
+        orderBy: { createdAt: "asc" },
+      }),
+    );
+    expect(links).toEqual([
+      expect.objectContaining({
+        id: LINK_ID,
+        label: "Mum & Dad",
+        createdAt: "2026-09-20T00:00:00.000Z",
+      }),
+    ]);
+  });
+});
 
 describe("createShareLink", () => {
-  it("is access-checked — calls requireTripAccess with the tripId", async () => {
-    shareFindFirstMock.mockResolvedValue(null);
-    shareCreateMock.mockResolvedValue({ token: "new-token-1" });
-
-    await createShareLink(TRIP_ID);
-
-    expect(requireTripAccessMock).toHaveBeenCalledOnce();
-    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+  it("is access-checked before the write", async () => {
+    shareCreateMock.mockResolvedValue(row());
+    await createShareLink(TRIP_ID, { label: "Mum & Dad" });
     expectAccessCheckedBeforeWrite(requireTripAccessMock, shareCreateMock);
   });
 
-  it("creates a new share link and returns { token } when none exists", async () => {
-    shareFindFirstMock.mockResolvedValue(null);
-    const token = "generated-uuid";
-    shareCreateMock.mockResolvedValue({ token });
+  it("rejects a blank label without touching the database", async () => {
+    const result = await createShareLink(TRIP_ID, { label: "   " });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors.label).toBeDefined();
+    expect(shareCreateMock).not.toHaveBeenCalled();
+  });
 
-    const result = await createShareLink(TRIP_ID);
+  it("rejects a label over 60 characters", async () => {
+    const result = await createShareLink(TRIP_ID, { label: "x".repeat(61) });
+    expect(result.success).toBe(false);
+    expect(shareCreateMock).not.toHaveBeenCalled();
+  });
 
-    expect(shareCreateMock).toHaveBeenCalledOnce();
+  it("defaults every dial on and trims the label", async () => {
+    shareCreateMock.mockResolvedValue(row());
+    await createShareLink(TRIP_ID, { label: "  Mum & Dad  " });
     expect(shareCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ tripId: TRIP_ID }),
+        data: expect.objectContaining({
+          tripId: TRIP_ID,
+          label: "Mum & Dad",
+          includeAccommodation: true,
+          includeTransport: true,
+          includeDailyPlans: true,
+          token: expect.any(String),
+        }),
       }),
     );
-    expect(result).toEqual({ token });
   });
 
-  it("is idempotent — keeps existing token when one already exists", async () => {
-    const existingToken = "existing-token";
-    shareFindFirstMock.mockResolvedValue({ token: existingToken });
-
-    const result = await createShareLink(TRIP_ID);
-
-    // Should NOT call create when one already exists
-    expect(shareCreateMock).not.toHaveBeenCalled();
-    expect(result).toEqual({ token: existingToken });
-  });
-
-  it("revalidates the settings path after creating", async () => {
-    shareFindFirstMock.mockResolvedValue(null);
-    shareCreateMock.mockResolvedValue({ token: "tok" });
-
-    await createShareLink(TRIP_ID);
-
-    expect(revalidatePathMock).toHaveBeenCalledWith(
-      `/trips/${TRIP_ID}/settings`,
-    );
-  });
-
-  it("revalidates even when returning existing token", async () => {
-    shareFindFirstMock.mockResolvedValue({ token: "existing" });
-
-    await createShareLink(TRIP_ID);
-
-    expect(revalidatePathMock).toHaveBeenCalledWith(
-      `/trips/${TRIP_ID}/settings`,
+  it("honours explicit false dials", async () => {
+    shareCreateMock.mockResolvedValue(row({ includeDailyPlans: false }));
+    await createShareLink(TRIP_ID, { label: "Group chat", includeDailyPlans: false });
+    expect(shareCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ includeDailyPlans: false }),
+      }),
     );
   });
 });
 
-// ---------------------------------------------------------------------------
-// rotateShareLink
-// ---------------------------------------------------------------------------
+describe("updateShareLink", () => {
+  it("scopes the write to id AND tripId — a linkId from another trip is unreachable", async () => {
+    shareUpdateManyMock.mockResolvedValue({ count: 1 });
+    shareFindFirstMock.mockResolvedValue(row({ label: "Nana" }));
+    await updateShareLink(TRIP_ID, LINK_ID, { label: "Nana" });
+    expect(shareUpdateManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: LINK_ID, tripId: TRIP_ID } }),
+    );
+  });
+
+  it("fails with a form error when no row matches", async () => {
+    shareUpdateManyMock.mockResolvedValue({ count: 0 });
+    const result = await updateShareLink(TRIP_ID, LINK_ID, { label: "Nana" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors.form).toBeDefined();
+  });
+
+  it("rejects a blank label without writing", async () => {
+    const result = await updateShareLink(TRIP_ID, LINK_ID, { label: " " });
+    expect(result.success).toBe(false);
+    expect(shareUpdateManyMock).not.toHaveBeenCalled();
+  });
+
+  it("updates dials without requiring a label", async () => {
+    shareUpdateManyMock.mockResolvedValue({ count: 1 });
+    shareFindFirstMock.mockResolvedValue(row({ includeTransport: false }));
+    const result = await updateShareLink(TRIP_ID, LINK_ID, { includeTransport: false });
+    expect(shareUpdateManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { includeTransport: false } }),
+    );
+    expect(result.success).toBe(true);
+  });
+
+  it("skips the write and returns the current row when input is empty", async () => {
+    shareFindFirstMock.mockResolvedValue(row());
+    const result = await updateShareLink(TRIP_ID, LINK_ID, {});
+    expect(shareUpdateManyMock).not.toHaveBeenCalled();
+    expect(shareFindFirstMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: LINK_ID, tripId: TRIP_ID } }),
+    );
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.link.id).toBe(LINK_ID);
+  });
+
+  it("fails with a form error for an empty input when the row is gone", async () => {
+    shareFindFirstMock.mockResolvedValue(null);
+    const result = await updateShareLink(TRIP_ID, LINK_ID, {});
+    expect(shareUpdateManyMock).not.toHaveBeenCalled();
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.errors.form).toBeDefined();
+  });
+});
 
 describe("rotateShareLink", () => {
-  it("is access-checked", async () => {
-    shareUpsertMock.mockResolvedValue({ token: "new-tok" });
-
-    await rotateShareLink(TRIP_ID);
-
-    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, shareUpsertMock);
-  });
-
-  it("upserts a new token and returns it (works with or without an existing link)", async () => {
-    const newToken = "fresh-token";
-    shareUpsertMock.mockResolvedValue({ token: newToken });
-
-    const result = await rotateShareLink(TRIP_ID);
-
-    expect(shareUpsertMock).toHaveBeenCalledOnce();
-    expect(shareUpsertMock).toHaveBeenCalledWith(
+  it("writes a fresh token scoped to id AND tripId", async () => {
+    shareUpdateManyMock.mockResolvedValue({ count: 1 });
+    shareFindFirstMock.mockResolvedValue(row({ token: "tok-2" }));
+    const result = await rotateShareLink(TRIP_ID, LINK_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, shareUpdateManyMock);
+    expect(shareUpdateManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { tripId: TRIP_ID },
-        update: expect.objectContaining({ token: expect.any(String) }),
-        create: expect.objectContaining({ tripId: TRIP_ID, token: expect.any(String) }),
+        where: { id: LINK_ID, tripId: TRIP_ID },
+        data: { token: expect.any(String) },
       }),
     );
-    expect(result).toEqual({ token: newToken });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.link.token).toBe("tok-2");
   });
 
-  it("revalidates the settings path after rotating", async () => {
-    shareUpsertMock.mockResolvedValue({ token: "tok" });
-
-    await rotateShareLink(TRIP_ID);
-
-    expect(revalidatePathMock).toHaveBeenCalledWith(
-      `/trips/${TRIP_ID}/settings`,
-    );
+  it("fails with a form error when the link is gone", async () => {
+    shareUpdateManyMock.mockResolvedValue({ count: 0 });
+    const result = await rotateShareLink(TRIP_ID, LINK_ID);
+    expect(result.success).toBe(false);
   });
 });
-
-// ---------------------------------------------------------------------------
-// revokeShareLink
-// ---------------------------------------------------------------------------
 
 describe("revokeShareLink", () => {
-  it("is access-checked", async () => {
-    shareDeleteManyMock.mockResolvedValue({ count: 1 });
-
-    await revokeShareLink(TRIP_ID);
-
-    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
-    expectAccessCheckedBeforeWrite(requireTripAccessMock, shareDeleteManyMock);
-  });
-
-  it("deletes the share link for the given tripId (no-op if none)", async () => {
-    shareDeleteManyMock.mockResolvedValue({ count: 1 });
-
-    await revokeShareLink(TRIP_ID);
-
-    expect(shareDeleteManyMock).toHaveBeenCalledOnce();
-    expect(shareDeleteManyMock).toHaveBeenCalledWith({
-      where: { tripId: TRIP_ID },
-    });
-  });
-
-  it("revalidates the settings path after revoking", async () => {
+  it("deletes scoped to id AND tripId, and is a no-op-safe ok() when already gone", async () => {
     shareDeleteManyMock.mockResolvedValue({ count: 0 });
-
-    await revokeShareLink(TRIP_ID);
-
-    expect(revalidatePathMock).toHaveBeenCalledWith(
-      `/trips/${TRIP_ID}/settings`,
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
-// getShareLink
-// ---------------------------------------------------------------------------
-
-describe("getShareLink", () => {
-  it("is access-checked", async () => {
-    shareFindFirstMock.mockResolvedValue(null);
-
-    await getShareLink(TRIP_ID);
-
-    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
-  });
-
-  it("returns { token } when a share link exists", async () => {
-    const token = "existing-token";
-    shareFindFirstMock.mockResolvedValue({ token });
-
-    const result = await getShareLink(TRIP_ID);
-
-    expect(result).toEqual({ token });
-  });
-
-  it("returns null when no share link exists", async () => {
-    shareFindFirstMock.mockResolvedValue(null);
-
-    const result = await getShareLink(TRIP_ID);
-
-    expect(result).toBeNull();
+    const result = await revokeShareLink(TRIP_ID, LINK_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, shareDeleteManyMock);
+    expect(shareDeleteManyMock).toHaveBeenCalledWith({
+      where: { id: LINK_ID, tripId: TRIP_ID },
+    });
+    expect(result.success).toBe(true);
   });
 });
