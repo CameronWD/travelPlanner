@@ -862,6 +862,94 @@ describe("collectDigestInput", () => {
     ]);
   });
 
+  it("prints an outbound departure in the recipient's own zone, not the country guess", async () => {
+    // Gold Coast is Queensland — AEST all year. `au` guesses Australia/Sydney,
+    // which is AEDT in December, so a 06:00 departure printed as 07:00.
+    dbData.trip = [
+      {
+        id: TRIP_ID,
+        startDate: "2026-12-05",
+        endDate: "2026-12-30",
+        homeName: "Gold Coast",
+        homeCountryCode: "au",
+      },
+    ];
+    dbData.stop = [
+      {
+        id: "munich",
+        tripId: TRIP_ID,
+        forkId: null,
+        name: "Munich",
+        timezone: "Europe/Berlin",
+        arriveDate: "2026-12-05",
+        departDate: "2026-12-10",
+      },
+    ];
+    dbData.transport = [
+      {
+        id: "t1",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "FLIGHT",
+        depAt: new Date("2026-12-04T20:00:00Z"),
+        depIsHome: true,
+        arrIsHome: false,
+        fromStopId: null,
+        toStopId: "munich",
+        depPlace: null,
+        arrPlace: null,
+        reference: "QF1",
+      },
+    ];
+
+    const input = await collect({ localDate: "2026-12-04", zone: "Australia/Brisbane" });
+
+    expect(input.schedule.transports[0].localTime).toBe("06:00");
+  });
+
+  it("falls back to the country guess when no zone is supplied", async () => {
+    dbData.trip = [
+      {
+        id: TRIP_ID,
+        startDate: "2026-12-05",
+        endDate: "2026-12-30",
+        homeName: "Gold Coast",
+        homeCountryCode: "au",
+      },
+    ];
+    dbData.stop = [
+      {
+        id: "munich",
+        tripId: TRIP_ID,
+        forkId: null,
+        name: "Munich",
+        timezone: "Europe/Berlin",
+        arriveDate: "2026-12-05",
+        departDate: "2026-12-10",
+      },
+    ];
+    dbData.transport = [
+      {
+        id: "t1",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "FLIGHT",
+        depAt: new Date("2026-12-04T20:00:00Z"),
+        depIsHome: true,
+        arrIsHome: false,
+        fromStopId: null,
+        toStopId: "munich",
+        depPlace: null,
+        arrPlace: null,
+        reference: "QF1",
+      },
+    ];
+
+    const input = await collect({ localDate: "2026-12-04" });
+
+    expect(input.schedule.transports[0].localTime).toBe("07:00");
+  });
+
   it("still reads a stop-to-stop leg in its departure stop's zone", async () => {
     // The home-base rule must not swallow the ordinary case: a leg that HAS a
     // departure Stop is timed there, not in the trip's home zone.

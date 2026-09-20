@@ -70,8 +70,10 @@ export async function collectDigestInput(opts: {
   tripId: string;
   localDate: string;
   slot: DigestSlot;
+  /** The dispatching recipient's own Device zone (ADR 0050). See `resolveTripZone`. */
+  zone?: string;
 }): Promise<DigestInput> {
-  const { tripId, localDate, slot } = opts;
+  const { tripId, localDate, slot, zone } = opts;
   const windowEnd = addDays(localDate, DIGEST_LOOKAHEAD_DAYS);
 
   const trip = await db.trip.findUnique({
@@ -183,7 +185,7 @@ export async function collectDigestInput(opts: {
   // The Trip's own clock — what "the traveller's watch" reads on a leg that has
   // no departure Stop. See `transportZone` for why that is not the arrival
   // Stop's zone.
-  const tripZone = resolveTripZone(trip?.homeCountryCode ?? null, stops);
+  const tripZone = resolveTripZone(zone ?? null, trip?.homeCountryCode ?? null, stops);
 
   // Likewise one transport lookup, with the union of the fields both jobs need.
   const transportRows = needTransports
@@ -262,22 +264,25 @@ type StopRow = {
 
 /**
  * The Trip's own timezone — the one a traveller standing at their **Home base**
- * is living in.
+ * reads off their watch.
  *
- * A Home base is not a Stop (CONTEXT.md **Home base**), so it carries no
- * `timezone` field of its own; the closest thing the Trip stores is
- * `homeCountryCode`. That is a country, not a city, so in a country spanning
- * several zones the guess can be an hour out (`au` resolves to Australia/Sydney,
- * which is AEDT while Brisbane stays AEST). It is still the right family of
- * answer: the calendar DATE and the ordering come out correct, which is what
- * the Digest files a departure under, and it is never the *destination's*
- * clock. When the country is unknown or unmapped, fall back to the zone of the
- * Stop the trip is currently at.
+ * First answer is the recipient's own Device zone (ADR 0050). The only leg
+ * without a departure Stop is the OUTBOUND one, and on the evening before an
+ * outbound flight the traveller is standing at their Home base — so their
+ * Device is in the home zone and reporting it. That beats
+ * `guessTimezoneForCountry`, which is country-granular: `au` resolves to
+ * Australia/Sydney, so a Brisbane departure printed an hour late every
+ * December.
+ *
+ * Falls back to the country guess (for a forced test send, which carries no
+ * zone) and then to the zone of the Stop the trip is currently at.
  */
 function resolveTripZone(
+  zone: string | null,
   homeCountryCode: string | null,
   stops: StopRow[],
 ): string {
+  if (zone) return zone;
   const guessed = guessTimezoneForCountry(homeCountryCode);
   if (guessed !== "UTC") return guessed;
   return currentTripTimezone(stops);
@@ -510,10 +515,12 @@ export async function dispatchDigest(opts: {
   tripId: string;
   localDate: string;
   slot: DigestSlot;
+  /** The dispatching recipient's own Device zone (ADR 0050). See `resolveTripZone`. */
+  zone?: string;
   /** The Settings test send: skips the preference check and the ledger, and marks the payload as a test. */
   force?: boolean;
 }): Promise<DispatchDigestResult> {
-  const { userId, tripId, localDate, slot, force = false } = opts;
+  const { userId, tripId, localDate, slot, zone, force = false } = opts;
 
   if (!force) {
     const preference = await db.digestPreference.findUnique({
@@ -556,7 +563,7 @@ export async function dispatchDigest(opts: {
   };
 
   try {
-    const built = buildDigest(await collectDigestInput({ tripId, localDate, slot }));
+    const built = buildDigest(await collectDigestInput({ tripId, localDate, slot, zone }));
 
     // A forced send is the Settings test button, and it must never refuse: an
     // empty day gets the placeholder, a day with content gets that content
