@@ -1163,11 +1163,17 @@ describe("collectDigestInput", () => {
     // argument (ADR 0047) is denominated in CU-hours.
     seedTravellingTrip();
 
-    await collect({ slot: "MORNING" });
+    const input = await collect({ slot: "MORNING" });
 
     expect(costFindManyMock).not.toHaveBeenCalled();
     expect(checklistItemFindManyMock).not.toHaveBeenCalled();
     expect(reminderFindManyMock).not.toHaveBeenCalled();
+
+    // The shape must survive the skip: buildDigest and its own tests rely on
+    // these being present as empty arrays, never undefined.
+    expect(input.payments).toEqual([]);
+    expect(input.checklist).toEqual([]);
+    expect(input.reminders).toEqual([]);
   });
 
   it("matches a departure by the stop's timezone, not UTC", async () => {
