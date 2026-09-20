@@ -16,7 +16,7 @@
 - **Every fix lands with a test that fails before and passes after.**
 - **The suite mocks `@/lib/db`.** There is no database in this sandbox and no Docker. Never write a test that needs a real connection. Never run `prisma migrate dev` — migrations are hand-written SQL (see Task 15).
 - **Timezone-sensitive tests must pin `TZ`.** The bug class here is exactly "passes in the dev machine's timezone".
-- **Baseline to keep green, run before reporting any task done:** `npx vitest run`, `npx tsc --noEmit`, `npm run lint`.
+- **Baseline to keep green, run before reporting any task done:** `npm test`, `npx tsc --noEmit`, `npm run lint`. Use `npm test`, **not** bare `npx vitest run` — `package.json:13` defines it as `TZ=UTC vitest run`, and the bare form drops that pin. This container happens to be UTC so the two agree here, but on any other machine they would not, and the pin is what makes timezone assertions mean anything. (Corrected mid-execution after Task 9's review; Tasks 1-9 were run with the bare form on a UTC host, so their results stand.)
 - **Do not add dependencies.** ADR 0050 explicitly rejects adding a timezone-boundary package.
 - **Commit after every task** using Conventional Commits.
 
