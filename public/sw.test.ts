@@ -225,14 +225,25 @@ describe("public/sw.js — pushsubscriptionchange", () => {
       toJSON: () => ({ keys: { p256dh: "p", auth: "a" } }),
     });
     (self.registration as Record<string, unknown>).pushManager = { subscribe };
+    const applicationServerKey = new Uint8Array([1]);
 
     await dispatch("pushsubscriptionchange", {
       oldSubscription: {
         endpoint: "https://old",
-        options: { applicationServerKey: new Uint8Array([1]) },
+        options: { applicationServerKey },
       },
       newSubscription: null,
     });
+
+    // Pins re-subscription to the SAME applicationServerKey the dead
+    // subscription used — a fixed identity check, not expect.anything(),
+    // so a handler that read some *other* key would also fail this. Getting
+    // this wrong doesn't error loudly: it produces a subscription the
+    // server's VAPID keys can't authenticate, so the heal "succeeds" and
+    // pushes to that Device fail silently forever after.
+    expect(subscribe).toHaveBeenCalledWith(
+      expect.objectContaining({ applicationServerKey }),
+    );
 
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/push",
@@ -246,14 +257,20 @@ describe("public/sw.js — pushsubscriptionchange", () => {
     const { dispatch, self } = loadServiceWorker();
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });
     globalThis.fetch = fetchMock;
-    (self.registration as Record<string, unknown>).pushManager = {
-      subscribe: vi.fn().mockResolvedValue({
-        endpoint: "https://new",
-        toJSON: () => ({ keys: { p256dh: "p", auth: "a" } }),
-      }),
-    };
+    const subscribe = vi.fn().mockResolvedValue({
+      endpoint: "https://new",
+      toJSON: () => ({ keys: { p256dh: "p", auth: "a" } }),
+    });
+    (self.registration as Record<string, unknown>).pushManager = { subscribe };
 
     await dispatch("pushsubscriptionchange", { oldSubscription: null, newSubscription: null });
+
+    // The brief's fallback: with no old subscription to read a key off,
+    // subscribe WITHOUT one rather than failing or sending a bogus value.
+    // Checked directly on the call args rather than via an asymmetric
+    // matcher, so this can't accidentally pass regardless of matcher support.
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(subscribe.mock.calls[0][0]).not.toHaveProperty("applicationServerKey");
 
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.oldEndpoint).toBeUndefined();
