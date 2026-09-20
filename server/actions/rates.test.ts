@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "../../test/helpers/access-order";
 
 /**
  * Tests for rates server actions.
@@ -61,6 +62,7 @@ describe("setManualRate", () => {
   it("access-checks via requireTripAccess", async () => {
     await setManualRate("trip-99", "EUR", "AUD", 1.65);
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-99");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, exchangeRateUpsertMock);
   });
 
   it("upserts with manual=true", async () => {
@@ -106,6 +108,7 @@ describe("clearManualRate", () => {
   it("access-checks via requireTripAccess", async () => {
     await clearManualRate("trip-99", "EUR", "AUD");
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-99");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, exchangeRateUpdateMock);
   });
 
   it("sets manual=false on the stored rate", async () => {
