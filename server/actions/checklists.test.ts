@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "../../test/helpers/access-order";
 
 /**
  * Tests for checklist server actions.
@@ -191,6 +192,7 @@ describe("addChecklistItem", () => {
     await addChecklistItem("trip-99", VALID_PRETRIP_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-99");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, checklistItemCreateMock);
   });
 
   it("validates assignedToId is a trip member", async () => {
@@ -316,6 +318,7 @@ describe("toggleChecklistItem", () => {
     await toggleChecklistItem("ci-1", true);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, checklistItemUpdateMock);
   });
 
   it("revalidates checklists path", async () => {
@@ -374,6 +377,7 @@ describe("deleteChecklistItem", () => {
     await deleteChecklistItem("ci-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-7");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, checklistItemDeleteMock);
   });
 });
 
@@ -555,6 +559,7 @@ describe("applyTemplate", () => {
     await applyTemplate("trip-5", "tpl-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, checklistItemCreateManyMock);
   });
 });
 
