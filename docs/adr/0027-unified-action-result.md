@@ -10,7 +10,7 @@ Before this work, server actions returned at least six structurally different sh
 | `{ conflicts?: FlowConflict[]; error?: string }` | `reorderStops` |
 | `{ id?: string; error?: string }` | `createReminder` |
 | `{ ok: boolean }` | `push.ts` (calendar push) |
-| Raw partial returns (no discriminant) | `share.ts` (share link) |
+| Raw partial returns (no discriminant) | `share.ts` (migrated to ActionResult with the per-audience share links work — ADR 0051) |
 | Custom `AiResult` type | `ai.ts` (AI suggestions) |
 
 Additionally, every action file contained its own `validationErrors` helper (or
@@ -73,7 +73,7 @@ and are not bugs — they are deliberate boundary decisions.
 | Action | Shape kept | Reason |
 |---|---|---|
 | `push.ts` | `{ ok: boolean }` | Calendar-push semantics: a boolean flag, no field errors possible; the shape is intentionally minimal and unambiguous for its single consumer. |
-| `share.ts` | Raw partial returns | Share-link generation returns a URL or throws; field-error semantics do not apply; no Zod validation in the path. |
+| ~~`share.ts`~~ | ~~Raw partial returns~~ | Migrated to `ActionResult` with the per-audience share links work (ADR 0051) — no longer an outlier. |
 | `ai.ts` | `AiResult` custom type | AI suggestion results carry structured multi-field payloads (suggestions array, model metadata) that do not map cleanly to `ActionResult`'s success-branch extension without a large generic. Kept as a separate domain type. |
 | `trips.ts`, `forks.ts`, `attachments.ts` | `{ error?: string }` pattern | These actions predate the mainstream refactor and use a plain `error` string rather than field-keyed validation. Migrating them would require restructuring their callers. Deferred; log as a follow-up. |
 

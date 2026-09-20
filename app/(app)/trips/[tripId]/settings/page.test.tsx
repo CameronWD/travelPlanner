@@ -28,7 +28,7 @@ vi.mock("@/lib/db", () => ({ db: mockDb }));
 vi.mock("@/lib/guards", () => ({
   requireTripAccess: requireTripAccessMock,
 }));
-vi.mock("@/server/actions/share", () => ({ getShareLink: vi.fn(async () => null) }));
+vi.mock("@/server/actions/share", () => ({ listShareLinks: vi.fn(async () => []) }));
 vi.mock("@/server/actions/calendar-feed", () => ({ getCalendarFeed: vi.fn(async () => null) }));
 vi.mock("@/server/actions/digest", () => ({
   getDigestSettings: vi.fn(async () => ({ enabled: true, deviceCount: 0 })),
