@@ -770,3 +770,11 @@ model DigestDispatch {
   @@unique([userId, tripId, localDate, slot])
   @@index([tripId])
 }
+
+/// A single row, stamped on every authorized cron hit whether or not anything
+/// was sent. DigestDispatch rows only exist when a Digest went out, so they
+/// cannot distinguish a quiet week from a dispatcher that stopped running.
+model CronHeartbeat {
+  id        String   @id @default("digest")
+  lastRunAt DateTime
+}

@@ -18,17 +18,20 @@ const {
   tripMemberFindManyMock,
   isPushConfiguredMock,
   dispatchDigestMock,
+  cronHeartbeatUpsertMock,
 } = vi.hoisted(() => ({
   pushFindManyMock: vi.fn(),
   tripMemberFindManyMock: vi.fn(),
   isPushConfiguredMock: vi.fn(),
   dispatchDigestMock: vi.fn(),
+  cronHeartbeatUpsertMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
   db: {
     pushSubscription: { findMany: pushFindManyMock },
     tripMember: { findMany: tripMemberFindManyMock },
+    cronHeartbeat: { upsert: cronHeartbeatUpsertMock },
   },
 }));
 vi.mock("@/lib/push", () => ({
@@ -65,6 +68,7 @@ beforeEach(() => {
   pushFindManyMock.mockResolvedValue([]);
   tripMemberFindManyMock.mockResolvedValue([]);
   dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false });
+  cronHeartbeatUpsertMock.mockResolvedValue({ id: "digest", lastRunAt: new Date() });
 });
 
 afterEach(() => {
@@ -128,6 +132,66 @@ describe("GET /api/cron/digest — VAPID misconfiguration guard", () => {
     isPushConfiguredMock.mockReturnValue(false);
     const res = await GET(req({ secret: "wrong" }));
     expect(res.status).toBe(401);
+  });
+});
+
+describe("GET /api/cron/digest — heartbeat (lib/cron-health.ts)", () => {
+  beforeEach(() => {
+    vi.stubEnv("CRON_SECRET", "right");
+  });
+
+  it("stamps the heartbeat even when no subscriptions exist", async () => {
+    // The heartbeat exists precisely to distinguish "nothing to say" from "the
+    // scheduler stopped" — an empty subscriber list is the ordinary case it
+    // must still record.
+    pushFindManyMock.mockResolvedValue([]);
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(res.status).toBe(200);
+    expect(cronHeartbeatUpsertMock).toHaveBeenCalledWith({
+      where: { id: "digest" },
+      create: { id: "digest", lastRunAt: expect.any(Date) },
+      update: { lastRunAt: expect.any(Date) },
+    });
+  });
+
+  it("does not stamp the heartbeat when VAPID is unconfigured", async () => {
+    // A run that cannot deliver anything has not meaningfully "run" — the
+    // heartbeat write sits after the VAPID bail, not before it.
+    isPushConfiguredMock.mockReturnValue(false);
+
+    await GET(req({ secret: "right" }));
+
+    expect(cronHeartbeatUpsertMock).not.toHaveBeenCalled();
+  });
+
+  it("still dispatches normally when the heartbeat write throws", async () => {
+    // Best-effort by design: a failed heartbeat write must never cost anyone
+    // their Digest.
+    cronHeartbeatUpsertMock.mockRejectedValue(new Error("db unavailable"));
+    pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(res.status).toBe(200);
+    expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
+    expect(await res.json()).toEqual({
+      considered: 1,
+      dispatched: 1,
+      sent: 1,
+      skipped: 0,
+      failed: 0,
+    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[cron/digest] heartbeat write failed:",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
   });
 });
 

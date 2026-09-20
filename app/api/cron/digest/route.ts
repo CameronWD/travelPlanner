@@ -138,6 +138,24 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date();
+
+  // Stamped on every authorized run, sent or not. This is the only signal that
+  // distinguishes "nothing to say" from "the scheduler stopped" — see
+  // lib/cron-health.ts. Best-effort: a failed heartbeat must never cost anyone
+  // their Digest. Placed AFTER the VAPID bail above (not before it): a run
+  // that cannot deliver anything has not meaningfully "run", and the bail
+  // already exists specifically to avoid waking Neon and burning ledger slots
+  // for work that cannot be delivered — the heartbeat write must not undo that.
+  try {
+    await db.cronHeartbeat.upsert({
+      where: { id: "digest" },
+      create: { id: "digest", lastRunAt: now },
+      update: { lastRunAt: now },
+    });
+  } catch (err) {
+    console.error("[cron/digest] heartbeat write failed:", err);
+  }
+
   /** Distinct people examined this run, each resolved to one zone. */
   let considered = 0;
   /** dispatchDigest calls made (a skipped dispatch still counts as one). */

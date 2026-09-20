@@ -187,6 +187,18 @@ the client bundle **at build time**, so adding `NEXT_PUBLIC_VAPID_PUBLIC_KEY` in
 dashboard after a deploy does nothing until you redeploy: the Enable button keeps
 reporting that notifications need setup even though the server-side keys are present.
 
+**The `CronHeartbeat` table must exist before this route runs.** The
+`20260920000000_cron_heartbeat` migration adds it — a single row, stamped with
+`lastRunAt` on every authorized cron hit whether or not a Digest was actually
+sent, so the Account page can tell a genuinely quiet week apart from a
+dispatcher that has stopped running at all (a `DigestDispatch` row only exists
+when something was sent, so it cannot answer that question). Apply this
+migration in the same deploy as the rest of the schema; there is nothing
+route-specific to configure beyond that. Until the first authorized cron hit
+lands against the deployed table — including on a brand-new deployment where
+no row has ever been written — the Account page reads it as "never run",
+which is correct and expected, not a bug to chase.
+
 ## 6. First sign-in
 
 1. Open the deployed URL, sign in with Google.
