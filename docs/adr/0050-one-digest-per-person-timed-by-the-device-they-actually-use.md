@@ -97,3 +97,17 @@ on the one night it matters most.
 - The five fixed UTC cron hours are untouched. They exist to land a run
   inside each served zone's local window; collapsing a person to one zone
   reduces the number of cohorts, never the zones that must be covered.
+- **Known gap, accepted for now:** the elected zone is resolved fresh on
+  every run, not cached for the day, so if the newest Device flips zones
+  *between* two of the day's five runs — not merely owning Devices in two
+  places, but a live handoff (home laptop opened, then the travelling phone
+  picked back up, both inside the same UTC day) — the two runs elect
+  different zones. The ledger key carries no zone, but both `localDate` and
+  `slot` are recomputed per run from whichever zone that run elects, so the
+  two elections produce two distinct ledger keys and two genuinely
+  un-deduplicated pushes in one day — the exact harm decision 1 exists to
+  prevent, in miniature. This is narrower than "two Devices in two zones"
+  (that case is decision 1's whole subject and is fixed); it needs an actual
+  zone change mid-day. Left open because closing it needs either caching the
+  elected zone per person per local day, or putting the elected zone in the
+  ledger key, and neither is free enough to bundle into this fix.

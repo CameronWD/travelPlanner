@@ -138,7 +138,7 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date();
-  /** Distinct (user, zone) pairs examined this run. */
+  /** Distinct people examined this run, each resolved to one zone. */
   let considered = 0;
   /** dispatchDigest calls made (a skipped dispatch still counts as one). */
   let dispatched = 0;
@@ -189,12 +189,12 @@ export async function GET(req: NextRequest) {
         zoneByUser.set(s.userId, { timezone: s.timezone, lastSeenAt: s.lastSeenAt });
       }
     }
-    const pairs = [...zoneByUser.entries()].map(([userId, v]) => ({
+    const electedZones = [...zoneByUser.entries()].map(([userId, v]) => ({
       userId,
       timezone: v.timezone,
     }));
 
-    for (const { userId, timezone } of pairs) {
+    for (const { userId, timezone } of electedZones) {
       considered++;
 
       const slot = slotForZone(now, timezone);
