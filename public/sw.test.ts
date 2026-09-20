@@ -54,12 +54,33 @@ function loadServiceWorker() {
       match: vi.fn(),
       delete: vi.fn(),
     },
+    // Forwards dynamically to globalThis.fetch rather than capturing it once
+    // — tests assign `globalThis.fetch = fetchMock` per-test, after this
+    // context already exists, so a static reference would miss it.
+    fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args),
   });
 
   vm.runInContext(SW_SOURCE, context, { filename: "sw.js" });
 
-  function dispatch(type: string, event: Record<string, unknown>) {
-    for (const cb of listeners.get(type) ?? []) cb(event);
+  // Most handlers here (push, notificationclick) build their own `waitUntil`
+  // mock and await it explicitly to assert on it. The pushsubscriptionchange
+  // tests below don't need that — they just want `dispatch` itself to wait
+  // for the handler's async work — so when a test doesn't supply its own
+  // `waitUntil`, this injects one that collects whatever the handler passes
+  // and resolves once all of it settles.
+  function dispatch(type: string, event: Record<string, unknown>): Promise<unknown> {
+    const waits: Promise<unknown>[] = [];
+    const evt =
+      "waitUntil" in event
+        ? event
+        : {
+            ...event,
+            waitUntil(p: Promise<unknown>) {
+              waits.push(p);
+            },
+          };
+    for (const cb of listeners.get(type) ?? []) cb(evt);
+    return Promise.all(waits);
   }
 
   return { dispatch, self, showNotification, matchAll, openWindow };
@@ -191,5 +212,63 @@ describe("public/sw.js — notificationclick", () => {
     await waitUntil.mock.calls[0][0];
 
     expect(openWindow).toHaveBeenCalledWith("/");
+  });
+});
+
+describe("public/sw.js — pushsubscriptionchange", () => {
+  it("re-subscribes and posts both endpoints when the subscription rotates", async () => {
+    const { dispatch, self } = loadServiceWorker();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    globalThis.fetch = fetchMock;
+    const subscribe = vi.fn().mockResolvedValue({
+      endpoint: "https://new",
+      toJSON: () => ({ keys: { p256dh: "p", auth: "a" } }),
+    });
+    (self.registration as Record<string, unknown>).pushManager = { subscribe };
+
+    await dispatch("pushsubscriptionchange", {
+      oldSubscription: {
+        endpoint: "https://old",
+        options: { applicationServerKey: new Uint8Array([1]) },
+      },
+      newSubscription: null,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/push",
+      expect.objectContaining({ method: "POST" }),
+    );
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body).toMatchObject({ oldEndpoint: "https://old", endpoint: "https://new" });
+  });
+
+  it("still reports the new subscription when the browser gives no old one", async () => {
+    const { dispatch, self } = loadServiceWorker();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    globalThis.fetch = fetchMock;
+    (self.registration as Record<string, unknown>).pushManager = {
+      subscribe: vi.fn().mockResolvedValue({
+        endpoint: "https://new",
+        toJSON: () => ({ keys: { p256dh: "p", auth: "a" } }),
+      }),
+    };
+
+    await dispatch("pushsubscriptionchange", { oldSubscription: null, newSubscription: null });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.oldEndpoint).toBeUndefined();
+    expect(body.endpoint).toBe("https://new");
+  });
+
+  it("never throws when re-subscribing fails", async () => {
+    const { dispatch, self } = loadServiceWorker();
+    globalThis.fetch = vi.fn();
+    (self.registration as Record<string, unknown>).pushManager = {
+      subscribe: vi.fn().mockRejectedValue(new Error("denied")),
+    };
+
+    await expect(
+      dispatch("pushsubscriptionchange", { oldSubscription: null, newSubscription: null }),
+    ).resolves.not.toThrow();
   });
 });

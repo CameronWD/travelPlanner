@@ -309,3 +309,58 @@ self.addEventListener('notificationclick', (event) => {
     console.warn('[SW] notificationclick handler error:', err);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Push subscription rotation
+// ---------------------------------------------------------------------------
+
+// A push service may rotate an endpoint at any time, including while the app
+// is closed. Without this, the stored row keeps pointing at the dead endpoint
+// until the Traveller presses Enable again — the Device looks healthy in
+// Account and silently receives nothing.
+//
+// A service worker cannot call a server action, so this posts to /api/push.
+// The fetch carries the session cookie; if there is no session the route
+// answers 401 and we give up, and the Device heals on its next visit instead.
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil(
+    (async () => {
+      try {
+        const oldSub = event.oldSubscription || null;
+
+        // Re-subscribe with the SAME applicationServerKey the dead
+        // subscription used. Reading it off the old options avoids baking the
+        // VAPID key into the service worker, which is generated at build time.
+        const applicationServerKey =
+          (oldSub && oldSub.options && oldSub.options.applicationServerKey) || undefined;
+
+        const fresh =
+          event.newSubscription ||
+          (await self.registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            ...(applicationServerKey ? { applicationServerKey } : {}),
+          }));
+
+        if (!fresh || !fresh.endpoint) return;
+
+        const keys = (fresh.toJSON && fresh.toJSON().keys) || {};
+        if (!keys.p256dh || !keys.auth) return;
+
+        await fetch('/api/push', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            ...(oldSub && oldSub.endpoint ? { oldEndpoint: oldSub.endpoint } : {}),
+            endpoint: fresh.endpoint,
+            keys: { p256dh: keys.p256dh, auth: keys.auth },
+          }),
+        });
+      } catch (err) {
+        // Never throw out of a service worker event. A failed heal leaves the
+        // Device exactly as it was — healed on its next visit.
+        console.warn('[SW] pushsubscriptionchange failed:', err);
+      }
+    })(),
+  );
+});
