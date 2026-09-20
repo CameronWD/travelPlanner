@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
     // at the wrong time of day. Those rows are simply never dispatched to.
     const subscriptions = await db.pushSubscription.findMany({
       where: { timezone: { not: null } },
-      select: { userId: true, timezone: true },
+      select: { userId: true, timezone: true, lastSeenAt: true },
       take: MAX_SUBSCRIPTIONS_PER_RUN,
     });
 
@@ -167,19 +167,34 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Deduplicate on (userId, timezone), NOT on subscription: dispatchDigest
-    // already pushes to every device the user owns, so one person with three
-    // phones in one zone is ONE dispatch per trip, not three identical pushes.
-    const pairs = new Map<string, { userId: string; timezone: string }>();
+    // One clock per PERSON, not per Device (ADR 0050). Deduplicating on
+    // (userId, timezone) meant a laptop left at home kept its stale zone and
+    // reached its evening window hours before the phone abroad did — and
+    // because dispatchDigest pushes to every Device the person owns and the
+    // ledger key carries no zone, the travelling phone got the Digest at the
+    // home laptop's 8pm and nothing at its own.
+    //
+    // `lastSeenAt` means "last used the app" now that DeviceSync mounts in the
+    // authenticated root layout (ADR 0048), so the newest one is the Device
+    // the Traveller is actually carrying. On a tie (two Devices reconciled in
+    // the same instant) `>` is strict, so the first row the scan returned for
+    // that user keeps its spot — a deterministic pick, not a correct-by-clock
+    // one, since a millisecond-identical `lastSeenAt` gives no real signal
+    // about which Device the Traveller had in hand.
+    const zoneByUser = new Map<string, { timezone: string; lastSeenAt: Date }>();
     for (const s of subscriptions) {
       if (!s.timezone) continue;
-      pairs.set(JSON.stringify([s.userId, s.timezone]), {
-        userId: s.userId,
-        timezone: s.timezone,
-      });
+      const best = zoneByUser.get(s.userId);
+      if (!best || s.lastSeenAt > best.lastSeenAt) {
+        zoneByUser.set(s.userId, { timezone: s.timezone, lastSeenAt: s.lastSeenAt });
+      }
     }
+    const pairs = [...zoneByUser.entries()].map(([userId, v]) => ({
+      userId,
+      timezone: v.timezone,
+    }));
 
-    for (const { userId, timezone } of pairs.values()) {
+    for (const { userId, timezone } of pairs) {
       considered++;
 
       const slot = slotForZone(now, timezone);
@@ -203,7 +218,7 @@ export async function GET(req: NextRequest) {
         // releases it only on the empty path, so a throw after the claim burns
         // that slot for good. One failure, one lost Digest.
         try {
-          const result = await dispatchDigest({ userId, tripId, localDate, slot });
+          const result = await dispatchDigest({ userId, tripId, localDate, slot, zone: timezone });
           dispatched++;
           sent += result.sent;
           if (result.skipped) skipped++;

@@ -49,9 +49,13 @@ function req(opts: { secret?: string; header?: string } = {}): NextRequest {
   });
 }
 
-/** A PushSubscription row as the route selects it. */
+/**
+ * A PushSubscription row as the route selects it. `lastSeenAt` defaults to a
+ * fixed instant — fine for every test here except the zone-tiebreak tests,
+ * which pass their own `lastSeenAt` values explicitly.
+ */
 function sub(userId: string, timezone: string | null) {
-  return { userId, timezone };
+  return { userId, timezone, lastSeenAt: new Date("2026-01-01T00:00:00Z") };
 }
 
 beforeEach(() => {
@@ -148,6 +152,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
       tripId: "trip-1",
       localDate: "2026-12-01",
       slot: "EVENING",
+      zone: "Europe/Vienna",
     });
     expect(await res.json()).toEqual({
       considered: 1,
@@ -193,12 +198,14 @@ describe("GET /api/cron/digest — slot dispatch", () => {
       tripId: "trip-1",
       localDate: "2026-12-02",
       slot: "MORNING",
+      zone: "Australia/Sydney",
     });
     expect(dispatchDigestMock).toHaveBeenCalledWith({
       userId: "user-vie",
       tripId: "trip-1",
       localDate: "2026-12-01",
       slot: "EVENING",
+      zone: "Europe/Vienna",
     });
     expect(await res.json()).toEqual({
       considered: 2,
@@ -293,7 +300,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
     expect(pushFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { timezone: { not: null } },
-        select: { userId: true, timezone: true },
+        select: { userId: true, timezone: true, lastSeenAt: true },
         take: 2000,
       }),
     );
@@ -502,5 +509,46 @@ describe("GET /api/cron/digest — slot dispatch", () => {
       failed: 0,
     });
     errorSpy.mockRestore();
+  });
+
+  it("uses the most recently seen device's zone and dispatches once per person", async () => {
+    // A laptop left at home in Brisbane and a phone carried to Munich. Brisbane
+    // reaches 8pm ~9h before Munich; before this fix the Brisbane cohort claimed
+    // the slot and pushed to BOTH devices, so the phone buzzed at 11am Munich.
+    // 19:00Z is 20:00 in Europe/Berlin (UTC+1 in December) — the elected zone's
+    // own evening window, so the single dispatch below can only be reached by
+    // resolving to Berlin, not by Brisbane's slot match (Brisbane is 05:00 next
+    // day at this instant — outside both windows).
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([
+      { userId: "u1", timezone: "Australia/Brisbane", lastSeenAt: new Date("2026-12-01T00:00:00Z") },
+      { userId: "u1", timezone: "Europe/Berlin", lastSeenAt: new Date("2026-12-01T18:00:00Z") },
+    ]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+    dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false });
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
+    expect(dispatchDigestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "u1", zone: "Europe/Berlin" }),
+    );
+    expect((await res.json()).considered).toBe(1);
+  });
+
+  it("ignores a device with no stored zone when picking the person's clock", async () => {
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([
+      { userId: "u1", timezone: null, lastSeenAt: new Date("2026-12-01T19:00:00Z") },
+      { userId: "u1", timezone: "Europe/Berlin", lastSeenAt: new Date("2026-12-01T18:00:00Z") },
+    ]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+    dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false });
+
+    await GET(req({ secret: "right" }));
+
+    expect(dispatchDigestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ zone: "Europe/Berlin" }),
+    );
   });
 });
