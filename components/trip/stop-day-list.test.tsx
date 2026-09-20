@@ -92,10 +92,10 @@ describe("expanded day", () => {
     const region = screen.getByTestId("day-detail-2026-12-06");
     await user.click(within(region).getByRole("button", { name: "Move Louvre to another day" }));
     await user.click(await screen.findByRole("menuitem", { name: "Mon 7 Dec" }));
-    // Louvre has startTime "09:30" and no endTime — must survive the move,
-    // and the item must go through scheduleItem's in-place branch (which
-    // keeps stopId) rather than rescheduleItem (which re-derives stopId from
-    // the date and would re-file a changeover-day item onto the next stop).
+    // Louvre has startTime "09:30" and no endTime — must survive the move.
+    // The plan editor always calls scheduleItem for a move; which Stop ends
+    // up owning the item is resolved server-side (ADR 0049 rule 4), not by
+    // this component's choice of action.
     expect(scheduleItem).toHaveBeenCalledWith("a", { date: "2026-12-07", startTime: "09:30" });
   });
 

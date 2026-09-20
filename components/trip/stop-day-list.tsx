@@ -85,13 +85,12 @@ export function StopDayList({
   }
 
   async function handleMove(item: StopDayItem, targetDateISO: string) {
-    // Use scheduleItem's in-place branch (server/actions/items.ts:531+) rather
-    // than rescheduleItem: rescheduleItem re-derives stopId from the target
-    // date via stopForDate, which on a shared arrive/depart (changeover) day
-    // resolves to the NEXT stop — silently re-filing the item off this card.
-    // scheduleItem's in-place branch keeps stopId untouched. It overwrites
-    // startTime/endTime wholesale though, so the item's existing times must
-    // be passed through explicitly to survive the move.
+    // `scheduleItem` overwrites startTime/endTime wholesale, so the item's
+    // existing times must be passed through explicitly to survive the move.
+    // Which Stop ends up owning the item is the server's call (ADR 0049
+    // rule 4) — this used to hand-guard against `stopForDate` re-filing an
+    // item off the card on a changeover day, which is now a rule rather than
+    // a workaround.
     const res = await scheduleItem(item.id, {
       date: targetDateISO,
       ...(item.startTime ? { startTime: item.startTime } : {}),

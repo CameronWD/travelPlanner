@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { itemSchema, type ItemInput } from "@/lib/validations/item";
-import { stopForDate } from "@/lib/itinerary";
+import { resolveOwningStop } from "@/lib/itinerary";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
@@ -540,10 +540,33 @@ export async function scheduleItem(
   // Reuse fullItem as the before snapshot — it's the same row read above.
   const before = fullItem;
 
+  // Ownership follows ADR 0049 rule 4: keep the owning Stop while it still
+  // covers the date — including a Changeover day the next Stop also claims —
+  // and re-file only when the move leaves that Stop's stay. Writing `stopId`
+  // here is what lets the plan editor hand a move straight to this action
+  // instead of hand-guarding against `stopForDate`'s later-Stop tiebreak.
+  const planStops = await db.stop.findMany({
+    where: { tripId: accessItem.tripId, ...planScope(fullItem.forkId), arriveDate: { not: null } },
+    select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
+  });
+  const owningStopId = resolveOwningStop(
+    fullItem.stopId ?? null,
+    date,
+    planStops.map((s) => ({
+      id: s.id,
+      name: s.name ?? "",
+      timezone: s.timezone ?? "UTC",
+      arriveDate: s.arriveDate!,
+      departDate: s.departDate!,
+      sortOrder: s.sortOrder,
+    })),
+  );
+
   const updated = await db.item.update({
     where: { id: itemId },
     data: {
       date,
+      stopId: owningStopId,
       startTime: startTime ?? null,
       endTime: endTime ?? null,
     },
@@ -620,9 +643,11 @@ export async function unscheduleItem(itemId: string): Promise<UnscheduleResult> 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Move an item to `targetDateISO`, reassigning its stop to whichever stop covers
- * that day (null on a gap day). Keeps the item's existing start/end time. Used by
- * month-grid drag-to-reschedule. Rejects dates outside the trip window.
+ * Move an item to `targetDateISO`, resolving its owning stop via
+ * `resolveOwningStop` (ADR 0049 rule 4) — kept if it still covers the day,
+ * otherwise re-filed to whichever stop does (null on a gap day). Keeps the
+ * item's existing start/end time. Used by month-grid drag-to-reschedule.
+ * Rejects dates outside the trip window.
  */
 export async function rescheduleItem(
   itemId: string,
@@ -649,6 +674,11 @@ export async function rescheduleItem(
     return { success: false, errors: { date: ["That day is outside the trip."] } };
   }
 
+  // Read before resolving ownership, not after: resolveOwningStop needs
+  // before.stopId, and nothing between here and the update touches this
+  // item, so the snapshot it yields is the same pre-update state either way.
+  const before = await db.item.findUnique({ where: { id: itemId } });
+
   const stops = await db.stop.findMany({
     // Only scheduled stops can cover a calendar day.
     // Scope to the same plan as the item being rescheduled so fork placements
@@ -657,7 +687,12 @@ export async function rescheduleItem(
     select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
   });
 
-  const covering = stopForDate(
+  // Ownership follows ADR 0049 rule 4: keep the owning Stop while it still
+  // covers the date — including a Changeover day the next Stop also claims —
+  // and re-file only when the move leaves that Stop's stay.
+  const owningStopId = resolveOwningStop(
+    before?.stopId ?? null,
+    targetDateISO,
     stops.map((s) => ({
       id: s.id,
       name: s.name ?? "",
@@ -666,14 +701,11 @@ export async function rescheduleItem(
       departDate: s.departDate!,
       sortOrder: s.sortOrder,
     })),
-    targetDateISO,
   );
-
-  const before = await db.item.findUnique({ where: { id: itemId } });
 
   const updated = await db.item.update({
     where: { id: itemId },
-    data: { date: targetDateISO, stopId: covering?.id ?? null },
+    data: { date: targetDateISO, stopId: owningStopId },
   });
 
   await recordPlanActivity(item.forkId, {

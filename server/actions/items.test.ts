@@ -718,10 +718,14 @@ describe("scheduleItem", () => {
 
     expect(result.success).toBe(true);
     expect(itemCreateMock).not.toHaveBeenCalled(); // no copy created
+    // ADR 0049 rule 4: the in-place branch now writes stopId too (there are
+    // no stops here, so resolveOwningStop has nothing to preserve or resolve
+    // to and returns null) — it used to leave stopId untouched entirely.
     expect(itemUpdateMock).toHaveBeenCalledWith({
       where: { id: "placed-1" },
       data: {
         date: "2026-08-10",
+        stopId: null,
         startTime: "10:00",
         endTime: "12:00",
       },
@@ -784,6 +788,42 @@ describe("scheduleItem", () => {
     }
     expect(itemUpdateMock).not.toHaveBeenCalled();
     expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+
+  // ADR 0049 rule 4 — an Item keeps its owning Stop while that Stop still
+  // covers the date, including a Changeover day the next Stop also claims.
+  it("in-place reschedule onto a shared changeover day KEEPS the owning stop", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "i1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ id: "i1", tripId: "trip-1", forkId: null, date: "2026-12-09", stopId: "munich", title: "Dinner" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "munich", name: "Munich", timezone: "Europe/Berlin", arriveDate: "2026-12-05", departDate: "2026-12-10", sortOrder: 0 },
+      { id: "strasbourg", name: "Strasbourg", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-12", sortOrder: 1 },
+    ]);
+    itemUpdateMock.mockResolvedValue({ id: "i1" });
+
+    await scheduleItem("i1", { date: "2026-12-10" }, null);
+
+    expect(itemUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ date: "2026-12-10", stopId: "munich" }) }),
+    );
+  });
+
+  it("in-place reschedule past the owner's stay re-files to the covering stop", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "i1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ id: "i1", tripId: "trip-1", forkId: null, date: "2026-12-10", stopId: "munich", title: "Dinner" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "munich", name: "Munich", timezone: "Europe/Berlin", arriveDate: "2026-12-05", departDate: "2026-12-10", sortOrder: 0 },
+      { id: "strasbourg", name: "Strasbourg", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-12", sortOrder: 1 },
+    ]);
+    itemUpdateMock.mockResolvedValue({ id: "i1" });
+
+    await scheduleItem("i1", { date: "2026-12-11" }, null);
+
+    expect(itemUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ stopId: "strasbourg" }) }),
+    );
   });
 });
 

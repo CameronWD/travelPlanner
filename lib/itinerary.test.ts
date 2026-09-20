@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   enumerateTripDays,
   stopForDate,
+  resolveOwningStop,
   buildItinerary,
   effectiveTodayISO,
   pickDayPlan,
@@ -881,5 +882,47 @@ describe("isFreeFormDay", () => {
     });
     const dayUntimed = plansUntimed.find((d) => d.dateISO === "2026-07-05")!;
     expect(isFreeFormDay(dayUntimed)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveOwningStop (ADR 0049 rule 4)
+// ---------------------------------------------------------------------------
+
+describe("resolveOwningStop", () => {
+  const munich = { id: "munich", name: "Munich", timezone: "Europe/Berlin", arriveDate: "2026-12-05", departDate: "2026-12-10", sortOrder: 0 };
+  const strasbourg = { id: "strasbourg", name: "Strasbourg", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-12", sortOrder: 1 };
+  const stops = [munich, strasbourg];
+
+  it("keeps the owner when it still covers the target day — even a shared one", () => {
+    expect(resolveOwningStop("munich", "2026-12-10", stops)).toBe("munich");
+  });
+
+  it("keeps the owner for an ordinary in-stay move", () => {
+    expect(resolveOwningStop("munich", "2026-12-07", stops)).toBe("munich");
+  });
+
+  it("re-files when the target day is past the owner's stay", () => {
+    expect(resolveOwningStop("munich", "2026-12-11", stops)).toBe("strasbourg");
+  });
+
+  it("re-files rather than un-slotting when moving forward off a shared day", () => {
+    expect(resolveOwningStop("munich", "2026-12-12", stops)).toBe("strasbourg");
+  });
+
+  it("takes the covering stop when there is no owner to preserve", () => {
+    expect(resolveOwningStop(null, "2026-12-07", stops)).toBe("munich");
+  });
+
+  it("takes the LATER stop on a shared day when there is no owner", () => {
+    expect(resolveOwningStop(null, "2026-12-10", stops)).toBe("strasbourg");
+  });
+
+  it("returns null on a gap day no stop covers", () => {
+    expect(resolveOwningStop("munich", "2026-12-20", stops)).toBeNull();
+  });
+
+  it("drops an owner that no longer exists on this plan", () => {
+    expect(resolveOwningStop("deleted-stop", "2026-12-07", stops)).toBe("munich");
   });
 });

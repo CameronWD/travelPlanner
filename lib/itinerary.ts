@@ -184,6 +184,34 @@ export function stopForDate(
 }
 
 /**
+ * Which Stop owns an Item once it lands on `targetDateISO` (ADR 0049 rule 4).
+ *
+ * An Item keeps its owning Stop for as long as that Stop's stay covers the
+ * date, and re-files only when moved beyond it. That matters on a
+ * **Changeover day**, which two Stops both claim: `stopForDate` breaks the
+ * tie in favour of the arriving Stop, so using it alone would silently move
+ * an Item's Cost from one Stop's Budget line to the next every time something
+ * was dragged onto a shared day.
+ *
+ * With no owner to preserve — a fresh placement, or an owner that is no
+ * longer on this plan — it falls through to `stopForDate`, tie and all.
+ * Returns null on a gap day no Stop covers.
+ */
+export function resolveOwningStop(
+  currentStopId: string | null,
+  targetDateISO: string,
+  stops: ItineraryStop[],
+): string | null {
+  if (currentStopId) {
+    const current = stops.find((s) => s.id === currentStopId);
+    if (current && current.arriveDate <= targetDateISO && current.departDate >= targetDateISO) {
+      return current.id;
+    }
+  }
+  return stopForDate(stops, targetDateISO)?.id ?? null;
+}
+
+/**
  * Safely coerce a Date | string | null | undefined to a Date, or null.
  */
 function toDate(v: Date | string | null | undefined): Date | null {
