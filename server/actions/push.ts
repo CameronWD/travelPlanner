@@ -51,12 +51,18 @@ export async function subscribeToPush(sub: {
       },
       // `userId: user.id` on `update` is deliberate, and asymmetric with
       // `reconcileDevice` (server/actions/devices.ts), which refuses to touch
-      // a row it doesn't already own. This action only ever runs from a
-      // traveller explicitly pressing Enable on THIS physical device, so
-      // re-pointing an existing row at whoever is signed in now is the
+      // a row it doesn't already own. The INTENDED caller is a traveller
+      // pressing Enable on the physical device in front of them, in which
+      // case re-pointing an existing row at whoever is signed in now is the
       // correct read of a shared machine changing hands — unlike
       // `reconcileDevice`'s silent, background self-heal, which must never
       // reassign a Device out from under the person it actually belongs to.
+      // NOTE: unlike a real browser's Enable button, this is a server action —
+      // it accepts whatever endpoint/keys an authenticated caller passes it,
+      // so nothing here actually enforces "THIS physical device". Tightening
+      // that is a separate, deliberately out-of-scope follow-up; this comment
+      // was corrected (2026-09-20 review) to stop asserting a guarantee the
+      // code does not provide.
       update: {
         userId: user.id,
         p256dh: sub.keys.p256dh,
@@ -173,7 +179,16 @@ export async function healRotatedSubscription(
             endpoint: input.endpoint,
             p256dh: input.keys.p256dh,
             auth: input.keys.auth,
-            lastSeenAt: new Date(),
+            // Deliberately NOT bumping `lastSeenAt` here. `pushsubscriptionchange`
+            // fires in the background service worker with no human present —
+            // fixing a rotated endpoint is not the Traveller using the app, and
+            // ADR 0050's zone election (app/api/cron/digest/route.ts) reads
+            // `lastSeenAt` as exactly that signal, picking the newest row's
+            // timezone as the person's one clock. Bumping it here would let a
+            // home laptop's dead endpoint rotating while its owner is abroad
+            // re-win that election on its stale zone — the bug ADR 0050 exists
+            // to fix, re-entered through this heal. Liveness is `DeviceSync`'s
+            // job (mounted in the authenticated root layout), not this one's.
             ...(input.timezone ? { timezone: input.timezone } : {}),
           },
         });
@@ -204,6 +219,13 @@ export async function healRotatedSubscription(
         p256dh: input.keys.p256dh,
         auth: input.keys.auth,
         label: deviceLabelFromUserAgent(input.userAgent),
+        // A brand-new row has no `lastSeenAt` history to protect, and the
+        // schema default (`@default(now())`) would give it one anyway — set
+        // explicitly here only so it reads as intentional. Once the register
+        // path also carries a real `timezone` (see the service worker's
+        // POST body), this row holds the Device's ACTUAL current zone, so
+        // winning the ADR 0050 election on it is correct, not the finding-1
+        // failure mode: there is no stale prior value it is clobbering.
         lastSeenAt: new Date(),
         ...(input.timezone ? { timezone: input.timezone } : {}),
       },
@@ -211,7 +233,10 @@ export async function healRotatedSubscription(
         userId: user.id,
         p256dh: input.keys.p256dh,
         auth: input.keys.auth,
-        lastSeenAt: new Date(),
+        // Same reasoning as the old-endpoint branch above: this upsert's
+        // `update` arm fires when a row already exists at the new endpoint
+        // (e.g. `newSubscription` was already delivered by the browser), and
+        // is still a background heal, not app usage. Do not bump `lastSeenAt`.
         ...(input.timezone ? { timezone: input.timezone } : {}),
       },
     });

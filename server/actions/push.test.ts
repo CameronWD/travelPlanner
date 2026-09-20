@@ -228,6 +228,12 @@ describe("healRotatedSubscription", () => {
     });
     // label is captured once and never re-derived (ADR 0048)
     expect(pushSubUpdateMock.mock.calls[0][0].data).not.toHaveProperty("label");
+    // `lastSeenAt` must NOT be bumped here: this heal runs from a background
+    // `pushsubscriptionchange`, not app usage, and ADR 0050's zone election
+    // (app/api/cron/digest/route.ts) reads `lastSeenAt` as "last used the
+    // app". Bumping it on a rotation would let a stale, unused Device re-win
+    // that election on a background event nobody was present for.
+    expect(pushSubUpdateMock.mock.calls[0][0].data).not.toHaveProperty("lastSeenAt");
   });
 
   it("refuses to touch another traveller's row and registers the new one instead", async () => {
@@ -350,5 +356,24 @@ describe("healRotatedSubscription", () => {
 
     expect(res).toEqual({ ok: true, mode: "registered" });
     expect(pushSubUpsertMock).toHaveBeenCalled();
+  });
+
+  // Same reasoning as the old-endpoint case above, but for the upsert's
+  // `update` arm (a row already exists at the NEW endpoint and belongs to the
+  // caller). The `create` arm is intentionally exempt — a brand-new row has
+  // no stale `lastSeenAt` to protect and, once it carries a real timezone,
+  // SHOULD win the ADR 0050 election.
+  it("does not bump lastSeenAt on the upsert's update arm, but does on create", async () => {
+    pushSubFindUniqueMock.mockResolvedValue(null);
+    pushSubUpsertMock.mockResolvedValue({ id: "row-2" });
+
+    await healRotatedSubscription({
+      endpoint: "https://new",
+      keys: { p256dh: "newp", auth: "newa" },
+    });
+
+    const arg = pushSubUpsertMock.mock.calls[0][0];
+    expect(arg.create).toHaveProperty("lastSeenAt");
+    expect(arg.update).not.toHaveProperty("lastSeenAt");
   });
 });
