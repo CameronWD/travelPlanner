@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "../../test/helpers/access-order";
 
 /**
  * Tests for accommodation server actions.
@@ -268,6 +269,7 @@ describe("createAccommodation", () => {
     await createAccommodation(VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-2");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, accCreateMock);
   });
 
   it("returns error when stop not found", async () => {
@@ -420,6 +422,7 @@ describe("updateAccommodation", () => {
     await updateAccommodation("acc-1", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-3");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, accUpdateMock);
   });
 
   it("geocodes address on update and stores coords", async () => {
@@ -500,6 +503,7 @@ describe("deleteAccommodation", () => {
     await deleteAccommodation("acc-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-4");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, accDeleteMock);
   });
 
   it("records DELETED activity with the snapshotted name as entityLabel", async () => {
