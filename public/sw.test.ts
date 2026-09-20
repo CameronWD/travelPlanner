@@ -253,6 +253,29 @@ describe("public/sw.js — pushsubscriptionchange", () => {
     expect(body).toMatchObject({ oldEndpoint: "https://old", endpoint: "https://new" });
   });
 
+  // Finding 2: without this, a healed-by-registration Device gets
+  // `timezone: null` server-side and can never be elected for a Digest
+  // (app/api/cron/digest/route.ts filters `timezone: { not: null }`) —
+  // pinned the same way this file already pins `applicationServerKey` reuse.
+  it("reports the Device's current IANA timezone in the heal body", async () => {
+    const { dispatch, self } = loadServiceWorker();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    globalThis.fetch = fetchMock;
+    const subscribe = vi.fn().mockResolvedValue({
+      endpoint: "https://new",
+      toJSON: () => ({ keys: { p256dh: "p", auth: "a" } }),
+    });
+    (self.registration as Record<string, unknown>).pushManager = { subscribe };
+
+    await dispatch("pushsubscriptionchange", {
+      oldSubscription: { endpoint: "https://old", options: {} },
+      newSubscription: null,
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(body.timezone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+  });
+
   it("still reports the new subscription when the browser gives no old one", async () => {
     const { dispatch, self } = loadServiceWorker();
     const fetchMock = vi.fn().mockResolvedValue({ ok: true });

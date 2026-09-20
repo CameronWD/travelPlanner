@@ -354,6 +354,14 @@ self.addEventListener('pushsubscriptionchange', (event) => {
             ...(oldSub && oldSub.endpoint ? { oldEndpoint: oldSub.endpoint } : {}),
             endpoint: fresh.endpoint,
             keys: { p256dh: keys.p256dh, auth: keys.auth },
+            // The Device's CURRENT zone, so a healed row is never left with
+            // `timezone: null` — the cron scan (app/api/cron/digest/route.ts)
+            // filters to `timezone: { not: null }`, so a healed Device with no
+            // zone can never be elected for the ADR 0050 Digest and, once its
+            // dead row is pruned on a 410, drops the whole person out of the
+            // subscriber scan until their next app open. `Intl` is available
+            // in service worker scope.
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           }),
         });
       } catch (err) {
