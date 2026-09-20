@@ -85,7 +85,7 @@ export interface DigestPayload {
 export const DIGEST_MAX_LINES = 6;
 
 /** At most this many Checklist lines, however many are overdue. */
-export const DIGEST_MAX_CHECKLIST_LINES = 2;
+const DIGEST_MAX_CHECKLIST_LINES = 2;
 
 function formatPayment(line: DigestPaymentLine): string {
   return line.daysUntil === 0
