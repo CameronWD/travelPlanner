@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { expectAccessCheckedBeforeWrite } from "../../test/helpers/access-order";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const { requireTripAccessMock, revalidatePathMock, tripUpdateMock } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: { role: "owner" } }),
