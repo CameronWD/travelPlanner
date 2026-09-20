@@ -565,13 +565,35 @@ export async function dispatchDigest(opts: {
   /**
    * Hand the slot back. Only ever releases a row this call actually created,
    * so a `force: true` test send can never delete a real run's claim.
+   *
+   * `claimed` flips to `false` BEFORE the delete is awaited, not after. A
+   * delete that throws is not a successful release — it cannot re-open the
+   * slot — so retrying it is never correct, and the two call sites below
+   * (empty digest, zero-delivery) both sit inside the outer `try`, whose
+   * `catch` also calls `releaseClaim`. Flipping the flag first means that
+   * second call sees `claimed` already `false` and does nothing, instead of
+   * attempting the same failed delete again and logging whichever attempt
+   * happened to fail second — which would bury the first, real error.
    */
   const releaseClaim = async () => {
     if (!claimed) return;
-    await db.digestDispatch.delete({
-      where: { userId_tripId_localDate_slot: { userId, tripId, localDate, slot } },
-    });
     claimed = false;
+    try {
+      await db.digestDispatch.delete({
+        where: { userId_tripId_localDate_slot: { userId, tripId, localDate, slot } },
+      });
+    } catch (err) {
+      // The row is still sitting in the ledger, still claimed, in the
+      // database even though our bookkeeping now treats it as released.
+      // Nothing else in the system will ever notice: this Traveller silently
+      // gets no Digest for the rest of the day. Name the slot so an operator
+      // has something to grep for.
+      console.error(
+        "[digest] failed to release a claimed dispatch row — the slot stays claimed until tomorrow:",
+        { userId, tripId, localDate, slot },
+        err,
+      );
+    }
   };
 
   try {
@@ -637,19 +659,10 @@ export async function dispatchDigest(opts: {
     // failed collect holds the slot until tomorrow: the person silently gets
     // no Digest and every retry answers "already-sent" — a loud failure turned
     // into a quiet one. The error is rethrown so the caller still counts and
-    // logs it.
-    try {
-      await releaseClaim();
-    } catch (releaseErr) {
-      // Surfacing the original failure matters more than this one — but name
-      // the row, or the operator reads "release failed" with no way to find the
-      // stuck ledger entry that is now muting someone for the rest of the day.
-      console.error(
-        "[digest] failed to release a claimed dispatch row:",
-        { userId, tripId, localDate, slot },
-        releaseErr,
-      );
-    }
+    // logs it. `releaseClaim` never throws — a failed delete is logged inside
+    // it and left alone rather than retried here on the very same row, which
+    // would only fail a second time and bury this, the original, error.
+    await releaseClaim();
     throw err;
   }
 }

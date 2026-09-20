@@ -293,6 +293,33 @@ describe("dispatchDigest", () => {
     });
   });
 
+  it("does not retry a release delete that already failed", async () => {
+    dbData.reminder = []; // nothing true today → buildDigest returns null → empty path
+    const deleteError = new Error("delete failed");
+    digestDispatchDeleteMock.mockRejectedValueOnce(deleteError);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await dispatch();
+
+    // A delete that already failed cannot be un-failed by trying it again on
+    // the very same row. Before the fix, `claimed` was still `true` when this
+    // propagated to the outer catch, so the outer catch's own `releaseClaim()`
+    // fired a second delete on the same row — failing twice, with the second
+    // failure hiding the first, and rejecting `dispatchDigest` entirely
+    // instead of reporting the ordinary empty-day result.
+    expect(digestDispatchDeleteMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ sent: 0, skipped: true, reason: "empty" });
+    // A slot that failed to release stays claimed until tomorrow, and nothing
+    // else in the system will ever say so — this must be visible somewhere.
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("release"),
+      expect.objectContaining({ userId: USER_ID, tripId: TRIP_ID, localDate: LOCAL_DATE }),
+      deleteError,
+    );
+
+    errorSpy.mockRestore();
+  });
+
   it("releases the claim when collecting the digest throws", async () => {
     costFindManyMock.mockRejectedValueOnce(new Error("db went away"));
 
@@ -453,6 +480,28 @@ describe("dispatchDigest", () => {
         },
       },
     });
+  });
+
+  it("does not retry a release delete that already failed on the zero-delivery path", async () => {
+    // The empty-digest release site isn't the only one that calls
+    // `releaseClaim` from inside the outer try — this one (sendPush delivered
+    // to no device) does too, and shares the same fix.
+    sendPushMock.mockResolvedValue({ sent: false });
+    const deleteError = new Error("delete failed");
+    digestDispatchDeleteMock.mockRejectedValueOnce(deleteError);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await dispatch();
+
+    expect(digestDispatchDeleteMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ sent: 0, skipped: false });
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("release"),
+      expect.objectContaining({ userId: USER_ID, tripId: TRIP_ID, localDate: LOCAL_DATE }),
+      deleteError,
+    );
+
+    errorSpy.mockRestore();
   });
 
   it("keeps the claim when at least one device took the push", async () => {
