@@ -55,3 +55,37 @@ export function buildStopDays(
     };
   });
 }
+
+export interface GroupableStop {
+  id: string;
+  arriveDate: string | null;
+  departDate: string | null;
+}
+
+/**
+ * Which Items each Stop card shows, keyed by stop id.
+ *
+ * Grouped by DATE COVERAGE, not by `stopId`. On a **Changeover day** — one
+ * calendar day two consecutive Stops both claim — that puts the same Item
+ * under both cards, which is the point (ADR 0049 rule 1). Ownership is
+ * untouched: the Items come back carrying whatever `stopId` they had, and
+ * `lib/budget.ts` still counts their Cost against exactly one Stop.
+ *
+ * Rough Stops are skipped: with no dates they cover no days.
+ */
+export function groupScheduledItemsByStop(
+  stops: GroupableStop[],
+  items: StopDayItem[],
+): Map<string, StopDayItem[]> {
+  const grouped = new Map<string, StopDayItem[]>();
+  for (const stop of stops) {
+    if (!stop.arriveDate || !stop.departDate) continue;
+    grouped.set(
+      stop.id,
+      items.filter(
+        (i) => !!i.date && i.date >= stop.arriveDate! && i.date <= stop.departDate!,
+      ),
+    );
+  }
+  return grouped;
+}
