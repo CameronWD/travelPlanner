@@ -105,7 +105,12 @@ export interface HealRotatedInput {
 
 export type HealRotatedResult =
   | { ok: true; mode: "updated" | "registered" }
-  | { ok: false; error: string };
+  // `reason` discriminates whose fault a failure is, for the route that
+  // exposes this action over HTTP (app/api/push/route.ts): "invalid" and
+  // "forbidden" are the caller's problem (bad key material, or trying to
+  // touch an endpoint that isn't theirs) and map to 400; "internal" is ours
+  // (an unexpected DB failure) and must not be reported as a client error.
+  | { ok: false; error: string; reason: "invalid" | "forbidden" | "internal" };
 
 /**
  * Heal a **Device** whose push endpoint rotated underneath it.
@@ -153,7 +158,7 @@ export async function healRotatedSubscription(
   // degraded key, it is no key at all, and a row without usable keys is a
   // Device that LOOKS confirmed and can never receive a push.
   if (!input.keys?.p256dh || !input.keys?.auth) {
-    return { ok: false, error: "No usable key material." };
+    return { ok: false, error: "No usable key material.", reason: "invalid" };
   }
 
   try {
@@ -188,7 +193,7 @@ export async function healRotatedSubscription(
       where: { endpoint: input.endpoint },
     });
     if (atNewEndpoint && atNewEndpoint.userId !== user.id) {
-      return { ok: false, error: "That endpoint belongs to another traveller." };
+      return { ok: false, error: "That endpoint belongs to another traveller.", reason: "forbidden" };
     }
 
     await db.pushSubscription.upsert({
@@ -212,6 +217,6 @@ export async function healRotatedSubscription(
     });
     return { ok: true, mode: "registered" };
   } catch {
-    return { ok: false, error: "Failed to heal push subscription." };
+    return { ok: false, error: "Failed to heal push subscription.", reason: "internal" };
   }
 }

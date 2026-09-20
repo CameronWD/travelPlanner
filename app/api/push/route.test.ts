@@ -50,4 +50,48 @@ describe("POST /api/push", () => {
     const res = await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));
     expect(res.status).toBe(401);
   });
+
+  it("answers 400 when the action refuses the request as invalid", async () => {
+    healMock.mockResolvedValue({
+      ok: false,
+      error: "No usable key material.",
+      reason: "invalid",
+    });
+    const res = await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      ok: false,
+      error: "No usable key material.",
+      reason: "invalid",
+    });
+  });
+
+  it("answers 400 when the action refuses because the endpoint belongs to another traveller", async () => {
+    healMock.mockResolvedValue({
+      ok: false,
+      error: "That endpoint belongs to another traveller.",
+      reason: "forbidden",
+    });
+    const res = await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));
+    expect(res.status).toBe(400);
+  });
+
+  it("answers 500, not 400, when the action reports an internal failure", async () => {
+    healMock.mockResolvedValue({
+      ok: false,
+      error: "Failed to heal push subscription.",
+      reason: "internal",
+    });
+    const res = await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));
+    expect(res.status).toBe(500);
+  });
+
+  it("answers 500 and logs when the action throws something other than a redirect", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    healMock.mockRejectedValue(new TypeError("boom"));
+    const res = await POST(post({ endpoint: "https://new", keys: { p256dh: "p", auth: "a" } }));
+    expect(res.status).toBe(500);
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
 });

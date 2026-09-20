@@ -270,7 +270,11 @@ describe("healRotatedSubscription", () => {
       keys: { p256dh: "", auth: "" },
     });
 
-    expect(res).toEqual({ ok: false, error: "No usable key material." });
+    expect(res).toEqual({
+      ok: false,
+      error: "No usable key material.",
+      reason: "invalid",
+    });
     expect(pushSubUpsertMock).not.toHaveBeenCalled();
     expect(pushSubUpdateMock).not.toHaveBeenCalled();
   });
@@ -305,8 +309,27 @@ describe("healRotatedSubscription", () => {
     expect(res).toEqual({
       ok: false,
       error: "That endpoint belongs to another traveller.",
+      reason: "forbidden",
     });
     expect(pushSubUpsertMock).not.toHaveBeenCalled();
+  });
+
+  // The route (app/api/push/route.ts) maps this reason to a 500, not a 400 —
+  // an unexpected DB failure is TEEPEE's fault, not the caller's, and must
+  // not be reported as a client error.
+  it("returns reason: internal when the database throws", async () => {
+    pushSubUpsertMock.mockRejectedValue(new Error("DB error"));
+
+    const res = await healRotatedSubscription({
+      endpoint: "https://new",
+      keys: { p256dh: "newp", auth: "newa" },
+    });
+
+    expect(res).toEqual({
+      ok: false,
+      error: "Failed to heal push subscription.",
+      reason: "internal",
+    });
   });
 
   // The mirror of the case above: the refusal must not be so broad that it
