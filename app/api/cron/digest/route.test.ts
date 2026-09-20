@@ -73,7 +73,14 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
-  vi.clearAllMocks();
+  // resetAllMocks (not clearAllMocks): clearAllMocks only wipes recorded
+  // calls, it leaves any queued `mockResolvedValueOnce`/`mockRejectedValueOnce`
+  // values sitting in the mock's queue, so a test that pushes more `…Once`
+  // values than it consumes leaks the remainder into whichever test runs
+  // next. resetAllMocks drains that queue too. It also drops the default
+  // implementations set below — the top-level `beforeEach` above re-applies
+  // them before every test, including the first one after this reset.
+  vi.resetAllMocks();
   vi.unstubAllEnvs();
 });
 
