@@ -536,6 +536,15 @@ export async function scheduleItem(
     });
     const sortOrder = (maxPlaced?.sortOrder ?? -1) + 1;
 
+    // A placed copy is dated, so it sits inside some Stop's stay and must be
+    // filed there — otherwise it is invisible in the plan editor's day rows
+    // and its Cost rolls up as "Trip-wide / Other" rather than against the
+    // Stop it happens in (ADR 0049 rule 5). A Wishlist idea by definition
+    // carries no Stop, so there is no prior owner to preserve and a
+    // Changeover day simply yields the arriving Stop.
+    const planStops = await loadPlanStopsForOwnership(accessItem.tripId, forkId ?? null);
+    const placedStopId = resolveOwningStop(null, date, planStops);
+
     const placed = await db.item.create({
       data: {
         tripId: accessItem.tripId,
@@ -543,7 +552,7 @@ export async function scheduleItem(
         sourceItemId: itemId,
         title: fullItem.title,
         category: fullItem.category,
-        stopId: fullItem.stopId ?? null,
+        stopId: placedStopId,
         lat: fullItem.lat ?? null,
         lng: fullItem.lng ?? null,
         countryCode: fullItem.countryCode ?? null,

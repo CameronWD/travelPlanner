@@ -1036,11 +1036,10 @@ describe("scheduleItem copy-in placement", () => {
   });
 
   it("copy inherits title, category, lat, lng, countryCode, address, link, notes from idea", async () => {
-    // NB: a genuine Wishlist idea can never carry a stopId (ADR 0022 / CONTEXT.md:
-    // "attached to no Stop and no day") — an item with a stopId is a stop-attached
-    // thing-to-do, not an idea, so it takes the in-place branch (see the
-    // "scheduleItem classification" describe block). stopId is asserted here as
-    // null to document that the copy path still passes it through faithfully.
+    // A genuine Wishlist idea can never carry a stopId (ADR 0022 / CONTEXT.md:
+    // "attached to no Stop and no day"). The COPY is a different thing: it is
+    // dated, so it sits in a Stop's stay and is filed there (ADR 0049 rule 5).
+    // With no stops mocked, nothing covers the date and it stays null.
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" }) // requireItemAccess
       .mockResolvedValueOnce({
@@ -1058,6 +1057,40 @@ describe("scheduleItem copy-in placement", () => {
         address: "Paris", link: "https://example.com", notes: "bring camera",
         startTime: "10:00", endTime: "12:00",
       }),
+    });
+  });
+
+  it("a wishlist placement is filed under the stop covering its date (ADR 0049)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Louvre", category: "SIGHTSEEING" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "munich", name: "Munich", timezone: "Europe/Berlin", arriveDate: "2026-12-05", departDate: "2026-12-10", sortOrder: 0 },
+    ]);
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    await scheduleItem("idea-1", { date: "2026-12-07" }, null);
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ stopId: "munich", date: "2026-12-07" }),
+    });
+  });
+
+  it("a wishlist placement on a gap day no stop covers stays stop-less", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Louvre", category: "SIGHTSEEING" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "munich", name: "Munich", timezone: "Europe/Berlin", arriveDate: "2026-12-05", departDate: "2026-12-10", sortOrder: 0 },
+    ]);
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-2" });
+
+    await scheduleItem("idea-1", { date: "2026-12-20" }, null);
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ stopId: null }),
     });
   });
 
