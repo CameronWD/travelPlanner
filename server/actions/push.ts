@@ -131,7 +131,18 @@ export type HealRotatedResult =
  * Always requires a session. Matching on the old endpoint alone would be a
  * hijack: an endpoint is a capability URL, so anyone holding a victim's could
  * post {old: victim, new: attacker} and have that Traveller's Digests — trip
- * contents and all — delivered to their own device.
+ * contents and all — delivered to their own device. The same danger applies
+ * to the NEW endpoint too: an authenticated caller could submit a victim's
+ * live endpoint as the target and, with no matching old endpoint, walk
+ * straight into the register path below. So the register path checks
+ * ownership of `input.endpoint` as well, and refuses rather than reassigns
+ * when a row is already there and it isn't ours — the same posture as
+ * `reconcileDevice`, and deliberately the opposite of `subscribeToPush`'s
+ * asymmetry: `subscribeToPush` runs from a Traveller physically pressing
+ * Enable on the machine in front of them, so re-pointing a row at whoever is
+ * signed in now is the correct read of a shared computer changing hands. This
+ * function runs from a service worker posting a body with no such guarantee,
+ * so it takes the stricter, `reconcileDevice` reading instead.
  */
 export async function healRotatedSubscription(
   input: HealRotatedInput,
@@ -166,6 +177,18 @@ export async function healRotatedSubscription(
       // No row, or somebody else's. Fall through and register the new one:
       // reassigning a row we do not own would hand one person's Digest to
       // another (reconcileDevice makes the same refusal).
+    }
+
+    // Never reassign a row at the NEW endpoint either. Without this check an
+    // authenticated caller could post a victim's live endpoint as `endpoint`
+    // (with no matching `oldEndpoint`) and the upsert below would silently
+    // hand that Device to them — the same hijack the old-endpoint branch
+    // guards against, through the other field.
+    const atNewEndpoint = await db.pushSubscription.findUnique({
+      where: { endpoint: input.endpoint },
+    });
+    if (atNewEndpoint && atNewEndpoint.userId !== user.id) {
+      return { ok: false, error: "That endpoint belongs to another traveller." };
     }
 
     await db.pushSubscription.upsert({

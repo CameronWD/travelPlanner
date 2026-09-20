@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * Tests for push server actions.
@@ -188,6 +188,17 @@ describe("unsubscribeFromPush", () => {
 // ---------------------------------------------------------------------------
 
 describe("healRotatedSubscription", () => {
+  // `vi.clearAllMocks()` (top-level afterEach) clears call history but not a
+  // persistent `mockResolvedValue`/`mockImplementation` — the same gotcha
+  // documented in devices.test.ts. This function can call `findUnique` twice
+  // in one invocation (old endpoint, then new endpoint), so every test resets
+  // it explicitly rather than relying on the previous test's leftovers.
+  beforeEach(() => {
+    pushSubFindUniqueMock.mockReset();
+    pushSubUpdateMock.mockReset();
+    pushSubUpsertMock.mockReset();
+  });
+
   it("updates the rotated row in place, preserving label, timezone and createdAt", async () => {
     pushSubFindUniqueMock.mockResolvedValue({
       id: "row-1",
@@ -220,11 +231,15 @@ describe("healRotatedSubscription", () => {
   });
 
   it("refuses to touch another traveller's row and registers the new one instead", async () => {
-    pushSubFindUniqueMock.mockResolvedValue({
-      id: "row-1",
-      userId: "someone-else",
-      endpoint: "https://old",
-    });
+    // Two different `findUnique` calls happen in this path: the old endpoint
+    // (owned by someone else, so it falls through) and then the new endpoint
+    // (nobody's row yet, so the register can proceed).
+    pushSubFindUniqueMock.mockImplementation(
+      async ({ where }: { where: { endpoint: string } }) =>
+        where.endpoint === "https://old"
+          ? { id: "row-1", userId: "someone-else", endpoint: "https://old" }
+          : null,
+    );
     pushSubUpsertMock.mockResolvedValue({ id: "row-2" });
 
     const res = await healRotatedSubscription({
@@ -258,5 +273,59 @@ describe("healRotatedSubscription", () => {
     expect(res).toEqual({ ok: false, error: "No usable key material." });
     expect(pushSubUpsertMock).not.toHaveBeenCalled();
     expect(pushSubUpdateMock).not.toHaveBeenCalled();
+  });
+
+  it("requires authentication", async () => {
+    pushSubUpsertMock.mockResolvedValue({ id: "row-2" });
+
+    await healRotatedSubscription({
+      endpoint: "https://new",
+      keys: { p256dh: "newp", auth: "newa" },
+    });
+
+    expect(requireUserMock).toHaveBeenCalled();
+  });
+
+  // The critical case: an authenticated caller posts a victim's own live
+  // endpoint as the NEW endpoint (no matching old endpoint), trying to walk
+  // straight into the register path and take the row over. This must be
+  // refused exactly like the old-endpoint hijack is.
+  it("refuses to reassign a row at the new endpoint that belongs to another traveller", async () => {
+    pushSubFindUniqueMock.mockResolvedValue({
+      id: "row-2",
+      userId: "someone-else",
+      endpoint: "https://new",
+    });
+
+    const res = await healRotatedSubscription({
+      endpoint: "https://new",
+      keys: { p256dh: "newp", auth: "newa" },
+    });
+
+    expect(res).toEqual({
+      ok: false,
+      error: "That endpoint belongs to another traveller.",
+    });
+    expect(pushSubUpsertMock).not.toHaveBeenCalled();
+  });
+
+  // The mirror of the case above: the refusal must not be so broad that it
+  // blocks the ordinary path of a Traveller's own Device re-registering at an
+  // endpoint it already owns.
+  it("registers normally when the row at the new endpoint already belongs to the caller", async () => {
+    pushSubFindUniqueMock.mockResolvedValue({
+      id: "row-2",
+      userId: "user-1",
+      endpoint: "https://new",
+    });
+    pushSubUpsertMock.mockResolvedValue({ id: "row-2" });
+
+    const res = await healRotatedSubscription({
+      endpoint: "https://new",
+      keys: { p256dh: "newp", auth: "newa" },
+    });
+
+    expect(res).toEqual({ ok: true, mode: "registered" });
+    expect(pushSubUpsertMock).toHaveBeenCalled();
   });
 });
