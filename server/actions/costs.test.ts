@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "../../test/helpers/access-order";
 
 /**
  * Tests for costs server actions.
@@ -276,6 +277,7 @@ describe("createCost", () => {
     await createCost("trip-99", VALID_TRANSPORT_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-99");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, costCreateMock);
   });
 
   it("returns validation errors and does not write for invalid input", async () => {
@@ -402,6 +404,7 @@ describe("updateCost", () => {
     await updateCost("cost-1", VALID_TRANSPORT_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, costUpdateMock);
   });
 
   it("returns validation errors and does not write", async () => {
@@ -588,6 +591,7 @@ describe("deleteCost", () => {
     await deleteCost("cost-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-7");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, costDeleteMock);
   });
 
   it("records DELETED activity with the cost label", async () => {
@@ -799,6 +803,7 @@ describe("markCostPaid", () => {
     await markCostPaid("c1", 34000, "2026-06-04");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-42");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, costUpdateMock);
   });
 
   it("revalidates both the trip overview and the budget path", async () => {
@@ -862,6 +867,7 @@ describe("markCostUnpaid", () => {
     await markCostUnpaid("c1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-42");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, costUpdateMock);
   });
 
   it("revalidates both the trip overview and the budget path", async () => {
