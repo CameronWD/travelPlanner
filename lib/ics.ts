@@ -10,7 +10,17 @@ import { zonedWallTimeToInstant } from "@/lib/tz";
 export interface IcsStop {
   id: string;
   name: string;
-  timezone: string;
+  // A rough Stop has no arriveDate and so no stored timezone. Both consumers
+  // below already handle it: the Item branch falls back to "UTC" for a
+  // timed event's DTSTART/DTEND (`|| "UTC"`, safe — an all-day/timed event
+  // still needs SOME zone to compute an instant), and the Accommodation
+  // check-out Alarm treats a missing zone as "skip the Alarm" (`&& tz`,
+  // deliberately no fallback — see the comment at that call site for why a
+  // wrong Alarm is worse than none). Typed `string | null`, not defaulted to
+  // "UTC" by a caller, so a truthy-but-wrong default can never slip past the
+  // `&& tz` guard again (that was reachable only by three separate
+  // invariants holding, before this type made it impossible outright).
+  timezone: string | null;
 }
 export interface IcsItem {
   id: string;

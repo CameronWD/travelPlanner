@@ -324,6 +324,52 @@ describe("GET /api/calendar/[token] — Alarms", () => {
     expect(body).not.toContain("BEGIN:VALARM");
   });
 
+  // Finding 4 (2026-09-20 review): the route used to feed `lib/ics.ts` a
+  // truthy `s.timezone ?? "UTC"` fallback for a scheduled Stop returned with
+  // `timezone: null` — which the `&& tz` guard added by an earlier task waves
+  // straight through, firing a check-out Alarm at a confidently wrong hour.
+  // Unlike the "rough Stop never appears in `stops`" case above, THIS Stop is
+  // present in the row set — it just has no zone yet (e.g. geocoding hasn't
+  // resolved it) — so it is the one shape the old "?? UTC" default actually
+  // touched. The route now passes `s.timezone` through unchanged and
+  // `IcsStop.timezone: string | null` makes the compiler enforce it.
+  it("scheduled stop present but with timezone: null → no VALARM (never falls back to UTC)", async () => {
+    feedFindUniqueMock.mockResolvedValue({
+      includeTransport: false,
+      includeAccommodation: true,
+      includeActivities: false,
+      alarmTransport: false,
+      alarmCheckOut: true,
+      trip: { id: "trip-1", name: "Ungeocoded Trip" },
+    });
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-1", name: "Somewhere", timezone: null },
+    ]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([
+      {
+        id: "accom-1",
+        name: "Hostel",
+        checkIn: "2026-08-01",
+        checkOut: "2026-08-04",
+        address: null,
+        confirmation: null,
+        notes: null,
+        checkOutTime: "10:00",
+        stopId: "stop-1",
+      },
+    ]);
+
+    const res = await GET(new Request("http://localhost/api/calendar/tok-1"), {
+      params: Promise.resolve({ token: "tok-1" }),
+    });
+    const body = await res.text();
+
+    expect(body).toContain(ACCOMMODATION_MARKER);
+    expect(body).not.toContain("BEGIN:VALARM");
+  });
+
   it("both alarm flags false → no BEGIN:VALARM at all, even with transport and accommodation present", async () => {
     feedFindUniqueMock.mockResolvedValue({
       includeTransport: true,

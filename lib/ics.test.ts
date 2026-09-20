@@ -191,6 +191,25 @@ describe("alarms", () => {
     expect(ics).toContain("SUMMARY:🛏 Stay: Hostel");
   });
 
+  // Finding 4 (2026-09-20 review): the calendar route used to feed `tzById` a
+  // truthy `"UTC"` fallback for a stopless timezone, which the `&& tz` guard
+  // below waves straight through — firing a confidently wrong-hour Alarm.
+  // This pins the OTHER path into that guard: the Stop IS present in `stops`
+  // (unlike the "stop-gone" case above) but its own `timezone` is `null`, the
+  // exact shape `IcsStop.timezone: string | null` now types.
+  it("skips the check-out alarm when a present stop's timezone is null", () => {
+    const ics = buildICS({
+      ...base,
+      stops: [{ id: "stop-1", name: "Vienna", timezone: null }],
+      accommodations: [
+        { id: "a1", name: "Hostel", checkIn: "2026-12-02", checkOut: "2026-12-05", stopId: "stop-1" },
+      ],
+      alarms: { transport: false, checkOut: true },
+    });
+    expect(ics).not.toContain("BEGIN:VALARM");
+    expect(ics).toContain("SUMMARY:🛏 Stay: Hostel");
+  });
+
   it("names the check-out in the alarm description", () => {
     const ics = buildICS({
       ...base,
