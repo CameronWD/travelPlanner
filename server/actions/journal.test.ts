@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 // ---------------------------------------------------------------------------
 // Hoisted mocks
@@ -60,6 +61,7 @@ describe("saveJournalEntry", () => {
   it("is access-checked — calls requireTripAccess with tripId", async () => {
     await saveJournalEntry(TRIP_ID, DATE, "Hello world");
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, journalUpsertMock);
   });
 
   it("upserts by (tripId, date) and sets authorId to current user", async () => {
@@ -156,6 +158,7 @@ describe("deleteJournalEntry", () => {
   it("is access-checked — calls requireTripAccess with tripId", async () => {
     await deleteJournalEntry(TRIP_ID, DATE);
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, journalDeleteManyMock);
   });
 
   it("deletes the entry by (tripId, date)", async () => {

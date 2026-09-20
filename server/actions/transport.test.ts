@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
  * Tests for transport server actions.
@@ -295,6 +296,7 @@ describe("createTransport", () => {
     await createTransport("trip-1", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, transportCreateMock);
   });
 
   it("returns validation error and does not write for invalid mode", async () => {
@@ -507,6 +509,7 @@ describe("updateTransport", () => {
     await updateTransport("t-1", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-2");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, transportUpdateMock);
   });
 
   it("records UPDATED activity with changes array", async () => {
@@ -661,6 +664,7 @@ describe("deleteTransport", () => {
     await deleteTransport("t-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, transportDeleteMock);
   });
 
   it("records DELETED activity with the snapshotted label", async () => {
@@ -1312,6 +1316,7 @@ describe("reorderTransports", () => {
     await reorderTransports("trip-1", items);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, transportUpdateMock);
   });
 
   it("scopes the findMany query to the given forkId", async () => {

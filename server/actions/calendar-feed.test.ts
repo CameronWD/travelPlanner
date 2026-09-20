@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
@@ -106,6 +107,7 @@ describe("calendar feed actions", () => {
     };
     await updateCalendarFeedFilter(TRIP_ID, filter);
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, feedUpdateManyMock);
     expect(feedUpdateManyMock).toHaveBeenCalledWith({
       where: { tripId: TRIP_ID },
       data: filter,
@@ -118,6 +120,7 @@ describe("updateCalendarFeedAlarms", () => {
   it("checks trip access first", async () => {
     await updateCalendarFeedAlarms("trip-1", { alarmTransport: false, alarmCheckOut: true });
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, calendarFeedUpdateManyMock);
   });
 
   it("writes both flags with updateMany so a missing feed is a no-op", async () => {

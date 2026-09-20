@@ -55,8 +55,13 @@ export async function GET(
 
   const ics = buildICS({
     tripName: feed.trip.name,
-    // A rough stop may have no timezone; fall back to UTC for the feed.
-    stops: stops.map((s) => ({ ...s, timezone: s.timezone ?? "UTC" })),
+    // A rough stop may have no timezone. Pass `null` through rather than
+    // defaulting to "UTC" here: that string is truthy, so it would satisfy
+    // ics.ts's `&& tz` accommodation-alarm guard and fire a check-out Alarm
+    // at a confidently wrong hour instead of being skipped as "no zone to
+    // trust". `IcsStop.timezone` is typed `string | null` so the compiler
+    // enforces this rather than a comment merely asserting it.
+    stops,
     items: feed.includeActivities ? items : [],
     transports: feed.includeTransport ? transports : [],
     accommodations: feed.includeAccommodation ? accommodations : [],

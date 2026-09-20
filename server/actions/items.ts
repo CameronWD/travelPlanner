@@ -6,7 +6,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { itemSchema, type ItemInput } from "@/lib/validations/item";
-import { stopForDate } from "@/lib/itinerary";
+import { resolveOwningStop, type ItineraryStop } from "@/lib/itinerary";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
@@ -56,6 +56,39 @@ function revalidateItemPaths(tripId: string) {
   // "layout" revalidates every nested trip route — including /budget, which
   // inline cost edits reach through this action (things-to-fix P2-4).
   revalidatePath(`/trips/${tripId}`, "layout");
+}
+
+/**
+ * Load the scheduled Stops of one plan, shaped for `resolveOwningStop`
+ * (ADR 0049 rule 4). Every call site that moves or places an Item onto a
+ * date needs this: `stopForDate` alone resolves a Changeover day — one two
+ * consecutive Stops both claim — to the arriving Stop, which would silently
+ * move an Item's Cost from one Stop's Budget line to the next every time
+ * something landed on that shared day. `resolveOwningStop` avoids that by
+ * preferring an existing owner that still covers the date, but it needs the
+ * full plan-scoped Stop list to check coverage against.
+ *
+ * `forkId` is a parameter rather than closed over so each call site scopes
+ * to its own plan — a Fork placement validates against Fork Stops, a
+ * real-plan move against real-plan Stops (`lib/plan-scope.ts`).
+ */
+async function loadPlanStopsForOwnership(
+  tripId: string,
+  forkId: string | null,
+): Promise<ItineraryStop[]> {
+  const rows = await db.stop.findMany({
+    // Only scheduled stops can cover a calendar day.
+    where: { tripId, ...planScope(forkId), arriveDate: { not: null } },
+    select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
+  });
+  return rows.map((s) => ({
+    id: s.id,
+    name: s.name ?? "",
+    timezone: s.timezone ?? "UTC",
+    arriveDate: s.arriveDate!,
+    departDate: s.departDate!,
+    sortOrder: s.sortOrder,
+  }));
 }
 
 // ---------------------------------------------------------------------------
@@ -503,6 +536,15 @@ export async function scheduleItem(
     });
     const sortOrder = (maxPlaced?.sortOrder ?? -1) + 1;
 
+    // A placed copy is dated, so it sits inside some Stop's stay and must be
+    // filed there — otherwise it is invisible in the plan editor's day rows
+    // and its Cost rolls up as "Trip-wide / Other" rather than against the
+    // Stop it happens in (ADR 0049 rule 5). A Wishlist idea by definition
+    // carries no Stop, so there is no prior owner to preserve and a
+    // Changeover day simply yields the arriving Stop.
+    const planStops = await loadPlanStopsForOwnership(accessItem.tripId, forkId ?? null);
+    const placedStopId = resolveOwningStop(null, date, planStops);
+
     const placed = await db.item.create({
       data: {
         tripId: accessItem.tripId,
@@ -510,7 +552,7 @@ export async function scheduleItem(
         sourceItemId: itemId,
         title: fullItem.title,
         category: fullItem.category,
-        stopId: fullItem.stopId ?? null,
+        stopId: placedStopId,
         lat: fullItem.lat ?? null,
         lng: fullItem.lng ?? null,
         countryCode: fullItem.countryCode ?? null,
@@ -540,10 +582,17 @@ export async function scheduleItem(
   // Reuse fullItem as the before snapshot — it's the same row read above.
   const before = fullItem;
 
+  // Writing `stopId` here (ADR 0049 rule 4) is what lets the plan editor hand
+  // a move straight to this action instead of hand-guarding against
+  // `stopForDate`'s later-Stop tiebreak on a Changeover day.
+  const planStops = await loadPlanStopsForOwnership(accessItem.tripId, fullItem.forkId);
+  const owningStopId = resolveOwningStop(fullItem.stopId ?? null, date, planStops);
+
   const updated = await db.item.update({
     where: { id: itemId },
     data: {
       date,
+      stopId: owningStopId,
       startTime: startTime ?? null,
       endTime: endTime ?? null,
     },
@@ -620,9 +669,11 @@ export async function unscheduleItem(itemId: string): Promise<UnscheduleResult> 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Move an item to `targetDateISO`, reassigning its stop to whichever stop covers
- * that day (null on a gap day). Keeps the item's existing start/end time. Used by
- * month-grid drag-to-reschedule. Rejects dates outside the trip window.
+ * Move an item to `targetDateISO`, resolving its owning stop via
+ * `resolveOwningStop` (ADR 0049 rule 4) — kept if it still covers the day,
+ * otherwise re-filed to whichever stop does (null on a gap day). Keeps the
+ * item's existing start/end time. Used by month-grid drag-to-reschedule.
+ * Rejects dates outside the trip window.
  */
 export async function rescheduleItem(
   itemId: string,
@@ -649,31 +700,20 @@ export async function rescheduleItem(
     return { success: false, errors: { date: ["That day is outside the trip."] } };
   }
 
-  const stops = await db.stop.findMany({
-    // Only scheduled stops can cover a calendar day.
-    // Scope to the same plan as the item being rescheduled so fork placements
-    // validate against fork stops, and real-plan moves against real-plan stops.
-    where: { tripId: item.tripId, ...planScope(item.forkId), arriveDate: { not: null } },
-    select: { id: true, name: true, timezone: true, arriveDate: true, departDate: true, sortOrder: true },
-  });
-
-  const covering = stopForDate(
-    stops.map((s) => ({
-      id: s.id,
-      name: s.name ?? "",
-      timezone: s.timezone ?? "UTC",
-      arriveDate: s.arriveDate!,
-      departDate: s.departDate!,
-      sortOrder: s.sortOrder,
-    })),
-    targetDateISO,
-  );
-
+  // Read before resolving ownership, not after: resolveOwningStop needs
+  // before.stopId, and nothing between here and the update touches this
+  // item, so the snapshot it yields is the same pre-update state either way.
   const before = await db.item.findUnique({ where: { id: itemId } });
+
+  const planStops = await loadPlanStopsForOwnership(item.tripId, item.forkId);
+
+  // Ownership follows ADR 0049 rule 4: keep the owning Stop while it still
+  // covers the date, re-filing only when the move leaves that Stop's stay.
+  const owningStopId = resolveOwningStop(before?.stopId ?? null, targetDateISO, planStops);
 
   const updated = await db.item.update({
     where: { id: itemId },
-    data: { date: targetDateISO, stopId: covering?.id ?? null },
+    data: { date: targetDateISO, stopId: owningStopId },
   });
 
   await recordPlanActivity(item.forkId, {

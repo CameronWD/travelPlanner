@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildStopDays, type StopDayItem } from "./stop-days";
+import { buildStopDays, groupScheduledItemsByStop, type StopDayItem } from "./stop-days";
 
 const item = (over: Partial<StopDayItem>): StopDayItem => ({
   id: "i1", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-06",
@@ -48,5 +48,43 @@ describe("buildStopDays", () => {
     ]);
     const dec6 = days.find((d) => d.dateISO === "2026-12-06")!;
     expect(dec6.timed.map((i) => i.id)).toEqual(["a", "b", "c"]);
+  });
+});
+
+describe("groupScheduledItemsByStop", () => {
+  const munich = { id: "munich", arriveDate: "2026-12-05", departDate: "2026-12-10" };
+  const strasbourg = { id: "strasbourg", arriveDate: "2026-12-10", departDate: "2026-12-12" };
+
+  it("puts a changeover-day item under BOTH stops regardless of which owns it", () => {
+    const dinner = { id: "i1", title: "Dinner", category: "FOOD", date: "2026-12-10", stopId: "munich" };
+    const grouped = groupScheduledItemsByStop([munich, strasbourg], [dinner]);
+    expect(grouped.get("munich")).toEqual([dinner]);
+    expect(grouped.get("strasbourg")).toEqual([dinner]);
+  });
+
+  it("leaves the item's own stopId untouched — grouping is display, not ownership", () => {
+    const dinner = { id: "i1", title: "Dinner", category: "FOOD", date: "2026-12-10", stopId: "munich" };
+    const grouped = groupScheduledItemsByStop([munich, strasbourg], [dinner]);
+    expect(grouped.get("strasbourg")![0].stopId).toBe("munich");
+  });
+
+  it("shows a dated item with NO stop under whichever stop covers its date", () => {
+    const placed = { id: "i2", title: "Louvre", category: "SIGHTSEEING", date: "2026-12-07", stopId: null };
+    const grouped = groupScheduledItemsByStop([munich, strasbourg], [placed]);
+    expect(grouped.get("munich")).toEqual([placed]);
+    expect(grouped.get("strasbourg")).toEqual([]);
+  });
+
+  it("ignores rough stops, which have no dates to cover a day with", () => {
+    const rough = { id: "rough", arriveDate: null, departDate: null };
+    const item = { id: "i3", title: "X", category: "OTHER", date: "2026-12-07", stopId: "rough" };
+    const grouped = groupScheduledItemsByStop([rough], [item]);
+    expect(grouped.get("rough")).toBeUndefined();
+  });
+
+  it("ignores undated items — they are things-to-do, not day rows", () => {
+    const todo = { id: "i4", title: "Y", category: "OTHER", date: null, stopId: "munich" };
+    const grouped = groupScheduledItemsByStop([munich], [todo]);
+    expect(grouped.get("munich")).toEqual([]);
   });
 });

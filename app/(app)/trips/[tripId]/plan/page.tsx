@@ -10,6 +10,7 @@ import { haversineKm, estimateDriveMinutes, estimateRoadKm } from "@/lib/geo";
 import { PlanOverview } from "@/components/trip/plan-overview";
 import { summarizePlan } from "@/lib/plan-overview";
 import { VariantBanner } from "@/components/trip/variant-banner";
+import { groupScheduledItemsByStop } from "@/lib/stop-days";
 
 const COST_SELECT = {
   id: true,
@@ -324,14 +325,9 @@ export default async function TripPlanPage({
     thingsToDoByStopId.set(item.stopId, existing);
   }
 
-  // Group scheduled items by stopId for the day rows
-  const dayItemsByStopId = new Map<string, typeof scheduledItems>();
-  for (const item of scheduledItems) {
-    if (!item.stopId) continue;
-    const existing = dayItemsByStopId.get(item.stopId) ?? [];
-    existing.push(item);
-    dayItemsByStopId.set(item.stopId, existing);
-  }
+  // Day rows are grouped by DATE COVERAGE, not by stopId, so a Changeover day
+  // shows the same Items under both Stops that claim it (ADR 0049).
+  const dayItemsByStopId = groupScheduledItemsByStop(stops, scheduledItems);
 
   // Build a coord lookup by stop id so transport leg estimates can fall back
   // to linked stop coordinates when the transport has no typed dep/arr place.

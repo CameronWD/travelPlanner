@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
  * Tests for reminder server actions.
@@ -79,6 +80,7 @@ describe("addReminder", () => {
     const result = await addReminder(TRIP_ID, VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, reminderCreateMock);
     expect(reminderCreateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -145,6 +147,7 @@ describe("addReminder", () => {
     reminderCreateMock.mockResolvedValue({ id: REMINDER_ID });
     await addReminder(TRIP_ID, VALID_INPUT);
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, reminderCreateMock);
   });
 });
 
@@ -267,5 +270,6 @@ describe("deleteReminder", () => {
     await deleteReminder(REMINDER_ID);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, reminderDeleteMock);
   });
 });

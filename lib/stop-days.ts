@@ -1,10 +1,19 @@
 /**
- * Per-stop day bucketing for the plan editor — PURE, framework-free.
+ * Per-stop day grouping for the plan editor — PURE, framework-free.
  *
- * Groups a scheduled Stop's scheduled Items (date != null) into one bucket per
- * calendar day of the stay, arrive → depart inclusive. Items dated outside the
- * stay are excluded: ADR 0038 un-slots those back to things-to-do, so any that
- * appear here are transient and must not invent extra day rows.
+ * Two different grouping strategies live here, for two different callers:
+ *
+ * - `buildStopDays` buckets ONE Stop's already-known Items into calendar-day
+ *   rows, arrive → depart inclusive. Items dated outside that Stop's stay are
+ *   excluded: ADR 0038 un-slots those back to things-to-do, so any that
+ *   appear here are transient and must not invent extra day rows.
+ * - `groupScheduledItemsByStop` decides, for a WHOLE plan's Stops, which
+ *   Items each Stop card should even be handed in the first place — grouped
+ *   by DATE COVERAGE, not by `stopId`. On a Changeover day (ADR 0049) that
+ *   deliberately puts the same Item under both adjoining Stops' cards; Item
+ *   *ownership* (what `lib/budget.ts` counts a Cost against) is untouched by
+ *   this grouping. `stop-day-list.tsx` calls `buildStopDays` on whatever this
+ *   function handed it.
  */
 
 import { enumerateTripDays } from "@/lib/itinerary";
@@ -54,4 +63,38 @@ export function buildStopDays(
       untimed: dayItems.filter((i) => !i.startTime),
     };
   });
+}
+
+export interface GroupableStop {
+  id: string;
+  arriveDate: string | null;
+  departDate: string | null;
+}
+
+/**
+ * Which Items each Stop card shows, keyed by stop id.
+ *
+ * Grouped by DATE COVERAGE, not by `stopId`. On a **Changeover day** — one
+ * calendar day two consecutive Stops both claim — that puts the same Item
+ * under both cards, which is the point (ADR 0049 rule 1). Ownership is
+ * untouched: the Items come back carrying whatever `stopId` they had, and
+ * `lib/budget.ts` still counts their Cost against exactly one Stop.
+ *
+ * Rough Stops are skipped: with no dates they cover no days.
+ */
+export function groupScheduledItemsByStop(
+  stops: GroupableStop[],
+  items: StopDayItem[],
+): Map<string, StopDayItem[]> {
+  const grouped = new Map<string, StopDayItem[]>();
+  for (const stop of stops) {
+    if (!stop.arriveDate || !stop.departDate) continue;
+    grouped.set(
+      stop.id,
+      items.filter(
+        (i) => !!i.date && i.date >= stop.arriveDate! && i.date <= stop.departDate!,
+      ),
+    );
+  }
+  return grouped;
 }

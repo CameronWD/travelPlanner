@@ -293,6 +293,33 @@ describe("dispatchDigest", () => {
     });
   });
 
+  it("does not retry a release delete that already failed", async () => {
+    dbData.reminder = []; // nothing true today → buildDigest returns null → empty path
+    const deleteError = new Error("delete failed");
+    digestDispatchDeleteMock.mockRejectedValueOnce(deleteError);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await dispatch();
+
+    // A delete that already failed cannot be un-failed by trying it again on
+    // the very same row. Before the fix, `claimed` was still `true` when this
+    // propagated to the outer catch, so the outer catch's own `releaseClaim()`
+    // fired a second delete on the same row — failing twice, with the second
+    // failure hiding the first, and rejecting `dispatchDigest` entirely
+    // instead of reporting the ordinary empty-day result.
+    expect(digestDispatchDeleteMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ sent: 0, skipped: true, reason: "empty" });
+    // A slot that failed to release stays claimed until tomorrow, and nothing
+    // else in the system will ever say so — this must be visible somewhere.
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("release"),
+      expect.objectContaining({ userId: USER_ID, tripId: TRIP_ID, localDate: LOCAL_DATE }),
+      deleteError,
+    );
+
+    errorSpy.mockRestore();
+  });
+
   it("releases the claim when collecting the digest throws", async () => {
     costFindManyMock.mockRejectedValueOnce(new Error("db went away"));
 
@@ -453,6 +480,28 @@ describe("dispatchDigest", () => {
         },
       },
     });
+  });
+
+  it("does not retry a release delete that already failed on the zero-delivery path", async () => {
+    // The empty-digest release site isn't the only one that calls
+    // `releaseClaim` from inside the outer try — this one (sendPush delivered
+    // to no device) does too, and shares the same fix.
+    sendPushMock.mockResolvedValue({ sent: false });
+    const deleteError = new Error("delete failed");
+    digestDispatchDeleteMock.mockRejectedValueOnce(deleteError);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await dispatch();
+
+    expect(digestDispatchDeleteMock).toHaveBeenCalledTimes(1);
+    expect(result).toEqual({ sent: 0, skipped: false });
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("release"),
+      expect.objectContaining({ userId: USER_ID, tripId: TRIP_ID, localDate: LOCAL_DATE }),
+      deleteError,
+    );
+
+    errorSpy.mockRestore();
   });
 
   it("keeps the claim when at least one device took the push", async () => {
@@ -862,6 +911,94 @@ describe("collectDigestInput", () => {
     ]);
   });
 
+  it("prints an outbound departure in the recipient's own zone, not the country guess", async () => {
+    // Gold Coast is Queensland — AEST all year. `au` guesses Australia/Sydney,
+    // which is AEDT in December, so a 06:00 departure printed as 07:00.
+    dbData.trip = [
+      {
+        id: TRIP_ID,
+        startDate: "2026-12-05",
+        endDate: "2026-12-30",
+        homeName: "Gold Coast",
+        homeCountryCode: "au",
+      },
+    ];
+    dbData.stop = [
+      {
+        id: "munich",
+        tripId: TRIP_ID,
+        forkId: null,
+        name: "Munich",
+        timezone: "Europe/Berlin",
+        arriveDate: "2026-12-05",
+        departDate: "2026-12-10",
+      },
+    ];
+    dbData.transport = [
+      {
+        id: "t1",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "FLIGHT",
+        depAt: new Date("2026-12-04T20:00:00Z"),
+        depIsHome: true,
+        arrIsHome: false,
+        fromStopId: null,
+        toStopId: "munich",
+        depPlace: null,
+        arrPlace: null,
+        reference: "QF1",
+      },
+    ];
+
+    const input = await collect({ localDate: "2026-12-04", zone: "Australia/Brisbane" });
+
+    expect(input.schedule.transports[0].localTime).toBe("06:00");
+  });
+
+  it("falls back to the country guess when no zone is supplied", async () => {
+    dbData.trip = [
+      {
+        id: TRIP_ID,
+        startDate: "2026-12-05",
+        endDate: "2026-12-30",
+        homeName: "Gold Coast",
+        homeCountryCode: "au",
+      },
+    ];
+    dbData.stop = [
+      {
+        id: "munich",
+        tripId: TRIP_ID,
+        forkId: null,
+        name: "Munich",
+        timezone: "Europe/Berlin",
+        arriveDate: "2026-12-05",
+        departDate: "2026-12-10",
+      },
+    ];
+    dbData.transport = [
+      {
+        id: "t1",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "FLIGHT",
+        depAt: new Date("2026-12-04T20:00:00Z"),
+        depIsHome: true,
+        arrIsHome: false,
+        fromStopId: null,
+        toStopId: "munich",
+        depPlace: null,
+        arrPlace: null,
+        reference: "QF1",
+      },
+    ];
+
+    const input = await collect({ localDate: "2026-12-04" });
+
+    expect(input.schedule.transports[0].localTime).toBe("07:00");
+  });
+
   it("still reads a stop-to-stop leg in its departure stop's zone", async () => {
     // The home-base rule must not swallow the ordinary case: a leg that HAS a
     // departure Stop is timed there, not in the trip's home zone.
@@ -984,6 +1121,48 @@ describe("collectDigestInput", () => {
     ]);
   });
 
+  it("names a return leg that departs the day AFTER the last Stop's depart date", async () => {
+    // endDate is the last Stop's DEPART date, and the Home base is not a Stop
+    // (CONTEXT.md **Home base**), so a return leg leaving the day after that
+    // departure falls outside a gate closed exactly on endDate — the same hole
+    // as the outbound case (above), mirrored at the other end of the trip.
+    dbData.trip = [
+      {
+        id: TRIP_ID,
+        startDate: "2026-11-25",
+        endDate: "2026-12-10", // the last stop is departed on the 10th
+        homeName: "Brisbane",
+        homeCountryCode: "au",
+      },
+    ];
+    dbData.stop = [
+      { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Vienna", timezone: "Europe/Vienna" },
+    ];
+    dbData.transport = [
+      {
+        id: "tr-return",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "FLIGHT",
+        fromStopId: "stop-1",
+        toStopId: null,
+        depPlace: null,
+        arrPlace: null,
+        depAt: new Date("2026-12-11T06:00:00Z"), // 2026-12-11 07:00 in Vienna
+        reference: "QF30",
+        depIsHome: false,
+        arrIsHome: true,
+      },
+    ];
+
+    // EVENING on the 10th looks ahead to the 11th — endDate + 1.
+    const input = await collect({ localDate: "2026-12-10", slot: "EVENING" });
+
+    expect(input.schedule.transports).toEqual([
+      { id: "tr-return", mode: "FLIGHT", route: "Vienna → Brisbane", localTime: "07:00" },
+    ]);
+  });
+
   it("scopes every plan-entity read to the real plan", async () => {
     // A Fork must never drive reminders (CONTEXT.md **Fork**). The fork rows in
     // the tests above prove the leak is closed for the three date-matched
@@ -1066,6 +1245,26 @@ describe("collectDigestInput", () => {
     expect(input.schedule.items).toEqual([
       { id: "item-today", title: "Today's museum", localTime: null },
     ]);
+  });
+
+  it("MORNING does not query payments, checklist or reminders — it discards them", async () => {
+    // collectLines (lib/digest.ts) only renders payments, checklist and
+    // reminders on the EVENING slot. Querying them for MORNING wakes Neon for
+    // reads that are thrown away, which is odd in a design whose whole cadence
+    // argument (ADR 0047) is denominated in CU-hours.
+    seedTravellingTrip();
+
+    const input = await collect({ slot: "MORNING" });
+
+    expect(costFindManyMock).not.toHaveBeenCalled();
+    expect(checklistItemFindManyMock).not.toHaveBeenCalled();
+    expect(reminderFindManyMock).not.toHaveBeenCalled();
+
+    // The shape must survive the skip: buildDigest and its own tests rely on
+    // these being present as empty arrays, never undefined.
+    expect(input.payments).toEqual([]);
+    expect(input.checklist).toEqual([]);
+    expect(input.reminders).toEqual([]);
   });
 
   it("matches a departure by the stop's timezone, not UTC", async () => {

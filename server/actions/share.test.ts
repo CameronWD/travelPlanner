@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
  * Tests for share link server actions.
@@ -67,6 +68,7 @@ describe("createShareLink", () => {
 
     expect(requireTripAccessMock).toHaveBeenCalledOnce();
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, shareCreateMock);
   });
 
   it("creates a new share link and returns { token } when none exists", async () => {
@@ -129,6 +131,7 @@ describe("rotateShareLink", () => {
     await rotateShareLink(TRIP_ID);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, shareUpsertMock);
   });
 
   it("upserts a new token and returns it (works with or without an existing link)", async () => {
@@ -170,6 +173,7 @@ describe("revokeShareLink", () => {
     await revokeShareLink(TRIP_ID);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, shareDeleteManyMock);
   });
 
   it("deletes the share link for the given tripId (no-op if none)", async () => {

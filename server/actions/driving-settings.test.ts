@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const { requireTripAccessMock, revalidatePathMock, tripUpdateMock } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({ user: { id: "u1" }, membership: { role: "owner" } }),
@@ -28,6 +29,7 @@ describe("updateDrivingSettings", () => {
       data: { drivingWindingFactor: 3, drivingAvgSpeedKph: 20 },
     });
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/settings");
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/plan");
     expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/summary");

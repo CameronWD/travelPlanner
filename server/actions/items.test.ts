@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
  * Tests for items server actions.
@@ -324,6 +325,7 @@ describe("createItem", () => {
     await createItem("trip-99", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-99");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemCreateMock);
   });
 
   it("rejects a stopId that belongs to a different trip", async () => {
@@ -498,6 +500,7 @@ describe("updateItem", () => {
     await updateItem("item-1", VALID_INPUT);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-5");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemUpdateMock);
   });
 
   it("returns validation error and does not write", async () => {
@@ -626,6 +629,7 @@ describe("deleteItem", () => {
     await deleteItem("item-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-7");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemDeleteMock);
   });
 
   it("records DELETED activity with the snapshotted title as entityLabel", async () => {
@@ -718,10 +722,14 @@ describe("scheduleItem", () => {
 
     expect(result.success).toBe(true);
     expect(itemCreateMock).not.toHaveBeenCalled(); // no copy created
+    // ADR 0049 rule 4: the in-place branch now writes stopId too (there are
+    // no stops here, so resolveOwningStop has nothing to preserve or resolve
+    // to and returns null) — it used to leave stopId untouched entirely.
     expect(itemUpdateMock).toHaveBeenCalledWith({
       where: { id: "placed-1" },
       data: {
         date: "2026-08-10",
+        stopId: null,
         startTime: "10:00",
         endTime: "12:00",
       },
@@ -769,6 +777,7 @@ describe("scheduleItem", () => {
     await scheduleItem("item-1", { date: "2026-08-10" }, null);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-3");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemCreateMock);
   });
 
   it("returns validation error for invalid date format", async () => {
@@ -784,6 +793,42 @@ describe("scheduleItem", () => {
     }
     expect(itemUpdateMock).not.toHaveBeenCalled();
     expect(itemCreateMock).not.toHaveBeenCalled();
+  });
+
+  // ADR 0049 rule 4 — an Item keeps its owning Stop while that Stop still
+  // covers the date, including a Changeover day the next Stop also claims.
+  it("in-place reschedule onto a shared changeover day KEEPS the owning stop", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "i1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ id: "i1", tripId: "trip-1", forkId: null, date: "2026-12-09", stopId: "munich", title: "Dinner" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "munich", name: "Munich", timezone: "Europe/Berlin", arriveDate: "2026-12-05", departDate: "2026-12-10", sortOrder: 0 },
+      { id: "strasbourg", name: "Strasbourg", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-12", sortOrder: 1 },
+    ]);
+    itemUpdateMock.mockResolvedValue({ id: "i1" });
+
+    await scheduleItem("i1", { date: "2026-12-10" }, null);
+
+    expect(itemUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ date: "2026-12-10", stopId: "munich" }) }),
+    );
+  });
+
+  it("in-place reschedule past the owner's stay re-files to the covering stop", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "i1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ id: "i1", tripId: "trip-1", forkId: null, date: "2026-12-10", stopId: "munich", title: "Dinner" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "munich", name: "Munich", timezone: "Europe/Berlin", arriveDate: "2026-12-05", departDate: "2026-12-10", sortOrder: 0 },
+      { id: "strasbourg", name: "Strasbourg", timezone: "Europe/Paris", arriveDate: "2026-12-10", departDate: "2026-12-12", sortOrder: 1 },
+    ]);
+    itemUpdateMock.mockResolvedValue({ id: "i1" });
+
+    await scheduleItem("i1", { date: "2026-12-11" }, null);
+
+    expect(itemUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ stopId: "strasbourg" }) }),
+    );
   });
 });
 
@@ -824,10 +869,14 @@ describe("unscheduleItem", () => {
       .mockResolvedValueOnce({ id: "item-1", tripId: "trip-8" })
       .mockResolvedValueOnce({ id: "item-1", tripId: "trip-8", forkId: null, date: "2026-08-10", sourceItemId: null });
     itemDeleteMock.mockResolvedValue({});
+    itemUpdateMock.mockResolvedValue({});
 
     await unscheduleItem("item-1");
 
     expect(requireTripAccessMock).toHaveBeenCalledWith("trip-8");
+    // sourceItemId: null takes the "unslotted" branch, which writes via
+    // item.update (clearing the date) rather than item.delete.
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, itemUpdateMock);
   });
 
   it("unscheduleItem records DELETED activity", async () => {
@@ -996,11 +1045,10 @@ describe("scheduleItem copy-in placement", () => {
   });
 
   it("copy inherits title, category, lat, lng, countryCode, address, link, notes from idea", async () => {
-    // NB: a genuine Wishlist idea can never carry a stopId (ADR 0022 / CONTEXT.md:
-    // "attached to no Stop and no day") — an item with a stopId is a stop-attached
-    // thing-to-do, not an idea, so it takes the in-place branch (see the
-    // "scheduleItem classification" describe block). stopId is asserted here as
-    // null to document that the copy path still passes it through faithfully.
+    // A genuine Wishlist idea can never carry a stopId (ADR 0022 / CONTEXT.md:
+    // "attached to no Stop and no day"). The COPY is a different thing: it is
+    // dated, so it sits in a Stop's stay and is filed there (ADR 0049 rule 5).
+    // With no stops mocked, nothing covers the date and it stays null.
     itemFindUniqueMock
       .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" }) // requireItemAccess
       .mockResolvedValueOnce({
@@ -1018,6 +1066,40 @@ describe("scheduleItem copy-in placement", () => {
         address: "Paris", link: "https://example.com", notes: "bring camera",
         startTime: "10:00", endTime: "12:00",
       }),
+    });
+  });
+
+  it("a wishlist placement is filed under the stop covering its date (ADR 0049)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Louvre", category: "SIGHTSEEING" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "munich", name: "Munich", timezone: "Europe/Berlin", arriveDate: "2026-12-05", departDate: "2026-12-10", sortOrder: 0 },
+    ]);
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    await scheduleItem("idea-1", { date: "2026-12-07" }, null);
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ stopId: "munich", date: "2026-12-07" }),
+    });
+  });
+
+  it("a wishlist placement on a gap day no stop covers stays stop-less", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({ id: "idea-1", tripId: "trip-1", forkId: null, date: null, stopId: null, title: "Louvre", category: "SIGHTSEEING" });
+    stopFindManyMock.mockResolvedValue([
+      { id: "munich", name: "Munich", timezone: "Europe/Berlin", arriveDate: "2026-12-05", departDate: "2026-12-10", sortOrder: 0 },
+    ]);
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-2" });
+
+    await scheduleItem("idea-1", { date: "2026-12-20" }, null);
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ stopId: null }),
     });
   });
 

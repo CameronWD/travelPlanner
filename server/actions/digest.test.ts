@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
  * Tests for the Digest settings server actions (Task 7).
@@ -103,6 +104,7 @@ describe("auth ordering", () => {
     digestPreferenceUpsertMock.mockResolvedValue({});
     await setDigestEnabled(TRIP_ID, true);
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, digestPreferenceUpsertMock);
   });
 
   it("sendTestDigest calls requireTripAccess first", async () => {
@@ -112,6 +114,7 @@ describe("auth ordering", () => {
     dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false });
     await sendTestDigest(TRIP_ID);
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, dispatchDigestMock);
   });
 
   it("sendTestDigest checks access even when push is not configured", async () => {

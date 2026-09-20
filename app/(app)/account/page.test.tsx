@@ -16,12 +16,18 @@ const requireUserMock = vi.hoisted(() =>
 );
 const pushSubscriptionFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
 const tripFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+// Deliberately resolves to `null` by default: a brand-new deployment has no
+// CronHeartbeat row at all until the first authorized cron hit lands, and
+// getDispatcherHealth (server/actions/cron-health.ts) must render "never run"
+// rather than throw when that row is absent.
+const cronHeartbeatFindUniqueMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 
 vi.mock("@/lib/guards", () => ({ requireUser: requireUserMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     pushSubscription: { findMany: pushSubscriptionFindManyMock },
     trip: { findMany: tripFindManyMock },
+    cronHeartbeat: { findUnique: cronHeartbeatFindUniqueMock },
   },
 }));
 vi.mock("@/components/account/devices-panel", () => ({
@@ -35,6 +41,7 @@ beforeEach(() => {
   requireUserMock.mockResolvedValue({ id: "user-1" });
   pushSubscriptionFindManyMock.mockResolvedValue([]);
   tripFindManyMock.mockResolvedValue([]);
+  cronHeartbeatFindUniqueMock.mockResolvedValue(null);
 });
 
 describe("AccountPage", () => {
@@ -75,5 +82,28 @@ describe("AccountPage", () => {
   it("requires a signed-in user before rendering either section", async () => {
     await AccountPage();
     expect(requireUserMock).toHaveBeenCalled();
+  });
+
+  it("renders 'never run' for a brand-new deployment with no CronHeartbeat row", async () => {
+    cronHeartbeatFindUniqueMock.mockResolvedValue(null);
+
+    const jsx = await AccountPage();
+    render(jsx);
+
+    expect(screen.getByText(/never run/)).toBeInTheDocument();
+    expect(screen.getByText(/digests are not being sent/i)).toBeInTheDocument();
+  });
+
+  it("renders the dispatcher's last-run time once a heartbeat exists", async () => {
+    cronHeartbeatFindUniqueMock.mockResolvedValue({
+      id: "digest",
+      lastRunAt: new Date(),
+    });
+
+    const jsx = await AccountPage();
+    render(jsx);
+
+    expect(screen.getByText(/last ran/)).toBeInTheDocument();
+    expect(screen.queryByText(/digests are not being sent/i)).not.toBeInTheDocument();
   });
 });

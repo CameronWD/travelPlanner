@@ -51,12 +51,18 @@ export async function subscribeToPush(sub: {
       },
       // `userId: user.id` on `update` is deliberate, and asymmetric with
       // `reconcileDevice` (server/actions/devices.ts), which refuses to touch
-      // a row it doesn't already own. This action only ever runs from a
-      // traveller explicitly pressing Enable on THIS physical device, so
-      // re-pointing an existing row at whoever is signed in now is the
+      // a row it doesn't already own. The INTENDED caller is a traveller
+      // pressing Enable on the physical device in front of them, in which
+      // case re-pointing an existing row at whoever is signed in now is the
       // correct read of a shared machine changing hands — unlike
       // `reconcileDevice`'s silent, background self-heal, which must never
       // reassign a Device out from under the person it actually belongs to.
+      // NOTE: unlike a real browser's Enable button, this is a server action —
+      // it accepts whatever endpoint/keys an authenticated caller passes it,
+      // so nothing here actually enforces "THIS physical device". Tightening
+      // that is a separate, deliberately out-of-scope follow-up; this comment
+      // was corrected (2026-09-20 review) to stop asserting a guarantee the
+      // code does not provide.
       update: {
         userId: user.id,
         p256dh: sub.keys.p256dh,
@@ -91,5 +97,151 @@ export async function unsubscribeFromPush(
     return { ok: true };
   } catch {
     return { ok: false, error: "Failed to remove push subscription." };
+  }
+}
+
+export interface HealRotatedInput {
+  /** The endpoint that rotated away. Browsers do not reliably supply it. */
+  oldEndpoint?: string | null;
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+  timezone?: string;
+  userAgent?: string;
+}
+
+export type HealRotatedResult =
+  | { ok: true; mode: "updated" | "registered" }
+  // `reason` discriminates whose fault a failure is, for the route that
+  // exposes this action over HTTP (app/api/push/route.ts): "invalid" and
+  // "forbidden" are the caller's problem (bad key material, or trying to
+  // touch an endpoint that isn't theirs) and map to 400; "internal" is ours
+  // (an unexpected DB failure) and must not be reported as a client error.
+  | { ok: false; error: string; reason: "invalid" | "forbidden" | "internal" };
+
+/**
+ * Heal a **Device** whose push endpoint rotated underneath it.
+ *
+ * A push service may rotate an endpoint at any time, including while the app
+ * is closed. Until this existed, the stored row went on pointing at the dead
+ * endpoint until someone pressed Enable again — the Device looked healthy and
+ * received nothing, which is the ADR 0048 failure all over again.
+ *
+ * Two shapes, because `pushsubscriptionchange` does not reliably carry the old
+ * subscription:
+ *
+ * - **Old endpoint known** — update that row in place. `label`, `timezone` and
+ *   `createdAt` survive, so the Device keeps its identity in the Account list
+ *   and the Traveller never learns anything happened. `label` is absent from
+ *   the write on purpose (ADR 0048: captured once, never re-derived — same
+ *   reasoning as `subscribeToPush`, above).
+ * - **Old endpoint unknown** — register the new subscription and leave the old
+ *   row alone. It drifts into "unseen since" and can be removed by hand. A
+ *   tombstone the Traveller can see beats a Device that silently stops
+ *   receiving, and TEEPEE never silently drops a Device.
+ *
+ * Always requires a session. Matching on the old endpoint alone would be a
+ * hijack: an endpoint is a capability URL, so anyone holding a victim's could
+ * post {old: victim, new: attacker} and have that Traveller's Digests — trip
+ * contents and all — delivered to their own device. The same danger applies
+ * to the NEW endpoint too: an authenticated caller could submit a victim's
+ * live endpoint as the target and, with no matching old endpoint, walk
+ * straight into the register path below. So the register path checks
+ * ownership of `input.endpoint` as well, and refuses rather than reassigns
+ * when a row is already there and it isn't ours — the same posture as
+ * `reconcileDevice`, and deliberately the opposite of `subscribeToPush`'s
+ * asymmetry: `subscribeToPush` runs from a Traveller physically pressing
+ * Enable on the machine in front of them, so re-pointing a row at whoever is
+ * signed in now is the correct read of a shared computer changing hands. This
+ * function runs from a service worker posting a body with no such guarantee,
+ * so it takes the stricter, `reconcileDevice` reading instead.
+ */
+export async function healRotatedSubscription(
+  input: HealRotatedInput,
+): Promise<HealRotatedResult> {
+  const user = await requireUser();
+
+  // Same reasoning as reconcileDevice: a pair of empty strings is not a
+  // degraded key, it is no key at all, and a row without usable keys is a
+  // Device that LOOKS confirmed and can never receive a push.
+  if (!input.keys?.p256dh || !input.keys?.auth) {
+    return { ok: false, error: "No usable key material.", reason: "invalid" };
+  }
+
+  try {
+    if (input.oldEndpoint && input.oldEndpoint !== input.endpoint) {
+      const existing = await db.pushSubscription.findUnique({
+        where: { endpoint: input.oldEndpoint },
+      });
+      if (existing && existing.userId === user.id) {
+        await db.pushSubscription.update({
+          where: { endpoint: input.oldEndpoint },
+          data: {
+            endpoint: input.endpoint,
+            p256dh: input.keys.p256dh,
+            auth: input.keys.auth,
+            // Deliberately NOT bumping `lastSeenAt` here. `pushsubscriptionchange`
+            // fires in the background service worker with no human present —
+            // fixing a rotated endpoint is not the Traveller using the app, and
+            // ADR 0050's zone election (app/api/cron/digest/route.ts) reads
+            // `lastSeenAt` as exactly that signal, picking the newest row's
+            // timezone as the person's one clock. Bumping it here would let a
+            // home laptop's dead endpoint rotating while its owner is abroad
+            // re-win that election on its stale zone — the bug ADR 0050 exists
+            // to fix, re-entered through this heal. Liveness is `DeviceSync`'s
+            // job (mounted in the authenticated root layout), not this one's.
+            ...(input.timezone ? { timezone: input.timezone } : {}),
+          },
+        });
+        return { ok: true, mode: "updated" };
+      }
+      // No row, or somebody else's. Fall through and register the new one:
+      // reassigning a row we do not own would hand one person's Digest to
+      // another (reconcileDevice makes the same refusal).
+    }
+
+    // Never reassign a row at the NEW endpoint either. Without this check an
+    // authenticated caller could post a victim's live endpoint as `endpoint`
+    // (with no matching `oldEndpoint`) and the upsert below would silently
+    // hand that Device to them — the same hijack the old-endpoint branch
+    // guards against, through the other field.
+    const atNewEndpoint = await db.pushSubscription.findUnique({
+      where: { endpoint: input.endpoint },
+    });
+    if (atNewEndpoint && atNewEndpoint.userId !== user.id) {
+      return { ok: false, error: "That endpoint belongs to another traveller.", reason: "forbidden" };
+    }
+
+    await db.pushSubscription.upsert({
+      where: { endpoint: input.endpoint },
+      create: {
+        userId: user.id,
+        endpoint: input.endpoint,
+        p256dh: input.keys.p256dh,
+        auth: input.keys.auth,
+        label: deviceLabelFromUserAgent(input.userAgent),
+        // A brand-new row has no `lastSeenAt` history to protect, and the
+        // schema default (`@default(now())`) would give it one anyway — set
+        // explicitly here only so it reads as intentional. Once the register
+        // path also carries a real `timezone` (see the service worker's
+        // POST body), this row holds the Device's ACTUAL current zone, so
+        // winning the ADR 0050 election on it is correct, not the finding-1
+        // failure mode: there is no stale prior value it is clobbering.
+        lastSeenAt: new Date(),
+        ...(input.timezone ? { timezone: input.timezone } : {}),
+      },
+      update: {
+        userId: user.id,
+        p256dh: input.keys.p256dh,
+        auth: input.keys.auth,
+        // Same reasoning as the old-endpoint branch above: this upsert's
+        // `update` arm fires when a row already exists at the new endpoint
+        // (e.g. `newSubscription` was already delivered by the browser), and
+        // is still a background heal, not app usage. Do not bump `lastSeenAt`.
+        ...(input.timezone ? { timezone: input.timezone } : {}),
+      },
+    });
+    return { ok: true, mode: "registered" };
+  } catch {
+    return { ok: false, error: "Failed to heal push subscription.", reason: "internal" };
   }
 }

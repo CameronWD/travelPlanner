@@ -1,10 +1,11 @@
 /**
  * Digest dispatch — the server half of the daily Digest (CONTEXT.md **Digest**,
- * ADR 0047).
+ * ADR 0047, amended by ADR 0050).
  *
- * `collectDigestInput` turns a (trip, local date, slot) into the plain data the
- * pure builder in `lib/digest.ts` needs; `dispatchDigest` turns a (user, trip,
- * local date, slot) into *at most one* push.
+ * `collectDigestInput` turns a (trip, local date, slot, recipient zone) into
+ * the plain data the pure builder in `lib/digest.ts` needs; `dispatchDigest`
+ * turns a (user, trip, local date, slot, recipient zone) into *at most one*
+ * push.
  *
  * Two properties matter more than anything else here:
  *
@@ -17,6 +18,22 @@
  *
  * Everything time-sensitive arrives as a parameter (`localDate`, `slot`). This
  * module never reads the machine's clock or timezone.
+ *
+ * The optional `zone` parameter (both functions) is ADR 0050's elected
+ * recipient zone — the timezone of the Device with the newest `lastSeenAt`
+ * across ALL of that person's Devices, resolved once by the caller
+ * (`app/api/cron/digest/route.ts`) and threaded through here rather than
+ * re-derived. `resolveTripZone` reads it as the first answer for "what is
+ * the Trip's own clock" (see that function). It is absent only for a forced
+ * test send (Settings "send me a test"), which carries no dispatching Device.
+ *
+ * `collectDigestInput` also skips a class of queries entirely on the MORNING
+ * slot: `needEveningContent` gates the due-payments, checklist and reminder
+ * reads, because `lib/digest.ts`'s `collectLines` only ever renders those
+ * three on the EVENING slot. Querying them for MORNING would wake Neon for
+ * rows the builder immediately discards — wasted reads with no user-visible
+ * effect, denominated in the same CU-hours ADR 0047's whole cadence argument
+ * cares about.
  */
 import { db } from "@/lib/db";
 import {
@@ -70,8 +87,10 @@ export async function collectDigestInput(opts: {
   tripId: string;
   localDate: string;
   slot: DigestSlot;
+  /** The dispatching recipient's own Device zone (ADR 0050). See `resolveTripZone`. */
+  zone?: string;
 }): Promise<DigestInput> {
-  const { tripId, localDate, slot } = opts;
+  const { tripId, localDate, slot, zone } = opts;
   const windowEnd = addDays(localDate, DIGEST_LOOKAHEAD_DAYS);
 
   const trip = await db.trip.findUnique({
@@ -106,9 +125,17 @@ export async function collectDigestInput(opts: {
   // long-haul outbound departs the day before it. A gate closed exactly on
   // startDate reproduces, one day earlier, the same hole ADR 0047's amendment
   // was written to close: no evening Digest names the outbound flight and the
-  // travel-day morning Digest is empty. The gate costs little either way —
-  // `collectSchedule` filters by the exact target date regardless; this is only
-  // a cheap "don't even look" guard for trips that are nowhere near today.
+  // travel-day morning Digest is empty.
+  //
+  // The trailing `+1` is the mirror image at the other end: `endDate` is the
+  // last Stop's *depart* date, and the Home base is not a Stop (CONTEXT.md
+  // **Home base**) — so a return leg, which departs the last Stop rather than
+  // arriving at one, can be scheduled a day after that departure and still be
+  // perfectly ordinary. A gate closed exactly on endDate would drop that
+  // return leg from every Digest, the same hole as the outbound case,
+  // one day later. The gate costs little either way — `collectSchedule`
+  // filters by the exact target date regardless; this is only a cheap "don't
+  // even look" guard for trips that are nowhere near today.
   const tripStart = trip?.startDate ?? null;
   const tripEnd = trip?.endDate ?? tripStart;
   const targetIsInTrip =
@@ -116,25 +143,33 @@ export async function collectDigestInput(opts: {
     targetDate >= addDays(tripStart, -1) &&
     targetDate <= addDays(tripEnd!, 1);
 
+  // collectLines (lib/digest.ts) only reads payments, checklist and reminders
+  // on the EVENING slot, so querying them for MORNING buys nothing and wakes
+  // Neon for reads that are thrown away — and ADR 0047's whole cadence
+  // argument is denominated in CU-hours.
+  const needEveningContent = slot === "EVENING";
+
   const [dueCosts, checklistRows, reminderRows] = await Promise.all([
-    db.cost.findMany({
-      where: {
-        tripId,
-        forkId: null,
-        paidAt: null,
-        dueDate: { gte: localDate, lte: windowEnd },
-      },
-      orderBy: { dueDate: "asc" },
-      select: {
-        id: true,
-        dueDate: true,
-        costMinor: true,
-        currency: true,
-        label: true,
-        ownerType: true,
-        ownerId: true,
-      },
-    }),
+    needEveningContent
+      ? db.cost.findMany({
+          where: {
+            tripId,
+            forkId: null,
+            paidAt: null,
+            dueDate: { gte: localDate, lte: windowEnd },
+          },
+          orderBy: { dueDate: "asc" },
+          select: {
+            id: true,
+            dueDate: true,
+            costMinor: true,
+            currency: true,
+            label: true,
+            ownerType: true,
+            ownerId: true,
+          },
+        })
+      : Promise.resolve([]),
     // No lower bound, deliberately. A Checklist item "persists until done" and
     // keeps reappearing while overdue (CONTEXT.md **Checklist**) — that is the
     // whole distinction from a Reminder, which is said once. A `gte: localDate`
@@ -142,30 +177,36 @@ export async function collectDigestInput(opts: {
     // visa application was due and it drops out of the Digest silently. The
     // payment window above keeps BOTH bounds on purpose (CONTEXT.md **Due
     // date** scopes it to the three days before and the day itself).
-    db.checklistItem.findMany({
-      where: { tripId, done: false, dueDate: { lte: windowEnd } },
-      orderBy: { dueDate: "asc" },
-      select: { id: true, text: true, dueDate: true },
-    }),
+    needEveningContent
+      ? db.checklistItem.findMany({
+          where: { tripId, done: false, dueDate: { lte: windowEnd } },
+          orderBy: { dueDate: "asc" },
+          select: { id: true, text: true, dueDate: true },
+        })
+      : Promise.resolve([]),
     // A Reminder is read out the EVENING BEFORE its date, alongside tomorrow's
     // plan (CONTEXT.md **Reminder**): one delivered at 9pm on the day it was
     // for arrives as that day is ending. `targetDate` is exactly that day for
     // the evening slot — and today for the morning slot, which never renders
     // reminders anyway (lib/digest.ts collectLines).
-    db.reminder.findMany({
-      where: { tripId, date: targetDate },
-      orderBy: { createdAt: "asc" },
-      select: { id: true, title: true },
-    }),
+    needEveningContent
+      ? db.reminder.findMany({
+          where: { tripId, date: targetDate },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, title: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const ownedCosts = dueCosts.filter((c) => c.ownerType !== "OTHER");
-  const needStops = ownedCosts.length > 0 || targetIsInTrip;
-  const needTransports = ownedCosts.length > 0 || targetIsInTrip;
+  // Stops and transports are needed for the same two reasons — naming a due
+  // cost's endpoints, and building today/tomorrow's schedule — so this is one
+  // condition, not two independently-reasoned ones written twice.
+  const needStopsAndTransports = ownedCosts.length > 0 || targetIsInTrip;
 
   // One stop lookup serves both jobs: naming a transport cost's endpoints and
   // reading a departure's wall clock.
-  const stops = needStops
+  const stops = needStopsAndTransports
     ? await db.stop.findMany({
         where: { tripId, forkId: null },
         orderBy: { sortOrder: "asc" },
@@ -183,10 +224,19 @@ export async function collectDigestInput(opts: {
   // The Trip's own clock — what "the traveller's watch" reads on a leg that has
   // no departure Stop. See `transportZone` for why that is not the arrival
   // Stop's zone.
-  const tripZone = resolveTripZone(trip?.homeCountryCode ?? null, stops);
+  //
+  // INVARIANT: `stops` may be `[]` here (when `needStopsAndTransports` is
+  // false), which would make `currentTripTimezone(stops)` — `resolveTripZone`'s
+  // last-resort fallback — meaningless. That is safe ONLY because
+  // `needStopsAndTransports` is false exactly when `targetIsInTrip` is false
+  // (and there are no owned costs to name either), and `collectSchedule` below
+  // — the one caller that actually reads `tripZone` for anything more than a
+  // due-cost label — is gated on that same `targetIsInTrip`. If either gate
+  // is ever loosened independently of the other, this stops holding.
+  const tripZone = resolveTripZone(zone ?? null, trip?.homeCountryCode ?? null, stops);
 
   // Likewise one transport lookup, with the union of the fields both jobs need.
-  const transportRows = needTransports
+  const transportRows = needStopsAndTransports
     ? await db.transport.findMany({
         where: { tripId, forkId: null },
         orderBy: { depAt: "asc" },
@@ -262,22 +312,25 @@ type StopRow = {
 
 /**
  * The Trip's own timezone — the one a traveller standing at their **Home base**
- * is living in.
+ * reads off their watch.
  *
- * A Home base is not a Stop (CONTEXT.md **Home base**), so it carries no
- * `timezone` field of its own; the closest thing the Trip stores is
- * `homeCountryCode`. That is a country, not a city, so in a country spanning
- * several zones the guess can be an hour out (`au` resolves to Australia/Sydney,
- * which is AEDT while Brisbane stays AEST). It is still the right family of
- * answer: the calendar DATE and the ordering come out correct, which is what
- * the Digest files a departure under, and it is never the *destination's*
- * clock. When the country is unknown or unmapped, fall back to the zone of the
- * Stop the trip is currently at.
+ * First answer is the recipient's own Device zone (ADR 0050). The only leg
+ * without a departure Stop is the OUTBOUND one, and on the evening before an
+ * outbound flight the traveller is standing at their Home base — so their
+ * Device is in the home zone and reporting it. That beats
+ * `guessTimezoneForCountry`, which is country-granular: `au` resolves to
+ * Australia/Sydney, so a Brisbane departure printed an hour late every
+ * December.
+ *
+ * Falls back to the country guess (for a forced test send, which carries no
+ * zone) and then to the zone of the Stop the trip is currently at.
  */
 function resolveTripZone(
+  zone: string | null,
   homeCountryCode: string | null,
   stops: StopRow[],
 ): string {
+  if (zone) return zone;
   const guessed = guessTimezoneForCountry(homeCountryCode);
   if (guessed !== "UTC") return guessed;
   return currentTripTimezone(stops);
@@ -510,10 +563,12 @@ export async function dispatchDigest(opts: {
   tripId: string;
   localDate: string;
   slot: DigestSlot;
+  /** The dispatching recipient's own Device zone (ADR 0050). See `resolveTripZone`. */
+  zone?: string;
   /** The Settings test send: skips the preference check and the ledger, and marks the payload as a test. */
   force?: boolean;
 }): Promise<DispatchDigestResult> {
-  const { userId, tripId, localDate, slot, force = false } = opts;
+  const { userId, tripId, localDate, slot, zone, force = false } = opts;
 
   if (!force) {
     const preference = await db.digestPreference.findUnique({
@@ -546,17 +601,39 @@ export async function dispatchDigest(opts: {
   /**
    * Hand the slot back. Only ever releases a row this call actually created,
    * so a `force: true` test send can never delete a real run's claim.
+   *
+   * `claimed` flips to `false` BEFORE the delete is awaited, not after. A
+   * delete that throws is not a successful release — it cannot re-open the
+   * slot — so retrying it is never correct, and the two call sites below
+   * (empty digest, zero-delivery) both sit inside the outer `try`, whose
+   * `catch` also calls `releaseClaim`. Flipping the flag first means that
+   * second call sees `claimed` already `false` and does nothing, instead of
+   * attempting the same failed delete again and logging whichever attempt
+   * happened to fail second — which would bury the first, real error.
    */
   const releaseClaim = async () => {
     if (!claimed) return;
-    await db.digestDispatch.delete({
-      where: { userId_tripId_localDate_slot: { userId, tripId, localDate, slot } },
-    });
     claimed = false;
+    try {
+      await db.digestDispatch.delete({
+        where: { userId_tripId_localDate_slot: { userId, tripId, localDate, slot } },
+      });
+    } catch (err) {
+      // The row is still sitting in the ledger, still claimed, in the
+      // database even though our bookkeeping now treats it as released.
+      // Nothing else in the system will ever notice: this Traveller silently
+      // gets no Digest for the rest of the day. Name the slot so an operator
+      // has something to grep for.
+      console.error(
+        "[digest] failed to release a claimed dispatch row — the slot stays claimed until tomorrow:",
+        { userId, tripId, localDate, slot },
+        err,
+      );
+    }
   };
 
   try {
-    const built = buildDigest(await collectDigestInput({ tripId, localDate, slot }));
+    const built = buildDigest(await collectDigestInput({ tripId, localDate, slot, zone }));
 
     // A forced send is the Settings test button, and it must never refuse: an
     // empty day gets the placeholder, a day with content gets that content
@@ -618,19 +695,10 @@ export async function dispatchDigest(opts: {
     // failed collect holds the slot until tomorrow: the person silently gets
     // no Digest and every retry answers "already-sent" — a loud failure turned
     // into a quiet one. The error is rethrown so the caller still counts and
-    // logs it.
-    try {
-      await releaseClaim();
-    } catch (releaseErr) {
-      // Surfacing the original failure matters more than this one — but name
-      // the row, or the operator reads "release failed" with no way to find the
-      // stuck ledger entry that is now muting someone for the rest of the day.
-      console.error(
-        "[digest] failed to release a claimed dispatch row:",
-        { userId, tripId, localDate, slot },
-        releaseErr,
-      );
-    }
+    // logs it. `releaseClaim` never throws — a failed delete is logged inside
+    // it and left alone rather than retried here on the very same row, which
+    // would only fail a second time and bury this, the original, error.
+    await releaseClaim();
     throw err;
   }
 }

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
  * Tests for the invite server actions.
@@ -65,6 +66,7 @@ describe("inviteToTrip", () => {
 
     expect(requireTripAccessMock).toHaveBeenCalledOnce();
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, inviteUpsertMock);
   });
 
   it("returns error for invalid email address", async () => {
@@ -191,6 +193,7 @@ describe("cancelInvite", () => {
     await cancelInvite(INVITE_ID);
 
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, inviteDeleteMock);
   });
 
   it("returns error when invite is not found", async () => {

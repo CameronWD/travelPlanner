@@ -59,8 +59,8 @@ describe("buildDigest", () => {
     );
     expect(d?.title).toBe("Tomorrow");
     expect(d?.body.split("\n")).toEqual([
-      "Checklist: check in online due today",
       "06:15 flight Sydney → Vienna",
+      "Checklist: check in online due today",
     ]);
   });
 
@@ -100,7 +100,7 @@ describe("buildDigest", () => {
     expect(d?.url).toBe("/trips/trip-1");
   });
 
-  it("orders payments, then checklist, then reminders, then the schedule", () => {
+  it("orders the schedule, then reminders, then payments, then checklist — costliest to lose first", () => {
     const d = buildDigest(
       input({
         phase: "travelling",
@@ -115,13 +115,64 @@ describe("buildDigest", () => {
       }),
     );
     expect(d?.body.split("\n")).toEqual([
-      "£240 Airbnb comes out today",
-      "Checklist: visa application due in 3 days",
-      "Print the insurance docs",
       "09:40 flight Sydney → Vienna",
       "Check out of Hotel Sacher by 10:00",
       "18:00 Christmas market",
+      "Print the insurance docs",
+      "£240 Airbnb comes out today",
+      "Checklist: visa application due in 3 days",
     ]);
+  });
+
+  const OVERDUE = (text: string) => ({ id: text, text, daysUntil: -3 });
+
+  it("keeps tomorrow's flight above a wall of overdue checklist items", () => {
+    const out = buildDigest(
+      input({
+        phase: "travelling",
+        checklist: [OVERDUE("a"), OVERDUE("b"), OVERDUE("c"), OVERDUE("d"), OVERDUE("e"), OVERDUE("f")],
+        schedule: {
+          transports: [{ id: "t1", mode: "FLIGHT", route: "Munich → Strasbourg", localTime: "06:00" }],
+          stays: [],
+          items: [],
+        },
+      }),
+    );
+    expect(out!.body.split("\n")[0]).toContain("Munich → Strasbourg");
+  });
+
+  it("caps the checklist block at two lines so it cannot crowd out a payment", () => {
+    const out = buildDigest(
+      input({
+        payments: [{ id: "c1", amountLabel: "£240", label: "Airbnb", daysUntil: 0 }],
+        checklist: [OVERDUE("a"), OVERDUE("b"), OVERDUE("c"), OVERDUE("d")],
+      }),
+    );
+    const lines = out!.body.split("\n");
+    expect(lines.filter((l) => l.startsWith("Checklist:"))).toHaveLength(2);
+    expect(out!.body).toContain("Airbnb");
+  });
+
+  it("puts a reminder above a payment — a reminder is said once and never repeats", () => {
+    const out = buildDigest(
+      input({
+        payments: [{ id: "c1", amountLabel: "£240", label: "Airbnb", daysUntil: 2 }],
+        reminders: [{ id: "r1", title: "Print the insurance docs" }],
+      }),
+    );
+    const lines = out!.body.split("\n");
+    expect(lines.indexOf("Print the insurance docs")).toBeLessThan(
+      lines.findIndex((l) => l.includes("Airbnb")),
+    );
+  });
+
+  it("still links a payments-only digest to the budget after checklist truncation", () => {
+    const out = buildDigest(
+      input({
+        payments: [{ id: "c1", amountLabel: "£240", label: "Airbnb", daysUntil: 0 }],
+      }),
+    );
+    expect(out!.url).toBe("/trips/trip-1/budget");
   });
 
   it("says an overdue checklist item is overdue, not 'due in -3 days'", () => {

@@ -92,10 +92,10 @@ describe("expanded day", () => {
     const region = screen.getByTestId("day-detail-2026-12-06");
     await user.click(within(region).getByRole("button", { name: "Move Louvre to another day" }));
     await user.click(await screen.findByRole("menuitem", { name: "Mon 7 Dec" }));
-    // Louvre has startTime "09:30" and no endTime — must survive the move,
-    // and the item must go through scheduleItem's in-place branch (which
-    // keeps stopId) rather than rescheduleItem (which re-derives stopId from
-    // the date and would re-file a changeover-day item onto the next stop).
+    // Louvre has startTime "09:30" and no endTime — must survive the move.
+    // The plan editor always calls scheduleItem for a move; which Stop ends
+    // up owning the item is resolved server-side (ADR 0049 rule 4), not by
+    // this component's choice of action.
     expect(scheduleItem).toHaveBeenCalledWith("a", { date: "2026-12-07", startTime: "09:30" });
   });
 
@@ -115,5 +115,45 @@ describe("expanded day", () => {
     await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
     const region = screen.getByTestId("day-detail-2026-12-06");
     expect(within(region).getAllByTitle("Unschedule").length).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("changeover day ownership (ADR 0049)", () => {
+  it("names the owning stop on an item this card does not own", async () => {
+    const user = userEvent.setup();
+    render(
+      <StopDayList
+        tripId="trip-1"
+        stop={{ id: "strasbourg", arriveDate: "2026-12-10", departDate: "2026-12-12" }}
+        items={[
+          { id: "i1", title: "Dinner", category: "FOOD", date: "2026-12-10", stopId: "munich" },
+        ]}
+        stops={[
+          { id: "munich", name: "Munich" },
+          { id: "strasbourg", name: "Strasbourg" },
+        ]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /10 Dec/ }));
+    expect(screen.getByTestId("day-detail-2026-12-10")).toHaveTextContent("Munich");
+  });
+
+  it("says nothing about ownership on an item this card owns", async () => {
+    const user = userEvent.setup();
+    render(
+      <StopDayList
+        tripId="trip-1"
+        stop={{ id: "strasbourg", arriveDate: "2026-12-10", departDate: "2026-12-12" }}
+        items={[
+          { id: "i1", title: "Dinner", category: "FOOD", date: "2026-12-10", stopId: "strasbourg" },
+        ]}
+        stops={[
+          { id: "munich", name: "Munich" },
+          { id: "strasbourg", name: "Strasbourg" },
+        ]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: /10 Dec/ }));
+    expect(screen.getByTestId("day-detail-2026-12-10")).not.toHaveTextContent("Munich");
   });
 });

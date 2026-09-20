@@ -18,17 +18,20 @@ const {
   tripMemberFindManyMock,
   isPushConfiguredMock,
   dispatchDigestMock,
+  cronHeartbeatUpsertMock,
 } = vi.hoisted(() => ({
   pushFindManyMock: vi.fn(),
   tripMemberFindManyMock: vi.fn(),
   isPushConfiguredMock: vi.fn(),
   dispatchDigestMock: vi.fn(),
+  cronHeartbeatUpsertMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
   db: {
     pushSubscription: { findMany: pushFindManyMock },
     tripMember: { findMany: tripMemberFindManyMock },
+    cronHeartbeat: { upsert: cronHeartbeatUpsertMock },
   },
 }));
 vi.mock("@/lib/push", () => ({
@@ -49,9 +52,13 @@ function req(opts: { secret?: string; header?: string } = {}): NextRequest {
   });
 }
 
-/** A PushSubscription row as the route selects it. */
+/**
+ * A PushSubscription row as the route selects it. `lastSeenAt` defaults to a
+ * fixed instant — fine for every test here except the zone-tiebreak tests,
+ * which pass their own `lastSeenAt` values explicitly.
+ */
 function sub(userId: string, timezone: string | null) {
-  return { userId, timezone };
+  return { userId, timezone, lastSeenAt: new Date("2026-01-01T00:00:00Z") };
 }
 
 beforeEach(() => {
@@ -61,11 +68,19 @@ beforeEach(() => {
   pushFindManyMock.mockResolvedValue([]);
   tripMemberFindManyMock.mockResolvedValue([]);
   dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false });
+  cronHeartbeatUpsertMock.mockResolvedValue({ id: "digest", lastRunAt: new Date() });
 });
 
 afterEach(() => {
   vi.useRealTimers();
-  vi.clearAllMocks();
+  // resetAllMocks (not clearAllMocks): clearAllMocks only wipes recorded
+  // calls, it leaves any queued `mockResolvedValueOnce`/`mockRejectedValueOnce`
+  // values sitting in the mock's queue, so a test that pushes more `…Once`
+  // values than it consumes leaks the remainder into whichever test runs
+  // next. resetAllMocks drains that queue too. It also drops the default
+  // implementations set below — the top-level `beforeEach` above re-applies
+  // them before every test, including the first one after this reset.
+  vi.resetAllMocks();
   vi.unstubAllEnvs();
 });
 
@@ -127,6 +142,66 @@ describe("GET /api/cron/digest — VAPID misconfiguration guard", () => {
   });
 });
 
+describe("GET /api/cron/digest — heartbeat (lib/cron-health.ts)", () => {
+  beforeEach(() => {
+    vi.stubEnv("CRON_SECRET", "right");
+  });
+
+  it("stamps the heartbeat even when no subscriptions exist", async () => {
+    // The heartbeat exists precisely to distinguish "nothing to say" from "the
+    // scheduler stopped" — an empty subscriber list is the ordinary case it
+    // must still record.
+    pushFindManyMock.mockResolvedValue([]);
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(res.status).toBe(200);
+    expect(cronHeartbeatUpsertMock).toHaveBeenCalledWith({
+      where: { id: "digest" },
+      create: { id: "digest", lastRunAt: expect.any(Date) },
+      update: { lastRunAt: expect.any(Date) },
+    });
+  });
+
+  it("does not stamp the heartbeat when VAPID is unconfigured", async () => {
+    // A run that cannot deliver anything has not meaningfully "run" — the
+    // heartbeat write sits after the VAPID bail, not before it.
+    isPushConfiguredMock.mockReturnValue(false);
+
+    await GET(req({ secret: "right" }));
+
+    expect(cronHeartbeatUpsertMock).not.toHaveBeenCalled();
+  });
+
+  it("still dispatches normally when the heartbeat write throws", async () => {
+    // Best-effort by design: a failed heartbeat write must never cost anyone
+    // their Digest.
+    cronHeartbeatUpsertMock.mockRejectedValue(new Error("db unavailable"));
+    pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(res.status).toBe(200);
+    expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
+    expect(await res.json()).toEqual({
+      considered: 1,
+      dispatched: 1,
+      sent: 1,
+      skipped: 0,
+      failed: 0,
+    });
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[cron/digest] heartbeat write failed:",
+      expect.any(Error),
+    );
+    errorSpy.mockRestore();
+  });
+});
+
 describe("GET /api/cron/digest — slot dispatch", () => {
   beforeEach(() => {
     vi.stubEnv("CRON_SECRET", "right");
@@ -148,6 +223,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
       tripId: "trip-1",
       localDate: "2026-12-01",
       slot: "EVENING",
+      zone: "Europe/Vienna",
     });
     expect(await res.json()).toEqual({
       considered: 1,
@@ -193,12 +269,14 @@ describe("GET /api/cron/digest — slot dispatch", () => {
       tripId: "trip-1",
       localDate: "2026-12-02",
       slot: "MORNING",
+      zone: "Australia/Sydney",
     });
     expect(dispatchDigestMock).toHaveBeenCalledWith({
       userId: "user-vie",
       tripId: "trip-1",
       localDate: "2026-12-01",
       slot: "EVENING",
+      zone: "Europe/Vienna",
     });
     expect(await res.json()).toEqual({
       considered: 2,
@@ -293,7 +371,7 @@ describe("GET /api/cron/digest — slot dispatch", () => {
     expect(pushFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { timezone: { not: null } },
-        select: { userId: true, timezone: true },
+        select: { userId: true, timezone: true, lastSeenAt: true },
         take: 2000,
       }),
     );
@@ -502,5 +580,46 @@ describe("GET /api/cron/digest — slot dispatch", () => {
       failed: 0,
     });
     errorSpy.mockRestore();
+  });
+
+  it("uses the most recently seen device's zone and dispatches once per person", async () => {
+    // A laptop left at home in Brisbane and a phone carried to Munich. Brisbane
+    // reaches 8pm ~9h before Munich; before this fix the Brisbane cohort claimed
+    // the slot and pushed to BOTH devices, so the phone buzzed at 11am Munich.
+    // 19:00Z is 20:00 in Europe/Berlin (UTC+1 in December) — the elected zone's
+    // own evening window, so the single dispatch below can only be reached by
+    // resolving to Berlin, not by Brisbane's slot match (Brisbane is 05:00 next
+    // day at this instant — outside both windows).
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([
+      { userId: "u1", timezone: "Australia/Brisbane", lastSeenAt: new Date("2026-12-01T00:00:00Z") },
+      { userId: "u1", timezone: "Europe/Berlin", lastSeenAt: new Date("2026-12-01T18:00:00Z") },
+    ]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+    dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false });
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
+    expect(dispatchDigestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "u1", zone: "Europe/Berlin" }),
+    );
+    expect((await res.json()).considered).toBe(1);
+  });
+
+  it("ignores a device with no stored zone when picking the person's clock", async () => {
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([
+      { userId: "u1", timezone: null, lastSeenAt: new Date("2026-12-01T19:00:00Z") },
+      { userId: "u1", timezone: "Europe/Berlin", lastSeenAt: new Date("2026-12-01T18:00:00Z") },
+    ]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+    dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false });
+
+    await GET(req({ secret: "right" }));
+
+    expect(dispatchDigestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ zone: "Europe/Berlin" }),
+    );
   });
 });

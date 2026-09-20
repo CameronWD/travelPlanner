@@ -84,6 +84,9 @@ export interface DigestPayload {
 
 export const DIGEST_MAX_LINES = 6;
 
+/** At most this many Checklist lines, however many are overdue. */
+const DIGEST_MAX_CHECKLIST_LINES = 2;
+
 function formatPayment(line: DigestPaymentLine): string {
   return line.daysUntil === 0
     ? `${line.amountLabel} ${line.label} comes out today`
@@ -130,27 +133,42 @@ function formatItem(line: DigestItemLine): string {
 }
 
 /**
- * Returns the content lines in documented order (payments, checklist,
- * reminders, transports, stays, items) — and, for MORNING, the schedule-only
- * lines, since the morning slot exists purely as travel-day insurance and
- * must never repeat what the previous evening's Digest already carried.
+ * Returns the content lines ordered by HOW COSTLY EACH ONE IS TO LOSE, not by
+ * category — and, for MORNING, the schedule-only lines, since the morning slot
+ * exists purely as travel-day insurance and must never repeat what the
+ * previous evening's Digest already carried.
+ *
+ * The cap (DIGEST_MAX_LINES) always eats the tail, so the tail has to hold the
+ * most repeatable content:
+ *
+ *   1. Schedule — tomorrow's plan, said once, and the reason the push is
+ *      titled "Tomorrow". Six overdue checklist items used to push the
+ *      outbound flight into "+1 more".
+ *   2. Reminders — CONTEXT.md is explicit that a Reminder is "said once, the
+ *      night before". Truncated, it is gone for good.
+ *   3. Payments — urgent, but deliberately repeated on each of the three days
+ *      before and on the day, so a truncated one returns tomorrow.
+ *   4. Checklist — persists until done and reappears nightly, so it gives way
+ *      first, and is capped besides.
  */
 function collectLines(input: DigestInput): { lines: string[]; paymentLineCount: number } {
   const lines: string[] = [];
   let paymentLineCount = 0;
 
+  for (const transport of input.schedule.transports) lines.push(formatTransport(transport));
+  for (const stay of input.schedule.stays) lines.push(formatStay(stay));
+  for (const item of input.schedule.items) lines.push(formatItem(item));
+
   if (input.slot === "EVENING") {
+    for (const reminder of input.reminders) lines.push(formatReminder(reminder));
     for (const payment of input.payments) {
       lines.push(formatPayment(payment));
       paymentLineCount += 1;
     }
-    for (const item of input.checklist) lines.push(formatChecklist(item));
-    for (const reminder of input.reminders) lines.push(formatReminder(reminder));
+    for (const item of input.checklist.slice(0, DIGEST_MAX_CHECKLIST_LINES)) {
+      lines.push(formatChecklist(item));
+    }
   }
-
-  for (const transport of input.schedule.transports) lines.push(formatTransport(transport));
-  for (const stay of input.schedule.stays) lines.push(formatStay(stay));
-  for (const item of input.schedule.items) lines.push(formatItem(item));
 
   return { lines, paymentLineCount };
 }

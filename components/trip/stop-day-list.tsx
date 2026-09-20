@@ -21,7 +21,12 @@ import type { AttachmentView } from "./attachment-list";
 export interface StopDayListProps {
   tripId: string;
   stop: { id: string; arriveDate: string; departDate: string };
-  /** Scheduled items for this stop (stopId = stop.id, date != null). */
+  /**
+   * Scheduled items for this stop's slice of the Timeline, arrive → depart
+   * inclusive (`lib/stop-days.ts`'s `buildStopDays`, keyed by date coverage —
+   * NOT by `stopId`). On a Changeover day (ADR 0049) this includes Items
+   * owned by the adjoining Stop too; `ownerLabelFor` below marks those.
+   */
   items: StopDayItem[];
   stops: StopOption[];
   forkId?: string | null;
@@ -58,6 +63,19 @@ export function StopDayList({
   );
   const dayISOs = React.useMemo(() => days.map((d) => d.dateISO), [days]);
 
+  // A Changeover day shows Items owned by the adjoining Stop too (ADR 0049).
+  // Naming that Stop is what keeps the Budget's per-Stop roll-up explicable —
+  // the money follows the owner, not the card you happen to be looking at.
+  const stopNameById = React.useMemo(
+    () => new Map(stops.map((s) => [s.id, s.name] as const)),
+    [stops],
+  );
+  const ownerLabelFor = React.useCallback(
+    (it: StopDayItem): string | null =>
+      it.stopId && it.stopId !== stop.id ? (stopNameById.get(it.stopId) ?? null) : null,
+    [stopNameById, stop.id],
+  );
+
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const [addForDate, setAddForDate] = React.useState<string | null>(null);
   const [editing, setEditing] = React.useState<ItemCardItem | null>(null);
@@ -72,13 +90,12 @@ export function StopDayList({
   }
 
   async function handleMove(item: StopDayItem, targetDateISO: string) {
-    // Use scheduleItem's in-place branch (server/actions/items.ts:531+) rather
-    // than rescheduleItem: rescheduleItem re-derives stopId from the target
-    // date via stopForDate, which on a shared arrive/depart (changeover) day
-    // resolves to the NEXT stop — silently re-filing the item off this card.
-    // scheduleItem's in-place branch keeps stopId untouched. It overwrites
-    // startTime/endTime wholesale though, so the item's existing times must
-    // be passed through explicitly to survive the move.
+    // `scheduleItem` overwrites startTime/endTime wholesale, so the item's
+    // existing times must be passed through explicitly to survive the move.
+    // Which Stop ends up owning the item is the server's call (ADR 0049
+    // rule 4) — this used to hand-guard against `stopForDate` re-filing an
+    // item off the card on a changeover day, which is now a rule rather than
+    // a workaround.
     const res = await scheduleItem(item.id, {
       date: targetDateISO,
       ...(item.startTime ? { startTime: item.startTime } : {}),
@@ -148,6 +165,7 @@ export function StopDayList({
                     key={it.id}
                     item={it}
                     timeLabel={it.startTime!}
+                    ownerLabel={ownerLabelFor(it)}
                     days={dayISOs}
                     isPending={isPending}
                     onEdit={() => setEditing(toItemCardItem(it))}
@@ -164,6 +182,7 @@ export function StopDayList({
                         key={it.id}
                         item={it}
                         timeLabel={null}
+                        ownerLabel={ownerLabelFor(it)}
                         days={dayISOs}
                         isPending={isPending}
                         onEdit={() => setEditing(toItemCardItem(it))}
@@ -249,6 +268,7 @@ function toItemCardItem(it: StopDayItem): ItemCardItem {
 function DayItemRow({
   item,
   timeLabel,
+  ownerLabel,
   days,
   isPending,
   onEdit,
@@ -256,6 +276,8 @@ function DayItemRow({
 }: {
   item: StopDayItem;
   timeLabel: string | null;
+  /** Set only when another Stop owns this Item — a Changeover day (ADR 0049). */
+  ownerLabel: string | null;
   days: string[];
   isPending: boolean;
   onEdit: () => void;
@@ -271,6 +293,11 @@ function DayItemRow({
         aria-hidden="true"
       />
       <span className="flex-1 truncate text-sm text-foreground">{item.title}</span>
+      {ownerLabel && (
+        <span className="shrink-0 text-xs italic text-muted-foreground/70">
+          {ownerLabel}
+        </span>
+      )}
       <Button
         variant="ghost"
         size="icon"
