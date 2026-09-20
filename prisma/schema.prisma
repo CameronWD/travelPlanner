@@ -144,7 +144,7 @@ model Trip {
   checklistItems ChecklistItem[]
   attachments    Attachment[]
   reminders      Reminder[]
-  shareLink      ShareLink?
+  shareLinks     ShareLink[]
   calendarFeed   CalendarFeed?
   journalEntries JournalEntry[]
   chapters       Chapter[]
@@ -531,11 +531,20 @@ model Reminder {
 
 model ShareLink {
   id        String   @id @default(cuid())
-  tripId    String   @unique
+  tripId    String
   token     String   @unique
+  label     String
   createdAt DateTime @default(now())
 
+  // Scope dials — what this audience sees (ADR 0051). Money, notes,
+  // confirmations and booking refs are never shared regardless of dials.
+  includeAccommodation Boolean @default(true)
+  includeTransport     Boolean @default(true)
+  includeDailyPlans    Boolean @default(true)
+
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@index([tripId])
 }
 
 model CalendarFeed {
