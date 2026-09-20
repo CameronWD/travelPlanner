@@ -55,10 +55,11 @@ describe("tonightsStay", () => {
     expect(tonightsStay([s], "2026-12-10")).toBeNull();
   });
 
-  it("prefers the latest check-in when stays overlap (changeover day)", () => {
-    const leaving = stay("2026-12-06", "2026-12-10", "Munich");
-    const arriving = stay("2026-12-10", "2026-12-14", "Strasbourg");
-    expect(tonightsStay([leaving, arriving], "2026-12-10")).toBe(arriving);
+  it("prefers the latest check-in when stays genuinely overlap", () => {
+    const longStay = stay("2026-12-05", "2026-12-12", "Munich apartment");
+    const newStay = stay("2026-12-10", "2026-12-14", "Strasbourg hotel");
+    expect(tonightsStay([newStay, longStay], "2026-12-10")).toBe(newStay);
+    expect(tonightsStay([newStay, longStay], "2026-12-11")).toBe(newStay);
   });
 
   it("returns null when nothing covers tonight", () => {
