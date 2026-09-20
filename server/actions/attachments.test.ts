@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "../../test/helpers/access-order";
 
 /**
  * Tests for attachments server actions.
@@ -148,6 +149,7 @@ describe("uploadAttachment", () => {
   it("calls requireTripAccess with the tripId", async () => {
     await uploadAttachment(makeFormData());
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, attachmentCreateMock);
   });
 
   it("creates an attachment row in the db", async () => {
@@ -347,6 +349,7 @@ describe("deleteAttachment", () => {
     attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
     await deleteAttachment(ATTACHMENT_ID);
     expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, attachmentDeleteMock);
   });
 
   it("calls storage.delete with the storageKey", async () => {
