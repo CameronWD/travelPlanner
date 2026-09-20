@@ -83,4 +83,18 @@ describe("getDispatcherHealth", () => {
 
     expect(result).toEqual({ lastRunAt: null, stale: true });
   });
+
+  // Finding 3: the write in app/api/cron/digest/route.ts is wrapped in
+  // try/catch on purpose; this read must be too. A missing `CronHeartbeat`
+  // table (a preview deploy, or any non-Vercel host — vercel.json's
+  // build-time `migrate deploy` only runs when VERCEL_ENV=production) must
+  // not throw out of AccountPage's Promise.all and take the whole Devices
+  // list down with it.
+  it("reports never-run rather than throwing when the table read fails", async () => {
+    findUniqueMock.mockRejectedValue(new Error("relation \"CronHeartbeat\" does not exist"));
+
+    const result = await getDispatcherHealth();
+
+    expect(result).toEqual({ lastRunAt: null, stale: true });
+  });
 });
