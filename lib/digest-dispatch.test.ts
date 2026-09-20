@@ -1156,6 +1156,20 @@ describe("collectDigestInput", () => {
     ]);
   });
 
+  it("MORNING does not query payments, checklist or reminders — it discards them", async () => {
+    // collectLines (lib/digest.ts) only renders payments, checklist and
+    // reminders on the EVENING slot. Querying them for MORNING wakes Neon for
+    // reads that are thrown away, which is odd in a design whose whole cadence
+    // argument (ADR 0047) is denominated in CU-hours.
+    seedTravellingTrip();
+
+    await collect({ slot: "MORNING" });
+
+    expect(costFindManyMock).not.toHaveBeenCalled();
+    expect(checklistItemFindManyMock).not.toHaveBeenCalled();
+    expect(reminderFindManyMock).not.toHaveBeenCalled();
+  });
+
   it("matches a departure by the stop's timezone, not UTC", async () => {
     seedTravellingTrip();
     dbData.stop = [

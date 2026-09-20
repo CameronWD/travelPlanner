@@ -118,25 +118,33 @@ export async function collectDigestInput(opts: {
     targetDate >= addDays(tripStart, -1) &&
     targetDate <= addDays(tripEnd!, 1);
 
+  // collectLines (lib/digest.ts) only reads payments, checklist and reminders
+  // on the EVENING slot, so querying them for MORNING buys nothing and wakes
+  // Neon for reads that are thrown away — and ADR 0047's whole cadence
+  // argument is denominated in CU-hours.
+  const needEveningContent = slot === "EVENING";
+
   const [dueCosts, checklistRows, reminderRows] = await Promise.all([
-    db.cost.findMany({
-      where: {
-        tripId,
-        forkId: null,
-        paidAt: null,
-        dueDate: { gte: localDate, lte: windowEnd },
-      },
-      orderBy: { dueDate: "asc" },
-      select: {
-        id: true,
-        dueDate: true,
-        costMinor: true,
-        currency: true,
-        label: true,
-        ownerType: true,
-        ownerId: true,
-      },
-    }),
+    needEveningContent
+      ? db.cost.findMany({
+          where: {
+            tripId,
+            forkId: null,
+            paidAt: null,
+            dueDate: { gte: localDate, lte: windowEnd },
+          },
+          orderBy: { dueDate: "asc" },
+          select: {
+            id: true,
+            dueDate: true,
+            costMinor: true,
+            currency: true,
+            label: true,
+            ownerType: true,
+            ownerId: true,
+          },
+        })
+      : Promise.resolve([]),
     // No lower bound, deliberately. A Checklist item "persists until done" and
     // keeps reappearing while overdue (CONTEXT.md **Checklist**) — that is the
     // whole distinction from a Reminder, which is said once. A `gte: localDate`
@@ -144,21 +152,25 @@ export async function collectDigestInput(opts: {
     // visa application was due and it drops out of the Digest silently. The
     // payment window above keeps BOTH bounds on purpose (CONTEXT.md **Due
     // date** scopes it to the three days before and the day itself).
-    db.checklistItem.findMany({
-      where: { tripId, done: false, dueDate: { lte: windowEnd } },
-      orderBy: { dueDate: "asc" },
-      select: { id: true, text: true, dueDate: true },
-    }),
+    needEveningContent
+      ? db.checklistItem.findMany({
+          where: { tripId, done: false, dueDate: { lte: windowEnd } },
+          orderBy: { dueDate: "asc" },
+          select: { id: true, text: true, dueDate: true },
+        })
+      : Promise.resolve([]),
     // A Reminder is read out the EVENING BEFORE its date, alongside tomorrow's
     // plan (CONTEXT.md **Reminder**): one delivered at 9pm on the day it was
     // for arrives as that day is ending. `targetDate` is exactly that day for
     // the evening slot — and today for the morning slot, which never renders
     // reminders anyway (lib/digest.ts collectLines).
-    db.reminder.findMany({
-      where: { tripId, date: targetDate },
-      orderBy: { createdAt: "asc" },
-      select: { id: true, title: true },
-    }),
+    needEveningContent
+      ? db.reminder.findMany({
+          where: { tripId, date: targetDate },
+          orderBy: { createdAt: "asc" },
+          select: { id: true, title: true },
+        })
+      : Promise.resolve([]),
   ]);
 
   const ownedCosts = dueCosts.filter((c) => c.ownerType !== "OTHER");
