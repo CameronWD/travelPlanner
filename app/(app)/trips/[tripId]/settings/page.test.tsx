@@ -36,7 +36,7 @@ vi.mock("@/server/actions/digest", () => ({
 vi.mock("@/components/trip/settings/trip-details-form", () => ({ TripDetailsForm: () => null }));
 vi.mock("@/components/trip/settings/cover-image-field", () => ({ CoverImageField: () => null }));
 vi.mock("@/components/trip/settings/invite-panel", () => ({ InvitePanel: () => null }));
-vi.mock("@/components/trip/settings/share-panel", () => ({ SharePanel: () => null }));
+vi.mock("@/components/trip/settings/share-links-panel", () => ({ ShareLinksPanel: () => null }));
 vi.mock("@/components/trip/settings/calendar-feed-panel", () => ({ CalendarFeedPanel: () => null }));
 vi.mock("@/components/trip/settings/digest-panel", () => ({
   DigestPanel: () => <div data-testid="digest-panel" />,

@@ -258,7 +258,7 @@ export const GUIDE_UI_STRINGS = [
   "Toggle theme",
   // Trip settings
   "Add a Traveller by email",
-  "Public share link",
+  "New share link",
   "Include in feed",
   "Road winding factor",
   "Name for the duplicate",

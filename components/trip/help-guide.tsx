@@ -1133,13 +1133,18 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               it&rsquo;s still pending.
             </p>
             <p>
-              A <strong className="font-semibold">Public share link</strong> is
-              the other way to let someone see the trip: a read-only page for
+              <strong className="font-semibold">New share link</strong> is the
+              other way to let someone see the trip: a read-only page for
               people who aren&rsquo;t planning it with you — a parent who wants
-              to know where you&rsquo;ll be. Anyone with the link can open it,
-              so treat it as public, and turn it off when you&rsquo;re done.
-              It&rsquo;s a different thing from adding a Traveller, who gets to
-              edit.
+              to know where you&rsquo;ll be. Give each one a label (who it&rsquo;s
+              for) and choose what it shows — Accommodation, Transport, Daily
+              plans — route and dates are always included, and costs, notes
+              and booking confirmations are never shared on any link, whatever
+              you tick. Make as many as you like, one per audience, and{" "}
+              <strong className="font-semibold">Revoke</strong> the ones you no
+              longer need. Anyone with a link can open it, so treat it as
+              public. It&rsquo;s a different thing from adding a Traveller, who
+              gets to edit.
             </p>
             <p>
               <strong className="font-semibold">Create calendar feed</strong> is

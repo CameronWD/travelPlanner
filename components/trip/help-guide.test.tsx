@@ -175,7 +175,7 @@ describe("HelpGuide", () => {
     const body = container.querySelector("details#trip-settings")?.textContent ?? "";
     expect(body).toContain("Delete trip");
     expect(body).toContain("Add a Traveller by email");
-    expect(body).toContain("Public share link");
+    expect(body).toContain("New share link");
   });
 
   it("is honest that an invite is not emailed to anyone", () => {

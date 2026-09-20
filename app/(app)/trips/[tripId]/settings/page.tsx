@@ -14,7 +14,7 @@ import {
 import { TripDetailsForm } from "@/components/trip/settings/trip-details-form";
 import { CoverImageField } from "@/components/trip/settings/cover-image-field";
 import { InvitePanel } from "@/components/trip/settings/invite-panel";
-import { SharePanel } from "@/components/trip/settings/share-panel";
+import { ShareLinksPanel } from "@/components/trip/settings/share-links-panel";
 import { CalendarFeedPanel } from "@/components/trip/settings/calendar-feed-panel";
 import { DigestPanel } from "@/components/trip/settings/digest-panel";
 import { DrivingEstimatesPanel } from "@/components/trip/settings/driving-estimates-panel";
@@ -150,7 +150,7 @@ export default async function SettingsPage({
       {/* ── Sharing ── */}
       <Card>
         <CardContent className="p-5">
-          <SharePanel tripId={tripId} initialToken={shareLinks[0]?.token ?? null} />
+          <ShareLinksPanel tripId={tripId} initialLinks={shareLinks} />
         </CardContent>
       </Card>
 
