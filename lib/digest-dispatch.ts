@@ -108,9 +108,17 @@ export async function collectDigestInput(opts: {
   // long-haul outbound departs the day before it. A gate closed exactly on
   // startDate reproduces, one day earlier, the same hole ADR 0047's amendment
   // was written to close: no evening Digest names the outbound flight and the
-  // travel-day morning Digest is empty. The gate costs little either way —
-  // `collectSchedule` filters by the exact target date regardless; this is only
-  // a cheap "don't even look" guard for trips that are nowhere near today.
+  // travel-day morning Digest is empty.
+  //
+  // The trailing `+1` is the mirror image at the other end: `endDate` is the
+  // last Stop's *depart* date, and the Home base is not a Stop (CONTEXT.md
+  // **Home base**) — so a return leg, which departs the last Stop rather than
+  // arriving at one, can be scheduled a day after that departure and still be
+  // perfectly ordinary. A gate closed exactly on endDate would drop that
+  // return leg from every Digest, the same hole as the outbound case,
+  // one day later. The gate costs little either way — `collectSchedule`
+  // filters by the exact target date regardless; this is only a cheap "don't
+  // even look" guard for trips that are nowhere near today.
   const tripStart = trip?.startDate ?? null;
   const tripEnd = trip?.endDate ?? tripStart;
   const targetIsInTrip =

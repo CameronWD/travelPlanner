@@ -1121,6 +1121,48 @@ describe("collectDigestInput", () => {
     ]);
   });
 
+  it("names a return leg that departs the day AFTER the last Stop's depart date", async () => {
+    // endDate is the last Stop's DEPART date, and the Home base is not a Stop
+    // (CONTEXT.md **Home base**), so a return leg leaving the day after that
+    // departure falls outside a gate closed exactly on endDate — the same hole
+    // as the outbound case (above), mirrored at the other end of the trip.
+    dbData.trip = [
+      {
+        id: TRIP_ID,
+        startDate: "2026-11-25",
+        endDate: "2026-12-10", // the last stop is departed on the 10th
+        homeName: "Brisbane",
+        homeCountryCode: "au",
+      },
+    ];
+    dbData.stop = [
+      { id: "stop-1", tripId: TRIP_ID, forkId: null, name: "Vienna", timezone: "Europe/Vienna" },
+    ];
+    dbData.transport = [
+      {
+        id: "tr-return",
+        tripId: TRIP_ID,
+        forkId: null,
+        mode: "FLIGHT",
+        fromStopId: "stop-1",
+        toStopId: null,
+        depPlace: null,
+        arrPlace: null,
+        depAt: new Date("2026-12-11T06:00:00Z"), // 2026-12-11 07:00 in Vienna
+        reference: "QF30",
+        depIsHome: false,
+        arrIsHome: true,
+      },
+    ];
+
+    // EVENING on the 10th looks ahead to the 11th — endDate + 1.
+    const input = await collect({ localDate: "2026-12-10", slot: "EVENING" });
+
+    expect(input.schedule.transports).toEqual([
+      { id: "tr-return", mode: "FLIGHT", route: "Vienna → Brisbane", localTime: "07:00" },
+    ]);
+  });
+
   it("scopes every plan-entity read to the real plan", async () => {
     // A Fork must never drive reminders (CONTEXT.md **Fork**). The fork rows in
     // the tests above prove the leak is closed for the three date-matched
