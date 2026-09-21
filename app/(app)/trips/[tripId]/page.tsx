@@ -18,6 +18,13 @@ export default async function TripHomePage({
   params: Promise<{ tripId: string }>;
 }) {
   const { tripId } = await params;
+  // Called here, and again inside listRemindersForTrip below
+  // (server/actions/reminders.ts:69). That is deliberate defence in depth —
+  // every entry point guards itself rather than trusting its caller already
+  // did — and it is free: requireTripAccess is wrapped in React's cache() and
+  // memoised per request, keyed on tripId. Do NOT remove either call. The
+  // full reasoning, including the one case where the memoisation is a trap,
+  // is in the docblock on requireTripAccess in lib/guards.ts (RM-15).
   await requireTripAccess(tripId);
 
   const trip = await db.trip.findUnique({

@@ -118,4 +118,51 @@ describe("Sheet", () => {
     expect(panel.className).not.toContain("overflow-y-auto");
     expect(panel.querySelector('[class*="overflow-y-auto"]')).toBeNull();
   });
+
+  it("fades the backdrop in over the same duration the panel slides", () => {
+    // FP-05: tp-fade-in is 150ms, tp-slide-up is 250ms. Used together, the
+    // backdrop finishes first and is visible on its own for 100ms.
+    render(
+      <Sheet open>
+        <SheetContent>
+          <SheetTitle>Default</SheetTitle>
+        </SheetContent>
+      </Sheet>,
+    );
+    const overlay = document.querySelector(".backdrop-blur-sm");
+    expect(overlay).not.toBeNull();
+    expect(overlay!.className).toContain("data-[state=open]:tp-fade-in-sheet");
+  });
+
+  it("lets one caller neutralise the backdrop blur without losing the dim", () => {
+    // FP-06: hideOverlay was all-or-nothing — there was no way to keep the
+    // dim and drop the full-viewport blur.
+    render(
+      <Sheet open>
+        <SheetContent overlayClassName="backdrop-blur-none">
+          <SheetTitle>Default</SheetTitle>
+        </SheetContent>
+      </Sheet>,
+    );
+    // tailwind-merge resolves the conflict in the caller's favour.
+    expect(document.querySelector(".backdrop-blur-none")).not.toBeNull();
+    expect(document.querySelector(".backdrop-blur-sm")).toBeNull();
+    // The dim itself is untouched.
+    expect(document.querySelector(".bg-foreground\\/40")).not.toBeNull();
+  });
+
+  it("gives the docked panel a height floor", () => {
+    // FP-13: min(37.5rem, calc(100vh - 9rem)) goes non-positive below a
+    // 144px-tall viewport at md and up.
+    render(
+      <Sheet open>
+        <SheetContent side="docked" hideOverlay>
+          <SheetTitle>Docked</SheetTitle>
+        </SheetContent>
+      </Sheet>,
+    );
+    const panel = screen.getByRole("dialog");
+    expect(panel.className).toContain("md:h-[min(37.5rem,max(16rem,calc(100vh-9rem)))]");
+    expect(panel.className).not.toContain("md:h-[min(37.5rem,calc(100vh-9rem))]");
+  });
 });

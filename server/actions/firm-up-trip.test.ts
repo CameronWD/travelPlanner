@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
@@ -104,5 +105,15 @@ describe("firmUpTrip", () => {
     // would make the bands touch (and inclusive-overlap), so chA's end is trimmed to 07-03.
     expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "chA" }, data: { startDate: "2026-07-01", endDate: "2026-07-03" } });
     expect(chapterUpdateMock).toHaveBeenCalledWith({ where: { id: "chB" }, data: { startDate: "2026-07-04", endDate: "2026-07-06" } });
+  });
+
+  it("is access-checked before the write", async () => {
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-07-01", endDate: null });
+    stopFindManyMock.mockResolvedValue([roughRow("a", 0, 3)]);
+
+    await firmUpTrip("trip-1");
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
   });
 });

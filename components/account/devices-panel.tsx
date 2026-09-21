@@ -18,6 +18,8 @@ import { unsubscribeFromPush } from "@/server/actions/push";
 
 export interface DevicesPanelProps {
   initial: DeviceSummary[];
+  /** The server's instant, passed down so a `new Date()` in this "use client" render can't disagree with the server pass (CD-05). */
+  now: Date;
 }
 
 type EnableStatus = "idle" | "loading" | "error";
@@ -38,7 +40,7 @@ type EnableStatus = "idle" | "loading" | "error";
  * the first render shows the server-supplied list plain: no "this device"
  * marker, no Enable button.
  */
-export function DevicesPanel({ initial }: DevicesPanelProps) {
+export function DevicesPanel({ initial, now }: DevicesPanelProps) {
   const [local, setLocal] = React.useState<LocalDeviceState | null>(null);
   const [devices, setDevices] = React.useState<DeviceSummary[]>(initial);
   const [removingId, setRemovingId] = React.useState<string | null>(null);
@@ -213,7 +215,7 @@ export function DevicesPanel({ initial }: DevicesPanelProps) {
                     ? " · this device"
                     : ""}
                   {" · "}
-                  {formatLastSeen(device.lastSeenAt, new Date())}
+                  {formatLastSeen(device.lastSeenAt, now)}
                 </span>
               </p>
               <Button

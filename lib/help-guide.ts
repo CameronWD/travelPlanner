@@ -188,6 +188,51 @@ export const GUIDE_NAV_LABELS = [
 ] as const;
 
 /**
+ * True when `label` appears in `text` as a COMPLETE phrase, not merely as a
+ * substring.
+ *
+ * A plain `includes` let two things through. `"Booking reference"` passed on
+ * the strength of the longer `"Booking reference / number"` also in the list,
+ * so it could never fail; and correction C6 shipped a guide that misquoted the
+ * variant banner because `"Editing variant"` passed as a substring of the
+ * banner's real, interpolated string. A guard that has already failed to catch
+ * a shipped defect is not a guard.
+ *
+ * "Complete" means: the character immediately after the occurrence is either
+ * absent, or one that cannot continue the same on-screen phrase — a quote, an
+ * angle bracket, a brace, punctuation, a newline. Letters, digits, spaces,
+ * slashes, apostrophes and hyphens all continue a phrase, so an occurrence
+ * followed by one of those does not count.
+ */
+const PHRASE_CONTINUES = /[A-Za-z0-9 /'’-]/;
+
+/**
+ * Every index in `text` where `label` occurs as a complete on-screen phrase
+ * (see `guideLabelOnScreen`). Used to check whether one `GUIDE_UI_STRINGS`
+ * entry's real occurrences are all subsumed by another's, rather than merely
+ * asking whether one entry's *text* contains another's — literal containment
+ * is not redundancy. `"Booking reference"` is a literal substring of
+ * `"Booking reference / number"`, but they are two different controls in two
+ * different dialogs (item-form-dialog.tsx vs. transport-form-dialog.tsx), and
+ * `"Booking reference"` has its own independent complete-phrase occurrence,
+ * so it is not redundant.
+ */
+export function guideLabelPositions(text: string, label: string): number[] {
+  const out: number[] = [];
+  let i = text.indexOf(label);
+  while (i !== -1) {
+    const after = text[i + label.length];
+    if (after === undefined || !PHRASE_CONTINUES.test(after)) out.push(i);
+    i = text.indexOf(label, i + 1);
+  }
+  return out;
+}
+
+export function guideLabelOnScreen(text: string, label: string): boolean {
+  return guideLabelPositions(text, label).length > 0;
+}
+
+/**
  * On-screen control labels the guide quotes back to the reader.
  *
  * The nav-label and route guards below cover tab names and page paths — the
@@ -201,6 +246,20 @@ export const GUIDE_NAV_LABELS = [
  * when the guide stops. Deliberately excluded: single generic words ("Month",
  * "Promote", "Firm up", "Paid") whose last occurrence would survive a rename,
  * so the entry could not fail.
+ *
+ * Also deliberately excluded: a phrase with no complete on-screen occurrence
+ * of its own. The variant banner interpolates the variant's name, so
+ * `"Editing variant"` (a true substring of the banner's real, interpolated
+ * text) has no complete phrase to assert — its wording is pinned by
+ * components/trip/help-guide.test.tsx instead. `"Booking reference"` is KEPT
+ * despite being a literal substring of `"Booking reference / number"`: the
+ * two are different fields in different dialogs (the Thing-to-Do/
+ * Accommodation form vs. the Transport form) and each has its own,
+ * independent complete-phrase occurrence — literal containment between two
+ * entries does not by itself mean one is redundant. Entries must be whole
+ * phrases, and an entry is only removed for redundancy when every one of its
+ * real occurrences is also covered by another entry's occurrence at that same
+ * spot (enforced by lib/help-guide.test.ts).
  */
 export const GUIDE_UI_STRINGS = [
   // Adding things
@@ -250,7 +309,6 @@ export const GUIDE_UI_STRINGS = [
   // Variants
   "New variant",
   "Compare plans",
-  "Editing variant",
   // Search
   "Search or jump",
   "Search needs a connection",

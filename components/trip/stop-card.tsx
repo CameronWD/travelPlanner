@@ -7,7 +7,6 @@ import {
   ChevronDown,
   Pencil,
   Trash2,
-  MapPin,
   Calendar,
   Clock,
   BookOpen,
@@ -334,14 +333,23 @@ export function StopCard({
           </h3>
           {stop.country && (
             <div className="flex items-center gap-1 text-sm text-muted-foreground">
-              <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
+              {/* No decorative pin here: MapLink below renders the real one,
+                  and help-legend.tsx teaches that glyph as "has a location"
+                  (HG-02/HG-10). */}
               <span>{stop.country}</span>
-              <MapLink
-                lat={stop.lat}
-                lng={stop.lng}
-                label={stop.country ? `${stop.name}, ${stop.country}` : stop.name}
-                className="text-muted-foreground/60"
-              />
+              {/* Gate on real coordinates explicitly: MapLink's own fallback
+                  (address || label) would otherwise treat the name/country
+                  label as a searchable "location" for every stop, making the
+                  pin fire even when there's no actual location on record —
+                  exactly the ambiguity this fix removes. */}
+              {stop.lat != null && stop.lng != null && (
+                <MapLink
+                  lat={stop.lat}
+                  lng={stop.lng}
+                  label={stop.country ? `${stop.name}, ${stop.country}` : stop.name}
+                  className="text-muted-foreground/60"
+                />
+              )}
             </div>
           )}
         </div>

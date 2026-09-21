@@ -156,3 +156,25 @@ describe("ItemCard wishlist mobile overflow", () => {
     expect(await screen.findByRole("menuitem", { name: /delete/i })).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 19 (HG-02/HG-10): the map pin means one thing — has a location
+// ---------------------------------------------------------------------------
+
+describe("ItemCard — map pin is not decorative", () => {
+  it("shows no map pin beside an item's stop name", () => {
+    // The stop name is not a location link — nothing happens if you tap it.
+    const { container } = render(
+      <ItemCard item={{ ...baseItem, stopName: "Rome", address: null, lat: null, lng: null }} mode="wishlist" />,
+    );
+    expect(container.querySelectorAll("svg.lucide-map-pin")).toHaveLength(0);
+    expect(screen.getByText("Rome")).toBeInTheDocument();
+  });
+
+  it("shows exactly one map pin for an item with an address — the map link's", () => {
+    const { container } = render(
+      <ItemCard item={{ ...baseItem, stopName: "Rome", address: "Piazza del Colosseo", lat: 41.89, lng: 12.49 }} mode="wishlist" />,
+    );
+    expect(container.querySelectorAll("svg.lucide-map-pin")).toHaveLength(1);
+  });
+});

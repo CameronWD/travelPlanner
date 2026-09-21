@@ -4,7 +4,6 @@ import * as React from "react";
 import {
   Pencil,
   Trash2,
-  MapPin,
   ExternalLink,
   Hash,
   StickyNote,
@@ -66,6 +65,8 @@ export interface ItemCardProps {
   currentUserId?: string;
   /** Attachments for this item */
   attachments?: AttachmentView[];
+  /** The Plan this item's costs belong to — `null`/absent is the real plan */
+  forkId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -86,6 +87,7 @@ export function ItemCard({
   votes,
   currentUserId,
   attachments,
+  forkId,
 }: ItemCardProps) {
   const hasTime = Boolean(item.startTime);
   const timeLabel = hasTime
@@ -111,7 +113,10 @@ export function ItemCard({
           {/* Stop name (when linked) */}
           {item.stopName && (
             <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-              <MapPin className="size-3 shrink-0" aria-hidden="true" />
+              {/* No decorative pin here: the address row below (if any) carries
+                  MapLink, the real one, and help-legend.tsx teaches that glyph
+                  as "has a location" (HG-02/HG-10). A stop name alone isn't a
+                  location link — nothing happens if you tap it. */}
               <span className="truncate">{item.stopName}</span>
             </p>
           )}
@@ -189,7 +194,6 @@ export function ItemCard({
         <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
           {item.address && (
             <span className="flex items-center gap-1">
-              <MapPin className="size-3 shrink-0" aria-hidden="true" />
               <span className="truncate max-w-[18ch]">{item.address}</span>
               <MapLink lat={item.lat} lng={item.lng} address={item.address} label={item.title} className="text-muted-foreground/60" />
             </span>
@@ -246,6 +250,7 @@ export function ItemCard({
             costs={costs}
             homeCurrency={homeCurrency}
             defaultCurrency={homeCurrency}
+            forkId={forkId}
           />
         </div>
       )}

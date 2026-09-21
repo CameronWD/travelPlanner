@@ -11,6 +11,30 @@ import { deviceLabelFromUserAgent } from "@/lib/device-label";
 export type PushActionResult = { ok: true } | { ok: false; error: string };
 
 // ---------------------------------------------------------------------------
+// Shared shape
+// ---------------------------------------------------------------------------
+
+/**
+ * The fields every write of a push subscription shares.
+ *
+ * `timezone` is OMITTED rather than nulled when the client did not send one:
+ * writing `null` would wipe a good stored zone whenever an older client
+ * re-subscribes, and a subscription with no zone never fires — the dispatcher
+ * cannot know when 8pm is for it. Four call sites repeated this by hand
+ * (CD-09); repeating it is how one of them ends up spelling it differently.
+ */
+function subscriptionCoreFields(
+  keys: { p256dh: string; auth: string },
+  timezone?: string,
+): { p256dh: string; auth: string; timezone?: string } {
+  return {
+    p256dh: keys.p256dh,
+    auth: keys.auth,
+    ...(timezone ? { timezone } : {}),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
 
@@ -29,25 +53,17 @@ export async function subscribeToPush(sub: {
   const user = await requireUser();
 
   try {
-    // Omit `timezone` entirely when the client didn't send one — writing
-    // `null` here would wipe a good stored zone whenever an older client
-    // re-subscribes, and a subscription with no zone never fires (the
-    // dispatcher can't know when 8pm is for it).
-    const tz = sub.timezone ? { timezone: sub.timezone } : {};
-
     await db.pushSubscription.upsert({
       where: { endpoint: sub.endpoint },
       create: {
         userId: user.id,
         endpoint: sub.endpoint,
-        p256dh: sub.keys.p256dh,
-        auth: sub.keys.auth,
         // Captured once, here, at the moment a Device is enabled. Absent from
         // `update` on purpose (ADR 0048): re-deriving it would let a browser
         // upgrade rename a Device that has been listed for months.
         label: deviceLabelFromUserAgent(sub.userAgent),
         lastSeenAt: new Date(),
-        ...tz,
+        ...subscriptionCoreFields(sub.keys, sub.timezone),
       },
       // `userId: user.id` on `update` is deliberate, and asymmetric with
       // `reconcileDevice` (server/actions/devices.ts), which refuses to touch
@@ -65,15 +81,14 @@ export async function subscribeToPush(sub: {
       // code does not provide.
       update: {
         userId: user.id,
-        p256dh: sub.keys.p256dh,
-        auth: sub.keys.auth,
         lastSeenAt: new Date(),
-        ...tz,
+        ...subscriptionCoreFields(sub.keys, sub.timezone),
       },
     });
 
     return { ok: true };
-  } catch {
+  } catch (err) {
+    console.error("[push] failed to save a push subscription:", err);
     return { ok: false, error: "Failed to save push subscription." };
   }
 }
@@ -95,7 +110,8 @@ export async function unsubscribeFromPush(
     });
 
     return { ok: true };
-  } catch {
+  } catch (err) {
+    console.error("[push] failed to remove a push subscription:", err);
     return { ok: false, error: "Failed to remove push subscription." };
   }
 }
@@ -177,8 +193,6 @@ export async function healRotatedSubscription(
           where: { endpoint: input.oldEndpoint },
           data: {
             endpoint: input.endpoint,
-            p256dh: input.keys.p256dh,
-            auth: input.keys.auth,
             // Deliberately NOT bumping `lastSeenAt` here. `pushsubscriptionchange`
             // fires in the background service worker with no human present —
             // fixing a rotated endpoint is not the Traveller using the app, and
@@ -189,7 +203,7 @@ export async function healRotatedSubscription(
             // re-win that election on its stale zone — the bug ADR 0050 exists
             // to fix, re-entered through this heal. Liveness is `DeviceSync`'s
             // job (mounted in the authenticated root layout), not this one's.
-            ...(input.timezone ? { timezone: input.timezone } : {}),
+            ...subscriptionCoreFields(input.keys, input.timezone),
           },
         });
         return { ok: true, mode: "updated" };
@@ -216,8 +230,6 @@ export async function healRotatedSubscription(
       create: {
         userId: user.id,
         endpoint: input.endpoint,
-        p256dh: input.keys.p256dh,
-        auth: input.keys.auth,
         label: deviceLabelFromUserAgent(input.userAgent),
         // A brand-new row has no `lastSeenAt` history to protect, and the
         // schema default (`@default(now())`) would give it one anyway — set
@@ -227,21 +239,20 @@ export async function healRotatedSubscription(
         // winning the ADR 0050 election on it is correct, not the finding-1
         // failure mode: there is no stale prior value it is clobbering.
         lastSeenAt: new Date(),
-        ...(input.timezone ? { timezone: input.timezone } : {}),
+        ...subscriptionCoreFields(input.keys, input.timezone),
       },
       update: {
         userId: user.id,
-        p256dh: input.keys.p256dh,
-        auth: input.keys.auth,
         // Same reasoning as the old-endpoint branch above: this upsert's
         // `update` arm fires when a row already exists at the new endpoint
         // (e.g. `newSubscription` was already delivered by the browser), and
         // is still a background heal, not app usage. Do not bump `lastSeenAt`.
-        ...(input.timezone ? { timezone: input.timezone } : {}),
+        ...subscriptionCoreFields(input.keys, input.timezone),
       },
     });
     return { ok: true, mode: "registered" };
-  } catch {
+  } catch (err) {
+    console.error("[push] failed to heal a rotated push subscription:", err);
     return { ok: false, error: "Failed to heal push subscription.", reason: "internal" };
   }
 }

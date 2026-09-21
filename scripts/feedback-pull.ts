@@ -33,8 +33,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { db } from "../lib/db";
-import { renderInbox } from "../lib/feedback-inbox";
-import { FEEDBACK_STATUSES } from "../lib/enums";
+import { renderInbox, toInboxNote } from "../lib/feedback-inbox";
 
 const DRY_RUN = process.argv.includes("--dry-run");
 const OUT_PATH = path.join(process.cwd(), "docs", "feedback", "inbox.md");
@@ -59,23 +58,7 @@ async function main() {
     },
   });
 
-  const notes = rows.map((row) => ({
-    id: row.id,
-    body: row.body,
-    route: row.route,
-    pageLabel: row.pageLabel,
-    tripName: row.tripName,
-    authorName: row.author.name ?? "Traveller",
-    viewport: row.viewport,
-    userAgent: row.userAgent,
-    status: (FEEDBACK_STATUSES as readonly string[]).includes(row.status)
-      ? (row.status as (typeof FEEDBACK_STATUSES)[number])
-      : ("OPEN" as const),
-    authoredAt: row.authoredAt,
-    createdAt: row.createdAt,
-    resolvedAt: row.resolvedAt,
-    resolution: row.resolution,
-  }));
+  const notes = rows.map(toInboxNote);
 
   const markdown = renderInbox(notes, new Date());
 

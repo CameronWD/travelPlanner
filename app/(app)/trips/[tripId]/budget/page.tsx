@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { Wallet, AlertTriangle } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { planScope } from "@/lib/plan-scope";
+import { planScope, firstSearchParam } from "@/lib/plan-scope";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -64,11 +64,11 @@ export default async function BudgetPage({
   searchParams,
 }: {
   params: Promise<{ tripId: string }>;
-  searchParams: Promise<{ plan?: string }>;
+  searchParams: Promise<{ plan?: string | string[] }>;
 }) {
   const { tripId } = await params;
   const { plan } = await searchParams;
-  const selectedForkId = plan ?? null;
+  const selectedForkId = firstSearchParam(plan);
   await requireTripAccess(tripId);
 
   // Validate the fork exists for this trip; fall back to real plan if not.
@@ -446,7 +446,11 @@ export default async function BudgetPage({
                             <span className="text-muted-foreground text-xs" title="% of cost">{pct}% cost</span>
                             <CostAmounts
                               costTotalMinor={cat.costTotalMinor}
-                              paidTotalMinor={cat.paidTotalMinor}
+                              // Aggregate: 0 genuinely means nothing paid, so keep the
+                              // placeholder rather than letting the component's zero
+                              // guard (which now only exists for a real per-item paid
+                              // amount) show $0.00 here (CP-17 / OPS-05).
+                              paidTotalMinor={cat.paidTotalMinor > 0 ? cat.paidTotalMinor : null}
                               currency={homeCurrency}
                             />
                           </div>
@@ -482,7 +486,7 @@ export default async function BudgetPage({
                       <span className="min-w-0 truncate text-sm font-medium">{stop.stopName}</span>
                       <CostAmounts
                         costTotalMinor={stop.costTotalMinor}
-                        paidTotalMinor={stop.paidTotalMinor}
+                        paidTotalMinor={stop.paidTotalMinor > 0 ? stop.paidTotalMinor : null}
                         currency={homeCurrency}
                       />
                     </div>
@@ -508,7 +512,7 @@ export default async function BudgetPage({
                       <ChapterChip name={row.chapterName} colour={row.colour} />
                       <CostAmounts
                         costTotalMinor={row.costTotalMinor}
-                        paidTotalMinor={row.paidTotalMinor}
+                        paidTotalMinor={row.paidTotalMinor > 0 ? row.paidTotalMinor : null}
                         currency={homeCurrency}
                       />
                     </div>
@@ -520,7 +524,11 @@ export default async function BudgetPage({
                       <span className="min-w-0 truncate text-sm text-muted-foreground">Ungrouped</span>
                       <CostAmounts
                         costTotalMinor={budget.chapterReconciliation.ungrouped.costTotalMinor}
-                        paidTotalMinor={budget.chapterReconciliation.ungrouped.paidTotalMinor}
+                        paidTotalMinor={
+                          budget.chapterReconciliation.ungrouped.paidTotalMinor > 0
+                            ? budget.chapterReconciliation.ungrouped.paidTotalMinor
+                            : null
+                        }
                         currency={homeCurrency}
                         className="text-muted-foreground"
                       />
@@ -532,7 +540,11 @@ export default async function BudgetPage({
                       <span className="min-w-0 truncate text-sm text-muted-foreground">Between legs</span>
                       <CostAmounts
                         costTotalMinor={budget.chapterReconciliation.betweenLegs.costTotalMinor}
-                        paidTotalMinor={budget.chapterReconciliation.betweenLegs.paidTotalMinor}
+                        paidTotalMinor={
+                          budget.chapterReconciliation.betweenLegs.paidTotalMinor > 0
+                            ? budget.chapterReconciliation.betweenLegs.paidTotalMinor
+                            : null
+                        }
                         currency={homeCurrency}
                         className="text-muted-foreground"
                       />
@@ -544,7 +556,11 @@ export default async function BudgetPage({
                       <span className="min-w-0 truncate text-sm text-muted-foreground">Other costs</span>
                       <CostAmounts
                         costTotalMinor={budget.chapterReconciliation.otherCosts.costTotalMinor}
-                        paidTotalMinor={budget.chapterReconciliation.otherCosts.paidTotalMinor}
+                        paidTotalMinor={
+                          budget.chapterReconciliation.otherCosts.paidTotalMinor > 0
+                            ? budget.chapterReconciliation.otherCosts.paidTotalMinor
+                            : null
+                        }
                         currency={homeCurrency}
                         className="text-muted-foreground"
                       />
@@ -573,7 +589,7 @@ export default async function BudgetPage({
                       </span>
                       <CostAmounts
                         costTotalMinor={day.costTotalMinor}
-                        paidTotalMinor={day.paidTotalMinor}
+                        paidTotalMinor={day.paidTotalMinor > 0 ? day.paidTotalMinor : null}
                         currency={homeCurrency}
                       />
                     </div>

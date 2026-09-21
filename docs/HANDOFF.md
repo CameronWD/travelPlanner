@@ -398,7 +398,7 @@ otherwise. `feedback:pull` is read-only: it only ever writes
 `feedback:resolve` is the only writer, and because of that env preference it
 normally writes **production**. It prints the target database host (host only —
 never the connection string or credentials) before it touches anything, and
-`--dry-run` looks the note up and reports what would change without writing:
+`--dry-run` looks the Feedback note up and reports what would change without writing:
 
 ```bash
 npm run feedback:resolve -- <id> --note "what you did" --dry-run

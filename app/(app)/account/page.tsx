@@ -31,6 +31,10 @@ export default async function AccountPage() {
     getDispatcherHealth(),
   ]);
 
+  // One instant for the whole page, computed on the server so the client
+  // components below cannot disagree with the server pass (CD-05).
+  const now = new Date();
+
   return (
     <div className="mx-auto max-w-2xl flex flex-col gap-3.5">
       <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">
@@ -45,10 +49,11 @@ export default async function AccountPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-5 pt-3 flex flex-col gap-4">
-          <DevicesPanel initial={devices} />
+          <DevicesPanel initial={devices} now={now} />
           <DispatcherHealth
             lastRunAt={dispatcherHealth.lastRunAt}
             stale={dispatcherHealth.stale}
+            now={now}
           />
         </CardContent>
       </Card>

@@ -17,6 +17,8 @@ import {
   GUIDE_UI_STRINGS,
   sectionsInGroup,
   guideTripHref,
+  guideLabelOnScreen,
+  guideLabelPositions,
 } from "./help-guide";
 import { primaryNav, moreNav } from "@/components/trip/trip-nav";
 
@@ -162,34 +164,134 @@ function collectSourceFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-describe("drift guard: quoted control labels", () => {
-  const files = UI_SOURCE_ROOTS.flatMap((root) =>
-    collectSourceFiles(path.join(process.cwd(), root)),
-  );
-  const sources = files.map((f) => ({
-    file: path.relative(process.cwd(), f),
-    text: decodeEntities(readFileSync(f, "utf8")),
-  }));
+// Hoisted to module scope so both the meta-guard ("drift guard: the list
+// itself") and the drift guard proper ("drift guard: quoted control labels")
+// scan the same real source tree exactly once.
+const sourceFiles = UI_SOURCE_ROOTS.flatMap((root) =>
+  collectSourceFiles(path.join(process.cwd(), root)),
+);
+const sources = sourceFiles.map((f) => ({
+  file: path.relative(process.cwd(), f),
+  text: decodeEntities(readFileSync(f, "utf8")),
+}));
 
+/** `label`, or its curly-apostrophe form, on screen in `text` as a whole phrase. */
+function passes(text: string, label: string): boolean {
+  const curly = label.replaceAll("'", "’");
+  return guideLabelOnScreen(text, label) || guideLabelOnScreen(text, curly);
+}
+
+/**
+ * True when `a` is genuinely redundant given `b`: every real source position
+ * where `a` occurs as a complete phrase is a position where `b` ALSO occurs
+ * as a complete phrase (starting at that same index). This is deliberately
+ * not "`b`'s list text contains `a`'s list text" — literal containment
+ * between two entries' strings does not mean one is redundant; only an
+ * actual, position-for-position source check does. If `a` has even one
+ * occurrence `b` does not also cover, `a` is not shadowed.
+ */
+function isShadowedBy(a: string, b: string, srcs: { text: string }[]): boolean {
+  const curlyA = a.replaceAll("'", "’");
+  const positionsOfA = srcs.flatMap((s) => [
+    ...guideLabelPositions(s.text, a).map((i) => ({ text: s.text, i })),
+    ...guideLabelPositions(s.text, curlyA).map((i) => ({ text: s.text, i })),
+  ]);
+  if (positionsOfA.length === 0) return false; // a has no real occurrence at all; that's the drift guard's job, not shadowing
+  const curlyB = b.replaceAll("'", "’");
+  return positionsOfA.every(
+    ({ text, i }) =>
+      guideLabelPositions(text, b).includes(i) || guideLabelPositions(text, curlyB).includes(i),
+  );
+}
+
+describe("guideLabelOnScreen", () => {
+  it("matches a label that ends at a quote", () => {
+    expect(guideLabelOnScreen('aria-label="Add transport"', "Add transport")).toBe(true);
+  });
+
+  it("matches a label that ends at a JSX tag", () => {
+    expect(guideLabelOnScreen("<span>Start time</span>", "Start time")).toBe(true);
+  });
+
+  it("matches a label that ends at sentence punctuation", () => {
+    expect(guideLabelOnScreen("nothing in this plan.", "in this plan")).toBe(true);
+  });
+
+  it("does NOT match a label that is only the head of a longer phrase", () => {
+    // The whole bug: "Booking reference" passed on the strength of
+    // "Booking reference / number", and "Editing variant" passed on the
+    // strength of the banner's interpolated string.
+    expect(guideLabelOnScreen('"Booking reference / number"', "Booking reference")).toBe(false);
+  });
+
+  it("does NOT match a label the source merely starts a word with", () => {
+    expect(guideLabelOnScreen("Add transported goods", "Add transport")).toBe(false);
+  });
+
+  it("matches the last of several occurrences when only that one terminates", () => {
+    expect(
+      guideLabelOnScreen('Booking reference / number and "Booking reference"', "Booking reference"),
+    ).toBe(true);
+  });
+
+  it("is false for a label that never appears", () => {
+    expect(guideLabelOnScreen("nothing here", "Add transport")).toBe(false);
+  });
+});
+
+describe("drift guard: the list itself", () => {
+  it("has no entry that is shadowed by another — every real occurrence that makes it pass also makes another entry pass at that spot", () => {
+    // Literal string containment ("b.includes(a)") is NOT the right test: an
+    // entry can be a substring of another entry's text while covering a
+    // completely different, independently-occurring control. Only a real
+    // position-for-position source check tells the two cases apart (HG-09
+    // fix-round-1: "Booking reference" was wrongly deleted on the strength of
+    // the wrong test — see the unit test below).
+    const shadowed = GUIDE_UI_STRINGS.filter((a) =>
+      GUIDE_UI_STRINGS.some((b) => b !== a && isShadowedBy(a, b, sources)),
+    );
+    expect(shadowed).toEqual([]);
+  });
+
+  it("does not flag 'Booking reference' as shadowed by 'Booking reference / number' — they are different controls in different dialogs", () => {
+    // item-form-dialog.tsx's Thing-to-Do/Accommodation field vs.
+    // transport-form-dialog.tsx's Transport field. "Booking reference" is a
+    // literal substring of "Booking reference / number" as text, but it has
+    // its own independent complete-phrase occurrence, so it must survive.
+    expect(isShadowedBy("Booking reference", "Booking reference / number", sources)).toBe(false);
+  });
+
+  it("flags an entry whose every real occurrence is also covered by another entry at the same spot", () => {
+    // A synthetic case where the connector terminates the shorter phrase
+    // (unlike a space, which continues it): every complete occurrence of
+    // "Head Phrase" here is also a complete occurrence of "Head Phrase(Extra)"
+    // starting at the same index, so it truly never catches anything on its
+    // own.
+    const fixture = [{ text: '<span label="Head Phrase(Extra)" />' }];
+    expect(isShadowedBy("Head Phrase", "Head Phrase(Extra)", fixture)).toBe(true);
+  });
+
+  it("does not flag an entry with no real occurrence at all as shadowed (that is the drift guard's job)", () => {
+    expect(isShadowedBy("Nonexistent Label", "Booking reference / number", sources)).toBe(false);
+  });
+});
+
+describe("drift guard: quoted control labels", () => {
   it("scans a real body of UI source", () => {
     // If the walk silently returned nothing, every assertion below would be
     // vacuous rather than failing.
-    expect(files.length).toBeGreaterThan(50);
+    expect(sourceFiles.length).toBeGreaterThan(50);
     expect(sources.some((s) => s.file.includes("stop-card.tsx"))).toBe(true);
     expect(sources.every((s) => !s.file.includes("help-guide"))).toBe(true);
   });
 
   it.each(GUIDE_UI_STRINGS)(
-    "the guide quotes %s, and it is still on screen",
+    "the guide quotes %s, and it is still on screen as a whole phrase",
     (label) => {
-      // Curly apostrophes render identically; accept either form.
-      const curly = label.replaceAll("'", "’");
-      const found = sources.some(
-        (s) => s.text.includes(label) || s.text.includes(curly),
-      );
+      const found = sources.some((s) => passes(s.text, label));
       expect(
         found,
-        `the guide quotes "${label}" but no file under components/ or app/ contains it — either the control was renamed, or the guide should stop quoting it`,
+        `the guide quotes "${label}" but no file under components/ or app/ contains it as a complete phrase — either the control was renamed, the guide is quoting only part of the real label, or the guide should stop quoting it`,
       ).toBe(true);
     },
   );

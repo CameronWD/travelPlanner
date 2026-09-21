@@ -7,7 +7,7 @@ import { requireTripAccess, requireForkAccess, assertForkingAllowed } from "@/li
 import { computeTripPhase } from "@/lib/trip-phase";
 import { buildForkPlan, MAX_FORKS } from "@/lib/fork-plan";
 import { recordActivity } from "@/server/actions/activity";
-import { todayISO } from "@/lib/dates";
+import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, type PlanId } from "@/lib/plan-scope";
 import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } from "@/lib/compare";
 
@@ -58,14 +58,31 @@ export async function createFork(
   // 2. Load trip for phase gate
   const trip = await db.trip.findUnique({
     where: { id: tripId },
-    select: { id: true, startDate: true, endDate: true },
+    select: {
+      id: true,
+      startDate: true,
+      endDate: true,
+      // The trip's own clock, for the phase gate below. Same shape and same
+      // filter as app/(app)/trips/[tripId]/layout.tsx, which decides whether
+      // the fork switcher is even shown — the two must agree on what "today"
+      // is or the control renders while the action refuses (AB-03).
+      stops: {
+        where: { forkId: null, arriveDate: { not: null } },
+        orderBy: { sortOrder: "asc" },
+        select: { timezone: true, arriveDate: true, departDate: true },
+      },
+    },
   });
   if (!trip) return { success: false, error: "Trip not found" };
 
   // 3. Phase gate — forking is only allowed before departure
   try {
     assertForkingAllowed(
-      computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today: todayISO() }),
+      computeTripPhase({
+        startDate: trip.startDate,
+        endDate: trip.endDate,
+        today: todayISOInZone(currentTripTimezone(trip.stops)),
+      }),
     );
   } catch (err) {
     return {
@@ -725,9 +742,20 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
   const tripId = fork.tripId;
 
   // 2. Phase gate
+  // Same clock the fork switcher uses (see createFork above, AB-03).
+  const gateStops = await db.stop.findMany({
+    where: { tripId, forkId: null, arriveDate: { not: null } },
+    orderBy: { sortOrder: "asc" },
+    select: { timezone: true, arriveDate: true, departDate: true },
+  });
+
   try {
     assertForkingAllowed(
-      computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today: todayISO() }),
+      computeTripPhase({
+        startDate: trip.startDate,
+        endDate: trip.endDate,
+        today: todayISOInZone(currentTripTimezone(gateStops)),
+      }),
     );
   } catch (err) {
     return {

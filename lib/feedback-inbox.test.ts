@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderInbox, type InboxNote } from "@/lib/feedback-inbox";
+import { renderInbox, toInboxNote, type InboxNote } from "@/lib/feedback-inbox";
 
 const generatedAt = new Date("2026-09-08T10:00:00.000Z");
 
@@ -173,5 +173,66 @@ describe("renderInbox", () => {
     expect(md).toContain("PENDING");
     expect(md).not.toContain("undefined");
     expect(md).toContain("unknown-status");
+  });
+});
+
+describe("toInboxNote", () => {
+  const row = {
+    id: "n1",
+    body: "Budget totals look wrong",
+    route: "/trips/t1/budget",
+    pageLabel: "Budget",
+    tripName: "Europe Summer 2026",
+    viewport: "390x844",
+    userAgent: "iPhone",
+    status: "OPEN",
+    authoredAt: new Date("2026-09-07T01:02:03.000Z"),
+    createdAt: new Date("2026-09-07T04:05:06.000Z"),
+    resolvedAt: null,
+    resolution: null,
+    author: { name: "Cam" },
+  };
+
+  it("carries every field across, unchanged", () => {
+    expect(toInboxNote(row)).toEqual({
+      id: "n1",
+      body: "Budget totals look wrong",
+      route: "/trips/t1/budget",
+      pageLabel: "Budget",
+      tripName: "Europe Summer 2026",
+      authorName: "Cam",
+      viewport: "390x844",
+      userAgent: "iPhone",
+      status: "OPEN",
+      authoredAt: new Date("2026-09-07T01:02:03.000Z"),
+      createdAt: new Date("2026-09-07T04:05:06.000Z"),
+      resolvedAt: null,
+      resolution: null,
+    });
+  });
+
+  it("falls back to 'Traveller' when the author has no name", () => {
+    expect(toInboxNote({ ...row, author: { name: null } }).authorName).toBe("Traveller");
+  });
+
+  it("keeps a recognised non-OPEN status", () => {
+    expect(toInboxNote({ ...row, status: "WONTFIX" }).status).toBe("WONTFIX");
+  });
+
+  it("falls back to OPEN for a status the app does not recognise", () => {
+    // A struck-through note with no badge explaining why is worse than an
+    // unfamiliar word, and the row's `status` is a plain string from the DB.
+    expect(toInboxNote({ ...row, status: "NONSENSE" }).status).toBe("OPEN");
+  });
+
+  it("preserves a resolution and its timestamp", () => {
+    const resolved = toInboxNote({
+      ...row,
+      status: "DONE",
+      resolvedAt: new Date("2026-09-09T00:00:00.000Z"),
+      resolution: "fixed in 1a2b3c4",
+    });
+    expect(resolved.resolvedAt).toEqual(new Date("2026-09-09T00:00:00.000Z"));
+    expect(resolved.resolution).toBe("fixed in 1a2b3c4");
   });
 });

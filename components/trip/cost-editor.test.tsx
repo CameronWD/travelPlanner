@@ -74,6 +74,7 @@ describe("CostEditor", () => {
         paidMinor: undefined,
         currency: "AUD",
       }),
+      undefined,
     );
   });
 
@@ -102,6 +103,7 @@ describe("CostEditor", () => {
         costMinor: 5000,
         paidMinor: 4875,
       }),
+      undefined,
     );
   });
 
@@ -229,6 +231,39 @@ describe("CostEditor", () => {
     expect(updateCost).toHaveBeenCalledWith(
       "cost-1",
       expect.objectContaining({ dueDate: "2026-11-20" }),
+    );
+  });
+
+  it("files a new cost on the active variant when forkId is supplied", async () => {
+    // AB-01: createCost's third argument is the Plan the cost belongs to.
+    // Without it, a cost added while a variant is active lands on the real
+    // plan, pointing at a fork-owned entity.
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} forkId="fork-9" />);
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.type(screen.getByLabelText("Cost amount"), "12.50");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(createCost).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 1250 }),
+      "fork-9",
+    );
+  });
+
+  it("files a new cost on the real plan when no forkId is supplied", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} />);
+
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.type(screen.getByLabelText("Cost amount"), "12.50");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    expect(createCost).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 1250 }),
+      undefined,
     );
   });
 

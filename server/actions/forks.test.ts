@@ -22,6 +22,8 @@ const {
   assertForkingAllowedMock,
   computeTripPhaseMock,
   todayISOMock,
+  todayISOInZoneMock,
+  currentTripTimezoneMock,
   recordActivityMock,
   revalidatePathMock,
   forkCountMock,
@@ -151,6 +153,8 @@ const {
     assertForkingAllowedMock: vi.fn(), // no-op by default (forking allowed)
     computeTripPhaseMock: vi.fn().mockReturnValue("planning"),
     todayISOMock: vi.fn().mockReturnValue("2026-07-01"),
+    todayISOInZoneMock: vi.fn().mockReturnValue("2026-07-01"),
+    currentTripTimezoneMock: vi.fn().mockReturnValue("Australia/Sydney"),
     recordActivityMock: vi.fn().mockResolvedValue(undefined),
     revalidatePathMock: vi.fn(),
     forkCountMock,
@@ -211,6 +215,11 @@ vi.mock("@/lib/dates", () => ({
   todayISO: todayISOMock,
 }));
 
+vi.mock("@/lib/tz", () => ({
+  todayISOInZone: todayISOInZoneMock,
+  currentTripTimezone: currentTripTimezoneMock,
+}));
+
 vi.mock("@/server/actions/activity", () => ({
   recordActivity: recordActivityMock,
 }));
@@ -250,6 +259,7 @@ function setupDefaultTrip() {
     id: "trip-1",
     startDate: "2026-10-01",
     endDate: "2026-10-14",
+    stops: [],
   });
 }
 
@@ -272,6 +282,8 @@ afterEach(() => {
   assertForkingAllowedMock.mockImplementation(() => undefined);
   computeTripPhaseMock.mockReturnValue("planning");
   todayISOMock.mockReturnValue("2026-07-01");
+  todayISOInZoneMock.mockReturnValue("2026-07-01");
+  currentTripTimezoneMock.mockReturnValue("Australia/Sydney");
   forkFindManyMock.mockResolvedValue([]);
   forkDeleteManyMock.mockResolvedValue({ count: 0 });
   chapterFindManyMock.mockResolvedValue([]);
@@ -563,11 +575,20 @@ describe("createFork", () => {
       expect(revalidatePathMock).toHaveBeenCalledWith("/trips/trip-1/compare");
     });
 
-    it("passes todayISO to computeTripPhase", async () => {
+    it("gates on the trip's own clock, not UTC — the switcher and the action agree", async () => {
+      // AB-03: layout.tsx decides whether to SHOW the switcher using
+      // todayISOInZone(currentTripTimezone(stops)). Gating the action on UTC
+      // opened a west-of-UTC window where the control rendered and the action
+      // refused.
+      todayISOInZoneMock.mockReturnValue("2026-06-30");
+      currentTripTimezoneMock.mockReturnValue("America/Los_Angeles");
+
       await createFork("trip-1", "Plan B");
 
+      expect(currentTripTimezoneMock).toHaveBeenCalled();
+      expect(todayISOInZoneMock).toHaveBeenCalledWith("America/Los_Angeles");
       expect(computeTripPhaseMock).toHaveBeenCalledWith(
-        expect.objectContaining({ today: "2026-07-01" }),
+        expect.objectContaining({ today: "2026-06-30" }),
       );
     });
   });
@@ -1359,6 +1380,18 @@ describe("promoteFork", () => {
       const result = await promoteFork("fork-9");
 
       expect(result).toEqual({ success: true });
+    });
+
+    it("promote gates on the trip's own clock, not UTC", async () => {
+      todayISOInZoneMock.mockReturnValue("2026-06-30");
+      currentTripTimezoneMock.mockReturnValue("America/Los_Angeles");
+
+      await promoteFork("fork-1");
+
+      expect(todayISOInZoneMock).toHaveBeenCalledWith("America/Los_Angeles");
+      expect(computeTripPhaseMock).toHaveBeenCalledWith(
+        expect.objectContaining({ today: "2026-06-30" }),
+      );
     });
   });
 

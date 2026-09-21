@@ -2,6 +2,7 @@ import { z } from "zod";
 import { categorySchema } from "@/lib/categories";
 import { safeWebHref } from "@/lib/url";
 import { CURRENCY_CODES } from "@/lib/currencies";
+import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
 
 /** YYYY-MM-DD regex */
 const isoDate = z
@@ -74,7 +75,7 @@ export const itemSchema = z
       .number()
       .int("Cost must be a whole number in minor units")
       .min(0, "Cost must be 0 or greater")
-      .max(2_147_483_647, "Amount is too large")
+      .max(MAX_AMOUNT_MINOR, "Amount is too large")
       .optional(),
 
     /** ISO 4217 currency code. Required when costMinor is set. */
@@ -92,16 +93,12 @@ export const itemSchema = z
       .number()
       .int("Paid amount must be a whole number in minor units")
       .min(0, "Paid amount must be 0 or greater")
-      .max(2_147_483_647, "Amount is too large")
+      .max(MAX_AMOUNT_MINOR, "Amount is too large")
       .nullable()
       .optional(),
 
     /** ISO date string for when the cost was paid. Optional. */
-    paidAt: z
-      .string()
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD")
-      .nullable()
-      .optional(),
+    paidAt: paidAtDateOnlySchema.nullable().optional(),
   })
   // Drop times when no date is set
   .transform((data) => {

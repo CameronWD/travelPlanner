@@ -622,4 +622,28 @@ describe("GET /api/cron/digest — slot dispatch", () => {
       expect.objectContaining({ zone: "Europe/Berlin" }),
     );
   });
+
+  it("keeps the first row's zone when two Devices share a lastSeenAt to the millisecond", async () => {
+    // The tie-break is `>`, strictly: on an exact tie the first row the scan
+    // returned keeps its spot. That is a deterministic pick, not a
+    // correct-by-clock one — an identical lastSeenAt gives no real signal —
+    // and it is only deterministic if nothing later re-elects. Both zones
+    // below are UTC+1 in December, so 19:00Z is 20:00 local for either: the
+    // dispatch happens whichever wins, and only the `zone` argument says which.
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    const tie = new Date("2026-12-01T18:00:00Z");
+    pushFindManyMock.mockResolvedValue([
+      { userId: "u1", timezone: "Europe/Berlin", lastSeenAt: tie },
+      { userId: "u1", timezone: "Europe/Paris", lastSeenAt: tie },
+    ]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+    dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false });
+
+    await GET(req({ secret: "right" }));
+
+    expect(dispatchDigestMock).toHaveBeenCalledTimes(1);
+    expect(dispatchDigestMock).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "u1", zone: "Europe/Berlin" }),
+    );
+  });
 });

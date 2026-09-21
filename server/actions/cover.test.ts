@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
  * Tests for cover storage server actions: setTripCover / removeTripCover.
@@ -152,6 +153,15 @@ describe("setTripCover", () => {
     expect(result.error).toBe("Upload failed — nothing was saved. Please try again.");
     expect(tripUpdateMock).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
+  });
+
+  it("is access-checked before the write", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
+
+    await setTripCover(makeFormData());
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
   });
 });
 

@@ -4,7 +4,9 @@ import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { isDispatcherStale } from "@/lib/cron-health";
 
-export interface DispatcherHealth {
+// Named ...Data so it does not collide with the DispatcherHealth *component*,
+// which app/(app)/account/page.tsx imports alongside it (CD-15).
+export interface DispatcherHealthData {
   lastRunAt: Date | null;
   stale: boolean;
 }
@@ -17,7 +19,7 @@ export interface DispatcherHealth {
  * making it operator-only means the symptom and its cause live on different
  * screens.
  */
-export async function getDispatcherHealth(): Promise<DispatcherHealth> {
+export async function getDispatcherHealth(): Promise<DispatcherHealthData> {
   await requireUser();
 
   // The write above (in app/api/cron/digest/route.ts) is deliberately

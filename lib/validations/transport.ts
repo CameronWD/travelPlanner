@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRANSPORT_MODES } from "@/lib/enums";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { WALL_TIME_RE } from "@/lib/wall-time";
+import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
 
 /**
  * A transport time as submitted. Two shapes survive parsing:
@@ -69,7 +70,7 @@ export const transportSchema = z.object({
     .number()
     .int("Cost must be a whole number in minor units")
     .min(0, "Cost must be 0 or greater")
-    .max(2_147_483_647, "Amount is too large")
+    .max(MAX_AMOUNT_MINOR, "Amount is too large")
     .optional(),
 
   /** ISO 4217 currency code. Required when costMinor is set. */
@@ -87,16 +88,12 @@ export const transportSchema = z.object({
     .number()
     .int("Paid amount must be a whole number in minor units")
     .min(0, "Paid amount must be 0 or greater")
-    .max(2_147_483_647, "Amount is too large")
+    .max(MAX_AMOUNT_MINOR, "Amount is too large")
     .nullable()
     .optional(),
 
   /** ISO date string for when the cost was paid. Optional. */
-  paidAt: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD")
-    .nullable()
-    .optional(),
+  paidAt: paidAtDateOnlySchema.nullable().optional(),
 })
   // A Cost cannot be paid without a paid amount (ADR 0037). == null (not
   // === undefined) because paidMinor is nullable, and this must catch both:

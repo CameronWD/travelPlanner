@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
  * Tests for the stops server actions.
@@ -540,6 +541,15 @@ describe("createStop", () => {
     expect(recordActivity).toHaveBeenCalledWith(
       expect.objectContaining({ verb: "CREATED", entityType: "STOP", entityLabel: "Rome" }),
     );
+  });
+  it("is access-checked before the write", async () => {
+    stopFindFirstMock.mockResolvedValue(null);
+    stopCreateMock.mockResolvedValue({ id: "stop-1" });
+
+    await createStop("trip-1", VALID_INPUT);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopCreateMock);
   });
 });
 

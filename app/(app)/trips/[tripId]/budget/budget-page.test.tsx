@@ -237,6 +237,25 @@ describe("BudgetPage plan scoping", () => {
     expect(screen.queryByTestId("variant-banner")).not.toBeInTheDocument();
     expect(screen.getByText("Mark off what you've paid")).toBeInTheDocument();
   });
+
+  it("resolves the fork from the first value of a repeated ?plan= param instead of throwing (AB-02)", async () => {
+    // Next.js hands a string[] at runtime for ?plan=a&plan=b, even though the
+    // page's searchParams type claims a single string. Passing that array
+    // straight to db.fork.findFirst's `id` filter throws and 500s the page;
+    // firstSearchParam must take the first entry before it gets there.
+    mockDb.fork.findFirst.mockResolvedValue({ id: "a", name: "Plus Switzerland" });
+
+    const jsx = await BudgetPage({
+      params: Promise.resolve({ tripId: "trip-1" }),
+      searchParams: Promise.resolve({ plan: ["a", "b"] }),
+    });
+    render(jsx);
+
+    expect(mockDb.fork.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "a", tripId: "trip-1" } }),
+    );
+    expect(screen.getByTestId("variant-banner")).toHaveTextContent("Plus Switzerland");
+  });
 });
 
 describe("BudgetPage 'No costs yet' empty state and Other-costs editor", () => {

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock, revalidatePathMock,
@@ -234,6 +235,15 @@ describe("createChapter", () => {
     chapterFindManyMock.mockResolvedValue([{ id: "x", startDate: "2026-07-15", endDate: "2026-07-20" }]);
     await createChapter("trip-1", VALID);
     expect(recordActivity).not.toHaveBeenCalled();
+  });
+  it("is access-checked before the write", async () => {
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCreateMock.mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
+
+    await createChapter("trip-1", VALID);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, chapterCreateMock);
   });
 });
 

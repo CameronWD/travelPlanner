@@ -60,6 +60,8 @@ interface TransportCardProps {
   currentUserId?: string;
   /** Attachments for this transport */
   attachments?: AttachmentView[];
+  /** The Plan this transport's costs belong to — `null`/absent is the real plan */
+  forkId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,6 +80,7 @@ export function TransportCard({
   notes,
   currentUserId,
   attachments,
+  forkId,
 }: TransportCardProps) {
   const meta = TRANSPORT_MODE_META[t.mode];
   const Icon = meta.icon;
@@ -219,6 +222,7 @@ export function TransportCard({
             costs={costs}
             homeCurrency={homeCurrency}
             defaultCurrency={homeCurrency}
+            forkId={forkId}
           />
         </div>
       )}

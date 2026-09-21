@@ -131,9 +131,29 @@ export async function flushQueue(
       outcome = "transient";
     }
     if (outcome === "transient") break;
-    removeFromQueue(note.clientKey);
-    if (outcome === "rejected") discarded.push(note);
-    else sent++;
+
+    // `write` returns what is ACTUALLY persisted: on a storage failure
+    // (quota, private mode) it silently returns the unchanged queue. The
+    // send already produced a final verdict at this point — the server
+    // accepted or refused the note, and a local storage failure changes
+    // neither — so an unpersisted removal must NOT gate the notes behind
+    // this one the way a genuinely `transient` failure does. Breaking here
+    // would strand every later note for as long as storage stays blocked
+    // (private-mode Safari, a permanently full quota), which is worse than
+    // the bug this guarded against: `sent` and `discarded` would both stay
+    // empty forever, so the caller's toast wouldn't even fire. What an
+    // unpersisted removal DOES mean is that this note's own fate can't be
+    // reported as final — announcing a discard that didn't actually happen
+    // locally would repeat every flush (FN-07) — so only record sent/
+    // discarded when the removal actually landed; keep going either way.
+    const after = removeFromQueue(note.clientKey);
+    const removed = !after.some((q) => q.clientKey === note.clientKey);
+
+    if (outcome === "rejected") {
+      if (removed) discarded.push(note);
+    } else if (removed) {
+      sent++;
+    }
   }
   return { sent, discarded, remaining: readQueue().length };
 }

@@ -1474,6 +1474,7 @@ export function ItineraryManager({
         notes={notesByTransportId?.get(t.id) ?? []}
         attachments={attachmentsByTransportId?.get(t.id) ?? []}
         currentUserId={currentUserId}
+        forkId={forkId ?? null}
       />
     );
   }
@@ -1590,6 +1591,7 @@ export function ItineraryManager({
                 notes={notesByAccommodationId?.get(acc.id) ?? []}
                 attachments={attachmentsByAccommodationId?.get(acc.id) ?? []}
                 currentUserId={currentUserId}
+                forkId={forkId ?? null}
               />
             ))}
           </div>

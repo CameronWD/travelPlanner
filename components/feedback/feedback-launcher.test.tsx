@@ -38,10 +38,7 @@ vi.mock("@/components/ui/use-toast", () => ({
   toast: toastMock,
 }));
 
-import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
-
-/** Mirrors the component's own DOCKED_FROM (not exported) for the stub's `media` field. */
-const DOCKED_FROM = "(min-width: 768px)";
+import { FeedbackLauncher, DOCKED_FROM } from "@/components/feedback/feedback-launcher";
 
 const existingNote = {
   id: "n1",
@@ -49,8 +46,8 @@ const existingNote = {
   route: "/trips/t1/budget",
   pageLabel: "Budget",
   tripName: "Europe Summer 2026",
-  authorId: "u2",
   authorName: "Partner",
+  canDelete: true,
   status: "OPEN" as const,
   authoredAt: "2026-09-07T00:00:00.000Z",
 };
@@ -69,14 +66,21 @@ const existingNote = {
  * stubbed MediaQueryList reports and fires a `change` event at every listener
  * the component registered, the same way a real MediaQueryList would.
  */
-function stubViewport(dockedFromMd: boolean) {
-  let matches = dockedFromMd;
+function makeMql(matches: boolean, media: string) {
   const listeners = new Set<(event: { matches: boolean }) => void>();
-  const mql = {
+  let current = matches;
+  return {
     get matches() {
-      return matches;
+      return current;
     },
-    media: DOCKED_FROM,
+    media,
+    // Same surface as test/setup.ts's default matchMedia stub (onchange,
+    // addListener/removeListener, dispatchEvent) — this replaces that stub in
+    // this file's beforeEach for every test, including the Radix sheet
+    // renders that never call stubViewport, so it must not be thinner.
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
     addEventListener: (
       event: string,
       cb: (event: { matches: boolean }) => void,
@@ -89,14 +93,9 @@ function stubViewport(dockedFromMd: boolean) {
     ) => {
       if (event === "change") listeners.delete(cb);
     },
-  };
-  vi.stubGlobal(
-    "matchMedia",
-    (() => mql) as unknown as typeof matchMedia,
-  );
-  return {
+    dispatchEvent: vi.fn(),
     setMatches(next: boolean) {
-      matches = next;
+      current = next;
       listeners.forEach((cb) => cb({ matches: next }));
     },
     /** How many `change` listeners are currently registered — proves cleanup ran. */
@@ -106,7 +105,28 @@ function stubViewport(dockedFromMd: boolean) {
   };
 }
 
+function stubViewport(dockedFromMd: boolean) {
+  const mql = makeMql(dockedFromMd, DOCKED_FROM);
+  const nonMatching = makeMql(false, "");
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => {
+      nonMatching.media = query;
+      // FP-11: honour the query. Stubbing `() => mql` regardless of what was
+      // asked meant a typo in DOCKED_FROM — or drift from sheet.tsx's `md:`
+      // classes — still passed every test.
+      return query === DOCKED_FROM ? mql : nonMatching;
+    }),
+  );
+  return mql;
+}
+
 beforeEach(() => {
+  // FP-10: feedback-launcher.tsx caches its MediaQueryList against the
+  // *current* window.matchMedia function reference. Installing a fresh stub
+  // every test invalidates that cache by construction, so a test that never
+  // calls stubViewport cannot inherit the previous test's media list.
+  vi.stubGlobal("matchMedia", vi.fn(() => makeMql(false, "")));
   window.localStorage.clear();
   pathnameMock.mockReturnValue("/trips/t1/plan");
   onlineMock.mockReturnValue(true);
@@ -119,8 +139,8 @@ beforeEach(() => {
       route: input.route,
       pageLabel: input.pageLabel,
       tripName: input.tripName,
-      authorId: "u1",
       authorName: "Cam",
+      canDelete: true,
       status: "OPEN",
       authoredAt: input.authoredAt,
     },
@@ -493,7 +513,7 @@ describe("FeedbackLauncher", () => {
       // panel is for writing, so opening it should put the cursor in the box.
       stubViewport(true);
       const user = userEvent.setup();
-      render(<FeedbackLauncher currentUserId="u2" />);
+      render(<FeedbackLauncher />);
 
       await user.click(screen.getByRole("button", { name: /leave feedback/i }));
       const box = await screen.findByPlaceholderText(/what's on your mind/i);
@@ -851,6 +871,66 @@ describe("FeedbackLauncher", () => {
     expect(screen.queryByText("OPEN")).toBeNull();
   });
 
+  it("deletes a note you wrote and drops it from the log", async () => {
+    // FN-11: the Delete button's rendering was covered; pressing it never was.
+    deleteMock.mockResolvedValue({ success: true });
+    const user = userEvent.setup();
+    render(<FeedbackLauncher />);
+
+    await user.click(screen.getByRole("button", { name: /feedback/i }));
+    expect(await screen.findByText("Budget totals look wrong")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: /delete "Budget totals look wrong"/i }),
+    );
+
+    expect(deleteMock).toHaveBeenCalledWith("n1");
+    await waitFor(() =>
+      expect(screen.queryByText("Budget totals look wrong")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("reads the docked breakpoint the sheet actually uses", () => {
+    // If DOCKED_FROM ever drifts from components/ui/sheet.tsx's `md:` classes
+    // (or from calendar-views.tsx's duplicated literal), this is the assertion
+    // that notices.
+    expect(DOCKED_FROM).toBe("(min-width: 768px)");
+  });
+
+  it("asks matchMedia for the exact query it was given, not a fixed answer", () => {
+    // FP-11: stubViewport used to hand back the same MediaQueryList for every
+    // query — `(() => mql)` — so a typo in DOCKED_FROM, or drift from
+    // sheet.tsx's `md:` classes, would still pass every test. This pair only
+    // passes once the query is actually honoured.
+    stubViewport(true);
+    expect(window.matchMedia(DOCKED_FROM).matches).toBe(true);
+    expect(window.matchMedia("(min-width: 9999px)").matches).toBe(false);
+  });
+
+  it("does not carry a cached media list between tests", async () => {
+    // The cache lives at module scope (cachedMatchMediaFn / cachedDockedMql)
+    // and is invalidated by comparing the *current* window.matchMedia
+    // reference against the one last cached. Only the real component reaches
+    // that comparison, via getDockedMql() — so render through it rather than
+    // calling window.matchMedia directly.
+    const user = userEvent.setup();
+    const firstMatchMedia = window.matchMedia as ReturnType<typeof vi.fn>;
+    const { unmount } = render(<FeedbackLauncher />);
+    await user.click(screen.getByRole("button", { name: /feedback/i }));
+    expect(firstMatchMedia).toHaveBeenCalledWith(DOCKED_FROM);
+    unmount();
+
+    stubViewport(true);
+    const secondMatchMedia = window.matchMedia as ReturnType<typeof vi.fn>;
+    render(<FeedbackLauncher />);
+    await user.click(screen.getByRole("button", { name: /feedback/i }));
+    // If the module-level cache had survived the swap to a new matchMedia
+    // function reference, this second call would never happen — the
+    // component would keep reading the first render's stale MediaQueryList.
+    expect(secondMatchMedia).toHaveBeenCalledWith(DOCKED_FROM);
+    expect(secondMatchMedia).not.toBe(firstMatchMedia);
+  });
+
   describe("the 4000-character cap", () => {
     it("stops the box accepting more than the server will", async () => {
       const user = userEvent.setup();
@@ -904,6 +984,22 @@ describe("FeedbackLauncher", () => {
 
       expect(await screen.findByText("3900/4000")).toBeInTheDocument();
     });
+
+    it("keeps the character counter mounted so the row does not jump", async () => {
+      // FN-09: journal-editor.tsx documents the opposite as deliberate —
+      // "always mounted, stable position". A counter that appears at COUNT_FROM
+      // shifts the Send button sideways mid-sentence.
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+      await user.click(screen.getByRole("button", { name: /feedback/i }));
+
+      const counter = screen.getByRole("status");
+      expect(counter).toBeInTheDocument();
+      expect(counter).toHaveTextContent("");
+
+      await user.type(screen.getByLabelText(/your feedback about teepee/i), "hello");
+      expect(screen.getByRole("status")).toBeInTheDocument();
+    });
   });
 
   it("tells the user when a queued note is rejected outright, and sends the one behind it", async () => {
@@ -955,5 +1051,31 @@ describe("FeedbackLauncher", () => {
     expect(String(options.description)).toContain(
       "The server will never take this",
     );
+  });
+
+  it("offers to put a discarded note's words back in the box", async () => {
+    // FN-08: the toast showed the first 120 characters of what the server
+    // refused and then dropped them on the floor. Losing what someone wrote
+    // must never be silent, and showing it is not the same as keeping it.
+    const queued = {
+      clientKey: "fk_x",
+      body: "A note the server will refuse",
+      route: "/trips/t1/plan",
+      pageLabel: "Plan editor",
+      tripId: "t1",
+      tripName: "Europe Summer 2026",
+      viewport: "390x844",
+      userAgent: "iPhone",
+      authoredAt: "2026-09-08T04:05:06.000Z",
+    };
+    window.localStorage.setItem("teepee.feedback.queue.v1", JSON.stringify([queued]));
+    createMock.mockResolvedValue({ success: false, errors: { body: ["too long"] } });
+
+    render(<FeedbackLauncher />);
+
+    await waitFor(() => expect(toastMock).toHaveBeenCalled());
+    const call = toastMock.mock.calls.at(-1)![0];
+    expect(call.description).toContain("A note the server will refuse");
+    expect(call.action).toBeDefined();
   });
 });

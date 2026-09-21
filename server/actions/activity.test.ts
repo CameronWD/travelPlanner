@@ -1,4 +1,5 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
+import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 /**
  * Tests for activity server actions.
@@ -176,6 +177,16 @@ describe("markAllRead", () => {
         }),
       }),
     );
+  });
+
+  it("is access-checked before the write", async () => {
+    // markAllRead's guard is requireUser (not requireTripAccess) — it scopes
+    // the update by tripId + the caller's own userId rather than checking
+    // trip membership, so requireUser is the guard whose ordering matters here.
+    await markAllRead(TRIP_ID);
+
+    expect(requireUserMock).toHaveBeenCalled();
+    expectAccessCheckedBeforeWrite(requireUserMock, tripMemberUpdateManyMock);
   });
 });
 

@@ -14,6 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { ToastAction } from "@/components/ui/toast";
 import { toast } from "@/components/ui/use-toast";
 import { useOnlineStatus } from "@/components/ui/use-online-status";
 import { cn } from "@/lib/cn";
@@ -72,7 +73,7 @@ const DELETE_FAILED = "Couldn't remove that feedback just yet.";
  * The breakpoint the docked panel changes shape at — it must stay in step with
  * the `docked` sheet variant's `md:` styles in components/ui/sheet.tsx.
  */
-const DOCKED_FROM = "(min-width: 768px)";
+export const DOCKED_FROM = "(min-width: 768px)";
 
 /** The server (and first client render, to match it) never has a viewport to ask about. */
 function getDockedServerSnapshot(): boolean {
@@ -189,6 +190,11 @@ const STATUS_LABEL: Partial<Record<FeedbackNoteView["status"], string>> = {
  * shows itself rather than vanishing — a struck-through note with no badge
  * explaining why is worse than an unfamiliar word (lib/feedback-inbox.ts does
  * the same). Returns both the label and variant so they cannot drift.
+ *
+ * FP-12: the `"success" | "muted"` union is hand-written on purpose rather
+ * than derived from `badgeVariants`. A narrow union is the better contract
+ * while the set is two — this note exists only so that if the variant set
+ * grows, whoever adds the third one knows the choice was made, not missed.
  */
 function badgeFor(
   status: FeedbackNoteView["status"],
@@ -239,15 +245,8 @@ function isQueued(queue: QueuedFeedbackNote[], clientKey: string): boolean {
  * them. Losing a written note is the
  * failure this whole feature exists to prevent, so an online send queues the
  * note *before* it goes out and only dequeues once the server confirms.
- *
- * `currentUserId` is optional because only the app shell knows who is signed
- * in; without it the panel is read-and-write but never offers to delete.
  */
-export function FeedbackLauncher({
-  currentUserId,
-}: {
-  currentUserId?: string;
-}) {
+export function FeedbackLauncher() {
   const pathname = usePathname();
   const online = useOnlineStatus();
   const trip = React.useSyncExternalStore(
@@ -330,14 +329,29 @@ export function FeedbackLauncher({
       return res.success ? "sent" : "rejected";
     });
     if (result.discarded.length > 0) {
+      const lost = result.discarded[0].body;
       toast({
         variant: "destructive",
         title: discardedMessage(result.discarded),
-        description: result.discarded[0].body.slice(0, 120),
+        description: lost.slice(0, 120),
+        // Showing what was refused is not the same as keeping it. Putting the
+        // words back in the box is the only version of this the writer can
+        // act on (FN-08).
+        action: (
+          <ToastAction
+            altText="Put the discarded feedback back in the box"
+            onClick={() => {
+              setBody(lost);
+              bodyRef.current?.focus();
+            }}
+          >
+            Restore
+          </ToastAction>
+        ),
       });
     }
     if (result.sent > 0 && open) await refresh();
-  }, [open, refresh]);
+  }, [open, refresh, setBody, bodyRef]);
 
   // Hydrate the queue after mount (localStorage does not exist on the server)
   // and drain it on mount and whenever the connection comes back.
@@ -561,6 +575,12 @@ export function FeedbackLauncher({
           real close ever sets it false. Preventing default during the swap
           leaves focus exactly where onOpenAutoFocus put it; leaving Radix's
           default alone on a real close is what returns focus to the trigger.
+
+          FP-09, recorded so this is not "simplified" later: `open` here is the
+          last COMMITTED value, not the one being transitioned to. Both corners
+          that produces were examined and are benign, and neither is reachable
+          from jsdom, so there is no test to write and no ref to reach for.
+          The shape is understood, not accidental.
         */
         onCloseAutoFocus={(event) => {
           if (open) event.preventDefault();
@@ -587,10 +607,7 @@ export function FeedbackLauncher({
                 <SentEntry
                   key={entry.note.id}
                   note={entry.note}
-                  canDelete={
-                    currentUserId !== undefined &&
-                    entry.note.authorId === currentUserId
-                  }
+                  canDelete={entry.note.canDelete}
                   onDelete={handleDelete}
                 />
               ) : (
@@ -616,20 +633,25 @@ export function FeedbackLauncher({
             maxLength={BODY_MAX}
           />
           <div className="flex items-center gap-2">
-            {body.length >= COUNT_FROM ? (
-              <p
-                role="status"
-                aria-live="polite"
-                className={cn(
-                  "text-xs",
-                  body.length >= BODY_MAX
-                    ? "font-medium text-destructive"
-                    : "text-muted-foreground",
-                )}
-              >
-                {body.length}/{BODY_MAX}
-              </p>
-            ) : null}
+            {/*
+              Always mounted, stable position — same reasoning as
+              components/trip/journal-editor.tsx:227-230. Mounting it at
+              COUNT_FROM moved the Send button sideways mid-sentence, and an
+              aria-live region that appears is announced as new content rather
+              than as an update (FN-09).
+            */}
+            <p
+              role="status"
+              aria-live="polite"
+              className={cn(
+                "text-xs",
+                body.length >= BODY_MAX
+                  ? "font-medium text-destructive"
+                  : "text-muted-foreground",
+              )}
+            >
+              {body.length >= COUNT_FROM ? `${body.length}/${BODY_MAX}` : ""}
+            </p>
             <Button
               type="button"
               size="sm"

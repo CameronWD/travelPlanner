@@ -6,6 +6,15 @@ import { formatLastRun } from "@/lib/cron-health";
 export interface DispatcherHealthProps {
   lastRunAt: Date | null;
   stale: boolean;
+  /**
+   * The server's instant, passed down rather than read here. This component
+   * is `"use client"` so the FORMATTING runs in the reader's timezone (see
+   * the note below) — but a `new Date()` in the render body also makes the
+   * clock differ between the server pass and hydration, which is a text
+   * mismatch, guaranteed on the stale branch (CD-05). Only the clock moves
+   * to the server; the formatting stays here.
+   */
+  now: Date;
 }
 
 /**
@@ -38,8 +47,7 @@ export interface DispatcherHealthProps {
  * silence as normal, so this is the one place that has to contradict that
  * training instead of reinforcing it.
  */
-export function DispatcherHealth({ lastRunAt, stale }: DispatcherHealthProps) {
-  const now = new Date();
+export function DispatcherHealth({ lastRunAt, stale, now }: DispatcherHealthProps) {
   return (
     <div className="flex flex-col gap-1.5">
       <p

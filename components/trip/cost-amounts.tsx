@@ -12,7 +12,12 @@ export function CostAmounts({
   className,
 }: {
   costTotalMinor: number;
-  paidTotalMinor: number;
+  /**
+   * Minor units paid, or `null` when nothing has been paid. Zero is a real
+   * paid amount — a comped night, an award fare — and must read as money, not
+   * as the placeholder (CP-17).
+   */
+  paidTotalMinor: number | null;
   currency: string;
   className?: string;
 }) {
@@ -30,12 +35,12 @@ export function CostAmounts({
         aria-label="Paid"
         className={
           "text-right whitespace-nowrap" +
-          (paidTotalMinor > 0
+          (paidTotalMinor !== null
             ? " text-emerald-600 dark:text-emerald-400"
             : " text-muted-foreground")
         }
       >
-        {paidTotalMinor > 0 ? formatMoney(paidTotalMinor, currency) : "—"}
+        {paidTotalMinor !== null ? formatMoney(paidTotalMinor, currency) : "—"}
       </span>
     </div>
   );

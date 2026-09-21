@@ -5,6 +5,7 @@ import {
   isPlanPlacement,
   PLAN_PLACEMENT_WHERE,
   WISHLIST_IDEA_WHERE,
+  firstSearchParam,
 } from "./plan-scope";
 
 describe("planScope", () => {
@@ -49,5 +50,30 @@ describe("PLAN_PLACEMENT_WHERE / WISHLIST_IDEA_WHERE fragments", () => {
 
   it("WISHLIST_IDEA_WHERE matches only the both-null idea", () => {
     expect(WISHLIST_IDEA_WHERE).toEqual({ stopId: null, date: null });
+  });
+});
+
+describe("firstSearchParam", () => {
+  it("passes a single string through unchanged", () => {
+    expect(firstSearchParam("fork-1")).toBe("fork-1");
+  });
+
+  it("takes the first entry of a repeated param", () => {
+    // Next.js hands a string[] at runtime for ?plan=a&plan=b, even though the
+    // page's searchParams type claims `string`. Handing that array to
+    // db.fork.findFirst({ where: { id } }) 500s the page (AB-02).
+    expect(firstSearchParam(["fork-1", "fork-2"])).toBe("fork-1");
+  });
+
+  it("is null for an absent param", () => {
+    expect(firstSearchParam(undefined)).toBeNull();
+  });
+
+  it("is null for an empty repeated param", () => {
+    expect(firstSearchParam([])).toBeNull();
+  });
+
+  it("is null for an empty string, which is not a fork id", () => {
+    expect(firstSearchParam("")).toBeNull();
   });
 });
