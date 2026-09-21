@@ -3,7 +3,9 @@
 The single live backlog of engineering work TEEPEE still owes. Compiled
 **2026-09-20** on branch `chore/follow-ups-triage-and-sweep` from the seven
 follow-up documents in `docs/follow-ups/` plus the operational debt
-`docs/things-to-fix.md` still had outstanding.
+`docs/things-to-fix.md` still had outstanding. **Drained 2026-09-21** on the
+same branch: 39 of the 42 then-open items were fixed and struck, and 3 new ones
+found while fixing them were added. Six items are open.
 
 **Read this instead of the seven source docs.** Those docs accumulated from
 2026-08-12 onward with no drain mechanism: later branches fixed items
@@ -20,22 +22,60 @@ not its replacement.
 
 ## Trust statement — how much of this you can believe
 
-Eight agents re-verified all **127 items** against current `main`, each against
-the source doc it owned. A ninth agent, which had performed none of that work,
-independently re-derived every `DONE` verdict from the code or the cited commit
-rather than trusting the evidence string.
+At the 2026-09-20 compile, eight agents re-verified all **127 items** then known
+against `main`, each against the source doc it owned. A ninth agent, which had
+performed none of that work, independently re-derived every `DONE` verdict from
+the code or the cited commit rather than trusting the evidence string. (The
+total is 130 today; the three added since are `SW-01`–`SW-03`, found by the
+2026-09-21 sweep and evidenced against the code at the time they were written.)
 
 | Verdict | Count | Where it lives in this doc |
 |---|---|---|
-| Already fixed — struck | 44 | *Struck* register (no action) |
-| Live — still open | 42 | *Open items* |
+| Already fixed — struck | 83 | *Struck* register (no action) |
+| Live — still open | 6 | *Open items* |
 | Needs a decision | 5 | *Needs a decision* (do not build) |
 | Blocked on a deploy, device, or browser | 12 | *Blocked* |
 | Settled — declined deliberately | 24 | *Settled — do not re-raise* |
-| **Total** | **127** | |
+| **Total** | **130** | |
 
-Of the 44 `DONE` calls: **40 were independently re-verified and 0 were
-flipped.** The remaining 4 (`OPS-01`, `OPS-03`, `OPS-06`, `OPS-07`) rest on a
+**Updated 2026-09-21.** The sweep on branch `chore/follow-ups-triage-and-sweep`
+closed **39** of the 42 items that were open on 2026-09-20 and moved them to the
+*Struck* register. Of the three that remain, one (`FP-07`) is **parked on an
+operator decision** and two (`FN-05`, `CD-16`) were **never planned**, each
+blocked by something the sweep was not allowed to do; all three are annotated in
+place with why. The sweep also **found three new items** (`SW-01`, `SW-02`,
+`SW-03`) that appear in no source doc, which is why the total is now 130 rather
+than 127.
+
+> ### ⚠ What this document is reliable about, and what it is not
+>
+> **The 2026-09-20 triage verified, for every item, *whether* it was still
+> live. It did not re-derive each item's true blast radius.** Each entry's
+> evidence and `file:line` citations were inherited from its source doc and
+> confirmed to still show the defect — but nobody re-searched the tree for
+> *other* sites with the same defect.
+>
+> The sweep proved this matters. **Three of the 39 items it closed turned out to
+> touch more of the codebase than their entry said**, and each was discovered
+> only by the agent that sat down to fix it:
+>
+> | Item | Entry said | Actually |
+> |---|---|---|
+> | `AB-02` | two pages | **three** — the Wishlist page had it too |
+> | `CD-10` | one `console.error` site dropping `slot` | **two** |
+> | `HG-02` / `HG-10` | two cards | **three** — `accommodation-card.tsx` too |
+>
+> Three undercounts in 39 items is not a rounding error, and there is no reason
+> to think the remaining entries were sampled differently.
+>
+> **So: trust an entry's verdict, do not trust its scope line.** When you pick
+> up an item, re-derive the blast radius yourself before you plan the fix —
+> grep the tree for the pattern rather than fixing only the `file:line`s listed.
+> Widen the task when you find more, as the sweep did, instead of shipping a
+> partial fix against a stale count.
+
+Of the 44 `DONE` calls made in the original 2026-09-20 triage: **40 were
+independently re-verified and 0 were flipped.** The remaining 4 (`OPS-01`, `OPS-03`, `OPS-06`, `OPS-07`) rest on a
 read-only production query the auditor could not repeat, because connecting to
 a database is forbidden in this workflow. They were not flipped merely for being
 unrepeatable, and each is annotated as such where it appears. Repo-side
@@ -68,12 +108,13 @@ scratch report was one short of its own entries); no item's verdict changed.
 7. **Read the *Settled* section before proposing anything.** Several entries
    there are instructions *not* to make a change that looks like an improvement.
 
-### Two process lessons, carried forward
+### Three process lessons, carried forward
 
-Both come from `docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md`
-(items `CD-17` and `CD-18` in the triage). Neither is a backlog item — they are
-plan-authoring guidance, and they belong in the next plan you write, not in the
-list below.
+The first two come from
+`docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md` (items
+`CD-17` and `CD-18` in the triage); the third was learned the hard way during
+the 2026-09-21 sweep. None is a backlog item — they are plan-authoring guidance,
+and they belong in the next plan you write, not in the list below.
 
 - **A parameter can be born dead across task boundaries.** A plan once
   specified `timezone` on a server action and on the `POST` schema it backs, but
@@ -87,6 +128,39 @@ list below.
   together. When two phases in one plan touch the same column or field, say so
   in the plan, so the second phase's reviewer is told to look for interaction
   bugs, not just regressions in its own code.
+- **`npm test` and `npm run lint` do not typecheck — make `npx tsc --noEmit` a
+  per-task gate.** The 2026-09-21 sweep's Global Constraints mandated test+lint
+  after every task and deferred `npm run build` to the final task. Task 19
+  (`6eb8fba`) introduced two `TS2741` errors in `item-card.test.tsx` (a required
+  prop left off two renders). Vitest does not typecheck, ESLint does not
+  typecheck, and the task's own review ran neither — so the branch carried a
+  red typecheck through **four subsequent tasks** before anyone ran a build.
+  A plan that defers `npm run build` to the end must still make
+  `npx tsc --noEmit` part of every task's gate, not just the last one.
+
+### Deferred minors from the 2026-09-21 sweep
+
+Found by task reviews, judged too small to hold a task open, recorded here so
+they are not lost. None is a defect in shipped behaviour; all four are
+test-or-comment honesty. Fold them into whatever next touches the file.
+
+- **`server/actions/forks.test.ts:588`** asserts
+  `expect(currentTripTimezoneMock).toHaveBeenCalled()` rather than
+  `toHaveBeenCalledWith(stops)` — so the query wiring `AB-03` exists to fix is
+  not actually pinned, and the `promoteFork` block around `:1391` makes no
+  `currentTripTimezone` assertion at all. One-line upgrade in each.
+- **`lib/cron-health.test.ts:54`** — the comment names `Math.max(0, …)`'s
+  ran-backwards-clock guard, but every fixture in the file is at or before
+  `now`, so only the `diff === 0` case is exercised. Either add a
+  future-`lastRunAt` case or reword the comment to claim only what it covers.
+- **`app/globals.css:236-238`** — the comment says `tp-fade-in` stays at 150ms
+  "for dialogs and popovers". Only `components/ui/dialog.tsx:21` uses it;
+  popovers never did (they use `tp-pop-in`/`tp-pop-out`). Drop the word.
+- **Sweep task 10's skip-justification for the `FOR UPDATE` entry points**
+  (`moveStop` and friends, left out of the `expectAccessCheckedBeforeWrite`
+  rollout) is correct, but it was proved by a reviewer's probe and never
+  written down in the repo. If a later sweep picks up those entry points, it
+  will have to re-derive it. Worth a comment next to the rollout.
 
 ### Priority key
 
@@ -109,146 +183,25 @@ naming, doc drift.
 | `RM-` | `docs/follow-ups/2026-09-17-reminders-follow-ups.md` |
 | `CD-` | `docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md` |
 | `OPS-` | operational debt owed by `docs/things-to-fix.md` |
+| `SW-` | **no source doc** — found during the 2026-09-21 sweep itself |
+
+`SW-` is the one prefix with nothing to follow the citation back to. Those
+entries are self-contained: the evidence in them is all the evidence there is.
 
 ---
-
 # Open items
 
-42 items, every one re-verified against current `main` on 2026-09-20 by reading
-the cited code. Each carries the `file:line` that still shows the defect.
+**6 items.** Three are survivors of the 2026-09-21 sweep on branch
+`chore/follow-ups-triage-and-sweep` — one parked on a decision, two never
+planned — and three were found *by* that sweep and appear here for the first
+time. The other **39** items that stood in this section on 2026-09-20 were fixed
+and moved to the *Struck* register below, each with its commit.
 
-## P0
-
-### HG-12 · `duplicateTrip` checks membership but never role — any Traveller can mint themselves a fully-owned copy of the trip
-
-- **Source:** `HG` (`docs/follow-ups/2026-09-15-help-guide-audit.md:665`, "Parked")
-- **ESCALATED:** yes. Filed in a *Parked* section, but it is an authorization
-  gap, not polish — settled calls stay settled except for security,
-  authorization, data-loss, or data-corruption issues, and this is the first of
-  those. It leads this document.
-- **Evidence:** `server/actions/trips.ts:310-314` — `duplicateTrip` opens with
-  `const { user } = await requireTripAccess(sourceTripId);`.
-  `requireTripAccess` (`lib/guards.ts:57-68`) only confirms **membership**
-  (`notFound()` if `!membership`); it returns `{ user, membership }` but
-  `duplicateTrip` destructures only `user` and never reads `membership.role`.
-  The body was read in full (lines 310-416) — there is no equivalent check
-  anywhere in it.
-- **Why it is real:** the only thing making Duplicate owner-only today is a
-  *rendering* gate. `app/(app)/trips/[tripId]/settings/page.tsx:33-34,219-229`
-  computes `canManageTrip = isOwner || isAdminEmail(user.email)` and wraps
-  `<DuplicateTripDialog>` in `{canManageTrip && (...)}`. The server action is
-  directly callable regardless. Any authenticated member of a trip can invoke it
-  and create a full copy — chapters, stops, items, transports, checklist items
-  and all member rows — with themselves as the new trip's owner.
-- **Against the app's own stated model:** ADR 0045
-  (`docs/adr/0045-admin-delete-scoped-to-membership.md`) documents that Duplicate
-  and Delete are both intended to be owner-or-admin gated ("The same check gates
-  the Danger zone card on the Trip settings page, which carries Duplicate as well
-  as Delete"). So this is an omission against a decided model, not an unmade
-  decision.
-- **Fix:** add the guard `deleteTrip` already uses in the same file
-  (`server/actions/trips.ts:257-259`,
-  `membership.role !== "owner" && !isAdminEmail(user.email)`) to `duplicateTrip`,
-  before it reads `source`.
-- **Not fixed since:** `git log` on `server/actions/trips.ts` shows the most
-  recent touch is `c298da0`, which added the `isAdminEmail` bypass to
-  `deleteTrip` only; `duplicateTrip`'s body is unchanged since `b967ece`.
-- **Category:** mechanical · **Effort:** S
-
-## P1
-
-### AB-01 · `forkId` is never threaded through the standalone `CostEditor`, so a cost added on a fork lands on the real plan
-
-- **Source:** `AB` (Worth doing soon, bullet 1)
-- **Evidence:** `components/trip/cost-editor.tsx` — `CostEditorProps` has no
-  `forkId` field (only `tripId`, `ownerType`, `ownerId`, `costs`,
-  `homeCurrency`, `defaultCurrency`), and the create call at line 282 is
-  `createCost(tripId, input)` with no third argument.
-  `server/actions/costs.ts:117-120` shows `createCost(tripId, data, forkId?: PlanId)`
-  does accept a fork id and stores it (`forkId: forkId ?? null`, line 162) — the
-  server-side plumbing exists, nothing supplies it.
-- **Call sites:** `components/trip/accommodation-card.tsx:173`,
-  `components/trip/item-card.tsx:242`, `components/trip/transport-card.tsx:215`
-  all render `CostEditor` without a `forkId`, even though
-  `app/(app)/trips/[tripId]/plan/page.tsx:46,384` already computes
-  `activeForkId` and threads it into the `ItineraryManager` that renders those
-  cards.
-- **Not covered by the earlier fix:** `docs/things-to-fix.md` P1-2 (Budget page
-  fork-awareness, `**Status: FIXED**`, `5f51406`+`dec4efb`) scoped the Budget
-  page's queries and the `OtherCostEditor` mitigation only.
-- **Symptom:** adding a cost via the per-entity `CostEditor` on a fork-active
-  Plan page files the cost on the real plan with an `ownerId` pointing at a
-  fork-owned entity.
-- **Category:** mechanical · **Effort:** S
-
-### OPS-08 · `docs/DEPLOY.md` §4b warns only about renames breaking reads — it does not name the write-path hazard that actually occurred
-
-- **Source:** `OPS` (carried forward from `CP`'s "Not verifiable without a
-  database" note, which `docs/things-to-fix.md` P0-3 turned into a procedure)
-- **Evidence:** `vercel.json:4` —
-  `"buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then prisma migrate deploy; fi && next build"`
-  — one build step runs the migration and the build back-to-back with no gate
-  between them, so a migration is live against the *old* build for the length of
-  the build. That pipeline shape is an accepted tradeoff of Vercel's Hobby tier,
-  documented not accidental; there is no code fix here.
-- **What is owed:** `docs/DEPLOY.md:74` §4b is titled and scoped around column
-  *renames* breaking *reads*. Two other SQL shapes produce the same gap on
-  *writes*: **adding a NOT NULL column with no default**, and **dropping a unique
-  constraint that an older client's `upsert` needs as its `ON CONFLICT` target**.
-  The `share_links_per_audience` migration was an actual instance of both — see
-  the worked example in *Blocked → Migration history* below.
-- **Fix:** widen §4b's scope, or add a sibling section, naming those two
-  patterns explicitly with `share_links_per_audience` as the worked example, so
-  the next person writing a migration checks their SQL against the write-path
-  failure mode as well as the read-path one.
-- **Category:** docs · **Effort:** S
+Each entry still carries the `file:line` that shows the defect. For the three
+carried over, that citation was last checked on 2026-09-20; for the three new
+ones, on 2026-09-21.
 
 ## P2
-
-### AB-02 · `?plan=a&plan=b` (a repeated query param) 500s the Plan and Budget pages
-
-- **Source:** `AB` (Worth doing soon, bullet 2)
-- **Evidence:** `app/(app)/trips/[tripId]/plan/page.tsx:34-46` and
-  `app/(app)/trips/[tripId]/budget/page.tsx:67-76` both do
-  `const { plan } = await searchParams; const selectedForkId = plan ?? null;`
-  then hand `selectedForkId` straight to `db.fork.findFirst({ where: { id: selectedForkId, tripId } })`.
-  `grep -n 'Array.isArray'` returns nothing in either file. The TS signature
-  `searchParams: Promise<{ plan?: string }>` is a compile-time claim only —
-  Next.js hands a `string[]` at runtime for a repeated param.
-- **Fix:** normalise with `Array.isArray(plan) ? plan[0] : plan` in both files.
-- **Scope note:** auth-guarded first (`requireTripAccess` runs before the
-  query), so this is a crafted-URL edge case, not a normal user path.
-- **Category:** mechanical · **Effort:** S
-
-### AB-03 · `assertForkingAllowed` gates on UTC `todayISO()` while the fork switcher is zone-aware
-
-- **Source:** `AB` (Worth doing soon, bullet 3)
-- **Evidence:** `server/actions/forks.ts:67-68,729-730` — both
-  `assertForkingAllowed` call sites compute phase with `today: todayISO()`
-  (UTC calendar day, from `@/lib/dates`).
-  `app/(app)/trips/[tripId]/layout.tsx:5,81,89` computes `showForkSwitcher` from
-  `todayISOInZone(currentTripTimezone(trip.stops))`. The two disagree on what
-  "today" is.
-- **Symptom:** a narrow west-of-UTC window where the switcher renders but
-  create/promote cleanly rejects. Fails closed, so not a correctness regression
-   — but the drift is real.
-- **Category:** mechanical · **Effort:** S
-
-### AB-04 · Three inline `paidAt` schemas skip `isRealCalendarDate` and hardcode the amount cap
-
-- **Source:** `AB` (Worth doing soon, bullet 4)
-- **Evidence:** `lib/validations/transport.ts:95-98`,
-  `lib/validations/item.ts:100-103`, `lib/validations/accommodation.ts:71-74`
-  all define `paidAt` with only `.regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD")`
-  — no `isRealCalendarDate` refine (that helper lives at
-  `lib/validations/cost.ts:21` and is used only there). The same three files
-  hardcode `.max(2_147_483_647, "Amount is too large")` at `transport.ts:72,90`,
-  `item.ts:77,95`, `accommodation.ts:48,66` instead of importing
-  `MAX_AMOUNT_MINOR` from `lib/validations/cost.ts:10`.
-- **Symptom:** `"2026-02-30"` still passes the shape check and silently rolls
-  forward.
-- **Scope note:** reachable only by hand-crafted action payloads.
-- **Category:** mechanical · **Effort:** S
 
 ### FN-05 · A Feedback note does not survive its author
 
@@ -260,220 +213,38 @@ the cited code. Each carries the `file:line` that still shows the defect.
   — snapshot `authorName` at write time, and either drop the cascade or make
   `authorId` nullable with `onDelete: SetNull`. Needs a migration; read
   `docs/DEPLOY.md` §4b and `OPS-08` first.
+- **Not swept 2026-09-21:** the fix needs a schema change and therefore a
+  migration, which the sweep was forbidden from adding. There is no partial
+  version that leaves the tree coherent — a `schema.prisma` change without its
+  migration produces a generated client expecting columns production does not
+  have. **Needs the operator's go-ahead on migration 27 first**, then its own
+  plan. Read `docs/DEPLOY.md` §4b, including the write-path section the sweep
+  added, before writing that plan.
 - **Category:** mechanical · **Effort:** M
 
-### FN-07 · A failed `removeFromQueue` write leaves a "discarded" Feedback note re-appearing forever
+### SW-01 · A Feedback note can show as both Pending and Sent when storage is blocked
 
-- **Source:** `FN` (`:49-51`)
-- **Evidence:** `lib/feedback-queue.ts:61-67` — `write()` catches a
-  `localStorage.setItem` failure (quota, private mode) and silently returns
-  `readQueue()`, i.e. the write did not happen, with no signal to the caller.
-  `lib/feedback-queue.ts:134` — `flushQueue` calls
-  `removeFromQueue(note.clientKey)` and ignores its return value entirely;
-  line 135 unconditionally pushes to `discarded` on a `rejected` outcome
-  regardless of whether the removal persisted.
-- **Symptom:** with storage full or blocked, the note stays queued, so the next
-  flush attempts it, discards it, and shows the "discarded" toast again — every
-  time, forever.
-- **Fix:** have `flushQueue` check that the queue `removeFromQueue` returns
-  genuinely lacks the `clientKey` before trusting the discard, or have
-  `write`/`removeFromQueue` report failure explicitly.
+- **Source:** none — found during the 2026-09-21 sweep, while fixing `FN-07`.
+  No source doc records it.
+- **Evidence:** `components/feedback/feedback-launcher.tsx:445-446` —
+  `setPending(removeFromQueue(note.clientKey)); setSent((prev) => [...prev, result.note]);`.
+  `setSent` is pushed unconditionally on a successful send. But
+  `removeFromQueue` goes through `lib/feedback-queue.ts`'s `write()`, which
+  swallows a `localStorage.setItem` failure (quota, private mode) and returns the
+  *unchanged* queue — so `setPending` is handed a queue that still contains the
+  note while `setSent` adds the same note to the sent list.
+- **Symptom:** under blocked or full storage, one Feedback note renders in both
+  the Pending and the Sent list, and stays there until the panel is remounted.
+- **Same class as `FN-07`, one layer up.** `FN-07` fixed the queue module's own
+  flush loop (`a96e537`); this is the component doing the identical
+  trust-the-write mistake in its own send path. The fix shape is the same: check
+  the returned queue genuinely lacks the `clientKey` before treating the removal
+  as real.
+- **Why it was not fixed in the sweep:** observed by task 7's reviewer and
+  recorded as explicitly out of that task's scope rather than widened mid-task.
 - **Category:** mechanical · **Effort:** S
-
-### FN-11 · The in-app Feedback-note delete path is still untested
-
-- **Source:** `FN` (`:62-63`)
-- **Evidence:** half of this item has since closed —
-  `components/feedback/feedback-launcher.test.tsx:811-829` now covers the
-  DONE/WONTFIX de-emphasis. The delete path has not: `deleteMock` (aliased to
-  `deleteFeedbackNote`) is imported at line 24 and never invoked or asserted
-  anywhere in the file. Existing tests only assert the Delete button *renders*
-  when `canDelete` (e.g. line 500). `server/actions/feedback.test.ts:165-192`
-  still covers only the server-action layer.
-- **Scope for the fix:** narrowly, "click Delete → `deleteFeedbackNote` called,
-  note removed from the list."
-- **Category:** test-coverage · **Effort:** S
-
-### HG-09 · `GUIDE_UI_STRINGS` is a substring guard, and it has already let a real misquote through
-
-- **Source:** `HG` (`docs/follow-ups/2026-09-15-help-guide-audit.md:648`, "Parked")
-- **Evidence:** `lib/help-guide.test.ts:182-188` — the guard is
-  `it.each(GUIDE_UI_STRINGS)(...)` checking
-  `sources.some((s) => s.text.includes(label) || s.text.includes(curly))`, a
-  substring test. `lib/help-guide.ts:205-230` lists `GUIDE_UI_STRINGS` including
-  `"Booking reference"`, itself a substring of the longer live string
-  `"Booking reference / number"` also in the same list — so those entries are
-  unfailable by construction.
-- **Demonstrated miss, not a theoretical gap:** per the source doc's own "Note
-  on the drift guard" (lines 621-627), correction C6 passed this guard while the
-  guide misquoted the banner, because `"Editing variant"` passed as a substring
-  of the true label.
-- **Judged out of its parked bucket** on that demonstrated miss — a coverage
-  gap that has already failed to catch a shipped defect is not polish.
-- **Category:** test-coverage · **Effort:** M
-
-### CD-01 · Five mutating actions have tests that never assert their access guard
-
-- **Source:** `CD` (`docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md:25-40`)
-- **Evidence:** `server/actions/chapters.test.ts`, `stops.test.ts`,
-  `firm-up-trip.test.ts`, `cover.test.ts`, `activity.test.ts` each mock
-  `requireTripAccess` but none import or call `expectAccessCheckedBeforeWrite`.
-  `grep -n 'expectAccessCheckedBeforeWrite' server/actions/*.test.ts` lists 11
-  other action test files using the helper; these five are absent.
-  `test/helpers/access-order.ts` exists and exports it.
-- **Not a live vulnerability:** the production actions do guard correctly. This
-  is the coverage hole that would let a guard silently move below its write.
-- **Fix:** add the assertion calls to the five files. No new infrastructure.
-- **Category:** test-coverage · **Effort:** S
-
-### CD-10 · Three uncovered edge cases in the Digest dispatch path
-
-- **Source:** `CD` (`:110-115`)
-- **Evidence (three distinct gaps):**
-  1. **Zone tie-break untested.** The documented first-row-wins tie-break is at
-     `app/api/cron/digest/route.ts:202-212` (comment at `:196-201` describes the
-     `>` strict-inequality behaviour). `route.test.ts`'s two zone-election tests
-     (`:585`, `:610`) both use *distinct* `lastSeenAt` values; nothing passes two
-     Devices with an identical `lastSeenAt`.
-  2. **`slot` omitted from `console.error` assertions.**
-     `lib/digest-dispatch.ts:627-630` and `:683-686` both include `slot` in the
-     logged object, but the assertions at `lib/digest-dispatch.test.ts:314-317`
-     and `:498-501` use `expect.objectContaining({ userId, tripId, localDate })`
-     with no `slot` key — dropping `slot` from the real payload would fail
-     neither test.
-  3. **No compound throw + release-failure test.** `digest-dispatch.test.ts`
-     covers a mid-flight throw releasing the claim (`:323`, `:343`, `:354`) and a
-     release delete failing (`:296`, `:485`) separately, never both at once.
-- **File-citation correction for whoever picks this up:** the tie-break logic is
-  in `app/api/cron/digest/route.ts`, not `lib/digest-dispatch.ts` as the source
-  doc says. The other two gaps are where the doc cites them.
-- **Category:** test-coverage · **Effort:** M
-
-### CD-13 · `cron-health.ts`'s crash path has a unit test but no page-level regression test
-
-- **Source:** `CD` (`:123-125`)
-- **Evidence:** `server/actions/cron-health.test.ts:91-99` unit-tests
-  `getDispatcherHealth` against a rejected `findUnique`.
-  `app/(app)/account/page.test.tsx`'s `beforeEach` (`:38-43`) only ever sets
-  `cronHeartbeatFindUniqueMock.mockResolvedValue(null)`; no test makes it
-  reject, so nothing asserts at page level that `Promise.all` in `AccountPage`
-  survives a `CronHeartbeat` read failure without taking the Device list down
-  with it.
-- **Sufficient by construction today** (the error is swallowed inside
-  `getDispatcherHealth` before the promise resolves), but unpinned — a future
-  refactor could reintroduce the throw with no test catching it.
-- **Category:** test-coverage · **Effort:** S
 
 ## P3
-
-### CP-17 · `cost-amounts.tsx` gates labels on `paidTotalMinor > 0` instead of a null check
-
-- **Source:** `CP` (`docs/follow-ups/2026-08-12-cost-paid-remodel.md:74-75`,
-  originally "Accept / low value"; promoted into `docs/things-to-fix.md` P3-4)
-- **Also filed as:** `OPS-05` — the same defect reached from the
-  `things-to-fix.md` side. One fix closes both.
-- **Evidence:** `components/trip/cost-amounts.tsx:33` and `:38` both still use
-  `paidTotalMinor > 0`, a truthiness gate, not a null check.
-- **Why it is here and not in *Blocked*:** `docs/things-to-fix.md` filed P3-4
-  under its blanket "needs prod DB / running app / condition not met" template,
-  but no database is involved — the blocker was only that the triggering
-  condition (a per-cost value reaching this component) has not arisen. All 8
-  `CostAmounts` call sites (`app/(app)/trips/[tripId]/budget/page.tsx` and
-  `.../summary/page.tsx`) still pass aggregates only. The gate is directly
-  readable, so it belongs in the ordinary sweep.
-- **Fix:** swap the truthiness gate for an explicit null check.
-- **Category:** mechanical · **Effort:** S
-
-### FN-04 · `authorId` is shipped to the browser purely to gate the delete control
-
-- **Source:** `FN` (`:35-37`)
-- **Evidence:** `server/actions/feedback.ts:17-27` — `FeedbackNoteView` still
-  includes `authorId: string`.
-  `components/feedback/feedback-launcher.tsx:591-593` — the only client use is
-  `canDelete: currentUserId !== undefined && entry.note.authorId === currentUserId`.
-- **More consequential than when filed:** since ADR 0046 (see the struck
-  `FN-03`), an Admin's client now receives other Travellers' real `authorId`s
-  alongside their notes.
-- **Fix:** replace raw `authorId` in `FeedbackNoteView` with a server-computed
-  `canDelete: boolean`.
-- **Category:** mechanical · **Effort:** S
-
-### FN-06 · `feedback-resolve.ts` prints the target database *after* the lookup
-
-- **Source:** `FN` (`:46-48`)
-- **Evidence:** `scripts/feedback-resolve.ts:55` —
-  `const existing = await db.feedbackNote.findUnique(...)`; the
-  `console.log(\`Database: ${targetHost()}\`)` echo is at line 70. A mistyped id
-  exits at the not-found check between them, before the operator is ever told
-  which database was consulted.
-- **Fix:** move the `Database:` echo above the `findUnique` call.
-- **Category:** mechanical · **Effort:** S
-
-### FN-08 · A discarded Feedback note's text is shown but not recoverable
-
-- **Source:** `FN` (`:52-54`)
-- **Evidence:** `components/feedback/feedback-launcher.tsx:332-337` — the
-  discarded-note toast description is `result.discarded[0].body.slice(0, 120)`,
-  plain text with no action to restore it; `bodyRef`/`setBody` are not wired to
-  the toast.
-- **Fix:** add a toast action calling `setBody(result.discarded[0].body)` and
-  focusing `bodyRef`.
-- **Category:** mechanical · **Effort:** S
-
-### FN-09 · The near-limit character counter is conditionally mounted, unlike the journal editor's
-
-- **Source:** `FN` (`:55-58`)
-- **Evidence:** `components/feedback/feedback-launcher.tsx:619-621` —
-  `{body.length >= COUNT_FROM ? (<p role="status" aria-live="polite"> ... ) : null}`.
-  `components/trip/journal-editor.tsx:227-230` documents the opposite as
-  deliberate: "always mounted, stable position."
-- **Fix:** mount the `<p role="status">` unconditionally and toggle only its
-  text, matching the journal editor's pattern.
-- **Category:** mechanical · **Effort:** S
-
-### FN-10 · `docs/HANDOFF.md` says bare "note" where it means a Feedback note
-
-- **Source:** `FN` (`:59-61`)
-- **Evidence:** `docs/HANDOFF.md:401` — "`--dry-run` looks the note up and
-  reports what would change without writing". `CONTEXT.md:247` defines
-  **Feedback note** as the contract term.
-- **Fix:** one word — "looks the Feedback note up".
-- **Category:** docs · **Effort:** S
-
-### FN-12 · The row → `InboxNote` mapping in `feedback-pull.ts` is inline and untested
-
-- **Source:** `FN` (`:64-67`)
-- **Evidence:** `scripts/feedback-pull.ts:62-75` — the `rows.map((row) => ({...}))`
-  mapping is written inline in the script, not extracted. No test file exists for
-  it.
-- **Fix:** extract the row→`InboxNote` shape function into `lib/feedback-inbox.ts`
-  (which already exists and holds `renderInbox`) and add a field-mapping unit
-  test.
-- **Category:** test-coverage · **Effort:** S
-
-### FP-05 · The backdrop is briefly visible during panel open/close below `md`
-
-- **Source:** `FP` (`docs/follow-ups/2026-09-09-feedback-panel-chat-shape.md:43`)
-- **Evidence:** `app/globals.css:234` — `tp-fade-in` is `150ms ease-out`;
-  `app/globals.css:246` — `tp-slide-up` is `250ms cubic-bezier(...)`. The 100ms
-  gap (used together below `md` in `components/ui/sheet.tsx:21-22,36`) is
-  unchanged, so the dim-and-blur backdrop shows before the panel covers it.
-- **Note:** the source doc calls this "arguably an improvement" (standard sheet
-  feel). Recorded as still-open, not as something the doc demands fixed.
-- **Category:** mechanical · **Effort:** S
-
-### FP-06 · Full-viewport `backdrop-blur-sm` on every mobile panel open, fully occluded
-
-- **Source:** `FP` (`:48`)
-- **Evidence:** `components/ui/sheet.tsx:21` — `SheetOverlay` renders
-  `"fixed inset-0 z-50 bg-foreground/40 backdrop-blur-sm"` unconditionally when
-  not `hideOverlay`; there is no overlay-className passthrough on `SheetContent`
-  (`:56,62,64` expose only a boolean `hideOverlay`), so a single caller cannot
-  neutralise it.
-- **Note:** the performance cost claimed ("small real cost on low-end phones")
-  cannot be quantified without a real device; the structural condition is
-  confirmed by code alone.
-- **Category:** mechanical · **Effort:** S
 
 ### FP-07 · A desktop toast sits over the Compare table's frozen label column
 
@@ -482,210 +253,18 @@ the cited code. Each carries the `file:line` that still shows the defect.
   label column is still there, and toasts are still bottom-left (see the settled
   `FP-15`), so the overlap is geometric and unchanged.
 - **Note:** transient and readable once the toast clears.
+- **PARKED 2026-09-21 — this one is the operator's call, and it is the only
+  planned item the sweep did not build.** The planned fix was `md:mb-24` on the
+  Compare table, but that trades a *transient* overlap for a **permanent 6rem
+  dead band under the table on every desktop view**. This entry's own note above
+  calls the overlap "transient and readable once the toast clears", which is
+  precisely why the trade is not obviously worth making. Decide the trade before
+  anyone builds it; do not treat the planned shape as agreed.
+- **Its two neighbours did ship.** `FP-06` and `FP-13`, the other two Feedback-
+  panel/sheet items in this area, were closed in sweep task 17 (`14b8f6b`) and are
+  in the *Struck* register. `FP-07` is not blocked on them — it is blocked only on
+  the decision above.
 - **Category:** mechanical · **Effort:** S
-
-### FP-09 · The `onCloseAutoFocus` guard reads the last *committed* `open`
-
-- **Source:** `FP` (`:62`)
-- **Evidence:** `components/feedback/feedback-launcher.tsx:565-566` —
-  `onCloseAutoFocus={(event) => { if (open) event.preventDefault(); ... }}`,
-  unchanged.
-- **Read this before "simplifying" it:** the source doc records both resulting
-  corners as benign and jsdom-unreachable. This entry exists so the next person
-  knows the shape is understood, not accidental — it is not a request to change
-  the guard to a ref.
-- **Category:** docs · **Effort:** N/A
-
-### FP-10 · A module-level `MediaQueryList` cache is shared across tests that leave `matchMedia` unstubbed
-
-- **Source:** `FP` (`:68`)
-- **Evidence:** `components/feedback/feedback-launcher.test.tsx:109-128` — the
-  `beforeEach` resets `localStorage`, pathname, online state and the list/create
-  mocks, but not `cachedDockedMql`/`cachedMatchMediaFn`
-  (`components/feedback/feedback-launcher.tsx:90-91`). No cache reset exists
-  anywhere in the file.
-- **Note:** harmless today (the default stub always reports `matches: false` and
-  nothing asserts identity); a trap for the next test added.
-- **Category:** test-coverage · **Effort:** S
-
-### FP-11 · `stubViewport` discards the query string it is handed
-
-- **Source:** `FP` (`:75`)
-- **Evidence:** `components/feedback/feedback-launcher.test.tsx:72-92` —
-  `stubViewport(dockedFromMd: boolean)` stubs `window.matchMedia` as `(() => mql)`,
-  ignoring the query. A typo in `DOCKED_FROM`
-  (`components/feedback/feedback-launcher.tsx:75`, `"(min-width: 768px)"`), or
-  drift from `components/ui/sheet.tsx:41-43`'s `md:` classes or
-  `components/trip/calendar-views.tsx:48`'s duplicated literal, would still pass
-  every test.
-- **Note:** pre-existing, not introduced by the branch that produced the source
-  doc.
-- **Category:** test-coverage · **Effort:** S
-
-### FP-12 · `badgeFor`'s variant type is a hand-written union, not derived from `badgeVariants`
-
-- **Source:** `FP` (`:80`)
-- **Evidence:** `components/feedback/feedback-launcher.tsx:193-199` — `badgeFor`
-  returns `{ label: string | null; variant: "success" | "muted" }`.
-- **Deliberate today:** the source doc calls the narrow union "the better
-  contract" and flagged it only in case the variant set grows. Recorded so the
-  reasoning is not lost; not a request to change it now.
-- **Category:** docs · **Effort:** N/A
-
-### FP-13 · The docked height calc has no floor
-
-- **Source:** `FP` (`:83`)
-- **Evidence:** `components/ui/sheet.tsx:42` —
-  `md:h-[min(37.5rem,calc(100vh-9rem))]`, no floor clause.
-- **Note:** only bites below a 144px-tall viewport at ≥768px wide; 768×400
-  landscape still yields 16rem.
-- **Category:** mechanical · **Effort:** S
-
-### HG-02 / HG-10 · The `MapPin` icon is used three ways, so the legend's specimen is ambiguous
-
-- **Source:** `HG` (`docs/follow-ups/2026-09-15-help-guide-audit.md:579` (L3) and
-  `:659` (Parked) — the parked bullet is a verbatim restatement of L3, merged
-  here rather than double-counted)
-- **Evidence:** the same icon appears decoratively at
-  `components/trip/stop-card.tsx:337` (next to a stop's country, unconditional)
-  and `components/trip/item-card.tsx:114,192` (next to an item's stop name,
-  unconditional), and as the real has-a-location signal at
-  `components/trip/map-link.tsx:14-25` (`MapLink` renders `null` when there is no
-  location).
-- **This is an app defect, not a guide defect.** The guide's legend accurately
-  describes an ambiguous affordance, so editing guide text cannot fix it. The fix
-  is in the UI: differentiate the decorative pin from the real map-link glyph, or
-  drop the decorative use.
-- **Category:** mechanical · **Effort:** M
-
-### HG-06 · `help-expand-all.tsx`'s "ONLY client component" comment is now false
-
-- **Source:** `HG` (`:639`, "Parked")
-- **Evidence:** `components/trip/help-expand-all.tsx:8-9` still reads
-  "Deliberately the ONLY client component in the guide."
-  `components/trip/help-hash-open.tsx:1` opens with `"use client";`, added in
-  `90a9ac4`, which post-dates the comment.
-- **The property the comment protects is still intact:** no client-side
-  *disclosure state* is added, so `help-guide.tsx` stays a server component, and
-  the guard test in `help-guide.test.tsx` ("uses no client-side disclosure
-  state") still holds. Only the comment is wrong.
-- **Fix:** one-line comment edit when next touching the file.
-- **Category:** docs · **Effort:** S
-
-### HG-08 · `help-hash-open.test.tsx` test 3 is weaker than its name
-
-- **Source:** `HG` (`:645`, "Parked")
-- **Evidence:** `components/trip/help-hash-open.test.tsx:43-54` — the test "lets
-  a deep-linked section be collapsed again and stay collapsed" sets
-  `globe.open = false` itself, then asserts `globe.open === false` and
-  `window.location.hash === ""`. It re-reads the property it just set, and cannot
-  assert the body is visually hidden because jsdom applies no `:target` CSS.
-- **Verifiable by reading (hence open, not blocked), but closing it properly
-  needs a real browser** asserting the `:target` CSS is not holding the section
-  open — which this repo's jsdom suite cannot provide. Flagged here so whoever
-  picks it up knows the shape of the real fix before starting.
-- **Category:** test-coverage · **Effort:** M
-
-### RM-15 · Home runs `requireTripAccess` twice per render
-
-- **Source:** `RM` (`docs/follow-ups/2026-09-17-reminders-follow-ups.md:156-158`)
-- **Evidence:** `app/(app)/trips/[tripId]/page.tsx:21` calls
-  `await requireTripAccess(tripId)`, then line 80 calls
-  `listRemindersForTrip(tripId, today)`, which calls `await requireTripAccess(tripId)`
-  again at `server/actions/reminders.ts:69`.
-- **Note:** defence-in-depth cost, not a defect — matching the source doc's own
-  framing ("two extra round trips on the most-hit page").
-- **Category:** mechanical · **Effort:** S
-
-### CD-05 · `DispatcherHealth` calls `new Date()` in a client component's render
-
-- **Source:** `CD` (`:88-93`)
-- **Evidence:** `components/account/dispatcher-health.tsx:42` —
-  `const now = new Date();` inside the component body, which is `"use client"`
-  precisely because `formatLastRun`'s stale branch calls `toLocaleDateString`
-  with no explicit timezone. `components/account/devices-panel.tsx:216` has the
-  equivalent pattern (`formatLastSeen(device.lastSeenAt, new Date())`).
-- **Symptom:** server and client compute a different `now`, causing a hydration
-  text mismatch — guaranteed on the stale branch, which formats a local calendar
-  date.
-- **Fix:** pass `now` down from the server instead of calling `new Date()`
-  client-side; fix both components together.
-- **Category:** mechanical · **Effort:** S
-
-### CD-08 · `public/sw.test.ts` mutates `globalThis.fetch` with no `afterEach` restore
-
-- **Source:** `CD` (`:103-105`)
-- **Evidence:** `public/sw.test.ts` has three `describe` blocks (`:89`, `:161`,
-  `:218`) and assigns `globalThis.fetch = fetchMock` / `vi.fn()` directly at
-  lines 222, 263, 282, 305, with no `afterEach` anywhere restoring or unstubbing
-  it.
-- **Note:** harmless today because every test sets its own mock before use; a
-  latent trap for the next test added. Four-line fix.
-- **Category:** test-coverage · **Effort:** S
-
-### CD-09 · `server/actions/push.ts` repeats its subscription shape and swallows errors opaquely
-
-- **Source:** `CD` (`:106-109`)
-- **Evidence:** the `p256dh`/`auth`/`lastSeenAt`(/`timezone`) shape is repeated
-  across the `create` arm (`push.ts:43-49`), the `update` arm (`:67-70`), and the
-  heal-path arms (`:219-230`, `:234-240`). A bare `catch {` with no bound error
-  appears three times: `:76`, `:98`, `:244`.
-- **Fix it file-wide or not at all** — extract a shared shape-builder and name
-  the caught errors together; a partial fix leaves the file inconsistent with
-  itself.
-- **Category:** mechanical · **Effort:** M
-
-### CD-11 · No structural test pins `requireTripAccess` to `cache(fn)`
-
-- **Source:** `CD` (`:116-119`)
-- **Evidence:** `lib/guards.ts:57` —
-  `export const requireTripAccess = cache(async (tripId: string) => { ... })`.
-  `lib/guards.test.ts` uses a hand-rolled `cache()` mock (comment at `:32-46`
-  explains why: React's real `cache()` is inert under Vitest/jsdom), and its two
-  relevant tests (`:104`, `:117`) exercise behaviour *through* that mock rather
-  than asserting `requireTripAccess` is literally the mock's return value.
-- **Why it matters:** this is the one assertion that would survive a bug in the
-  hand-rolled mock itself.
-- **Category:** test-coverage · **Effort:** S
-
-### CD-12 · The service worker's re-subscribe heal path has uncovered defensive guards
-
-- **Source:** `CD` (`:120-122`)
-- **Evidence:** `public/sw.js:344` — `if (!fresh || !fresh.endpoint) return;`
-  and `:347` — `if (!keys.p256dh || !keys.auth) return;`.
-  `public/sw.test.ts`'s `pushsubscriptionchange` block (`:218` onward) covers the
-  happy path, a null old+new subscription fallback (`:289`), and `subscribe()`
-  rejecting (`:302`) — but nothing makes `pushManager.subscribe()` resolve to a
-  falsy value or an object missing `.endpoint`, and nothing makes `toJSON()`
-  return partial `keys`. Neither guard branch is exercised.
-- **File-citation correction:** the code is in `public/sw.js`, not
-  `components/account/device-state.ts` as the source doc says — that file's
-  `!subscription`/`toJSON()` pair (`device-state.ts:59-62`) is the read path and
-  is already covered. Confirm scope before starting.
-- **Category:** test-coverage · **Effort:** S
-
-### CD-14 · `formatLastRun`'s "just now" and singular "1 hour ago" branches are untested
-
-- **Source:** `CD` (`:126-127`)
-- **Evidence:** `lib/cron-health.ts:36-48` has three return branches beyond the
-  stale-date one: `hours >= 1` plural, the implicit singular `hours === 1`, and
-  the `hours < 1` fallback ("last ran just now").
-  `lib/cron-health.test.ts:30-42` tests only `null`, the stale-date branch, and
-  one plural case.
-- **Category:** test-coverage · **Effort:** S
-
-### CD-15 · `DispatcherHealth` names both a component and an interface, imported into the same page
-
-- **Source:** `CD` (`:128-129`)
-- **Evidence:** `server/actions/cron-health.ts:7` —
-  `export interface DispatcherHealth { ... }`;
-  `components/account/dispatcher-health.tsx:41` —
-  `export function DispatcherHealth(...)`. Both are imported into
-  `app/(app)/account/page.tsx` (`:4` and `:13`).
-- **Note:** TypeScript disambiguates them fine (interface vs value namespace);
-  it is confusing to a reader scanning imports. Rename one — e.g. the interface
-  to `DispatcherHealthData`.
-- **Category:** docs · **Effort:** S
 
 ### CD-16 · `CONTEXT.md`'s **Digest** entry no longer describes the truncation behaviour accurately
 
@@ -700,18 +279,57 @@ the cited code. Each carries the `file:line` that still shows the defect.
 - **Sequencing:** this should land with whatever `CD-07` is decided (see *Needs
   a decision*), because the correct wording depends on that outcome. Do not
   update `CONTEXT.md` to describe behaviour that is about to change.
+- **Not swept 2026-09-21:** deliberately deferred, on the sequencing note above
+  — `CD-07` is in *Needs a decision*, which the sweep did not touch, so writing
+  the accurate-today wording now means rewriting it the moment `CD-07` lands.
+  **Fix it in the same commit as `CD-07`**, not before.
 - **Category:** docs · **Effort:** S
 
-### OPS-05 · `cost-amounts.tsx` truthiness gate, reached from the `things-to-fix.md` side
+### SW-02 · Two decorative `MapPin` uses survive the `HG-02`/`HG-10` dedup
 
-- **Source:** `OPS` (`docs/things-to-fix.md:657-663`, P3-4)
-- **Same defect as `CP-17` above** — kept as its own ID because the two triage
-  passes found it independently, from the follow-up doc and from the audit doc.
-  Fix once; strike both. Full evidence and the reclassification rationale are
-  under `CP-17`.
+- **Source:** none — found during the 2026-09-21 sweep, while fixing
+  `HG-02`/`HG-10`. No source doc records it.
+- **Evidence:** `components/trip/trip-card.tsx:132` and
+  `components/trip/agenda-view.tsx:48` both render `<MapPin aria-hidden="true">`
+  decoratively, as `stop-card.tsx` and `item-card.tsx` did before `6eb8fba`.
+- **Lower priority than `HG-02`/`HG-10`, and deliberately not fixed.** Neither
+  sits beside a real `MapLink`, so neither is *confusable* the way the three
+  fixed cards were — which was the whole basis of the `HG-02` finding. They are
+  recorded here only because they work against the same "a pin means one thing"
+  goal, so a future reader does not think the dedup was completed app-wide.
+- **Decide before building:** this is a consistency call, not a defect. If the
+  answer is "the pin is reserved for a real location everywhere", these two go;
+  if it is "only where it could be mistaken for a `MapLink`", they stay and this
+  entry should be settled rather than built.
 - **Category:** mechanical · **Effort:** S
 
+## Process — for the operator, not a code change
+
+### SW-03 · `CLAUDE.md`'s session-start `feedback:pull` instruction makes subagents connect to production
+
+- **Source:** none — this is a process finding from running the 2026-09-21
+  sweep, not a defect in the app. It is for the operator, not for an agent to
+  "fix" unasked.
+- **Evidence:** `CLAUDE.md:5-7` — "At the start of every session, before the
+  grilling interview: 1. Run `npm run feedback:pull`". `package.json` maps that
+  to `tsx scripts/feedback-pull.ts`, which opens `DATABASE_URL`. In a
+  subagent-driven pipeline every fresh subagent reads "every session" as
+  applying to *itself*.
+- **It happened twice during this sweep**, in both cases despite the dispatching
+  brief carrying an explicit "do not connect to a database" instruction. The
+  cause is systemic, not a lapse in either agent: the project instruction file
+  outranks the task brief in the agent's reading, and it says *every* session.
+- **Impact so far: nil.** Both reads were read-only, the regenerated
+  `docs/feedback/inbox.md` was reverted, and neither entered a commit — verified
+  against `git status`. The risk is the shape of it, not the damage done.
+- **Fix:** scope the instruction to the orchestrating session — e.g. "at the
+  start of a session *you* started with the operator, not if you are a subagent
+  executing a task brief" — or move it out of `CLAUDE.md` into the
+  session-opening skill, where only the top-level session reads it.
+- **Category:** process · **Effort:** S
+
 ---
+
 
 # Needs a decision — **do not implement these**
 
@@ -892,8 +510,12 @@ unrepeatable, and repo-side corroboration was done where possible.
 ### The hazard worth keeping: `share_links_per_audience` had a write-path downtime window
 
 This is a **lesson, not a task** — the window has passed and nothing broke
-irrecoverably. It is recorded here because `docs/DEPLOY.md` §4b does not name
-this hazard shape, and `OPS-08` in *Open items* is the work of adding it.
+irrecoverably. It is recorded here because it is the worked example `OPS-08`
+asked `docs/DEPLOY.md` §4b to carry. **`OPS-08` is now closed**
+(`2c25792`, `0398371`, `c6a1c83`, 2026-09-21): §4b names both write-path
+hazard shapes, with this migration as the example, and its already-applied
+migrations now read as history rather than as pending steps. This section stays
+because the reasoning below is the source the §4b text was written from.
 
 The migration SQL was:
 
@@ -1006,10 +628,15 @@ listed so nobody re-opens them, and so the trail back to the source doc survives
   a human is the Account surface itself rendering the healthy state rather than
   the "digests are not being sent" warning. **What is needed:** one look at
   `/account` on the deployed app.
-- **A real-browser assertion for `HG-08`.** Listed in *Open items* because the
-  weakness is verifiable by reading — but closing it properly needs a browser
-  that applies `:target` CSS, which the jsdom suite cannot provide. Noted here so
-  the browser requirement is not discovered late.
+- **A real-browser assertion for the `HG-08` residue.** `HG-08` itself is
+  **struck** (`7f4c82b`, 2026-09-21): the tautological test was replaced with one
+  that proves everything the *component's JavaScript* is responsible for — the
+  fragment is cleared, and a later `hashchange` does not re-open the section.
+  What no test in this repo can prove is the CSS half: jsdom applies no
+  `:target` rule, so nothing asserts that `HELP_PRINT_STYLE`'s `details:target`
+  fallback is not visually holding a collapsed section open. **What is needed:**
+  one look in a real browser. The gap is stated in the test's own comment block,
+  so it does not have to be re-derived.
 - **`FP-16`'s optional real-phone look.** Settled, not owed — but if a device
   pass is ever done, the exact conditions to check are recorded with that entry
   in *Settled* below.
@@ -1159,6 +786,660 @@ improvement.** They are marked ⚠ and their reasons are reproduced in full.
 ---
 
 # Struck — already fixed (no action)
+
+**83 items. None of these is open. Do not work them.** They are in two groups:
+the **39** closed by the 2026-09-21 sweep, reproduced in full below with their
+commits, and the **44** that were already closed before this document was
+compiled on 2026-09-20, kept as a one-line-each table because their evidence
+lives in the source docs rather than here.
+
+## Closed by the 2026-09-21 sweep
+
+**39 items**, closed on branch `chore/follow-ups-triage-and-sweep` between
+`bf281d6` and `28e933a`. Each entry below is reproduced whole — its original
+evidence text as it stood in *Open items*, plus the commit that closed it. The
+evidence is kept rather than summarised because this register is the record of
+*what was fixed*, and a future reader checking whether a regression is the same
+bug needs the original description, not a one-line gloss.
+
+Three of these entries understated their own blast radius and say so inline:
+`AB-02` (three pages, not two), `CD-10` (two log sites, not one) and
+`HG-02`/`HG-10` (three cards, not two). See the warning in the trust statement.
+
+The 40th planned item, `FP-07`, was **not** closed — it is parked on an
+operator decision and is still in *Open items*.
+
+### HG-12 · `duplicateTrip` checks membership but never role — any Traveller can mint themselves a fully-owned copy of the trip
+
+- **Source:** `HG` (`docs/follow-ups/2026-09-15-help-guide-audit.md:665`, "Parked")
+- **ESCALATED:** yes. Filed in a *Parked* section, but it is an authorization
+  gap, not polish — settled calls stay settled except for security,
+  authorization, data-loss, or data-corruption issues, and this is the first of
+  those. It leads this document.
+- **Evidence:** `server/actions/trips.ts:310-314` — `duplicateTrip` opens with
+  `const { user } = await requireTripAccess(sourceTripId);`.
+  `requireTripAccess` (`lib/guards.ts:57-68`) only confirms **membership**
+  (`notFound()` if `!membership`); it returns `{ user, membership }` but
+  `duplicateTrip` destructures only `user` and never reads `membership.role`.
+  The body was read in full (lines 310-416) — there is no equivalent check
+  anywhere in it.
+- **Why it is real:** the only thing making Duplicate owner-only today is a
+  *rendering* gate. `app/(app)/trips/[tripId]/settings/page.tsx:33-34,219-229`
+  computes `canManageTrip = isOwner || isAdminEmail(user.email)` and wraps
+  `<DuplicateTripDialog>` in `{canManageTrip && (...)}`. The server action is
+  directly callable regardless. Any authenticated member of a trip can invoke it
+  and create a full copy — chapters, stops, items, transports, checklist items
+  and all member rows — with themselves as the new trip's owner.
+- **Against the app's own stated model:** ADR 0045
+  (`docs/adr/0045-admin-delete-scoped-to-membership.md`) documents that Duplicate
+  and Delete are both intended to be owner-or-admin gated ("The same check gates
+  the Danger zone card on the Trip settings page, which carries Duplicate as well
+  as Delete"). So this is an omission against a decided model, not an unmade
+  decision.
+- **Fix:** add the guard `deleteTrip` already uses in the same file
+  (`server/actions/trips.ts:257-259`,
+  `membership.role !== "owner" && !isAdminEmail(user.email)`) to `duplicateTrip`,
+  before it reads `source`.
+- **Not fixed since:** `git log` on `server/actions/trips.ts` shows the most
+  recent touch is `c298da0`, which added the `isAdminEmail` bypass to
+  `deleteTrip` only; `duplicateTrip`'s body is unchanged since `b967ece`.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `bf281d6`, 2026-09-21 (sweep task 1).
+
+### AB-01 · `forkId` is never threaded through the standalone `CostEditor`, so a cost added on a fork lands on the real plan
+
+- **Source:** `AB` (Worth doing soon, bullet 1)
+- **Evidence:** `components/trip/cost-editor.tsx` — `CostEditorProps` has no
+  `forkId` field (only `tripId`, `ownerType`, `ownerId`, `costs`,
+  `homeCurrency`, `defaultCurrency`), and the create call at line 282 is
+  `createCost(tripId, input)` with no third argument.
+  `server/actions/costs.ts:117-120` shows `createCost(tripId, data, forkId?: PlanId)`
+  does accept a fork id and stores it (`forkId: forkId ?? null`, line 162) — the
+  server-side plumbing exists, nothing supplies it.
+- **Call sites:** `components/trip/accommodation-card.tsx:173`,
+  `components/trip/item-card.tsx:242`, `components/trip/transport-card.tsx:215`
+  all render `CostEditor` without a `forkId`, even though
+  `app/(app)/trips/[tripId]/plan/page.tsx:46,384` already computes
+  `activeForkId` and threads it into the `ItineraryManager` that renders those
+  cards.
+- **Not covered by the earlier fix:** `docs/things-to-fix.md` P1-2 (Budget page
+  fork-awareness, `**Status: FIXED**`, `5f51406`+`dec4efb`) scoped the Budget
+  page's queries and the `OtherCostEditor` mitigation only.
+- **Symptom:** adding a cost via the per-entity `CostEditor` on a fork-active
+  Plan page files the cost on the real plan with an `ownerId` pointing at a
+  fork-owned entity.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `3ecd12d`, 2026-09-21 (sweep task 2).
+
+### OPS-08 · `docs/DEPLOY.md` §4b warns only about renames breaking reads — it does not name the write-path hazard that actually occurred
+
+- **Source:** `OPS` (carried forward from `CP`'s "Not verifiable without a
+  database" note, which `docs/things-to-fix.md` P0-3 turned into a procedure)
+- **Evidence:** `vercel.json:4` —
+  `"buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then prisma migrate deploy; fi && next build"`
+  — one build step runs the migration and the build back-to-back with no gate
+  between them, so a migration is live against the *old* build for the length of
+  the build. That pipeline shape is an accepted tradeoff of Vercel's Hobby tier,
+  documented not accidental; there is no code fix here.
+- **What is owed:** `docs/DEPLOY.md:74` §4b is titled and scoped around column
+  *renames* breaking *reads*. Two other SQL shapes produce the same gap on
+  *writes*: **adding a NOT NULL column with no default**, and **dropping a unique
+  constraint that an older client's `upsert` needs as its `ON CONFLICT` target**.
+  The `share_links_per_audience` migration was an actual instance of both — see
+  the worked example in *Blocked → Migration history* below.
+- **Fix:** widen §4b's scope, or add a sibling section, naming those two
+  patterns explicitly with `share_links_per_audience` as the worked example, so
+  the next person writing a migration checks their SQL against the write-path
+  failure mode as well as the read-path one.
+- **Category:** docs · **Effort:** S
+- **Closed:** `2c25792, 0398371, c6a1c83`, 2026-09-21 (sweep task 3).
+
+### AB-02 · `?plan=a&plan=b` (a repeated query param) 500s the Plan and Budget pages
+
+- **Source:** `AB` (Worth doing soon, bullet 2)
+- **Evidence:** `app/(app)/trips/[tripId]/plan/page.tsx:34-46` and
+  `app/(app)/trips/[tripId]/budget/page.tsx:67-76` both do
+  `const { plan } = await searchParams; const selectedForkId = plan ?? null;`
+  then hand `selectedForkId` straight to `db.fork.findFirst({ where: { id: selectedForkId, tripId } })`.
+  `grep -n 'Array.isArray'` returns nothing in either file. The TS signature
+  `searchParams: Promise<{ plan?: string }>` is a compile-time claim only —
+  Next.js hands a `string[]` at runtime for a repeated param.
+- **Fix:** normalise with `Array.isArray(plan) ? plan[0] : plan` in both files.
+- **Scope note:** auth-guarded first (`requireTripAccess` runs before the
+  query), so this is a crafted-URL edge case, not a normal user path.
+- **Category:** mechanical · **Effort:** S
+- **Scope correction made while fixing:** the source doc named two pages; there
+  were **three**. `app/(app)/trips/[tripId]/wishlist/page.tsx` carried the
+  identical defect and was fixed in the same task (`e4b5a21`). All three now
+  call the shared `firstSearchParam` helper (`lib/plan-scope.ts:23`), and
+  `budget-page.test.tsx` pins it against a revert to `plan ?? null`.
+- **Closed:** `5b83206, e4b5a21, ac963af`, 2026-09-21 (sweep task 4).
+
+### AB-03 · `assertForkingAllowed` gates on UTC `todayISO()` while the fork switcher is zone-aware
+
+- **Source:** `AB` (Worth doing soon, bullet 3)
+- **Evidence:** `server/actions/forks.ts:67-68,729-730` — both
+  `assertForkingAllowed` call sites compute phase with `today: todayISO()`
+  (UTC calendar day, from `@/lib/dates`).
+  `app/(app)/trips/[tripId]/layout.tsx:5,81,89` computes `showForkSwitcher` from
+  `todayISOInZone(currentTripTimezone(trip.stops))`. The two disagree on what
+  "today" is.
+- **Symptom:** a narrow west-of-UTC window where the switcher renders but
+  create/promote cleanly rejects. Fails closed, so not a correctness regression
+   — but the drift is real.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `ba98bec`, 2026-09-21 (sweep task 5).
+
+### AB-04 · Three inline `paidAt` schemas skip `isRealCalendarDate` and hardcode the amount cap
+
+- **Source:** `AB` (Worth doing soon, bullet 4)
+- **Evidence:** `lib/validations/transport.ts:95-98`,
+  `lib/validations/item.ts:100-103`, `lib/validations/accommodation.ts:71-74`
+  all define `paidAt` with only `.regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD")`
+  — no `isRealCalendarDate` refine (that helper lives at
+  `lib/validations/cost.ts:21` and is used only there). The same three files
+  hardcode `.max(2_147_483_647, "Amount is too large")` at `transport.ts:72,90`,
+  `item.ts:77,95`, `accommodation.ts:48,66` instead of importing
+  `MAX_AMOUNT_MINOR` from `lib/validations/cost.ts:10`.
+- **Symptom:** `"2026-02-30"` still passes the shape check and silently rolls
+  forward.
+- **Scope note:** reachable only by hand-crafted action payloads.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `a202714`, 2026-09-21 (sweep task 6).
+
+### FN-07 · A failed `removeFromQueue` write leaves a "discarded" Feedback note re-appearing forever
+
+- **Source:** `FN` (`:49-51`)
+- **Evidence:** `lib/feedback-queue.ts:61-67` — `write()` catches a
+  `localStorage.setItem` failure (quota, private mode) and silently returns
+  `readQueue()`, i.e. the write did not happen, with no signal to the caller.
+  `lib/feedback-queue.ts:134` — `flushQueue` calls
+  `removeFromQueue(note.clientKey)` and ignores its return value entirely;
+  line 135 unconditionally pushes to `discarded` on a `rejected` outcome
+  regardless of whether the removal persisted.
+- **Symptom:** with storage full or blocked, the note stays queued, so the next
+  flush attempts it, discards it, and shows the "discarded" toast again — every
+  time, forever.
+- **Fix:** have `flushQueue` check that the queue `removeFromQueue` returns
+  genuinely lacks the `clientKey` before trusting the discard, or have
+  `write`/`removeFromQueue` report failure explicitly.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `248a12f, a96e537`, 2026-09-21 (sweep task 7).
+
+### FN-11 · The in-app Feedback-note delete path is still untested
+
+- **Source:** `FN` (`:62-63`)
+- **Evidence:** half of this item has since closed —
+  `components/feedback/feedback-launcher.test.tsx:811-829` now covers the
+  DONE/WONTFIX de-emphasis. The delete path has not: `deleteMock` (aliased to
+  `deleteFeedbackNote`) is imported at line 24 and never invoked or asserted
+  anywhere in the file. Existing tests only assert the Delete button *renders*
+  when `canDelete` (e.g. line 500). `server/actions/feedback.test.ts:165-192`
+  still covers only the server-action layer.
+- **Scope for the fix:** narrowly, "click Delete → `deleteFeedbackNote` called,
+  note removed from the list."
+- **Category:** test-coverage · **Effort:** S
+- **Closed:** `ac98a0e`, 2026-09-21 (sweep task 8).
+
+### FP-10 · A module-level `MediaQueryList` cache is shared across tests that leave `matchMedia` unstubbed
+
+- **Source:** `FP` (`:68`)
+- **Evidence:** `components/feedback/feedback-launcher.test.tsx:109-128` — the
+  `beforeEach` resets `localStorage`, pathname, online state and the list/create
+  mocks, but not `cachedDockedMql`/`cachedMatchMediaFn`
+  (`components/feedback/feedback-launcher.tsx:90-91`). No cache reset exists
+  anywhere in the file.
+- **Note:** harmless today (the default stub always reports `matches: false` and
+  nothing asserts identity); a trap for the next test added.
+- **Category:** test-coverage · **Effort:** S
+- **Closed:** `ac98a0e`, 2026-09-21 (sweep task 8).
+
+### FP-11 · `stubViewport` discards the query string it is handed
+
+- **Source:** `FP` (`:75`)
+- **Evidence:** `components/feedback/feedback-launcher.test.tsx:72-92` —
+  `stubViewport(dockedFromMd: boolean)` stubs `window.matchMedia` as `(() => mql)`,
+  ignoring the query. A typo in `DOCKED_FROM`
+  (`components/feedback/feedback-launcher.tsx:75`, `"(min-width: 768px)"`), or
+  drift from `components/ui/sheet.tsx:41-43`'s `md:` classes or
+  `components/trip/calendar-views.tsx:48`'s duplicated literal, would still pass
+  every test.
+- **Note:** pre-existing, not introduced by the branch that produced the source
+  doc.
+- **Category:** test-coverage · **Effort:** S
+- **Closed:** `ac98a0e`, 2026-09-21 (sweep task 8).
+
+### HG-09 · `GUIDE_UI_STRINGS` is a substring guard, and it has already let a real misquote through
+
+- **Source:** `HG` (`docs/follow-ups/2026-09-15-help-guide-audit.md:648`, "Parked")
+- **Evidence:** `lib/help-guide.test.ts:182-188` — the guard is
+  `it.each(GUIDE_UI_STRINGS)(...)` checking
+  `sources.some((s) => s.text.includes(label) || s.text.includes(curly))`, a
+  substring test. `lib/help-guide.ts:205-230` lists `GUIDE_UI_STRINGS` including
+  `"Booking reference"`, itself a substring of the longer live string
+  `"Booking reference / number"` also in the same list — so those entries are
+  unfailable by construction.
+- **Demonstrated miss, not a theoretical gap:** per the source doc's own "Note
+  on the drift guard" (lines 621-627), correction C6 passed this guard while the
+  guide misquoted the banner, because `"Editing variant"` passed as a substring
+  of the true label.
+- **Judged out of its parked bucket** on that demonstrated miss — a coverage
+  gap that has already failed to catch a shipped defect is not polish.
+- **Category:** test-coverage · **Effort:** M
+- **A premise in the plan was wrong and was corrected in review:** the brief
+  claimed `"Booking reference"` was redundant with `"Booking reference / number"`.
+  They are two distinct fields (`item-form-dialog.tsx:512` vs
+  `transport-form-dialog.tsx:556`), each quoted separately by the guide, so
+  deleting the short entry lost real coverage. It was restored and the shadowing
+  rule now means true redundancy, not mere text containment (`f69a5cf`).
+- **Closed:** `7f764c4, f69a5cf`, 2026-09-21 (sweep task 9).
+
+### CD-01 · Five mutating actions have tests that never assert their access guard
+
+- **Source:** `CD` (`docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md:25-40`)
+- **Evidence:** `server/actions/chapters.test.ts`, `stops.test.ts`,
+  `firm-up-trip.test.ts`, `cover.test.ts`, `activity.test.ts` each mock
+  `requireTripAccess` but none import or call `expectAccessCheckedBeforeWrite`.
+  `grep -n 'expectAccessCheckedBeforeWrite' server/actions/*.test.ts` lists 11
+  other action test files using the helper; these five are absent.
+  `test/helpers/access-order.ts` exists and exports it.
+- **Not a live vulnerability:** the production actions do guard correctly. This
+  is the coverage hole that would let a guard silently move below its write.
+- **Fix:** add the assertion calls to the five files. No new infrastructure.
+- **Category:** test-coverage · **Effort:** S
+- **Closed:** `68d1bb9`, 2026-09-21 (sweep task 10).
+
+### CD-10 · Three uncovered edge cases in the Digest dispatch path
+
+- **Source:** `CD` (`:110-115`)
+- **Evidence (three distinct gaps):**
+  1. **Zone tie-break untested.** The documented first-row-wins tie-break is at
+     `app/api/cron/digest/route.ts:202-212` (comment at `:196-201` describes the
+     `>` strict-inequality behaviour). `route.test.ts`'s two zone-election tests
+     (`:585`, `:610`) both use *distinct* `lastSeenAt` values; nothing passes two
+     Devices with an identical `lastSeenAt`.
+  2. **`slot` omitted from `console.error` assertions.**
+     `lib/digest-dispatch.ts:627-630` and `:683-686` both include `slot` in the
+     logged object, but the assertions at `lib/digest-dispatch.test.ts:314-317`
+     and `:498-501` use `expect.objectContaining({ userId, tripId, localDate })`
+     with no `slot` key — dropping `slot` from the real payload would fail
+     neither test.
+  3. **No compound throw + release-failure test.** `digest-dispatch.test.ts`
+     covers a mid-flight throw releasing the claim (`:323`, `:343`, `:354`) and a
+     release delete failing (`:296`, `:485`) separately, never both at once.
+- **File-citation correction for whoever picks this up:** the tie-break logic is
+  in `app/api/cron/digest/route.ts`, not `lib/digest-dispatch.ts` as the source
+  doc says. The other two gaps are where the doc cites them.
+- **Category:** test-coverage · **Effort:** M
+- **Scope correction made while fixing:** the file-citation correction above was
+  itself incomplete. Pinning `slot` properly uncovered a **second**
+  `console.error` log site in `lib/digest-dispatch.ts` where a dropped `slot`
+  had also been passing silently — the entry named one. Both log sites are now
+  asserted.
+- **Closed:** `7147ec3`, 2026-09-21 (sweep task 11).
+
+### CD-13 · `cron-health.ts`'s crash path has a unit test but no page-level regression test
+
+- **Source:** `CD` (`:123-125`)
+- **Evidence:** `server/actions/cron-health.test.ts:91-99` unit-tests
+  `getDispatcherHealth` against a rejected `findUnique`.
+  `app/(app)/account/page.test.tsx`'s `beforeEach` (`:38-43`) only ever sets
+  `cronHeartbeatFindUniqueMock.mockResolvedValue(null)`; no test makes it
+  reject, so nothing asserts at page level that `Promise.all` in `AccountPage`
+  survives a `CronHeartbeat` read failure without taking the Device list down
+  with it.
+- **Sufficient by construction today** (the error is swallowed inside
+  `getDispatcherHealth` before the promise resolves), but unpinned — a future
+  refactor could reintroduce the throw with no test catching it.
+- **Category:** test-coverage · **Effort:** S
+- **Closed:** `b686518`, 2026-09-21 (sweep task 12).
+
+### CD-14 · `formatLastRun`'s "just now" and singular "1 hour ago" branches are untested
+
+- **Source:** `CD` (`:126-127`)
+- **Evidence:** `lib/cron-health.ts:36-48` has three return branches beyond the
+  stale-date one: `hours >= 1` plural, the implicit singular `hours === 1`, and
+  the `hours < 1` fallback ("last ran just now").
+  `lib/cron-health.test.ts:30-42` tests only `null`, the stale-date branch, and
+  one plural case.
+- **Category:** test-coverage · **Effort:** S
+- **Closed:** `b686518`, 2026-09-21 (sweep task 12).
+
+### CP-17 · `cost-amounts.tsx` gates labels on `paidTotalMinor > 0` instead of a null check
+
+- **Source:** `CP` (`docs/follow-ups/2026-08-12-cost-paid-remodel.md:74-75`,
+  originally "Accept / low value"; promoted into `docs/things-to-fix.md` P3-4)
+- **Also filed as:** `OPS-05` — the same defect reached from the
+  `things-to-fix.md` side. One fix closes both.
+- **Evidence:** `components/trip/cost-amounts.tsx:33` and `:38` both still use
+  `paidTotalMinor > 0`, a truthiness gate, not a null check.
+- **Why it is here and not in *Blocked*:** `docs/things-to-fix.md` filed P3-4
+  under its blanket "needs prod DB / running app / condition not met" template,
+  but no database is involved — the blocker was only that the triggering
+  condition (a per-cost value reaching this component) has not arisen. All 8
+  `CostAmounts` call sites (`app/(app)/trips/[tripId]/budget/page.tsx` and
+  `.../summary/page.tsx`) still pass aggregates only. The gate is directly
+  readable, so it belongs in the ordinary sweep.
+- **Fix:** swap the truthiness gate for an explicit null check.
+- **Category:** mechanical · **Effort:** S
+- **What the fix changed — read this before looking for a visible difference:**
+  it changed the **component's contract**, not what either page renders today.
+  `CostAmounts`'s `paidTotalMinor` prop now admits `null`, and all 8 aggregate
+  call sites on the Budget and Summary pages pass `sum > 0 ? sum : null`,
+  reproducing today's `—` placeholder exactly wherever the aggregate is zero.
+  The fix is real and closes both `CP-17` and `OPS-05`, but it is not a visible
+  change on either page — it protects the next caller with a genuine
+  zero-but-paid value, which nothing currently supplies.
+- **Closed:** `cdc32d4`, 2026-09-21 (sweep task 13).
+
+### OPS-05 · `cost-amounts.tsx` truthiness gate, reached from the `things-to-fix.md` side
+
+- **Source:** `OPS` (`docs/things-to-fix.md:657-663`, P3-4)
+- **Same defect as `CP-17` above** — kept as its own ID because the two triage
+  passes found it independently, from the follow-up doc and from the audit doc.
+  Fix once; strike both. Full evidence and the reclassification rationale are
+  under `CP-17`.
+- **Category:** mechanical · **Effort:** S
+
+---
+- **Same commit as `CP-17`.** See the contract note under `CP-17` above: the fix
+  is to the component's contract, not to anything either page renders today.
+- **Closed:** `cdc32d4`, 2026-09-21 (sweep task 13).
+
+### FN-06 · `feedback-resolve.ts` prints the target database *after* the lookup
+
+- **Source:** `FN` (`:46-48`)
+- **Evidence:** `scripts/feedback-resolve.ts:55` —
+  `const existing = await db.feedbackNote.findUnique(...)`; the
+  `console.log(\`Database: ${targetHost()}\`)` echo is at line 70. A mistyped id
+  exits at the not-found check between them, before the operator is ever told
+  which database was consulted.
+- **Fix:** move the `Database:` echo above the `findUnique` call.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `5d50c82`, 2026-09-21 (sweep task 14).
+
+### FN-12 · The row → `InboxNote` mapping in `feedback-pull.ts` is inline and untested
+
+- **Source:** `FN` (`:64-67`)
+- **Evidence:** `scripts/feedback-pull.ts:62-75` — the `rows.map((row) => ({...}))`
+  mapping is written inline in the script, not extracted. No test file exists for
+  it.
+- **Fix:** extract the row→`InboxNote` shape function into `lib/feedback-inbox.ts`
+  (which already exists and holds `renderInbox`) and add a field-mapping unit
+  test.
+- **Category:** test-coverage · **Effort:** S
+- **Closed:** `5d50c82`, 2026-09-21 (sweep task 14).
+
+### FN-04 · `authorId` is shipped to the browser purely to gate the delete control
+
+- **Source:** `FN` (`:35-37`)
+- **Evidence:** `server/actions/feedback.ts:17-27` — `FeedbackNoteView` still
+  includes `authorId: string`.
+  `components/feedback/feedback-launcher.tsx:591-593` — the only client use is
+  `canDelete: currentUserId !== undefined && entry.note.authorId === currentUserId`.
+- **More consequential than when filed:** since ADR 0046 (see the struck
+  `FN-03`), an Admin's client now receives other Travellers' real `authorId`s
+  alongside their notes.
+- **Fix:** replace raw `authorId` in `FeedbackNoteView` with a server-computed
+  `canDelete: boolean`.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `5d217e9`, 2026-09-21 (sweep task 15).
+
+### FN-08 · A discarded Feedback note's text is shown but not recoverable
+
+- **Source:** `FN` (`:52-54`)
+- **Evidence:** `components/feedback/feedback-launcher.tsx:332-337` — the
+  discarded-note toast description is `result.discarded[0].body.slice(0, 120)`,
+  plain text with no action to restore it; `bodyRef`/`setBody` are not wired to
+  the toast.
+- **Fix:** add a toast action calling `setBody(result.discarded[0].body)` and
+  focusing `bodyRef`.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `5d217e9`, 2026-09-21 (sweep task 15).
+
+### FN-09 · The near-limit character counter is conditionally mounted, unlike the journal editor's
+
+- **Source:** `FN` (`:55-58`)
+- **Evidence:** `components/feedback/feedback-launcher.tsx:619-621` —
+  `{body.length >= COUNT_FROM ? (<p role="status" aria-live="polite"> ... ) : null}`.
+  `components/trip/journal-editor.tsx:227-230` documents the opposite as
+  deliberate: "always mounted, stable position."
+- **Fix:** mount the `<p role="status">` unconditionally and toggle only its
+  text, matching the journal editor's pattern.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `5d217e9`, 2026-09-21 (sweep task 15).
+
+### FP-09 · The `onCloseAutoFocus` guard reads the last *committed* `open`
+
+- **Source:** `FP` (`:62`)
+- **Evidence:** `components/feedback/feedback-launcher.tsx:565-566` —
+  `onCloseAutoFocus={(event) => { if (open) event.preventDefault(); ... }}`,
+  unchanged.
+- **Read this before "simplifying" it:** the source doc records both resulting
+  corners as benign and jsdom-unreachable. This entry exists so the next person
+  knows the shape is understood, not accidental — it is not a request to change
+  the guard to a ref.
+- **Category:** docs · **Effort:** N/A
+- **Closed as a comment, which is what it asked for.** The entry was a request to
+  record the reasoning, not to change the guard — and the guard is unchanged.
+  The `onCloseAutoFocus` comment block now carries it in the code itself.
+- **Closed:** `5d217e9`, 2026-09-21 (sweep task 15).
+
+### FP-12 · `badgeFor`'s variant type is a hand-written union, not derived from `badgeVariants`
+
+- **Source:** `FP` (`:80`)
+- **Evidence:** `components/feedback/feedback-launcher.tsx:193-199` — `badgeFor`
+  returns `{ label: string | null; variant: "success" | "muted" }`.
+- **Deliberate today:** the source doc calls the narrow union "the better
+  contract" and flagged it only in case the variant set grows. Recorded so the
+  reasoning is not lost; not a request to change it now.
+- **Category:** docs · **Effort:** N/A
+- **Closed as a comment, which is what it asked for.** `badgeFor` still returns
+  the hand-written `"success" | "muted"` union; its docblock now records why
+  that narrow contract is deliberate.
+- **Closed:** `5d217e9`, 2026-09-21 (sweep task 15).
+
+### FN-10 · `docs/HANDOFF.md` says bare "note" where it means a Feedback note
+
+- **Source:** `FN` (`:59-61`)
+- **Evidence:** `docs/HANDOFF.md:401` — "`--dry-run` looks the note up and
+  reports what would change without writing". `CONTEXT.md:247` defines
+  **Feedback note** as the contract term.
+- **Fix:** one word — "looks the Feedback note up".
+- **Category:** docs · **Effort:** S
+- **Closed:** `4febcfd`, 2026-09-21 (sweep task 16).
+
+### HG-06 · `help-expand-all.tsx`'s "ONLY client component" comment is now false
+
+- **Source:** `HG` (`:639`, "Parked")
+- **Evidence:** `components/trip/help-expand-all.tsx:8-9` still reads
+  "Deliberately the ONLY client component in the guide."
+  `components/trip/help-hash-open.tsx:1` opens with `"use client";`, added in
+  `90a9ac4`, which post-dates the comment.
+- **The property the comment protects is still intact:** no client-side
+  *disclosure state* is added, so `help-guide.tsx` stays a server component, and
+  the guard test in `help-guide.test.tsx` ("uses no client-side disclosure
+  state") still holds. Only the comment is wrong.
+- **Fix:** one-line comment edit when next touching the file.
+- **Category:** docs · **Effort:** S
+- **Closed:** `4febcfd`, 2026-09-21 (sweep task 16).
+
+### FP-05 · The backdrop is briefly visible during panel open/close below `md`
+
+- **Source:** `FP` (`docs/follow-ups/2026-09-09-feedback-panel-chat-shape.md:43`)
+- **Evidence:** `app/globals.css:234` — `tp-fade-in` is `150ms ease-out`;
+  `app/globals.css:246` — `tp-slide-up` is `250ms cubic-bezier(...)`. The 100ms
+  gap (used together below `md` in `components/ui/sheet.tsx:21-22,36`) is
+  unchanged, so the dim-and-blur backdrop shows before the panel covers it.
+- **Note:** the source doc calls this "arguably an improvement" (standard sheet
+  feel). Recorded as still-open, not as something the doc demands fixed.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `14b8f6b`, 2026-09-21 (sweep task 17).
+
+### FP-06 · Full-viewport `backdrop-blur-sm` on every mobile panel open, fully occluded
+
+- **Source:** `FP` (`:48`)
+- **Evidence:** `components/ui/sheet.tsx:21` — `SheetOverlay` renders
+  `"fixed inset-0 z-50 bg-foreground/40 backdrop-blur-sm"` unconditionally when
+  not `hideOverlay`; there is no overlay-className passthrough on `SheetContent`
+  (`:56,62,64` expose only a boolean `hideOverlay`), so a single caller cannot
+  neutralise it.
+- **Note:** the performance cost claimed ("small real cost on low-end phones")
+  cannot be quantified without a real device; the structural condition is
+  confirmed by code alone.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `14b8f6b`, 2026-09-21 (sweep task 17).
+
+### FP-13 · The docked height calc has no floor
+
+- **Source:** `FP` (`:83`)
+- **Evidence:** `components/ui/sheet.tsx:42` —
+  `md:h-[min(37.5rem,calc(100vh-9rem))]`, no floor clause.
+- **Note:** only bites below a 144px-tall viewport at ≥768px wide; 768×400
+  landscape still yields 16rem.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `14b8f6b`, 2026-09-21 (sweep task 17).
+
+### HG-02 / HG-10 · The `MapPin` icon is used three ways, so the legend's specimen is ambiguous
+
+- **Source:** `HG` (`docs/follow-ups/2026-09-15-help-guide-audit.md:579` (L3) and
+  `:659` (Parked) — the parked bullet is a verbatim restatement of L3, merged
+  here rather than double-counted)
+- **Evidence:** the same icon appears decoratively at
+  `components/trip/stop-card.tsx:337` (next to a stop's country, unconditional)
+  and `components/trip/item-card.tsx:114,192` (next to an item's stop name,
+  unconditional), and as the real has-a-location signal at
+  `components/trip/map-link.tsx:14-25` (`MapLink` renders `null` when there is no
+  location).
+- **This is an app defect, not a guide defect.** The guide's legend accurately
+  describes an ambiguous affordance, so editing guide text cannot fix it. The fix
+  is in the UI: differentiate the decorative pin from the real map-link glyph, or
+  drop the decorative use.
+- **Category:** mechanical · **Effort:** M
+- **Scope correction made while fixing:** the entry named two cards; there were
+  **three**. `components/trip/accommodation-card.tsx` had the same decorative-pin
+  -beside-a-real-`MapLink` defect and was fixed in a second round (`84d2f15`).
+  The pin now means one thing in `stop-card.tsx`, `item-card.tsx` and
+  `accommodation-card.tsx`. Two decorative uses survive elsewhere and are filed
+  as the new `SW-02` — they are not beside a `MapLink`, so they are not
+  confusable, and they were deliberately left alone.
+- **Closed:** `6eb8fba, 84d2f15, dadb3c1`, 2026-09-21 (sweep task 19).
+
+### HG-08 · `help-hash-open.test.tsx` test 3 is weaker than its name
+
+- **Source:** `HG` (`:645`, "Parked")
+- **Evidence:** `components/trip/help-hash-open.test.tsx:43-54` — the test "lets
+  a deep-linked section be collapsed again and stay collapsed" sets
+  `globe.open = false` itself, then asserts `globe.open === false` and
+  `window.location.hash === ""`. It re-reads the property it just set, and cannot
+  assert the body is visually hidden because jsdom applies no `:target` CSS.
+- **Verifiable by reading (hence open, not blocked), but closing it properly
+  needs a real browser** asserting the `:target` CSS is not holding the section
+  open — which this repo's jsdom suite cannot provide. Flagged here so whoever
+  picks it up knows the shape of the real fix before starting.
+- **Category:** test-coverage · **Effort:** M
+- **Closed:** `7f4c82b`, 2026-09-21 (sweep task 20).
+
+### CD-11 · No structural test pins `requireTripAccess` to `cache(fn)`
+
+- **Source:** `CD` (`:116-119`)
+- **Evidence:** `lib/guards.ts:57` —
+  `export const requireTripAccess = cache(async (tripId: string) => { ... })`.
+  `lib/guards.test.ts` uses a hand-rolled `cache()` mock (comment at `:32-46`
+  explains why: React's real `cache()` is inert under Vitest/jsdom), and its two
+  relevant tests (`:104`, `:117`) exercise behaviour *through* that mock rather
+  than asserting `requireTripAccess` is literally the mock's return value.
+- **Why it matters:** this is the one assertion that would survive a bug in the
+  hand-rolled mock itself.
+- **Category:** test-coverage · **Effort:** S
+- **Closed:** `4abc3a5`, 2026-09-21 (sweep task 21).
+
+### RM-15 · Home runs `requireTripAccess` twice per render
+
+- **Source:** `RM` (`docs/follow-ups/2026-09-17-reminders-follow-ups.md:156-158`)
+- **Evidence:** `app/(app)/trips/[tripId]/page.tsx:21` calls
+  `await requireTripAccess(tripId)`, then line 80 calls
+  `listRemindersForTrip(tripId, today)`, which calls `await requireTripAccess(tripId)`
+  again at `server/actions/reminders.ts:69`.
+- **Note:** defence-in-depth cost, not a defect — matching the source doc's own
+  framing ("two extra round trips on the most-hit page").
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `4abc3a5`, 2026-09-21 (sweep task 21).
+
+### CD-05 · `DispatcherHealth` calls `new Date()` in a client component's render
+
+- **Source:** `CD` (`:88-93`)
+- **Evidence:** `components/account/dispatcher-health.tsx:42` —
+  `const now = new Date();` inside the component body, which is `"use client"`
+  precisely because `formatLastRun`'s stale branch calls `toLocaleDateString`
+  with no explicit timezone. `components/account/devices-panel.tsx:216` has the
+  equivalent pattern (`formatLastSeen(device.lastSeenAt, new Date())`).
+- **Symptom:** server and client compute a different `now`, causing a hydration
+  text mismatch — guaranteed on the stale branch, which formats a local calendar
+  date.
+- **Fix:** pass `now` down from the server instead of calling `new Date()`
+  client-side; fix both components together.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `dec2b27`, 2026-09-21 (sweep task 22).
+
+### CD-15 · `DispatcherHealth` names both a component and an interface, imported into the same page
+
+- **Source:** `CD` (`:128-129`)
+- **Evidence:** `server/actions/cron-health.ts:7` —
+  `export interface DispatcherHealth { ... }`;
+  `components/account/dispatcher-health.tsx:41` —
+  `export function DispatcherHealth(...)`. Both are imported into
+  `app/(app)/account/page.tsx` (`:4` and `:13`).
+- **Note:** TypeScript disambiguates them fine (interface vs value namespace);
+  it is confusing to a reader scanning imports. Rename one — e.g. the interface
+  to `DispatcherHealthData`.
+- **Category:** docs · **Effort:** S
+- **Closed:** `dec2b27`, 2026-09-21 (sweep task 22).
+
+### CD-08 · `public/sw.test.ts` mutates `globalThis.fetch` with no `afterEach` restore
+
+- **Source:** `CD` (`:103-105`)
+- **Evidence:** `public/sw.test.ts` has three `describe` blocks (`:89`, `:161`,
+  `:218`) and assigns `globalThis.fetch = fetchMock` / `vi.fn()` directly at
+  lines 222, 263, 282, 305, with no `afterEach` anywhere restoring or unstubbing
+  it.
+- **Note:** harmless today because every test sets its own mock before use; a
+  latent trap for the next test added. Four-line fix.
+- **Category:** test-coverage · **Effort:** S
+- **Closed:** `32bee64`, 2026-09-21 (sweep task 23).
+
+### CD-12 · The service worker's re-subscribe heal path has uncovered defensive guards
+
+- **Source:** `CD` (`:120-122`)
+- **Evidence:** `public/sw.js:344` — `if (!fresh || !fresh.endpoint) return;`
+  and `:347` — `if (!keys.p256dh || !keys.auth) return;`.
+  `public/sw.test.ts`'s `pushsubscriptionchange` block (`:218` onward) covers the
+  happy path, a null old+new subscription fallback (`:289`), and `subscribe()`
+  rejecting (`:302`) — but nothing makes `pushManager.subscribe()` resolve to a
+  falsy value or an object missing `.endpoint`, and nothing makes `toJSON()`
+  return partial `keys`. Neither guard branch is exercised.
+- **File-citation correction:** the code is in `public/sw.js`, not
+  `components/account/device-state.ts` as the source doc says — that file's
+  `!subscription`/`toJSON()` pair (`device-state.ts:59-62`) is the read path and
+  is already covered. Confirm scope before starting.
+- **Category:** test-coverage · **Effort:** S
+- **Closed:** `32bee64`, 2026-09-21 (sweep task 23).
+
+### CD-09 · `server/actions/push.ts` repeats its subscription shape and swallows errors opaquely
+
+- **Source:** `CD` (`:106-109`)
+- **Evidence:** the `p256dh`/`auth`/`lastSeenAt`(/`timezone`) shape is repeated
+  across the `create` arm (`push.ts:43-49`), the `update` arm (`:67-70`), and the
+  heal-path arms (`:219-230`, `:234-240`). A bare `catch {` with no bound error
+  appears three times: `:76`, `:98`, `:244`.
+- **Fix it file-wide or not at all** — extract a shared shape-builder and name
+  the caught errors together; a partial fix leaves the file inconsistent with
+  itself.
+- **Category:** mechanical · **Effort:** M
+- **Closed:** `28e933a`, 2026-09-21 (sweep task 24).
+
+
+## Closed before the 2026-09-20 compile
 
 44 items were closed by later work before this compile and are recorded here
 only so the trail survives. **None of these is open. Do not work them.** The
