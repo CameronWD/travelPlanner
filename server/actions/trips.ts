@@ -311,7 +311,17 @@ export async function duplicateTrip(
   sourceTripId: string,
   newName: string,
 ): Promise<DuplicateTripResult> {
-  const { user } = await requireTripAccess(sourceTripId);
+  const { user, membership } = await requireTripAccess(sourceTripId);
+
+  // Owner, or an operator listed in ADMIN_EMAILS. Same shape as deleteTrip
+  // above, and for the same reason (ADR 0045): the Danger zone card carries
+  // Duplicate as well as Delete, and a *rendering* gate on the settings page
+  // is not an authorization check — the server action is directly callable by
+  // any member. Without this, a Traveller could mint a fully-owned copy of
+  // someone else's trip, members and all.
+  if (membership.role !== "owner" && !isAdminEmail(user.email)) {
+    return { success: false, error: "Only the trip owner can duplicate the trip." };
+  }
 
   const source = await db.trip.findUnique({
     where: { id: sourceTripId },

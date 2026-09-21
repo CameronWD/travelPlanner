@@ -724,7 +724,10 @@ describe("setTripHardEndDate", () => {
 
 describe("duplicateTrip", () => {
   it("creates a new trip + owner membership + copies co-travellers, and remaps children", async () => {
-    requireTripAccessMock.mockResolvedValue({ user: { id: "user-1" }, membership: { role: "member" } });
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-1", email: "you@example.com" },
+      membership: { userId: "user-1", role: "owner" },
+    });
     tripFindUniqueMock.mockResolvedValue({
       id: "src", name: "Europe 2026", homeCurrency: "AUD", drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
       members: [{ userId: "user-1", role: "owner" }, { userId: "user-2", role: "member" }],
@@ -773,9 +776,63 @@ describe("duplicateTrip", () => {
     expect(checklistItemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", text: "Passport", done: false, dueDate: null, assignedToId: null }) });
   });
 
+  it("refuses a non-owner member — a Traveller cannot mint themselves a copy", async () => {
+    // HG-12. requireTripAccess proves MEMBERSHIP, not role: before the guard
+    // existed, this member sailed straight through to db.trip.findUnique and
+    // came out the other side owning a full copy of someone else's trip.
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-2", email: "traveller@example.com" },
+      membership: { userId: "user-2", role: "member" },
+    });
+
+    const result = await duplicateTrip("src", "Stolen copy");
+
+    expect(result).toEqual({
+      success: false,
+      error: "Only the trip owner can duplicate the trip.",
+    });
+    // Nothing was even read, let alone written.
+    expect(tripFindUniqueMock).not.toHaveBeenCalled();
+    expect(tripCreateMock).not.toHaveBeenCalled();
+    expect(memberCreateMock).not.toHaveBeenCalled();
+  });
+
   it("denies when the caller lacks access", async () => {
     requireTripAccessMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
     await expect(duplicateTrip("src", "x")).rejects.toThrow();
+  });
+});
+
+describe("duplicateTrip — admin override", () => {
+  afterEach(() => {
+    delete process.env.ADMIN_EMAILS;
+  });
+
+  it("lets a non-owner member duplicate when their email is in ADMIN_EMAILS (ADR 0045)", async () => {
+    process.env.ADMIN_EMAILS = "admin@example.com";
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u-admin", email: "admin@example.com" },
+      membership: { userId: "u-admin", role: "member" },
+    });
+    tripFindUniqueMock.mockResolvedValue({
+      id: "src", name: "Europe 2026", homeCurrency: "AUD",
+      drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
+      members: [{ userId: "user-1", role: "owner" }],
+      chapters: [], stops: [], items: [], transports: [], checklistItems: [],
+    });
+    tripCreateMock.mockResolvedValue({ id: "new" });
+
+    const result = await duplicateTrip("src", "Admin copy");
+
+    expect(result).toEqual({ success: true, tripId: "new" });
+  });
+
+  it("still requires membership — an admin gets no bypass of requireTripAccess", async () => {
+    process.env.ADMIN_EMAILS = "admin@example.com";
+    requireTripAccessMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
+
+    await expect(duplicateTrip("someone_elses", "x")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(tripCreateMock).not.toHaveBeenCalled();
   });
 });
 
