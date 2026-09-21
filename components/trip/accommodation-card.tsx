@@ -53,6 +53,8 @@ interface AccommodationCardProps {
   currentUserId?: string;
   /** Attachments for this accommodation */
   attachments?: AttachmentView[];
+  /** The Plan this accommodation's costs belong to — `null`/absent is the real plan */
+  forkId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,6 +73,7 @@ export function AccommodationCard({
   notes,
   currentUserId,
   attachments,
+  forkId,
 }: AccommodationCardProps) {
   const nights = nightsBetween(a.checkIn, a.checkOut);
   const dateRange = formatDateRange(a.checkIn, a.checkOut);
@@ -177,6 +180,7 @@ export function AccommodationCard({
             costs={costs}
             homeCurrency={homeCurrency}
             defaultCurrency={homeCurrency}
+            forkId={forkId}
           />
         </div>
       )}

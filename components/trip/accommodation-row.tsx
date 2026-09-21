@@ -26,6 +26,7 @@ export interface AccommodationRowProps {
   notes?: NoteView[];
   currentUserId?: string;
   attachments?: AttachmentView[];
+  forkId?: string | null;
 }
 
 /**

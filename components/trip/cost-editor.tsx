@@ -40,6 +40,12 @@ export interface CostEditorProps {
   homeCurrency?: string;
   /** Default currency when opening the editor (defaults to homeCurrency or AUD) */
   defaultCurrency?: string;
+  /**
+   * The Plan this cost belongs to — `null`/absent is the real plan, a string
+   * is a variant. Without it a cost added on a fork-active page is filed on
+   * the real plan with an ownerId pointing at a fork-owned entity (AB-01).
+   */
+  forkId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -218,6 +224,7 @@ export function CostEditor({
   costs,
   homeCurrency,
   defaultCurrency,
+  forkId,
 }: CostEditorProps) {
   const { confirm, dialog } = useConfirm();
   const baseCurrency = defaultCurrency ?? homeCurrency ?? "AUD";
@@ -279,7 +286,7 @@ export function CostEditor({
     setSubmitting(true);
     setErrors({});
     try {
-      const result = await createCost(tripId, input);
+      const result = await createCost(tripId, input, forkId);
       if (result.success) {
         setAddOpen(false);
       } else {

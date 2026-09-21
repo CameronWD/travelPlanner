@@ -336,6 +336,7 @@ export function WishlistBoard({
                             notes={notesByItemId?.get(item.id) ?? []}
                             votes={votesByItemId?.get(item.id) ?? []}
                             currentUserId={currentUserId}
+                            forkId={activeForkId ?? null}
                           />
                           {placedSet.has(item.id) && (
                             <span
@@ -379,6 +380,7 @@ export function WishlistBoard({
                         notes={notesByItemId?.get(item.id) ?? []}
                         votes={votesByItemId?.get(item.id) ?? []}
                         currentUserId={currentUserId}
+                        forkId={activeForkId ?? null}
                       />
                       {placedSet.has(item.id) && (
                         <span

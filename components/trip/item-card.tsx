@@ -66,6 +66,8 @@ export interface ItemCardProps {
   currentUserId?: string;
   /** Attachments for this item */
   attachments?: AttachmentView[];
+  /** The Plan this item's costs belong to — `null`/absent is the real plan */
+  forkId?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -86,6 +88,7 @@ export function ItemCard({
   votes,
   currentUserId,
   attachments,
+  forkId,
 }: ItemCardProps) {
   const hasTime = Boolean(item.startTime);
   const timeLabel = hasTime
@@ -246,6 +249,7 @@ export function ItemCard({
             costs={costs}
             homeCurrency={homeCurrency}
             defaultCurrency={homeCurrency}
+            forkId={forkId}
           />
         </div>
       )}
