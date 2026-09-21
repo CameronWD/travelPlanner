@@ -73,7 +73,6 @@ describe("subscribeToPush", () => {
         lastSeenAt: expect.any(Date),
       },
       update: {
-        userId: "user-1",
         p256dh: STUB_SUB.keys.p256dh,
         auth: STUB_SUB.keys.auth,
         lastSeenAt: expect.any(Date),
@@ -164,6 +163,47 @@ describe("subscribeToPush", () => {
     const core = { p256dh: "stub-p256dh", auth: "stub-auth", timezone: "Europe/Berlin" };
     expect(call.create).toMatchObject(core);
     expect(call.update).toMatchObject(core);
+  });
+
+  // ADR 0053: a PushSubscription row is never reassigned to a different
+  // user. `mockResolvedValueOnce` (rather than `mockResolvedValue`) on
+  // `requireUserMock` and `pushSubFindUniqueMock` here so neither leaks past
+  // its own test — `clearAllMocks()` (top-level afterEach) does not clear a
+  // persistent `mockResolvedValue`, which would otherwise poison the
+  // `requireUserMock` default (`{ id: "user-1" }`) the unsubscribeFromPush
+  // and healRotatedSubscription describes below assume.
+  it("refuses to take over a subscription owned by someone else", async () => {
+    requireUserMock.mockResolvedValueOnce({ id: "u2", email: "b@example.com" });
+    pushSubFindUniqueMock.mockResolvedValueOnce({
+      userId: "u1",
+    });
+
+    const result = await subscribeToPush({
+      endpoint: "https://push.example/abc",
+      keys: { p256dh: "p", auth: "a" },
+    });
+
+    expect(result).toEqual({
+      ok: false,
+      error:
+        "This device is already enabled for another account. Turn it off there, or press Enable again.",
+      reason: "conflict",
+    });
+    expect(pushSubUpsertMock).not.toHaveBeenCalled();
+  });
+
+  it("still updates a subscription the caller already owns", async () => {
+    requireUserMock.mockResolvedValueOnce({ id: "u1", email: "a@example.com" });
+    pushSubFindUniqueMock.mockResolvedValueOnce({ userId: "u1" });
+    pushSubUpsertMock.mockResolvedValue({});
+
+    const result = await subscribeToPush({
+      endpoint: "https://push.example/abc",
+      keys: { p256dh: "p", auth: "a" },
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(pushSubUpsertMock).toHaveBeenCalled();
   });
 });
 

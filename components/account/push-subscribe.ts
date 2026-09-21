@@ -85,12 +85,29 @@ export async function subscribeThisDevice(): Promise<SubscribeThisDeviceResult> 
 
     const registration = await navigator.serviceWorker.ready;
     const applicationServerKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY);
-    const subscription = await registration.pushManager.subscribe({
+    let subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: applicationServerKey.buffer as ArrayBuffer,
     });
 
-    const result = await persistSubscription(subscription);
+    let result = await persistSubscription(subscription);
+
+    // ADR 0053: the server never reassigns a row, so a subscription already
+    // held by another account is refused. pushManager.subscribe() returns the
+    // EXISTING subscription, which is why a second press alone cannot help —
+    // the browser has to drop it first. Unsubscribing and re-subscribing
+    // mints a new endpoint and does not re-prompt, because permission is
+    // already granted for this origin. Once only: a second conflict is a real
+    // error, not a state to keep churning.
+    if (!result.ok && result.reason === "conflict") {
+      await subscription.unsubscribe();
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: applicationServerKey.buffer as ArrayBuffer,
+      });
+      result = await persistSubscription(subscription);
+    }
+
     return result.ok ? { ok: true } : { ok: false, reason: "error" };
   } catch (err) {
     console.error("[subscribeThisDevice] failed:", err);

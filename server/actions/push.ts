@@ -8,7 +8,12 @@ import { deviceLabelFromUserAgent } from "@/lib/device-label";
 // Result types
 // ---------------------------------------------------------------------------
 
-export type PushActionResult = { ok: true } | { ok: false; error: string };
+export type PushActionResult =
+  | { ok: true }
+  // `reason: "conflict"` means the endpoint belongs to someone else. The
+  // client acts on precisely this case by minting a fresh endpoint, so it
+  // must be distinguishable from a generic failure (ADR 0053).
+  | { ok: false; error: string; reason?: "conflict" };
 
 // ---------------------------------------------------------------------------
 // Shared shape
@@ -53,6 +58,25 @@ export async function subscribeToPush(sub: {
   const user = await requireUser();
 
   try {
+    // ADR 0053: a PushSubscription row is never reassigned. The row is matched
+    // by endpoint, and an endpoint is a capability secret rather than a
+    // credential — an authenticated caller holding someone else's could
+    // otherwise re-point it at themselves and silence that Device. The
+    // legitimate shared-machine case does not need a reassignment: the browser
+    // unsubscribes and re-subscribes to get a fresh endpoint instead.
+    const existing = await db.pushSubscription.findUnique({
+      where: { endpoint: sub.endpoint },
+      select: { userId: true },
+    });
+    if (existing && existing.userId !== user.id) {
+      return {
+        ok: false,
+        error:
+          "This device is already enabled for another account. Turn it off there, or press Enable again.",
+        reason: "conflict",
+      };
+    }
+
     await db.pushSubscription.upsert({
       where: { endpoint: sub.endpoint },
       create: {
@@ -65,22 +89,9 @@ export async function subscribeToPush(sub: {
         lastSeenAt: new Date(),
         ...subscriptionCoreFields(sub.keys, sub.timezone),
       },
-      // `userId: user.id` on `update` is deliberate, and asymmetric with
-      // `reconcileDevice` (server/actions/devices.ts), which refuses to touch
-      // a row it doesn't already own. The INTENDED caller is a traveller
-      // pressing Enable on the physical device in front of them, in which
-      // case re-pointing an existing row at whoever is signed in now is the
-      // correct read of a shared machine changing hands — unlike
-      // `reconcileDevice`'s silent, background self-heal, which must never
-      // reassign a Device out from under the person it actually belongs to.
-      // NOTE: unlike a real browser's Enable button, this is a server action —
-      // it accepts whatever endpoint/keys an authenticated caller passes it,
-      // so nothing here actually enforces "THIS physical device". Tightening
-      // that is a separate, deliberately out-of-scope follow-up; this comment
-      // was corrected (2026-09-20 review) to stop asserting a guarantee the
-      // code does not provide.
+      // `userId` is deliberately absent: a row is never reassigned (ADR 0053).
+      // The conflict check above has already proved this row is ours.
       update: {
-        userId: user.id,
         lastSeenAt: new Date(),
         ...subscriptionCoreFields(sub.keys, sub.timezone),
       },
