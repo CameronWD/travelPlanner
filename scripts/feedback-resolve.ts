@@ -52,6 +52,12 @@ async function main() {
     process.exit(1);
   }
 
+  // Printed BEFORE the lookup, not after: a mistyped id exits at the
+  // not-found check below, and "no feedback note with id X" is exactly the
+  // moment the operator needs to know which database was asked — this script
+  // normally writes production (FN-06).
+  console.log(`Database: ${targetHost()}`);
+
   const existing = await db.feedbackNote.findUnique({
     where: { id: parsed.id },
     select: {
@@ -66,8 +72,6 @@ async function main() {
     console.error(`No feedback note with id ${parsed.id}.`);
     process.exit(1);
   }
-
-  console.log(`Database: ${targetHost()}`);
 
   if (parsed.dryRun) {
     console.log(`Dry run — nothing was written.`);

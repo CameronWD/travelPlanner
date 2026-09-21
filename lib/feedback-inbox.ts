@@ -1,4 +1,4 @@
-import type { FeedbackStatus } from "@/lib/enums";
+import { FEEDBACK_STATUSES, type FeedbackStatus } from "@/lib/enums";
 import { areaForRoute } from "@/lib/feedback-context";
 import { describeDevice } from "@/lib/feedback-device";
 
@@ -19,6 +19,52 @@ export type InboxNote = {
   resolvedAt: Date | null;
   resolution: string | null;
 };
+
+/** The Prisma selection `scripts/feedback-pull.ts` reads. */
+export type FeedbackNoteRow = {
+  id: string;
+  body: string;
+  route: string;
+  pageLabel: string;
+  tripName: string | null;
+  viewport: string | null;
+  userAgent: string | null;
+  status: string;
+  authoredAt: Date;
+  createdAt: Date;
+  resolvedAt: Date | null;
+  resolution: string | null;
+  author: { name: string | null };
+};
+
+/**
+ * One database row as the inbox sees it.
+ *
+ * Lived inline in `scripts/feedback-pull.ts`, where it could not be tested —
+ * a field silently dropped from the mapping would have shown up only as a
+ * missing line in a generated file nobody diffs closely (FN-12). `status`
+ * comes back as a plain string, so an unrecognised one falls back to OPEN
+ * rather than rendering as a struck-through note with no badge.
+ */
+export function toInboxNote(row: FeedbackNoteRow): InboxNote {
+  return {
+    id: row.id,
+    body: row.body,
+    route: row.route,
+    pageLabel: row.pageLabel,
+    tripName: row.tripName,
+    authorName: row.author.name ?? "Traveller",
+    viewport: row.viewport,
+    userAgent: row.userAgent,
+    status: (FEEDBACK_STATUSES as readonly string[]).includes(row.status)
+      ? (row.status as FeedbackStatus)
+      : "OPEN",
+    authoredAt: row.authoredAt,
+    createdAt: row.createdAt,
+    resolvedAt: row.resolvedAt,
+    resolution: row.resolution,
+  };
+}
 
 const STATUS_LABELS: Record<FeedbackStatus, string> = {
   OPEN: "Open",
