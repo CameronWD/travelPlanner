@@ -619,3 +619,35 @@ describe("things to do section", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 19 (HG-02/HG-10): the map pin means one thing — has a location
+// ---------------------------------------------------------------------------
+
+describe("Task 19 — map pin is not decorative", () => {
+  it("shows exactly one map pin on a stop with a location — the map link's", () => {
+    // HG-02/HG-10: a decorative pin next to the country plus MapLink's real
+    // one meant two identical glyphs in a row meaning different things, while
+    // help-legend.tsx teaches the pin as "has a location".
+    const { container } = render(
+      <StopCard
+        stop={{ ...scheduledStop, lat: 41.9, lng: 12.5 }}
+        isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} onDelete={() => {}}
+      />,
+    );
+    expect(container.querySelectorAll("svg.lucide-map-pin")).toHaveLength(1);
+    expect(container.querySelector('a[aria-label^="Open"]')).not.toBeNull();
+  });
+
+  it("shows no map pin at all on a stop with no location", () => {
+    const { container } = render(
+      <StopCard
+        stop={{ ...scheduledStop, lat: null, lng: null }}
+        isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} onDelete={() => {}}
+      />,
+    );
+    expect(container.querySelectorAll("svg.lucide-map-pin")).toHaveLength(0);
+    // The country still reads fine as plain text.
+    expect(screen.getByText("Italy")).toBeInTheDocument();
+  });
+});
