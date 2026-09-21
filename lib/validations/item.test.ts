@@ -232,6 +232,54 @@ describe("itemSchema paid invariant", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// itemSchema — paidAt calendar validity and amount cap (AB-04)
+// ---------------------------------------------------------------------------
+
+describe("itemSchema paidAt calendar validity and amount cap", () => {
+  // paidMinor is included throughout so the ADR-0037 "paidAt needs a paid
+  // amount" refinement can't mask whether the calendar refinement itself is
+  // doing anything — without it every paidAt-only payload fails regardless.
+  it("rejects a paidAt that is not a real calendar date", () => {
+    // AB-04: the shape check alone lets 2026-02-30 through, and `new Date`
+    // then silently rolls it forward into March.
+    const result = itemSchema.safeParse({
+      ...VALID_UNSCHEDULED,
+      paidAt: "2026-02-30",
+      paidMinor: 1500,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects a non-leap-year February 29", () => {
+    const result = itemSchema.safeParse({
+      ...VALID_UNSCHEDULED,
+      paidAt: "2027-02-29",
+      paidMinor: 1500,
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts a real calendar date for paidAt", () => {
+    const result = itemSchema.safeParse({
+      ...VALID_UNSCHEDULED,
+      paidAt: "2026-02-28",
+      paidMinor: 1500,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an amount above the shared minor-unit cap", () => {
+    const result = itemSchema.safeParse({ ...VALID_UNSCHEDULED, costMinor: 2_147_483_648 });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts an amount at the shared minor-unit cap", () => {
+    const result = itemSchema.safeParse({ ...VALID_UNSCHEDULED, costMinor: 2_147_483_647 });
+    expect(result.success).toBe(true);
+  });
+});
+
 describe("isScheduled", () => {
   it("returns true for an item with a date", () => {
     expect(isScheduled({ date: "2026-07-15" })).toBe(true);

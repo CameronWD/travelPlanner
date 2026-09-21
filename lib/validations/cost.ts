@@ -40,6 +40,18 @@ export const paidAtStringSchema = z
   );
 
 /**
+ * A date-only `paidAt`, for the inline cost fields on the Transport, Item and
+ * Accommodation schemas — those send a plain `YYYY-MM-DD` from a date input
+ * and never an ISO datetime, so they want the narrower shape, but they want
+ * the same real-calendar-date refinement `costSchema` gets. Defined here so
+ * the three of them cannot drift from it (AB-04).
+ */
+export const paidAtDateOnlySchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "paidAt must be YYYY-MM-DD")
+  .refine(isRealCalendarDate, "paidAt must be a real calendar date");
+
+/**
  * An optional calendar date on an UNPAID cost — money committed but not yet
  * taken (CONTEXT.md "Due date"). Plain YYYY-MM-DD (the repo's calendar-date
  * convention), not an ISO datetime like `paidAt`.
