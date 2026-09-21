@@ -38,6 +38,7 @@ import {
   createFeedbackNote,
   deleteFeedbackNote,
   listFeedbackNotes,
+  toView,
 } from "@/server/actions/feedback";
 
 const author = { id: "u1", name: "Cam" };
@@ -61,9 +62,9 @@ const row = {
   pageLabel: input.pageLabel,
   tripName: input.tripName,
   authorId: "u1",
+  authorName: "Cam",
   status: "OPEN",
   authoredAt: new Date(input.authoredAt),
-  author: { name: "Cam" },
 };
 
 const otherRow = {
@@ -73,9 +74,9 @@ const otherRow = {
   pageLabel: "Budget",
   tripName: "Europe Summer 2026",
   authorId: "u2",
+  authorName: "Partner",
   status: "OPEN",
   authoredAt: new Date("2026-09-09T00:00:00.000Z"),
-  author: { name: "Partner" },
 };
 
 afterEach(() => {
@@ -198,6 +199,28 @@ describe("listFeedbackNotes", () => {
     expect(result.notes.map((n) => n.canDelete)).toContain(true);
     const other = result.notes.find((n) => n.id === "n2");
     expect(other?.canDelete).toBe(false);
+  });
+});
+
+describe("toView", () => {
+  it("shows the snapshotted author name", () => {
+    const view = toView(
+      {
+        id: "f1",
+        body: "b",
+        route: "/r",
+        pageLabel: "Home",
+        tripName: null,
+        authorId: "gone",
+        authorName: "Cam",
+        status: "OPEN",
+        authoredAt: new Date("2026-09-21T00:00:00Z"),
+      },
+      "someone-else",
+    );
+
+    expect(view.authorName).toBe("Cam");
+    expect(view.canDelete).toBe(false);
   });
 });
 

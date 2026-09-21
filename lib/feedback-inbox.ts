@@ -34,7 +34,7 @@ export type FeedbackNoteRow = {
   createdAt: Date;
   resolvedAt: Date | null;
   resolution: string | null;
-  author: { name: string | null };
+  authorName: string | null;
 };
 
 /**
@@ -53,7 +53,7 @@ export function toInboxNote(row: FeedbackNoteRow): InboxNote {
     route: row.route,
     pageLabel: row.pageLabel,
     tripName: row.tripName,
-    authorName: row.author.name ?? "Traveller",
+    authorName: row.authorName ?? "Traveller",
     viewport: row.viewport,
     userAgent: row.userAgent,
     status: (FEEDBACK_STATUSES as readonly string[]).includes(row.status)

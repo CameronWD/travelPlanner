@@ -54,7 +54,7 @@ async function main() {
       createdAt: true,
       resolvedAt: true,
       resolution: true,
-      author: { select: { name: true } },
+      authorName: true,
     },
   });
 

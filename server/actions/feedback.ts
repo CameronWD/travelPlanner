@@ -40,9 +40,9 @@ type FeedbackNoteRow = {
   pageLabel: string;
   tripName: string | null;
   authorId: string;
+  authorName: string | null;
   status: string;
   authoredAt: Date;
-  author: { name: string | null };
 };
 
 const VIEW_SELECT = {
@@ -52,19 +52,19 @@ const VIEW_SELECT = {
   pageLabel: true,
   tripName: true,
   authorId: true,
+  authorName: true,
   status: true,
   authoredAt: true,
-  author: { select: { name: true } },
 } as const;
 
-function toView(row: FeedbackNoteRow, viewerId: string): FeedbackNoteView {
+export function toView(row: FeedbackNoteRow, viewerId: string): FeedbackNoteView {
   return {
     id: row.id,
     body: row.body,
     route: row.route,
     pageLabel: row.pageLabel,
     tripName: row.tripName,
-    authorName: row.author.name ?? "Traveller",
+    authorName: row.authorName ?? "Traveller",
     canDelete: row.authorId === viewerId,
     status: row.status as FeedbackStatus,
     authoredAt: row.authoredAt.toISOString(),
@@ -101,6 +101,7 @@ export async function createFeedbackNote(
     create: {
       clientKey,
       authorId: user.id,
+      authorName: user.name ?? null,
       authoredAt: new Date(authoredAt),
       ...rest,
     },
