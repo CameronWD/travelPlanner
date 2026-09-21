@@ -275,6 +275,77 @@ describe("flushQueue", () => {
 
     setItem.mockRestore();
   });
+
+  it("does not let an unpersisted rejection strand the notes behind it", async () => {
+    // Fix round 1 treated ANY unpersisted removal like `transient` and
+    // `break`. For a `rejected` note that is worse than the bug it fixed:
+    // the server's "no" is final and will never change, so stopping the
+    // whole queue behind it strands every later note for as long as storage
+    // stays blocked (private-mode Safari, a permanently full quota) — with
+    // both `sent` and `discarded` empty, so the caller's toast never even
+    // fires. A rejected note whose removal can't persist must not be
+    // reported as discarded (that lie stays fixed), but it must not gate
+    // the rest of the queue either.
+    enqueue(note({ clientKey: "fk_bad" }));
+    enqueue(note({ clientKey: "fk_good" }));
+    const setItem = vi
+      .spyOn(window.localStorage.__proto__, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+    const sender = vi
+      .fn()
+      .mockResolvedValueOnce("rejected")
+      .mockResolvedValueOnce("rejected");
+
+    const result = await flushQueue(sender);
+
+    // The second note must still be attempted, not skipped because the
+    // first one's removal failed to persist.
+    expect(sender).toHaveBeenCalledTimes(2);
+    expect(sender.mock.calls.map((c) => c[0].clientKey)).toEqual([
+      "fk_bad",
+      "fk_good",
+    ]);
+    // Neither is reported as discarded — neither removal actually persisted.
+    expect(result.discarded).toEqual([]);
+    expect(result.sent).toBe(0);
+    // Both are still accounted for (still queued), not silently dropped.
+    expect(result.remaining).toBe(2);
+    expect(readQueue().map((n) => n.clientKey)).toEqual([
+      "fk_bad",
+      "fk_good",
+    ]);
+
+    setItem.mockRestore();
+  });
+
+  it("does not falsely count a sent note whose removal could not persist, and still moves on", async () => {
+    // The same non-blocking principle applies to a "sent" verdict: the
+    // server already has the note, so a local removal failure is not a
+    // reason to stop — but it also must not be counted as sent when it is
+    // still, in fact, sitting in the queue.
+    enqueue(note({ clientKey: "fk_bad" }));
+    enqueue(note({ clientKey: "fk_good" }));
+    const setItem = vi
+      .spyOn(window.localStorage.__proto__, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+    const sender = vi
+      .fn()
+      .mockResolvedValueOnce("sent")
+      .mockResolvedValueOnce("sent");
+
+    const result = await flushQueue(sender);
+
+    expect(sender).toHaveBeenCalledTimes(2);
+    expect(result.sent).toBe(0);
+    expect(result.discarded).toEqual([]);
+    expect(result.remaining).toBe(2);
+
+    setItem.mockRestore();
+  });
 });
 
 describe("newClientKey", () => {
