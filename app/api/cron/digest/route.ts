@@ -250,16 +250,35 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Stamped only here, once the scan and every per-trip dispatch have been
-    // attempted without throwing. The lastRunAt write above cannot carry this
-    // meaning: it happens before any Digest is built (CD-06).
-    try {
-      await db.cronHeartbeat.update({
-        where: { id: "digest" },
-        data: { lastSuccessAt: new Date() },
-      });
-    } catch (err) {
-      console.error("[cron/digest] success stamp failed:", err);
+    // Stamped once the scan has completed AND the dispatch loop produced
+    // something other than wall-to-wall failure. The lastRunAt write above
+    // cannot carry this meaning: it happens before any Digest is built
+    // (CD-06).
+    //
+    // The three cases this condition separates:
+    //   - sent 0, failed 0  — a quiet day. Nobody was due a Digest, which is
+    //     the ordinary case the whole two-signal design exists to call
+    //     healthy. Stamp.
+    //   - sent > 0          — one bad trip among several. The per-trip catch
+    //     above is deliberate (one bad trip must not cost everyone else their
+    //     Digest), so a run that delivered is a working run. Stamp.
+    //   - sent 0, failed > 0 — every dispatch threw. The run delivered
+    //     nothing and only the per-trip catch kept it from throwing outright.
+    //     Do NOT stamp: lastSuccessAt falls behind and Account reports the
+    //     dispatcher unhealthy once it passes the 24h threshold.
+    //
+    // Gating on `failed === 0` alone was the other candidate and is wrong: one
+    // permanently-broken trip would pin the panel unhealthy forever while
+    // every other Traveller's Digest went out fine.
+    if (failed === 0 || sent > 0) {
+      try {
+        await db.cronHeartbeat.update({
+          where: { id: "digest" },
+          data: { lastSuccessAt: new Date() },
+        });
+      } catch (err) {
+        console.error("[cron/digest] success stamp failed:", err);
+      }
     }
 
     return NextResponse.json({ considered, dispatched, sent, skipped, failed });
