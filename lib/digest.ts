@@ -151,9 +151,14 @@ function formatItem(line: DigestItemLine): string {
  *   4. Checklist — persists until done and reappears nightly, so it gives way
  *      first, and is capped besides.
  */
-function collectLines(input: DigestInput): { lines: string[]; paymentLineCount: number } {
+function collectLines(input: DigestInput): {
+  lines: string[];
+  paymentLineCount: number;
+  droppedCount: number;
+} {
   const lines: string[] = [];
   let paymentLineCount = 0;
+  let droppedCount = 0;
 
   for (const transport of input.schedule.transports) lines.push(formatTransport(transport));
   for (const stay of input.schedule.stays) lines.push(formatStay(stay));
@@ -165,12 +170,17 @@ function collectLines(input: DigestInput): { lines: string[]; paymentLineCount: 
       lines.push(formatPayment(payment));
       paymentLineCount += 1;
     }
+    // The 2-line budget stays: Checklist items reappear nightly until done, so
+    // they must not crowd out the schedule/reminders/payments above them. What
+    // changes is that the excess is COUNTED rather than silently discarded —
+    // the global tail below has no other way to see it (CD-07).
+    droppedCount += Math.max(0, input.checklist.length - DIGEST_MAX_CHECKLIST_LINES);
     for (const item of input.checklist.slice(0, DIGEST_MAX_CHECKLIST_LINES)) {
       lines.push(formatChecklist(item));
     }
   }
 
-  return { lines, paymentLineCount };
+  return { lines, paymentLineCount, droppedCount };
 }
 
 export function buildDigest(input: DigestInput): DigestPayload | null {
@@ -180,12 +190,17 @@ export function buildDigest(input: DigestInput): DigestPayload | null {
     if (!hasDeparture && !hasCheckOut) return null;
   }
 
-  const { lines, paymentLineCount } = collectLines(input);
+  const { lines, paymentLineCount, droppedCount } = collectLines(input);
   if (lines.length === 0) return null;
 
+  // One tail, one meaning: something was left out. It counts both what the
+  // line budget ate and what the per-section Checklist cap dropped before the
+  // budget ever saw it — otherwise five overdue items render as two and the
+  // Digest quietly claims that is all there was (CD-07).
+  const overflow = Math.max(0, lines.length - DIGEST_MAX_LINES) + droppedCount;
   const capped =
-    lines.length > DIGEST_MAX_LINES
-      ? [...lines.slice(0, DIGEST_MAX_LINES), `+${lines.length - DIGEST_MAX_LINES} more`]
+    overflow > 0
+      ? [...lines.slice(0, DIGEST_MAX_LINES), `+${overflow} more`]
       : lines;
 
   // "Tomorrow" is a promise about the *itinerary*, so it follows the schedule

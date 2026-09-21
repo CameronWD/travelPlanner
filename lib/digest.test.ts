@@ -153,6 +153,23 @@ describe("buildDigest", () => {
     expect(out!.body).toContain("Airbnb");
   });
 
+  it("counts checklist lines dropped by the per-section cap in the tail", () => {
+    const payload = buildDigest(
+      input({
+        slot: "EVENING",
+        checklist: [
+          { id: "k1", text: "Passport", daysUntil: 1 },
+          { id: "k2", text: "Adapters", daysUntil: 1 },
+          { id: "k3", text: "Insurance", daysUntil: 1 },
+          { id: "k4", text: "Currency", daysUntil: 1 },
+          { id: "k5", text: "Sunscreen", daysUntil: 1 },
+        ],
+      }),
+    );
+
+    expect(payload?.body).toContain("+3 more");
+  });
+
   it("puts a reminder above a payment — a reminder is said once and never repeats", () => {
     const out = buildDigest(
       input({
