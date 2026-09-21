@@ -144,6 +144,10 @@ export default async function AppLayout({
                 </DropdownMenuItem>
 
                 <DropdownMenuItem asChild>
+                  <Link href="/whats-new">What&apos;s new</Link>
+                </DropdownMenuItem>
+
+                <DropdownMenuItem asChild>
                   <Link href="/account">Account</Link>
                 </DropdownMenuItem>
 
