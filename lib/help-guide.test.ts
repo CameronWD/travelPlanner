@@ -17,6 +17,7 @@ import {
   GUIDE_UI_STRINGS,
   sectionsInGroup,
   guideTripHref,
+  guideLabelOnScreen,
 } from "./help-guide";
 import { primaryNav, moreNav } from "@/components/trip/trip-nav";
 
@@ -162,6 +163,53 @@ function collectSourceFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+describe("guideLabelOnScreen", () => {
+  it("matches a label that ends at a quote", () => {
+    expect(guideLabelOnScreen('aria-label="Add transport"', "Add transport")).toBe(true);
+  });
+
+  it("matches a label that ends at a JSX tag", () => {
+    expect(guideLabelOnScreen("<span>Start time</span>", "Start time")).toBe(true);
+  });
+
+  it("matches a label that ends at sentence punctuation", () => {
+    expect(guideLabelOnScreen("nothing in this plan.", "in this plan")).toBe(true);
+  });
+
+  it("does NOT match a label that is only the head of a longer phrase", () => {
+    // The whole bug: "Booking reference" passed on the strength of
+    // "Booking reference / number", and "Editing variant" passed on the
+    // strength of the banner's interpolated string.
+    expect(guideLabelOnScreen('"Booking reference / number"', "Booking reference")).toBe(false);
+  });
+
+  it("does NOT match a label the source merely starts a word with", () => {
+    expect(guideLabelOnScreen("Add transported goods", "Add transport")).toBe(false);
+  });
+
+  it("matches the last of several occurrences when only that one terminates", () => {
+    expect(
+      guideLabelOnScreen('Booking reference / number and "Booking reference"', "Booking reference"),
+    ).toBe(true);
+  });
+
+  it("is false for a label that never appears", () => {
+    expect(guideLabelOnScreen("nothing here", "Add transport")).toBe(false);
+  });
+});
+
+describe("drift guard: the list itself", () => {
+  it("has no entry that is a substring of another entry", () => {
+    // An entry contained in a longer entry is unfailable by construction: the
+    // longer one's own occurrence satisfies it, so the shorter one can never
+    // catch a rename. Delete the shorter one instead (HG-09).
+    const shadowed = GUIDE_UI_STRINGS.filter((a) =>
+      GUIDE_UI_STRINGS.some((b) => b !== a && b.includes(a)),
+    );
+    expect(shadowed).toEqual([]);
+  });
+});
+
 describe("drift guard: quoted control labels", () => {
   const files = UI_SOURCE_ROOTS.flatMap((root) =>
     collectSourceFiles(path.join(process.cwd(), root)),
@@ -180,16 +228,16 @@ describe("drift guard: quoted control labels", () => {
   });
 
   it.each(GUIDE_UI_STRINGS)(
-    "the guide quotes %s, and it is still on screen",
+    "the guide quotes %s, and it is still on screen as a whole phrase",
     (label) => {
       // Curly apostrophes render identically; accept either form.
       const curly = label.replaceAll("'", "’");
       const found = sources.some(
-        (s) => s.text.includes(label) || s.text.includes(curly),
+        (s) => guideLabelOnScreen(s.text, label) || guideLabelOnScreen(s.text, curly),
       );
       expect(
         found,
-        `the guide quotes "${label}" but no file under components/ or app/ contains it — either the control was renamed, or the guide should stop quoting it`,
+        `the guide quotes "${label}" but no file under components/ or app/ contains it as a complete phrase — either the control was renamed, the guide is quoting only part of the real label, or the guide should stop quoting it`,
       ).toBe(true);
     },
   );

@@ -201,13 +201,48 @@ export const GUIDE_NAV_LABELS = [
  * when the guide stops. Deliberately excluded: single generic words ("Month",
  * "Promote", "Firm up", "Paid") whose last occurrence would survive a rename,
  * so the entry could not fail.
+ *
+ * Also deliberately excluded: a phrase that is only the head of a longer live
+ * string. "Booking reference" is covered by "Booking reference / number", and
+ * the variant banner interpolates the variant's name, so "Editing variant" has
+ * no complete on-screen phrase to assert — its wording is pinned by
+ * components/trip/help-guide.test.tsx instead. Entries must be whole phrases
+ * and must not contain one another (both are enforced by lib/help-guide.test.ts).
  */
+/**
+ * True when `label` appears in `text` as a COMPLETE phrase, not merely as a
+ * substring.
+ *
+ * A plain `includes` let two things through. `"Booking reference"` passed on
+ * the strength of the longer `"Booking reference / number"` also in the list,
+ * so it could never fail; and correction C6 shipped a guide that misquoted the
+ * variant banner because `"Editing variant"` passed as a substring of the
+ * banner's real, interpolated string. A guard that has already failed to catch
+ * a shipped defect is not a guard.
+ *
+ * "Complete" means: the character immediately after the occurrence is either
+ * absent, or one that cannot continue the same on-screen phrase — a quote, an
+ * angle bracket, a brace, punctuation, a newline. Letters, digits, spaces,
+ * slashes, apostrophes and hyphens all continue a phrase, so an occurrence
+ * followed by one of those does not count.
+ */
+const PHRASE_CONTINUES = /[A-Za-z0-9 /'’-]/;
+
+export function guideLabelOnScreen(text: string, label: string): boolean {
+  let i = text.indexOf(label);
+  while (i !== -1) {
+    const after = text[i + label.length];
+    if (after === undefined || !PHRASE_CONTINUES.test(after)) return true;
+    i = text.indexOf(label, i + 1);
+  }
+  return false;
+}
+
 export const GUIDE_UI_STRINGS = [
   // Adding things
   "Add Thing to Do",
   "Start time",
   "End time",
-  "Booking reference",
   "Add to this day",
   "Show day map",
   "Add from Globe",
@@ -250,7 +285,6 @@ export const GUIDE_UI_STRINGS = [
   // Variants
   "New variant",
   "Compare plans",
-  "Editing variant",
   // Search
   "Search or jump",
   "Search needs a connection",
