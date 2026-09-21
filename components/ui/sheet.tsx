@@ -19,7 +19,7 @@ const SheetOverlay = React.forwardRef<
     ref={ref}
     className={cn(
       "fixed inset-0 z-50 bg-foreground/40 backdrop-blur-sm",
-      "data-[state=open]:tp-fade-in data-[state=closed]:tp-fade-out",
+      "data-[state=open]:tp-fade-in-sheet data-[state=closed]:tp-fade-out",
       className,
     )}
     {...props}
@@ -39,7 +39,7 @@ const sheetVariants = cva(
         left: "inset-y-0 left-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden border-r data-[state=open]:tp-slide-in-left data-[state=closed]:tp-slide-out-left",
         docked:
           "gap-4 p-6 inset-0 h-full w-full rounded-none border-0 data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down " +
-          "md:inset-auto md:bottom-[5.25rem] md:right-4 md:h-[min(37.5rem,calc(100vh-9rem))] md:w-[560px] md:max-w-[calc(100vw-2rem)] md:rounded-2xl md:border",
+          "md:inset-auto md:bottom-[5.25rem] md:right-4 md:h-[min(37.5rem,max(16rem,calc(100vh-9rem)))] md:w-[560px] md:max-w-[calc(100vw-2rem)] md:rounded-2xl md:border",
       },
     },
     defaultVariants: {
@@ -54,14 +54,22 @@ export interface SheetContentProps
   hideClose?: boolean;
   /** Suppresses the dimming backdrop. Off by default — every existing caller keeps its overlay. */
   hideOverlay?: boolean;
+  /**
+   * Classes for the backdrop. The overlay is `bg-foreground/40
+   * backdrop-blur-sm` for everyone; a caller that wants the dim without the
+   * full-viewport blur had no way to say so — `hideOverlay` is all or nothing
+   * (FP-06). tailwind-merge resolves conflicts in the caller's favour, so
+   * `overlayClassName="backdrop-blur-none"` does exactly that.
+   */
+  overlayClassName?: string;
 }
 
 const SheetContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
   SheetContentProps
->(({ side = "bottom", className, children, hideClose, hideOverlay, ...props }, ref) => (
+>(({ side = "bottom", className, overlayClassName, children, hideClose, hideOverlay, ...props }, ref) => (
   <SheetPortal>
-    {!hideOverlay ? <SheetOverlay /> : null}
+    {!hideOverlay ? <SheetOverlay className={overlayClassName} /> : null}
     <DialogPrimitive.Content
       ref={ref}
       className={cn(sheetVariants({ side }), className)}
