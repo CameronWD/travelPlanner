@@ -423,6 +423,45 @@ describe("FeedbackLauncher", () => {
     await waitFor(() => expect(box).toHaveValue(""));
   });
 
+  it("does not list a note as sent when the queue removal was swallowed", async () => {
+    // Storage accepts the initial enqueue (call 1) but then goes on to refuse
+    // every write after it — including the removeFromQueue write once the
+    // server has accepted the note. write() swallows that failure and hands
+    // back the queue unchanged (lib/feedback-queue.ts), so the note is still
+    // genuinely pending even though the server has it.
+    const originalSetItem = window.Storage.prototype.setItem;
+    let calls = 0;
+    const setItem = vi
+      .spyOn(window.Storage.prototype, "setItem")
+      .mockImplementation(function (this: Storage, key: string, value: string) {
+        calls += 1;
+        if (calls === 1) {
+          originalSetItem.call(this, key, value);
+          return;
+        }
+        throw new Error("QuotaExceededError");
+      });
+
+    try {
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      await user.type(
+        await screen.findByPlaceholderText(/what's on your mind/i),
+        "hello",
+      );
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+      // The removal never actually persisted, so the note must show once —
+      // still Pending — never doubled into Sent as well.
+      await waitFor(() => expect(screen.getAllByText("hello")).toHaveLength(1));
+    } finally {
+      setItem.mockRestore();
+    }
+  });
+
   it("keeps the floating button off a printed page", () => {
     render(<FeedbackLauncher />);
     expect(
