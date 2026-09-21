@@ -39,4 +39,23 @@ describe("formatLastRun", () => {
   it("switches to a date once stale, which reads as a question", () => {
     expect(formatLastRun(new Date("2026-12-01T10:00:00Z"), now)).toBe("last ran 1 Dec 2026");
   });
+
+  it("says one hour in the singular", () => {
+    // The `hours === 1` branch: `${hours} ${hours === 1 ? "hour" : "hours"}`.
+    // Only the plural side was ever exercised, so "1 hours ago" would ship.
+    expect(formatLastRun(new Date("2026-12-10T11:00:00Z"), now)).toBe("last ran 1 hour ago");
+  });
+
+  it("reads as 'just now' under the hour", () => {
+    expect(formatLastRun(new Date("2026-12-10T11:30:00Z"), now)).toBe("last ran just now");
+  });
+
+  it("reads as 'just now' at the instant of the run", () => {
+    // Math.max(0, ...) guards a clock that ran backwards; this is the 0 case.
+    expect(formatLastRun(new Date("2026-12-10T12:00:00Z"), now)).toBe("last ran just now");
+  });
+
+  it("is still 'just now' one second short of the hour", () => {
+    expect(formatLastRun(new Date("2026-12-10T11:00:01Z"), now)).toBe("last ran just now");
+  });
 });

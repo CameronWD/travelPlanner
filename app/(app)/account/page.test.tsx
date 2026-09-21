@@ -106,4 +106,26 @@ describe("AccountPage", () => {
     expect(screen.getByText(/last ran/)).toBeInTheDocument();
     expect(screen.queryByText(/digests are not being sent/i)).not.toBeInTheDocument();
   });
+
+  it("still renders the Devices card when the CronHeartbeat read fails", async () => {
+    // getDispatcherHealth swallows this today, so the page survives by
+    // construction — but nothing said so at page level. A refactor that let
+    // the throw out would take AccountPage's Promise.all, and with it the
+    // whole Devices list, down: exactly the panel a Traveller is on when
+    // working out why their Digests stopped (CD-13).
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    cronHeartbeatFindUniqueMock.mockRejectedValue(new Error("relation \"CronHeartbeat\" does not exist"));
+
+    const jsx = await AccountPage();
+    render(jsx);
+
+    expect(screen.getByText("Devices")).toBeInTheDocument();
+    expect(screen.getByTestId("devices-panel")).toBeInTheDocument();
+    expect(screen.getByText("Which trips send you a digest")).toBeInTheDocument();
+    // "Never run" is the honest answer when the heartbeat cannot be read.
+    expect(screen.getByText(/never run/i)).toBeInTheDocument();
+    expect(screen.getByText(/digests are not being sent/i)).toBeInTheDocument();
+
+    errorSpy.mockRestore();
+  });
 });
