@@ -234,7 +234,7 @@
   animation: tp-fade-in 150ms ease-out;
 }
 /* Paced to tp-slide-up (250ms), so a sheet's backdrop and its panel arrive
-   together. tp-fade-in stays at 150ms for dialogs and popovers, which have no
+   together. tp-fade-in stays at 150ms for dialogs, which have no
    slide to keep step with. */
 @utility tp-fade-in-sheet {
   animation: tp-fade-in 250ms ease-out;

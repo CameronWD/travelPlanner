@@ -63,6 +63,20 @@ describe("formatLastRun", () => {
   it("is still 'just now' one second short of the hour", () => {
     expect(formatLastRun(new Date("2026-12-10T11:00:01Z"), now)).toBe("last ran just now");
   });
+
+  it("reads a future lastRunAt (clock skew) as 'just now', not negative hours", () => {
+    // Every other case above has lastRunAt at or before `now`; this is the
+    // only one where the clock has run backwards relative to the run. Note:
+    // this passes with or without the `Math.max(0, ...)` in the implementation
+    // — the `hours >= 1` guard on the "N hours ago" branch already excludes
+    // every negative value, so `Math.max(0, ...)` is provably unreachable for
+    // this function's return value (verified by removing it and sweeping the
+    // full range of `diff`, with no output change). This test pins the
+    // observable behaviour (future timestamps read as "just now"), not the
+    // `Math.max` call itself.
+    const later = new Date("2026-12-10T13:00:00Z");
+    expect(formatLastRun(later, now)).toBe("last ran just now");
+  });
 });
 
 describe("isDispatcherUnhealthy", () => {
