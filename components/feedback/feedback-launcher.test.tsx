@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const {
@@ -456,7 +456,23 @@ describe("FeedbackLauncher", () => {
       await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
       // The removal never actually persisted, so the note must show once —
       // still Pending — never doubled into Sent as well.
-      await waitFor(() => expect(screen.getAllByText("hello")).toHaveLength(1));
+      const item = await waitFor(() => {
+        const matches = screen.getAllByText("hello");
+        expect(matches).toHaveLength(1);
+        const li = matches[0].closest("li");
+        expect(li).not.toBeNull();
+        return li as HTMLLIElement;
+      });
+      // Confirm the single occurrence is genuinely the Pending entry, not a
+      // Sent one that happens to also render just once: PendingEntry always
+      // wears the "Pending" badge and never a Delete button, while SentEntry
+      // (this note's mocked result has canDelete: true, status OPEN — no
+      // badge of its own) is the opposite of both. A fix that filtered the
+      // note out of `pending` while still gating `setSent` on a stale
+      // predicate would satisfy the length-1 check above but land here in
+      // the wrong list, and these two assertions catch exactly that.
+      expect(within(item).getByText("Pending")).toBeInTheDocument();
+      expect(within(item).queryByRole("button", { name: /delete/i })).toBeNull();
     } finally {
       setItem.mockRestore();
     }
