@@ -46,6 +46,40 @@ describe("shiftItemDates", () => {
     ]);
   });
 
+  it("reports the owner a re-file moved the item off, so Undo can reverse it", () => {
+    // Same shortening as above, but the caller supplies the item's current
+    // owner. On a re-file the date is unchanged, so `prevStopId` is the ONLY
+    // thing that tells Undo the item's Cost changed Budget line (ADR 0055).
+    const shifts = shiftItemDates(
+      [{ id: "dinner", date: "2026-05-10", stopId: "munich" }],
+      "2026-05-05",
+      "2026-05-05",
+      "2026-05-09",
+      [
+        { id: "munich", arriveDate: "2026-05-05", departDate: "2026-05-09" },
+        { id: "strasbourg", arriveDate: "2026-05-10", departDate: "2026-05-12" },
+      ],
+    );
+
+    expect(shifts).toEqual([
+      {
+        id: "dinner",
+        date: "2026-05-10",
+        prevDate: "2026-05-10",
+        stopId: "strasbourg",
+        prevStopId: "munich",
+      },
+    ]);
+  });
+
+  it("emits no prevStopId on a plain date shift, even when the owner is known", () => {
+    const shifts = shiftItemDates(
+      [{ id: "louvre", date: "2026-06-14", stopId: "paris" }],
+      "2026-06-12", "2026-06-14", "2026-06-17",
+    );
+    expect(shifts).toEqual([{ id: "louvre", date: "2026-06-16", prevDate: "2026-06-14" }]);
+  });
+
   it("still un-slots when no stop covers the day", () => {
     const shifts = shiftItemDates(
       [{ id: "dinner", date: "2026-05-10" }],

@@ -123,7 +123,7 @@ import { createAccommodation } from "@/server/actions/accommodation";
 import { createChapter, deleteChapter } from "@/server/actions/chapters";
 import { setChaptersEnabled } from "@/server/actions/trips";
 import { toast } from "@/components/ui/use-toast";
-import { ItineraryManager, summariseReorder, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
+import { ItineraryManager, summariseReorder, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -1565,6 +1565,43 @@ describe("Task 10: summariseReorder (Undo toast copy)", () => {
     );
     expect(description).toMatch(/pinned stop no longer fits/i);
     expect(description).toMatch(/flags/i);
+  });
+});
+
+describe("undoPayloadFor (the Undo of a payload shift)", () => {
+  it("inverts a plain date shift, writing no stopId", () => {
+    expect(
+      undoPayloadFor({
+        items: [{ id: "louvre", date: "2026-06-16", prevDate: "2026-06-14" }],
+        accommodations: [
+          { id: "hotel", checkIn: "2026-06-14", checkOut: "2026-06-17", prevCheckIn: "2026-06-12", prevCheckOut: "2026-06-15" },
+        ],
+      }),
+    ).toEqual({
+      items: [{ id: "louvre", date: "2026-06-14" }],
+      accommodations: [{ id: "hotel", checkIn: "2026-06-12", checkOut: "2026-06-15" }],
+    });
+  });
+
+  it("inverts an un-slot back to its date", () => {
+    expect(
+      undoPayloadFor({ items: [{ id: "x", date: null, prevDate: "2026-06-15" }], accommodations: [] }).items,
+    ).toEqual([{ id: "x", date: "2026-06-15" }]);
+  });
+
+  // ADR 0055: shortening a stop can hand an item to the stop that still covers
+  // its day. The date is identical either side of that re-file, so the owning
+  // stop is the only thing Undo has to go on — drop it and the item's Cost
+  // stays on the new stop's Budget line after an Undo that claimed to revert.
+  it("restores the previous owning stop when the item was re-filed", () => {
+    expect(
+      undoPayloadFor({
+        items: [
+          { id: "dinner", date: "2026-05-10", prevDate: "2026-05-10", prevStopId: "munich" },
+        ],
+        accommodations: [],
+      }).items,
+    ).toEqual([{ id: "dinner", date: "2026-05-10", stopId: "munich" }]);
   });
 });
 

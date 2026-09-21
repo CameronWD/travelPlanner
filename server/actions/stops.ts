@@ -1265,12 +1265,16 @@ export async function reorderStops(
  * @param forkId   Plan being edited. Defaults to the plan the stops belong to.
  * @param payload  ADR 0038: pre-image Item dates / Accommodation check-in-out
  *                 to restore verbatim alongside the stops (the Undo of a
- *                 payload shift caused by the drag being reverted).
+ *                 payload shift caused by the drag being reverted). An Item
+ *                 entry may also carry the `stopId` it was owned by, which an
+ *                 ADR 0055 re-file supplies so Undo puts its Cost back on the
+ *                 Budget line it came from; without one only the date is
+ *                 written, exactly as before.
  */
 export async function restoreStops(
   entries: { id: string; sortOrder: number; chapterId: string | null; arriveDate: string | null; departDate: string | null }[],
   forkId?: PlanId,
-  payload?: { items: { id: string; date: string | null }[]; accommodations: { id: string; checkIn: string; checkOut: string }[] },
+  payload?: { items: { id: string; date: string | null; stopId?: string | null }[]; accommodations: { id: string; checkIn: string; checkOut: string }[] },
 ): Promise<StopActionResult> {
   if (entries.length === 0) return { success: true };
 
@@ -1320,7 +1324,13 @@ export async function restoreStops(
 
     // ADR 0038: restore the payload's pre-image dates verbatim, same as stops.
     for (const item of payload?.items ?? []) {
-      await tx.item.update({ where: { id: item.id }, data: { date: item.date } });
+      await tx.item.update({
+        where: { id: item.id },
+        // ADR 0055: an entry that names its owning Stop is the Undo of a
+        // re-file, so put the Item back on it. A plain date restore emits the
+        // same `{ date }` write it always did.
+        data: { date: item.date, ...(item.stopId ? { stopId: item.stopId } : {}) },
+      });
     }
     for (const acc of payload?.accommodations ?? []) {
       await tx.accommodation.update({ where: { id: acc.id }, data: { checkIn: acc.checkIn, checkOut: acc.checkOut } });

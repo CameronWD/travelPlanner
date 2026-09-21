@@ -2022,6 +2022,32 @@ describe("restoreStops payload restore (ADR 0038)", () => {
     });
   });
 
+  // ADR 0055: undoing a shortened stop must put a re-filed item back on the
+  // stop that owned it. On a re-file the date never moved, so restoring the
+  // date alone would silently leave the item's Cost on the new stop's Budget
+  // line — the Undo would look complete and not be.
+  it("restores the owning stop as well as the date when an entry carries one", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "munich", tripId: "t1", forkId: null }]);
+    queryRawMock.mockResolvedValue([{ id: "munich" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const result = await restoreStops(
+      [{ id: "munich", sortOrder: 0, chapterId: null, arriveDate: "2026-05-05", departDate: "2026-05-10" }],
+      null,
+      {
+        items: [{ id: "dinner", date: "2026-05-10", stopId: "munich" }],
+        accommodations: [],
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "dinner" },
+      data: { date: "2026-05-10", stopId: "munich" },
+    });
+  });
+
   it("is a no-op on items/accommodations when no payload is passed", async () => {
     stopFindManyMock.mockResolvedValue([{ id: "s1", tripId: "t1", forkId: null }]);
     queryRawMock.mockResolvedValue([{ id: "s1" }]);
@@ -2115,7 +2141,7 @@ describe("shiftStopPayloadTx", () => {
       { id: "munich", arriveDate: "2026-05-05", departDate: "2026-05-10" },
       { id: "strasbourg", arriveDate: "2026-05-10", departDate: "2026-05-12" },
     ]);
-    itemFindManyMock.mockResolvedValue([{ id: "dinner", date: "2026-05-10" }]);
+    itemFindManyMock.mockResolvedValue([{ id: "dinner", date: "2026-05-10", stopId: "munich" }]);
     accommodationFindManyMock.mockResolvedValue([]);
     itemUpdateMock.mockResolvedValue({});
 
@@ -2137,12 +2163,17 @@ describe("shiftStopPayloadTx", () => {
         where: { tripId: "trip-1", forkId: "fork-9", arriveDate: { not: null } },
       }),
     );
+    // The item read must carry stopId — it is the pre-image a re-file's Undo
+    // needs, and a re-file leaves no date difference to infer it from.
+    expect(itemFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ select: { id: true, date: true, stopId: true } }),
+    );
     expect(itemUpdateMock).toHaveBeenCalledWith({
       where: { id: "dinner" },
       data: { date: "2026-05-10", stopId: "strasbourg" },
     });
     expect(result.items).toEqual([
-      { id: "dinner", date: "2026-05-10", prevDate: "2026-05-10", stopId: "strasbourg" },
+      { id: "dinner", date: "2026-05-10", prevDate: "2026-05-10", stopId: "strasbourg", prevStopId: "munich" },
     ]);
   });
 

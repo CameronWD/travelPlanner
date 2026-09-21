@@ -15,6 +15,12 @@ export interface ItemShift {
   prevDate: string;
   /** Set only when the Item is re-filed onto a different Stop (ADR 0055). */
   stopId?: string;
+  /**
+   * The owning Stop the re-file moved the Item OFF, so Undo can put the Cost
+   * back on the Budget line it came from. Set only alongside `stopId`, and
+   * only when the caller supplied the Item's current `stopId` to shift from.
+   */
+  prevStopId?: string;
 }
 
 /** The minimum a Stop must expose to be asked whether it covers a day. */
@@ -38,7 +44,7 @@ export interface PayloadShiftResult {
 }
 
 export function shiftItemDates(
-  items: readonly { id: string; date: string | null }[],
+  items: readonly { id: string; date: string | null; stopId?: string | null }[],
   oldArrive: string,
   newArrive: string,
   newDepart: string,
@@ -60,7 +66,15 @@ export function shiftItemDates(
     if (next === null && dateIsUnmoved) {
       const owner = stopForDate(coveringStops, item.date);
       if (owner) {
-        shifts.push({ id: item.id, date: item.date, prevDate: item.date, stopId: owner.id });
+        shifts.push({
+          id: item.id,
+          date: item.date,
+          prevDate: item.date,
+          stopId: owner.id,
+          // Only when the caller told us where the Item came from; absent it,
+          // the shift is still applied, just not reversible by owner.
+          ...(item.stopId ? { prevStopId: item.stopId } : {}),
+        });
         continue;
       }
     }

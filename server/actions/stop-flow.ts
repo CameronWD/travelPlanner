@@ -140,7 +140,9 @@ export async function shiftStopPayloadTx(
     : [];
 
   const [items, accommodations] = await Promise.all([
-    tx.item.findMany({ where: { stopId: stop.id, date: { not: null } }, select: { id: true, date: true } }),
+    // `stopId` is selected so a re-file can report the owner it moved the Item
+    // OFF (`prevStopId`), which is what makes the re-file Undo-reversible.
+    tx.item.findMany({ where: { stopId: stop.id, date: { not: null } }, select: { id: true, date: true, stopId: true } }),
     tx.accommodation.findMany({ where: { stopId: stop.id }, select: { id: true, checkIn: true, checkOut: true } }),
   ]);
   const itemShifts = shiftItemDates(items, stop.arriveDate, newArrive, newDepart, coveringStops);

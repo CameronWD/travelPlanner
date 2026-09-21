@@ -83,3 +83,20 @@ span — an Item that falls outside the new span still un-slots. Unchanged.
   revisited, the reason to reopen is a case where un-slotting on a whole-Stop
   move actually loses information — not a consistency argument, which this ADR
   has already weighed.
+- **Undo reverses a re-file.** Because a re-file leaves the Item's date
+  untouched, the date pre-image alone cannot undo one — the owning Stop is the
+  only thing that moved. The shift therefore reports the Stop it moved the Item
+  *off* alongside the one it moved it *onto*, and `restoreStops` writes that
+  owner back, so undoing a shortened Stop puts the Cost back on the Budget line
+  it came from.
+- **Known limitation — a firm-up can re-file onto a Stop that is itself about
+  to be re-dated.** `firmUpTrip` (`server/actions/stops.ts`) writes each Stop's
+  flowed dates one at a time, outside a transaction, so when it re-dates Stop
+  *k* the covering-Stop read still sees Stops *k+1…n* at their **pre-flow**
+  dates. The conditions are narrow — Stop *k*'s arrive date must be unchanged
+  while its depart date changes (nothing else reaches this path), and a later
+  Stop must cover the dropped day at its old dates — but where they all hold,
+  an Item can be handed to a Stop that no longer covers that day by the time
+  the loop finishes. Accepted as-is: that loop was already non-transactional
+  before this ADR, so this is a pre-existing property of firm-up rather than
+  something the re-file introduces, and wrapping it is its own piece of work.
