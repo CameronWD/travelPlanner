@@ -39,6 +39,8 @@ vi.mock("@/components/account/push-subscribe", () => ({
 
 import { DevicesPanel } from "@/components/account/devices-panel";
 
+const NOW = new Date("2026-09-17T10:00:00.000Z");
+
 const device = (over: Partial<DeviceSummary> = {}): DeviceSummary => ({
   id: "sub-1",
   label: "iPhone",
@@ -74,7 +76,7 @@ describe("DevicesPanel", () => {
     // authoritative list against it (finding 1) — the mock must mirror
     // `initial` or the refetch would wipe the row this test is about.
     listDevicesMock.mockResolvedValue(initial);
-    render(<DevicesPanel initial={initial} />);
+    render(<DevicesPanel now={NOW} initial={initial} />);
     expect(await screen.findByText(/iPhone/)).toBeInTheDocument();
     expect(screen.getByText(/Australia\/Brisbane/)).toBeInTheDocument();
     expect(screen.getByText(/seen 1 hour ago/)).toBeInTheDocument();
@@ -85,7 +87,7 @@ describe("DevicesPanel", () => {
       device({ isThisDevice: false, stale: true, lastSeenAt: new Date("2026-08-20T00:00:00.000Z") }),
     ];
     listDevicesMock.mockResolvedValue(initial);
-    render(<DevicesPanel initial={initial} />);
+    render(<DevicesPanel now={NOW} initial={initial} />);
     expect(await screen.findByText(/unseen since 20 Aug 2026/)).toBeInTheDocument();
   });
 
@@ -98,7 +100,7 @@ describe("DevicesPanel", () => {
       keys: null,
       needsInstall: false,
     });
-    render(<DevicesPanel initial={[device({ isThisDevice: false })]} />);
+    render(<DevicesPanel now={NOW} initial={[device({ isThisDevice: false })]} />);
     expect(await screen.findByRole("button", { name: /enable on this device/i })).toBeInTheDocument();
   });
 
@@ -110,7 +112,7 @@ describe("DevicesPanel", () => {
     const asServerSeesIt = [device({ isThisDevice: false })];
     const asThisBrowserActuallyIs = [device({ isThisDevice: true })];
     listDevicesMock.mockResolvedValue(asThisBrowserActuallyIs);
-    render(<DevicesPanel initial={asServerSeesIt} />);
+    render(<DevicesPanel now={NOW} initial={asServerSeesIt} />);
     expect(await screen.findByText(/this device/i)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /enable on this device/i }),
@@ -123,7 +125,7 @@ describe("DevicesPanel", () => {
   it("does not offer Enable when this browser is already a known device", async () => {
     const initial = [device({ isThisDevice: true })];
     listDevicesMock.mockResolvedValue(initial);
-    render(<DevicesPanel initial={initial} />);
+    render(<DevicesPanel now={NOW} initial={initial} />);
     await screen.findByText(/iPhone/);
     expect(
       screen.queryByRole("button", { name: /enable on this device/i }),
@@ -137,7 +139,7 @@ describe("DevicesPanel", () => {
       keys: null,
       needsInstall: false,
     });
-    render(<DevicesPanel initial={[]} />);
+    render(<DevicesPanel now={NOW} initial={[]} />);
     expect(await screen.findByText(/blocked/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /enable on this device/i })).not.toBeInTheDocument();
   });
@@ -149,7 +151,7 @@ describe("DevicesPanel", () => {
       keys: null,
       needsInstall: true,
     });
-    render(<DevicesPanel initial={[]} />);
+    render(<DevicesPanel now={NOW} initial={[]} />);
     expect(await screen.findByText(/home screen/i)).toBeInTheDocument();
     // Pins the button's own visible label — a broad text query passing is
     // not proof the button itself reads what the brief requires.
@@ -162,7 +164,7 @@ describe("DevicesPanel", () => {
     isPushConfiguredMock.mockReturnValue(false);
     const initial = [device({ isThisDevice: false })];
     listDevicesMock.mockResolvedValue(initial);
-    render(<DevicesPanel initial={initial} />);
+    render(<DevicesPanel now={NOW} initial={initial} />);
     expect(await screen.findByText(/vapid/i)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /enable on this device/i }),
@@ -177,7 +179,7 @@ describe("DevicesPanel", () => {
     const user = (await import("@testing-library/user-event")).default.setup({
       advanceTimers: vi.advanceTimersByTime,
     });
-    render(<DevicesPanel initial={initial} />);
+    render(<DevicesPanel now={NOW} initial={initial} />);
     await user.click(await screen.findByRole("button", { name: /remove/i }));
     await waitFor(() => expect(removeDeviceByIdMock).toHaveBeenCalledWith("sub-1"));
     expect(await screen.findByText(/re-appear/i)).toBeInTheDocument();
@@ -201,7 +203,7 @@ describe("DevicesPanel", () => {
     const user = (await import("@testing-library/user-event")).default.setup({
       advanceTimers: vi.advanceTimersByTime,
     });
-    render(<DevicesPanel initial={initial} />);
+    render(<DevicesPanel now={NOW} initial={initial} />);
     await user.click(await screen.findByRole("button", { name: /remove/i }));
     await waitFor(() => expect(unsubscribe).toHaveBeenCalled());
     expect(unsubscribeFromPushMock).toHaveBeenCalledWith("https://web.push.apple.com/AAA");
@@ -230,7 +232,7 @@ describe("DevicesPanel", () => {
     const user = (await import("@testing-library/user-event")).default.setup({
       advanceTimers: vi.advanceTimersByTime,
     });
-    render(<DevicesPanel initial={initial} />);
+    render(<DevicesPanel now={NOW} initial={initial} />);
     await user.click(await screen.findByRole("button", { name: /remove/i }));
     expect(removeDeviceByIdMock).not.toHaveBeenCalled();
     expect(unsubscribeFromPushMock).not.toHaveBeenCalled();
@@ -249,7 +251,7 @@ describe("DevicesPanel", () => {
     const user = (await import("@testing-library/user-event")).default.setup({
       advanceTimers: vi.advanceTimersByTime,
     });
-    render(<DevicesPanel initial={initial} />);
+    render(<DevicesPanel now={NOW} initial={initial} />);
     await user.click(await screen.findByRole("button", { name: /remove/i }));
     expect(await screen.findByText(/couldn.t remove/i)).toBeInTheDocument();
   });
@@ -260,7 +262,7 @@ describe("DevicesPanel", () => {
   // already claims `isThisDevice: true`.
   it("shows nothing about this browser before readLocalDeviceState resolves", () => {
     readLocalDeviceStateMock.mockReturnValue(new Promise(() => {}));
-    render(<DevicesPanel initial={[device({ isThisDevice: true })]} />);
+    render(<DevicesPanel now={NOW} initial={[device({ isThisDevice: true })]} />);
     expect(screen.getByText(/iPhone/)).toBeInTheDocument();
     expect(screen.queryByText(/this device/i)).not.toBeInTheDocument();
     expect(
@@ -273,7 +275,7 @@ describe("DevicesPanel", () => {
     const initial = [device({ isThisDevice: false })];
     listDevicesMock.mockRejectedValue(new Error("network down"));
 
-    render(<DevicesPanel initial={initial} />);
+    render(<DevicesPanel now={NOW} initial={initial} />);
 
     // Renders without throwing, and keeps showing the server-rendered list
     // rather than crashing or clearing it — no isThisDevice claim was ever
@@ -315,7 +317,7 @@ describe("DevicesPanel", () => {
       advanceTimers: vi.advanceTimersByTime,
     });
 
-    render(<DevicesPanel initial={[]} />);
+    render(<DevicesPanel now={NOW} initial={[]} />);
 
     await user.click(await screen.findByRole("button", { name: /enable on this device/i }));
 
@@ -333,8 +335,21 @@ describe("DevicesPanel", () => {
   it("never renders the word notification", async () => {
     const initial = [device()];
     listDevicesMock.mockResolvedValue(initial);
-    const { container } = render(<DevicesPanel initial={initial} />);
+    const { container } = render(<DevicesPanel now={NOW} initial={initial} />);
     await screen.findByText(/iPhone/);
     expect(container.textContent?.toLowerCase()).not.toContain("notification");
+  });
+
+  it("reads its clock from the server, not from its own render", async () => {
+    // CD-05: `new Date()` in a "use client" render makes the server and the
+    // browser compute different `now`s — a guaranteed hydration text
+    // mismatch on the stale branch, which formats a local calendar date.
+    vi.setSystemTime(new Date("2027-05-05T10:00:00.000Z"));
+    const initial = [device({ lastSeenAt: new Date("2026-09-17T08:00:00.000Z") })];
+    listDevicesMock.mockResolvedValue(initial);
+    render(<DevicesPanel now={NOW} initial={initial} />);
+    // Two hours by the server's clock (the `now` prop), not eight months by
+    // the browser's faked system clock.
+    expect(await screen.findByText(/2 hours ago/i)).toBeInTheDocument();
   });
 });
