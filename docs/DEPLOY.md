@@ -73,16 +73,20 @@ npx web-push generate-vapid-keys   # VAPID public/private pair
 
 ## 4b. Deploying a migration that can break the running build (read before the next deploy)
 
-The pending migration `prisma/migrations/20260812000000_cost_and_paid_amounts`
-RENAMES columns. `vercel.json` runs `prisma migrate deploy && next build`, so the
-old columns disappear while the previous deployment is still serving traffic:
-**every cost read 500s for the length of the build**, and indefinitely if the
-build fails. (An additive migration that only adds nullable or defaulted
-columns has no such window on *reads* — but see below: two additive shapes
-open the identical window on *writes* instead, so "additive" does not mean
-"no window".)
+The migration `prisma/migrations/20260812000000_cost_and_paid_amounts`
+RENAMED columns and was applied to production on 2026-08-12 — the deploy
+succeeded (`docs/open-follow-ups.md`, `OPS-01`). It is kept here as the
+worked example this hazard shape is named after, not as a pending step.
+`vercel.json` runs `prisma migrate deploy && next build`, so for the length
+of that build the old column names had already gone while the previous
+deployment was still serving traffic: **every cost read would have 500d for
+the length of the build**, and indefinitely had the build failed. (An
+additive migration that only adds nullable or defaulted columns has no such
+window on *reads* — but see below: two additive shapes open the identical
+window on *writes* instead, so "additive" does not mean "no window".)
 
-Procedure for this (and any future destructive) migration:
+Procedure for a destructive migration like this one — kept as the template
+for the *next* one, not as work still owed on this one:
 
 1. **Rehearse on a copy.** Restore the latest Neon snapshot to a branch database
    (Neon → Branches → New branch from snapshot). Run
@@ -98,6 +102,11 @@ Procedure for this (and any future destructive) migration:
 4. **Afterwards**, re-run the count from step 1 in prod and reconcile any
    legacy paid-without-date rows via the Budget page checklist (the app
    surfaces them — see `docs/things-to-fix.md` P2-8).
+
+**How this played out for `cost_and_paid_amounts`:** step 1's rehearsal was
+never run; what closed the migration instead was post-hoc verification
+against the already-applied schema. Step 4's reconciliation is done — the
+count came back **0 of 33** `Cost` rows (`docs/open-follow-ups.md`, `OPS-03`).
 
 ### The same window, on the write path
 
@@ -117,7 +126,7 @@ section's title:
 
 **Worked example — `20260920120000_share_links_per_audience`.** It was both at
 once: `label` landed `NOT NULL` with its default dropped (the migration's
-other new columns, the three `include*` toggles, kept `DEFAULT true` and
+other new columns, the three `include*` toggles, keep `DEFAULT true` and
 don't trigger hazard #1), and `DROP INDEX "ShareLink_tripId_key"` removed the
 unique index the old build's `upsert` used as its `ON CONFLICT` target. For
 the length of that build, the previous deployment could still read share
@@ -132,25 +141,34 @@ migration needs two deploys — additive first (nullable column, or add the new
 constraint alongside the old), then the tightening one after the build that
 writes to it is live.
 
-### Before deploying `20260916000000_digest_and_alarms`
+### `20260916000000_digest_and_alarms` (applied — kept as the template for this check)
 
-That migration drops `Reminder.fireAt`, `sent`, `targetType` and `targetId`, and
-backfills the new `date` column from `fireAt` before dropping it. It no longer
-empties the table, so a real Reminder survives the deploy — but the count is
-still worth having, because it is the one number that says whether the world
-matches what ADR 0047 was written against. **Immediately before deploying**, run
-against production:
+That migration dropped `Reminder.fireAt`, `sent`, `targetType` and `targetId`,
+backfilling the new `date` column from `fireAt` before dropping it. It no
+longer emptied the table, so a real Reminder would have survived the deploy —
+which is why the pre-deploy count mattered: it was the one number that said
+whether the world matched what ADR 0047 was written against.
+
+The migration is applied in production — every migration in
+`prisma/migrations/` is (`docs/open-follow-ups.md`'s migration-state audit).
+**The gate below is a one-time check that has been overtaken; it is not a
+pending step for this migration.** It is kept as the template for the next
+migration that needs the same kind of check run immediately before it:
 
 ```sql
 SELECT count(*) FROM "Reminder";
 ```
 
-Expect `0`. **If it is non-zero, stop and find out why before deploying.**
-Nothing in the deployed app has ever been able to write a `Reminder`: the add
-form sat inside `RemindersCard`, which rendered only in the Travelling phase, and
-no Trip has reached it (ADR 0047). So a non-zero count means something is running
-that this migration was not designed around, and the `targetType = 'COST_DUE'`
-delete may be throwing away rows a Traveller wrote.
+Expect `0` **before running a migration like this one**. If it is non-zero,
+stop and find out why before deploying. Nothing in the deployed app has ever
+been able to write a `Reminder`: the add form sat inside `RemindersCard`,
+which rendered only in the Travelling phase, and no Trip has reached it (ADR
+0047). So a non-zero count means something is running that the migration
+was not designed around, and the `targetType = 'COST_DUE'` delete may have
+thrown away rows a Traveller wrote. (For `digest_and_alarms` itself, this
+specific check's outcome was not recorded before the gate was overtaken; if
+it matters retrospectively it needs a fresh production read, not a re-run of
+the gate — `docs/open-follow-ups.md`, `RM-01`.)
 
 ## 5. GitHub Actions cron (reminder delivery)
 
