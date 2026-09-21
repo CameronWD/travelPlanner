@@ -321,8 +321,9 @@ review.
 
 - **Source:** none — found during the 2026-09-21 sweep, while fixing
   `HG-02`/`HG-10`. No source doc records it.
-- **Population corrected on final review: this entry originally named two
-  survivors. There are roughly fifteen.** A non-exhaustive list of the
+- **Population corrected twice now: this entry originally named two
+  survivors, then roughly fifteen. Both were wrong — verified by grep, it is
+  21 render sites across 16 files.** A non-exhaustive list of the
   decorative, unconditional uses: `components/trip/trip-card.tsx:132`,
   `components/trip/agenda-view.tsx:48`, `components/trip/route-map.tsx:75`,
   `components/trip/plan-overview.tsx:60`, `components/trip/nearby-wishlist.tsx:50`,
@@ -331,7 +332,10 @@ review.
   `components/trip/home/quick-actions.tsx:24,34`,
   `app/(app)/trips/[tripId]/summary/page.tsx:443,479,514`) plus the calendar,
   print, summary and share pages. Operator deciding `SW-02` from "two" was
-  deciding from a false number.
+  deciding from a false number, and so was deciding from "roughly fifteen" —
+  this count has now been wrong twice, each time in the entry meant to
+  correct the previous error, so treat every scope figure in this document
+  with matching suspicion until it has been re-verified.
 - **One survivor is not like the others: `phase-travelling.tsx:508` is
   confusable, not merely inconsistent.** It sits in the same flex row as a real
   `MapLink` at `:519` — the same side-by-side pattern `HG-02` was written to
@@ -350,6 +354,13 @@ review.
   `phase-travelling.tsx:508`) are. They are recorded here only because they
   work against the same "a pin means one thing" goal, so a future reader does
   not think the dedup was completed app-wide.
+- **`components/trip/help-legend.tsx` is among the 21 and is a special case:
+  whatever the operator decides below, it should almost certainly keep its
+  pin.** It is the legend that *teaches* the app what the `MapPin` icon means
+  — removing or altering it would not close an inconsistency, it would break
+  the one place that explains the icon to begin with. Flagged here so a
+  future agent does not "fix" the legend into incoherence while working
+  through the rest of this list.
 - **Decide before building (this part only):** if the answer is "the pin is
   reserved for a real location everywhere", the ~14 non-confusable survivors go
   too; if it is "only where it could be mistaken for a `MapLink`", they stay
@@ -1489,8 +1500,9 @@ operator decision and is still in *Open items*.
   when there is no address, so it renders a pin for *every* stop regardless of
   whether `lat`/`lng` exist — the second half of the `stop-card.tsx` fix
   (`stop-card.tsx:337-345` gates `MapLink` on `stop.lat != null && stop.lng !=
-  null` for exactly this reason) was never applied here. Roughly fifteen
-  decorative `MapPin` uses remain across the app in total. Most — including a
+  null` for exactly this reason) was never applied here. 21 decorative
+  `MapPin` render sites survive across 16 files in total — this count has now
+  been corrected twice (see `SW-02`). Most — including a
   second same-shape (decorative, unconditional, no adjacent `MapLink`) case at
   `phase-sketching.tsx:77` — are not beside a `MapLink` and are genuinely not
   confusable. `phase-travelling.tsx:508` is the one exception: it *is* beside a
