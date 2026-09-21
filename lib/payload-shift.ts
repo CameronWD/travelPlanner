@@ -1,4 +1,5 @@
 import { addDays, daysBetween, nightsBetween } from "./dates";
+import { stopForDate } from "./itinerary";
 
 /**
  * ADR 0038: a Stop's payload rides with it. Slotted Items keep their offset
@@ -12,6 +13,15 @@ export interface ItemShift {
   id: string;
   date: string | null;
   prevDate: string;
+  /** Set only when the Item is re-filed onto a different Stop (ADR 0055). */
+  stopId?: string;
+}
+
+/** The minimum a Stop must expose to be asked whether it covers a day. */
+export interface CoveringStop {
+  id: string;
+  arriveDate: string;
+  departDate: string;
 }
 
 export interface AccommodationShift {
@@ -32,13 +42,28 @@ export function shiftItemDates(
   oldArrive: string,
   newArrive: string,
   newDepart: string,
+  coveringStops: readonly CoveringStop[] = [],
 ): ItemShift[] {
   const shifts: ItemShift[] = [];
   const maxOffset = nightsBetween(newArrive, newDepart);
+  // ADR 0055 extends rule 4 into the un-slot path ONLY where this Stop's
+  // arrive date has not moved — i.e. it shortened away from a day the Item
+  // still sits on, and that day is still that day. When the whole Stop moves,
+  // every Item's date moves with it (ADR 0038) and an Item that falls off the
+  // end has no calendar day left to be re-filed by; stranding it on the old
+  // dates, re-filed onto an unrelated Stop, is worse than un-slotting.
+  const dateIsUnmoved = newArrive === oldArrive;
   for (const item of items) {
     if (item.date == null) continue;
     const offset = daysBetween(oldArrive, item.date);
     const next = offset < 0 || offset > maxOffset ? null : addDays(newArrive, offset);
+    if (next === null && dateIsUnmoved) {
+      const owner = stopForDate(coveringStops, item.date);
+      if (owner) {
+        shifts.push({ id: item.id, date: item.date, prevDate: item.date, stopId: owner.id });
+        continue;
+      }
+    }
     if (next !== item.date) shifts.push({ id: item.id, date: next, prevDate: item.date });
   }
   return shifts;

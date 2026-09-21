@@ -20,6 +20,7 @@ const {
   stopFindFirstMock,
   stopFindUniqueMock,
   stopFindManyMock,
+  stopFindUniqueTxMock,
   stopCreateMock,
   stopUpdateMock,
   stopDeleteMock,
@@ -44,6 +45,11 @@ const {
   const stopFindFirstMock = vi.fn();
   const stopFindUniqueMock = vi.fn();
   const stopFindManyMock = vi.fn();
+  // shiftStopPayloadTx reads the re-dated Stop's own plan (tripId/forkId) to
+  // load the Stops that cover each day (ADR 0055). Kept separate from
+  // `stopFindUniqueMock` so it never consumes the `mockResolvedValueOnce`
+  // queues the actions' own `before` reads rely on.
+  const stopFindUniqueTxMock = vi.fn();
   const stopCreateMock = vi.fn();
   const stopUpdateMock = vi.fn();
   const stopDeleteMock = vi.fn();
@@ -63,7 +69,7 @@ const {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
-        stop: { update: stopUpdateMock, create: stopCreateMock, findMany: stopFindManyMock, delete: stopDeleteMock },
+        stop: { update: stopUpdateMock, create: stopCreateMock, findMany: stopFindManyMock, findUnique: stopFindUniqueTxMock, delete: stopDeleteMock },
         chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
         item: { findMany: itemFindManyMock, update: itemUpdateMock },
         accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
@@ -94,6 +100,7 @@ const {
     stopFindFirstMock,
     stopFindUniqueMock,
     stopFindManyMock,
+    stopFindUniqueTxMock,
     stopCreateMock,
     stopUpdateMock,
     stopDeleteMock,
@@ -230,6 +237,9 @@ beforeEach(() => {
   chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: null });
   // Default: stop.findMany returns no rows (individual tests override as needed).
   stopFindManyMock.mockResolvedValue([]);
+  // Default: the in-tx stop.findUnique (shiftStopPayloadTx's plan lookup, ADR
+  // 0055) resolves the re-dated stop to the real plan.
+  stopFindUniqueTxMock.mockResolvedValue({ tripId: "trip-1", forkId: null });
   // Default: $queryRaw (the FOR UPDATE lock helpers) returns no rows; tests
   // that care about the locked row set override this explicitly.
   queryRawMock.mockResolvedValue([]);
@@ -2044,6 +2054,7 @@ describe("shiftStopPayloadTx", () => {
     accommodationUpdateMock.mockResolvedValue({});
 
     const tx = {
+      stop: { findUnique: stopFindUniqueTxMock, findMany: stopFindManyMock },
       item: { findMany: itemFindManyMock, update: itemUpdateMock },
       accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
     } as unknown as Prisma.TransactionClient;
@@ -2079,6 +2090,7 @@ describe("shiftStopPayloadTx", () => {
     accommodationFindManyMock.mockResolvedValue([]);
 
     const tx = {
+      stop: { findUnique: stopFindUniqueTxMock, findMany: stopFindManyMock },
       item: { findMany: itemFindManyMock, update: itemUpdateMock },
       accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
     } as unknown as Prisma.TransactionClient;
@@ -2091,6 +2103,74 @@ describe("shiftStopPayloadTx", () => {
     expect(accommodationFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: { stopId: "stop-1" } }),
     );
+  });
+
+  // ADR 0055: a stop that SHORTENS (arrive unmoved) hands an item it drops to
+  // whichever stop still covers that same calendar day, instead of un-slotting
+  // it. The covering stops are read plan-scoped, from the same transaction.
+  it("re-files a dropped item onto the stop that still covers its day, plan-scoped", async () => {
+    stopFindUniqueTxMock.mockResolvedValue({ tripId: "trip-1", forkId: "fork-9" });
+    // Munich shortened to 05-09 (its NEW span), Strasbourg still covers the 10th.
+    stopFindManyMock.mockResolvedValue([
+      { id: "munich", arriveDate: "2026-05-05", departDate: "2026-05-10" },
+      { id: "strasbourg", arriveDate: "2026-05-10", departDate: "2026-05-12" },
+    ]);
+    itemFindManyMock.mockResolvedValue([{ id: "dinner", date: "2026-05-10" }]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemUpdateMock.mockResolvedValue({});
+
+    const tx = {
+      stop: { findUnique: stopFindUniqueTxMock, findMany: stopFindManyMock },
+      item: { findMany: itemFindManyMock, update: itemUpdateMock },
+      accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
+    } as unknown as Prisma.TransactionClient;
+
+    const result = await shiftStopPayloadTx(
+      tx,
+      { id: "munich", arriveDate: "2026-05-05" },
+      "2026-05-05",
+      "2026-05-09",
+    );
+
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tripId: "trip-1", forkId: "fork-9", arriveDate: { not: null } },
+      }),
+    );
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "dinner" },
+      data: { date: "2026-05-10", stopId: "strasbourg" },
+    });
+    expect(result.items).toEqual([
+      { id: "dinner", date: "2026-05-10", prevDate: "2026-05-10", stopId: "strasbourg" },
+    ]);
+  });
+
+  it("un-slots as before when the stop MOVES, writing no stopId", async () => {
+    stopFindUniqueTxMock.mockResolvedValue({ tripId: "trip-1", forkId: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "strasbourg", arriveDate: "2026-05-10", departDate: "2026-05-11" },
+      { id: "munich", arriveDate: "2026-05-12", departDate: "2026-05-13" },
+    ]);
+    itemFindManyMock.mockResolvedValue([{ id: "dinner", date: "2026-05-10" }]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemUpdateMock.mockResolvedValue({});
+
+    const tx = {
+      stop: { findUnique: stopFindUniqueTxMock, findMany: stopFindManyMock },
+      item: { findMany: itemFindManyMock, update: itemUpdateMock },
+      accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
+    } as unknown as Prisma.TransactionClient;
+
+    const result = await shiftStopPayloadTx(
+      tx,
+      { id: "munich", arriveDate: "2026-05-05" },
+      "2026-05-12",
+      "2026-05-13",
+    );
+
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "dinner" }, data: { date: null } });
+    expect(result.items).toEqual([{ id: "dinner", date: null, prevDate: "2026-05-10" }]);
   });
 });
 
