@@ -46,7 +46,7 @@ export default function TripLoading() {
       {/* Page content placeholder */}
       <div className="py-6">
         {/* Cover image placeholder */}
-        <Skeleton className="mb-4 h-40 w-full rounded-2xl sm:h-48" />
+        <Skeleton className="mb-4 h-56 w-full rounded-2xl sm:h-48" />
         {/* Content card rows */}
         <div className="flex flex-col gap-3">
           <Skeleton className="h-24 w-full rounded-2xl" />
