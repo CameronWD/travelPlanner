@@ -46,8 +46,8 @@ const existingNote = {
   route: "/trips/t1/budget",
   pageLabel: "Budget",
   tripName: "Europe Summer 2026",
-  authorId: "u2",
   authorName: "Partner",
+  canDelete: true,
   status: "OPEN" as const,
   authoredAt: "2026-09-07T00:00:00.000Z",
 };
@@ -139,8 +139,8 @@ beforeEach(() => {
       route: input.route,
       pageLabel: input.pageLabel,
       tripName: input.tripName,
-      authorId: "u1",
       authorName: "Cam",
+      canDelete: true,
       status: "OPEN",
       authoredAt: input.authoredAt,
     },
@@ -513,7 +513,7 @@ describe("FeedbackLauncher", () => {
       // panel is for writing, so opening it should put the cursor in the box.
       stubViewport(true);
       const user = userEvent.setup();
-      render(<FeedbackLauncher currentUserId="u2" />);
+      render(<FeedbackLauncher />);
 
       await user.click(screen.getByRole("button", { name: /leave feedback/i }));
       const box = await screen.findByPlaceholderText(/what's on your mind/i);
@@ -875,7 +875,7 @@ describe("FeedbackLauncher", () => {
     // FN-11: the Delete button's rendering was covered; pressing it never was.
     deleteMock.mockResolvedValue({ success: true });
     const user = userEvent.setup();
-    render(<FeedbackLauncher currentUserId="u2" />);
+    render(<FeedbackLauncher />);
 
     await user.click(screen.getByRole("button", { name: /feedback/i }));
     expect(await screen.findByText("Budget totals look wrong")).toBeInTheDocument();
@@ -984,6 +984,22 @@ describe("FeedbackLauncher", () => {
 
       expect(await screen.findByText("3900/4000")).toBeInTheDocument();
     });
+
+    it("keeps the character counter mounted so the row does not jump", async () => {
+      // FN-09: journal-editor.tsx documents the opposite as deliberate —
+      // "always mounted, stable position". A counter that appears at COUNT_FROM
+      // shifts the Send button sideways mid-sentence.
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+      await user.click(screen.getByRole("button", { name: /feedback/i }));
+
+      const counter = screen.getByRole("status");
+      expect(counter).toBeInTheDocument();
+      expect(counter).toHaveTextContent("");
+
+      await user.type(screen.getByLabelText(/your feedback about teepee/i), "hello");
+      expect(screen.getByRole("status")).toBeInTheDocument();
+    });
   });
 
   it("tells the user when a queued note is rejected outright, and sends the one behind it", async () => {
@@ -1035,5 +1051,31 @@ describe("FeedbackLauncher", () => {
     expect(String(options.description)).toContain(
       "The server will never take this",
     );
+  });
+
+  it("offers to put a discarded note's words back in the box", async () => {
+    // FN-08: the toast showed the first 120 characters of what the server
+    // refused and then dropped them on the floor. Losing what someone wrote
+    // must never be silent, and showing it is not the same as keeping it.
+    const queued = {
+      clientKey: "fk_x",
+      body: "A note the server will refuse",
+      route: "/trips/t1/plan",
+      pageLabel: "Plan editor",
+      tripId: "t1",
+      tripName: "Europe Summer 2026",
+      viewport: "390x844",
+      userAgent: "iPhone",
+      authoredAt: "2026-09-08T04:05:06.000Z",
+    };
+    window.localStorage.setItem("teepee.feedback.queue.v1", JSON.stringify([queued]));
+    createMock.mockResolvedValue({ success: false, errors: { body: ["too long"] } });
+
+    render(<FeedbackLauncher />);
+
+    await waitFor(() => expect(toastMock).toHaveBeenCalled());
+    const call = toastMock.mock.calls.at(-1)![0];
+    expect(call.description).toContain("A note the server will refuse");
+    expect(call.action).toBeDefined();
   });
 });

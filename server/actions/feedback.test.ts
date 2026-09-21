@@ -66,6 +66,18 @@ const row = {
   author: { name: "Cam" },
 };
 
+const otherRow = {
+  id: "n2",
+  body: "Someone else's note",
+  route: "/trips/t1/budget",
+  pageLabel: "Budget",
+  tripName: "Europe Summer 2026",
+  authorId: "u2",
+  status: "OPEN",
+  authoredAt: new Date("2026-09-09T00:00:00.000Z"),
+  author: { name: "Partner" },
+};
+
 afterEach(() => {
   vi.clearAllMocks();
   vi.unstubAllEnvs();
@@ -86,8 +98,8 @@ describe("createFeedbackNote", () => {
       route: "/trips/t1/plan",
       pageLabel: "Plan editor",
       tripName: "Europe Summer 2026",
-      authorId: "u1",
       authorName: "Cam",
+      canDelete: true,
       status: "OPEN",
       authoredAt: "2026-09-08T04:05:06.000Z",
     });
@@ -159,6 +171,33 @@ describe("listFeedbackNotes", () => {
     expect(feedbackNoteFindManyMock.mock.calls[0][0].where).toEqual({
       authorId: "u1",
     });
+  });
+
+  it("never ships an authorId to the browser", async () => {
+    // FN-04: authorId existed solely to gate the Delete control client-side.
+    // Since ADR 0046 an Admin's client receives every author's notes, so that
+    // was other Travellers' real user ids crossing the boundary for a boolean.
+    requireUserMock.mockResolvedValue(author);
+    feedbackNoteFindManyMock.mockResolvedValue([row, otherRow]);
+
+    const result = await listFeedbackNotes();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    for (const note of result.notes) {
+      expect(note).not.toHaveProperty("authorId");
+    }
+  });
+
+  it("computes canDelete server-side: true for your own note, false for another's", async () => {
+    requireUserMock.mockResolvedValue(author);
+    feedbackNoteFindManyMock.mockResolvedValue([row, otherRow]);
+
+    const result = await listFeedbackNotes();
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.notes.map((n) => n.canDelete)).toContain(true);
+    const other = result.notes.find((n) => n.id === "n2");
+    expect(other?.canDelete).toBe(false);
   });
 });
 

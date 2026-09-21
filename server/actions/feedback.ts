@@ -21,8 +21,14 @@ export type FeedbackNoteView = {
   route: string;
   pageLabel: string;
   tripName: string | null;
-  authorId: string;
   authorName: string;
+  /**
+   * Whether the viewer may retract this note. Computed here rather than
+   * shipping `authorId` and letting the client compare: since ADR 0046 an
+   * Admin receives every author's notes, so the raw id was other Travellers'
+   * user ids crossing the boundary to answer one boolean (FN-04).
+   */
+  canDelete: boolean;
   status: FeedbackStatus;
   authoredAt: string;
 };
@@ -51,15 +57,15 @@ const VIEW_SELECT = {
   author: { select: { name: true } },
 } as const;
 
-function toView(row: FeedbackNoteRow): FeedbackNoteView {
+function toView(row: FeedbackNoteRow, viewerId: string): FeedbackNoteView {
   return {
     id: row.id,
     body: row.body,
     route: row.route,
     pageLabel: row.pageLabel,
     tripName: row.tripName,
-    authorId: row.authorId,
     authorName: row.author.name ?? "Traveller",
+    canDelete: row.authorId === viewerId,
     status: row.status as FeedbackStatus,
     authoredAt: row.authoredAt.toISOString(),
   };
@@ -101,7 +107,7 @@ export async function createFeedbackNote(
     select: VIEW_SELECT,
   });
 
-  return ok({ note: toView(row as FeedbackNoteRow) });
+  return ok({ note: toView(row as FeedbackNoteRow, user.id) });
 }
 
 /**
@@ -121,7 +127,9 @@ export async function listFeedbackNotes(): Promise<
     select: VIEW_SELECT,
   });
 
-  return ok({ notes: (rows as FeedbackNoteRow[]).map(toView) });
+  return ok({
+    notes: (rows as FeedbackNoteRow[]).map((row) => toView(row, user.id)),
+  });
 }
 
 /**
