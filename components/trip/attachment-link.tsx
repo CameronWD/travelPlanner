@@ -39,10 +39,21 @@ export function AttachmentLink({
   children: React.ReactNode;
 }) {
   function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    // A modified click (⌘-click, Ctrl-click, Shift-click, Alt-click) or a
+    // non-primary mouse button is the Traveller telling the browser how to
+    // open the link — background tab, new window, whatever their setup does.
+    // Step aside and let the browser's own default action run.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
     if (!rendersInline(mime)) return;
     if (isStandalone()) return;
     e.preventDefault();
-    window.open(href, "_blank", "noopener");
+    const opened = window.open(href, "_blank", "noopener");
+    // An extension or an embedded webview can block window.open even for a
+    // gesture-synchronous call like this one. If that happens, the default
+    // navigation we just prevented is gone too, and the click would do
+    // nothing at all — worse than the same-tab behaviour we started from.
+    // Fall back to it.
+    if (!opened) window.location.href = href;
   }
 
   return (
