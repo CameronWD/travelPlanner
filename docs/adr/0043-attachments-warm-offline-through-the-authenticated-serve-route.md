@@ -81,3 +81,39 @@ case where losing signal and needing a document coincide most often.
   (or a deployed environment): per ADR 0016, the service worker is not
   registered under `next dev`, so offline behaviour — attachments included —
   is invisible in the dev server regardless of this change.
+
+## Amendment — 2026-09-21: the same-tab rule is scoped to the installed PWA
+
+A Traveller reported that opening an attachment navigates away from the page
+they were working on — filed from desktop Chrome. That is precisely the
+behaviour the Decision above introduced, so the two had to be reconciled
+rather than one silently overwriting the other.
+
+The Decision's stated reason is narrower than the rule it wrote. It names the
+risk as handing off "to a new browser tab/window that a PWA shell may not
+carry offline state into" — and that is true of the **installed PWA**, where
+the handoff goes to an in-app browser outside the service worker's control. It
+is not true of an ordinary browser tab: a new same-origin tab is controlled by
+the *same* service worker and served from the *same* runtime cache, so a
+warmed attachment opens offline there exactly as it does in the current tab.
+
+So the rule is scoped to the context its reasoning actually covers:
+
+- **Installed PWA — unchanged.** Attachment links navigate in-app. Everything
+  the Decision above says continues to hold, and the offline-ticket case it
+  was written for is untouched.
+- **Ordinary browser tab — opens out.** Only for files the browser renders in
+  place (`rendersInline`, `lib/attachment-display.ts`); a file it downloads
+  never navigates, so opening a tab for one would leave it blank.
+
+The choice is made in a click handler (`components/trip/attachment-link.tsx`),
+not in the markup, so **no `target` attribute is rendered in either context**.
+The test this ADR introduced —
+`components/trip/attachment-links.test.tsx:15-19` — therefore still passes
+verbatim, and still guards the thing it was written to guard.
+
+This also closes a question raised while planning the change: whether
+`target="_blank"` from the installed iPhone app would reach the sign-in page,
+since a standalone iOS PWA can hold a cookie jar separate from Safari. Under
+this amendment the installed app never opens out, so the case cannot arise and
+needs no device verification.

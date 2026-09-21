@@ -18,6 +18,7 @@ import type { TargetType } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
+import { AttachmentLink } from "@/components/trip/attachment-link";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -215,13 +216,14 @@ export function AttachmentList({
 
               {/* Actions */}
               <div className="flex shrink-0 items-center gap-1">
-                <a
+                <AttachmentLink
                   href={att.url}
-                  aria-label={`View ${att.filename}`}
+                  mime={att.mime}
+                  label={`View ${att.filename}`}
                   className="inline-flex size-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                 >
                   <ExternalLink className="size-4" aria-hidden="true" />
-                </a>
+                </AttachmentLink>
 
                 <Button
                   variant="ghost"

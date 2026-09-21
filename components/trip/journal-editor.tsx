@@ -10,6 +10,7 @@ import { saveJournalEntry } from "@/server/actions/journal";
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import type { AttachmentView } from "@/components/trip/attachment-list";
+import { AttachmentLink } from "@/components/trip/attachment-link";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -81,9 +82,10 @@ function PhotoStrip({
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           {photos.map((photo) => (
             <div key={photo.id} className="group relative">
-              <a
+              <AttachmentLink
                 href={photo.url}
-                aria-label={`View photo ${photo.filename}`}
+                mime={photo.mime}
+                label={`View photo ${photo.filename}`}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -91,7 +93,7 @@ function PhotoStrip({
                   alt={photo.filename}
                   className="h-24 w-full rounded-xl object-cover transition-opacity group-hover:opacity-80"
                 />
-              </a>
+              </AttachmentLink>
               <button
                 type="button"
                 aria-label={`Delete photo ${photo.filename}`}
