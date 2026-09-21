@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import vm from "node:vm";
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 
 /**
  * `public/sw.js` is the last hop before a push notification actually renders
@@ -18,6 +18,16 @@ import { describe, it, expect, vi } from "vitest";
  * branch touched.
  */
 const SW_SOURCE = readFileSync(join(__dirname, "sw.js"), "utf8");
+
+// The tests below assign `globalThis.fetch` directly. Every one of them sets
+// its own mock before use, so nothing is broken today — but a test added
+// later that expects the real (or an earlier) fetch would silently inherit
+// whichever mock ran last. Restore it (CD-08).
+const REAL_FETCH = globalThis.fetch;
+afterEach(() => {
+  globalThis.fetch = REAL_FETCH;
+  vi.restoreAllMocks();
+});
 
 type Listener = (event: Record<string, unknown>) => void;
 
@@ -310,5 +320,78 @@ describe("public/sw.js — pushsubscriptionchange", () => {
     await expect(
       dispatch("pushsubscriptionchange", { oldSubscription: null, newSubscription: null }),
     ).resolves.not.toThrow();
+  });
+
+  it("gives up quietly when re-subscribing resolves to nothing", async () => {
+    // public/sw.js:344 — `if (!fresh || !fresh.endpoint) return;`. A browser
+    // that resolves subscribe() to null leaves nothing to report, and posting
+    // a body with no endpoint would write a Device row that can never be
+    // pushed to.
+    const { dispatch, self } = loadServiceWorker();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    globalThis.fetch = fetchMock;
+    (self.registration as Record<string, unknown>).pushManager = {
+      subscribe: vi.fn().mockResolvedValue(null),
+    };
+    // `null.toJSON` throws, and the handler's own catch swallows any thrown
+    // error just as quietly as a guarded early return would — so asserting
+    // fetch wasn't called alone can't tell "returned early" apart from
+    // "threw and got caught". console.warn is what the catch block does with
+    // a caught error, so it's the one signal that distinguishes them: this
+    // guard existing means neither happens.
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await dispatch("pushsubscriptionchange", { oldSubscription: null, newSubscription: null });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("gives up quietly when the fresh subscription has no endpoint", async () => {
+    const { dispatch, self } = loadServiceWorker();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    globalThis.fetch = fetchMock;
+    (self.registration as Record<string, unknown>).pushManager = {
+      subscribe: vi.fn().mockResolvedValue({
+        toJSON: () => ({ keys: { p256dh: "p", auth: "a" } }),
+      }),
+    };
+
+    await dispatch("pushsubscriptionchange", { oldSubscription: null, newSubscription: null });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("gives up quietly when the fresh subscription's keys are incomplete", async () => {
+    // public/sw.js:347 — `if (!keys.p256dh || !keys.auth) return;`. A pair of
+    // half-keys is not a degraded Device, it is one that looks confirmed and
+    // can never receive a push.
+    const { dispatch, self } = loadServiceWorker();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    globalThis.fetch = fetchMock;
+    (self.registration as Record<string, unknown>).pushManager = {
+      subscribe: vi.fn().mockResolvedValue({
+        endpoint: "https://new",
+        toJSON: () => ({ keys: { p256dh: "p" } }),
+      }),
+    };
+
+    await dispatch("pushsubscriptionchange", { oldSubscription: null, newSubscription: null });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("gives up quietly when the fresh subscription has no toJSON at all", async () => {
+    // `(fresh.toJSON && fresh.toJSON().keys) || {}` — the `{}` fallback.
+    const { dispatch, self } = loadServiceWorker();
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    globalThis.fetch = fetchMock;
+    (self.registration as Record<string, unknown>).pushManager = {
+      subscribe: vi.fn().mockResolvedValue({ endpoint: "https://new" }),
+    };
+
+    await dispatch("pushsubscriptionchange", { oldSubscription: null, newSubscription: null });
+
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
