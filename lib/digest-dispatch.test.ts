@@ -311,9 +311,17 @@ describe("dispatchDigest", () => {
     expect(result).toEqual({ sent: 0, skipped: true, reason: "empty" });
     // A slot that failed to release stays claimed until tomorrow, and nothing
     // else in the system will ever say so — this must be visible somewhere.
+    // `slot` is what tells a morning failure from an evening one in the
+    // logs; without it here, dropping it from the real payload fails
+    // nothing (CD-10).
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining("release"),
-      expect.objectContaining({ userId: USER_ID, tripId: TRIP_ID, localDate: LOCAL_DATE }),
+      expect.objectContaining({
+        userId: USER_ID,
+        tripId: TRIP_ID,
+        localDate: LOCAL_DATE,
+        slot: "EVENING",
+      }),
       deleteError,
     );
 
@@ -338,6 +346,37 @@ describe("dispatchDigest", () => {
       },
     });
     expect(sendPushMock).not.toHaveBeenCalled();
+  });
+
+  it("surfaces the original error when the claim release ALSO fails", async () => {
+    // Covered separately today: a mid-flight throw releasing the claim, and a
+    // release delete failing. Never both. Together is the bad case — the
+    // release failure must be logged, and must not replace or bury the error
+    // the caller actually needs to see and count (CD-10).
+    const collectError = new Error("db went away");
+    const deleteError = new Error("delete failed");
+    costFindManyMock.mockRejectedValueOnce(collectError);
+    digestDispatchDeleteMock.mockRejectedValueOnce(deleteError);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(dispatch()).rejects.toThrow("db went away");
+
+    // Released exactly once — the failed delete is not retried on the same row.
+    expect(digestDispatchDeleteMock).toHaveBeenCalledTimes(1);
+    // And the stranded claim is visible to an operator.
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("release"),
+      expect.objectContaining({
+        userId: USER_ID,
+        tripId: TRIP_ID,
+        localDate: LOCAL_DATE,
+        slot: "EVENING",
+      }),
+      deleteError,
+    );
+    expect(sendPushMock).not.toHaveBeenCalled();
+
+    errorSpy.mockRestore();
   });
 
   it("releases the claim when building the digest throws", async () => {
@@ -495,10 +534,43 @@ describe("dispatchDigest", () => {
 
     expect(digestDispatchDeleteMock).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ sent: 0, skipped: false });
+    // `slot` is what tells a morning failure from an evening one in the
+    // logs; without it here, dropping it from the real payload fails
+    // nothing (CD-10).
+    //
+    // NOTE (brief correction): the task-11 brief said to also pin
+    // `subscriptions: 1` here. That field is only ever logged on the
+    // "no push was delivered" 2-arg console.error (digest-dispatch.ts:687),
+    // which this 3-arg toHaveBeenCalledWith can never match against — the
+    // call this assertion actually pins is the shared release-failure log
+    // in `releaseClaim`'s catch (digest-dispatch.ts:627-630), which only
+    // ever logs { userId, tripId, localDate, slot }. Adding `subscriptions`
+    // here made the test fail for the wrong reason (confirmed by running
+    // it); verified against source before writing this.
     expect(errorSpy).toHaveBeenCalledWith(
       expect.stringContaining("release"),
-      expect.objectContaining({ userId: USER_ID, tripId: TRIP_ID, localDate: LOCAL_DATE }),
+      expect.objectContaining({
+        userId: USER_ID,
+        tripId: TRIP_ID,
+        localDate: LOCAL_DATE,
+        slot: "EVENING",
+      }),
       deleteError,
+    );
+    // The zero-delivery path also logs separately, BEFORE attempting the
+    // release, that nothing was delivered — a distinct 2-arg call at
+    // digest-dispatch.ts:683-687 that carries `slot` and `subscriptions`
+    // but never an `err`. Pin it here too, or deleting `slot` from that
+    // site specifically passes both tests in this file untouched.
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("no push was delivered"),
+      expect.objectContaining({
+        userId: USER_ID,
+        tripId: TRIP_ID,
+        localDate: LOCAL_DATE,
+        slot: "EVENING",
+        subscriptions: 1,
+      }),
     );
 
     errorSpy.mockRestore();
