@@ -378,7 +378,11 @@ with:
                 {...(rendersInline(photo.mime)
                   ? { target: "_blank", rel: "noopener noreferrer" }
                   : {})}
-                aria-label={`View photo ${photo.filename} (opens in a new tab)`}
+                aria-label={
+                  rendersInline(photo.mime)
+                    ? `View photo ${photo.filename} (opens in a new tab)`
+                    : `View photo ${photo.filename}`
+                }
               >
 ```
 
