@@ -467,13 +467,26 @@ running app makes possible.**
 > a browser. **Nothing in this section was verified on 2026-09-21**, and
 > nothing here may be reported as such.
 
-## Two migrations written on 2026-09-21 — written, not applied
+## Two migrations written on 2026-09-21 — applied in production 2026-09-21
 
-These two are the only pending database work. They were written on branch
-`chore/close-the-open-backlog` alongside the code that reads their columns.
-**Neither has been applied**: this sandbox has no Postgres and connecting to
-the production database is forbidden, so no `prisma migrate` command was run
-against any database. Running them is the operator's call.
+**Both were applied to production on 2026-09-21 at 09:53 UTC** and this
+section is kept as their record, not as work owing. Verified on 2026-09-21
+against the production database by reading `information_schema` directly
+rather than trusting the migration ledger: `CronHeartbeat.lastSuccessAt`
+exists and is nullable, `FeedbackNote.authorName` exists and is nullable, and
+`FeedbackNote_authorId_fkey` is gone. `prisma migrate status` reports "Database
+schema is up to date" across all 28 migrations.
+
+They were written on branch `chore/close-the-open-backlog` alongside the code
+that reads their columns, and were **not** applied by the agent that wrote
+them — that branch had no database access. The descriptions below stand as
+written.
+
+> **A third migration is now written and not applied:**
+> `20260921120000_user_whats_new_seen_at` (ADR 0056) adds a **nullable**
+> `whatsNewSeenAt` to `User`, deliberately un-backfilled because `NULL`
+> carries meaning there. Additive on reads and writes per `docs/DEPLOY.md`
+> §4b. Applying it is the operator's call.
 
 - **`20260921000000_cron_heartbeat_last_success`** (`CD-06`, `11fb9ba`,
   `5b62455`). Adds a **nullable** `lastSuccessAt` to `CronHeartbeat`, then
@@ -762,6 +775,28 @@ re-derive the trade.
   are. If anyone reopens this, re-grep before quoting any of these numbers.
   This particular count has a history of being wrong in the very entry written
   to correct it.
+
+### WN-01 · Whether an attachment opened from the installed iPhone PWA would hit the sign-in page
+
+- **Source:** raised 2026-09-21 while planning the attachment new-tab change;
+  settled the same day by the amendment to ADR 0043.
+- **The observation:** `/api/attachments/:id` is session-authenticated
+  (`app/api/attachments/[id]/route.ts:45`), and a standalone iOS PWA can hold
+  a cookie jar separate from Safari — so a link opened out of the installed
+  app might arrive unauthenticated and bounce to sign-in.
+- **Why it is settled rather than owed:** the behaviour that would have caused
+  it was never shipped. Attachment links open out **only in an ordinary
+  browser tab**; inside the installed PWA they navigate in-app exactly as ADR
+  0043 specified. There is no code path from the installed app to a new tab,
+  so there is nothing a device pass could observe.
+- **What would reopen it:** any change that gives attachment links a
+  `target="_blank"` unconditionally, or that removes the `isStandalone()`
+  branch in `components/trip/attachment-link.tsx`. If that is ever proposed,
+  the fix is already designed — a server action performs the access check and
+  returns the **presigned** storage URL (the route already 302s to one,
+  `PRESIGN_EXPIRY_SECONDS = 300`), and the client opens *that*, needing no
+  session. The tab must be opened synchronously on click and its location set
+  when the URL resolves, or the popup blocker eats it.
 
 ### From `CP` — `docs/follow-ups/2026-08-12-cost-paid-remodel.md`
 
