@@ -52,6 +52,7 @@ export default async function AccountPage() {
           <DevicesPanel initial={devices} now={now} />
           <DispatcherHealth
             lastRunAt={dispatcherHealth.lastRunAt}
+            lastSuccessAt={dispatcherHealth.lastSuccessAt}
             stale={dispatcherHealth.stale}
             now={now}
           />

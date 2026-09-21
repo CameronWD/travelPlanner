@@ -421,6 +421,44 @@ export function summariseReorder(
 }
 
 /**
+ * The shape `shiftStopPayloadTx` hands back on a re-date (ADR 0038/0055) — the
+ * pre-images the Undo of that re-date has to write back.
+ */
+export type ReorderPayload = {
+  items: { id: string; date: string | null; prevDate: string; prevStopId?: string }[];
+  accommodations: { id: string; checkIn: string; checkOut: string; prevCheckIn: string; prevCheckOut: string }[];
+};
+
+/**
+ * Turn a re-date's payload pre-images into the payload `restoreStops` writes
+ * back, i.e. invert the shift. Dates come from `prevDate`/`prevCheckIn`/
+ * `prevCheckOut`; an Item that was **re-filed** onto another Stop (ADR 0055)
+ * also carries `prevStopId`, and must be handed its old owning Stop back or
+ * Undo silently leaves its Cost on the new Stop's Budget line — the dates
+ * alone are identical on a re-file, so nothing else would give it away.
+ *
+ * Pure so it can be unit-tested without simulating a drag gesture or an Undo
+ * click (same reasoning as `summariseReorder`).
+ */
+export function undoPayloadFor(payload: ReorderPayload): {
+  items: { id: string; date: string | null; stopId?: string }[];
+  accommodations: { id: string; checkIn: string; checkOut: string }[];
+} {
+  return {
+    items: payload.items.map((i) => ({
+      id: i.id,
+      date: i.prevDate,
+      ...(i.prevStopId ? { stopId: i.prevStopId } : {}),
+    })),
+    accommodations: payload.accommodations.map((a) => ({
+      id: a.id,
+      checkIn: a.prevCheckIn,
+      checkOut: a.prevCheckOut,
+    })),
+  };
+}
+
+/**
  * Enrich a transport with stop names and timezones for display.
  */
 function enrichTransport(
@@ -1400,10 +1438,7 @@ export function ItineraryManager({
     changed: { id: string; arriveDate: string; departDate: string }[] | undefined,
     conflicts: { stopId: string; message: string }[] | undefined,
     preDragSnapshot: { id: string; sortOrder: number; chapterId: string | null; arriveDate: string | null; departDate: string | null }[],
-    payload?: {
-      items: { id: string; date: string | null; prevDate: string }[];
-      accommodations: { id: string; checkIn: string; checkOut: string; prevCheckIn: string; prevCheckOut: string }[];
-    },
+    payload?: ReorderPayload,
   ) {
     const changes = changed ?? [];
     if (changes.length > 0) {
@@ -1439,12 +1474,7 @@ export function ItineraryManager({
         void restoreStops(
           preDragSnapshot,
           forkId ?? null,
-          payload
-            ? {
-                items: payload.items.map((i) => ({ id: i.id, date: i.prevDate })),
-                accommodations: payload.accommodations.map((a) => ({ id: a.id, checkIn: a.prevCheckIn, checkOut: a.prevCheckOut })),
-              }
-            : undefined,
+          payload ? undoPayloadFor(payload) : undefined,
         ).then((res) => {
           if (!res.success) {
             toast({ variant: "destructive", title: "Couldn't undo the move." });

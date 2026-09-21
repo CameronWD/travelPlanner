@@ -49,7 +49,6 @@ model User {
   globeMembership    GlobeMember?
   globesCreated      Globe[]       @relation("GlobeCreatedBy")
   markersCreated     Marker[]      @relation("MarkerCreatedBy")
-  feedbackNotes      FeedbackNote[]
   digestPreferences  DigestPreference[]
   digestDispatches   DigestDispatch[]
 
@@ -713,7 +712,6 @@ model FeedbackNote {
   /// Client-generated, reused on every retry — the duplicate guard for the
   /// offline flush (ADR 0041).
   clientKey String @unique
-  authorId  String
   body      String
 
   // Circumstances the app records for itself, so a note is understandable
@@ -727,6 +725,13 @@ model FeedbackNote {
   viewport  String?
   userAgent String?
 
+  /// Snapshots, deliberately NOT foreign keys: feedback outlives both the Trip
+  /// it was written about and the Traveller who wrote it (ADR 0040, amended
+  /// 2026-09-21). A deleted User cannot sign in, so their id can never match a
+  /// viewer's — an orphaned note is admin-only without a rule for it.
+  authorId   String
+  authorName String?
+
   status     String    @default("OPEN") // lib/enums.ts FEEDBACK_STATUSES
   resolution String?
   resolvedAt DateTime?
@@ -735,8 +740,6 @@ model FeedbackNote {
   authoredAt DateTime
   /// When it reached the server.
   createdAt  DateTime @default(now())
-
-  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([status, authoredAt])
   @@index([authorId])
@@ -784,6 +787,11 @@ model DigestDispatch {
 /// was sent. DigestDispatch rows only exist when a Digest went out, so they
 /// cannot distinguish a quiet week from a dispatcher that stopped running.
 model CronHeartbeat {
-  id        String   @id @default("digest")
-  lastRunAt DateTime
+  id            String    @id @default("digest")
+  lastRunAt     DateTime
+  /// Stamped only after a scan completes. `lastRunAt` proves the route ran and
+  /// was authorized; this proves the dispatch loop got to the end (CD-06).
+  /// Nullable so the migration is additive on the write path too — the
+  /// still-running old build never writes it (docs/DEPLOY.md §4b).
+  lastSuccessAt DateTime?
 }

@@ -42,22 +42,27 @@ describe("getDispatcherHealth", () => {
     expect(requireUserMock).toHaveBeenCalled();
   });
 
-  it("reads the single fixed heartbeat row by its id", async () => {
+  it("reads the single fixed heartbeat row by its id, selecting both signals", async () => {
     findUniqueMock.mockResolvedValue(null);
     await getDispatcherHealth();
-    expect(findUniqueMock).toHaveBeenCalledWith({ where: { id: "digest" } });
+    expect(findUniqueMock).toHaveBeenCalledWith({
+      where: { id: "digest" },
+      select: { lastRunAt: true, lastSuccessAt: true },
+    });
   });
 
-  it("reports a recent run as not stale", async () => {
+  it("reports a recent run with a recent success as not stale", async () => {
     findUniqueMock.mockResolvedValue({
       id: "digest",
       lastRunAt: new Date("2026-12-10T10:00:00.000Z"),
+      lastSuccessAt: new Date("2026-12-10T10:00:00.000Z"),
     });
 
     const result = await getDispatcherHealth();
 
     expect(result).toEqual({
       lastRunAt: new Date("2026-12-10T10:00:00.000Z"),
+      lastSuccessAt: new Date("2026-12-10T10:00:00.000Z"),
       stale: false,
     });
   });
@@ -66,12 +71,34 @@ describe("getDispatcherHealth", () => {
     findUniqueMock.mockResolvedValue({
       id: "digest",
       lastRunAt: new Date("2026-12-01T10:00:00.000Z"),
+      lastSuccessAt: new Date("2026-12-01T10:00:00.000Z"),
     });
 
     const result = await getDispatcherHealth();
 
     expect(result).toEqual({
       lastRunAt: new Date("2026-12-01T10:00:00.000Z"),
+      lastSuccessAt: new Date("2026-12-01T10:00:00.000Z"),
+      stale: true,
+    });
+  });
+
+  // CD-06: the route stamps lastRunAt before the scan and lastSuccessAt only
+  // once it completes, so a throw part-way through the dispatch loop leaves
+  // lastRunAt fresh while lastSuccessAt goes stale. Either signal going stale
+  // must report unhealthy.
+  it("reports stale when the route is running but nothing has completed a scan in a while", async () => {
+    findUniqueMock.mockResolvedValue({
+      id: "digest",
+      lastRunAt: new Date("2026-12-10T10:00:00.000Z"),
+      lastSuccessAt: new Date("2026-12-01T10:00:00.000Z"),
+    });
+
+    const result = await getDispatcherHealth();
+
+    expect(result).toEqual({
+      lastRunAt: new Date("2026-12-10T10:00:00.000Z"),
+      lastSuccessAt: new Date("2026-12-01T10:00:00.000Z"),
       stale: true,
     });
   });
@@ -81,7 +108,7 @@ describe("getDispatcherHealth", () => {
 
     const result = await getDispatcherHealth();
 
-    expect(result).toEqual({ lastRunAt: null, stale: true });
+    expect(result).toEqual({ lastRunAt: null, lastSuccessAt: null, stale: true });
   });
 
   // Finding 3: the write in app/api/cron/digest/route.ts is wrapped in
@@ -95,6 +122,6 @@ describe("getDispatcherHealth", () => {
 
     const result = await getDispatcherHealth();
 
-    expect(result).toEqual({ lastRunAt: null, stale: true });
+    expect(result).toEqual({ lastRunAt: null, lastSuccessAt: null, stale: true });
   });
 });

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const {
@@ -421,6 +421,61 @@ describe("FeedbackLauncher", () => {
     // The Pending entry is the receipt, so the box is safe to clear — leaving
     // the text behind invites a second Send and so a second note.
     await waitFor(() => expect(box).toHaveValue(""));
+  });
+
+  it("does not list a note as sent when the queue removal was swallowed", async () => {
+    // Storage accepts the initial enqueue (call 1) but then goes on to refuse
+    // every write after it — including the removeFromQueue write once the
+    // server has accepted the note. write() swallows that failure and hands
+    // back the queue unchanged (lib/feedback-queue.ts), so the note is still
+    // genuinely pending even though the server has it.
+    const originalSetItem = window.Storage.prototype.setItem;
+    let calls = 0;
+    const setItem = vi
+      .spyOn(window.Storage.prototype, "setItem")
+      .mockImplementation(function (this: Storage, key: string, value: string) {
+        calls += 1;
+        if (calls === 1) {
+          originalSetItem.call(this, key, value);
+          return;
+        }
+        throw new Error("QuotaExceededError");
+      });
+
+    try {
+      const user = userEvent.setup();
+      render(<FeedbackLauncher />);
+
+      await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+      await user.type(
+        await screen.findByPlaceholderText(/what's on your mind/i),
+        "hello",
+      );
+      await user.click(screen.getByRole("button", { name: /send/i }));
+
+      await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+      // The removal never actually persisted, so the note must show once —
+      // still Pending — never doubled into Sent as well.
+      const item = await waitFor(() => {
+        const matches = screen.getAllByText("hello");
+        expect(matches).toHaveLength(1);
+        const li = matches[0].closest("li");
+        expect(li).not.toBeNull();
+        return li as HTMLLIElement;
+      });
+      // Confirm the single occurrence is genuinely the Pending entry, not a
+      // Sent one that happens to also render just once: PendingEntry always
+      // wears the "Pending" badge and never a Delete button, while SentEntry
+      // (this note's mocked result has canDelete: true, status OPEN — no
+      // badge of its own) is the opposite of both. A fix that filtered the
+      // note out of `pending` while still gating `setSent` on a stale
+      // predicate would satisfy the length-1 check above but land here in
+      // the wrong list, and these two assertions catch exactly that.
+      expect(within(item).getByText("Pending")).toBeInTheDocument();
+      expect(within(item).queryByRole("button", { name: /delete/i })).toBeNull();
+    } finally {
+      setItem.mockRestore();
+    }
   });
 
   it("keeps the floating button off a printed page", () => {

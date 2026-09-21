@@ -28,6 +28,7 @@ const {
   digestPreferenceFindUniqueMock,
   digestDispatchCreateMock,
   digestDispatchDeleteMock,
+  digestDispatchFindFirstMock,
   pushSubscriptionFindManyMock,
   pushSubscriptionDeleteManyMock,
   sendPushMock,
@@ -97,6 +98,7 @@ const {
     digestPreferenceFindUniqueMock: vi.fn(),
     digestDispatchCreateMock: vi.fn(),
     digestDispatchDeleteMock: vi.fn(),
+    digestDispatchFindFirstMock: vi.fn(),
     pushSubscriptionFindManyMock: findMany("pushSubscription"),
     pushSubscriptionDeleteManyMock: vi.fn(),
     sendPushMock: vi.fn(),
@@ -118,6 +120,7 @@ vi.mock("@/lib/db", () => ({
     digestDispatch: {
       create: digestDispatchCreateMock,
       delete: digestDispatchDeleteMock,
+      findFirst: digestDispatchFindFirstMock,
     },
     pushSubscription: {
       findMany: pushSubscriptionFindManyMock,
@@ -188,6 +191,7 @@ beforeEach(() => {
   digestPreferenceFindUniqueMock.mockResolvedValue(null);
   digestDispatchCreateMock.mockResolvedValue({ id: "dd-1" });
   digestDispatchDeleteMock.mockResolvedValue({});
+  digestDispatchFindFirstMock.mockResolvedValue(null);
   pushSubscriptionDeleteManyMock.mockResolvedValue({ count: 0 });
   sendPushMock.mockResolvedValue({ sent: true });
 });
@@ -236,6 +240,67 @@ describe("dispatchDigest", () => {
 
     expect(result).toEqual({ sent: 0, skipped: true, reason: "already-sent" });
     expect(sendPushMock).not.toHaveBeenCalled();
+  });
+
+  it("skips a second dispatch for the same slot inside the cooldown", async () => {
+    digestPreferenceFindUniqueMock.mockResolvedValue(null);
+    digestDispatchFindFirstMock.mockResolvedValue({ id: "d1" });
+
+    const result = await dispatchDigest({
+      userId: "u1",
+      tripId: "t1",
+      localDate: "2026-09-22",
+      slot: "EVENING",
+      zone: "Australia/Sydney",
+    });
+
+    expect(result).toEqual({ sent: 0, skipped: true, reason: "already-sent" });
+    expect(digestDispatchCreateMock).not.toHaveBeenCalled();
+
+    // The shape of the lookup is the decision, not just its outcome (ADR
+    // 0054). The cooldown is keyed on (user, trip, slot) + a `createdAt`
+    // window and deliberately does NOT carry `localDate`: the whole point is
+    // that a traveller who crosses a date line mid-day gets one Digest per
+    // slot, and adding `localDate` back would let the new local date look
+    // like a fresh, unclaimed slot — which is the ledger key's behaviour, and
+    // exactly what this query exists to sit in front of.
+    const where = digestDispatchFindFirstMock.mock.calls[0][0].where;
+    expect(where).toEqual({
+      userId: "u1",
+      tripId: "t1",
+      slot: "EVENING",
+      createdAt: { gt: expect.any(Date) },
+    });
+    expect(where).not.toHaveProperty("localDate");
+  });
+
+  it("claims when no recent dispatch exists", async () => {
+    digestPreferenceFindUniqueMock.mockResolvedValue(null);
+    digestDispatchFindFirstMock.mockResolvedValue(null);
+    digestDispatchCreateMock.mockResolvedValue({ id: "d2" });
+
+    await dispatchDigest({
+      userId: "u1",
+      tripId: "t1",
+      localDate: "2026-09-22",
+      slot: "EVENING",
+    });
+
+    expect(digestDispatchCreateMock).toHaveBeenCalled();
+  });
+
+  it("does not apply the cooldown to a forced test send", async () => {
+    digestDispatchFindFirstMock.mockResolvedValue({ id: "d1" });
+
+    await dispatchDigest({
+      userId: "u1",
+      tripId: "t1",
+      localDate: "2026-09-22",
+      slot: "EVENING",
+      force: true,
+    });
+
+    expect(digestDispatchFindFirstMock).not.toHaveBeenCalled();
   });
 
   it("rethrows a create failure that is not a unique violation", async () => {

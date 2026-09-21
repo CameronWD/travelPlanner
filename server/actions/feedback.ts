@@ -3,73 +3,27 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { isAdminEmail } from "@/lib/admin";
-import type { FeedbackStatus } from "@/lib/enums";
 import {
   createFeedbackNoteSchema,
   type CreateFeedbackNoteInput,
 } from "@/lib/validations/feedback";
 import { type ActionResult, fail, ok, validationResult } from "@/lib/action-result";
+// The view shape, its Prisma selection and the mapper live in lib/ and not
+// here: this module is `"use server"`, so every *value* it exports has to be
+// an async function (Next publishes them as endpoints). `toView` is a pure
+// mapper and has no business being callable over the network — see
+// lib/feedback-view.ts.
+import {
+  toView,
+  VIEW_SELECT,
+  type FeedbackNoteQueryRow,
+  type FeedbackNoteView,
+} from "@/lib/feedback-view";
 
-// ---------------------------------------------------------------------------
-// Result types
-// ---------------------------------------------------------------------------
-
-/** A Feedback note as the Feedback panel sees it. Dates are ISO strings. */
-export type FeedbackNoteView = {
-  id: string;
-  body: string;
-  route: string;
-  pageLabel: string;
-  tripName: string | null;
-  authorName: string;
-  /**
-   * Whether the viewer may retract this note. Computed here rather than
-   * shipping `authorId` and letting the client compare: since ADR 0046 an
-   * Admin receives every author's notes, so the raw id was other Travellers'
-   * user ids crossing the boundary to answer one boolean (FN-04).
-   */
-  canDelete: boolean;
-  status: FeedbackStatus;
-  authoredAt: string;
-};
-
-type FeedbackNoteRow = {
-  id: string;
-  body: string;
-  route: string;
-  pageLabel: string;
-  tripName: string | null;
-  authorId: string;
-  status: string;
-  authoredAt: Date;
-  author: { name: string | null };
-};
-
-const VIEW_SELECT = {
-  id: true,
-  body: true,
-  route: true,
-  pageLabel: true,
-  tripName: true,
-  authorId: true,
-  status: true,
-  authoredAt: true,
-  author: { select: { name: true } },
-} as const;
-
-function toView(row: FeedbackNoteRow, viewerId: string): FeedbackNoteView {
-  return {
-    id: row.id,
-    body: row.body,
-    route: row.route,
-    pageLabel: row.pageLabel,
-    tripName: row.tripName,
-    authorName: row.author.name ?? "Traveller",
-    canDelete: row.authorId === viewerId,
-    status: row.status as FeedbackStatus,
-    authoredAt: row.authoredAt.toISOString(),
-  };
-}
+// A type-only re-export, so the Feedback panel can keep importing the view
+// shape alongside the actions it calls. Types are erased, which is why this
+// does not trip the async-export rule above.
+export type { FeedbackNoteView };
 
 // ---------------------------------------------------------------------------
 // Actions
@@ -101,13 +55,14 @@ export async function createFeedbackNote(
     create: {
       clientKey,
       authorId: user.id,
+      authorName: user.name ?? null,
       authoredAt: new Date(authoredAt),
       ...rest,
     },
     select: VIEW_SELECT,
   });
 
-  return ok({ note: toView(row as FeedbackNoteRow, user.id) });
+  return ok({ note: toView(row as FeedbackNoteQueryRow, user.id) });
 }
 
 /**
@@ -128,7 +83,7 @@ export async function listFeedbackNotes(): Promise<
   });
 
   return ok({
-    notes: (rows as FeedbackNoteRow[]).map((row) => toView(row, user.id)),
+    notes: (rows as FeedbackNoteQueryRow[]).map((row) => toView(row, user.id)),
   });
 }
 

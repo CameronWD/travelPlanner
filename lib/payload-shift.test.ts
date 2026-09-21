@@ -25,6 +25,90 @@ describe("shiftItemDates", () => {
   it("returns nothing when dates are unchanged", () => {
     expect(shiftItemDates([{ id: "a", date: "2026-06-13" }], "2026-06-12", "2026-06-12", "2026-06-15")).toEqual([]);
   });
+
+  it("re-files an item onto the stop that still covers its day when a stop shortens", () => {
+    // Munich 5-10, Strasbourg 10-12, a dinner on the 10th owned by Munich.
+    // Shorten Munich to 5-9: the dinner's date does not move, and Strasbourg
+    // still covers the 10th (ADR 0055).
+    const shifts = shiftItemDates(
+      [{ id: "dinner", date: "2026-05-10" }],
+      "2026-05-05",
+      "2026-05-05",
+      "2026-05-09",
+      [
+        { id: "munich", arriveDate: "2026-05-05", departDate: "2026-05-09" },
+        { id: "strasbourg", arriveDate: "2026-05-10", departDate: "2026-05-12" },
+      ],
+    );
+
+    expect(shifts).toEqual([
+      { id: "dinner", date: "2026-05-10", prevDate: "2026-05-10", stopId: "strasbourg" },
+    ]);
+  });
+
+  it("reports the owner a re-file moved the item off, so Undo can reverse it", () => {
+    // Same shortening as above, but the caller supplies the item's current
+    // owner. On a re-file the date is unchanged, so `prevStopId` is the ONLY
+    // thing that tells Undo the item's Cost changed Budget line (ADR 0055).
+    const shifts = shiftItemDates(
+      [{ id: "dinner", date: "2026-05-10", stopId: "munich" }],
+      "2026-05-05",
+      "2026-05-05",
+      "2026-05-09",
+      [
+        { id: "munich", arriveDate: "2026-05-05", departDate: "2026-05-09" },
+        { id: "strasbourg", arriveDate: "2026-05-10", departDate: "2026-05-12" },
+      ],
+    );
+
+    expect(shifts).toEqual([
+      {
+        id: "dinner",
+        date: "2026-05-10",
+        prevDate: "2026-05-10",
+        stopId: "strasbourg",
+        prevStopId: "munich",
+      },
+    ]);
+  });
+
+  it("emits no prevStopId on a plain date shift, even when the owner is known", () => {
+    const shifts = shiftItemDates(
+      [{ id: "louvre", date: "2026-06-14", stopId: "paris" }],
+      "2026-06-12", "2026-06-14", "2026-06-17",
+    );
+    expect(shifts).toEqual([{ id: "louvre", date: "2026-06-16", prevDate: "2026-06-14" }]);
+  });
+
+  it("still un-slots when no stop covers the day", () => {
+    const shifts = shiftItemDates(
+      [{ id: "dinner", date: "2026-05-10" }],
+      "2026-05-05",
+      "2026-05-05",
+      "2026-05-09",
+      [{ id: "munich", arriveDate: "2026-05-05", departDate: "2026-05-09" }],
+    );
+
+    expect(shifts).toEqual([
+      { id: "dinner", date: null, prevDate: "2026-05-10" },
+    ]);
+  });
+
+  it("still un-slots when the whole stop moves, even if another stop covers the old day", () => {
+    // Munich 5-10 becomes 12-17. The dinner's date WOULD move, so rule 4 does
+    // not apply and it un-slots rather than being stranded on the old dates.
+    const shifts = shiftItemDates(
+      [{ id: "dinner", date: "2026-05-10" }],
+      "2026-05-05",
+      "2026-05-12",
+      "2026-05-13",
+      [{ id: "strasbourg", arriveDate: "2026-05-10", departDate: "2026-05-11" }],
+    );
+
+    expect(shifts).toEqual([
+      { id: "dinner", date: null, prevDate: "2026-05-10" },
+    ]);
+  });
 });
 
 describe("shiftAccommodationDates", () => {

@@ -30,6 +30,10 @@ interface InvitePanelProps {
   tripId: string;
   members: Member[];
   pendingInvites: PendingInvite[];
+  // Only the owner or an admin may create an Invite — it grants full,
+  // transitive Trip membership (ADR 0052). The member list and pending
+  // invites above stay visible to every Traveller; only this form is gated.
+  canInvite: boolean;
 }
 
 function initials(name?: string | null, email?: string): string {
@@ -44,7 +48,7 @@ function initials(name?: string | null, email?: string): string {
   return email?.[0]?.toUpperCase() ?? "?";
 }
 
-export function InvitePanel({ tripId, members, pendingInvites }: InvitePanelProps) {
+export function InvitePanel({ tripId, members, pendingInvites, canInvite }: InvitePanelProps) {
   const [emailValue, setEmailValue] = React.useState("");
   const [invitePending, startInviteTransition] = useTransition();
   const [cancelPending, startCancelTransition] = useTransition();
@@ -131,45 +135,47 @@ export function InvitePanel({ tripId, members, pendingInvites }: InvitePanelProp
         </div>
       )}
 
-      {/* Invite form */}
-      <div>
-        <h4 className="mb-1 text-sm font-medium text-foreground">Add a Traveller by email</h4>
-        <p className="mb-3 text-xs text-muted-foreground">
-          No email is sent. An Invite is created here, and access activates automatically the
-          next time that person signs in with the matching email address.
-        </p>
-        <form onSubmit={handleInvite} noValidate className="flex items-end gap-2.5">
-          <Field
-            label="Email address"
-            error={inviteError}
-            className="flex-1"
-          >
-            <Input
-              type="email"
-              name="email"
-              placeholder="partner@example.com"
-              value={emailValue}
-              onChange={(e) => setEmailValue(e.target.value)}
-              disabled={invitePending}
-            />
-          </Field>
-          <Button
-            type="submit"
-            variant="primary"
-            size="md"
-            loading={invitePending}
-            disabled={!emailValue.trim()}
-          >
-            <UserPlus className="size-4" aria-hidden="true" />
-            Invite
-          </Button>
-        </form>
-        {inviteSuccess && (
-          <p role="status" className="mt-2 text-sm text-success">
-            Invite created — no email was sent. They&apos;ll join automatically the next time they sign in.
+      {/* Invite form (owner or admin) — an Invite grants full membership, ADR 0052 */}
+      {canInvite && (
+        <div>
+          <h4 className="mb-1 text-sm font-medium text-foreground">Add a Traveller by email</h4>
+          <p className="mb-3 text-xs text-muted-foreground">
+            No email is sent. An Invite is created here, and access activates automatically the
+            next time that person signs in with the matching email address.
           </p>
-        )}
-      </div>
+          <form onSubmit={handleInvite} noValidate className="flex items-end gap-2.5">
+            <Field
+              label="Email address"
+              error={inviteError}
+              className="flex-1"
+            >
+              <Input
+                type="email"
+                name="email"
+                placeholder="partner@example.com"
+                value={emailValue}
+                onChange={(e) => setEmailValue(e.target.value)}
+                disabled={invitePending}
+              />
+            </Field>
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              loading={invitePending}
+              disabled={!emailValue.trim()}
+            >
+              <UserPlus className="size-4" aria-hidden="true" />
+              Invite
+            </Button>
+          </form>
+          {inviteSuccess && (
+            <p role="status" className="mt-2 text-sm text-success">
+              Invite created — no email was sent. They&apos;ll join automatically the next time they sign in.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

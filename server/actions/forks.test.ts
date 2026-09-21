@@ -585,7 +585,7 @@ describe("createFork", () => {
 
       await createFork("trip-1", "Plan B");
 
-      expect(currentTripTimezoneMock).toHaveBeenCalled();
+      expect(currentTripTimezoneMock).toHaveBeenCalledWith([]);
       expect(todayISOInZoneMock).toHaveBeenCalledWith("America/Los_Angeles");
       expect(computeTripPhaseMock).toHaveBeenCalledWith(
         expect.objectContaining({ today: "2026-06-30" }),
@@ -1388,6 +1388,7 @@ describe("promoteFork", () => {
 
       await promoteFork("fork-1");
 
+      expect(currentTripTimezoneMock).toHaveBeenCalledWith([]);
       expect(todayISOInZoneMock).toHaveBeenCalledWith("America/Los_Angeles");
       expect(computeTripPhaseMock).toHaveBeenCalledWith(
         expect.objectContaining({ today: "2026-06-30" }),

@@ -4,11 +4,15 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 const {
   requireTripAccessMock, revalidatePathMock,
   chapterFindUniqueMock, chapterFindManyMock, chapterCountMock, chapterCreateMock, chapterCreateManyMock, chapterUpdateMock, chapterDeleteMock,
-  stopFindManyMock, stopFindUniqueMock, stopUpdateMock, tripFindUniqueMock, queryRawMock, dbTransactionMock, chapterCreateInTxMock,
+  stopFindManyMock, stopFindUniqueMock, stopFindUniqueTxMock, stopUpdateMock, tripFindUniqueMock, queryRawMock, dbTransactionMock, chapterCreateInTxMock,
   itemFindManyMock, itemUpdateMock, accommodationFindManyMock, accommodationUpdateMock,
 } = vi.hoisted(() => {
   const queryRawMock = vi.fn();
   const stopFindManyMock = vi.fn().mockResolvedValue([]);
+  // shiftStopPayloadTx resolves the re-dated stop's own plan before loading the
+  // stops that cover each day (ADR 0055). Separate from `stopFindUniqueMock`
+  // so createChapter's "never looked up the origin stop" assertions stay true.
+  const stopFindUniqueTxMock = vi.fn().mockResolvedValue({ tripId: "trip-1", forkId: null });
   const stopUpdateMock = vi.fn();
   const chapterFindManyMock = vi.fn().mockResolvedValue([]);
   const chapterUpdateMock = vi.fn().mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
@@ -22,7 +26,7 @@ const {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
-        stop: { findMany: stopFindManyMock, update: stopUpdateMock },
+        stop: { findMany: stopFindManyMock, findUnique: stopFindUniqueTxMock, update: stopUpdateMock },
         chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock, create: chapterCreateInTxMock },
         item: { findMany: itemFindManyMock, update: itemUpdateMock },
         accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
@@ -43,6 +47,7 @@ const {
     chapterDeleteMock: vi.fn().mockResolvedValue({ id: "c1" }),
     stopFindManyMock,
     stopFindUniqueMock: vi.fn(),
+    stopFindUniqueTxMock,
     stopUpdateMock,
     tripFindUniqueMock,
     queryRawMock,
@@ -81,6 +86,7 @@ afterEach(() => {
   chapterCreateMock.mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
   chapterUpdateMock.mockResolvedValue({ id: "c1", name: "Italy", colour: "rose" });
   stopFindManyMock.mockResolvedValue([]);
+  stopFindUniqueTxMock.mockResolvedValue({ tripId: "trip-1", forkId: null });
   stopUpdateMock.mockReset();
   chapterCreateInTxMock.mockReset();
   itemFindManyMock.mockReset();
@@ -94,7 +100,7 @@ afterEach(() => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
-        stop: { findMany: stopFindManyMock, update: stopUpdateMock },
+        stop: { findMany: stopFindManyMock, findUnique: stopFindUniqueTxMock, update: stopUpdateMock },
         chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock, create: chapterCreateInTxMock },
         item: { findMany: itemFindManyMock, update: itemUpdateMock },
         accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
@@ -489,6 +495,24 @@ describe("reorderChapters", () => {
     expect(lockSql).toContain('"tripId" =');
     expect(lockSql).toContain('ORDER BY "id" ASC');
     expect(lockSql).not.toContain("ANY(");
+  });
+
+  it("is access-checked before the write", async () => {
+    // requireTripAccess runs BEFORE the FOR UPDATE-locked transaction opens —
+    // the lock is ADR 0007 deadlock avoidance, not an access check (see
+    // stop-flow.ts).
+    chapterFindManyMock.mockResolvedValue([
+      { id: "c1", startDate: null, forkId: null },
+      { id: "c2", startDate: null, forkId: null },
+    ]);
+    stopFindManyMock.mockResolvedValue([]);
+    tripFindUniqueMock.mockResolvedValue({ startDate: null });
+    queryRawMock.mockResolvedValue([]);
+
+    await reorderChapters("t1", ["c2", "c1"]);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("t1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, chapterUpdateMock);
   });
 });
 

@@ -15,8 +15,22 @@ itself wrong — and added two new items (`SW-04`, `SW-05`). **Decided
 2026-09-21** on branch `chore/close-sw03-and-sw05`: the operator resolved
 `SW-05` — `inviteToTrip` becomes owner-or-admin; `createShareLink` and
 `createCalendarFeed` stay member-accessible (see ADR 0052) — moving it from
-*Needs a decision* to *Open items*, now specified and ready to build. Eight
-items are open, and five more await an operator decision.
+*Needs a decision* to *Open items*, now specified and ready to build.
+
+**Closed out 2026-09-21** on branch `chore/close-the-open-backlog`. The
+operator decided the remaining five deferred questions (ADRs 0053, 0054, 0055
+and the 2026-09-21 amendment to ADR 0040), and all five were **built the same
+day** rather than merely specified. Every item that stood in *Open items* was
+then struck, settled, or split between the two: `SW-05`, `SW-01`, `SW-04`,
+`FN-05`, `CD-16` and the confusable half of `SW-02` were fixed and struck;
+`FP-07` and the `SW-02` remainder were **declined** and moved to *Settled*;
+`SW-03` was found already fixed on the previous branch (`06f25a3`) and struck.
+One new item was found and closed the same day (`CB-01`, the
+`expectAccessCheckedBeforeWrite` rollout). ***Open items* is now empty, and
+*Needs a decision* is now empty.** What is left owing is in *Blocked* — 12
+items that need a human with a running app, a real device, a calendar client,
+or a browser — plus **two written-but-unapplied migrations** (see *Migration
+state* below), which are the operator's call to run.
 
 **Read this instead of the seven source docs.** Those docs accumulated from
 2026-08-12 onward with no drain mechanism: later branches fixed items
@@ -37,26 +51,47 @@ At the 2026-09-20 compile, eight agents re-verified all **127 items** then known
 against `main`, each against the source doc it owned. A ninth agent, which had
 performed none of that work, independently re-derived every `DONE` verdict from
 the code or the cited commit rather than trusting the evidence string. (The
-total is 132 today; five have been added since: `SW-01`–`SW-03`, found by the
-2026-09-21 sweep, and `SW-04`–`SW-05`, found by the final whole-branch review
-that corrected this document — all evidenced against the code at the time they
-were written.)
+total is 134 today; seven have been added since: `SW-01`–`SW-03`, found by the
+2026-09-21 sweep, `SW-04`–`SW-05`, found by the final whole-branch review that
+corrected this document, `CB-01`, found and closed on the 2026-09-21 close-out
+branch, and one extra entry created by **splitting `SW-02` in two** — its
+confusable instance was struck, its remainder settled. All were evidenced
+against the code at the time they were written.)
 
 | Verdict | Count | Where it lives in this doc |
 |---|---|---|
-| Already fixed — struck | 83 | *Struck* register (no action) |
-| Live — still open | 8 | *Open items* |
-| Needs a decision | 5 | *Needs a decision* (do not build) |
+| Already fixed — struck | 96 | *Struck* register (no action) |
+| Live — still open | 0 | *Open items* (empty) |
+| Needs a decision | 0 | *Needs a decision* (empty) |
 | Blocked on a deploy, device, or browser | 12 | *Blocked* |
-| Settled — declined deliberately | 24 | *Settled — do not re-raise* |
-| **Total** | **132** | |
+| Settled — declined deliberately | 26 | *Settled — do not re-raise* |
+| **Total** | **134** | |
+
+**How 132 became 134:** `SW-02` split into two entries (one struck, one
+settled) and `CB-01` was added and closed. **How 83 struck became 96:** the
+twelve entries closed out on 2026-09-21 (`SW-05`, `SW-01`, `SW-04`, `FN-05`,
+`CD-16`, `SW-02`'s confusable instance, `SW-03`, and the five decided-and-built
+`CD-02`, `CD-03`, `CD-04`, `CD-06`, `CD-07`) plus `CB-01`. **How 24 settled
+became 26:** `FP-07` and the `SW-02` remainder. *Blocked* is unchanged at 12
+and **nothing in it was verified on 2026-09-21.**
+
+**Two migrations are written but NOT applied.**
+`20260921000000_cron_heartbeat_last_success` (adds a nullable `lastSuccessAt`
+to `CronHeartbeat` and backfills it from `lastRunAt`) and
+`20260921010000_feedback_author_snapshot` (adds a nullable `authorName` to
+`FeedbackNote`, backfills it from `User`, then drops the author FK) exist as
+files only. Both are additive on reads **and** on writes per `docs/DEPLOY.md`
+§4b — the new columns are nullable, so a still-running old build cannot violate
+a NOT NULL constraint, and dropping a foreign key removes a restriction rather
+than adding one. **Running them is the operator's call**; nothing in this
+document should be read as claiming they have run.
 
 **Updated 2026-09-21.** The sweep on branch `chore/follow-ups-triage-and-sweep`
 closed **39** of the 42 items that were open on 2026-09-20 and moved them to the
-*Struck* register. Of the three that remain, one (`FP-07`) is **parked on an
+*Struck* register. Of the three that remained, one (`FP-07`) was **parked on an
 operator decision** and two (`FN-05`, `CD-16`) were **never planned**, each
-blocked by something the sweep was not allowed to do; all three are annotated in
-place with why. The sweep also **found three new items** (`SW-01`, `SW-02`,
+blocked by something the sweep was not allowed to do. All three were closed out
+on 2026-09-21 — `FP-07` declined, the other two built. The sweep also **found three new items** (`SW-01`, `SW-02`,
 `SW-03`) that appear in no source doc, which is why the total grew from 127 to
 130.
 
@@ -65,7 +100,7 @@ sweep's own claims — both the 39 it struck and the 3 it added — against the
 code, corrected six struck entries whose annotation overclaimed or
 undercounted what actually shipped, corrected one open item (`SW-02`) whose
 population was wrong, and added two further items (`SW-04`, `SW-05`), which is
-why the total is now 132.
+why the total went to 132.
 
 **Decided 2026-09-21**, branch `chore/close-sw03-and-sw05`: the operator
 resolved `SW-05` (ADR 0052). `inviteToTrip` becomes owner-or-admin;
@@ -73,7 +108,20 @@ resolved `SW-05` (ADR 0052). `inviteToTrip` becomes owner-or-admin;
 member — the asymmetry is that an Invite grants unbounded, transitive
 membership while a Share link is bounded by ADR 0051's never-shared floor and
 a Calendar feed exposes only schedule. `SW-05` moves from *Needs a decision*
-to *Open items*, specified and ready to build; the total stays **132**.
+to *Open items*, specified and ready to build; the total stayed **132**. The
+same branch also fixed `SW-03` (`06f25a3`) by scoping `CLAUDE.md`'s
+session-start instructions to the main session — **but did not strike it
+here**, so `SW-03` sat in *Open items* already fixed until the close-out found
+it. It is struck now, against that commit.
+
+**Closed out 2026-09-21**, branch `chore/close-the-open-backlog`. The five
+*Needs a decision* items were decided by the operator and built the same day,
+so each moved straight to *Struck*: `CD-02` (ADR 0053), `CD-04` (ADR 0054),
+`CD-03` (ADR 0055), `CD-06` and `CD-07`. **Three of the five shipped as an
+option their own entry did not list** — see each entry's *What actually
+shipped* note in the struck register, and the fourth process lesson below.
+Every remaining open item was then struck or settled, one new item (`CB-01`)
+was found and closed, and `SW-02` was split in two. Total **134**.
 
 > ### ⚠ What this document is reliable about, and what it is not
 >
@@ -100,6 +148,26 @@ to *Open items*, specified and ready to build; the total stays **132**.
 > Two undercounts in 39 items is not a rounding error, and there is no reason
 > to think the remaining entries were sampled differently.
 >
+> **A scope line can also be wrong the other way — it can claim a gap that is
+> already closed.** The 2026-09-21 close-out went to add
+> `expectAccessCheckedBeforeWrite` to the seven `FOR UPDATE` write-path entry
+> points a review had listed, and found `reorderTransports` **already covered**
+> by `server/actions/transport.test.ts:1319`, in a test that predates all of
+> this work. Six sites needed the assertion, not seven (`898f1b0`, `CB-01`).
+> Re-derive before you build, in both directions.
+>
+> **And trust an entry's *reasoning* no further than its scope line.** Two
+> claims recorded in this document were disproved on 2026-09-21 — not by
+> re-reading them, but by mutation-testing what they asserted:
+>
+> | Recorded claim | What testing showed |
+> |---|---|
+> | The `FOR UPDATE` entry points' skip-justification "is correct, but never written down" (a deferred minor) | **False.** `lockPlanStopsTx` is pure ADR 0007 deadlock avoidance with no access-control meaning; every caller checks access before opening its transaction; and moving `moveStop`'s check after its write proved `expectAccessCheckedBeforeWrite` *does* catch it there. The rollout was simply incomplete. |
+> | `lib/cron-health.test.ts:54`'s `Math.max(0, …)` guard needs a test pinning it (a deferred minor) | **No such test is possible.** The guard is unreachable dead code: a negative diff never satisfies `hours >= 1` whether clamped or not, verified by sweeping `diff` from −100h to +100h guarded vs unguarded with zero output mismatches. |
+>
+> Both were corrected in place rather than struck, so no reader inherits the
+> false claim. See *Deferred minors* below.
+>
 > **So: trust an entry's verdict, do not trust its scope line.** When you pick
 > up an item, re-derive the blast radius yourself before you plan the fix —
 > grep the tree for the pattern rather than fixing only the `file:line`s listed.
@@ -112,9 +180,10 @@ to *Open items*, specified and ready to build; the total stays **132**.
 > struck entries that overclaimed in exactly this way: `FP-06` (the fix built
 > an escape hatch that no production caller ends up using, so the described
 > behaviour is unchanged) and `HG-02`/`HG-10` (a fourth confusable instance,
-> `phase-travelling.tsx:508`, survives the "three cards" fix). Before trusting
-> a struck entry's title as a completed fact, check whether its annotations say
-> otherwise.
+> `phase-travelling.tsx:508`, survived the "three cards" fix — it was closed
+> later, on 2026-09-21, as `SW-02`'s confusable instance, `7fcef35`). Before
+> trusting a struck entry's title as a completed fact, check whether its
+> annotations say otherwise.
 
 Of the 44 `DONE` calls made in the original 2026-09-20 triage: **40 were
 independently re-verified and 0 were flipped.** The remaining 4 (`OPS-01`, `OPS-03`, `OPS-06`, `OPS-07`) rest on a
@@ -150,13 +219,14 @@ scratch report was one short of its own entries); no item's verdict changed.
 7. **Read the *Settled* section before proposing anything.** Several entries
    there are instructions *not* to make a change that looks like an improvement.
 
-### Three process lessons, carried forward
+### Five process lessons, carried forward
 
 The first two come from
 `docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md` (items
 `CD-17` and `CD-18` in the triage); the third was learned the hard way during
-the 2026-09-21 sweep. None is a backlog item — they are plan-authoring guidance,
-and they belong in the next plan you write, not in the list below.
+the 2026-09-21 sweep, and the fourth and fifth during the 2026-09-21
+close-out. None is a backlog item — they are plan-authoring guidance, and they
+belong in the next plan you write, not in the list below.
 
 - **A parameter can be born dead across task boundaries.** A plan once
   specified `timezone` on a server action and on the `POST` schema it backs, but
@@ -179,30 +249,123 @@ and they belong in the next plan you write, not in the list below.
   red typecheck through **four subsequent tasks** before anyone ran a build.
   A plan that defers `npm run build` to the end must still make
   `npx tsc --noEmit` part of every task's gate, not just the last one.
+- **A "there is no third option" note in a backlog entry is a claim, not a
+  finding.** Three of the five decisions closed on 2026-09-21 (`CD-02`,
+  `CD-03`, `CD-04`) shipped as an option their own entry did not list. One of
+  those entries said so in as many words — `CD-02`'s "Why no third option"
+  paragraph — and the other two simply posed a binary and left it at that,
+  which had the same effect on anyone reading for work. Each third option came
+  from re-deriving the problem against the code the entry cited rather than
+  accepting the entry's framing: `CD-04`'s cooldown, for instance, exists only
+  because `DigestDispatch` already carried a `createdAt` nobody had noticed was
+  an answer. When an entry poses a binary, re-derive it before choosing a side.
+  **The same suspicion belongs on an entry's supporting reasoning, not only on
+  its option list.** Two claims this document recorded as settled fact — that
+  the `FOR UPDATE` entry points had a correct skip-justification, and that
+  `formatLastRun`'s `Math.max(0, …)` guard was pinnable by a test — were both
+  disproved on the same day, and in both cases by *mutating the code and
+  running the suite*, not by re-reading the prose. Reading an entry again only
+  tells you what it says. A backlog entry's verdict has always been the part
+  you could trust; after today, its reasoning is not.
+- **`npx tsc --noEmit` is not sufficient either — `next build` is the only gate
+  that enforces the `"use server"` async-export rule.** The close-out exported
+  a pure mapper (`toView`) from `server/actions/feedback.ts` so a test could
+  call it. Next requires every *value* export from a `"use server"` module to
+  be an async function, and nothing else models that directive: `tsc` does not,
+  vitest imports the module directly, ESLint has no rule for it. The branch
+  carried an unbuildable tree through **thirteen tasks and a final review**
+  before a build was run. The third lesson above makes `npx tsc --noEmit` a
+  per-task gate; that is necessary and not enough. A plan that defers
+  `next build` must say which tasks touch a `"use server"` or client/server
+  boundary and gate *those* on a build, not only the last task.
 
-### Deferred minors from the 2026-09-21 sweep
+### Deferred minors from the 2026-09-21 sweep — all four now resolved
 
 Found by task reviews, judged too small to hold a task open, recorded here so
-they are not lost. None is a defect in shipped behaviour; all four are
-test-or-comment honesty. Fold them into whatever next touches the file.
+they were not lost. None was a defect in shipped behaviour; all four were
+test-or-comment honesty. **All four were addressed on 2026-09-21** —
+`c44705e` for the first three, `898f1b0` for the fourth — and two of them
+turned out to rest on a false premise. They are kept below with their outcomes
+rather than deleted, because the premise corrections are the point.
 
-- **`server/actions/forks.test.ts:588`** asserts
+- **`server/actions/forks.test.ts:588`** asserted
   `expect(currentTripTimezoneMock).toHaveBeenCalled()` rather than
-  `toHaveBeenCalledWith(stops)` — so the query wiring `AB-03` exists to fix is
-  not actually pinned, and the `promoteFork` block around `:1391` makes no
-  `currentTripTimezone` assertion at all. One-line upgrade in each.
-- **`lib/cron-health.test.ts:54`** — the comment names `Math.max(0, …)`'s
-  ran-backwards-clock guard, but every fixture in the file is at or before
-  `now`, so only the `diff === 0` case is exercised. Either add a
-  future-`lastRunAt` case or reword the comment to claim only what it covers.
-- **`app/globals.css:236-238`** — the comment says `tp-fade-in` stays at 150ms
+  `toHaveBeenCalledWith(stops)` — so the query wiring `AB-03` exists to fix was
+  not actually pinned, and the `promoteFork` block around `:1391` made no
+  `currentTripTimezone` assertion at all.
+  **Done (`c44705e`):** both now assert `toHaveBeenCalledWith([])`, the value
+  each test's own fixtures actually supply.
+- **`lib/cron-health.test.ts:54`** — the comment named `Math.max(0, …)`'s
+  ran-backwards-clock guard, but every fixture in the file was at or before
+  `now`, so only the `diff === 0` case was exercised. The ask was to add a
+  future-`lastRunAt` case that pins the guard, or reword the comment.
+  **Premise corrected (`c44705e`): the guard cannot be pinned, because it is
+  unreachable dead code.** `formatLastRun`'s only branch that reads `hours` is
+  `hours >= 1`, and for any future `lastRunAt` `hours` is `Math.floor` of a
+  non-positive number — so it can never reach that branch whether or not it
+  was clamped to `0` first. Removing the clamp and sweeping `diff` from −100h
+  to +100h produced **zero** output mismatches against the guarded version. A
+  future-`lastRunAt` case was added that states honestly what it *does* pin: a
+  skewed or future clock still reads "just now" rather than negative hours,
+  and it passes with or without the clamp. **The guard itself was left in
+  place** — harmless defensive code, not worth a commit to remove. Do not file
+  "add a test for the `Math.max` guard" again; there is no such test.
+- **`app/globals.css:236-238`** — the comment said `tp-fade-in` stays at 150ms
   "for dialogs and popovers". Only `components/ui/dialog.tsx:21` uses it;
-  popovers never did (they use `tp-pop-in`/`tp-pop-out`). Drop the word.
-- **Sweep task 10's skip-justification for the `FOR UPDATE` entry points**
-  (`moveStop` and friends, left out of the `expectAccessCheckedBeforeWrite`
-  rollout) is correct, but it was proved by a reviewer's probe and never
-  written down in the repo. If a later sweep picks up those entry points, it
-  will have to re-derive it. Worth a comment next to the rollout.
+  popovers never did (they use `tp-pop-in`/`tp-pop-out`).
+  **Done (`c44705e`):** the comment now says "for dialogs" only, confirmed by
+  grep across `popover.tsx`, `dropdown-menu.tsx` and `select.tsx`.
+- **~~Sweep task 10's skip-justification for the `FOR UPDATE` entry points is
+  correct, but was never written down.~~ That claim was FALSE, and is
+  corrected here rather than struck so no reader inherits it.** There was no
+  correct justification to write down. `lockPlanStopsTx`'s doc comment
+  (`server/actions/stop-flow.ts`) claims only ADR 0007 deadlock avoidance and
+  makes no access-control claim; **every** caller runs its own
+  `requireTripAccess`/`requireStopAccess` *before* opening the transaction that
+  takes the lock; and a mutation test — moving `moveStop`'s access check to
+  after its write — made `expectAccessCheckedBeforeWrite` fail exactly as it
+  should ("expected the access guard to run before the write, but it ran
+  after"). So the helper **does** apply to these entry points; the rollout was
+  simply incomplete. **Resolved as `CB-01` (`898f1b0`)**: all seven locked
+  write-path call sites now carry the assertion (one of them already did), and
+  `lockPlanStopsTx`'s doc comment now records that there is no exemption. See
+  `CB-01` in the struck register.
+
+### Deferred minors from the 2026-09-21 close-out — open
+
+Same status as the four above when they were first written: found by task
+reviews on `chore/close-the-open-backlog`, too small to hold a task open, not
+defects in shipped behaviour. **These are recorded from that branch's own SDD
+ledger (`.superpowers/sdd/2026-09-21-close-the-open-backlog/progress.md`) and
+have not been independently re-derived here** — treat each as a lead to check,
+not as a verified finding. Fold them into whatever next touches the file.
+
+- **`server/actions/invites.test.ts`** — the admin-bypass test asserts only
+  `success === true`, not the created Invite's shape.
+- **`components/account/push-subscribe.ts`** — the client-side conflict retry
+  that ADR 0053 depends on has no automated coverage; no test file exists for
+  that module. This is the half of `CD-02`'s fix a future refactor breaks
+  silently.
+- **`lib/digest-dispatch.test.ts`** — nothing asserts the cooldown
+  `findFirst`'s `where` **shape**, i.e. that it is keyed on `slot` *without*
+  `localDate`, which is the whole point of ADR 0054. Correctness currently
+  rests on reading the implementation.
+- **The cooldown `findFirst` has no covering index** (the existing unique
+  constrains `localDate`, which this query does not use). Not functional at two
+  Travellers' row counts; adding one needs a migration.
+- **`CONTEXT.md` now hardcodes "two"** in the Digest prose, coupling the
+  glossary to `DIGEST_MAX_CHECKLIST_LINES`.
+- **ADR 0055's re-file also fires for Items dated *before* the Stop's arrive
+  date** (`offset < 0`) — inside the letter of the ADR, outside its narrated
+  case, and untested.
+- **The "pass the re-dated Stop with its NEW dates" safety is not pinned** —
+  the test passes with the `.map()` override deleted, because the tiebreak
+  picks the other Stop either way.
+- **Two extra queries per re-dated Stop**, and `self ? … : []` degrades
+  silently to the old behaviour if the wiring is ever missing.
+- **`setStopNights` has no `expectAccessCheckedBeforeWrite` assertion of its
+  own** — it delegates to `applyStopDates` through the same guarded path as
+  `setStopDates`, which is covered. Disclosed as a judgement call, not a gap.
 
 ### Priority key
 
@@ -226,370 +389,68 @@ naming, doc drift.
 | `CD-` | `docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md` |
 | `OPS-` | operational debt owed by `docs/things-to-fix.md` |
 | `SW-` | **no source doc** — found during the 2026-09-21 sweep (`SW-01`–`SW-03`) or the final whole-branch review that corrected this document (`SW-04`–`SW-05`) |
+| `CB-` | **no source doc** — found during the 2026-09-21 close-out on branch `chore/close-the-open-backlog` (`CB-01`) |
 
-`SW-` is the one prefix with nothing to follow the citation back to. Those
-entries are self-contained: the evidence in them is all the evidence there is.
+`SW-` and `CB-` are the two prefixes with nothing to follow the citation back
+to. Those entries are self-contained: the evidence in them is all the evidence
+there is.
 
 ---
 # Open items
 
-**8 items.** Three are survivors of the 2026-09-21 sweep on branch
-`chore/follow-ups-triage-and-sweep` — one parked on a decision, two never
-planned — three were found *by* that sweep and appear here for the first time,
-one (`SW-04`) was found by the final whole-branch review that corrected this
-document, and one (`SW-05`) was moved here from *Needs a decision* on
-2026-09-21 once the operator resolved it (ADR 0052). The other **39** items
-that stood in this section on 2026-09-20 were fixed and moved to the *Struck*
-register below, each with its commit.
+**0 items. This section is empty.** Everything that stood here was closed out
+on 2026-09-21 on branch `chore/close-the-open-backlog` — struck, settled, or
+split between the two. The trail:
 
-Each entry still carries the `file:line` that shows the defect. For the three
-carried over, that citation was last checked on 2026-09-20; for the three
-found by the sweep, on 2026-09-21; for `SW-04`, on the same date by the final
-review; for `SW-05`, on 2026-09-21, the date of the operator's decision.
+| Was here | Where it went | Commit |
+|---|---|---|
+| `SW-05` | *Struck* — built | `a0eaa72` |
+| `FN-05` | *Struck* — built (migration written, **not applied**) | `cf90b52` |
+| `SW-01` | *Struck* — built | `b0b50a0`, `4b33884` |
+| `FP-07` | *Settled* — **declined**, not deferred | — |
+| `CD-16` | *Struck* — landed with `CD-07` | `ac44282` |
+| `SW-02` (confusable instance) | *Struck* — built | `7fcef35` |
+| `SW-02` (the decorative remainder) | *Settled* — **declined** | — |
+| `SW-04` | *Struck* — built | `6480936` |
+| `SW-03` | *Struck* — was already fixed on the previous branch | `06f25a3` |
 
-## P1
-
-### SW-05 · `inviteToTrip` needs an owner-or-admin guard
-
-- **Source:** none — found during the final whole-branch review of this
-  document as an open question, resolved by the operator on 2026-09-21. See
-  ADR 0052 for the full reasoning.
-- **Decision:** `inviteToTrip` becomes owner-or-admin. `createShareLink` and
-  `createCalendarFeed` deliberately **stay open to any member — out of
-  scope, not an oversight.** ADR 0052 records why: a Share link is bounded by
-  ADR 0051's never-shared floor and a Calendar feed exposes only schedule, so
-  a member handing either out leaks far less than a member handing out full,
-  transitive Trip membership. Do not extend this guard to those two actions.
-- **Guard to add:** `server/actions/invites.ts:40` — `inviteToTrip` currently
-  does only `await requireTripAccess(tripId);` and discards the result. Copy
-  `deleteTrip`'s shape at `server/actions/trips.ts:258`: use the
-  `{ user, membership }` `requireTripAccess` already returns, and refuse
-  unless `membership.role === "owner"` or `isAdminEmail(user.email)` — same
-  admin bypass as Delete and Duplicate (ADR 0045).
-- **UI must be gated too:** `app/(app)/trips/[tripId]/settings/page.tsx`
-  already computes `canManageTrip` (owner-or-admin) at line 36 but applies it
-  only to the Danger zone at line 221; the Invite control currently renders
-  for every member. Gate it on `canManageTrip` in the same change, so no
-  non-owner is shown a button the server will now refuse — a UI/server
-  mismatch on exactly this shape is what hid the `duplicateTrip` P0 (`HG-12`,
-  struck) until it was found.
-- **Regression test:** must prove a non-owner member is refused by
-  `inviteToTrip`, and must fail against the current code — before the guard
-  exists — the same before/after standard every access-guard fix in this
-  document is held to.
-- **Out of scope:** `createShareLink` (`server/actions/share.ts:97`) and
-  `createCalendarFeed` (`server/actions/calendar-feed.ts:59`) — leave both on
-  `requireTripAccess` alone. See ADR 0052.
-- **Category:** mechanical · **Effort:** S
-
-## P2
-
-### FN-05 · A Feedback note does not survive its author
-
-- **Source:** `FN` (`docs/follow-ups/2026-09-08-feedback-notes.md:38-42`)
-- **Evidence:** `prisma/schema.prisma:739` —
-  `author User @relation(fields: [authorId], references: [id], onDelete: Cascade)`,
-  unchanged. No migration since 2026-09-08 touches this FK's behaviour.
-- **Fix shape:** the same treatment ADR 0040 already gave `tripId`/`tripName`
-  — snapshot `authorName` at write time, and either drop the cascade or make
-  `authorId` nullable with `onDelete: SetNull`. Needs a migration; read
-  `docs/DEPLOY.md` §4b and `OPS-08` first.
-- **Not swept 2026-09-21:** the fix needs a schema change and therefore a
-  migration, which the sweep was forbidden from adding. There is no partial
-  version that leaves the tree coherent — a `schema.prisma` change without its
-  migration produces a generated client expecting columns production does not
-  have. **Needs the operator's go-ahead on migration 27 first**, then its own
-  plan. Read `docs/DEPLOY.md` §4b, including the write-path section the sweep
-  added, before writing that plan.
-- **Category:** mechanical · **Effort:** M
-
-### SW-01 · A Feedback note can show as both Pending and Sent when storage is blocked
-
-- **Source:** none — found during the 2026-09-21 sweep, while fixing `FN-07`.
-  No source doc records it.
-- **Evidence:** `components/feedback/feedback-launcher.tsx:445-446` —
-  `setPending(removeFromQueue(note.clientKey)); setSent((prev) => [...prev, result.note]);`.
-  `setSent` is pushed unconditionally on a successful send. But
-  `removeFromQueue` goes through `lib/feedback-queue.ts`'s `write()`, which
-  swallows a `localStorage.setItem` failure (quota, private mode) and returns the
-  *unchanged* queue — so `setPending` is handed a queue that still contains the
-  note while `setSent` adds the same note to the sent list.
-- **Symptom:** under blocked or full storage, one Feedback note renders in both
-  the Pending and the Sent list, and stays there until the panel is remounted.
-- **Same class as `FN-07`, one layer up.** `FN-07` fixed the queue module's own
-  flush loop (`a96e537`); this is the component doing the identical
-  trust-the-write mistake in its own send path. The fix shape is the same: check
-  the returned queue genuinely lacks the `clientKey` before treating the removal
-  as real.
-- **Why it was not fixed in the sweep:** observed by task 7's reviewer and
-  recorded as explicitly out of that task's scope rather than widened mid-task.
-- **Category:** mechanical · **Effort:** S
-
-## P3
-
-### FP-07 · A desktop toast sits over the Compare table's frozen label column
-
-- **Source:** `FP` (`:53`)
-- **Evidence:** `components/trip/compare-table.tsx:477` — the `sticky left-0 z-10`
-  label column is still there, and toasts are still bottom-left (see the settled
-  `FP-15`), so the overlap is geometric and unchanged.
-- **Note:** transient and readable once the toast clears.
-- **PARKED 2026-09-21 — this one is the operator's call, and it is the only
-  planned item the sweep did not build.** The planned fix was `md:mb-24` on the
-  Compare table, but that trades a *transient* overlap for a **permanent 6rem
-  dead band under the table on every desktop view**. This entry's own note above
-  calls the overlap "transient and readable once the toast clears", which is
-  precisely why the trade is not obviously worth making. Decide the trade before
-  anyone builds it; do not treat the planned shape as agreed.
-- **Its two neighbours did ship.** `FP-06` and `FP-13`, the other two Feedback-
-  panel/sheet items in this area, were closed in sweep task 17 (`14b8f6b`) and are
-  in the *Struck* register. `FP-07` is not blocked on them — it is blocked only on
-  the decision above.
-- **Category:** mechanical · **Effort:** S
-
-### CD-16 · `CONTEXT.md`'s **Digest** entry no longer describes the truncation behaviour accurately
-
-- **Source:** `CD` (`:100-102`, embedded in the Checklist-cap bullet and split
-  out as its own item during triage)
-- **Evidence:** `CONTEXT.md:190` describes a single global cap that always takes
-  the tail ("it is ordered by what is most costly to lose... then **Checklist**
-  items (which reappear nightly until done, and so give way first)"). It does not
-  mention the separate, silent per-section `DIGEST_MAX_CHECKLIST_LINES = 2` cap
-  at `lib/digest.ts:88,168`, which drops excess Checklist lines *before* the
-  global cap or its `+N more` indicator ever sees them.
-- **Sequencing:** this should land with whatever `CD-07` is decided (see *Needs
-  a decision*), because the correct wording depends on that outcome. Do not
-  update `CONTEXT.md` to describe behaviour that is about to change.
-- **Not swept 2026-09-21:** deliberately deferred, on the sequencing note above
-  — `CD-07` is in *Needs a decision*, which the sweep did not touch, so writing
-  the accurate-today wording now means rewriting it the moment `CD-07` lands.
-  **Fix it in the same commit as `CD-07`**, not before.
-- **Category:** docs · **Effort:** S
-
-### SW-02 · Decorative `MapPin` uses survive the `HG-02`/`HG-10` dedup — population was undercounted, and one survivor is genuinely confusable
-
-- **Source:** none — found during the 2026-09-21 sweep, while fixing
-  `HG-02`/`HG-10`. No source doc records it.
-- **Population corrected twice now: this entry originally named two
-  survivors, then roughly fifteen. Both were wrong — verified by grep, it is
-  21 render sites across 16 files.** A non-exhaustive list of the
-  decorative, unconditional uses: `components/trip/trip-card.tsx:132`,
-  `components/trip/agenda-view.tsx:48`, `components/trip/route-map.tsx:75`,
-  `components/trip/plan-overview.tsx:60`, `components/trip/nearby-wishlist.tsx:50`,
-  `components/command-palette.tsx:45`, `components/trip/home/phase-sketching.tsx:77`,
-  and several `icon={MapPin}` uses (`components/trip/itinerary-manager.tsx:2139`,
-  `components/trip/home/quick-actions.tsx:24,34`,
-  `app/(app)/trips/[tripId]/summary/page.tsx:443,479,514`) plus the calendar,
-  print, summary and share pages. Operator deciding `SW-02` from "two" was
-  deciding from a false number, and so was deciding from "roughly fifteen" —
-  this count has now been wrong twice, each time in the entry meant to
-  correct the previous error, so treat every scope figure in this document
-  with matching suspicion until it has been re-verified.
-- **One survivor is not like the others: `phase-travelling.tsx:508` is
-  confusable, not merely inconsistent.** It sits in the same flex row as a real
-  `MapLink` at `:519` — the same side-by-side pattern `HG-02` was written to
-  fix, and the struck `HG-02`/`HG-10` entry is corrected to say so. Worse, that
-  `MapLink` is given an always-present `label`, and `lib/maps.ts:31` falls back
-  to `label` when there is no address, so it renders a pin for every stop
-  regardless of whether coordinates exist — exactly the failure mode
-  `stop-card.tsx:337-345` was changed to gate against (`stop.lat != null &&
-  stop.lng != null`) for this same reason. This is confusable **under either
-  reading of the decision below** — it is not a consistency call, it is the
-  same defect `HG-02`/`HG-10` was supposed to have closed, missed. It should be
-  treated as a fourth instance of that item, not decided here.
-- **The rest — including `phase-sketching.tsx:77`, added on final review — are
-  a genuine consistency call, not a defect.** None of them sits beside a real
-  `MapLink`, so none is *confusable* the way the fixed cards (or
-  `phase-travelling.tsx:508`) are. They are recorded here only because they
-  work against the same "a pin means one thing" goal, so a future reader does
-  not think the dedup was completed app-wide.
-- **`components/trip/help-legend.tsx` is among the 21 and is a special case:
-  whatever the operator decides below, it should almost certainly keep its
-  pin.** It is the legend that *teaches* the app what the `MapPin` icon means
-  — removing or altering it would not close an inconsistency, it would break
-  the one place that explains the icon to begin with. Flagged here so a
-  future agent does not "fix" the legend into incoherence while working
-  through the rest of this list.
-- **Decide before building (this part only):** if the answer is "the pin is
-  reserved for a real location everywhere", the ~14 non-confusable survivors go
-  too; if it is "only where it could be mistaken for a `MapLink`", they stay
-  and this entry should be settled rather than built. Either way,
-  `phase-travelling.tsx:508` should be fixed, not decided.
-- **Category:** mechanical · **Effort:** S (the confusable instance) / M (the
-  full consistency pass, if the operator wants it)
-
-### SW-04 · `FeedbackNoteRow` names both an exported and a private type, in different shapes
-
-- **Source:** none — found during the final whole-branch review of this
-  document, while checking the sweep's claims. No source doc records it.
-- **Evidence:** `lib/feedback-inbox.ts:24` exports `FeedbackNoteRow` (the
-  Prisma selection `scripts/feedback-pull.ts` reads). `server/actions/feedback.ts:36`
-  separately declares a private `type FeedbackNoteRow` with a different shape
-  (it carries `authorId` and `author: { name }`; the exported one does not).
-  The two are never imported together, so nothing breaks today — but a reader
-  who greps the name, or an editor's autocomplete, will find two unrelated
-  types answering to it.
-- **Same class as `CD-15`** (`DispatcherHealth` naming both a component and an
-  interface, imported into the same page) — a name reused across files for
-  different things, closed in sweep task 22. This is the same problem one file
-  boundary further out: no shared import today, but the same confusion waiting
-  for the day one is added.
-- **Fix:** rename one — e.g. the private one in `server/actions/feedback.ts` to
-  `FeedbackNoteQueryRow` — when next touching either file. Do not rename either
-  as part of landing this entry.
-- **Category:** docs · **Effort:** S
-
-## Process — for the operator, not a code change
-
-### SW-03 · `CLAUDE.md`'s session-start `feedback:pull` instruction makes subagents connect to production
-
-- **Source:** none — this is a process finding from running the 2026-09-21
-  sweep, not a defect in the app. It is for the operator, not for an agent to
-  "fix" unasked.
-- **Evidence:** `CLAUDE.md:5-7` — "At the start of every session, before the
-  grilling interview: 1. Run `npm run feedback:pull`". `package.json` maps that
-  to `tsx scripts/feedback-pull.ts`, which opens `DATABASE_URL`. In a
-  subagent-driven pipeline every fresh subagent reads "every session" as
-  applying to *itself*.
-- **It happened twice during this sweep**, in both cases despite the dispatching
-  brief carrying an explicit "do not connect to a database" instruction. The
-  cause is systemic, not a lapse in either agent: the project instruction file
-  outranks the task brief in the agent's reading, and it says *every* session.
-- **Impact so far: nil.** Both reads were read-only, the regenerated
-  `docs/feedback/inbox.md` was reverted, and neither entered a commit — verified
-  against `git status`. The risk is the shape of it, not the damage done.
-- **Fix:** scope the instruction to the orchestrating session — e.g. "at the
-  start of a session *you* started with the operator, not if you are a subagent
-  executing a task brief" — or move it out of `CLAUDE.md` into the
-  session-opening skill, where only the top-level session reads it.
-- **Category:** process · **Effort:** S
+**Do not read "empty" as "nothing is owed."** Twelve items sit in *Blocked*,
+untouched, and two written migrations are unapplied — see the trust statement
+above. What is empty is the set of things an agent in this sandbox can pick up
+and build.
 
 ---
 
 
 # Needs a decision — **do not implement these**
 
-**These five are the operator's calls to make, not an agent's to build.** Each
-one is real, and each one has two defensible fixes with genuinely different
-costs — which is exactly why it was deferred rather than done. If you are an
-agent reading this document looking for work, **skip this section entirely**.
-Nothing here is ready to be implemented, and implementing either option without
-the decision being made is how the wrong one ships. Bring the choice to the
-operator, get an answer, then write a plan.
+**0 items. This section is empty.** The five that stood here (`CD-02`,
+`CD-03`, `CD-04`, `CD-06`, `CD-07`) were all decided by the operator on
+2026-09-21 **and built the same day**, so each moved straight to the *Struck*
+register rather than to *Open items*. A sixth, `SW-05`, was decided on
+2026-09-21 on the previous branch and is likewise struck.
 
-All five (`CD-02` through `CD-07`) come from
-`docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md`. A sixth,
-`SW-05` (no source doc — found during the final whole-branch review of this
-document), was resolved by the operator on 2026-09-21 and has moved to *Open
-items* above, specified, as `SW-05` under **P1** — see ADR 0052.
+Where a decision produced an ADR, **the ADR is the durable record — this
+section is not.** The table below covers the five that stood here plus two
+decided the same day from elsewhere in this document (`SW-05` and `FN-05`,
+both of which were in *Open items*, not here):
 
-### CD-02 · `subscribeToPush` can reassign a Device row it does not own — P1
+| Item | Decision | ADR |
+|---|---|---|
+| `SW-05` | Invite is owner-or-admin; Share link and Calendar feed stay member-accessible | 0052 |
+| `CD-02` | A Device is never reassigned; the browser mints a new endpoint | 0053 |
+| `CD-04` | One Digest per person per slot, enforced by an 18h cooldown rather than by the ledger key | 0054 |
+| `CD-03` | A shortened Stop hands its Item to the Stop that still covers the day; the general case is **declined** | 0055 |
+| `FN-05` | A Feedback note survives its author (2026-09-21 amendment) | 0040 |
+| `CD-06` | A second timestamp, `lastSuccessAt`, distinguishes "ran" from "delivered" | — (entry option (b)) |
+| `CD-07` | An honest `+N more` that counts Checklist lines dropped by the per-section cap | — (entry option (a)) |
 
-- **What it is:** `server/actions/push.ts:41` (`create`) and `:67` (the `update`
-  arm of the upsert) both write `userId: user.id` unconditionally. The `update`
-  arm's own comment confirms this is deliberate, and asymmetric with
-  `reconcileDevice` (`server/actions/devices.ts`), which refuses to touch a row
-  it does not already own.
-- **Exposure if left as-is:** an authenticated attacker who obtains a victim's
-  push `endpoint` — a capability secret that only ever travels app → push
-  service → database, not something guessable — can re-point that row's `userId`
-  to themselves, achieving device theft and silencing (the Device stops notifying
-  its real owner). Not content theft: pushes remain encrypted to the victim's
-  keys.
-- **Option (a):** require an explicit re-Enable when the endpoint's stored
-  `userId` differs from the caller. **Cost:** closes the hole, but forces a
-  re-permission prompt on a genuinely shared machine where a second person
-  legitimately wants that physical Device's subscription.
-- **Option (b):** accept the current upsert-reassign behaviour and document it
-  as intentional. **Cost:** the exposure above stays open.
-- **Why no third option:** the legitimate shared-machine call and the hijack are
-  byte-identical, so no smarter check can tell them apart. Only removing the
-  ambient trust — option (a) — changes anything.
-
-### CD-03 · Rule 4 does not govern a Stop re-date — P2
-
-- **What it is:** `scheduleItem`/`rescheduleItem` call `resolveOwningStop`
-  before writing an Item's date, so rule 4 applies to explicit moves. A Stop
-  re-date instead goes through `shiftStopPayloadTx` (`server/actions/stop-flow.ts`)
-  → `shiftItemDates` (`lib/payload-shift.ts`), which is pure ADR 0038 offset math
-  with no concept of an owning Stop — so an Item un-slots to `date: null` even
-  when an adjoining Stop still covers its calendar date. Recorded in full in ADR
-  0049's Consequences (`docs/adr/0049-...md:109-132`).
-- **Option (a):** extend rule 4 into the re-date/un-slot path, so a Stop re-date
-  can re-file an Item onto a *different* Stop's Budget line. **Cost:** a genuine
-  behaviour change to `lib/payload-shift.ts` and `server/actions/stop-flow.ts`,
-  both left untouched on purpose by ADR 0049.
-- **Option (b):** leave it. **Cost:** the Item un-slots to the trip's
-  things-to-do and its Cost falls to "Trip-wide / Other" purely because its
-  owning Stop shortened, even though a neighbouring Stop still covers the date.
-- **Newly visible, which is why it surfaced now:** before ADR 0049 the Item
-  silently vanished off a card nobody was looking at; now it visibly disappears
-  off the adjoining Stop's changeover-day card, which the Traveller never
-  touched. The ADR explicitly deferred this as deserving its own spec and review.
-- **Effort if built:** L.
-
-### CD-04 · The intraday zone flip can still produce two Digests — P2
-
-- **What it is:** `app/api/cron/digest/route.ts:202-212` resolves the elected
-  zone fresh per run from `zoneByUser`, with no caching, and the ledger key
-  (`localDate`, `slot`) carries no zone — `dispatchDigest({ userId, tripId, localDate, slot, zone })`
-  at `route.ts:239` passes `zone` for delivery only. Recorded in ADR 0050's
-  Consequences (`docs/adr/0050-...md:100-113`).
-- **Option (a):** cache the elected zone per person per local day, so a mid-day
-  zone flip (home laptop opened, then the travelling phone picked back up, both
-  inside one UTC day) cannot produce two different `(localDate, slot)` pairs.
-  **Cost:** a new piece of state that must be invalidated correctly at the day
-  boundary.
-- **Option (b):** put the elected zone into the ledger key itself. **Cost:**
-  simpler per run, but a person who legitimately changes zone mid-day can still
-  receive two Digests — one keyed to each zone — rather than being deduplicated
-  by person.
-- **ADR 0050 left this open deliberately,** calling it "the exact harm decision
-  1 exists to prevent, in miniature" — narrower than the already-closed
-  two-Devices-in-two-zones case because it needs a live zone handoff mid-day, not
-  merely owning Devices in two places.
-- **Effort if built:** M.
-
-### CD-06 · The heartbeat proves the route ran, not that Digests were delivered — P2
-
-- **What it is:** `app/api/cron/digest/route.ts:139-156` stamps
-  `cronHeartbeat.upsert` immediately after the VAPID-config bail and *before* the
-  try block at `:166` that does the subscription scan and per-trip dispatch. A
-  throw inside that scan leaves the heartbeat freshly stamped while zero Digests
-  went out, and Account reads "healthy" via
-  `DispatcherHealth`/`getDispatcherHealth`.
-- **Option (a):** copy-only — reword the Account text so "Digest service — last
-  ran Xh ago" does not imply delivery succeeded. **Cost:** same-day fix, but it
-  only manages expectations; the blind spot stays.
-- **Option (b):** add a second signal — stamp a "last successful dispatch"
-  timestamp separately from "last authorized run", so a scan-level failure after
-  the heartbeat write is distinguishable from a healthy quiet day. **Cost:** a
-  schema/field addition, and therefore a migration.
-- **Only (b) closes the gap.**
-- **Effort if built:** S (a) / M (b).
-
-### CD-07 · The Digest's 2-line Checklist cap drops lines silently — P2
-
-- **What it is:** `lib/digest.ts:88` — `DIGEST_MAX_CHECKLIST_LINES = 2`;
-  `lib/digest.ts:168` — `input.checklist.slice(0, 2)` drops anything beyond the
-  first two. The `+N more` tail (`lib/digest.ts:186-189`) fires only off the
-  *global* `DIGEST_MAX_LINES` cap and has no visibility into what was already
-  dropped before `lines` was assembled. Five overdue Checklist items render as
-  exactly two, with no "+3 more" anywhere.
-- **Option (a):** an honest `+N more` specifically for the Checklist section.
-  **Cost:** keeps the 2-line budget that protects the schedule/reminders/payments
-  lines above it, but the extra line itself competes for the global
-  `DIGEST_MAX_LINES` budget.
-- **Option (b):** raise or remove the per-section Checklist cap. **Cost:** more
-  honest per item, but Checklist items persist until done and reappear nightly
-  (`CONTEXT.md`), so a long-overdue list could crowd out the
-  schedule/reminders/payments content that `lib/digest.ts:141-152` says must
-  survive truncation first.
-- **Either way, `CD-16` lands with it** — `CONTEXT.md`'s **Digest** entry is
-  already inaccurate about this and must be updated to whatever is chosen.
-- **Effort if built:** S.
+**Three of the five shipped as an option their own entry did not list.** Each
+struck entry says so in place. If this section refills, read the fourth process
+lesson above before you pose the next binary.
 
 ---
+
 
 # Blocked on a deploy, a device, or a browser
 
@@ -597,15 +458,48 @@ Nothing in this section can be closed from this sandbox. It is ordered as a
 deploy would be run — **migration state first, then the verifications that a
 running app makes possible.**
 
-> **This is no longer a deploy checklist. It is mostly history.** Both
-> migrations previously believed unrun are in fact applied in production. There
-> is currently **nothing pending on the database side of the next deploy.** What
-> genuinely remains is a short list of checks that need a person with a running
-> app, a phone, a calendar client, or a browser.
+> **Mostly history — but no longer entirely.** Both migrations previously
+> believed unrun are in fact applied in production, and that part is history.
+> **Two new migrations were written on 2026-09-21 and are NOT applied**, so
+> there *is* something pending on the database side of the next deploy again —
+> see *Two migrations written on 2026-09-21* below. The rest is a short list of
+> checks that need a person with a running app, a phone, a calendar client, or
+> a browser. **Nothing in this section was verified on 2026-09-21**, and
+> nothing here may be reported as such.
 
-## Migration state — history, not a checklist
+## Two migrations written on 2026-09-21 — written, not applied
 
-Every migration in `prisma/migrations/` is applied in production. This was
+These two are the only pending database work. They were written on branch
+`chore/close-the-open-backlog` alongside the code that reads their columns.
+**Neither has been applied**: this sandbox has no Postgres and connecting to
+the production database is forbidden, so no `prisma migrate` command was run
+against any database. Running them is the operator's call.
+
+- **`20260921000000_cron_heartbeat_last_success`** (`CD-06`, `11fb9ba`,
+  `5b62455`). Adds a **nullable** `lastSuccessAt` to `CronHeartbeat`, then
+  backfills `lastSuccessAt = lastRunAt` where it is null. The backfill
+  grandfathers the existing heartbeat row so the deploy does not raise a false
+  "no Digest has ever been sent" warning on Account until the next successful
+  cron run — the same shape as the `ShareLink` label backfill below.
+- **`20260921010000_feedback_author_snapshot`** (`FN-05`, `cf90b52`). Adds a
+  **nullable** `authorName` to `FeedbackNote`, backfills it by joining the
+  `User` rows that still exist, then drops the `FeedbackNote_authorId_fkey`
+  foreign key.
+
+**Both are additive on reads and on writes** by the test `docs/DEPLOY.md` §4b
+sets out: each new column is nullable, so the still-running old build — which
+does not write them — cannot violate a NOT NULL constraint during the
+migrate-then-build window; and dropping a foreign key *removes* a restriction
+rather than adding one, so the old build's reads keep working against a column
+that remains. Neither renames nor drops a column, and neither drops a unique
+constraint an older client's `upsert` depends on. So neither reproduces the
+`share_links_per_audience` hazard documented below — but check the SQL against
+§4b yourself before running it rather than taking this paragraph's word for it.
+
+## Migration state before 2026-09-21 — history, not a checklist
+
+Every migration in `prisma/migrations/` **that predates 2026-09-21** is applied
+in production. This was
 established by read-only `SELECT`s against the production `_prisma_migrations`
 table during triage. **The four items below are the ones the `DONE` audit could
 not independently repeat** (database connections are forbidden in this
@@ -712,9 +606,11 @@ listed so nobody re-opens them, and so the trail back to the source doc survives
 - **`RM-01` — before-deploy check: confirm the `Reminder` table is empty before
   running its migration.** (`RM` lines 20-24; `docs/DEPLOY.md:110` still carries
   the `SELECT count(*) FROM "Reminder";` step.) This was a one-time manual gate
-  to run immediately before the migration. Every migration in
-  `prisma/migrations/` is now applied in production, so the gate is no longer
-  runnable — it has been overtaken. **Do not treat this as a pending step.** If
+  to run immediately before the migration. The `Reminder` migration — like
+  every other migration predating 2026-09-21 — is long since applied in
+  production, so the gate is no longer runnable; it has been overtaken. (The
+  two unapplied 2026-09-21 migrations above touch `CronHeartbeat` and
+  `FeedbackNote`, not `Reminder`, so they do not revive it.) **Do not treat this as a pending step.** If
   the outcome matters retrospectively, it needs a fresh production read by a
   human, not a re-run of the gate.
 
@@ -784,7 +680,7 @@ listed so nobody re-opens them, and so the trail back to the source doc survives
 
 # Settled — do not re-raise
 
-**These 24 were judged and declined deliberately.** They are not oversights, not
+**These 26 were judged and declined deliberately.** They are not oversights, not
 "someone forgot", and not a low-priority queue. Re-raising them is precisely the
 churn this document exists to stop: seven docs accumulated in part because
 settled calls kept coming back as fresh findings. If you believe one should be
@@ -822,6 +718,50 @@ improvement.** They are marked ⚠ and their reasons are reproduced in full.
   a genuine settled call recorded by the source doc itself, not an oversight —
   the behaviour is inherent to the approach, so "fixing" it means adopting an
   approach with a worse history trail. Leave it.
+
+### Settled on 2026-09-21, branch `chore/close-the-open-backlog`
+
+Two entries moved here from *Open items* on the close-out. Both were
+**declined**, not deferred — the reasoning is reproduced so nobody has to
+re-derive the trade.
+
+#### FP-07 · A desktop toast over the Compare table's frozen label column
+
+- **Settled 2026-09-21.** The overlap is transient and readable once the toast
+  clears, and the planned `md:mb-24` would buy a **permanent 6rem dead band**
+  under the table on every desktop view to fix it. `FP-15` rules out the
+  bottom-right (it belongs to the Feedback trigger and its docked panel), so
+  there is no free direction to move a toast. Declined deliberately: a
+  permanent cost for a transient annoyance.
+- **Its two neighbours did ship**, which is why this one can look like an
+  oversight: `FP-06` and `FP-13` were closed in sweep task 17 (`14b8f6b`) and
+  are in the *Struck* register. `FP-07` was never blocked on them.
+- **Original evidence, unchanged:** `components/trip/compare-table.tsx:477` —
+  the `sticky left-0 z-10` label column is still there, and toasts are still
+  bottom-left (see the settled `FP-15`), so the overlap is geometric and real.
+  It is the fix that was declined, not the observation.
+
+#### SW-02 (remainder) · The non-confusable decorative `MapPin` uses
+
+- **Settled 2026-09-21.** The one genuinely confusable instance,
+  `phase-travelling.tsx:508`, was fixed as a missed instance of `HG-02`/`HG-10`
+  (see the Struck register). The rest sit nowhere near a real `MapLink`, so
+  none is *confusable* — they are a consistency preference, and stripping pins
+  across 16 nav, palette, summary, print and share surfaces buys no behavioural
+  change. **`components/trip/help-legend.tsx` keeps its pin regardless:** it is
+  the legend that teaches what the glyph means, and "fixing" it would break the
+  only place that explains the icon.
+- **On the count — read this before quoting a number.** This entry's
+  population was stated wrong twice before the sweep's final review put it at a
+  grep-verified **21 render sites across 16 files**, one of which was the
+  confusable instance now fixed. The same entry *also* said "the ~14
+  non-confusable survivors" in its decide-before-building bullet, which does
+  not reconcile with 21 minus 1. **Neither figure was re-derived during the
+  2026-09-21 close-out** — the settlement rests on the *kind* of thing these
+  uses are (decorative, nowhere near a real `MapLink`), not on how many there
+  are. If anyone reopens this, re-grep before quoting any of these numbers.
+  This particular count has a history of being wrong in the very entry written
+  to correct it.
 
 ### From `CP` — `docs/follow-ups/2026-08-12-cost-paid-remodel.md`
 
@@ -919,18 +859,606 @@ improvement.** They are marked ⚠ and their reasons are reproduced in full.
 
 - **CD-17** and **CD-18** are settled as backlog items because they are not
   defects at all: they are plan-authoring lessons. They are carried in this
-  document's agent-facing preamble above ("Two process lessons, carried
-  forward") rather than listed as work. Do not file them as tasks.
+  document's agent-facing preamble above (*Five process lessons, carried
+  forward* — `CD-17` and `CD-18` are the first two) rather than listed as work.
+  Do not file them as tasks.
+
+---
+
+# Known limitations accepted on 2026-09-21 — do not re-file these as findings
+
+**Two, and they are not items.** They are consequences the operator accepted
+knowingly while building the close-out, recorded here so nobody rediscovers
+them, files them as fresh defects, and starts the churn cycle this document
+exists to stop. They are **not counted** in the trust statement's totals,
+because neither is open work: each is a documented property of what shipped.
+
+If you think either should be fixed, that is a new decision to take to the
+operator with a concrete case — not a bug report.
+
+### A firm-up can re-file an Item onto a Stop that is itself about to be re-dated
+
+Landed with `CD-03` / **ADR 0055**, and recorded in that ADR's Consequences.
+
+`firmUpTrip` (`server/actions/stops.ts`) writes each Stop's flowed dates **one
+Stop at a time, outside a transaction**. So when it re-dates Stop *k*, the
+covering-Stop read that ADR 0055's re-file depends on still sees Stops
+*k+1…n* at their **pre-flow** dates. Where that matters, an Item can be handed
+to a Stop that no longer covers the day by the time the loop finishes.
+
+**The conditions are narrow and all three must hold:** Stop *k*'s **arrive**
+date must be unchanged while its **depart** date changes (nothing else reaches
+this path at all), and a later Stop must cover the dropped day **at its old
+dates**.
+
+**Accepted as-is, deliberately.** That loop was already non-transactional
+before ADR 0055, so this is a pre-existing property of firm-up that the re-file
+makes visible rather than something the re-file introduced. Wrapping the loop
+in a transaction is its own piece of work with its own review. (A related
+entry point, `firmUpSegment` at `server/actions/stops.ts:792`, was checked in
+review and is unreachable today, so only `firmUpTrip` runs those reads outside
+a transaction.)
+
+### A brand-new `CronHeartbeat` row reads unhealthy until its first scan completes
+
+Landed with `CD-06`.
+
+`isDispatcherUnhealthy` keeps *null means unhealthy* — an operator ruling taken
+during the review loop — so a deployment with **no heartbeat row at all** shows
+the "digests are not being sent" warning on Account until the first successful
+cron scan stamps `lastSuccessAt`. That is one cron run, not the ~10-hour
+false-alarm window the alternative would have created.
+
+**The *existing* row is grandfathered** by migration
+`20260921000000_cron_heartbeat_last_success`, which backfills
+`lastSuccessAt = lastRunAt`. So this limitation bites a fresh deployment, not
+the current one. **Note that the migration has not been applied** — until it
+is, the backfill has not happened.
 
 ---
 
 # Struck — already fixed (no action)
 
-**83 items. None of these is open. Do not work them.** They are in two groups:
-the **39** closed by the 2026-09-21 sweep, reproduced in full below with their
-commits, and the **44** that were already closed before this document was
-compiled on 2026-09-20, kept as a one-line-each table because their evidence
-lives in the source docs rather than here.
+**96 items. None of these is open. Do not work them.** They are in three
+groups, newest first: the **13** closed by the 2026-09-21 close-out on branch
+`chore/close-the-open-backlog`, the **39** closed by the 2026-09-21 sweep —
+both reproduced in full below with their commits — and the **44** that were
+already closed before this document was compiled on 2026-09-20, kept as a
+one-line-each table because their evidence lives in the source docs rather than
+here. 13 + 39 + 44 = 96.
+
+**Two of the 13 are struck against a migration that has not been applied**
+(`FN-05`, `CD-06`). Their code and their migration files landed; production
+does not yet have the columns. See *Migration state*.
+
+## Closed by the 2026-09-21 close-out
+
+**13 items**, closed on branch `chore/close-the-open-backlog` between `c056c0b`
+and `898f1b0` — except `SW-03`, which was closed a branch earlier (`06f25a3`,
+`chore/close-sw03-and-sw05`) and merely struck here. Each entry below is
+reproduced whole — its text as it stood in *Open items* or *Needs a decision* —
+followed by what actually shipped.
+
+**Read the *What shipped* notes, not only the titles.** Three of the five
+decided items (`CD-02`, `CD-03`, `CD-04`) shipped as an option their own entry
+did not list, and two of those entries stated in writing that only two options
+existed. A struck title here is not a guarantee that the fix has the shape the
+entry predicted. Two of these entries also depend on a **migration that is
+written but not applied** (`FN-05`, `CD-06`) — they are struck because the code
+and the migration file landed, not because production has the column.
+
+### SW-05 · `inviteToTrip` needs an owner-or-admin guard
+
+- **Source:** none — found during the final whole-branch review of this
+  document as an open question, resolved by the operator on 2026-09-21. See
+  ADR 0052 for the full reasoning.
+- **Decision:** `inviteToTrip` becomes owner-or-admin. `createShareLink` and
+  `createCalendarFeed` deliberately **stay open to any member — out of
+  scope, not an oversight.** ADR 0052 records why: a Share link is bounded by
+  ADR 0051's never-shared floor and a Calendar feed exposes only schedule, so
+  a member handing either out leaks far less than a member handing out full,
+  transitive Trip membership. Do not extend this guard to those two actions.
+- **Guard to add:** `server/actions/invites.ts:40` — `inviteToTrip` currently
+  does only `await requireTripAccess(tripId);` and discards the result. Copy
+  `deleteTrip`'s shape at `server/actions/trips.ts:258`: use the
+  `{ user, membership }` `requireTripAccess` already returns, and refuse
+  unless `membership.role === "owner"` or `isAdminEmail(user.email)` — same
+  admin bypass as Delete and Duplicate (ADR 0045).
+- **UI must be gated too:** `app/(app)/trips/[tripId]/settings/page.tsx`
+  already computes `canManageTrip` (owner-or-admin) at line 36 but applies it
+  only to the Danger zone at line 221; the Invite control currently renders
+  for every member. Gate it on `canManageTrip` in the same change, so no
+  non-owner is shown a button the server will now refuse — a UI/server
+  mismatch on exactly this shape is what hid the `duplicateTrip` P0 (`HG-12`,
+  struck) until it was found.
+- **Regression test:** must prove a non-owner member is refused by
+  `inviteToTrip`, and must fail against the current code — before the guard
+  exists — the same before/after standard every access-guard fix in this
+  document is held to.
+- **Out of scope:** `createShareLink` (`server/actions/share.ts:97`) and
+  `createCalendarFeed` (`server/actions/calendar-feed.ts:59`) — leave both on
+  `requireTripAccess` alone. See ADR 0052.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `a0eaa72`, 2026-09-21 (close-out task 1). Decision: **ADR 0052**.
+- **What shipped:** exactly the decided guard. `inviteToTrip` now destructures
+  `{ user, membership }` from `requireTripAccess` and refuses unless
+  `membership.role === "owner"` or `isAdminEmail(user.email)`, with a comment
+  naming ADR 0052's asymmetry. `createShareLink`, `createCalendarFeed` and
+  `cancelInvite` are untouched, as specified.
+- **Deviation from this entry's UI instruction, accepted in review.** The entry
+  said to gate the Invite control on the settings page's existing
+  `canManageTrip`. The implementation instead gated the invite **form** inside
+  `InvitePanel` via a new `canInvite` prop, because that component bundles the
+  member list and the pending-invite list together with the form — wrapping the
+  whole Travellers card would have hidden both from ordinary members. The
+  reviewer verified the bundling before accepting it. Same effect on the button
+  the server now refuses, without hiding lists nobody asked to hide.
+
+### FN-05 · A Feedback note does not survive its author
+
+- **Source:** `FN` (`docs/follow-ups/2026-09-08-feedback-notes.md:38-42`)
+- **Evidence:** `prisma/schema.prisma:739` —
+  `author User @relation(fields: [authorId], references: [id], onDelete: Cascade)`,
+  unchanged. No migration since 2026-09-08 touches this FK's behaviour.
+- **Fix shape:** the same treatment ADR 0040 already gave `tripId`/`tripName`
+  — snapshot `authorName` at write time, and either drop the cascade or make
+  `authorId` nullable with `onDelete: SetNull`. Needs a migration; read
+  `docs/DEPLOY.md` §4b and `OPS-08` first.
+- **Not swept 2026-09-21:** the fix needs a schema change and therefore a
+  migration, which the sweep was forbidden from adding. There is no partial
+  version that leaves the tree coherent — a `schema.prisma` change without its
+  migration produces a generated client expecting columns production does not
+  have. **Needs the operator's go-ahead on migration 27 first**, then its own
+  plan. Read `docs/DEPLOY.md` §4b, including the write-path section the sweep
+  added, before writing that plan.
+- **Category:** mechanical · **Effort:** M
+- **Closed:** `cf90b52`, 2026-09-21 (close-out task 7). Decision: the
+  **2026-09-21 amendment to ADR 0040**.
+- **What shipped:** the first half of the entry's own fix shape, and the FK
+  dropped rather than nulled. `authorName` is a nullable, **write-time
+  snapshot** on `FeedbackNote`; the `author` relation and its `onDelete:
+  Cascade` are gone; `authorId` stays a plain column. The author-scoped
+  visibility rule (`where: { authorId: user.id }`, and the matching delete
+  gate) is deliberately untouched — no null special case, which is the point of
+  the amendment. The FK name the migration drops,
+  `FeedbackNote_authorId_fkey`, was verified against
+  `20260908000000_add_feedback_notes/migration.sql:27` rather than assumed.
+- **⚠ The migration `20260921010000_feedback_author_snapshot` is written but
+  NOT applied.** See *Migration state*. This entry is struck because the code
+  and the migration file landed, not because the column exists in production.
+- **By design, not a defect:** because `authorName` is snapshotted at write
+  time, a User who renames themselves leaves older notes showing the name they
+  had when they wrote them. That is the intended effect of the amendment, not
+  drift.
+
+### SW-01 · A Feedback note can show as both Pending and Sent when storage is blocked
+
+- **Source:** none — found during the 2026-09-21 sweep, while fixing `FN-07`.
+  No source doc records it.
+- **Evidence:** `components/feedback/feedback-launcher.tsx:445-446` —
+  `setPending(removeFromQueue(note.clientKey)); setSent((prev) => [...prev, result.note]);`.
+  `setSent` is pushed unconditionally on a successful send. But
+  `removeFromQueue` goes through `lib/feedback-queue.ts`'s `write()`, which
+  swallows a `localStorage.setItem` failure (quota, private mode) and returns the
+  *unchanged* queue — so `setPending` is handed a queue that still contains the
+  note while `setSent` adds the same note to the sent list.
+- **Symptom:** under blocked or full storage, one Feedback note renders in both
+  the Pending and the Sent list, and stays there until the panel is remounted.
+- **Same class as `FN-07`, one layer up.** `FN-07` fixed the queue module's own
+  flush loop (`a96e537`); this is the component doing the identical
+  trust-the-write mistake in its own send path. The fix shape is the same: check
+  the returned queue genuinely lacks the `clientKey` before treating the removal
+  as real.
+- **Why it was not fixed in the sweep:** observed by task 7's reviewer and
+  recorded as explicitly out of that task's scope rather than widened mid-task.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `b0b50a0`, `4b33884`, 2026-09-21 (close-out task 8).
+- **What shipped:** the fix shape this entry predicted. `handleSend`'s success
+  branch now captures the queue `removeFromQueue` actually returned and adds
+  the note to `sent` only once it is confirmed no longer queued, reusing the
+  `isQueued` helper already defined a few lines above for the offline-enqueue
+  path — no new predicate.
+- **The regression test exercises the real swallowed write, not a mock of the
+  fix's own condition.** This test file does not mock `lib/feedback-queue.ts`
+  at all; it runs the real module against jsdom's `localStorage`. The test
+  spies on `window.Storage.prototype.setItem`, lets the initial `enqueue`
+  through, and makes every call after it throw `QuotaExceededError`. `4b33884`
+  then strengthened the assertion from a count to **list placement**: the note
+  must land in Pending (its badge present, its Delete button absent), not
+  Sent.
+
+### CD-16 · `CONTEXT.md`'s **Digest** entry no longer describes the truncation behaviour accurately
+
+- **Source:** `CD` (`:100-102`, embedded in the Checklist-cap bullet and split
+  out as its own item during triage)
+- **Evidence:** `CONTEXT.md:190` describes a single global cap that always takes
+  the tail ("it is ordered by what is most costly to lose... then **Checklist**
+  items (which reappear nightly until done, and so give way first)"). It does not
+  mention the separate, silent per-section `DIGEST_MAX_CHECKLIST_LINES = 2` cap
+  at `lib/digest.ts:88,168`, which drops excess Checklist lines *before* the
+  global cap or its `+N more` indicator ever sees them.
+- **Sequencing:** this should land with whatever `CD-07` is decided (see *Needs
+  a decision*), because the correct wording depends on that outcome. Do not
+  update `CONTEXT.md` to describe behaviour that is about to change.
+- **Not swept 2026-09-21:** deliberately deferred, on the sequencing note above
+  — `CD-07` is in *Needs a decision*, which the sweep did not touch, so writing
+  the accurate-today wording now means rewriting it the moment `CD-07` lands.
+  **Fix it in the same commit as `CD-07`**, not before.
+- **Category:** docs · **Effort:** S
+- **Closed:** `ac44282`, 2026-09-21 (close-out task 5) — **in the same commit
+  as `CD-07`**, which is exactly what this entry's sequencing note required.
+- **What shipped:** `CONTEXT.md`'s **Digest** entry now describes the separate
+  per-section Checklist cap and the fact that lines it drops are counted into
+  the single `+N more` tail, i.e. it describes `CD-07`'s chosen option rather
+  than the behaviour that was about to change.
+- **Minor, deferred:** the new wording hardcodes "two", coupling the glossary
+  prose to `DIGEST_MAX_CHECKLIST_LINES`. Recorded under *Deferred minors from
+  the 2026-09-21 close-out*.
+
+### SW-02 (confusable instance) · `phase-travelling.tsx`'s pin sat beside a real `MapLink` — a missed fourth instance of `HG-02`/`HG-10`
+
+- **Source:** none — found during the 2026-09-21 sweep, while fixing
+  `HG-02`/`HG-10`. No source doc records it. **This is the struck half of a
+  split entry**; the ~20 decorative, non-confusable uses were declined and are
+  in *Settled — do not re-raise*.
+- **Evidence, as it stood:** `phase-travelling.tsx:508` was confusable, not
+  merely inconsistent. It sat in the same flex row as a real `MapLink` at
+  `:519` — the same side-by-side pattern `HG-02` was written to fix. Worse,
+  that `MapLink` was given an always-present `label`, and `lib/maps.ts:31`
+  falls back to `label` when there is no address, so it rendered a pin for
+  every stop regardless of whether coordinates existed — exactly the failure
+  mode `stop-card.tsx:337-345` was changed to gate against
+  (`stop.lat != null && stop.lng != null`) for this same reason. It was treated
+  as a fourth instance of `HG-02`/`HG-10`, not as a thing to decide.
+- **Category:** mechanical · **Effort:** S
+- **Closed:** `7fcef35`, 2026-09-21 (close-out task 9).
+- **What shipped — both halves of the defect, not just the pin.** The
+  decorative `MapPin` in the "Where you are" block was removed (with a comment
+  explaining why no pin renders there, mirroring `stop-card.tsx:336-338`), and
+  the `MapLink` itself is now gated on the stop having real coordinates,
+  returning `null` when `lat` or `lng` is absent — the pattern and reasoning
+  copied from `stop-card.tsx:337-345`. `components/trip/help-legend.tsx` was
+  deliberately left untouched.
+- **Test deviation, ruled legitimate in review:** `PhaseTravelling` is an async
+  server component whose children — `MapLink` included — are mocked to
+  `() => null` in this test file, so there is no DOM for a `screen.queryByRole`
+  assertion to query. The test walks the returned React element tree with the
+  file's own `findElementByType` helper, which is the established pattern in
+  that file and a direct assertion that the JSX no longer creates a `MapLink`
+  element.
+
+### SW-04 · `FeedbackNoteRow` names both an exported and a private type, in different shapes
+
+- **Source:** none — found during the final whole-branch review of this
+  document, while checking the sweep's claims. No source doc records it.
+- **Evidence:** `lib/feedback-inbox.ts:24` exports `FeedbackNoteRow` (the
+  Prisma selection `scripts/feedback-pull.ts` reads). `server/actions/feedback.ts:36`
+  separately declares a private `type FeedbackNoteRow` with a different shape
+  (it carries `authorId` and `author: { name }`; the exported one does not).
+  The two are never imported together, so nothing breaks today — but a reader
+  who greps the name, or an editor's autocomplete, will find two unrelated
+  types answering to it.
+- **Same class as `CD-15`** (`DispatcherHealth` naming both a component and an
+  interface, imported into the same page) — a name reused across files for
+  different things, closed in sweep task 22. This is the same problem one file
+  boundary further out: no shared import today, but the same confusion waiting
+  for the day one is added.
+- **Fix:** rename one — e.g. the private one in `server/actions/feedback.ts` to
+  `FeedbackNoteQueryRow` — when next touching either file. Do not rename either
+  as part of landing this entry.
+- **Category:** docs · **Effort:** S
+- **Closed:** `6480936`, 2026-09-21 (close-out task 10).
+- **What shipped:** the rename this entry proposed, in the direction it
+  proposed. The private type in `server/actions/feedback.ts` is now
+  `FeedbackNoteQueryRow` (4 references); the exported `FeedbackNoteRow` in
+  `lib/feedback-inbox.ts:24` is untouched.
+- **One grep discrepancy resolved while doing it:** `scripts/feedback-pull.ts`
+  never names either type textually — it passes its raw `select` result to
+  `toInboxNote()`, whose *parameter* carries the annotation. So the exported
+  type has exactly one textual consumer, not two.
+
+### SW-03 · `CLAUDE.md`'s session-start `feedback:pull` instruction makes subagents connect to production
+
+- **Source:** none — this is a process finding from running the 2026-09-21
+  sweep, not a defect in the app. It is for the operator, not for an agent to
+  "fix" unasked.
+- **Evidence:** `CLAUDE.md:5-7` — "At the start of every session, before the
+  grilling interview: 1. Run `npm run feedback:pull`". `package.json` maps that
+  to `tsx scripts/feedback-pull.ts`, which opens `DATABASE_URL`. In a
+  subagent-driven pipeline every fresh subagent reads "every session" as
+  applying to *itself*.
+- **It happened twice during this sweep**, in both cases despite the dispatching
+  brief carrying an explicit "do not connect to a database" instruction. The
+  cause is systemic, not a lapse in either agent: the project instruction file
+  outranks the task brief in the agent's reading, and it says *every* session.
+- **Impact so far: nil.** Both reads were read-only, the regenerated
+  `docs/feedback/inbox.md` was reverted, and neither entered a commit — verified
+  against `git status`. The risk is the shape of it, not the damage done.
+- **Fix:** scope the instruction to the orchestrating session — e.g. "at the
+  start of a session *you* started with the operator, not if you are a subagent
+  executing a task brief" — or move it out of `CLAUDE.md` into the
+  session-opening skill, where only the top-level session reads it.
+- **Category:** process · **Effort:** S
+- **Closed:** `06f25a3`, 2026-09-21, on branch `chore/close-sw03-and-sw05`
+  (merged as `74c835d`).
+- **⚠ It was fixed before the close-out branch existed, and left standing
+  here.** The branch that fixed it struck nothing, so this entry sat in *Open
+  items* already closed until the 2026-09-21 drain found it. That is the same
+  missing-drain failure this whole document exists to stop, committed by the
+  document's own maintainers, one branch after it was written down. If you
+  close an item, strike it in the same commit.
+- **What shipped: the first of the two options this entry offered** — the
+  instruction was scoped, not moved. `CLAUDE.md` now opens with a *Who these
+  apply to* note stating that a subagent or scoped subtask is not a session and
+  must not re-run session-start steps, and the Feedback-inbox section carries
+  its own "main session only" line naming `feedback:pull`'s production
+  connection explicitly.
+
+### CD-02 · `subscribeToPush` can reassign a Device row it does not own — P1
+
+- **What it is:** `server/actions/push.ts:41` (`create`) and `:67` (the `update`
+  arm of the upsert) both write `userId: user.id` unconditionally. The `update`
+  arm's own comment confirms this is deliberate, and asymmetric with
+  `reconcileDevice` (`server/actions/devices.ts`), which refuses to touch a row
+  it does not already own.
+- **Exposure if left as-is:** an authenticated attacker who obtains a victim's
+  push `endpoint` — a capability secret that only ever travels app → push
+  service → database, not something guessable — can re-point that row's `userId`
+  to themselves, achieving device theft and silencing (the Device stops notifying
+  its real owner). Not content theft: pushes remain encrypted to the victim's
+  keys.
+- **Option (a):** require an explicit re-Enable when the endpoint's stored
+  `userId` differs from the caller. **Cost:** closes the hole, but forces a
+  re-permission prompt on a genuinely shared machine where a second person
+  legitimately wants that physical Device's subscription.
+- **Option (b):** accept the current upsert-reassign behaviour and document it
+  as intentional. **Cost:** the exposure above stays open.
+- **Why no third option:** the legitimate shared-machine call and the hijack are
+  byte-identical, so no smarter check can tell them apart. Only removing the
+  ambient trust — option (a) — changes anything.
+- **Closed:** `00e982b`, 2026-09-21 (close-out task 2). Decision: **ADR 0053**.
+- **⚠ This entry's "Why no third option" paragraph was wrong, and a third
+  option is what shipped.** The paragraph's reasoning is itself sound — the
+  legitimate shared-machine call and the hijack really are byte-identical, so
+  no smarter check can tell them apart — but it answers the wrong question.
+  The two calls never needed telling apart. They only resemble each other
+  because both try to *reuse* an endpoint that already belongs to someone, and
+  the legitimate one does not have to: a browser that unsubscribes and
+  re-subscribes gets a **new** endpoint and needs no reassignment at all.
+- **What shipped:** the server **refuses**, and the **client mints a fresh
+  endpoint.** `subscribeToPush`'s `update` arm stops writing `userId`
+  altogether; when the row matched by `endpoint` belongs to someone else the
+  action returns a distinct `conflict` result rather than a generic error. On
+  that conflict `components/account/push-subscribe.ts` calls
+  `subscription.unsubscribe()`, re-subscribes through `pushManager.subscribe()`
+  to obtain a new `endpoint`, persists that, and retries **exactly once** — a
+  second conflict is a real error and surfaces as one. The displaced person's
+  now-dead row is left to the existing prune path, which already treats a
+  404/410 from the push service as `gone`. Neither option (a) (a forced
+  re-Enable) nor option (b) (accept the exposure) was built.
+- **Deferred minor:** the client-side conflict retry has no automated coverage
+  — no test file exists for that module. Recorded under *Deferred minors from
+  the 2026-09-21 close-out*.
+
+### CD-03 · Rule 4 does not govern a Stop re-date — P2
+
+- **What it is:** `scheduleItem`/`rescheduleItem` call `resolveOwningStop`
+  before writing an Item's date, so rule 4 applies to explicit moves. A Stop
+  re-date instead goes through `shiftStopPayloadTx` (`server/actions/stop-flow.ts`)
+  → `shiftItemDates` (`lib/payload-shift.ts`), which is pure ADR 0038 offset math
+  with no concept of an owning Stop — so an Item un-slots to `date: null` even
+  when an adjoining Stop still covers its calendar date. Recorded in full in ADR
+  0049's Consequences (`docs/adr/0049-...md:109-132`).
+- **Option (a):** extend rule 4 into the re-date/un-slot path, so a Stop re-date
+  can re-file an Item onto a *different* Stop's Budget line. **Cost:** a genuine
+  behaviour change to `lib/payload-shift.ts` and `server/actions/stop-flow.ts`,
+  both left untouched on purpose by ADR 0049.
+- **Option (b):** leave it. **Cost:** the Item un-slots to the trip's
+  things-to-do and its Cost falls to "Trip-wide / Other" purely because its
+  owning Stop shortened, even though a neighbouring Stop still covers the date.
+- **Newly visible, which is why it surfaced now:** before ADR 0049 the Item
+  silently vanished off a card nobody was looking at; now it visibly disappears
+  off the adjoining Stop's changeover-day card, which the Traveller never
+  touched. The ADR explicitly deferred this as deserving its own spec and review.
+- **Effort if built:** L.
+- **Closed:** `51504d6`, `ccdc747`, 2026-09-21 (close-out task 6). Decision:
+  **ADR 0055**.
+- **⚠ Built narrow. Option (a) as written was DECLINED, not deferred.** Rule 4
+  extends into the un-slot path **only where the shift leaves the Item's
+  calendar date unchanged** — a Stop that *shortens* away from a day the Item
+  still sits on hands that Item to whichever Stop covers the date
+  (`stopForDate`, rule 4's existing tiebreak). Where the shift *moves* the
+  Item's date — a Stop re-dated to a different span — an Item falling outside
+  the new span still un-slots, exactly as before.
+- **Why the general case is declined rather than postponed:** on a whole-Stop
+  *move*, an Item that falls off the end has no meaningful calendar date left
+  to be re-filed by, so honouring rule 4 there would strand it on the old dates
+  and re-file it onto whatever unrelated Stop happens to cover them — a worse
+  outcome than un-slotting, and harder to undo. ADR 0055 weighed that and
+  closed it. **The reason to reopen is a concrete case where un-slotting on a
+  whole-Stop move actually loses information — not a consistency argument,
+  which the ADR has already answered.**
+- **Fixing it surfaced a fidelity bug in Undo, fixed in `ccdc747`.** Because a
+  re-file leaves the Item's *date* untouched, the date pre-image alone cannot
+  reverse one — the owning Stop is the only thing that moved, so an undo would
+  have restored the dates and left the Cost on the new Stop's Budget line. The
+  shift now reports the Stop it moved the Item *off* alongside the one it moved
+  it *onto*, threaded `ItemShift` → `PayloadShiftResult` → the client undo
+  payload → `restoreStops`, which writes that owner back. This was in neither
+  the entry, the ADR's first draft, nor the plan; it was found in review and
+  the scope expansion was authorised by the operator mid-task.
+- **A known limitation was accepted with it** — `firmUpTrip`'s
+  non-transactional flowed-date loop. See *Known limitations accepted on
+  2026-09-21*, and ADR 0055's Consequences.
+
+### CD-04 · The intraday zone flip can still produce two Digests — P2
+
+- **What it is:** `app/api/cron/digest/route.ts:202-212` resolves the elected
+  zone fresh per run from `zoneByUser`, with no caching, and the ledger key
+  (`localDate`, `slot`) carries no zone — `dispatchDigest({ userId, tripId, localDate, slot, zone })`
+  at `route.ts:239` passes `zone` for delivery only. Recorded in ADR 0050's
+  Consequences (`docs/adr/0050-...md:100-113`).
+- **Option (a):** cache the elected zone per person per local day, so a mid-day
+  zone flip (home laptop opened, then the travelling phone picked back up, both
+  inside one UTC day) cannot produce two different `(localDate, slot)` pairs.
+  **Cost:** a new piece of state that must be invalidated correctly at the day
+  boundary.
+- **Option (b):** put the elected zone into the ledger key itself. **Cost:**
+  simpler per run, but a person who legitimately changes zone mid-day can still
+  receive two Digests — one keyed to each zone — rather than being deduplicated
+  by person.
+- **ADR 0050 left this open deliberately,** calling it "the exact harm decision
+  1 exists to prevent, in miniature" — narrower than the already-closed
+  two-Devices-in-two-zones case because it needs a live zone handoff mid-day, not
+  merely owning Devices in two places.
+- **Effort if built:** M.
+- **Closed:** `ba5a3eb`, 2026-09-21 (close-out task 4). Decision: **ADR 0054**.
+- **⚠ Neither listed option shipped, and this entry's framing of the choice was
+  the problem.** Option (b) — put the elected zone into the ledger key — was
+  rejected outright: it is the only option needing a migration, and it
+  *legalises* the harm rather than fixing it, because a person who changes zone
+  mid-day still receives two Digests, one keyed to each zone. It deduplicates
+  rows, not people, and ADR 0050 is about people. Option (a) — cache the
+  elected zone per person per local day — would work, but the state it
+  introduces is circular: the local day you would invalidate the cache on is
+  itself derived from the zone being cached.
+- **What shipped: an 18-hour per-person cooldown on the ledger's existing
+  `createdAt`** — no new state, no new column, **no migration**. Before
+  claiming a ledger row, `dispatchDigest` checks for an existing
+  `DigestDispatch` for the same `(userId, tripId, slot)` with `createdAt`
+  inside the last 18 hours and skips the dispatch if one exists, whatever
+  `localDate` the freshly-elected zone produced. `DigestDispatch` already
+  carried `createdAt @default(now())`, so the question was answerable from rows
+  that already existed.
+- **Why 18 hours, re-derived against the cron table during review:** two
+  consecutive same-slot Digests for a stationary person are ~24h apart and the
+  slot windows are three hours wide, so the tightest legitimate gap is ~22h —
+  18h clears it with four hours of margin while staying well short of a day.
+  `slot` is in the `where` clause, so MORNING and EVENING (10–14h apart) cannot
+  suppress each other. The early return happens while `claimed` is still false,
+  so no dangling claim is left behind. The existing `@@unique` constraint is
+  unchanged and still guards two overlapping runs against double-claiming an
+  identical key; the cooldown is the wider net for the case where the key
+  itself moves.
+- **Deferred minors:** no test asserts the cooldown `findFirst`'s `where`
+  *shape* (keyed on `slot` **without** `localDate`, which is the whole point),
+  and the query has no covering index. Both under *Deferred minors from the
+  2026-09-21 close-out*.
+
+### CD-06 · The heartbeat proves the route ran, not that Digests were delivered — P2
+
+- **What it is:** `app/api/cron/digest/route.ts:139-156` stamps
+  `cronHeartbeat.upsert` immediately after the VAPID-config bail and *before* the
+  try block at `:166` that does the subscription scan and per-trip dispatch. A
+  throw inside that scan leaves the heartbeat freshly stamped while zero Digests
+  went out, and Account reads "healthy" via
+  `DispatcherHealth`/`getDispatcherHealth`.
+- **Option (a):** copy-only — reword the Account text so "Digest service — last
+  ran Xh ago" does not imply delivery succeeded. **Cost:** same-day fix, but it
+  only manages expectations; the blind spot stays.
+- **Option (b):** add a second signal — stamp a "last successful dispatch"
+  timestamp separately from "last authorized run", so a scan-level failure after
+  the heartbeat write is distinguishable from a healthy quiet day. **Cost:** a
+  schema/field addition, and therefore a migration.
+- **Only (b) closes the gap.**
+- **Effort if built:** S (a) / M (b).
+- **Closed:** `11fb9ba`, `5b62455`, 2026-09-21 (close-out task 3).
+- **What shipped: option (b)** — the one this entry already said was the only
+  one that closes the gap. `CronHeartbeat` gains a nullable `lastSuccessAt`,
+  and `isDispatcherUnhealthy(lastRunAt, lastSuccessAt, now)` — pure arithmetic,
+  `now` passed in — reports unhealthy when *either* timestamp is stale. A throw
+  inside the subscription scan after the heartbeat write therefore no longer
+  reads "healthy" on Account. This is the one decision of the five that shipped
+  as its entry predicted.
+- **⚠ The migration `20260921000000_cron_heartbeat_last_success` is written but
+  NOT applied.** See *Migration state*.
+- **Operator ruling taken during the review loop:** `isDispatcherUnhealthy`
+  keeps *null means unhealthy*, and the false alarm that would otherwise follow
+  the migration is handled by **backfilling `lastSuccessAt = lastRunAt` inside
+  the migration** rather than by softening the null case. `5b62455` added that
+  backfill and fixed an Account-page test that had been silently flipped.
+- **A known limitation was accepted with it** — a brand-new `CronHeartbeat`
+  row reads unhealthy until its first scan completes. See *Known limitations
+  accepted on 2026-09-21*.
+
+### CD-07 · The Digest's 2-line Checklist cap drops lines silently — P2
+
+- **What it is:** `lib/digest.ts:88` — `DIGEST_MAX_CHECKLIST_LINES = 2`;
+  `lib/digest.ts:168` — `input.checklist.slice(0, 2)` drops anything beyond the
+  first two. The `+N more` tail (`lib/digest.ts:186-189`) fires only off the
+  *global* `DIGEST_MAX_LINES` cap and has no visibility into what was already
+  dropped before `lines` was assembled. Five overdue Checklist items render as
+  exactly two, with no "+3 more" anywhere.
+- **Option (a):** an honest `+N more` specifically for the Checklist section.
+  **Cost:** keeps the 2-line budget that protects the schedule/reminders/payments
+  lines above it, but the extra line itself competes for the global
+  `DIGEST_MAX_LINES` budget.
+- **Option (b):** raise or remove the per-section Checklist cap. **Cost:** more
+  honest per item, but Checklist items persist until done and reappear nightly
+  (`CONTEXT.md`), so a long-overdue list could crowd out the
+  schedule/reminders/payments content that `lib/digest.ts:141-152` says must
+  survive truncation first.
+- **Either way, `CD-16` lands with it** — `CONTEXT.md`'s **Digest** entry is
+  already inaccurate about this and must be updated to whatever is chosen.
+- **Effort if built:** S.
+- **Closed:** `ac44282`, 2026-09-21 (close-out task 5). **`CD-16` landed in the
+  same commit**, as this entry required.
+- **What shipped: option (a)** — an honest tail, with the 2-line budget kept.
+  `collectLines` accumulates a `droppedCount` in the EVENING branch *before*
+  slicing to `DIGEST_MAX_CHECKLIST_LINES`, and `buildDigest` computes
+  `overflow = Math.max(0, lines.length - DIGEST_MAX_LINES) + droppedCount`,
+  emitting a **single** `+N more` line that combines both causes rather than
+  two competing tails. The per-section cap that protects the
+  schedule/reminders/payments lines is unchanged.
+- **Verified in review:** the two overflow sources are disjoint sets, so
+  nothing is double-counted; the boundary arithmetic was checked by hand in all
+  four cases; and `droppedCount` only increments in the EVENING branch, so
+  MORNING cannot grow a phantom tail.
+
+### CB-01 · The `expectAccessCheckedBeforeWrite` rollout skipped the `FOR UPDATE` write paths, and the recorded reason for skipping them was false
+
+- **Source:** none — found on 2026-09-21 on branch
+  `chore/close-the-open-backlog`, while trying to write down a deferred minor's
+  claim. **Added and closed the same day.**
+- **What it was:** `RM-16`'s rollout of `expectAccessCheckedBeforeWrite`, and
+  `CD-01`'s follow-up, left out the entry points that take the ADR 0007
+  full-plan `FOR UPDATE` lock. This document recorded, as a deferred minor,
+  that the skip was "correct, but never written down" and asked for a comment
+  explaining it.
+- **⚠ There was nothing correct to write down.** Three independent checks
+  disproved it: `lockPlanStopsTx`'s own doc comment claims only deadlock
+  avoidance and makes no access-control claim; **every** caller runs its own
+  `requireTripAccess`/`requireStopAccess` *before* opening the transaction that
+  takes the lock; and a mutation test — `moveStop`'s access check moved to
+  after its write — made the helper fail exactly as designed ("expected the
+  access guard to run before the write, but it ran after (guard #74,
+  write #71)"), proving the helper **does** catch the bug class here. The
+  rollout was incomplete, not principled. The agent asked to write the comment
+  refused to invent a rationale and reported the contradiction instead, which
+  is how this became an item.
+- **Fix:** finish the rollout, and record in `lockPlanStopsTx`'s doc comment
+  that there is **no** exemption.
+- **Category:** test-coverage · **Effort:** S
+- **Closed:** `898f1b0`, 2026-09-21 (close-out task 13, added mid-flight on an
+  operator ruling).
+- **What shipped:** all seven locked write-path entry points now carry the
+  assertion — `moveStop`, `setStopDates` (covering `applyStopDates`),
+  `createStop`'s locked insert path, `reorderStops`, `restoreStops`,
+  `reorderChapters` and `reorderTransports`. Six needed a new test; the
+  seventh, `reorderTransports`, **was already covered** by
+  `server/actions/transport.test.ts:1319` in a test that predates all of this
+  work. `lockPlanStopsTx`'s doc comment now states that the lock carries no
+  access-control meaning and that each caller is covered like any other entry
+  point. The helper itself was not modified, no entry point resisted the
+  rollout, and **no access-control bug was found** — this closed a coverage
+  hole, not a vulnerability.
+- **A scope line was wrong in the *other* direction, which is new.** Every
+  previously recorded scope error in this document was an *under*count. This
+  one was an overcount: a list of seven sites needing work, one of which was
+  already done. See the trust statement.
+- **Deferred minor:** `setStopNights` has no assertion of its own; it delegates
+  to `applyStopDates` through the same guarded path as `setStopDates`, which is
+  covered. Disclosed as a judgement call rather than silently decided.
 
 ## Closed by the 2026-09-21 sweep
 
@@ -951,11 +1479,13 @@ trust statement.
 **Two struck entries also overclaimed what their fix achieved — not a scope
 miss, a behaviour miss.** `FP-06` (the described behaviour is unchanged; the
 fix built a passthrough no caller uses) and `HG-02`/`HG-10` (three of at least
-four confusable instances were fixed) are corrected inline. A struck entry's
-title is not a guarantee; read its annotations.
+four confusable instances were fixed; **the fourth was closed later the same
+day** as `SW-02`'s confusable instance, `7fcef35`) are corrected inline. A
+struck entry's title is not a guarantee; read its annotations.
 
-The 40th planned item, `FP-07`, was **not** closed — it is parked on an
-operator decision and is still in *Open items*.
+The 40th planned item, `FP-07`, was **not** closed by the sweep — it was parked
+on an operator decision. That decision was taken on 2026-09-21: it was
+**declined**, and it now sits in *Settled — do not re-raise*.
 
 ### HG-12 · `duplicateTrip` checks membership but never role — any Traveller can mint themselves a fully-owned copy of the trip
 
@@ -1527,7 +2057,15 @@ operator decision and is still in *Open items*.
   question. Full accounting is in `SW-02`, corrected alongside this entry.
   **This branch did not fix all instances of `HG-02`/`HG-10`; it fixed three of
   at least four.**
-- **Closed:** `6eb8fba, 84d2f15, dadb3c1`, 2026-09-21 (sweep task 19).
+- **The fourth instance was closed later the same day.** `7fcef35` removed the
+  decorative pin at `phase-travelling.tsx:508` **and** gated that `MapLink` on
+  real `lat`/`lng`, applying the second half of the `stop-card.tsx` fix that
+  had been missed here. It was closed under `SW-02` rather than by reopening
+  this entry — see `SW-02 (confusable instance)` in the *Closed by the
+  2026-09-21 close-out* register above. The decorative, non-confusable
+  remainder was **declined** and is in *Settled*.
+- **Closed:** `6eb8fba, 84d2f15, dadb3c1`, 2026-09-21 (sweep task 19); fourth
+  instance `7fcef35`, same date.
 
 ### HG-08 · `help-hash-open.test.tsx` test 3 is weaker than its name
 

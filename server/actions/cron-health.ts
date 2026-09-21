@@ -2,12 +2,13 @@
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
-import { isDispatcherStale } from "@/lib/cron-health";
+import { isDispatcherUnhealthy } from "@/lib/cron-health";
 
 // Named ...Data so it does not collide with the DispatcherHealth *component*,
 // which app/(app)/account/page.tsx imports alongside it (CD-15).
 export interface DispatcherHealthData {
   lastRunAt: Date | null;
+  lastSuccessAt: Date | null;
   stale: boolean;
 }
 
@@ -32,14 +33,22 @@ export async function getDispatcherHealth(): Promise<DispatcherHealthData> {
   // Traveller is on when trying to work out why their Digests stopped.
   // "Never run" (stale: true, lastRunAt: null) is the honest answer to give
   // instead of a crash.
-  let row: { lastRunAt: Date } | null;
+  let row: { lastRunAt: Date; lastSuccessAt: Date | null } | null;
   try {
-    row = await db.cronHeartbeat.findUnique({ where: { id: "digest" } });
+    row = await db.cronHeartbeat.findUnique({
+      where: { id: "digest" },
+      select: { lastRunAt: true, lastSuccessAt: true },
+    });
   } catch (err) {
     console.error("[cron-health] failed to read the dispatcher heartbeat:", err);
-    return { lastRunAt: null, stale: true };
+    return { lastRunAt: null, lastSuccessAt: null, stale: true };
   }
 
   const lastRunAt = row?.lastRunAt ?? null;
-  return { lastRunAt, stale: isDispatcherStale(lastRunAt, new Date()) };
+  const lastSuccessAt = row?.lastSuccessAt ?? null;
+  return {
+    lastRunAt,
+    lastSuccessAt,
+    stale: isDispatcherUnhealthy(lastRunAt, lastSuccessAt, new Date()),
+  };
 }

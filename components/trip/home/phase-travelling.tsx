@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { CalendarDays, MapPin, Bed, ArrowRight } from "lucide-react";
+import { CalendarDays, Bed, ArrowRight } from "lucide-react";
 import { db } from "@/lib/db";
 import { formatLongDate, dayNumberInTrip } from "@/lib/dates";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
@@ -505,7 +505,9 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
                 Where you are
               </h3>
               <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-soft">
-                <MapPin className="size-5 shrink-0 text-primary" aria-hidden="true" />
+                {/* No decorative pin here: MapLink below renders the real one,
+                    and help-legend.tsx teaches that glyph as "has a location"
+                    (HG-02/HG-10, missed instance found as SW-02). */}
                 <div className="flex min-w-0 flex-1 items-center gap-2">
                   <span className="font-display text-base font-bold text-foreground">
                     {effectiveStop.name}
@@ -516,16 +518,26 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
                     </span>
                   )}
                 </div>
-                <MapLink
-                  lat={stops.find((s) => s.id === effectiveStop.id)?.lat}
-                  lng={stops.find((s) => s.id === effectiveStop.id)?.lng}
-                  label={
-                    effectiveStop.country
-                      ? `${effectiveStop.name}, ${effectiveStop.country}`
-                      : effectiveStop.name
-                  }
-                  className="text-muted-foreground/70 hover:text-primary"
-                />
+                {(() => {
+                  const located = stops.find((s) => s.id === effectiveStop.id);
+                  // Gate on real coordinates explicitly: MapLink's own fallback
+                  // (address || label) would otherwise treat the name/country
+                  // label as a searchable "location" for every stop, firing the
+                  // pin even where no location is on record.
+                  if (located?.lat == null || located?.lng == null) return null;
+                  return (
+                    <MapLink
+                      lat={located.lat}
+                      lng={located.lng}
+                      label={
+                        effectiveStop.country
+                          ? `${effectiveStop.name}, ${effectiveStop.country}`
+                          : effectiveStop.name
+                      }
+                      className="text-muted-foreground/70 hover:text-primary"
+                    />
+                  );
+                })()}
               </div>
             </section>
           )}

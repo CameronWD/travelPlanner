@@ -20,6 +20,7 @@ const {
   stopFindFirstMock,
   stopFindUniqueMock,
   stopFindManyMock,
+  stopFindUniqueTxMock,
   stopCreateMock,
   stopUpdateMock,
   stopDeleteMock,
@@ -44,6 +45,11 @@ const {
   const stopFindFirstMock = vi.fn();
   const stopFindUniqueMock = vi.fn();
   const stopFindManyMock = vi.fn();
+  // shiftStopPayloadTx reads the re-dated Stop's own plan (tripId/forkId) to
+  // load the Stops that cover each day (ADR 0055). Kept separate from
+  // `stopFindUniqueMock` so it never consumes the `mockResolvedValueOnce`
+  // queues the actions' own `before` reads rely on.
+  const stopFindUniqueTxMock = vi.fn();
   const stopCreateMock = vi.fn();
   const stopUpdateMock = vi.fn();
   const stopDeleteMock = vi.fn();
@@ -63,7 +69,7 @@ const {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
         $queryRaw: queryRawMock,
-        stop: { update: stopUpdateMock, create: stopCreateMock, findMany: stopFindManyMock, delete: stopDeleteMock },
+        stop: { update: stopUpdateMock, create: stopCreateMock, findMany: stopFindManyMock, findUnique: stopFindUniqueTxMock, delete: stopDeleteMock },
         chapter: { findMany: chapterFindManyMock, update: chapterUpdateMock },
         item: { findMany: itemFindManyMock, update: itemUpdateMock },
         accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
@@ -94,6 +100,7 @@ const {
     stopFindFirstMock,
     stopFindUniqueMock,
     stopFindManyMock,
+    stopFindUniqueTxMock,
     stopCreateMock,
     stopUpdateMock,
     stopDeleteMock,
@@ -230,6 +237,9 @@ beforeEach(() => {
   chapterFindUniqueMock.mockResolvedValue({ id: "ch-1", forkId: null });
   // Default: stop.findMany returns no rows (individual tests override as needed).
   stopFindManyMock.mockResolvedValue([]);
+  // Default: the in-tx stop.findUnique (shiftStopPayloadTx's plan lookup, ADR
+  // 0055) resolves the re-dated stop to the real plan.
+  stopFindUniqueTxMock.mockResolvedValue({ tripId: "trip-1", forkId: null });
   // Default: $queryRaw (the FOR UPDATE lock helpers) returns no rows; tests
   // that care about the locked row set override this explicitly.
   queryRawMock.mockResolvedValue([]);
@@ -653,6 +663,23 @@ describe("createStop with afterStopId", () => {
     });
     expect(stopUpdateMock).not.toHaveBeenCalled();
   });
+
+  it("is access-checked before the write", async () => {
+    // requireTripAccess runs BEFORE the FOR UPDATE-locked transaction opens —
+    // the lock is ADR 0007 deadlock avoidance, not an access check (see
+    // stop-flow.ts).
+    queryRawMock.mockResolvedValue([
+      { id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null },
+      { id: "b", sortOrder: 1, chapterId: null, chapterSortOrder: null },
+    ]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Rome" });
+    stopUpdateMock.mockResolvedValue({});
+
+    await createStop("trip-1", { mode: "rough", name: "Rome", nights: 2 }, undefined, "a");
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopCreateMock);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1011,6 +1038,23 @@ describe("moveStop", () => {
 
     expect(recordActivity).not.toHaveBeenCalled();
   });
+
+  it("is access-checked before the write", async () => {
+    // requireStopAccess (which wraps requireTripAccess) resolves the stop
+    // BEFORE the FOR UPDATE-locked transaction ever opens — the lock itself
+    // is ADR 0007 deadlock avoidance, not an access check (see stop-flow.ts).
+    stopFindUniqueMock.mockResolvedValue({
+      id: "stop-2", tripId: "trip-1", sortOrder: 1,
+      arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null,
+    });
+    queryRawMock.mockResolvedValue(stops);
+    stopUpdateMock.mockResolvedValue({});
+
+    await moveStop("stop-2", "up");
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1170,6 +1214,25 @@ describe("setStopDates", () => {
         ]),
       }),
     );
+  });
+
+  it("is access-checked before the write", async () => {
+    // setStopDates calls requireStopAccess (wrapping requireTripAccess) BEFORE
+    // delegating to applyStopDates, which takes the FOR UPDATE plan lock and
+    // then writes — the lock is ADR 0007 deadlock avoidance, not an access
+    // check (see stop-flow.ts).
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null, pinned: false, forkId: null })
+      .mockResolvedValueOnce({ name: "S1", country: null, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null });
+    stopFindManyMock.mockResolvedValue([]);
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ endDate: null });
+    tripUpdateMock.mockResolvedValue({});
+
+    await setStopDates("s1", { arriveDate: "2026-06-01", departDate: "2026-06-06" });
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
   });
 });
 
@@ -1659,6 +1722,26 @@ describe("reorderStops", () => {
     expect(lockSql).not.toContain("ANY(");
   });
 
+  it("is access-checked before the write", async () => {
+    // requireTripAccess runs BEFORE the FOR UPDATE-locked transaction opens —
+    // the lock is ADR 0007 deadlock avoidance, not an access check (see
+    // stop-flow.ts).
+    chapterFindManyMock.mockResolvedValue([{ id: "c1", startDate: null }]);
+    queryRawMock.mockResolvedValue([
+      { id: "a", tripId: "t1", arriveDate: null },
+      { id: "b", tripId: "t1", arriveDate: null },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+
+    await reorderStops("t1", [
+      { id: "a", chapterId: null },
+      { id: "b", chapterId: "c1" },
+    ]);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("t1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
+  });
+
   it("refuses to move a rough stop into a DATED chapter: returns failure, no updates", async () => {
     // chapter c2 has a non-null startDate → dated chapter
     chapterFindManyMock.mockResolvedValue([{ id: "c2", startDate: "2026-07-01" }]);
@@ -1982,6 +2065,23 @@ describe("Task 10: restoreStops — writes each entry verbatim inside the locked
       expect.objectContaining({ where: expect.objectContaining({ tripId: "t1", forkId: "fork-9" }) }),
     );
   });
+
+  it("is access-checked before the write", async () => {
+    // requireTripAccess (called once the trip is derived from the restored
+    // stops) runs BEFORE the FOR UPDATE-locked transaction opens — the lock
+    // is ADR 0007 deadlock avoidance, not an access check (see stop-flow.ts).
+    stopFindManyMock.mockResolvedValue([{ id: "a", tripId: "t1", forkId: null }]);
+    queryRawMock.mockResolvedValue([{ id: "a" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    await restoreStops([
+      { id: "a", sortOrder: 0, chapterId: null, arriveDate: "2026-07-01", departDate: "2026-07-04" },
+    ]);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("t1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -2009,6 +2109,32 @@ describe("restoreStops payload restore (ADR 0038)", () => {
     expect(accommodationUpdateMock).toHaveBeenCalledWith({
       where: { id: "a1" },
       data: { checkIn: "2026-06-01", checkOut: "2026-06-04" },
+    });
+  });
+
+  // ADR 0055: undoing a shortened stop must put a re-filed item back on the
+  // stop that owned it. On a re-file the date never moved, so restoring the
+  // date alone would silently leave the item's Cost on the new stop's Budget
+  // line — the Undo would look complete and not be.
+  it("restores the owning stop as well as the date when an entry carries one", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "munich", tripId: "t1", forkId: null }]);
+    queryRawMock.mockResolvedValue([{ id: "munich" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    const result = await restoreStops(
+      [{ id: "munich", sortOrder: 0, chapterId: null, arriveDate: "2026-05-05", departDate: "2026-05-10" }],
+      null,
+      {
+        items: [{ id: "dinner", date: "2026-05-10", stopId: "munich" }],
+        accommodations: [],
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "dinner" },
+      data: { date: "2026-05-10", stopId: "munich" },
     });
   });
 
@@ -2044,6 +2170,7 @@ describe("shiftStopPayloadTx", () => {
     accommodationUpdateMock.mockResolvedValue({});
 
     const tx = {
+      stop: { findUnique: stopFindUniqueTxMock, findMany: stopFindManyMock },
       item: { findMany: itemFindManyMock, update: itemUpdateMock },
       accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
     } as unknown as Prisma.TransactionClient;
@@ -2079,6 +2206,7 @@ describe("shiftStopPayloadTx", () => {
     accommodationFindManyMock.mockResolvedValue([]);
 
     const tx = {
+      stop: { findUnique: stopFindUniqueTxMock, findMany: stopFindManyMock },
       item: { findMany: itemFindManyMock, update: itemUpdateMock },
       accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
     } as unknown as Prisma.TransactionClient;
@@ -2091,6 +2219,79 @@ describe("shiftStopPayloadTx", () => {
     expect(accommodationFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: { stopId: "stop-1" } }),
     );
+  });
+
+  // ADR 0055: a stop that SHORTENS (arrive unmoved) hands an item it drops to
+  // whichever stop still covers that same calendar day, instead of un-slotting
+  // it. The covering stops are read plan-scoped, from the same transaction.
+  it("re-files a dropped item onto the stop that still covers its day, plan-scoped", async () => {
+    stopFindUniqueTxMock.mockResolvedValue({ tripId: "trip-1", forkId: "fork-9" });
+    // Munich shortened to 05-09 (its NEW span), Strasbourg still covers the 10th.
+    stopFindManyMock.mockResolvedValue([
+      { id: "munich", arriveDate: "2026-05-05", departDate: "2026-05-10" },
+      { id: "strasbourg", arriveDate: "2026-05-10", departDate: "2026-05-12" },
+    ]);
+    itemFindManyMock.mockResolvedValue([{ id: "dinner", date: "2026-05-10", stopId: "munich" }]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemUpdateMock.mockResolvedValue({});
+
+    const tx = {
+      stop: { findUnique: stopFindUniqueTxMock, findMany: stopFindManyMock },
+      item: { findMany: itemFindManyMock, update: itemUpdateMock },
+      accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
+    } as unknown as Prisma.TransactionClient;
+
+    const result = await shiftStopPayloadTx(
+      tx,
+      { id: "munich", arriveDate: "2026-05-05" },
+      "2026-05-05",
+      "2026-05-09",
+    );
+
+    expect(stopFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { tripId: "trip-1", forkId: "fork-9", arriveDate: { not: null } },
+      }),
+    );
+    // The item read must carry stopId — it is the pre-image a re-file's Undo
+    // needs, and a re-file leaves no date difference to infer it from.
+    expect(itemFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ select: { id: true, date: true, stopId: true } }),
+    );
+    expect(itemUpdateMock).toHaveBeenCalledWith({
+      where: { id: "dinner" },
+      data: { date: "2026-05-10", stopId: "strasbourg" },
+    });
+    expect(result.items).toEqual([
+      { id: "dinner", date: "2026-05-10", prevDate: "2026-05-10", stopId: "strasbourg", prevStopId: "munich" },
+    ]);
+  });
+
+  it("un-slots as before when the stop MOVES, writing no stopId", async () => {
+    stopFindUniqueTxMock.mockResolvedValue({ tripId: "trip-1", forkId: null });
+    stopFindManyMock.mockResolvedValue([
+      { id: "strasbourg", arriveDate: "2026-05-10", departDate: "2026-05-11" },
+      { id: "munich", arriveDate: "2026-05-12", departDate: "2026-05-13" },
+    ]);
+    itemFindManyMock.mockResolvedValue([{ id: "dinner", date: "2026-05-10" }]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemUpdateMock.mockResolvedValue({});
+
+    const tx = {
+      stop: { findUnique: stopFindUniqueTxMock, findMany: stopFindManyMock },
+      item: { findMany: itemFindManyMock, update: itemUpdateMock },
+      accommodation: { findMany: accommodationFindManyMock, update: accommodationUpdateMock },
+    } as unknown as Prisma.TransactionClient;
+
+    const result = await shiftStopPayloadTx(
+      tx,
+      { id: "munich", arriveDate: "2026-05-05" },
+      "2026-05-12",
+      "2026-05-13",
+    );
+
+    expect(itemUpdateMock).toHaveBeenCalledWith({ where: { id: "dinner" }, data: { date: null } });
+    expect(result.items).toEqual([{ id: "dinner", date: null, prevDate: "2026-05-10" }]);
   });
 });
 

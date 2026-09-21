@@ -46,3 +46,30 @@ export function formatLastRun(lastRunAt: Date | null, now: Date): string {
   if (hours >= 1) return `last ran ${hours} ${hours === 1 ? "hour" : "hours"} ago`;
   return "last ran just now";
 }
+
+/**
+ * Whether the Digest dispatcher should be reported as broken.
+ *
+ * Two signals, because one cannot answer the question. `lastRunAt` is stamped
+ * on every authorized run, before any Digest is built — it is what separates
+ * "nothing to say" from "the scheduler stopped".
+ *
+ * `lastSuccessAt` is stamped only when the scan completed *and* the dispatch
+ * loop was not a total loss: either nothing failed, or at least one push went
+ * out (app/api/cron/digest/route.ts). So it is left behind by a throw part-way
+ * through the scan, and by a run in which every single dispatch threw. It is
+ * deliberately NOT a claim that every Traveller got their Digest: the dispatch
+ * loop catches per trip on purpose, so a run that delivered to most people and
+ * failed one trip still stamps. The signal is "the dispatcher is doing work",
+ * not "nothing went wrong" — a single persistently-broken trip is a job for
+ * the logs, not for this panel, which would otherwise read unhealthy forever.
+ *
+ * Either going stale means Travellers are not getting Digests (CD-06).
+ */
+export function isDispatcherUnhealthy(
+  lastRunAt: Date | null,
+  lastSuccessAt: Date | null,
+  now: Date,
+): boolean {
+  return isDispatcherStale(lastRunAt, now) || isDispatcherStale(lastSuccessAt, now);
+}

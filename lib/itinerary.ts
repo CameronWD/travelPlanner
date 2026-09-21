@@ -167,11 +167,15 @@ export function enumerateTripDays(
  *
  * When multiple stops match (rare edge-case overlap), the one with the latest
  * arriveDate <= date wins (most recent arrival). Returns null for gap days.
+ *
+ * Structurally typed on the two dates it actually reads, so callers that hold
+ * something narrower than an `ItineraryStop` — `lib/payload-shift.ts`'s
+ * `CoveringStop` (ADR 0055) — can ask the same question without widening.
  */
-export function stopForDate(
-  stops: ItineraryStop[],
+export function stopForDate<T extends { arriveDate: string; departDate: string }>(
+  stops: readonly T[],
   dateISO: string,
-): ItineraryStop | null {
+): T | null {
   const candidates = stops.filter(
     (s) => s.arriveDate <= dateISO && s.departDate >= dateISO,
   );

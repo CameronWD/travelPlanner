@@ -88,6 +88,7 @@ const { TRAVELLING_DESKTOP_GRID_CLASS, PhaseTravelling } = await import("./phase
 const { UpcomingPaymentsCard } = await import("@/components/trip/upcoming-payments-card");
 const { DayIdeas } = await import("@/components/trip/day-ideas");
 const { NearbyWishlist } = await import("@/components/trip/nearby-wishlist");
+const { MapLink } = await import("@/components/trip/map-link");
 
 // Server components aren't run through a renderer here (see file-header note),
 // so a mocked child is never actually invoked. To assert its props without
@@ -369,5 +370,53 @@ describe("PhaseTravelling upcoming payments mount", () => {
     const el = findElementByType(tree, UpcomingPaymentsCard);
     expect(el).not.toBeNull();
     expect(el!.props.payments).toEqual([]);
+  });
+});
+
+describe("PhaseTravelling 'Where you are' map link gating (SW-02)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+      homeCurrency: "GBP",
+      chaptersEnabled: true,
+    });
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    reminderFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([]);
+    isFreeFormDayMock.mockReturnValue(false);
+    dayIdeasWishlistMock.mockReturnValue([]);
+    pickDayPlanMock.mockReturnValue({
+      stop: { id: "stop-1", name: "Munich", country: "Germany" },
+    });
+  });
+
+  it("renders no MapLink for the current stop when it has no coordinates on record", async () => {
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-1", name: "Munich", country: "Germany", countryCode: "de", lat: null, lng: null, timezone: "Europe/Berlin", arriveDate: "2026-01-01", departDate: "2026-01-10", sortOrder: 0 },
+    ]);
+
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+
+    expect(findElementByType(tree, MapLink)).toBeNull();
+  });
+
+  it("renders MapLink with the current stop's coordinates when present", async () => {
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-1", name: "Munich", country: "Germany", countryCode: "de", lat: 48.1, lng: 11.6, timezone: "Europe/Berlin", arriveDate: "2026-01-01", departDate: "2026-01-10", sortOrder: 0 },
+    ]);
+
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+
+    const el = findElementByType(tree, MapLink);
+    expect(el).not.toBeNull();
+    expect(el!.props.lat).toBe(48.1);
+    expect(el!.props.lng).toBe(11.6);
   });
 });

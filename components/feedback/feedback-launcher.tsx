@@ -442,8 +442,16 @@ export function FeedbackLauncher() {
     try {
       const result = await createFeedbackNote(note);
       if (result.success) {
-        setPending(removeFromQueue(note.clientKey));
-        setSent((prev) => [...prev, result.note]);
+        // removeFromQueue goes through the queue module's write(), which
+        // swallows a localStorage failure (quota, private mode) and returns
+        // the queue UNCHANGED. Trusting it would render this note in both
+        // Pending and Sent until the panel remounts. Same mistake FN-07 fixed
+        // inside the flush loop; this is the component's own send path (SW-01).
+        const after = removeFromQueue(note.clientKey);
+        setPending(after);
+        if (!isQueued(after, note.clientKey)) {
+          setSent((prev) => [...prev, result.note]);
+        }
         clearDraft();
         return;
       }

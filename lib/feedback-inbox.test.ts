@@ -190,7 +190,7 @@ describe("toInboxNote", () => {
     createdAt: new Date("2026-09-07T04:05:06.000Z"),
     resolvedAt: null,
     resolution: null,
-    author: { name: "Cam" },
+    authorName: "Cam",
   };
 
   it("carries every field across, unchanged", () => {
@@ -212,7 +212,7 @@ describe("toInboxNote", () => {
   });
 
   it("falls back to 'Traveller' when the author has no name", () => {
-    expect(toInboxNote({ ...row, author: { name: null } }).authorName).toBe("Traveller");
+    expect(toInboxNote({ ...row, authorName: null }).authorName).toBe("Traveller");
   });
 
   it("keeps a recognised non-OPEN status", () => {

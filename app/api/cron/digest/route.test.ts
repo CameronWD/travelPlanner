@@ -19,19 +19,27 @@ const {
   isPushConfiguredMock,
   dispatchDigestMock,
   cronHeartbeatUpsertMock,
+  cronHeartbeatUpdateMock,
 } = vi.hoisted(() => ({
   pushFindManyMock: vi.fn(),
   tripMemberFindManyMock: vi.fn(),
   isPushConfiguredMock: vi.fn(),
   dispatchDigestMock: vi.fn(),
   cronHeartbeatUpsertMock: vi.fn(),
+  cronHeartbeatUpdateMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
   db: {
     pushSubscription: { findMany: pushFindManyMock },
     tripMember: { findMany: tripMemberFindManyMock },
-    cronHeartbeat: { upsert: cronHeartbeatUpsertMock },
+    cronHeartbeat: {
+      upsert: cronHeartbeatUpsertMock,
+      // `update` is the lastSuccessAt stamp. It is a separate mock from
+      // `upsert` because the two heartbeat writes mean different things and
+      // the tests below turn on which of them ran.
+      update: cronHeartbeatUpdateMock,
+    },
   },
 }));
 vi.mock("@/lib/push", () => ({
@@ -69,6 +77,7 @@ beforeEach(() => {
   tripMemberFindManyMock.mockResolvedValue([]);
   dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false });
   cronHeartbeatUpsertMock.mockResolvedValue({ id: "digest", lastRunAt: new Date() });
+  cronHeartbeatUpdateMock.mockResolvedValue({ id: "digest", lastSuccessAt: new Date() });
 });
 
 afterEach(() => {
@@ -198,6 +207,71 @@ describe("GET /api/cron/digest — heartbeat (lib/cron-health.ts)", () => {
       "[cron/digest] heartbeat write failed:",
       expect.any(Error),
     );
+    errorSpy.mockRestore();
+  });
+
+  it("stamps lastSuccessAt on a quiet run — nothing sent, nothing failed", async () => {
+    // The ordinary case the two-signal design exists to call healthy: nobody
+    // was in a window, so no Digest was due and none was missed.
+    pushFindManyMock.mockResolvedValue([]);
+
+    await GET(req({ secret: "right" }));
+
+    expect(cronHeartbeatUpdateMock).toHaveBeenCalledWith({
+      where: { id: "digest" },
+      data: { lastSuccessAt: expect.any(Date) },
+    });
+  });
+
+  it("stamps lastSuccessAt when one trip fails but another is delivered", async () => {
+    // The per-trip catch is deliberate — one bad trip must not cost everyone
+    // else their Digest — so a run that delivered is a working run. Gating on
+    // `failed === 0` would pin the panel unhealthy forever on one
+    // permanently-broken trip.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([sub("user-1", "Europe/Vienna")]);
+    tripMemberFindManyMock.mockResolvedValue([
+      { tripId: "trip-1" },
+      { tripId: "trip-2" },
+    ]);
+    dispatchDigestMock
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce({ sent: 1, skipped: false });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await GET(req({ secret: "right" }));
+
+    expect(await res.json()).toMatchObject({ sent: 1, failed: 1 });
+    expect(cronHeartbeatUpdateMock).toHaveBeenCalledTimes(1);
+    errorSpy.mockRestore();
+  });
+
+  it("does NOT stamp lastSuccessAt when every dispatch fails", async () => {
+    // CD-06 through the other door. The per-trip catch swallows every throw,
+    // so the run returns 200 having delivered nothing at all; stamping here
+    // would report a totally broken dispatcher as healthy. Withholding the
+    // stamp is what takes Account unhealthy after the 24h threshold.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
+    pushFindManyMock.mockResolvedValue([
+      sub("user-1", "Europe/Vienna"),
+      sub("user-2", "Europe/Vienna"),
+    ]);
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
+    dispatchDigestMock.mockRejectedValue(new Error("push service down"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const res = await GET(req({ secret: "right" }));
+
+    // The run itself still succeeds — the contained failure is the whole
+    // point of the per-trip catch. Only the health signal is withheld.
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ sent: 0, failed: 2 });
+    expect(cronHeartbeatUpdateMock).not.toHaveBeenCalled();
+    // lastRunAt still marches on: the scheduler did run. That is precisely
+    // why it cannot be the only signal.
+    expect(cronHeartbeatUpsertMock).toHaveBeenCalledTimes(1);
     errorSpy.mockRestore();
   });
 });
