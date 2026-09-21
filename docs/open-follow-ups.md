@@ -460,12 +460,14 @@ running app makes possible.**
 
 > **Mostly history — but no longer entirely.** Both migrations previously
 > believed unrun are in fact applied in production, and that part is history.
-> **Two new migrations were written on 2026-09-21 and are NOT applied**, so
-> there *is* something pending on the database side of the next deploy again —
-> see *Two migrations written on 2026-09-21* below. The rest is a short list of
-> checks that need a person with a running app, a phone, a calendar client, or
-> a browser. **Nothing in this section was verified on 2026-09-21**, and
-> nothing here may be reported as such.
+> **The two migrations written on 2026-09-21 (`CD-06`, `FN-05`) are now
+> applied too** — see *Two migrations written on 2026-09-21* below for the
+> record. **A third, `20260921120000_user_whats_new_seen_at` (ADR 0056), is
+> now written and NOT applied**, so there *is* still something pending on the
+> database side of the next deploy. The rest is a short list of checks that
+> need a person with a running app, a phone, a calendar client, or a browser.
+> **Nothing in this section was verified on 2026-09-21**, and nothing here may
+> be reported as such.
 
 ## Two migrations written on 2026-09-21 — applied in production 2026-09-21
 
