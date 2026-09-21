@@ -210,12 +210,16 @@ _Avoid_: Like, rating, rank
 A person on the Trip with their own login. A Trip is shared between Travellers (normally two). Distinct from generic app "user".
 _Avoid_: Member, user, participant
 
+**Owner**:
+A per-Trip membership role, held by whoever created the Trip. A Trip has exactly one Owner, and the role does not transfer. Distinct from an **Admin** (an `ADMIN_EMAILS` operator, recognised at request time, who is not a **Traveller** of the Trip at all until they join one — yet gains the same powers on any Trip they *are* a member of, see ADR 0045). Owner-only today: Delete, Duplicate (ADR 0045) and creating an **Invite** (ADR 0052) — every other Trip action is open to any Traveller on it.
+_Avoid_: admin (that's the operator override, not the per-Trip role); creator (Owner is the standing role, not a one-time fact about who clicked New trip)
+
 **Admin**:
 The app's operator — an account whose email is listed in the deployment's admin list, recognised at request time rather than stored on the user. Admin standing is about running TEEPEE, not planning holidays: it grants operator affordances (deleting a Trip they are on — see ADR 0045 — and reading every author's **Feedback note**), never planning powers, and grants nothing on Trips the Admin isn't a **Traveller** of. Distinct from a Trip **owner** (a per-Trip membership role any Traveller can hold).
 _Avoid_: superuser, moderator, staff; owner (that's the per-Trip role)
 
 **Invite**:
-A pending, email-addressed grant of access to a Trip — it names the email of the person a Traveller wants to bring on. An Invite becomes Traveller membership automatically the next time that person is signed in under a matching email; it is never delivered as a link or message, so it lives only as a record on the Trip, not something the invitee receives. It is **Pending** until matched, and can be cancelled while still Pending. Distinct from a **Traveller** (an Invite is the not-yet-joined precursor) and from the read-only public **share link** (which grants no membership).
+A pending, email-addressed grant of access to a Trip, created by the Trip's **Owner** (or an **Admin**) — it names the email of the person being brought on. An Invite becomes Traveller membership automatically the next time that person is signed in under a matching email; it is never delivered as a link or message, so it lives only as a record on the Trip, not something the invitee receives. It is **Pending** until matched, and can be cancelled while still Pending. Distinct from a **Traveller** (an Invite is the not-yet-joined precursor) and from the read-only public **share link** (which grants no membership) — a Share link is the member-accessible way to let someone see a Trip without bringing them on as a Traveller (ADR 0052).
 _Avoid_: invitation link/email, membership request, share
 
 **Share link**:

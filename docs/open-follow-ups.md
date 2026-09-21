@@ -11,8 +11,12 @@ undercounted what their fix achieved and corrected each in place — two whose
 fixed behaviour was not actually the shipped behaviour (`FP-06`, `HG-02`/
 `HG-10`), three whose fix covered a narrower scope than the pattern it named
 (`AB-04`, `CD-05`, `CD-01`), and one (`CD-10`) whose own scope-correction was
-itself wrong — and added two new items (`SW-04`, `SW-05`). Seven items are
-open, and six more await an operator decision.
+itself wrong — and added two new items (`SW-04`, `SW-05`). **Decided
+2026-09-21** on branch `chore/close-sw03-and-sw05`: the operator resolved
+`SW-05` — `inviteToTrip` becomes owner-or-admin; `createShareLink` and
+`createCalendarFeed` stay member-accessible (see ADR 0052) — moving it from
+*Needs a decision* to *Open items*, now specified and ready to build. Eight
+items are open, and five more await an operator decision.
 
 **Read this instead of the seven source docs.** Those docs accumulated from
 2026-08-12 onward with no drain mechanism: later branches fixed items
@@ -41,8 +45,8 @@ were written.)
 | Verdict | Count | Where it lives in this doc |
 |---|---|---|
 | Already fixed — struck | 83 | *Struck* register (no action) |
-| Live — still open | 7 | *Open items* |
-| Needs a decision | 6 | *Needs a decision* (do not build) |
+| Live — still open | 8 | *Open items* |
+| Needs a decision | 5 | *Needs a decision* (do not build) |
 | Blocked on a deploy, device, or browser | 12 | *Blocked* |
 | Settled — declined deliberately | 24 | *Settled — do not re-raise* |
 | **Total** | **132** | |
@@ -62,6 +66,14 @@ code, corrected six struck entries whose annotation overclaimed or
 undercounted what actually shipped, corrected one open item (`SW-02`) whose
 population was wrong, and added two further items (`SW-04`, `SW-05`), which is
 why the total is now 132.
+
+**Decided 2026-09-21**, branch `chore/close-sw03-and-sw05`: the operator
+resolved `SW-05` (ADR 0052). `inviteToTrip` becomes owner-or-admin;
+`createShareLink` and `createCalendarFeed` deliberately stay open to any
+member — the asymmetry is that an Invite grants unbounded, transitive
+membership while a Share link is bounded by ADR 0051's never-shared floor and
+a Calendar feed exposes only schedule. `SW-05` moves from *Needs a decision*
+to *Open items*, specified and ready to build; the total stays **132**.
 
 > ### ⚠ What this document is reliable about, and what it is not
 >
@@ -221,17 +233,54 @@ entries are self-contained: the evidence in them is all the evidence there is.
 ---
 # Open items
 
-**7 items.** Three are survivors of the 2026-09-21 sweep on branch
+**8 items.** Three are survivors of the 2026-09-21 sweep on branch
 `chore/follow-ups-triage-and-sweep` — one parked on a decision, two never
 planned — three were found *by* that sweep and appear here for the first time,
-and one (`SW-04`) was found by the final whole-branch review that corrected
-this document. The other **39** items that stood in this section on 2026-09-20
-were fixed and moved to the *Struck* register below, each with its commit.
+one (`SW-04`) was found by the final whole-branch review that corrected this
+document, and one (`SW-05`) was moved here from *Needs a decision* on
+2026-09-21 once the operator resolved it (ADR 0052). The other **39** items
+that stood in this section on 2026-09-20 were fixed and moved to the *Struck*
+register below, each with its commit.
 
 Each entry still carries the `file:line` that shows the defect. For the three
 carried over, that citation was last checked on 2026-09-20; for the three
 found by the sweep, on 2026-09-21; for `SW-04`, on the same date by the final
-review.
+review; for `SW-05`, on 2026-09-21, the date of the operator's decision.
+
+## P1
+
+### SW-05 · `inviteToTrip` needs an owner-or-admin guard
+
+- **Source:** none — found during the final whole-branch review of this
+  document as an open question, resolved by the operator on 2026-09-21. See
+  ADR 0052 for the full reasoning.
+- **Decision:** `inviteToTrip` becomes owner-or-admin. `createShareLink` and
+  `createCalendarFeed` deliberately **stay open to any member — out of
+  scope, not an oversight.** ADR 0052 records why: a Share link is bounded by
+  ADR 0051's never-shared floor and a Calendar feed exposes only schedule, so
+  a member handing either out leaks far less than a member handing out full,
+  transitive Trip membership. Do not extend this guard to those two actions.
+- **Guard to add:** `server/actions/invites.ts:40` — `inviteToTrip` currently
+  does only `await requireTripAccess(tripId);` and discards the result. Copy
+  `deleteTrip`'s shape at `server/actions/trips.ts:258`: use the
+  `{ user, membership }` `requireTripAccess` already returns, and refuse
+  unless `membership.role === "owner"` or `isAdminEmail(user.email)` — same
+  admin bypass as Delete and Duplicate (ADR 0045).
+- **UI must be gated too:** `app/(app)/trips/[tripId]/settings/page.tsx`
+  already computes `canManageTrip` (owner-or-admin) at line 36 but applies it
+  only to the Danger zone at line 221; the Invite control currently renders
+  for every member. Gate it on `canManageTrip` in the same change, so no
+  non-owner is shown a button the server will now refuse — a UI/server
+  mismatch on exactly this shape is what hid the `duplicateTrip` P0 (`HG-12`,
+  struck) until it was found.
+- **Regression test:** must prove a non-owner member is refused by
+  `inviteToTrip`, and must fail against the current code — before the guard
+  exists — the same before/after standard every access-guard fix in this
+  document is held to.
+- **Out of scope:** `createShareLink` (`server/actions/share.ts:97`) and
+  `createCalendarFeed` (`server/actions/calendar-feed.ts:59`) — leave both on
+  `requireTripAccess` alone. See ADR 0052.
+- **Category:** mechanical · **Effort:** S
 
 ## P2
 
@@ -420,7 +469,7 @@ review.
 
 # Needs a decision — **do not implement these**
 
-**These six are the operator's calls to make, not an agent's to build.** Each
+**These five are the operator's calls to make, not an agent's to build.** Each
 one is real, and each one has two defensible fixes with genuinely different
 costs — which is exactly why it was deferred rather than done. If you are an
 agent reading this document looking for work, **skip this section entirely**.
@@ -428,10 +477,11 @@ Nothing here is ready to be implemented, and implementing either option without
 the decision being made is how the wrong one ships. Bring the choice to the
 operator, get an answer, then write a plan.
 
-Five (`CD-02` through `CD-07`) come from
-`docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md`. The sixth
-(`SW-05`) has no source doc — it was found during the final whole-branch review
-of this document.
+All five (`CD-02` through `CD-07`) come from
+`docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md`. A sixth,
+`SW-05` (no source doc — found during the final whole-branch review of this
+document), was resolved by the operator on 2026-09-21 and has moved to *Open
+items* above, specified, as `SW-05` under **P1** — see ADR 0052.
 
 ### CD-02 · `subscribeToPush` can reassign a Device row it does not own — P1
 
@@ -538,39 +588,6 @@ of this document.
 - **Either way, `CD-16` lands with it** — `CONTEXT.md`'s **Digest** entry is
   already inaccurate about this and must be updated to whatever is chosen.
 - **Effort if built:** S.
-
-### SW-05 · Membership-only guards let any Traveller extend a trip's reach past its membership
-
-- **Source:** none — found during the final whole-branch review of this
-  document. No source doc records it. **Pre-existing on `main`, untouched by
-  this branch — not a regression.**
-- **What it is:** three actions gate on `requireTripAccess` alone, which only
-  checks the caller is *a* member of the trip, not any particular role:
-  `inviteToTrip` (`server/actions/invites.ts:36`) lets any Traveller add a new
-  member to the trip; `createShareLink` (`server/actions/share.ts:93`) lets any
-  Traveller mint a link that exposes the trip (per its scope) to the public
-  internet; `createCalendarFeed` (`server/actions/calendar-feed.ts:56`) lets any
-  Traveller mint a feed URL an external calendar app can poll indefinitely.
-  Each extends who or what can reach the trip's data beyond its current
-  membership, and none requires anything beyond plain membership to do it.
-- **Why this is undecided, not a bug:** `ADR 0045` (admin-vs-owner scoping)
-  speaks only to **Delete** and **Duplicate** — destructive/mutating-ownership
-  actions. It says nothing about *reach*-extending actions, so there is no
-  existing decision this violates. Whether reach-extension should require
-  owner-or-admin is a genuinely open question, not an oversight to close.
-- **Option (a):** leave all three on `requireTripAccess`. **Cost:** any
-  Traveller — including one added five minutes ago — can invite further
-  people, publish a share link, or mint a calendar feed, without the trip's
-  owner ever being asked.
-- **Option (b):** require owner-or-admin (mirroring `ADR 0045`'s pattern) for
-  some or all of the three. **Cost:** a genuine capability restriction on
-  ordinary Travellers, who may currently rely on being able to invite a
-  partner or share a link themselves.
-- **Question for the operator:** should extending a trip's reach — inviting,
-  sharing, or feeding it externally — require owner-or-admin, the way Delete
-  and Duplicate already do? Or is membership the right bar for all three, or
-  for some and not others?
-- **Effort if built:** S per action, once the answer is chosen.
 
 ---
 
