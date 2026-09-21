@@ -12,6 +12,19 @@ export function planScope(forkId?: PlanId): { forkId: string | null } {
   return { forkId: forkId ?? null };
 }
 
+/**
+ * The first value of a Next.js search param, as a `PlanId`.
+ *
+ * A page's `searchParams` type says `plan?: string`, but that is a
+ * compile-time claim only: Next hands a `string[]` at runtime when the param
+ * is repeated (`?plan=a&plan=b`). Passing that array to Prisma's `id` filter
+ * throws and 500s the page, so normalise here rather than trusting the type.
+ */
+export function firstSearchParam(value: string | string[] | undefined): PlanId {
+  const first = Array.isArray(value) ? value[0] : value;
+  return first ? first : null;
+}
+
 // ---------------------------------------------------------------------------
 // Plan-placement vs Wishlist-idea discriminator (ADR 0022)
 // ---------------------------------------------------------------------------

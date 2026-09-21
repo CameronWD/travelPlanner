@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { Wallet, AlertTriangle } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { planScope } from "@/lib/plan-scope";
+import { planScope, firstSearchParam } from "@/lib/plan-scope";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -64,11 +64,11 @@ export default async function BudgetPage({
   searchParams,
 }: {
   params: Promise<{ tripId: string }>;
-  searchParams: Promise<{ plan?: string }>;
+  searchParams: Promise<{ plan?: string | string[] }>;
 }) {
   const { tripId } = await params;
   const { plan } = await searchParams;
-  const selectedForkId = plan ?? null;
+  const selectedForkId = firstSearchParam(plan);
   await requireTripAccess(tripId);
 
   // Validate the fork exists for this trip; fall back to real plan if not.

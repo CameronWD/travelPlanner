@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { planScope, THINGS_TO_DO_WHERE } from "@/lib/plan-scope";
+import { planScope, THINGS_TO_DO_WHERE, firstSearchParam } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
 import type { TransportMode } from "@/lib/enums";
@@ -31,11 +31,11 @@ export default async function TripPlanPage({
   searchParams,
 }: {
   params: Promise<{ tripId: string }>;
-  searchParams: Promise<{ plan?: string }>;
+  searchParams: Promise<{ plan?: string | string[] }>;
 }) {
   const { tripId } = await params;
   const { plan } = await searchParams;
-  const selectedForkId = plan ?? null;
+  const selectedForkId = firstSearchParam(plan);
 
   const { user } = await requireTripAccess(tripId);
 
