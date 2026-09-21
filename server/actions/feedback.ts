@@ -33,7 +33,7 @@ export type FeedbackNoteView = {
   authoredAt: string;
 };
 
-type FeedbackNoteRow = {
+type FeedbackNoteQueryRow = {
   id: string;
   body: string;
   route: string;
@@ -57,7 +57,7 @@ const VIEW_SELECT = {
   authoredAt: true,
 } as const;
 
-export function toView(row: FeedbackNoteRow, viewerId: string): FeedbackNoteView {
+export function toView(row: FeedbackNoteQueryRow, viewerId: string): FeedbackNoteView {
   return {
     id: row.id,
     body: row.body,
@@ -108,7 +108,7 @@ export async function createFeedbackNote(
     select: VIEW_SELECT,
   });
 
-  return ok({ note: toView(row as FeedbackNoteRow, user.id) });
+  return ok({ note: toView(row as FeedbackNoteQueryRow, user.id) });
 }
 
 /**
@@ -129,7 +129,7 @@ export async function listFeedbackNotes(): Promise<
   });
 
   return ok({
-    notes: (rows as FeedbackNoteRow[]).map((row) => toView(row, user.id)),
+    notes: (rows as FeedbackNoteQueryRow[]).map((row) => toView(row, user.id)),
   });
 }
 
