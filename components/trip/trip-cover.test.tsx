@@ -76,7 +76,7 @@ describe("TripCover", () => {
   });
 
   it("versions the cover URL so a replaced photo busts the browser cache", () => {
-    const { container } = render(
+    render(
       <TripCover
         tripId="t1"
         name="Trip"
@@ -85,17 +85,17 @@ describe("TripCover", () => {
         stops={[]}
       />,
     );
-    const img = container.querySelector("img") as HTMLImageElement;
+    // Select the foreground photo, not the decorative backdrop, so this keeps
+    // guarding the photo's URL even if the two layers' src ever diverges.
+    const img = screen.getByAltText("Trip cover") as HTMLImageElement;
     expect(img.getAttribute("src")).toBe(
       `/api/trips/t1/cover?v=${encodeURIComponent("trips/t1/abc-cover.webp")}`,
     );
   });
 
   it("keeps the bare cover URL when no version is provided", () => {
-    const { container } = render(
-      <TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} />,
-    );
-    const img = container.querySelector("img") as HTMLImageElement;
+    render(<TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} />);
+    const img = screen.getByAltText("Trip cover") as HTMLImageElement;
     expect(img.getAttribute("src")).toBe("/api/trips/t1/cover");
   });
 });

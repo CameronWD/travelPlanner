@@ -38,13 +38,21 @@ export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, clas
       // space with a blurred, dimmed copy instead of grey. Same URL as the
       // foreground, so it is one network request and one cache entry — which
       // matters for the offline warm-set.
+      //
+      // The backdrop is inset by a fixed -inset-8 (32px) rather than scaled up,
+      // because blur-xl's fringe is a fixed 24px radius, not a percentage of the
+      // box. A percentage scale (e.g. scale-110) shrinks with the box and would
+      // leave that fringe visible on the shortest cover (the h-36 card). 32px of
+      // margin clears the 24px radius with room to spare at every box size. If
+      // either the blur radius or this margin changes, check that 32 still beats
+      // the radius.
       <div className={`relative size-full overflow-hidden bg-muted ${className ?? ""}`}>
         {/* eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable */}
         <img
           src={src}
           alt=""
           aria-hidden="true"
-          className="absolute inset-0 size-full scale-110 object-cover blur-xl brightness-75"
+          className="absolute -inset-8 object-cover blur-xl brightness-75"
         />
         {/* eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable */}
         <img
