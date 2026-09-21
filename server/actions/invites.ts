@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { isAdminEmail } from "@/lib/admin";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
@@ -37,7 +38,20 @@ export async function inviteToTrip(
   tripId: string,
   email: string,
 ): Promise<InviteResult> {
-  await requireTripAccess(tripId);
+  const { user, membership } = await requireTripAccess(tripId);
+
+  // An Invite grants full, transitive Trip membership — everything ADR 0051's
+  // never-shared floor withholds from a Share link — so it is owner-or-admin,
+  // unlike createShareLink and createCalendarFeed which stay open to any
+  // member on purpose (ADR 0052). Same admin bypass as Delete and Duplicate
+  // (ADR 0045); membership is still required, since requireTripAccess above
+  // already notFound()s for a non-member.
+  if (membership.role !== "owner" && !isAdminEmail(user.email)) {
+    return {
+      success: false,
+      error: "Only the trip owner can invite someone to this trip.",
+    };
+  }
 
   const parsed = emailSchema.safeParse(email.trim());
   if (!parsed.success) {

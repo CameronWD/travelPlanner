@@ -143,6 +143,7 @@ export default async function SettingsPage({
             tripId={tripId}
             members={trip.members}
             pendingInvites={trip.invites}
+            canInvite={canManageTrip}
           />
         </CardContent>
       </Card>

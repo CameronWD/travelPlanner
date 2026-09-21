@@ -12,6 +12,7 @@ import { expectAccessCheckedBeforeWrite } from "@/test/helpers/access-order";
 
 const {
   requireTripAccessMock,
+  isAdminEmailMock,
   revalidatePathMock,
   tripMemberFindManyMock,
   inviteUpsertMock,
@@ -22,6 +23,7 @@ const {
     user: { id: "user-1" },
     membership: { role: "owner" },
   }),
+  isAdminEmailMock: vi.fn().mockReturnValue(false),
   revalidatePathMock: vi.fn(),
   tripMemberFindManyMock: vi.fn(),
   inviteUpsertMock: vi.fn(),
@@ -30,6 +32,7 @@ const {
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+vi.mock("@/lib/admin", () => ({ isAdminEmail: isAdminEmailMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -178,6 +181,34 @@ describe("inviteToTrip", () => {
         }),
       }),
     );
+  });
+
+  it("refuses a non-owner member", async () => {
+    requireTripAccessMock.mockResolvedValue({
+      user: { id: "u2", email: "member@example.com" },
+      membership: { role: "member" },
+    });
+
+    const result = await inviteToTrip("trip1", "new@example.com");
+
+    expect(result).toEqual({
+      success: false,
+      error: "Only the trip owner can invite someone to this trip.",
+    });
+    expect(inviteUpsertMock).not.toHaveBeenCalled();
+  });
+
+  it("allows an admin who is not the owner", async () => {
+    requireTripAccessMock.mockResolvedValue({
+      user: { id: "u3", email: "admin@example.com" },
+      membership: { role: "member" },
+    });
+    isAdminEmailMock.mockReturnValue(true);
+    tripMemberFindManyMock.mockResolvedValue([]);
+
+    const result = await inviteToTrip("trip1", "new@example.com");
+
+    expect(result.success).toBe(true);
   });
 });
 
