@@ -5,7 +5,14 @@ The single live backlog of engineering work TEEPEE still owes. Compiled
 follow-up documents in `docs/follow-ups/` plus the operational debt
 `docs/things-to-fix.md` still had outstanding. **Drained 2026-09-21** on the
 same branch: 39 of the 42 then-open items were fixed and struck, and 3 new ones
-found while fixing them were added. Six items are open.
+found while fixing them were added. **Reviewed 2026-09-21**, same branch: a
+final whole-branch review found six struck entries that overclaimed or
+undercounted what their fix achieved and corrected each in place — two whose
+fixed behaviour was not actually the shipped behaviour (`FP-06`, `HG-02`/
+`HG-10`), three whose fix covered a narrower scope than the pattern it named
+(`AB-04`, `CD-05`, `CD-01`), and one (`CD-10`) whose own scope-correction was
+itself wrong — and added two new items (`SW-04`, `SW-05`). Seven items are
+open, and six more await an operator decision.
 
 **Read this instead of the seven source docs.** Those docs accumulated from
 2026-08-12 onward with no drain mechanism: later branches fixed items
@@ -26,17 +33,19 @@ At the 2026-09-20 compile, eight agents re-verified all **127 items** then known
 against `main`, each against the source doc it owned. A ninth agent, which had
 performed none of that work, independently re-derived every `DONE` verdict from
 the code or the cited commit rather than trusting the evidence string. (The
-total is 130 today; the three added since are `SW-01`–`SW-03`, found by the
-2026-09-21 sweep and evidenced against the code at the time they were written.)
+total is 132 today; five have been added since: `SW-01`–`SW-03`, found by the
+2026-09-21 sweep, and `SW-04`–`SW-05`, found by the final whole-branch review
+that corrected this document — all evidenced against the code at the time they
+were written.)
 
 | Verdict | Count | Where it lives in this doc |
 |---|---|---|
 | Already fixed — struck | 83 | *Struck* register (no action) |
-| Live — still open | 6 | *Open items* |
-| Needs a decision | 5 | *Needs a decision* (do not build) |
+| Live — still open | 7 | *Open items* |
+| Needs a decision | 6 | *Needs a decision* (do not build) |
 | Blocked on a deploy, device, or browser | 12 | *Blocked* |
 | Settled — declined deliberately | 24 | *Settled — do not re-raise* |
-| **Total** | **130** | |
+| **Total** | **132** | |
 
 **Updated 2026-09-21.** The sweep on branch `chore/follow-ups-triage-and-sweep`
 closed **39** of the 42 items that were open on 2026-09-20 and moved them to the
@@ -44,8 +53,15 @@ closed **39** of the 42 items that were open on 2026-09-20 and moved them to the
 operator decision** and two (`FN-05`, `CD-16`) were **never planned**, each
 blocked by something the sweep was not allowed to do; all three are annotated in
 place with why. The sweep also **found three new items** (`SW-01`, `SW-02`,
-`SW-03`) that appear in no source doc, which is why the total is now 130 rather
-than 127.
+`SW-03`) that appear in no source doc, which is why the total grew from 127 to
+130.
+
+**Reviewed again, same date.** A final whole-branch review re-checked the
+sweep's own claims — both the 39 it struck and the 3 it added — against the
+code, corrected six struck entries whose annotation overclaimed or
+undercounted what actually shipped, corrected one open item (`SW-02`) whose
+population was wrong, and added two further items (`SW-04`, `SW-05`), which is
+why the total is now 132.
 
 > ### ⚠ What this document is reliable about, and what it is not
 >
@@ -55,17 +71,21 @@ than 127.
 > confirmed to still show the defect — but nobody re-searched the tree for
 > *other* sites with the same defect.
 >
-> The sweep proved this matters. **Three of the 39 items it closed turned out to
+> The sweep proved this matters. **Two of the 39 items it closed turned out to
 > touch more of the codebase than their entry said**, and each was discovered
 > only by the agent that sat down to fix it:
 >
 > | Item | Entry said | Actually |
 > |---|---|---|
 > | `AB-02` | two pages | **three** — the Wishlist page had it too |
-> | `CD-10` | one `console.error` site dropping `slot` | **two** |
 > | `HG-02` / `HG-10` | two cards | **three** — `accommodation-card.tsx` too |
 >
-> Three undercounts in 39 items is not a rounding error, and there is no reason
+> A third item, `CD-10`, briefly claimed an undercount here too ("one
+> `console.error` site, actually two"), but that claim was itself wrong — its
+> Evidence section named both sites from the start — and was corrected on final
+> review. See `CD-10`'s entry in the struck register for the correction.
+>
+> Two undercounts in 39 items is not a rounding error, and there is no reason
 > to think the remaining entries were sampled differently.
 >
 > **So: trust an entry's verdict, do not trust its scope line.** When you pick
@@ -73,6 +93,16 @@ than 127.
 > grep the tree for the pattern rather than fixing only the `file:line`s listed.
 > Widen the task when you find more, as the sweep did, instead of shipping a
 > partial fix against a stale count.
+>
+> **This applies to struck entries too, not only open ones.** A `DONE` verdict
+> means the cited defect was fixed at the cited site — it does not mean every
+> site with that defect was found. A final review of this document found two
+> struck entries that overclaimed in exactly this way: `FP-06` (the fix built
+> an escape hatch that no production caller ends up using, so the described
+> behaviour is unchanged) and `HG-02`/`HG-10` (a fourth confusable instance,
+> `phase-travelling.tsx:508`, survives the "three cards" fix). Before trusting
+> a struck entry's title as a completed fact, check whether its annotations say
+> otherwise.
 
 Of the 44 `DONE` calls made in the original 2026-09-20 triage: **40 were
 independently re-verified and 0 were flipped.** The remaining 4 (`OPS-01`, `OPS-03`, `OPS-06`, `OPS-07`) rest on a
@@ -183,7 +213,7 @@ naming, doc drift.
 | `RM-` | `docs/follow-ups/2026-09-17-reminders-follow-ups.md` |
 | `CD-` | `docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md` |
 | `OPS-` | operational debt owed by `docs/things-to-fix.md` |
-| `SW-` | **no source doc** — found during the 2026-09-21 sweep itself |
+| `SW-` | **no source doc** — found during the 2026-09-21 sweep (`SW-01`–`SW-03`) or the final whole-branch review that corrected this document (`SW-04`–`SW-05`) |
 
 `SW-` is the one prefix with nothing to follow the citation back to. Those
 entries are self-contained: the evidence in them is all the evidence there is.
@@ -191,22 +221,24 @@ entries are self-contained: the evidence in them is all the evidence there is.
 ---
 # Open items
 
-**6 items.** Three are survivors of the 2026-09-21 sweep on branch
+**7 items.** Three are survivors of the 2026-09-21 sweep on branch
 `chore/follow-ups-triage-and-sweep` — one parked on a decision, two never
-planned — and three were found *by* that sweep and appear here for the first
-time. The other **39** items that stood in this section on 2026-09-20 were fixed
-and moved to the *Struck* register below, each with its commit.
+planned — three were found *by* that sweep and appear here for the first time,
+and one (`SW-04`) was found by the final whole-branch review that corrected
+this document. The other **39** items that stood in this section on 2026-09-20
+were fixed and moved to the *Struck* register below, each with its commit.
 
 Each entry still carries the `file:line` that shows the defect. For the three
-carried over, that citation was last checked on 2026-09-20; for the three new
-ones, on 2026-09-21.
+carried over, that citation was last checked on 2026-09-20; for the three
+found by the sweep, on 2026-09-21; for `SW-04`, on the same date by the final
+review.
 
 ## P2
 
 ### FN-05 · A Feedback note does not survive its author
 
 - **Source:** `FN` (`docs/follow-ups/2026-09-08-feedback-notes.md:38-42`)
-- **Evidence:** `prisma/schema.prisma:738` —
+- **Evidence:** `prisma/schema.prisma:739` —
   `author User @relation(fields: [authorId], references: [id], onDelete: Cascade)`,
   unchanged. No migration since 2026-09-08 touches this FK's behaviour.
 - **Fix shape:** the same treatment ADR 0040 already gave `tripId`/`tripName`
@@ -285,23 +317,67 @@ ones, on 2026-09-21.
   **Fix it in the same commit as `CD-07`**, not before.
 - **Category:** docs · **Effort:** S
 
-### SW-02 · Two decorative `MapPin` uses survive the `HG-02`/`HG-10` dedup
+### SW-02 · Decorative `MapPin` uses survive the `HG-02`/`HG-10` dedup — population was undercounted, and one survivor is genuinely confusable
 
 - **Source:** none — found during the 2026-09-21 sweep, while fixing
   `HG-02`/`HG-10`. No source doc records it.
-- **Evidence:** `components/trip/trip-card.tsx:132` and
-  `components/trip/agenda-view.tsx:48` both render `<MapPin aria-hidden="true">`
-  decoratively, as `stop-card.tsx` and `item-card.tsx` did before `6eb8fba`.
-- **Lower priority than `HG-02`/`HG-10`, and deliberately not fixed.** Neither
-  sits beside a real `MapLink`, so neither is *confusable* the way the three
-  fixed cards were — which was the whole basis of the `HG-02` finding. They are
-  recorded here only because they work against the same "a pin means one thing"
-  goal, so a future reader does not think the dedup was completed app-wide.
-- **Decide before building:** this is a consistency call, not a defect. If the
-  answer is "the pin is reserved for a real location everywhere", these two go;
-  if it is "only where it could be mistaken for a `MapLink`", they stay and this
-  entry should be settled rather than built.
-- **Category:** mechanical · **Effort:** S
+- **Population corrected on final review: this entry originally named two
+  survivors. There are roughly fifteen.** A non-exhaustive list of the
+  decorative, unconditional uses: `components/trip/trip-card.tsx:132`,
+  `components/trip/agenda-view.tsx:48`, `components/trip/route-map.tsx:75`,
+  `components/trip/plan-overview.tsx:60`, `components/trip/nearby-wishlist.tsx:50`,
+  `components/command-palette.tsx:45`, `components/trip/home/phase-sketching.tsx:77`,
+  and several `icon={MapPin}` uses (`components/trip/itinerary-manager.tsx:2139`,
+  `components/trip/home/quick-actions.tsx:24,34`,
+  `app/(app)/trips/[tripId]/summary/page.tsx:443,479,514`) plus the calendar,
+  print, summary and share pages. Operator deciding `SW-02` from "two" was
+  deciding from a false number.
+- **One survivor is not like the others: `phase-travelling.tsx:508` is
+  confusable, not merely inconsistent.** It sits in the same flex row as a real
+  `MapLink` at `:519` — the same side-by-side pattern `HG-02` was written to
+  fix, and the struck `HG-02`/`HG-10` entry is corrected to say so. Worse, that
+  `MapLink` is given an always-present `label`, and `lib/maps.ts:31` falls back
+  to `label` when there is no address, so it renders a pin for every stop
+  regardless of whether coordinates exist — exactly the failure mode
+  `stop-card.tsx:337-345` was changed to gate against (`stop.lat != null &&
+  stop.lng != null`) for this same reason. This is confusable **under either
+  reading of the decision below** — it is not a consistency call, it is the
+  same defect `HG-02`/`HG-10` was supposed to have closed, missed. It should be
+  treated as a fourth instance of that item, not decided here.
+- **The rest — including `phase-sketching.tsx:77`, added on final review — are
+  a genuine consistency call, not a defect.** None of them sits beside a real
+  `MapLink`, so none is *confusable* the way the fixed cards (or
+  `phase-travelling.tsx:508`) are. They are recorded here only because they
+  work against the same "a pin means one thing" goal, so a future reader does
+  not think the dedup was completed app-wide.
+- **Decide before building (this part only):** if the answer is "the pin is
+  reserved for a real location everywhere", the ~14 non-confusable survivors go
+  too; if it is "only where it could be mistaken for a `MapLink`", they stay
+  and this entry should be settled rather than built. Either way,
+  `phase-travelling.tsx:508` should be fixed, not decided.
+- **Category:** mechanical · **Effort:** S (the confusable instance) / M (the
+  full consistency pass, if the operator wants it)
+
+### SW-04 · `FeedbackNoteRow` names both an exported and a private type, in different shapes
+
+- **Source:** none — found during the final whole-branch review of this
+  document, while checking the sweep's claims. No source doc records it.
+- **Evidence:** `lib/feedback-inbox.ts:24` exports `FeedbackNoteRow` (the
+  Prisma selection `scripts/feedback-pull.ts` reads). `server/actions/feedback.ts:36`
+  separately declares a private `type FeedbackNoteRow` with a different shape
+  (it carries `authorId` and `author: { name }`; the exported one does not).
+  The two are never imported together, so nothing breaks today — but a reader
+  who greps the name, or an editor's autocomplete, will find two unrelated
+  types answering to it.
+- **Same class as `CD-15`** (`DispatcherHealth` naming both a component and an
+  interface, imported into the same page) — a name reused across files for
+  different things, closed in sweep task 22. This is the same problem one file
+  boundary further out: no shared import today, but the same confusion waiting
+  for the day one is added.
+- **Fix:** rename one — e.g. the private one in `server/actions/feedback.ts` to
+  `FeedbackNoteQueryRow` — when next touching either file. Do not rename either
+  as part of landing this entry.
+- **Category:** docs · **Effort:** S
 
 ## Process — for the operator, not a code change
 
@@ -333,7 +409,7 @@ ones, on 2026-09-21.
 
 # Needs a decision — **do not implement these**
 
-**These five are the operator's calls to make, not an agent's to build.** Each
+**These six are the operator's calls to make, not an agent's to build.** Each
 one is real, and each one has two defensible fixes with genuinely different
 costs — which is exactly why it was deferred rather than done. If you are an
 agent reading this document looking for work, **skip this section entirely**.
@@ -341,8 +417,10 @@ Nothing here is ready to be implemented, and implementing either option without
 the decision being made is how the wrong one ships. Bring the choice to the
 operator, get an answer, then write a plan.
 
-All five come from
-`docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md`.
+Five (`CD-02` through `CD-07`) come from
+`docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md`. The sixth
+(`SW-05`) has no source doc — it was found during the final whole-branch review
+of this document.
 
 ### CD-02 · `subscribeToPush` can reassign a Device row it does not own — P1
 
@@ -449,6 +527,39 @@ All five come from
 - **Either way, `CD-16` lands with it** — `CONTEXT.md`'s **Digest** entry is
   already inaccurate about this and must be updated to whatever is chosen.
 - **Effort if built:** S.
+
+### SW-05 · Membership-only guards let any Traveller extend a trip's reach past its membership
+
+- **Source:** none — found during the final whole-branch review of this
+  document. No source doc records it. **Pre-existing on `main`, untouched by
+  this branch — not a regression.**
+- **What it is:** three actions gate on `requireTripAccess` alone, which only
+  checks the caller is *a* member of the trip, not any particular role:
+  `inviteToTrip` (`server/actions/invites.ts:36`) lets any Traveller add a new
+  member to the trip; `createShareLink` (`server/actions/share.ts:93`) lets any
+  Traveller mint a link that exposes the trip (per its scope) to the public
+  internet; `createCalendarFeed` (`server/actions/calendar-feed.ts:56`) lets any
+  Traveller mint a feed URL an external calendar app can poll indefinitely.
+  Each extends who or what can reach the trip's data beyond its current
+  membership, and none requires anything beyond plain membership to do it.
+- **Why this is undecided, not a bug:** `ADR 0045` (admin-vs-owner scoping)
+  speaks only to **Delete** and **Duplicate** — destructive/mutating-ownership
+  actions. It says nothing about *reach*-extending actions, so there is no
+  existing decision this violates. Whether reach-extension should require
+  owner-or-admin is a genuinely open question, not an oversight to close.
+- **Option (a):** leave all three on `requireTripAccess`. **Cost:** any
+  Traveller — including one added five minutes ago — can invite further
+  people, publish a share link, or mint a calendar feed, without the trip's
+  owner ever being asked.
+- **Option (b):** require owner-or-admin (mirroring `ADR 0045`'s pattern) for
+  some or all of the three. **Cost:** a genuine capability restriction on
+  ordinary Travellers, who may currently rely on being able to invite a
+  partner or share a link themselves.
+- **Question for the operator:** should extending a trip's reach — inviting,
+  sharing, or feeding it externally — require owner-or-admin, the way Delete
+  and Duplicate already do? Or is membership the right bar for all three, or
+  for some and not others?
+- **Effort if built:** S per action, once the answer is chosen.
 
 ---
 
@@ -802,9 +913,18 @@ evidence is kept rather than summarised because this register is the record of
 *what was fixed*, and a future reader checking whether a regression is the same
 bug needs the original description, not a one-line gloss.
 
-Three of these entries understated their own blast radius and say so inline:
-`AB-02` (three pages, not two), `CD-10` (two log sites, not one) and
-`HG-02`/`HG-10` (three cards, not two). See the warning in the trust statement.
+Two of these entries understated their own blast radius and say so inline:
+`AB-02` (three pages, not two) and `HG-02`/`HG-10` (three cards, not two — and,
+per the final review's correction inline, a fourth survives unfixed). A third
+entry, `CD-10`, briefly carried the same kind of note but it was itself wrong
+and has been corrected inline — see `CD-10`'s entry. See the warning in the
+trust statement.
+
+**Two struck entries also overclaimed what their fix achieved — not a scope
+miss, a behaviour miss.** `FP-06` (the described behaviour is unchanged; the
+fix built a passthrough no caller uses) and `HG-02`/`HG-10` (three of at least
+four confusable instances were fixed) are corrected inline. A struck entry's
+title is not a guarantee; read its annotations.
 
 The 40th planned item, `FP-07`, was **not** closed — it is parked on an
 operator decision and is still in *Open items*.
@@ -945,6 +1065,20 @@ operator decision and is still in *Open items*.
   forward.
 - **Scope note:** reachable only by hand-crafted action payloads.
 - **Category:** mechanical · **Effort:** S
+- **Blast radius undercounted — corrected on final review.** The commit
+  correctly shared `paidAtDateOnlySchema` and `MAX_AMOUNT_MINOR` across the
+  three named files, but `isRealCalendarDate` itself stays private to
+  `lib/validations/cost.ts:21`, and the same regex-only pattern (`"2026-02-30"`
+  passes) survives at roughly ten more sites, including two in the very files
+  this commit touched: `lib/validations/accommodation.ts:9` and
+  `lib/validations/item.ts:10` — both four lines below the new
+  `paidAtDateOnlySchema` import, defining a *different*, unrefined `isoDate`
+  used for non-`paidAt` date fields in the same files. Also
+  `lib/validations/stop.ts:3` (Stop dates drive the Timeline, chapter spans and
+  the Digest), `lib/validations/trip.ts:6`, `lib/validations/checklist.ts:7`,
+  `server/actions/items.ts:458` (`scheduleDateSchema`), and a hand-rolled regex
+  check at `server/actions/trips.ts:216` (`setTripHardEndDate`). This entry's
+  fix closed the three sites it named; it did not close the pattern.
 - **Closed:** `a202714`, 2026-09-21 (sweep task 6).
 
 ### FN-07 · A failed `removeFromQueue` write leaves a "discarded" Feedback note re-appearing forever
@@ -1047,6 +1181,16 @@ operator decision and is still in *Open items*.
   is the coverage hole that would let a guard silently move below its write.
 - **Fix:** add the assertion calls to the five files. No new infrastructure.
 - **Category:** test-coverage · **Effort:** S
+- **Evidence undercounted — corrected on final review.** Seven more action test
+  files mock a guard from `@/lib/guards` and never call
+  `expectAccessCheckedBeforeWrite`: `server/actions/ai.test.ts`,
+  `server/actions/forks.test.ts`, `server/actions/devices.test.ts`,
+  `server/actions/globe.test.ts`, `server/actions/search.test.ts`,
+  `server/actions/push.test.ts` and `server/actions/feedback.test.ts`. Most
+  consequential: `forks.test.ts` covers `promoteFork` (rewrites the real plan
+  wholesale) and `discardFork`, and `feedback.test.ts` covers
+  `deleteFeedbackNote`. This entry's fix closed the five files it named; the
+  coverage hole it describes is wider.
 - **Closed:** `68d1bb9`, 2026-09-21 (sweep task 10).
 
 ### CD-10 · Three uncovered edge cases in the Digest dispatch path
@@ -1071,11 +1215,15 @@ operator decision and is still in *Open items*.
   in `app/api/cron/digest/route.ts`, not `lib/digest-dispatch.ts` as the source
   doc says. The other two gaps are where the doc cites them.
 - **Category:** test-coverage · **Effort:** M
-- **Scope correction made while fixing:** the file-citation correction above was
-  itself incomplete. Pinning `slot` properly uncovered a **second**
-  `console.error` log site in `lib/digest-dispatch.ts` where a dropped `slot`
-  had also been passing silently — the entry named one. Both log sites are now
-  asserted.
+- **The "scope correction" below was itself wrong — corrected on final
+  review.** It claimed pinning `slot` uncovered a second, previously-unnamed
+  `console.error` log site, "the entry named one." That is false: Evidence §2
+  above, as this entry was originally written, already names **both**
+  `lib/digest-dispatch.ts:627-630` and `:683-686`. Nothing was undercounted
+  here — both sites were pinned because both were always in scope. Only **two**
+  of this document's three advertised blast-radius undercounts (in the trust
+  statement and in the struck-register preamble) are real; this was never one
+  of them.
 - **Closed:** `7147ec3`, 2026-09-21 (sweep task 11).
 
 ### CD-13 · `cron-health.ts`'s crash path has a unit test but no page-level regression test
@@ -1140,8 +1288,6 @@ operator decision and is still in *Open items*.
   Fix once; strike both. Full evidence and the reclassification rationale are
   under `CP-17`.
 - **Category:** mechanical · **Effort:** S
-
----
 - **Same commit as `CP-17`.** See the contract note under `CP-17` above: the fix
   is to the component's contract, not to anything either page renders today.
 - **Closed:** `cdc32d4`, 2026-09-21 (sweep task 13).
@@ -1288,6 +1434,18 @@ operator decision and is still in *Open items*.
   cannot be quantified without a real device; the structural condition is
   confirmed by code alone.
 - **Category:** mechanical · **Effort:** S
+- **This entry overclaimed when struck — corrected on final review.** `14b8f6b`
+  added `overlayClassName` to `SheetContentProps` (`components/ui/sheet.tsx:64`)
+  as an escape hatch, but `SheetOverlay` at `:21` still renders
+  `backdrop-blur-sm` unconditionally, and **neither production caller passes
+  the new prop**: `components/feedback/feedback-launcher.tsx:531` and
+  `components/trip/mobile-tab-bar.tsx:90` both call `SheetContent` with no
+  `overlayClassName`. The only use of the prop anywhere in the tree is
+  `components/ui/sheet.test.tsx:142`. The commit built the plumbing and no one
+  plugged it in — **the described behaviour is unchanged in every shipped
+  panel.** Left struck rather than reopened because the passthrough genuinely
+  landed and a future caller can use it; the behaviour claim in the title is
+  what was wrong.
 - **Closed:** `14b8f6b`, 2026-09-21 (sweep task 17).
 
 ### FP-13 · The docked height calc has no floor
@@ -1320,9 +1478,26 @@ operator decision and is still in *Open items*.
   **three**. `components/trip/accommodation-card.tsx` had the same decorative-pin
   -beside-a-real-`MapLink` defect and was fixed in a second round (`84d2f15`).
   The pin now means one thing in `stop-card.tsx`, `item-card.tsx` and
-  `accommodation-card.tsx`. Two decorative uses survive elsewhere and are filed
-  as the new `SW-02` — they are not beside a `MapLink`, so they are not
-  confusable, and they were deliberately left alone.
+  `accommodation-card.tsx`.
+- **This "not confusable" claim overclaimed — corrected on final review.** A
+  **fourth** instance of the exact same defect survives, unfixed:
+  `components/trip/home/phase-travelling.tsx:508` renders a decorative
+  `<MapPin aria-hidden="true">` and `:519` renders a real `MapLink` **in the
+  same flex row** — the identical side-by-side confusability this entry claims
+  to have closed. It is worse than the three fixed cards: that `MapLink` is
+  given an always-present `label`, and `lib/maps.ts:31` falls back to `label`
+  when there is no address, so it renders a pin for *every* stop regardless of
+  whether `lat`/`lng` exist — the second half of the `stop-card.tsx` fix
+  (`stop-card.tsx:337-345` gates `MapLink` on `stop.lat != null && stop.lng !=
+  null` for exactly this reason) was never applied here. Roughly fifteen
+  decorative `MapPin` uses remain across the app in total. Most — including a
+  second same-shape (decorative, unconditional, no adjacent `MapLink`) case at
+  `phase-sketching.tsx:77` — are not beside a `MapLink` and are genuinely not
+  confusable. `phase-travelling.tsx:508` is the one exception: it *is* beside a
+  `MapLink`, so it is confusable under either reading of `SW-02`'s open
+  question. Full accounting is in `SW-02`, corrected alongside this entry.
+  **This branch did not fix all instances of `HG-02`/`HG-10`; it fixed three of
+  at least four.**
 - **Closed:** `6eb8fba, 84d2f15, dadb3c1`, 2026-09-21 (sweep task 19).
 
 ### HG-08 · `help-hash-open.test.tsx` test 3 is weaker than its name
@@ -1380,6 +1555,13 @@ operator decision and is still in *Open items*.
 - **Fix:** pass `now` down from the server instead of calling `new Date()`
   client-side; fix both components together.
 - **Category:** mechanical · **Effort:** S
+- **Pattern survives, unrecorded — added on final review.**
+  `components/trip/note-thread.tsx:81` — `const now = new Date();` inside a
+  `"use client"` render body (file header, `:1`), consumed at `:143`
+  (`relativeTime(new Date(note.createdAt), now)`) — the identical
+  server/client-mismatch shape this entry fixed in
+  `dispatcher-health.tsx`/`devices-panel.tsx`. The fix covered only those two
+  components.
 - **Closed:** `dec2b27`, 2026-09-21 (sweep task 22).
 
 ### CD-15 · `DispatcherHealth` names both a component and an interface, imported into the same page
