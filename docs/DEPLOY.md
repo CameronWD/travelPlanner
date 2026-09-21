@@ -77,8 +77,10 @@ The pending migration `prisma/migrations/20260812000000_cost_and_paid_amounts`
 RENAMES columns. `vercel.json` runs `prisma migrate deploy && next build`, so the
 old columns disappear while the previous deployment is still serving traffic:
 **every cost read 500s for the length of the build**, and indefinitely if the
-build fails. (Additive migrations have no such window — this section applies to
-renames/drops only.)
+build fails. (An additive migration that only adds nullable or defaulted
+columns has no such window on *reads* — but see below: two additive shapes
+open the identical window on *writes* instead, so "additive" does not mean
+"no window".)
 
 Procedure for this (and any future destructive) migration:
 
@@ -114,11 +116,14 @@ section's title:
    upserts fail at the database, not in the app — again with reads untouched.
 
 **Worked example — `20260920120000_share_links_per_audience`.** It was both at
-once: it added the per-audience columns and reshaped `ShareLink`'s uniqueness.
-For the length of that build, the previous deployment could still read share
-links but could not create or update one. The window passed and nothing broke
-irrecoverably, which is exactly why it is worth writing down — the failure was
-invisible from the read path the rest of this section describes.
+once: `label` landed `NOT NULL` with its default dropped (the migration's
+other new columns, the three `include*` toggles, kept `DEFAULT true` and
+don't trigger hazard #1), and `DROP INDEX "ShareLink_tripId_key"` removed the
+unique index the old build's `upsert` used as its `ON CONFLICT` target. For
+the length of that build, the previous deployment could still read share
+links but could not create or update one. The window passed and nothing is
+known to have broken, which is exactly why it is worth writing down — the
+failure was invisible from the read path the rest of this section describes.
 
 **So: before deploying, check your migration SQL against the write path too.**
 Ask what the *currently deployed* build's `INSERT`s and `upsert`s look like
