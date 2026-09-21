@@ -36,7 +36,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
   {
     publishedAt: "2026-09-21T10:00:00Z",
-    text: "Attachments now open in a new tab, so you keep your place — thanks Xanthia.",
+    text: "On a computer, attachments now open in a new tab so you keep your place — thanks Xanthia.",
   },
 ];
 
