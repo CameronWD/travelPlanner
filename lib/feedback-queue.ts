@@ -131,7 +131,16 @@ export async function flushQueue(
       outcome = "transient";
     }
     if (outcome === "transient") break;
-    removeFromQueue(note.clientKey);
+
+    // `write` returns what is ACTUALLY persisted: on a storage failure
+    // (quota, private mode) it silently returns the unchanged queue. Trusting
+    // the removal there means announcing a discard that did not happen, so
+    // the next flush re-attempts the note, re-discards it, and re-toasts —
+    // every time, forever (FN-07). Treat an unpersisted removal like a
+    // transient failure: stop, keep the note, say nothing.
+    const after = removeFromQueue(note.clientKey);
+    if (after.some((q) => q.clientKey === note.clientKey)) break;
+
     if (outcome === "rejected") discarded.push(note);
     else sent++;
   }

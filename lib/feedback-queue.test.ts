@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   enqueue,
   flushQueue,
@@ -27,6 +27,14 @@ function note(overrides: Partial<QueuedFeedbackNote> = {}): QueuedFeedbackNote {
 
 beforeEach(() => {
   window.localStorage.clear();
+});
+
+// A test that mocks localStorage.setItem to throw can itself fail its
+// assertions (that's the point of a red test), which would otherwise skip
+// past its own mockRestore() and leak the throwing mock into the next test —
+// making it fail for the wrong reason. Restore unconditionally.
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe("readQueue", () => {
@@ -211,6 +219,61 @@ describe("flushQueue", () => {
     expect(result.discarded.map((n) => n.clientKey)).toEqual(["fk_bad"]);
     expect(result.discarded[0].body).toBe("Rejected forever");
     expect(result.sent).toBe(0);
+  });
+
+  it("stops rather than announcing a discard it could not make stick", async () => {
+    // FN-07: with storage full, removeFromQueue's write silently no-ops, so
+    // the note is still queued. Reporting it as discarded means the next
+    // flush re-attempts it, re-discards it, and re-toasts — forever.
+    enqueue(note({ clientKey: "fk_a" }));
+    const setItem = vi
+      .spyOn(window.localStorage.__proto__, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+
+    const result = await flushQueue(async () => "rejected");
+
+    expect(result.discarded).toEqual([]);
+    expect(result.sent).toBe(0);
+    // Still queued, because the removal never persisted.
+    expect(result.remaining).toBe(1);
+    expect(readQueue().map((n) => n.clientKey)).toEqual(["fk_a"]);
+
+    setItem.mockRestore();
+  });
+
+  it("still reports a discard when the removal really persisted", async () => {
+    enqueue(note({ clientKey: "fk_a" }));
+
+    const result = await flushQueue(async () => "rejected");
+
+    expect(result.discarded.map((n) => n.clientKey)).toEqual(["fk_a"]);
+    expect(result.remaining).toBe(0);
+    expect(readQueue()).toEqual([]);
+  });
+
+  it("does not repeat the discarded toast on a second flush while storage stays broken", async () => {
+    // FN-07's actual symptom: a single flush already misreports one discard,
+    // but the defect is that this repeats on EVERY subsequent flush because
+    // the note that should have blocked the loop was removed from memory
+    // (and re-read from the still-unwritten queue) instead of stopping it.
+    enqueue(note({ clientKey: "fk_a" }));
+    const setItem = vi
+      .spyOn(window.localStorage.__proto__, "setItem")
+      .mockImplementation(() => {
+        throw new Error("QuotaExceededError");
+      });
+
+    const first = await flushQueue(async () => "rejected");
+    const second = await flushQueue(async () => "rejected");
+
+    expect(first.discarded).toEqual([]);
+    expect(second.discarded).toEqual([]);
+    expect(second.remaining).toBe(1);
+    expect(readQueue().map((n) => n.clientKey)).toEqual(["fk_a"]);
+
+    setItem.mockRestore();
   });
 });
 
