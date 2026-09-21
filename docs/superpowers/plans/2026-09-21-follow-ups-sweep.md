@@ -27,13 +27,14 @@ Every task's requirements implicitly include this section.
 
 ### Shared-surface register — read this if your task is listed
 
-Two process lessons from `docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md` (`CD-17`, `CD-18`) say a plan must name where two tasks touch the same surface, because neither task's own reviewer can see the interaction. These are the four places in this plan:
+Two process lessons from `docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md` (`CD-17`, `CD-18`) say a plan must name where two tasks touch the same surface, because neither task's own reviewer can see the interaction. These are the five places in this plan:
 
 | File | Touched by | What the later task's reviewer must check |
 |---|---|---|
 | `components/trip/item-card.tsx` | Task 2 (adds a `forkId` prop) and Task 19 (drops a decorative `MapPin`) | Task 19 must not revert Task 2's `forkId` prop or its pass-through to `CostEditor`. |
 | `components/feedback/feedback-launcher.tsx` + `.test.tsx` | Task 8 (exports `DOCKED_FROM`, test hygiene) and Task 15 (`canDelete` contract, toast action, counter) | Task 15 must keep Task 8's new tests green — in particular Task 15 replaces `authorId` with `canDelete` on `FeedbackNoteView`, so Task 8's `existingNote` fixture changes shape under it. |
 | `app/(app)/account/page.tsx` (Task 22) vs `app/(app)/account/page.test.tsx` (Task 12) | Task 12 first, Task 22 second | Task 22 adds a `now` prop threaded from the page; Task 12's page-level tests render the real page, so Task 22 must re-run `app/(app)/account/page.test.tsx` and keep it green. |
+| `app/(app)/trips/[tripId]/budget/page.tsx` | Task 4 (widens the `searchParams` type and normalises `plan` via `firstSearchParam`) and Task 13 (passes `sum > 0 ? sum : null` into the aggregate `CostAmounts` call site) | Task 13 must confirm Task 4's `firstSearchParam` normalisation of the `plan` param is still intact — Task 13's own edit lands nearby but is unrelated, and must not revert or reorder it. |
 | `lib/validations/cost.ts` | Task 6 only (exports a shared schema) | No second toucher, but Tasks 2 and 13 read cost shapes — neither changes them. |
 
 ### "Who feeds this?" — the `forkId` thread
@@ -63,7 +64,7 @@ This is the test that matters: it proves a non-owner member can invoke `duplicat
     // HG-12. requireTripAccess proves MEMBERSHIP, not role: before the guard
     // existed, this member sailed straight through to db.trip.findUnique and
     // came out the other side owning a full copy of someone else's trip.
-    requireTripAccessMock.mockResolvedValue({
+    requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "user-2", email: "traveller@example.com" },
       membership: { userId: "user-2", role: "member" },
     });
@@ -79,10 +80,34 @@ This is the test that matters: it proves a non-owner member can invoke `duplicat
     expect(tripCreateMock).not.toHaveBeenCalled();
     expect(memberCreateMock).not.toHaveBeenCalled();
   });
+```
+
+Then fix the **existing** happy-path test in the same block so it still describes a legal call — and switch it to `mockResolvedValueOnce` while you're there. `vi.clearAllMocks()` (`server/actions/trips.test.ts:153`) does not reset implementations set with `mockResolvedValue`, only call history, so a bare `mockResolvedValue` left set is a base implementation that outlives its own test and leaks into whatever `describe` block runs next. Change its first line from:
+
+```ts
+    requireTripAccessMock.mockResolvedValue({ user: { id: "user-1" }, membership: { role: "member" } });
+```
+
+to:
+
+```ts
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-1", email: "you@example.com" },
+      membership: { userId: "user-1", role: "owner" },
+    });
+```
+
+Now add the two `ADMIN_EMAILS` tests in a **separate** block, mirroring `describe("deleteTrip — admin override", ...)` (`server/actions/trips.test.ts:633`) exactly — same file, same problem, already solved there: a scoped `afterEach` that deletes `ADMIN_EMAILS` and `mockResolvedValueOnce` on every call, so nothing outlives its own test. Add this immediately after the `describe("duplicateTrip", ...)` block's closing `});`, before `describe("setChaptersEnabled", ...)`:
+
+```ts
+describe("duplicateTrip — admin override", () => {
+  afterEach(() => {
+    delete process.env.ADMIN_EMAILS;
+  });
 
   it("lets a non-owner member duplicate when their email is in ADMIN_EMAILS (ADR 0045)", async () => {
     process.env.ADMIN_EMAILS = "admin@example.com";
-    requireTripAccessMock.mockResolvedValue({
+    requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "u-admin", email: "admin@example.com" },
       membership: { userId: "u-admin", role: "member" },
     });
@@ -97,7 +122,6 @@ This is the test that matters: it proves a non-owner member can invoke `duplicat
     const result = await duplicateTrip("src", "Admin copy");
 
     expect(result).toEqual({ success: true, tripId: "new" });
-    delete process.env.ADMIN_EMAILS;
   });
 
   it("still requires membership — an admin gets no bypass of requireTripAccess", async () => {
@@ -106,30 +130,17 @@ This is the test that matters: it proves a non-owner member can invoke `duplicat
 
     await expect(duplicateTrip("someone_elses", "x")).rejects.toThrow("NEXT_NOT_FOUND");
     expect(tripCreateMock).not.toHaveBeenCalled();
-    delete process.env.ADMIN_EMAILS;
   });
+});
 ```
 
-Then fix the **existing** happy-path test in the same block so it still describes a legal call. `vi.clearAllMocks()` does not reset implementations set with `mockResolvedValue`, and that test currently asserts a *member* can duplicate — which is the bug. Change its first line from:
-
-```ts
-    requireTripAccessMock.mockResolvedValue({ user: { id: "user-1" }, membership: { role: "member" } });
-```
-
-to:
-
-```ts
-    requireTripAccessMock.mockResolvedValue({
-      user: { id: "user-1", email: "you@example.com" },
-      membership: { userId: "user-1", role: "owner" },
-    });
-```
+The scoped `afterEach` replaces both tests' trailing `delete process.env.ADMIN_EMAILS;` from the source item — do not keep a manual `delete` inside either test body as well.
 
 - [ ] **Step 2: Run the tests and watch the right one fail**
 
 Run: `TZ=UTC npx vitest run server/actions/trips.test.ts -t duplicateTrip`
 
-Expected: `"refuses a non-owner member — a Traveller cannot mint themselves a copy"` FAILS, because `duplicateTrip` returns `{ success: true, tripId: ... }` (or throws on the unmocked `db.trip.findUnique`) instead of the refusal. That failure is the vulnerability. The other three should pass already.
+Expected: `"refuses a non-owner member — a Traveller cannot mint themselves a copy"` FAILS, because `duplicateTrip` returns `{ success: true, tripId: ... }` (or throws on the unmocked `db.trip.findUnique`) instead of the refusal. That failure is the vulnerability. The other tests, across both `duplicateTrip` describe blocks, should pass already.
 
 - [ ] **Step 3: Add the guard**
 
@@ -216,7 +227,7 @@ Add to `components/trip/cost-editor.test.tsx`, inside the existing `describe("Co
     render(<CostEditor {...baseProps} forkId="fork-9" />);
 
     await user.click(screen.getByRole("button", { name: /add cost/i }));
-    await user.type(screen.getByLabelText(/^cost$/i), "12.50");
+    await user.type(screen.getByLabelText("Cost amount"), "12.50");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(createCost).toHaveBeenCalledWith(
@@ -231,7 +242,7 @@ Add to `components/trip/cost-editor.test.tsx`, inside the existing `describe("Co
     render(<CostEditor {...baseProps} />);
 
     await user.click(screen.getByRole("button", { name: /add cost/i }));
-    await user.type(screen.getByLabelText(/^cost$/i), "12.50");
+    await user.type(screen.getByLabelText("Cost amount"), "12.50");
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     expect(createCost).toHaveBeenCalledWith(
@@ -242,7 +253,7 @@ Add to `components/trip/cost-editor.test.tsx`, inside the existing `describe("Co
   });
 ```
 
-If the label/button queries above do not match, copy the exact interaction sequence from the existing `"add flow: cost only -> createCost called with costMinor: 1250..."` test at `components/trip/cost-editor.test.tsx:55` — reuse its queries verbatim rather than inventing new ones, and keep the two new assertions.
+`"Cost amount"` is the exact live label (`components/trip/cost-editor.test.tsx:62`) — if the button queries above still do not match, copy the exact interaction sequence from the existing `"add flow: cost only -> createCost called with costMinor: 1250..."` test at `components/trip/cost-editor.test.tsx:55` and keep the two new assertions.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -936,17 +947,54 @@ FN-11 — the delete path, inside the main `describe("FeedbackLauncher", ...)`. 
   });
 ```
 
-FP-11 — the stub must honour its query. First change `stubViewport` itself so it can fail: replace its `(() => mql)` implementation so it returns a **non-matching** list for any query other than the real `DOCKED_FROM`, and import the real constant instead of the local copy at line 43:
+FP-11 — the stub must honour its query. First extract the MediaQueryList into a named factory. There is no existing named factory to reuse: `stubViewport`'s `mql` (`:75-92`) is an inline object literal, and `listenerCount()` belongs to the *control* object `stubViewport` returns (`:97-106`), not to the MQL itself. Pull the object literal out into:
 
 ```ts
-import { FeedbackLauncher, DOCKED_FROM } from "@/components/feedback/feedback-launcher";
+function makeMql(matches: boolean, media: string) {
+  const listeners = new Set<(event: { matches: boolean }) => void>();
+  let current = matches;
+  return {
+    get matches() {
+      return current;
+    },
+    media,
+    // Same surface as test/setup.ts's default matchMedia stub (onchange,
+    // addListener/removeListener, dispatchEvent) — this replaces that stub in
+    // this file's beforeEach for every test, including the Radix sheet
+    // renders that never call stubViewport, so it must not be thinner.
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: (
+      event: string,
+      cb: (event: { matches: boolean }) => void,
+    ) => {
+      if (event === "change") listeners.add(cb);
+    },
+    removeEventListener: (
+      event: string,
+      cb: (event: { matches: boolean }) => void,
+    ) => {
+      if (event === "change") listeners.delete(cb);
+    },
+    dispatchEvent: vi.fn(),
+    setMatches(next: boolean) {
+      current = next;
+      listeners.forEach((cb) => cb({ matches: next }));
+    },
+    /** How many `change` listeners are currently registered — proves cleanup ran. */
+    listenerCount() {
+      return listeners.size;
+    },
+  };
+}
 ```
 
-(delete the local `const DOCKED_FROM = "(min-width: 768px)";` at line 43 and its comment — the whole point is to stop duplicating the literal).
-
-Inside `stubViewport`, replace the `window.matchMedia` stub with:
+Rewrite `stubViewport` to build both its lists from `makeMql` and return the docked one directly — it now carries `setMatches`/`listenerCount` itself, so every existing call site in this file (`viewport.setMatches(...)`, `viewport.listenerCount()`) keeps working unchanged:
 
 ```ts
+function stubViewport(dockedFromMd: boolean) {
+  const mql = makeMql(dockedFromMd, DOCKED_FROM);
   const nonMatching = makeMql(false, "");
   vi.stubGlobal(
     "matchMedia",
@@ -958,9 +1006,17 @@ Inside `stubViewport`, replace the `window.matchMedia` stub with:
       return query === DOCKED_FROM ? mql : nonMatching;
     }),
   );
+  return mql;
+}
 ```
 
-where `makeMql` is whatever the file's existing MediaQueryList factory is called (the function containing `listenerCount()` at `:100-107`); if it is inline rather than named, extract it to a named local first and use it for both lists. Then add:
+Also import the real constant instead of the local copy at line 43:
+
+```ts
+import { FeedbackLauncher, DOCKED_FROM } from "@/components/feedback/feedback-launcher";
+```
+
+(delete the local `const DOCKED_FROM = "(min-width: 768px)";` at line 43 and its comment — the whole point is to stop duplicating the literal). Then add:
 
 ```ts
   it("reads the docked breakpoint the sheet actually uses", () => {
@@ -970,11 +1026,14 @@ where `makeMql` is whatever the file's existing MediaQueryList factory is called
     expect(DOCKED_FROM).toBe("(min-width: 768px)");
   });
 
-  it("is not docked when the panel asks for a breakpoint the viewport does not match", () => {
-    const viewport = stubViewport(false);
-    expect(window.matchMedia(DOCKED_FROM).matches).toBe(false);
+  it("asks matchMedia for the exact query it was given, not a fixed answer", () => {
+    // FP-11: stubViewport used to hand back the same MediaQueryList for every
+    // query — `(() => mql)` — so a typo in DOCKED_FROM, or drift from
+    // sheet.tsx's `md:` classes, would still pass every test. This pair only
+    // passes once the query is actually honoured.
+    stubViewport(true);
+    expect(window.matchMedia(DOCKED_FROM).matches).toBe(true);
     expect(window.matchMedia("(min-width: 9999px)").matches).toBe(false);
-    expect(viewport).toBeDefined();
   });
 ```
 
@@ -988,25 +1047,38 @@ FP-10 — make the cache reset structural rather than accidental. In the file's 
   vi.stubGlobal("matchMedia", vi.fn(() => makeMql(false, "")));
 ```
 
-and add a test that pins it:
+and add a test that pins it. It must actually render `FeedbackLauncher` and open the panel — that is what calls `getDockedMql()` and populates the module-level cache (`feedback-launcher.tsx:90-91`). Calling `window.matchMedia` directly, as the version below replaces, never reaches that cache at all: two different stub factories always return different objects, so `not.toBe` would hold even with the cache-invalidation check deleted entirely.
 
 ```ts
-  it("does not carry a cached media list between tests", () => {
-    // The cache lives at module scope (cachedMatchMediaFn / cachedDockedMql).
-    // Keying it on the matchMedia function reference is what makes a fresh
-    // stub per test sufficient — if that ever changes, this fails.
-    const first = window.matchMedia(DOCKED_FROM);
+  it("does not carry a cached media list between tests", async () => {
+    // The cache lives at module scope (cachedMatchMediaFn / cachedDockedMql)
+    // and is invalidated by comparing the *current* window.matchMedia
+    // reference against the one last cached. Only the real component reaches
+    // that comparison, via getDockedMql() — so render through it rather than
+    // calling window.matchMedia directly.
+    const user = userEvent.setup();
+    const firstMatchMedia = window.matchMedia as ReturnType<typeof vi.fn>;
+    const { unmount } = render(<FeedbackLauncher />);
+    await user.click(screen.getByRole("button", { name: /feedback/i }));
+    expect(firstMatchMedia).toHaveBeenCalledWith(DOCKED_FROM);
+    unmount();
+
     stubViewport(true);
-    const second = window.matchMedia(DOCKED_FROM);
-    expect(second).not.toBe(first);
-    expect(second.matches).toBe(true);
+    const secondMatchMedia = window.matchMedia as ReturnType<typeof vi.fn>;
+    render(<FeedbackLauncher />);
+    await user.click(screen.getByRole("button", { name: /feedback/i }));
+    // If the module-level cache had survived the swap to a new matchMedia
+    // function reference, this second call would never happen — the
+    // component would keep reading the first render's stale MediaQueryList.
+    expect(secondMatchMedia).toHaveBeenCalledWith(DOCKED_FROM);
+    expect(secondMatchMedia).not.toBe(firstMatchMedia);
   });
 ```
 
 - [ ] **Step 2: Run the tests to verify the right ones fail**
 
 Run: `TZ=UTC npx vitest run components/feedback/feedback-launcher.test.tsx`
-Expected: `"deletes a note you wrote and drops it from the log"` FAILS first (nothing has ever pressed that button, so any wiring gap surfaces here), and the import of `DOCKED_FROM` FAILS until step 3. The two viewport tests fail until `stubViewport` honours the query.
+Expected: `"deletes a note you wrote and drops it from the log"` FAILS first (nothing has ever pressed that button, so any wiring gap surfaces here). Until Step 3 exports the real constant, the imported `DOCKED_FROM` is `undefined`, so `"reads the docked breakpoint the sheet actually uses"` fails on that alone — an import-shape failure, not evidence about `stubViewport`. Don't read anything into the query-honouring test's result at this point either way; re-run after Step 3 (Step 4) to see `"asks matchMedia for the exact query it was given, not a fixed answer"` pass or fail for the real reason.
 
 - [ ] **Step 3: Export `DOCKED_FROM`**
 
@@ -1027,11 +1099,20 @@ Leave the surrounding docblock as it is. **Do not change any other line of `feed
 Run: `TZ=UTC npx vitest run components/feedback/feedback-launcher.test.tsx`
 Expected: PASS, whole file. If the delete test fails because the list does not re-render after a successful delete, that is a real defect in `handleDelete` (`feedback-launcher.tsx:446`) — fix it, and say so in the commit body.
 
-- [ ] **Step 5: Full suite and lint**
+- [ ] **Step 5: Prove each new test has teeth**
+
+A coverage test that cannot fail is the defect this item is about, so verify each one the only way available. Not committed, one at a time — then revert and confirm green again before moving to the next:
+- FN-11: in `handleDelete` (`feedback-launcher.tsx:446`), comment out the state update that drops the deleted note from the log. Re-run the file; `"deletes a note you wrote and drops it from the log"` must fail on the `waitFor` assertion.
+- FP-11: in `stubViewport`, revert the query-aware `matchMedia` stub back to `vi.fn(() => mql)` — ignoring the query, as before this task. Re-run; `"asks matchMedia for the exact query it was given, not a fixed answer"` must fail (the second assertion comes back `true`).
+- FP-10: in `getDockedMql` (`feedback-launcher.tsx:99`), change the cache-invalidation check from `window.matchMedia !== cachedMatchMediaFn` to `!cachedDockedMql` — cache forever once populated, regardless of which `matchMedia` is current. Re-run; `"does not carry a cached media list between tests"` must fail on the second `toHaveBeenCalledWith` assertion.
+
+Confirm with `git status` that `feedback-launcher.tsx` shows only the Step 3 `export` change before committing.
+
+- [ ] **Step 6: Full suite and lint**
 
 Run: `npm test` then `npm run lint`. Both green.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add components/feedback/feedback-launcher.tsx components/feedback/feedback-launcher.test.tsx
@@ -1226,7 +1307,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ### Task 10: assert the access guard runs before the write in five action tests (CD-01, P2)
 
-`server/actions/chapters.test.ts`, `stops.test.ts`, `firm-up-trip.test.ts`, `cover.test.ts` and `activity.test.ts` each mock `requireTripAccess` but none imports or calls `expectAccessCheckedBeforeWrite`; eleven other action test files do. **This is not a live vulnerability** — the production actions all guard correctly. It is the coverage hole that would let a guard silently move below its write. Add the assertion to the five files. No new infrastructure.
+`server/actions/chapters.test.ts`, `stops.test.ts`, `firm-up-trip.test.ts`, `cover.test.ts` and `activity.test.ts` each mock `requireTripAccess` but none imports or calls `expectAccessCheckedBeforeWrite`; eighteen other action test files do. **This is not a live vulnerability** — the production actions all guard correctly. It is the coverage hole that would let a guard silently move below its write. Add the assertion to the five files. No new infrastructure.
 
 **Files:**
 - Test: `server/actions/chapters.test.ts`
@@ -1318,7 +1399,7 @@ Expected: PASS. These pin behaviour that is already correct, so passing immediat
 
 A coverage test that cannot fail is the defect this item is about, so verify each one the only way available. For **one file at a time**: in the production action, temporarily move the `await requireTripAccess(...)` call to *after* the write (or comment it out), re-run only that file, and confirm the new test FAILS with the helper's `expected the access guard to run before the write` message. Then `git checkout -- <the production file>` and re-run to confirm it is green again.
 
-The five production files are `server/actions/chapters.ts`, `server/actions/stops.ts` (which also holds `firmUpTrip`), `server/actions/cover.ts`, `server/actions/activity.ts`. **Nothing from this step gets committed** — verify with `git status` that only the five `*.test.ts` files are modified before committing.
+The four production files are `server/actions/chapters.ts`, `server/actions/stops.ts` (which also holds `firmUpTrip`, at `:864`), `server/actions/cover.ts`, `server/actions/activity.ts`. **Nothing from this step gets committed** — verify with `git status` that only the five `*.test.ts` files are modified before committing.
 
 - [ ] **Step 4: Full suite and lint**
 
@@ -1330,7 +1411,7 @@ Run: `npm test` then `npm run lint`. Both green.
 git add server/actions/chapters.test.ts server/actions/stops.test.ts server/actions/firm-up-trip.test.ts server/actions/cover.test.ts server/actions/activity.test.ts
 git commit -m "test(actions): assert the guard runs before the write in five more files
 
-Eleven action test files already used expectAccessCheckedBeforeWrite; these
+Eighteen action test files already used expectAccessCheckedBeforeWrite; these
 five mocked requireTripAccess without ever asserting its ordering.
 
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
@@ -1578,6 +1659,8 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 **Files:**
 - Modify: `components/trip/cost-amounts.tsx:9-18` (prop type) and `:33`, `:38` (the two gates)
+- Modify: `app/(app)/trips/[tripId]/budget/page.tsx` (Step 5 — the aggregate `CostAmounts` call site(s) on this page). Task 4 touches this same file first — see the shared-surface register.
+- Modify: `app/(app)/trips/[tripId]/summary/page.tsx` (Step 5 — the aggregate `CostAmounts` call site(s) on this page)
 - Test: `components/trip/cost-amounts.test.tsx`
 
 **Interfaces:**
@@ -1770,7 +1853,11 @@ Expected: FAIL — `toInboxNote is not a function`.
 
 - [ ] **Step 3: Extract the mapper into `lib/feedback-inbox.ts`**
 
-Add below the `InboxNote` type, importing `FEEDBACK_STATUSES` alongside the existing `FeedbackStatus` import from `@/lib/enums`:
+Add below the `InboxNote` type. `lib/feedback-inbox.ts:1` currently has `import type { FeedbackStatus } from "@/lib/enums";` — a value cannot join a type-only import, so change that line to a regular import that still keeps `FeedbackStatus` as a type:
+
+```ts
+import { FEEDBACK_STATUSES, type FeedbackStatus } from "@/lib/enums";
+```
 
 ```ts
 /** The Prisma selection `scripts/feedback-pull.ts` reads. */
@@ -1880,7 +1967,7 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 ### Task 15: Feedback panel — the `canDelete` contract and three UI corrections (FN-04, FN-08, FN-09, FP-09, FP-12, P3)
 
-Five items in the Feedback panel. **Task 8 already edited both of these files** — read the shared-surface register before starting, and re-run Task 8's tests at the end.
+Five items in the Feedback panel, bundled into one task because they land in the same file, not because they depend on each other. Only `FN-04` genuinely spans two files — the server action and the client both change; `FN-08` and `FN-09` are independent UI fixes, and `FP-09`/`FP-12` are comment-only. What actually forces the bundle is this plan's own one-task-one-file grouping rule (see **Architecture** at the top): all five touch `components/feedback/feedback-launcher.tsx`. **Task 8 already edited both of these files** — read the shared-surface register before starting, and re-run Task 8's tests at the end.
 
 - **FN-04** — `FeedbackNoteView` still carries `authorId: string` (`server/actions/feedback.ts:24`), whose only client use is `canDelete: currentUserId !== undefined && entry.note.authorId === currentUserId` (`feedback-launcher.tsx:591-593`). More consequential than when it was filed: since ADR 0046, an Admin's client now receives other Travellers' real `authorId`s alongside their notes.
 - **FN-08** — the discarded-note toast (`feedback-launcher.tsx:332-337`) shows `result.discarded[0].body.slice(0, 120)` as plain text, with no way to get the words back. `bodyRef`/`setBody` are right there and unwired.
@@ -2364,6 +2451,8 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 ---
 
 ### Task 18: give the Compare table clearance from the desktop toast (FP-07, P3)
+
+> **Trade-off — get the operator's sign-off before building this.** The backlog's own note on `FP-07` calls the overlap "transient and readable once the toast clears" (`docs/open-follow-ups.md:485`). The fix below trades that away for a permanent `md:mb-24` dead band under the Compare table on every desktop view, toast showing or not — a few seconds of occasional overlap, sometimes, for a 6rem gap, always. **Stop before Step 3 and ask the operator whether that trade is wanted**, rather than assuming it is; do not change the fix itself and do not skip this task on your own judgement.
 
 `components/trip/compare-table.tsx:477` puts the row-label column in a `sticky left-0 z-10` header cell, and desktop toasts sit bottom-left. The overlap is geometric: a toast covers the frozen label column. **Do not move the toast.** `components/ui/toaster.tsx:21-30` carries an explicit instruction not to change the desktop corner — the swipe direction is tuned for the mobile viewport where swiping actually happens, and re-cornering it would point the gesture the wrong way there. The note on this item also records the overlap as transient and readable once the toast clears, so keep the fix to clearance on the Compare side and nothing more.
 
@@ -3248,6 +3337,8 @@ In `docs/open-follow-ups.md`, move each of these entries out of *Open items* and
 
 `CP-17` and `OPS-05` are the same defect and close on the same commit; so are `HG-02` and `HG-10`. Strike both of each pair, citing the one commit.
 
+When striking `CP-17`/`OPS-05`, note that the fix changed the **component's contract**, not what either page currently renders: `CostAmounts`'s `paidTotalMinor` prop now admits `null`, but Task 13's Step 5 makes every one of the 8 aggregate call sites on the Budget and Summary pages pass `sum > 0 ? sum : null`, reproducing today's `—` placeholder exactly wherever the aggregate is zero. The fix is real and closes both items, but do not describe it as a visible change on either page today — it protects the next caller with a genuine zero-but-paid value, which nothing currently supplies.
+
 - [ ] **Step 4: Leave these two where they are, with a note**
 
 `FN-05` and `CD-16` stay in *Open items*. Append one line to each, so the next reader knows they were considered and deliberately not built:
@@ -3263,7 +3354,13 @@ Also update the sentence at `docs/open-follow-ups.md:117` — `42 items, every o
 
 - [ ] **Step 6: Check the arithmetic**
 
-Run: `grep -c "^### " docs/open-follow-ups.md` and reconcile against the table by hand. The triage's own bookkeeping correction (a header count one short of its entries) is exactly the mistake to avoid repeating here.
+`grep -c "^### "` alone over the whole file overcounts: besides the *Open items* entries it also matches the five `### CD-0N` headings under *Needs a decision* (out of this plan's scope entirely) and the two `### ⚠ HG-0N` headings under *Still genuinely blocked* — none of those three sections is what you just edited. Scope the count to item headings inside *Open items* only:
+
+```bash
+awk '/^# Needs a decision/{exit} /^### [A-Z]+-[0-9]/{c++} END{print c}' docs/open-follow-ups.md
+```
+
+Run it now, after Step 3's edits: it must return **2** — `FN-05` and `CD-16`, the only two *Open items* headings left — matching the `Live — still open` row Step 5 just set to 2. (Run against the file before Step 3's edits, for your own sanity-check of the command, it returns **41, not 42**: `HG-02 / HG-10` is one heading carrying two IDs, so the heading count is one short of the item count by construction — that is the correction to make by hand, not a bug to chase.) If the post-edit run returns anything other than 2, an item was struck from the wrong section or left behind; find and fix it before committing.
 
 - [ ] **Step 7: Re-run the suite**
 
@@ -3317,7 +3414,7 @@ Run against `docs/open-follow-ups.md`'s *Open items* sections with fresh eyes.
 
 **4. Type and name consistency.** Names introduced in one task and used in another are consistent: `firstSearchParam` (Task 4, used only there), `paidAtDateOnlySchema` (Task 6), `guideLabelOnScreen` (Task 9), `toInboxNote`/`FeedbackNoteRow` (Task 14), `DOCKED_FROM` (produced Task 8, consumed Task 15), `canDelete` (Task 15), `overlayClassName`/`tp-fade-in-sheet` (Task 17), `DispatcherHealthData`/`now` (Task 22), `subscriptionCoreFields` (Task 24). `expectAccessCheckedBeforeWrite` is referenced by exact name in Task 10 and is stated to already exist at `test/helpers/access-order.ts`.
 
-**5. Cross-task interaction.** Four shared surfaces are named in the register at the top, each with the specific thing the later task's reviewer must check — the `CD-18` lesson applied. The one value threaded across task boundaries, `forkId`, has an explicit "who feeds this?" note naming its existing source — the `CD-17` lesson applied.
+**5. Cross-task interaction.** Five shared surfaces are named in the register at the top, each with the specific thing the later task's reviewer must check — the `CD-18` lesson applied. The one value threaded across task boundaries, `forkId`, has an explicit "who feeds this?" note naming its existing source — the `CD-17` lesson applied.
 
 **6. Empirical checks done while writing, so the plan does not prescribe something broken.** Task 9's whole-phrase matcher was run against the real `components/` and `app/` tree: exactly one label (`"Editing variant"`) newly fails and exactly one (`"Booking reference"`) is shadowed, both reconciled in the task. Task 19's `svg.lucide-map-pin` selector was verified against the installed `lucide-react`. Task 17's `overlayClassName` conflict resolution relies on `lib/cn.ts` being `twMerge(clsx(...))`, which it is.
 
