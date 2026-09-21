@@ -5,12 +5,16 @@ import * as React from "react";
 /**
  * Expand all / Collapse all for the guide's <details> sections.
  *
- * Deliberately the ONLY client component in the guide. It holds no disclosure
- * state of its own — it toggles the `open` attribute on the already-rendered
- * <details> elements — so help-guide.tsx stays a server component, browser
- * find-in-page still reaches collapsed text, and the guard in
- * help-guide.test.tsx ("uses no client-side disclosure state") still holds:
- * this adds no <details> and no accordion dependency.
+ * Holds no client-side DISCLOSURE state — it toggles the `open` attribute on
+ * the already-rendered <details> elements — so help-guide.tsx stays a server
+ * component, browser find-in-page still reaches collapsed text, and the guard
+ * in help-guide.test.tsx ("uses no client-side disclosure state") still
+ * holds: this adds no <details> and no accordion dependency.
+ *
+ * (This used to claim to be the only client component in the guide. That
+ * stopped being true when help-hash-open.tsx arrived; the property actually
+ * worth protecting is the one stated above, and it still holds — see the
+ * "uses no client-side disclosure state" guard in help-guide.test.tsx.)
  *
  * Hidden from print, where HELP_PRINT_STYLE already forces everything open.
  */
