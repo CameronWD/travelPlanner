@@ -219,14 +219,14 @@ scratch report was one short of its own entries); no item's verdict changed.
 7. **Read the *Settled* section before proposing anything.** Several entries
    there are instructions *not* to make a change that looks like an improvement.
 
-### Four process lessons, carried forward
+### Five process lessons, carried forward
 
 The first two come from
 `docs/follow-ups/2026-09-20-changeover-day-and-digest-follow-ups.md` (items
 `CD-17` and `CD-18` in the triage); the third was learned the hard way during
-the 2026-09-21 sweep, and the fourth during the 2026-09-21 close-out. None is a
-backlog item — they are plan-authoring guidance, and they belong in the next
-plan you write, not in the list below.
+the 2026-09-21 sweep, and the fourth and fifth during the 2026-09-21
+close-out. None is a backlog item — they are plan-authoring guidance, and they
+belong in the next plan you write, not in the list below.
 
 - **A parameter can be born dead across task boundaries.** A plan once
   specified `timezone` on a server action and on the `POST` schema it backs, but
@@ -267,6 +267,17 @@ plan you write, not in the list below.
   running the suite*, not by re-reading the prose. Reading an entry again only
   tells you what it says. A backlog entry's verdict has always been the part
   you could trust; after today, its reasoning is not.
+- **`npx tsc --noEmit` is not sufficient either — `next build` is the only gate
+  that enforces the `"use server"` async-export rule.** The close-out exported
+  a pure mapper (`toView`) from `server/actions/feedback.ts` so a test could
+  call it. Next requires every *value* export from a `"use server"` module to
+  be an async function, and nothing else models that directive: `tsc` does not,
+  vitest imports the module directly, ESLint has no rule for it. The branch
+  carried an unbuildable tree through **thirteen tasks and a final review**
+  before a build was run. The third lesson above makes `npx tsc --noEmit` a
+  per-task gate; that is necessary and not enough. A plan that defers
+  `next build` must say which tasks touch a `"use server"` or client/server
+  boundary and gate *those* on a build, not only the last task.
 
 ### Deferred minors from the 2026-09-21 sweep — all four now resolved
 

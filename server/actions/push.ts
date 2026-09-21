@@ -174,13 +174,14 @@ export type HealRotatedResult =
  * live endpoint as the target and, with no matching old endpoint, walk
  * straight into the register path below. So the register path checks
  * ownership of `input.endpoint` as well, and refuses rather than reassigns
- * when a row is already there and it isn't ours — the same posture as
- * `reconcileDevice`, and deliberately the opposite of `subscribeToPush`'s
- * asymmetry: `subscribeToPush` runs from a Traveller physically pressing
- * Enable on the machine in front of them, so re-pointing a row at whoever is
- * signed in now is the correct read of a shared computer changing hands. This
- * function runs from a service worker posting a body with no such guarantee,
- * so it takes the stricter, `reconcileDevice` reading instead.
+ * when a row is already there and it isn't ours.
+ *
+ * That is now the rule everywhere rather than this function's own strictness:
+ * ADR 0053 closed the asymmetry, and `subscribeToPush` (two screens above)
+ * and `reconcileDevice` refuse a row they do not own exactly as this does. A
+ * shared computer changing hands is handled in the browser instead — the
+ * client unsubscribes and re-subscribes to mint a fresh endpoint, so nothing
+ * on the server ever reassigns one.
  */
 export async function healRotatedSubscription(
   input: HealRotatedInput,

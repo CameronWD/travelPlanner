@@ -80,9 +80,9 @@ Device.
   ADR 0048's "never silently dropped" concerns the app dropping a Device on
   its own; here the browser genuinely revoked the subscription.
 - **`reconcileDevice` is now the rule rather than the exception.** The
-  asymmetry `server/actions/devices.ts` carried a comment to explain — one
-  action refusing to touch rows it does not own while its neighbour
-  reassigned freely — is gone. Both now refuse.
+  asymmetry `healRotatedSubscription` (`server/actions/push.ts`) carried a
+  comment to explain — one action refusing to touch rows it does not own while
+  its neighbour reassigned freely — is gone. Both now refuse.
 - **A conflict is a state the client must handle, so the client is part of
   this fix.** A server-only change would close the hole and leave the shared
   machine broken, which is option (a) by another name. Landing one without the

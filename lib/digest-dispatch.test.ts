@@ -256,6 +256,22 @@ describe("dispatchDigest", () => {
 
     expect(result).toEqual({ sent: 0, skipped: true, reason: "already-sent" });
     expect(digestDispatchCreateMock).not.toHaveBeenCalled();
+
+    // The shape of the lookup is the decision, not just its outcome (ADR
+    // 0054). The cooldown is keyed on (user, trip, slot) + a `createdAt`
+    // window and deliberately does NOT carry `localDate`: the whole point is
+    // that a traveller who crosses a date line mid-day gets one Digest per
+    // slot, and adding `localDate` back would let the new local date look
+    // like a fresh, unclaimed slot — which is the ledger key's behaviour, and
+    // exactly what this query exists to sit in front of.
+    const where = digestDispatchFindFirstMock.mock.calls[0][0].where;
+    expect(where).toEqual({
+      userId: "u1",
+      tripId: "t1",
+      slot: "EVENING",
+      createdAt: { gt: expect.any(Date) },
+    });
+    expect(where).not.toHaveProperty("localDate");
   });
 
   it("claims when no recent dispatch exists", async () => {
