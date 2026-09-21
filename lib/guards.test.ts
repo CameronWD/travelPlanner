@@ -17,6 +17,8 @@ const { authMock, findManyMock, forkFindUniqueMock, notFoundMock, redirectMock, 
     cacheStore: new Map<string, unknown>(),
   }));
 
+const cacheWrapped = vi.hoisted(() => [] as unknown[]);
+
 vi.mock("@/lib/auth", () => ({ auth: authMock }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -52,13 +54,18 @@ vi.mock("react", async (importOriginal) => {
   return {
     ...actual,
     cache:
-      <Args extends unknown[], R>(fn: (...args: Args) => R) =>
-      (...args: Args): R => {
-        const key = JSON.stringify(args);
-        if (!cacheStore.has(key)) {
-          cacheStore.set(key, fn(...args));
-        }
-        return cacheStore.get(key) as R;
+      <Args extends unknown[], R>(fn: (...args: Args) => R) => {
+        const wrapped = (...args: Args): R => {
+          const key = JSON.stringify(args);
+          if (!cacheStore.has(key)) {
+            cacheStore.set(key, fn(...args));
+          }
+          return cacheStore.get(key) as R;
+        };
+        // CD-11: recorded so a test can assert requireTripAccess IS this
+        // value, not merely that it behaves memoised through this stub.
+        cacheWrapped.push(wrapped);
+        return wrapped;
       },
   };
 });
@@ -130,6 +137,25 @@ describe("requireTripAccess", () => {
     await expect(requireTripAccess("trip2")).rejects.toThrow("NEXT_NOT_FOUND");
 
     expect(findManyMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("requireTripAccess is structurally cached", () => {
+  it("is literally the value cache() returned, not merely memoised-looking", () => {
+    // Every other test in this file exercises memoisation THROUGH the
+    // hand-rolled cache() stub, so a bug in the stub would hide a
+    // requireTripAccess that is no longer wrapped at all. This is the one
+    // assertion that survives that (CD-11).
+    expect(
+      cacheWrapped.includes(requireTripAccess),
+      "requireTripAccess is not a cache() return value — the cache() wrapper was removed from lib/guards.ts",
+    ).toBe(true);
+  });
+
+  it("wraps exactly the guards this file expects", () => {
+    // If a second cache() call appears in lib/guards.ts, it is new behaviour
+    // and wants its own test rather than silently joining this one.
+    expect(cacheWrapped).toHaveLength(1);
   });
 });
 
