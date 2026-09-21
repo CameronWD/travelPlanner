@@ -38,8 +38,11 @@ import {
   createFeedbackNote,
   deleteFeedbackNote,
   listFeedbackNotes,
-  toView,
 } from "@/server/actions/feedback";
+// Not from the action module: `toView` is a plain function, and a `"use
+// server"` module may only export async ones. Exporting it from there for
+// this test's benefit is what broke `next build`.
+import { toView } from "@/lib/feedback-view";
 
 const author = { id: "u1", name: "Cam" };
 
