@@ -1167,7 +1167,7 @@ git commit -m "feat(whats-new): dismiss action marks the release read"
 - Create: `components/whats-new/whats-new-card.test.tsx`
 
 **Interfaces:**
-- Consumes: `ReleaseNote`, `releaseNoteDate` from `@/lib/release-notes` (Task 4); `dismissWhatsNew` from `@/server/actions/release-notes` (Task 6).
+- Consumes: `ReleaseNote` (the type only) from `@/lib/release-notes` (Task 4); `dismissWhatsNew` from `@/server/actions/release-notes` (Task 6). **Not** `releaseNoteDate` — the card is a flat list of at most three lines, deliberately undated. Date grouping belongs to Task 9's full-history page, where a reader is scanning history rather than being handed a teaser.
 - Produces: `WhatsNewCard({ notes, totalUnread }: { notes: ReleaseNote[]; totalUnread: number })` from `@/components/whats-new/whats-new-card`. Task 8 mounts it.
 
 `notes` arrives already filtered to unread and already capped — the card does no filtering of its own.
@@ -1511,20 +1511,25 @@ In `app/(app)/trips/page.tsx`, add to the imports:
 import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
 ```
 
-and replace line 102:
+and mount it **after** the page header, not before it. The card's title is an
+`<h2>`, and this page's `<h1>Your trips</h1>` lives inside the header block — so
+mounting above the header would put an `h2` ahead of the page's only `h1` and
+break the heading order for a screen reader. Placing it between the header and
+the grid keeps `h1 → h2` correct and still puts the card above the content,
+which is where a Traveller arriving on the page will meet it.
+
+Replace:
 
 ```tsx
-    <div className="space-y-8">
-      {/* Page header */}
+      {/* Trips grid / empty state */}
 ```
 
 with:
 
 ```tsx
-    <div className="space-y-8">
       <WhatsNewBanner />
 
-      {/* Page header */}
+      {/* Trips grid / empty state */}
 ```
 
 - [ ] **Step 6: Mount it on Trip Home**
