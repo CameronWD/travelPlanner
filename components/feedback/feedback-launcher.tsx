@@ -72,7 +72,7 @@ const DELETE_FAILED = "Couldn't remove that feedback just yet.";
  * The breakpoint the docked panel changes shape at — it must stay in step with
  * the `docked` sheet variant's `md:` styles in components/ui/sheet.tsx.
  */
-const DOCKED_FROM = "(min-width: 768px)";
+export const DOCKED_FROM = "(min-width: 768px)";
 
 /** The server (and first client render, to match it) never has a viewport to ask about. */
 function getDockedServerSnapshot(): boolean {
