@@ -859,7 +859,7 @@ re-derive the trade.
 
 - **CD-17** and **CD-18** are settled as backlog items because they are not
   defects at all: they are plan-authoring lessons. They are carried in this
-  document's agent-facing preamble above (*Four process lessons, carried
+  document's agent-facing preamble above (*Five process lessons, carried
   forward* — `CD-17` and `CD-18` are the first two) rather than listed as work.
   Do not file them as tasks.
 
