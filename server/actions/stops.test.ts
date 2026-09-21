@@ -663,6 +663,23 @@ describe("createStop with afterStopId", () => {
     });
     expect(stopUpdateMock).not.toHaveBeenCalled();
   });
+
+  it("is access-checked before the write", async () => {
+    // requireTripAccess runs BEFORE the FOR UPDATE-locked transaction opens —
+    // the lock is ADR 0007 deadlock avoidance, not an access check (see
+    // stop-flow.ts).
+    queryRawMock.mockResolvedValue([
+      { id: "a", sortOrder: 0, chapterId: null, chapterSortOrder: null },
+      { id: "b", sortOrder: 1, chapterId: null, chapterSortOrder: null },
+    ]);
+    stopCreateMock.mockResolvedValue({ id: "new-stop", name: "Rome" });
+    stopUpdateMock.mockResolvedValue({});
+
+    await createStop("trip-1", { mode: "rough", name: "Rome", nights: 2 }, undefined, "a");
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopCreateMock);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1021,6 +1038,23 @@ describe("moveStop", () => {
 
     expect(recordActivity).not.toHaveBeenCalled();
   });
+
+  it("is access-checked before the write", async () => {
+    // requireStopAccess (which wraps requireTripAccess) resolves the stop
+    // BEFORE the FOR UPDATE-locked transaction ever opens — the lock itself
+    // is ADR 0007 deadlock avoidance, not an access check (see stop-flow.ts).
+    stopFindUniqueMock.mockResolvedValue({
+      id: "stop-2", tripId: "trip-1", sortOrder: 1,
+      arriveDate: null, departDate: null, nights: null, pinned: false, forkId: null,
+    });
+    queryRawMock.mockResolvedValue(stops);
+    stopUpdateMock.mockResolvedValue({});
+
+    await moveStop("stop-2", "up");
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1180,6 +1214,25 @@ describe("setStopDates", () => {
         ]),
       }),
     );
+  });
+
+  it("is access-checked before the write", async () => {
+    // setStopDates calls requireStopAccess (wrapping requireTripAccess) BEFORE
+    // delegating to applyStopDates, which takes the FOR UPDATE plan lock and
+    // then writes — the lock is ADR 0007 deadlock avoidance, not an access
+    // check (see stop-flow.ts).
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null, pinned: false, forkId: null })
+      .mockResolvedValueOnce({ name: "S1", country: null, arriveDate: "2026-06-01", departDate: "2026-06-03", nights: null });
+    stopFindManyMock.mockResolvedValue([]);
+    stopUpdateMock.mockResolvedValue({});
+    tripFindUniqueMock.mockResolvedValue({ endDate: null });
+    tripUpdateMock.mockResolvedValue({});
+
+    await setStopDates("s1", { arriveDate: "2026-06-01", departDate: "2026-06-06" });
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
   });
 });
 
@@ -1669,6 +1722,26 @@ describe("reorderStops", () => {
     expect(lockSql).not.toContain("ANY(");
   });
 
+  it("is access-checked before the write", async () => {
+    // requireTripAccess runs BEFORE the FOR UPDATE-locked transaction opens —
+    // the lock is ADR 0007 deadlock avoidance, not an access check (see
+    // stop-flow.ts).
+    chapterFindManyMock.mockResolvedValue([{ id: "c1", startDate: null }]);
+    queryRawMock.mockResolvedValue([
+      { id: "a", tripId: "t1", arriveDate: null },
+      { id: "b", tripId: "t1", arriveDate: null },
+    ]);
+    stopUpdateMock.mockResolvedValue({});
+
+    await reorderStops("t1", [
+      { id: "a", chapterId: null },
+      { id: "b", chapterId: "c1" },
+    ]);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("t1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
+  });
+
   it("refuses to move a rough stop into a DATED chapter: returns failure, no updates", async () => {
     // chapter c2 has a non-null startDate → dated chapter
     chapterFindManyMock.mockResolvedValue([{ id: "c2", startDate: "2026-07-01" }]);
@@ -1991,6 +2064,23 @@ describe("Task 10: restoreStops — writes each entry verbatim inside the locked
     expect(chapterFindManyMock).toHaveBeenCalledWith(
       expect.objectContaining({ where: expect.objectContaining({ tripId: "t1", forkId: "fork-9" }) }),
     );
+  });
+
+  it("is access-checked before the write", async () => {
+    // requireTripAccess (called once the trip is derived from the restored
+    // stops) runs BEFORE the FOR UPDATE-locked transaction opens — the lock
+    // is ADR 0007 deadlock avoidance, not an access check (see stop-flow.ts).
+    stopFindManyMock.mockResolvedValue([{ id: "a", tripId: "t1", forkId: null }]);
+    queryRawMock.mockResolvedValue([{ id: "a" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+
+    await restoreStops([
+      { id: "a", sortOrder: 0, chapterId: null, arriveDate: "2026-07-01", departDate: "2026-07-04" },
+    ]);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("t1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, stopUpdateMock);
   });
 });
 

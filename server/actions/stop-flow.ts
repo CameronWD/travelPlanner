@@ -17,6 +17,15 @@ import { spanContributors } from "@/lib/chapters";
  * every path that will write stop rows in a plan takes this same lock over
  * the same row set in the same order, so concurrent editors queue instead
  * of deadlocking. Returns rows sorted by sortOrder for caller convenience.
+ *
+ * This lock carries no access-control meaning — it exists solely for ADR
+ * 0007 deadlock avoidance. Every caller (`moveStop`, `applyStopDates` via
+ * `setStopDates`/`setStopNights`, `createStop`'s locked insert path,
+ * `reorderStops`, `restoreStops`, `reorderChapters`) runs its own
+ * `requireTripAccess`/`requireStopAccess` before opening the transaction
+ * that takes this lock, so each is covered by
+ * `expectAccessCheckedBeforeWrite` like any other entry point — there is no
+ * separate exemption here.
  */
 export async function lockPlanStopsTx(
   tx: Prisma.TransactionClient,

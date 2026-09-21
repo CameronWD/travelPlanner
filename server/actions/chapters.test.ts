@@ -496,6 +496,24 @@ describe("reorderChapters", () => {
     expect(lockSql).toContain('ORDER BY "id" ASC');
     expect(lockSql).not.toContain("ANY(");
   });
+
+  it("is access-checked before the write", async () => {
+    // requireTripAccess runs BEFORE the FOR UPDATE-locked transaction opens —
+    // the lock is ADR 0007 deadlock avoidance, not an access check (see
+    // stop-flow.ts).
+    chapterFindManyMock.mockResolvedValue([
+      { id: "c1", startDate: null, forkId: null },
+      { id: "c2", startDate: null, forkId: null },
+    ]);
+    stopFindManyMock.mockResolvedValue([]);
+    tripFindUniqueMock.mockResolvedValue({ startDate: null });
+    queryRawMock.mockResolvedValue([]);
+
+    await reorderChapters("t1", ["c2", "c1"]);
+
+    expect(requireTripAccessMock).toHaveBeenCalledWith("t1");
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, chapterUpdateMock);
+  });
 });
 
 // ---------------------------------------------------------------------------
