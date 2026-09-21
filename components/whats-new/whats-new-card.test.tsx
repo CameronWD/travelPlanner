@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 
 vi.mock("@/server/actions/release-notes", () => ({
   dismissWhatsNew: vi.fn(async () => ({ success: true })),
@@ -53,13 +53,24 @@ describe("WhatsNewCard", () => {
   });
 
   it("stays hidden when the dismiss fails offline", async () => {
-    (dismissWhatsNew as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
-      new Error("offline"),
+    let rejectDismiss!: (reason: Error) => void;
+    (dismissWhatsNew as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectDismiss = reject;
+      }),
     );
+
     render(<WhatsNewCard notes={NOTES} totalUnread={3} />);
     fireEvent.click(screen.getByRole("button", { name: /dismiss what's new/i }));
-    // It reappears on the next load, not in this render — a rejected promise
-    // must not resurrect the card under the Traveller's cursor.
-    await waitFor(() => expect(screen.queryByText("Alpha")).toBeNull());
+
+    // Hidden the instant it is clicked, before the server has answered.
+    expect(screen.queryByText("Alpha")).toBeNull();
+
+    // Now let the write fail. The card must NOT come back under the cursor —
+    // it returns on the next online load instead.
+    await act(async () => {
+      rejectDismiss(new Error("offline"));
+    });
+    expect(screen.queryByText("Alpha")).toBeNull();
   });
 });

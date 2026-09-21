@@ -63,9 +63,12 @@ export function WhatsNewCard({
       </div>
 
       <ul className="mt-3 space-y-1.5">
-        {notes.map((note) => (
+        {notes.map((note, index) => (
+          // ReleaseNote has no id, and nothing guarantees publishedAt is
+          // unique across notes — the index disambiguates a same-timestamp
+          // pair so two notes never collide on one React key.
           <li
-            key={note.publishedAt}
+            key={`${note.publishedAt}-${index}`}
             className="flex gap-2 text-sm text-muted-foreground"
           >
             <span aria-hidden="true" className="select-none text-primary">
