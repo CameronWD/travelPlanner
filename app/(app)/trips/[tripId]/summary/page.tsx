@@ -546,7 +546,7 @@ export default async function SummaryPage({
                         {chapterBudget && (
                           <CostAmounts
                             costTotalMinor={chapterBudget.costTotalMinor}
-                            paidTotalMinor={chapterBudget.paidTotalMinor}
+                            paidTotalMinor={chapterBudget.paidTotalMinor > 0 ? chapterBudget.paidTotalMinor : null}
                             currency={homeCurrency}
                             className="text-muted-foreground"
                           />
