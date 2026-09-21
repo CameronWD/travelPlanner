@@ -188,28 +188,6 @@ export const GUIDE_NAV_LABELS = [
 ] as const;
 
 /**
- * On-screen control labels the guide quotes back to the reader.
- *
- * The nav-label and route guards below cover tab names and page paths — the
- * parts least likely to move. Button labels are the parts most likely to move,
- * and a renamed button turns a confident instruction ("tap Add Chapter") into
- * one that cannot be followed. Every string here is asserted to appear
- * literally in some file under components/ or app/, excluding the guide's own
- * files, so a rename fails the suite instead of silently making the guide lie.
- *
- * Add a string here when the guide starts quoting a control, and remove it
- * when the guide stops. Deliberately excluded: single generic words ("Month",
- * "Promote", "Firm up", "Paid") whose last occurrence would survive a rename,
- * so the entry could not fail.
- *
- * Also deliberately excluded: a phrase that is only the head of a longer live
- * string. "Booking reference" is covered by "Booking reference / number", and
- * the variant banner interpolates the variant's name, so "Editing variant" has
- * no complete on-screen phrase to assert — its wording is pinned by
- * components/trip/help-guide.test.tsx instead. Entries must be whole phrases
- * and must not contain one another (both are enforced by lib/help-guide.test.ts).
- */
-/**
  * True when `label` appears in `text` as a COMPLETE phrase, not merely as a
  * substring.
  *
@@ -228,21 +206,67 @@ export const GUIDE_NAV_LABELS = [
  */
 const PHRASE_CONTINUES = /[A-Za-z0-9 /'’-]/;
 
-export function guideLabelOnScreen(text: string, label: string): boolean {
+/**
+ * Every index in `text` where `label` occurs as a complete on-screen phrase
+ * (see `guideLabelOnScreen`). Used to check whether one `GUIDE_UI_STRINGS`
+ * entry's real occurrences are all subsumed by another's, rather than merely
+ * asking whether one entry's *text* contains another's — literal containment
+ * is not redundancy. `"Booking reference"` is a literal substring of
+ * `"Booking reference / number"`, but they are two different controls in two
+ * different dialogs (item-form-dialog.tsx vs. transport-form-dialog.tsx), and
+ * `"Booking reference"` has its own independent complete-phrase occurrence,
+ * so it is not redundant.
+ */
+export function guideLabelPositions(text: string, label: string): number[] {
+  const out: number[] = [];
   let i = text.indexOf(label);
   while (i !== -1) {
     const after = text[i + label.length];
-    if (after === undefined || !PHRASE_CONTINUES.test(after)) return true;
+    if (after === undefined || !PHRASE_CONTINUES.test(after)) out.push(i);
     i = text.indexOf(label, i + 1);
   }
-  return false;
+  return out;
 }
 
+export function guideLabelOnScreen(text: string, label: string): boolean {
+  return guideLabelPositions(text, label).length > 0;
+}
+
+/**
+ * On-screen control labels the guide quotes back to the reader.
+ *
+ * The nav-label and route guards below cover tab names and page paths — the
+ * parts least likely to move. Button labels are the parts most likely to move,
+ * and a renamed button turns a confident instruction ("tap Add Chapter") into
+ * one that cannot be followed. Every string here is asserted to appear
+ * literally in some file under components/ or app/, excluding the guide's own
+ * files, so a rename fails the suite instead of silently making the guide lie.
+ *
+ * Add a string here when the guide starts quoting a control, and remove it
+ * when the guide stops. Deliberately excluded: single generic words ("Month",
+ * "Promote", "Firm up", "Paid") whose last occurrence would survive a rename,
+ * so the entry could not fail.
+ *
+ * Also deliberately excluded: a phrase with no complete on-screen occurrence
+ * of its own. The variant banner interpolates the variant's name, so
+ * `"Editing variant"` (a true substring of the banner's real, interpolated
+ * text) has no complete phrase to assert — its wording is pinned by
+ * components/trip/help-guide.test.tsx instead. `"Booking reference"` is KEPT
+ * despite being a literal substring of `"Booking reference / number"`: the
+ * two are different fields in different dialogs (the Thing-to-Do/
+ * Accommodation form vs. the Transport form) and each has its own,
+ * independent complete-phrase occurrence — literal containment between two
+ * entries does not by itself mean one is redundant. Entries must be whole
+ * phrases, and an entry is only removed for redundancy when every one of its
+ * real occurrences is also covered by another entry's occurrence at that same
+ * spot (enforced by lib/help-guide.test.ts).
+ */
 export const GUIDE_UI_STRINGS = [
   // Adding things
   "Add Thing to Do",
   "Start time",
   "End time",
+  "Booking reference",
   "Add to this day",
   "Show day map",
   "Add from Globe",
