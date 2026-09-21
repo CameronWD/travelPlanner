@@ -8,10 +8,12 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
+import { revalidatePath } from "next/cache";
 import { dismissWhatsNew } from "./release-notes";
 
 const mockUpdate = db.user.update as unknown as ReturnType<typeof vi.fn>;
 const mockRequireUser = requireUser as unknown as ReturnType<typeof vi.fn>;
+const mockRevalidatePath = revalidatePath as unknown as ReturnType<typeof vi.fn>;
 
 describe("dismissWhatsNew", () => {
   beforeEach(() => {
@@ -27,6 +29,9 @@ describe("dismissWhatsNew", () => {
     const arg = mockUpdate.mock.calls[0][0];
     expect(arg.where).toEqual({ id: "u1" });
     expect(arg.data.whatsNewSeenAt).toBeInstanceOf(Date);
+    expect(mockRevalidatePath).toHaveBeenCalledTimes(2);
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips");
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/trips/[tripId]", "page");
   });
 
   it("writes only to the session's own user, never to an id from the caller", async () => {
