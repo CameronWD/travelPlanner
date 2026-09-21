@@ -95,15 +95,43 @@ describe("AccountPage", () => {
   });
 
   it("renders the dispatcher's last-run time once a heartbeat exists", async () => {
+    // Both signals fresh — the genuinely healthy state. A row with lastRunAt
+    // but no lastSuccessAt is a different, unhealthy state (see the case
+    // below) and must not be mistaken for this one (CD-06 fix-round-1).
+    const now = new Date();
     cronHeartbeatFindUniqueMock.mockResolvedValue({
       id: "digest",
-      lastRunAt: new Date(),
+      lastRunAt: now,
+      lastSuccessAt: now,
     });
 
     const jsx = await AccountPage();
     render(jsx);
 
     expect(screen.getByText(/last ran/)).toBeInTheDocument();
+    expect(screen.queryByText(/digests are not being sent/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/running, but/i)).not.toBeInTheDocument();
+  });
+
+  it("warns that nothing has been sent when lastRunAt is fresh but lastSuccessAt is stale", async () => {
+    // The route is running (lastRunAt fresh) but the dispatch loop has not
+    // completed in a while (lastSuccessAt stale) — CD-06's actual failure
+    // mode: a throw inside the scan leaves the route heartbeat healthy while
+    // zero Digests go out. This must render the real warning copy, not just
+    // the absence of the unrelated "digests are not being sent" phrase.
+    cronHeartbeatFindUniqueMock.mockResolvedValue({
+      id: "digest",
+      lastRunAt: new Date(),
+      lastSuccessAt: new Date("2020-01-01T00:00:00.000Z"),
+    });
+
+    const jsx = await AccountPage();
+    render(jsx);
+
+    expect(screen.getByText(/last ran/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/running, but nothing has been sent since/i),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/digests are not being sent/i)).not.toBeInTheDocument();
   });
 
