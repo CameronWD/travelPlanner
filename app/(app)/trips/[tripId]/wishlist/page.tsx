@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { firstSearchParam } from "@/lib/plan-scope";
 import { isAiConfigured } from "@/lib/ai";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
 import { VariantBanner } from "@/components/trip/variant-banner";
@@ -17,7 +18,7 @@ export default async function WishlistPage({
   searchParams,
 }: {
   params: Promise<{ tripId: string }>;
-  searchParams: Promise<{ plan?: string }>;
+  searchParams: Promise<{ plan?: string | string[] }>;
 }) {
   const { tripId } = await params;
   const { plan } = await searchParams;
@@ -25,7 +26,7 @@ export default async function WishlistPage({
   const { user } = await requireTripAccess(tripId);
 
   // Validate the fork exists for this trip; fall back to real plan if not.
-  const selectedForkId = plan ?? null;
+  const selectedForkId = firstSearchParam(plan);
   const activeFork = selectedForkId
     ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
     : null;
