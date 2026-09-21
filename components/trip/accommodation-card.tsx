@@ -1,5 +1,5 @@
 import * as React from "react";
-import { MapPin, Calendar, Hash, StickyNote, AlertTriangle, Home } from "lucide-react";
+import { Calendar, Hash, StickyNote, AlertTriangle, Home } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Badge } from "@/components/ui/badge";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
@@ -102,7 +102,12 @@ export function AccommodationCard({
             </h4>
             {a.address && (
               <div className="mt-0.5 flex items-center gap-1 text-xs text-emerald-700/70 dark:text-emerald-300/70">
-                <MapPin className="size-3 shrink-0" aria-hidden="true" />
+                {/* No decorative pin here: MapLink below renders the real one,
+                    and help-legend.tsx teaches that glyph as "has a location"
+                    (HG-02/HG-10). This MapLink call always has a real address
+                    (this whole block is gated on a.address), so it can never
+                    fire via the label-only fallback — no coordinate guard
+                    needed here, unlike stop-card.tsx's country line. */}
                 <span className="truncate">{a.address}</span>
                 <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} className="ml-0.5 text-emerald-600/60 dark:text-emerald-400/60" />
               </div>

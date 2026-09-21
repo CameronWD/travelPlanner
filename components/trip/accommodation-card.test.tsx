@@ -144,3 +144,29 @@ describe("AccommodationCard mobile overflow", () => {
     expect(await screen.findByRole("menuitem", { name: /delete/i })).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 19 (HG-02/HG-10): the map pin means one thing — has a location
+// ---------------------------------------------------------------------------
+
+describe("AccommodationCard — map pin is not decorative", () => {
+  it("shows exactly one map pin for an accommodation with an address — the map link's", () => {
+    const { container } = render(
+      <AccommodationCard
+        accommodation={{ ...baseAcc, address: "Via Roma 1", lat: 41.9, lng: 12.5 }}
+        stop={baseStop}
+      />,
+    );
+    expect(container.querySelectorAll("svg.lucide-map-pin")).toHaveLength(1);
+  });
+
+  it("shows no map pin at all when there is no address", () => {
+    const { container } = render(
+      <AccommodationCard
+        accommodation={{ ...baseAcc, address: null, lat: null, lng: null }}
+        stop={baseStop}
+      />,
+    );
+    expect(container.querySelectorAll("svg.lucide-map-pin")).toHaveLength(0);
+  });
+});
