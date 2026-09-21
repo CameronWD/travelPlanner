@@ -29,8 +29,10 @@ One new item was found and closed the same day (`CB-01`, the
 `expectAccessCheckedBeforeWrite` rollout). ***Open items* is now empty, and
 *Needs a decision* is now empty.** What is left owing is in *Blocked* — 12
 items that need a human with a running app, a real device, a calendar client,
-or a browser — plus **two written-but-unapplied migrations** (see *Migration
-state* below), which are the operator's call to run.
+or a browser — plus, as of that close-out, **two written-but-unapplied
+migrations** (see *Migration state* below). Both have since been applied to
+production; a third, unrelated migration (`whatsNewSeenAt`, ADR 0056) is now
+the one written and awaiting the operator's call.
 
 **Read this instead of the seven source docs.** Those docs accumulated from
 2026-08-12 onward with no drain mechanism: later branches fixed items
@@ -75,16 +77,21 @@ twelve entries closed out on 2026-09-21 (`SW-05`, `SW-01`, `SW-04`, `FN-05`,
 became 26:** `FP-07` and the `SW-02` remainder. *Blocked* is unchanged at 12
 and **nothing in it was verified on 2026-09-21.**
 
-**Two migrations are written but NOT applied.**
+**Both migrations written on 2026-09-21 are now applied.**
 `20260921000000_cron_heartbeat_last_success` (adds a nullable `lastSuccessAt`
 to `CronHeartbeat` and backfills it from `lastRunAt`) and
 `20260921010000_feedback_author_snapshot` (adds a nullable `authorName` to
-`FeedbackNote`, backfills it from `User`, then drops the author FK) exist as
-files only. Both are additive on reads **and** on writes per `docs/DEPLOY.md`
-§4b — the new columns are nullable, so a still-running old build cannot violate
-a NOT NULL constraint, and dropping a foreign key removes a restriction rather
-than adding one. **Running them is the operator's call**; nothing in this
-document should be read as claiming they have run.
+`FeedbackNote`, backfills it from `User`, then drops the author FK) were
+applied to production on 2026-09-21 at 09:53 UTC, verified against
+`information_schema` directly rather than the migration ledger — see
+*Migration state* below. Both were additive on reads **and** on writes per
+`docs/DEPLOY.md` §4b — the new columns are nullable, so the still-running old
+build could not violate a NOT NULL constraint, and dropping a foreign key
+removed a restriction rather than adding one. **A third migration,
+`20260921120000_user_whats_new_seen_at` (ADR 0056), is now written and NOT
+applied.** It adds a nullable `whatsNewSeenAt` to `User`, deliberately not
+backfilled. Running it is the operator's call; nothing in this document should
+be read as claiming it has run.
 
 **Updated 2026-09-21.** The sweep on branch `chore/follow-ups-triage-and-sweep`
 closed **39** of the 42 items that were open on 2026-09-20 and moved them to the
@@ -405,7 +412,7 @@ split between the two. The trail:
 | Was here | Where it went | Commit |
 |---|---|---|
 | `SW-05` | *Struck* — built | `a0eaa72` |
-| `FN-05` | *Struck* — built (migration written, **not applied**) | `cf90b52` |
+| `FN-05` | *Struck* — built (migration written; **applied** 2026-09-21 09:53 UTC) | `cf90b52` |
 | `SW-01` | *Struck* — built | `b0b50a0`, `4b33884` |
 | `FP-07` | *Settled* — **declined**, not deferred | — |
 | `CD-16` | *Struck* — landed with `CD-07` | `ac44282` |
@@ -415,9 +422,9 @@ split between the two. The trail:
 | `SW-03` | *Struck* — was already fixed on the previous branch | `06f25a3` |
 
 **Do not read "empty" as "nothing is owed."** Twelve items sit in *Blocked*,
-untouched, and two written migrations are unapplied — see the trust statement
-above. What is empty is the set of things an agent in this sandbox can pick up
-and build.
+untouched, and a third migration (`whatsNewSeenAt`, ADR 0056) is now the one
+written and unapplied — see the trust statement above. What is empty is the
+set of things an agent in this sandbox can pick up and build.
 
 ---
 
@@ -624,8 +631,9 @@ listed so nobody re-opens them, and so the trail back to the source doc survives
   to run immediately before the migration. The `Reminder` migration — like
   every other migration predating 2026-09-21 — is long since applied in
   production, so the gate is no longer runnable; it has been overtaken. (The
-  two unapplied 2026-09-21 migrations above touch `CronHeartbeat` and
-  `FeedbackNote`, not `Reminder`, so they do not revive it.) **Do not treat this as a pending step.** If
+  2026-09-21 migrations touching `CronHeartbeat` and `FeedbackNote` are
+  applied; the one now-unapplied migration, `whatsNewSeenAt`, touches `User`,
+  not `Reminder`, so none of them revive it.) **Do not treat this as a pending step.** If
   the outcome matters retrospectively, it needs a fresh production read by a
   human, not a re-run of the gate.
 
@@ -949,8 +957,8 @@ false-alarm window the alternative would have created.
 **The *existing* row is grandfathered** by migration
 `20260921000000_cron_heartbeat_last_success`, which backfills
 `lastSuccessAt = lastRunAt`. So this limitation bites a fresh deployment, not
-the current one. **Note that the migration has not been applied** — until it
-is, the backfill has not happened.
+the current one. **The migration is applied** (2026-09-21 09:53 UTC) — the
+backfill has run.
 
 ---
 
@@ -964,9 +972,9 @@ already closed before this document was compiled on 2026-09-20, kept as a
 one-line-each table because their evidence lives in the source docs rather than
 here. 13 + 39 + 44 = 96.
 
-**Two of the 13 are struck against a migration that has not been applied**
-(`FN-05`, `CD-06`). Their code and their migration files landed; production
-does not yet have the columns. See *Migration state*.
+**Two of the 13 were struck against migrations that were not yet applied at
+the time** (`FN-05`, `CD-06`). Both migrations have since been applied to
+production, so production now has the columns too. See *Migration state*.
 
 ## Closed by the 2026-09-21 close-out
 
@@ -980,9 +988,9 @@ followed by what actually shipped.
 decided items (`CD-02`, `CD-03`, `CD-04`) shipped as an option their own entry
 did not list, and two of those entries stated in writing that only two options
 existed. A struck title here is not a guarantee that the fix has the shape the
-entry predicted. Two of these entries also depend on a **migration that is
-written but not applied** (`FN-05`, `CD-06`) — they are struck because the code
-and the migration file landed, not because production has the column.
+entry predicted. Two of these entries also depended on a **migration that was
+written but not yet applied** (`FN-05`, `CD-06`) — both migrations are now
+applied, so production has the columns too.
 
 ### SW-05 · `inviteToTrip` needs an owner-or-admin guard
 
@@ -1060,9 +1068,9 @@ and the migration file landed, not because production has the column.
   the amendment. The FK name the migration drops,
   `FeedbackNote_authorId_fkey`, was verified against
   `20260908000000_add_feedback_notes/migration.sql:27` rather than assumed.
-- **⚠ The migration `20260921010000_feedback_author_snapshot` is written but
-  NOT applied.** See *Migration state*. This entry is struck because the code
-  and the migration file landed, not because the column exists in production.
+- **The migration `20260921010000_feedback_author_snapshot` is applied**
+  (2026-09-21 09:53 UTC). See *Migration state*. `authorName` exists in
+  production.
 - **By design, not a defect:** because `authorName` is snapshotted at write
   time, a User who renames themselves leaves older notes showing the name they
   had when they wrote them. That is the intended effect of the amendment, not
@@ -1407,8 +1415,8 @@ and the migration file landed, not because production has the column.
   inside the subscription scan after the heartbeat write therefore no longer
   reads "healthy" on Account. This is the one decision of the five that shipped
   as its entry predicted.
-- **⚠ The migration `20260921000000_cron_heartbeat_last_success` is written but
-  NOT applied.** See *Migration state*.
+- **The migration `20260921000000_cron_heartbeat_last_success` is applied**
+  (2026-09-21 09:53 UTC). See *Migration state*.
 - **Operator ruling taken during the review loop:** `isDispatcherUnhealthy`
   keeps *null means unhealthy*, and the false alarm that would otherwise follow
   the migration is handled by **backfilling `lastSuccessAt = lastRunAt` inside
