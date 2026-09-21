@@ -139,181 +139,320 @@ git commit -m "refactor(attachments): one predicate decides inline vs download"
 
 ---
 
-### Task 2: Attachment links open in a new tab
+### Task 2: Attachment links open in a new tab — outside the installed PWA
 
-Four sites render attachment links, none of which sets `target`. Give each one a new tab — but only when the file will actually render there.
+Xanthia asked for a new tab. **ADR 0043 (2026-09-14, commit `9eb6dac`) deliberately made these links same-tab** so a Traveller offline in the installed PWA can open a cached boarding pass — a `target="_blank"` there hands off to an in-app browser the service worker does not reach. A live test enforces it: `components/trip/attachment-links.test.tsx:15-19`, "opens attachments in-app so the offline cache can serve them", asserts the link has **no** `target`.
+
+Both are right, about different contexts. In an ordinary browser tab a new same-origin tab is controlled by the *same* service worker, so the cached attachment is served exactly as it is in the current tab — the risk ADR 0043 names cannot occur. In the installed PWA it can. So ADR 0043 is **narrowed, not superseded** (operator decision, 2026-09-21).
+
+**The mechanism matters.** The decision is made at *click time*, in an `onClick` handler — the markup keeps **no `target` attribute at all**. That is deliberate and load-bearing:
+
+- ADR 0043's existing test keeps passing **verbatim**, because the invariant it pins (no `target` in the markup) remains true.
+- No server/client hydration mismatch — nothing about the rendered HTML depends on `window`.
+- Without JavaScript, behaviour is exactly today's same-tab navigation.
+- Middle-click, ⌘-click and "Open in new tab" keep working as the browser intends, because `href` is untouched.
 
 **Files:**
+- Create: `lib/standalone.ts`
+- Create: `lib/standalone.test.ts`
+- Create: `components/trip/attachment-link.tsx`
+- Create: `components/trip/attachment-link.test.tsx`
+- Modify: `components/account/device-state.ts:31-36` (reuse the extracted helper)
 - Modify: `components/trip/attachment-list.tsx:218-224`
-- Modify: `components/trip/attachment-links.tsx:9-12`
+- Modify: `components/trip/attachment-links.tsx`
 - Modify: `components/trip/journal-editor.tsx:83-86`
 - Modify: `app/(app)/trips/[tripId]/journal/page.tsx:134-138`
-- Modify: `components/trip/attachment-list.test.tsx`
-- Modify: `components/trip/attachment-links.test.tsx`
+- Modify: `docs/adr/0043-attachments-warm-offline-through-the-authenticated-serve-route.md` (append an amendment)
 
 **Interfaces:**
 - Consumes: `rendersInline(mime: string): boolean` from `@/lib/attachment-display` (Task 1).
-- Produces: nothing other tasks depend on.
+- Produces: `isStandalone(): boolean` from `@/lib/standalone`; `AttachmentLink` from `@/components/trip/attachment-link`.
 
-Note: all four sites carry `AttachmentView` objects (`components/trip/attachment-list.tsx:26-34`), which include `mime` — journal photos included. So every site can ask the same question; none needs to assume.
+All four sites carry `AttachmentView` objects (`components/trip/attachment-list.tsx:26-34`), which include `mime` — journal photos included.
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Write the failing test for the standalone helper**
 
-Append to `components/trip/attachment-links.test.tsx` (inside the existing top-level `describe`):
+Create `lib/standalone.test.ts`:
 
-```tsx
-  it("opens a PDF in a new tab, safely", () => {
-    const { container } = render(
-      <AttachmentLinks
-        attachments={[
-          {
-            id: "a1",
-            filename: "eurostar.pdf",
-            mime: "application/pdf",
-            size: 1000,
-            url: "/api/attachments/a1",
-            uploadedById: "u1",
-            createdAt: new Date("2026-09-01T00:00:00Z"),
-          },
-        ]}
-      />,
-    );
-    const link = container.querySelector("a");
-    expect(link!.getAttribute("target")).toBe("_blank");
-    expect(link!.getAttribute("rel")).toBe("noopener noreferrer");
+```ts
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { isStandalone } from "./standalone";
+
+const originalMatchMedia = window.matchMedia;
+
+afterEach(() => {
+  window.matchMedia = originalMatchMedia;
+  delete (window.navigator as Navigator & { standalone?: boolean }).standalone;
+});
+
+describe("isStandalone", () => {
+  it("is true when the display-mode media query matches", () => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true }) as unknown as typeof window.matchMedia;
+    expect(isStandalone()).toBe(true);
   });
 
-  it("leaves a downloadable file in the current tab, so no blank tab is opened", () => {
-    const { container } = render(
-      <AttachmentLinks
-        attachments={[
-          {
-            id: "a2",
-            filename: "itinerary.docx",
-            mime: "application/msword",
-            size: 1000,
-            url: "/api/attachments/a2",
-            uploadedById: "u1",
-            createdAt: new Date("2026-09-01T00:00:00Z"),
-          },
-        ]}
-      />,
-    );
-    const link = container.querySelector("a");
-    expect(link!.getAttribute("target")).toBeNull();
+  it("is true for iOS Safari's legacy navigator.standalone flag", () => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia;
+    (window.navigator as Navigator & { standalone?: boolean }).standalone = true;
+    expect(isStandalone()).toBe(true);
   });
+
+  it("is false in an ordinary browser tab", () => {
+    window.matchMedia = vi.fn().mockReturnValue({ matches: false }) as unknown as typeof window.matchMedia;
+    expect(isStandalone()).toBe(false);
+  });
+
+  it("is false when matchMedia is unavailable", () => {
+    // Older engines, and any environment where the query cannot be asked:
+    // assume a browser tab rather than claiming installed.
+    (window as { matchMedia?: typeof window.matchMedia }).matchMedia = undefined;
+    expect(isStandalone()).toBe(false);
+  });
+});
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [ ] **Step 2: Run to verify it fails**
 
-Run: `npx vitest run components/trip/attachment-links.test.tsx`
-Expected: FAIL — `expected null to be "_blank"`.
+Run: `npx vitest run lib/standalone.test.ts`
+Expected: FAIL — `Failed to resolve import "./standalone"`.
 
-- [ ] **Step 3: Update `attachment-links.tsx`**
+- [ ] **Step 3: Write the standalone helper**
 
-Replace the whole file with:
+Create `lib/standalone.ts`:
+
+```ts
+/**
+ * Whether this page is running as an installed PWA rather than a browser tab.
+ *
+ * The distinction decides where an **Attachment** opens. ADR 0043 made
+ * attachment links same-tab so a Traveller offline can open a cached ticket:
+ * inside the installed app, a new tab is handed to an in-app browser the
+ * service worker does not control, and the cached bytes are unreachable. In an
+ * ordinary browser tab that does not apply — a new same-origin tab is
+ * controlled by the *same* service worker — so there the link may open out.
+ *
+ * Browser-only: returns false during server rendering, which is also the
+ * safe default (same-tab, today's behaviour).
+ */
+export function isStandalone(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    window.matchMedia?.("(display-mode: standalone)").matches === true ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
+```
+
+- [ ] **Step 4: Run to verify it passes**
+
+Run: `npx vitest run lib/standalone.test.ts`
+Expected: PASS (4 tests).
+
+- [ ] **Step 5: Reuse it in the existing iOS check**
+
+`components/account/device-state.ts` already inlines this exact detection. Point it at the shared helper so display-mode knowledge has one home.
+
+Add to the imports of `components/account/device-state.ts`:
+
+```ts
+import { isStandalone } from "@/lib/standalone";
+```
+
+and replace lines 31-35:
+
+```ts
+  if (!isIos) return false;
+  const standalone =
+    window.matchMedia?.("(display-mode: standalone)").matches === true ||
+    (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+  return !standalone;
+```
+
+with:
+
+```ts
+  if (!isIos) return false;
+  return !isStandalone();
+```
+
+- [ ] **Step 6: Write the failing test for the shared link**
+
+Create `components/trip/attachment-link.test.tsx`:
+
+```tsx
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent } from "@testing-library/react";
+
+vi.mock("@/lib/standalone", () => ({ isStandalone: vi.fn() }));
+
+import { isStandalone } from "@/lib/standalone";
+import { AttachmentLink } from "./attachment-link";
+
+const mockIsStandalone = isStandalone as unknown as ReturnType<typeof vi.fn>;
+
+describe("AttachmentLink", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("open", vi.fn());
+  });
+
+  it("opens a previewable file in a new tab in an ordinary browser tab", () => {
+    mockIsStandalone.mockReturnValue(false);
+    render(
+      <AttachmentLink href="/api/attachments/a1" mime="application/pdf" label="View ticket.pdf">
+        ticket.pdf
+      </AttachmentLink>,
+    );
+    const link = screen.getByRole("link", { name: "View ticket.pdf" });
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+    link.dispatchEvent(event);
+    expect(window.open).toHaveBeenCalledWith("/api/attachments/a1", "_blank", "noopener");
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("stays in-app inside the installed PWA, so the offline cache can serve it (ADR 0043)", () => {
+    mockIsStandalone.mockReturnValue(true);
+    render(
+      <AttachmentLink href="/api/attachments/a1" mime="application/pdf" label="View ticket.pdf">
+        ticket.pdf
+      </AttachmentLink>,
+    );
+    const link = screen.getByRole("link", { name: "View ticket.pdf" });
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+    link.dispatchEvent(event);
+    expect(window.open).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("leaves a downloadable file alone — a download never navigates", () => {
+    mockIsStandalone.mockReturnValue(false);
+    render(
+      <AttachmentLink href="/api/attachments/a2" mime="application/msword" label="View notes.docx">
+        notes.docx
+      </AttachmentLink>,
+    );
+    const link = screen.getByRole("link", { name: "View notes.docx" });
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+    link.dispatchEvent(event);
+    expect(window.open).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it("never renders a target attribute, whatever the context", () => {
+    // ADR 0043's invariant: the decision is made at click time, so the markup
+    // is identical in both contexts and needs no hydration-sensitive branch.
+    mockIsStandalone.mockReturnValue(false);
+    render(
+      <AttachmentLink href="/api/attachments/a1" mime="application/pdf" label="View ticket.pdf">
+        ticket.pdf
+      </AttachmentLink>,
+    );
+    expect(screen.getByRole("link", { name: "View ticket.pdf" })).not.toHaveAttribute("target");
+  });
+});
+```
+
+- [ ] **Step 7: Run to verify it fails**
+
+Run: `npx vitest run components/trip/attachment-link.test.tsx`
+Expected: FAIL — `Failed to resolve import "./attachment-link"`.
+
+- [ ] **Step 8: Write the shared link component**
+
+Create `components/trip/attachment-link.tsx`:
+
+```tsx
+"use client";
+
+import * as React from "react";
+import { rendersInline } from "@/lib/attachment-display";
+import { isStandalone } from "@/lib/standalone";
+
+/**
+ * The one way an **Attachment** is linked to, everywhere.
+ *
+ * Opening an attachment used to navigate away from the page a Traveller was
+ * working on, which is what they asked us to fix. But ADR 0043 made these
+ * links same-tab on purpose: inside the installed PWA, a new tab is handed to
+ * an in-app browser the service worker does not control, and an offline
+ * Traveller's cached boarding pass becomes unreachable. Both concerns are
+ * real — they are just about different places, so the choice is made per
+ * context:
+ *
+ *   ordinary browser tab  → open out (same service worker, cache intact)
+ *   installed PWA         → stay in-app (ADR 0043, unchanged)
+ *   file the browser downloads → stay put (it never navigates anyway)
+ *
+ * Decided in the click handler rather than in the markup, so no `target`
+ * attribute is ever rendered. That keeps ADR 0043's invariant literally true,
+ * avoids a hydration-sensitive branch, degrades to today's behaviour without
+ * JavaScript, and leaves ⌘-click and "Open in new tab" to the browser.
+ */
+export function AttachmentLink({
+  href,
+  mime,
+  label,
+  className,
+  children,
+}: {
+  href: string;
+  mime: string;
+  /** Accessible name; omitted when the children already read as the name. */
+  label?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    if (!rendersInline(mime)) return;
+    if (isStandalone()) return;
+    e.preventDefault();
+    window.open(href, "_blank", "noopener");
+  }
+
+  return (
+    <a href={href} onClick={handleClick} aria-label={label} className={className}>
+      {children}
+    </a>
+  );
+}
+```
+
+- [ ] **Step 9: Run to verify it passes**
+
+Run: `npx vitest run components/trip/attachment-link.test.tsx`
+Expected: PASS (4 tests).
+
+- [ ] **Step 10: Route all four sites through it**
+
+In `components/trip/attachment-links.tsx`, replace the whole file with:
 
 ```tsx
 import { Paperclip } from "lucide-react";
-import { rendersInline } from "@/lib/attachment-display";
+import { AttachmentLink } from "@/components/trip/attachment-link";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 
 export function AttachmentLinks({ attachments }: { attachments: AttachmentView[] }) {
   if (!attachments.length) return null;
   return (
     <div className="mt-1 flex flex-wrap gap-2">
-      {attachments.map((a) => {
-        // Only a file the browser renders in place earns a new tab. A
-        // downloaded file never navigates, so target="_blank" would leave an
-        // empty tab behind (lib/attachment-display.ts).
-        const newTab = rendersInline(a.mime);
-        return (
-          <a key={a.id} href={a.url}
-            {...(newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground underline">
-            <Paperclip className="size-3" aria-hidden="true" />{a.filename}
-          </a>
-        );
-      })}
+      {attachments.map((a) => (
+        <AttachmentLink key={a.id} href={a.url} mime={a.mime}
+          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground underline">
+          <Paperclip className="size-3" aria-hidden="true" />{a.filename}
+        </AttachmentLink>
+      ))}
     </div>
   );
 }
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
-
-Run: `npx vitest run components/trip/attachment-links.test.tsx`
-Expected: PASS.
-
-- [ ] **Step 5: Write the failing test for the list view**
-
-Append to `components/trip/attachment-list.test.tsx` (inside the existing top-level `describe`, following whatever render helper that file already uses for `AttachmentList`):
+In `components/trip/attachment-list.tsx`, add to the imports:
 
 ```tsx
-  it("opens a previewable attachment in a new tab and says so in the label", () => {
-    const { container } = render(
-      <AttachmentList
-        tripId="t1"
-        targetType="item"
-        targetId="i1"
-        attachments={[
-          {
-            id: "a1",
-            filename: "hotel.pdf",
-            mime: "application/pdf",
-            size: 2048,
-            url: "/api/attachments/a1",
-            uploadedById: "u1",
-            createdAt: new Date("2026-09-01T00:00:00Z"),
-          },
-        ]}
-      />,
-    );
-    const link = container.querySelector('a[href="/api/attachments/a1"]');
-    expect(link!.getAttribute("target")).toBe("_blank");
-    expect(link!.getAttribute("rel")).toBe("noopener noreferrer");
-    expect(link!.getAttribute("aria-label")).toBe("View hotel.pdf (opens in a new tab)");
-  });
-
-  it("leaves a downloadable attachment in the current tab", () => {
-    const { container } = render(
-      <AttachmentList
-        tripId="t1"
-        targetType="item"
-        targetId="i1"
-        attachments={[
-          {
-            id: "a2",
-            filename: "notes.docx",
-            mime: "application/msword",
-            size: 2048,
-            url: "/api/attachments/a2",
-            uploadedById: "u1",
-            createdAt: new Date("2026-09-01T00:00:00Z"),
-          },
-        ]}
-      />,
-    );
-    const link = container.querySelector('a[href="/api/attachments/a2"]');
-    expect(link!.getAttribute("target")).toBeNull();
-    expect(link!.getAttribute("aria-label")).toBe("View notes.docx");
-  });
+import { AttachmentLink } from "@/components/trip/attachment-link";
 ```
 
-- [ ] **Step 6: Run to verify it fails**
-
-Run: `npx vitest run components/trip/attachment-list.test.tsx`
-Expected: FAIL — `expected null to be "_blank"`.
-
-- [ ] **Step 7: Update `attachment-list.tsx`**
-
-Add to the imports at the top of the file:
-
-```tsx
-import { rendersInline } from "@/lib/attachment-display";
-```
-
-Replace lines 218-224:
+and replace lines 218-224:
 
 ```tsx
                 <a
@@ -328,37 +467,20 @@ Replace lines 218-224:
 with:
 
 ```tsx
-                <a
+                <AttachmentLink
                   href={att.url}
-                  // A new tab only for files the browser renders in place;
-                  // a download never navigates, so a tab would sit empty.
-                  {...(rendersInline(att.mime)
-                    ? { target: "_blank", rel: "noopener noreferrer" }
-                    : {})}
-                  aria-label={
-                    rendersInline(att.mime)
-                      ? `View ${att.filename} (opens in a new tab)`
-                      : `View ${att.filename}`
-                  }
+                  mime={att.mime}
+                  label={`View ${att.filename}`}
                   className="inline-flex size-9 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground transition-colors"
                 >
                   <ExternalLink className="size-4" aria-hidden="true" />
-                </a>
+                </AttachmentLink>
 ```
-
-- [ ] **Step 8: Run to verify it passes**
-
-Run: `npx vitest run components/trip/attachment-list.test.tsx`
-Expected: PASS.
-
-- [ ] **Step 9: Update the two journal photo grids**
-
-These are photos, so `rendersInline` is true for all of them in practice — but ask the predicate anyway rather than assuming, so a non-image that ever reaches this grid behaves correctly.
 
 In `components/trip/journal-editor.tsx`, add to the imports:
 
 ```tsx
-import { rendersInline } from "@/lib/attachment-display";
+import { AttachmentLink } from "@/components/trip/attachment-link";
 ```
 
 and replace lines 83-86:
@@ -373,23 +495,19 @@ and replace lines 83-86:
 with:
 
 ```tsx
-              <a
+              <AttachmentLink
                 href={photo.url}
-                {...(rendersInline(photo.mime)
-                  ? { target: "_blank", rel: "noopener noreferrer" }
-                  : {})}
-                aria-label={
-                  rendersInline(photo.mime)
-                    ? `View photo ${photo.filename} (opens in a new tab)`
-                    : `View photo ${photo.filename}`
-                }
+                mime={photo.mime}
+                label={`View photo ${photo.filename}`}
               >
 ```
+
+— and close that element with `</AttachmentLink>` instead of `</a>`.
 
 In `app/(app)/trips/[tripId]/journal/page.tsx`, add to the imports:
 
 ```tsx
-import { rendersInline } from "@/lib/attachment-display";
+import { AttachmentLink } from "@/components/trip/attachment-link";
 ```
 
 and replace lines 134-138:
@@ -405,26 +523,74 @@ and replace lines 134-138:
 with:
 
 ```tsx
-                    <a
+                    <AttachmentLink
                       key={photo.id}
                       href={photo.url}
-                      {...(rendersInline(photo.mime)
-                        ? { target: "_blank", rel: "noopener noreferrer" }
-                        : {})}
-                      aria-label={`View photo ${photo.filename} (opens in a new tab)`}
+                      mime={photo.mime}
+                      label={`View photo ${photo.filename}`}
                     >
 ```
 
-- [ ] **Step 10: Run the full suite**
+— and close that element with `</AttachmentLink>` instead of `</a>`.
+
+- [ ] **Step 11: Confirm ADR 0043's existing test still passes unchanged**
+
+Run: `npx vitest run components/trip/attachment-links.test.tsx`
+Expected: PASS, **including** the pre-existing "opens attachments in-app so the offline cache can serve them" test at line 15. **Do not modify or delete that test.** If it fails, the implementation has rendered a `target` attribute and the approach is wrong — stop and report rather than editing the test to match.
+
+- [ ] **Step 12: Amend ADR 0043**
+
+Append to `docs/adr/0043-attachments-warm-offline-through-the-authenticated-serve-route.md`:
+
+```markdown
+
+## Amendment — 2026-09-21: the same-tab rule is scoped to the installed PWA
+
+A Traveller reported that opening an attachment navigates away from the page
+they were working on — filed from desktop Chrome. That is precisely the
+behaviour the Decision above introduced, so the two had to be reconciled
+rather than one silently overwriting the other.
+
+The Decision's stated reason is narrower than the rule it wrote. It names the
+risk as handing off "to a new browser tab/window that a PWA shell may not
+carry offline state into" — and that is true of the **installed PWA**, where
+the handoff goes to an in-app browser outside the service worker's control. It
+is not true of an ordinary browser tab: a new same-origin tab is controlled by
+the *same* service worker and served from the *same* runtime cache, so a
+warmed attachment opens offline there exactly as it does in the current tab.
+
+So the rule is scoped to the context its reasoning actually covers:
+
+- **Installed PWA — unchanged.** Attachment links navigate in-app. Everything
+  the Decision above says continues to hold, and the offline-ticket case it
+  was written for is untouched.
+- **Ordinary browser tab — opens out.** Only for files the browser renders in
+  place (`rendersInline`, `lib/attachment-display.ts`); a file it downloads
+  never navigates, so opening a tab for one would leave it blank.
+
+The choice is made in a click handler (`components/trip/attachment-link.tsx`),
+not in the markup, so **no `target` attribute is rendered in either context**.
+The test this ADR introduced —
+`components/trip/attachment-links.test.tsx:15-19` — therefore still passes
+verbatim, and still guards the thing it was written to guard.
+
+This also closes a question raised while planning the change: whether
+`target="_blank"` from the installed iPhone app would reach the sign-in page,
+since a standalone iOS PWA can hold a cookie jar separate from Safari. Under
+this amendment the installed app never opens out, so the case cannot arise and
+needs no device verification.
+```
+
+- [ ] **Step 13: Run the full suite**
 
 Run: `npm test`
-Expected: PASS.
+Expected: PASS. If `components/trip/attachment-list.test.tsx` or `journal` tests assert on the old raw `<a>` markup, update those assertions to match the component's rendered output — but never weaken the ADR 0043 test at `attachment-links.test.tsx:15-19`.
 
-- [ ] **Step 11: Commit**
+- [ ] **Step 14: Commit**
 
 ```bash
-git add components/trip/attachment-list.tsx components/trip/attachment-links.tsx components/trip/journal-editor.tsx "app/(app)/trips/[tripId]/journal/page.tsx" components/trip/attachment-list.test.tsx components/trip/attachment-links.test.tsx
-git commit -m "feat(attachments): open previewable files in a new tab"
+git add lib/standalone.ts lib/standalone.test.ts components/trip/attachment-link.tsx components/trip/attachment-link.test.tsx components/account/device-state.ts components/trip/attachment-list.tsx components/trip/attachment-links.tsx components/trip/journal-editor.tsx "app/(app)/trips/[tripId]/journal/page.tsx" docs/adr/0043-attachments-warm-offline-through-the-authenticated-serve-route.md
+git commit -m "feat(attachments): open out in a browser tab, stay in-app in the PWA"
 ```
 
 ---
@@ -746,7 +912,7 @@ export const RELEASE_NOTES: ReleaseNote[] = [
   },
   {
     publishedAt: "2026-09-21T10:00:00Z",
-    text: "Attachments now open in a new tab, so you keep your place — thanks Xanthia.",
+    text: "On a computer, attachments now open in a new tab so you keep your place — thanks Xanthia.",
   },
 ];
 
@@ -1734,26 +1900,40 @@ written.
 > §4b. Applying it is the operator's call.
 ```
 
-- [ ] **Step 3: Add the blocked item**
+- [ ] **Step 3: Record the iPhone question as settled, not blocked**
 
-In `docs/open-follow-ups.md`, in the *Still genuinely blocked* list (starting line 617), add as the first bullet:
+**Do NOT add a blocked item for this.** An earlier draft of this plan opened
+attachments in a new tab everywhere and owed a device check: whether a
+`target="_blank"` from the installed iPhone app would reach the sign-in page,
+since a standalone iOS PWA can hold a cookie jar separate from Safari. Task 2's
+narrowing of ADR 0043 means the installed app never opens out, so the case
+cannot arise and there is nothing to verify. Record that, so a future reader
+does not re-raise it as an untested gap.
+
+In `docs/open-follow-ups.md`, in the **Settled — do not re-raise** section, add:
 
 ```markdown
-- **`WN-01` — confirm an attachment opened from the installed iPhone PWA
-  reaches the file, not the sign-in page.** (Raised 2026-09-21 with the
-  attachment new-tab change.) Attachment links now carry `target="_blank"`
-  for files the browser renders in place (images, PDFs). An installed iOS PWA
-  can hold a **separate cookie jar** from Safari, so the new tab's request to
-  `/api/attachments/:id` — which is session-authenticated at
-  `app/api/attachments/[id]/route.ts:45` — may arrive without the session.
-  **What is needed:** open a PDF attachment from the TEEPEE app installed on
-  the Home Screen and see which you get. Nothing in this repo can test it —
-  jsdom has no cookie jar and no standalone display mode. **If it bounces to
-  sign-in**, the fix is already designed: a server action performs the same
-  access check and returns the **presigned** storage URL (the route already
-  302s to one, `PRESIGN_EXPIRY_SECONDS = 300`), and the client opens *that*,
-  which needs no session at all. The tab must be opened synchronously on click
-  and its location set when the URL resolves, or the popup blocker eats it.
+### WN-01 · Whether an attachment opened from the installed iPhone PWA would hit the sign-in page
+
+- **Source:** raised 2026-09-21 while planning the attachment new-tab change;
+  settled the same day by the amendment to ADR 0043.
+- **The observation:** `/api/attachments/:id` is session-authenticated
+  (`app/api/attachments/[id]/route.ts:45`), and a standalone iOS PWA can hold
+  a cookie jar separate from Safari — so a link opened out of the installed
+  app might arrive unauthenticated and bounce to sign-in.
+- **Why it is settled rather than owed:** the behaviour that would have caused
+  it was never shipped. Attachment links open out **only in an ordinary
+  browser tab**; inside the installed PWA they navigate in-app exactly as ADR
+  0043 specified. There is no code path from the installed app to a new tab,
+  so there is nothing a device pass could observe.
+- **What would reopen it:** any change that gives attachment links a
+  `target="_blank"` unconditionally, or that removes the `isStandalone()`
+  branch in `components/trip/attachment-link.tsx`. If that is ever proposed,
+  the fix is already designed — a server action performs the access check and
+  returns the **presigned** storage URL (the route already 302s to one,
+  `PRESIGN_EXPIRY_SECONDS = 300`), and the client opens *that*, needing no
+  session. The tab must be opened synchronously on click and its location set
+  when the URL resolves, or the popup blocker eats it.
 ```
 
 - [ ] **Step 4: Add the ONBOARDING changelog line**
@@ -1761,7 +1941,7 @@ In `docs/open-follow-ups.md`, in the *Still genuinely blocked* list (starting li
 In `ONBOARDING.md`, insert immediately above the existing `- **In-app user guide** (2026-08-20)` bullet at line 88:
 
 ```markdown
-- **What's new, attachment tabs & cover fill** (2026-09-21) — New **Release note** concept (`CONTEXT.md`, ADR 0056): notes are a typed constant in `lib/release-notes.ts`, surfaced as a dismissible card on the trips list and Trip Home plus a full list at `/whats-new`. Read state is `User.whatsNewSeenAt` (nullable; `NULL` means caught-up-at-`createdAt`, never backfilled) — migration `20260921120000_user_whats_new_seen_at`, **written, applies on deploy**. Attachment links now open in a new tab via the shared `rendersInline(mime)` predicate in `lib/attachment-display.ts`, which the serve route uses for `Content-Disposition` too so the two cannot drift. `TripCover` renders a blurred backdrop of the same image behind the uncropped photo (replacing the flat `bg-muted` letterbox of `274455a`, keeping its no-crop guarantee); card cover `h-28`→`h-36`, Trip Home hero `h-40`→`h-56` on mobile.
+- **What's new, attachment tabs & cover fill** (2026-09-21) — New **Release note** concept (`CONTEXT.md`, ADR 0056): notes are a typed constant in `lib/release-notes.ts`, surfaced as a dismissible card on the trips list and Trip Home plus a full list at `/whats-new`. Read state is `User.whatsNewSeenAt` (nullable; `NULL` means caught-up-at-`createdAt`, never backfilled) — migration `20260921120000_user_whats_new_seen_at`, **written, applies on deploy**. Attachment links now open out **in an ordinary browser tab only** — `components/trip/attachment-link.tsx` decides in a click handler from `rendersInline(mime)` (`lib/attachment-display.ts`, shared with the serve route's `Content-Disposition` so the two cannot drift) and `isStandalone()` (`lib/standalone.ts`, also now backing `device-state.ts`'s iOS check). Inside the installed PWA links stay in-app, so ADR 0043's offline-ticket guarantee is untouched — see its 2026-09-21 amendment; no `target` attribute is rendered in either context, so ADR 0043's own test still passes verbatim. `TripCover` renders a blurred backdrop of the same image behind the uncropped photo (replacing the flat `bg-muted` letterbox of `274455a`, keeping its no-crop guarantee); card cover `h-28`→`h-36`, Trip Home hero `h-40`→`h-56` on mobile.
 ```
 
 - [ ] **Step 5: Verify the docs are consistent**
@@ -1791,4 +1971,4 @@ git commit -m "docs: ADR 0056, correct the applied-migration record, log the rel
 - **Applying `20260921120000_user_whats_new_seen_at`.** Written and committed only.
 - **Merging to `main` and deploying.** Sandbox guardrails; hand back for both.
 - **`npm run feedback:resolve -- cmub12cdl000004k1yp20uk6u`.** Writes to production, and a Feedback note closes only when the work has actually landed — which means merged and deployed, not committed to a branch.
-- **`WN-01`**, the iPhone PWA attachment check — recorded in *Blocked*, needs a real device.
+- **Nothing device-blocked was added by this release.** `WN-01` — the iPhone PWA attachment question — is recorded in *Settled*, not *Blocked*: Task 2's narrowing of ADR 0043 means the installed app never opens a link out, so there is no behaviour for a device pass to observe.
