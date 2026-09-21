@@ -250,6 +250,18 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    // Stamped only here, once the scan and every per-trip dispatch have been
+    // attempted without throwing. The lastRunAt write above cannot carry this
+    // meaning: it happens before any Digest is built (CD-06).
+    try {
+      await db.cronHeartbeat.update({
+        where: { id: "digest" },
+        data: { lastSuccessAt: new Date() },
+      });
+    } catch (err) {
+      console.error("[cron/digest] success stamp failed:", err);
+    }
+
     return NextResponse.json({ considered, dispatched, sent, skipped, failed });
   } catch (err) {
     console.error("[cron/digest] Error:", err);

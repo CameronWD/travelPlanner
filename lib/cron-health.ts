@@ -46,3 +46,21 @@ export function formatLastRun(lastRunAt: Date | null, now: Date): string {
   if (hours >= 1) return `last ran ${hours} ${hours === 1 ? "hour" : "hours"} ago`;
   return "last ran just now";
 }
+
+/**
+ * Whether the Digest dispatcher should be reported as broken.
+ *
+ * Two signals, because one cannot answer the question. `lastRunAt` is stamped
+ * on every authorized run, before any Digest is built — it is what separates
+ * "nothing to say" from "the scheduler stopped". `lastSuccessAt` is stamped
+ * only once a scan has completed, so a throw part-way through the dispatch
+ * loop leaves it behind while `lastRunAt` marches on. Either going stale means
+ * Travellers are not getting Digests (CD-06).
+ */
+export function isDispatcherUnhealthy(
+  lastRunAt: Date | null,
+  lastSuccessAt: Date | null,
+  now: Date,
+): boolean {
+  return isDispatcherStale(lastRunAt, now) || isDispatcherStale(lastSuccessAt, now);
+}

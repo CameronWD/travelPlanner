@@ -1,10 +1,18 @@
 "use client";
 
 import { TriangleAlert } from "lucide-react";
-import { formatLastRun } from "@/lib/cron-health";
+import { formatLastRun, isDispatcherStale } from "@/lib/cron-health";
 
 export interface DispatcherHealthProps {
   lastRunAt: Date | null;
+  /**
+   * Stamped only once a scan completes (CD-06). `null` means either the
+   * dispatcher has never finished a scan, or the deploy that added this
+   * column hasn't seen one yet — both read the same to a Traveller: nothing
+   * has gone out.
+   */
+  lastSuccessAt: Date | null;
+  /** `isDispatcherUnhealthy(lastRunAt, lastSuccessAt, now)`, computed server-side. */
   stale: boolean;
   /**
    * The server's instant, passed down rather than read here. This component
@@ -42,12 +50,37 @@ export interface DispatcherHealthProps {
  *
  * The main line always renders `formatLastRun` plainly (mirrors
  * `formatLastSeen`'s register change on the Devices list above it). The
- * second line only appears once stale, and says outright that Digests are
- * not being sent: the Digest panel already taught the Traveller to read
+ * second line only appears once unhealthy, and says outright that Digests
+ * are not going out: the Digest panel already taught the Traveller to read
  * silence as normal, so this is the one place that has to contradict that
  * training instead of reinforcing it.
+ *
+ * Two distinct warnings, because `lastRunAt` and `lastSuccessAt` can go
+ * stale independently (CD-06). If the route itself stopped running, nothing
+ * downstream matters — "Digests are not being sent." covers it. If the route
+ * is running but a scan keeps throwing before it finishes, `lastRunAt` stays
+ * fresh while `lastSuccessAt` doesn't — the vaguer "not being sent" framing
+ * would be actively wrong there (something IS running), so that case gets
+ * its own line naming what's actually stuck.
  */
-export function DispatcherHealth({ lastRunAt, stale, now }: DispatcherHealthProps) {
+export function DispatcherHealth({
+  lastRunAt,
+  lastSuccessAt,
+  stale,
+  now,
+}: DispatcherHealthProps) {
+  const routeStale = isDispatcherStale(lastRunAt, now);
+  const successStale = isDispatcherStale(lastSuccessAt, now);
+
+  let warning: string | null = null;
+  if (routeStale) {
+    warning = "Digests are not being sent.";
+  } else if (successStale) {
+    warning = lastSuccessAt
+      ? `Running, but nothing has been sent since ${formatLastRun(lastSuccessAt, now).replace(/^last ran /, "")}.`
+      : "Running, but no Digest has ever been sent.";
+  }
+
   return (
     <div className="flex flex-col gap-1.5">
       <p
@@ -57,13 +90,13 @@ export function DispatcherHealth({ lastRunAt, stale, now }: DispatcherHealthProp
       >
         Digest service — {formatLastRun(lastRunAt, now)}
       </p>
-      {stale && (
+      {warning && (
         <p className="flex items-start gap-2 text-xs text-destructive">
           <TriangleAlert
             className="mt-0.5 size-3.5 shrink-0"
             aria-hidden="true"
           />
-          <span>Digests are not being sent.</span>
+          <span>{warning}</span>
         </p>
       )}
     </div>
