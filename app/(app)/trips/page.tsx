@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { PlaneTakeoff } from "lucide-react";
 import { requireUser } from "@/lib/guards";
+import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
 import { db } from "@/lib/db";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -109,6 +110,8 @@ export default async function TripsPage() {
           <Link href="/trips/new">New trip</Link>
         </Button>
       </div>
+
+      <WhatsNewBanner />
 
       {/* Trips grid / empty state */}
       {trips.length === 0 ? (

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { PhaseSketching } from "@/components/trip/home/phase-sketching";
@@ -104,6 +105,7 @@ export default async function TripHomePage({
 
   return (
     <>
+      <WhatsNewBanner />
       {cover}
       {phaseEl}
       <section className="mt-6 flex flex-col gap-1">
