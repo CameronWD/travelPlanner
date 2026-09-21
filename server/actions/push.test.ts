@@ -139,6 +139,32 @@ describe("subscribeToPush", () => {
     expect(arg.create.timezone).toBeUndefined();
     expect(arg.update.timezone).toBeUndefined();
   });
+
+  it("logs the error rather than swallowing it when the db throws", async () => {
+    // CD-09: three bare `catch {` blocks meant every failure in this file was
+    // invisible — the caller got a generic message and the operator got
+    // nothing at all.
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const boom = new Error("connection reset");
+    pushSubUpsertMock.mockRejectedValue(boom);
+
+    const result = await subscribeToPush(STUB_SUB);
+
+    expect(result).toEqual({ ok: false, error: "Failed to save push subscription." });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("[push]"), boom);
+    errorSpy.mockRestore();
+  });
+
+  it("writes the same key material on the create and update arms", async () => {
+    pushSubUpsertMock.mockResolvedValue({});
+
+    await subscribeToPush({ ...STUB_SUB, timezone: "Europe/Berlin" });
+
+    const call = pushSubUpsertMock.mock.calls[0][0];
+    const core = { p256dh: "stub-p256dh", auth: "stub-auth", timezone: "Europe/Berlin" };
+    expect(call.create).toMatchObject(core);
+    expect(call.update).toMatchObject(core);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -171,6 +197,18 @@ describe("unsubscribeFromPush", () => {
     const result = await unsubscribeFromPush(STUB_SUB.endpoint);
 
     expect(result).toMatchObject({ ok: false });
+  });
+
+  it("logs the error rather than swallowing it when the db throws", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const boom = new Error("connection reset");
+    pushSubDeleteManyMock.mockRejectedValue(boom);
+
+    const result = await unsubscribeFromPush(STUB_SUB.endpoint);
+
+    expect(result).toEqual({ ok: false, error: "Failed to remove push subscription." });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("[push]"), boom);
+    errorSpy.mockRestore();
   });
 
   it("scopes deletion to current user (cannot delete another user's subscription)", async () => {
@@ -324,7 +362,9 @@ describe("healRotatedSubscription", () => {
   // an unexpected DB failure is TEEPEE's fault, not the caller's, and must
   // not be reported as a client error.
   it("returns reason: internal when the database throws", async () => {
-    pushSubUpsertMock.mockRejectedValue(new Error("DB error"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const boom = new Error("DB error");
+    pushSubUpsertMock.mockRejectedValue(boom);
 
     const res = await healRotatedSubscription({
       endpoint: "https://new",
@@ -336,6 +376,8 @@ describe("healRotatedSubscription", () => {
       error: "Failed to heal push subscription.",
       reason: "internal",
     });
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("[push]"), boom);
+    errorSpy.mockRestore();
   });
 
   // The mirror of the case above: the refusal must not be so broad that it
