@@ -11,14 +11,27 @@ export type { MembershipLike } from "@/lib/access";
 /**
  * Require an authenticated user. Returns the session user, or redirects to
  * the sign-in page. Use at the top of server components / actions.
+ *
+ * Wrapped in React's `cache()`, exactly like `requireTripAccess` below and
+ * for the same reason: memoised per request, so this is pure deduplication
+ * with no behavioural change — a session cannot change mid-request. Before
+ * this was cached, `requireTripAccess` already was (it calls `requireUser`
+ * internally), which meant any page calling both `requireUser` directly
+ * *and* `requireTripAccess` — or calling `requireUser` directly from more
+ * than one component in the same render, as What's new's banner does on
+ * every arrival page — paid for two `auth()` verifications instead of one.
+ * Callers must still call it — `cache()` makes the second call free, it
+ * does not make it unnecessary. Every entry point guarding itself is
+ * deliberate defence in depth; see the longer warning on `requireTripAccess`
+ * for the one case where that memoisation is a trap.
  */
-export async function requireUser() {
+export const requireUser = cache(async () => {
   const session = await auth();
   if (!session?.user?.id) {
     redirect("/signin");
   }
   return session.user;
-}
+});
 
 /**
  * Require that the current user is a member of `tripId`. Returns the user and
@@ -35,13 +48,12 @@ export async function requireUser() {
  * remove either call — `cache()` makes the second one free, it doesn't make
  * it redundant.
  *
- * `requireUser()` is memoised by extension: calling it from inside a cached
- * `requireTripAccess("trip1")` means a second `requireTripAccess("trip1")` in
- * the same request never re-runs `auth()` either. That's fine — the session
- * doesn't change mid-request. It does mean `requireUser` is only deduplicated
- * *through* this wrapper; checking access for several different trips in one
- * request still re-runs `auth()` once per distinct tripId, since the cache
- * key is `tripId`, not "no arguments." Not a bug, just not free lunch beyond
+ * `requireUser()` is cached in its own right (see above), so the `auth()`
+ * call inside this function is free no matter how many times `requireUser`
+ * or `requireTripAccess` were already called this request. What is *not*
+ * free beyond that: checking access for several different trips in one
+ * request still re-runs the membership query once per distinct `tripId`,
+ * since this cache's key is `tripId`. Not a bug, just not free lunch beyond
  * what's asked for here.
  *
  * CAVEAT — read this before adding a caller that mutates membership: a server

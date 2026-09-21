@@ -70,7 +70,12 @@ vi.mock("react", async (importOriginal) => {
   };
 });
 
-import { assertForkingAllowed, requireForkAccess, requireTripAccess } from "@/lib/guards";
+import {
+  assertForkingAllowed,
+  requireForkAccess,
+  requireTripAccess,
+  requireUser,
+} from "@/lib/guards";
 
 afterEach(() => {
   vi.clearAllMocks();
@@ -140,12 +145,51 @@ describe("requireTripAccess", () => {
   });
 });
 
-describe("requireTripAccess is structurally cached", () => {
-  it("is literally the value cache() returned, not merely memoised-looking", () => {
+describe("requireUser", () => {
+  it("returns the session user", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+
+    await expect(requireUser()).resolves.toEqual({ id: "u1" });
+  });
+
+  it("redirects an unauthenticated user to sign-in", async () => {
+    authMock.mockResolvedValue(null);
+
+    await expect(requireUser()).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirectMock).toHaveBeenCalledOnce();
+  });
+
+  // Task 8 review (CD-12): requireUser used to re-run auth() on every direct
+  // call, even within one request — so a page that called requireUser()
+  // itself (TripsPage) and also rendered something that called it a second
+  // time (the What's new banner) paid for two session checks per render.
+  // requireTripAccess was already cached for the identical reason; this
+  // closes the gap for direct callers instead of routing every caller
+  // through requireTripAccess.
+  it("memoises per request: two direct calls hit auth() once", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1" } });
+
+    const first = await requireUser();
+    const second = await requireUser();
+
+    expect(authMock).toHaveBeenCalledOnce();
+    expect(second).toEqual(first);
+  });
+});
+
+describe("guards are structurally cached", () => {
+  it("requireUser is literally the value cache() returned, not merely memoised-looking", () => {
     // Every other test in this file exercises memoisation THROUGH the
     // hand-rolled cache() stub, so a bug in the stub would hide a
-    // requireTripAccess that is no longer wrapped at all. This is the one
+    // requireUser that is no longer wrapped at all. This is the one
     // assertion that survives that (CD-11).
+    expect(
+      cacheWrapped.includes(requireUser),
+      "requireUser is not a cache() return value — the cache() wrapper was removed from lib/guards.ts",
+    ).toBe(true);
+  });
+
+  it("requireTripAccess is literally the value cache() returned, not merely memoised-looking", () => {
     expect(
       cacheWrapped.includes(requireTripAccess),
       "requireTripAccess is not a cache() return value — the cache() wrapper was removed from lib/guards.ts",
@@ -153,9 +197,9 @@ describe("requireTripAccess is structurally cached", () => {
   });
 
   it("wraps exactly the guards this file expects", () => {
-    // If a second cache() call appears in lib/guards.ts, it is new behaviour
+    // If a third cache() call appears in lib/guards.ts, it is new behaviour
     // and wants its own test rather than silently joining this one.
-    expect(cacheWrapped).toHaveLength(1);
+    expect(cacheWrapped).toHaveLength(2);
   });
 });
 
