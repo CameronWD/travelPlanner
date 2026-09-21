@@ -52,6 +52,12 @@ model User {
   digestPreferences  DigestPreference[]
   digestDispatches   DigestDispatch[]
 
+  /// When this Traveller last dismissed the What's new card. NULL means they
+  /// have never dismissed one, which the app reads as "caught up as of
+  /// createdAt" rather than "has seen nothing" — see lib/release-notes.ts and
+  /// ADR 0056.
+  whatsNewSeenAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
