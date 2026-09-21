@@ -538,6 +538,22 @@ function transportRoute(
 /** Why a dispatch produced no push. Tasks 7 and 8 branch on these strings. */
 export type DispatchSkipReason = "disabled" | "already-sent" | "empty";
 
+/**
+ * How recently the same person may have had this slot before a second send is
+ * refused (ADR 0054).
+ *
+ * The ledger key carries `localDate`, which is derived from the zone elected
+ * per run — so a person who changes Device zone mid-day produces two keys and
+ * would receive two Digests. This guard dedupes by PERSON instead, which is
+ * the unit ADR 0050 reasons about.
+ *
+ * 18h is sized against the thing being protected: two consecutive same-slot
+ * Digests are ~24h apart and the slot windows are three hours wide, so the
+ * tightest legitimate gap is ~22h. MORNING and EVENING are checked
+ * independently and sit 10-14h apart, so neither suppresses the other.
+ */
+export const DIGEST_SLOT_COOLDOWN_MS = 18 * 60 * 60 * 1000;
+
 export interface DispatchDigestResult {
   sent: number;
   skipped: boolean;
@@ -584,6 +600,19 @@ export async function dispatchDigest(opts: {
 
   let claimed = false;
   if (!force) {
+    const recent = await db.digestDispatch.findFirst({
+      where: {
+        userId,
+        tripId,
+        slot,
+        createdAt: { gt: new Date(Date.now() - DIGEST_SLOT_COOLDOWN_MS) },
+      },
+      select: { id: true },
+    });
+    if (recent) {
+      return { sent: 0, skipped: true, reason: "already-sent" };
+    }
+
     try {
       await db.digestDispatch.create({
         data: { userId, tripId, localDate, slot },
