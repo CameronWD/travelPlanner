@@ -2,12 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   requireGlobeAccessMock,
+  requireGlobeOwnerMock,
   markerFindUniqueMock,
   attachmentFindManyMock,
   attachmentDeleteManyMock,
   storageDeleteMock,
 } = vi.hoisted(() => ({
   requireGlobeAccessMock: vi.fn(async () => ({ user: { id: "u1" }, globe: { id: "g1" } })),
+  requireGlobeOwnerMock: vi.fn(
+    async (): Promise<{ user: { id: string }; globe: { id: string } } | null> => ({
+      user: { id: "u1" },
+      globe: { id: "g1" },
+    }),
+  ),
   markerFindUniqueMock: vi.fn(),
   attachmentFindManyMock: vi.fn(),
   attachmentDeleteManyMock: vi.fn(),
@@ -16,6 +23,7 @@ const {
 
 vi.mock("@/lib/globe", () => ({
   requireGlobeAccess: requireGlobeAccessMock,
+  requireGlobeOwner: requireGlobeOwnerMock,
 }));
 vi.mock("@/lib/guards", () => ({ requireUser: vi.fn(async () => ({ id: "u1" })) }));
 vi.mock("@/lib/geocode", () => ({
@@ -56,6 +64,7 @@ const dbm = db as any;
 beforeEach(() => {
   vi.clearAllMocks();
   requireGlobeAccessMock.mockResolvedValue({ user: { id: "u1" }, globe: { id: "g1" } });
+  requireGlobeOwnerMock.mockResolvedValue({ user: { id: "u1" }, globe: { id: "g1" } });
   attachmentFindManyMock.mockResolvedValue([]);
   attachmentDeleteManyMock.mockResolvedValue({ count: 0 });
   storageDeleteMock.mockResolvedValue(undefined);
@@ -139,5 +148,32 @@ describe("inviteToGlobe", () => {
         data: expect.objectContaining({ globeId: "g1", email: "partner@example.com" }),
       }),
     );
+  });
+
+  it("sets expiresAt 30 days out on creation", async () => {
+    dbm.globeInvite.create.mockResolvedValue({ id: "i1" });
+    const before = Date.now();
+    await inviteToGlobe("partner@example.com");
+    const after = Date.now();
+    const call = dbm.globeInvite.create.mock.calls[0][0];
+    const expiresAt: Date = call.data.expiresAt;
+    expect(expiresAt).toBeInstanceOf(Date);
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + thirtyDaysMs);
+    expect(expiresAt.getTime()).toBeLessThanOrEqual(after + thirtyDaysMs);
+  });
+
+  it("ARCH-TEN-4: a plain Globe member cannot invite", async () => {
+    requireGlobeOwnerMock.mockResolvedValue(null);
+    const res = await inviteToGlobe("stranger@example.com");
+    expect(res.success).toBe(false);
+    expect(dbm.globeInvite.create).not.toHaveBeenCalled();
+  });
+
+  it("ARCH-TEN-4: the Globe owner can invite", async () => {
+    requireGlobeOwnerMock.mockResolvedValue({ user: { id: "u1" }, globe: { id: "g1" } });
+    dbm.globeInvite.create.mockResolvedValue({ id: "i1" });
+    const res = await inviteToGlobe("friend@example.com");
+    expect(res.success).toBe(true);
   });
 });

@@ -5,10 +5,10 @@ import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireGlobeAccess } from "@/lib/globe";
+import { requireGlobeAccess, requireGlobeOwner } from "@/lib/globe";
 import { markerSchema, type MarkerInput } from "@/lib/validations/marker";
 import { searchPlacesWithStatus, reverseGeocode, type GeoCandidate, type PlaceSearchOutcome } from "@/lib/geocode";
-import { type ActionResult, validationResult } from "@/lib/action-result";
+import { type ActionResult, fail, validationResult } from "@/lib/action-result";
 import { cleanupGlobeAttachments } from "./target-cleanup";
 
 export type GlobeActionResult = ActionResult;
@@ -106,14 +106,30 @@ export async function deleteMarker(markerId: string): Promise<GlobeActionResult>
 
 const inviteEmailSchema = z.string().trim().toLowerCase().email("Enter a valid email address");
 
+const GLOBE_INVITE_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
+
 export async function inviteToGlobe(email: string): Promise<GlobeActionResult> {
-  const { globe } = await requireGlobeAccess();
+  // ARCH-TEN-4: inviting is owner-only — a plain Globe member could
+  // otherwise mint standing access to the whole Globe (a Traveller's entire
+  // saved-places history) for anyone. Every other Globe action stays on
+  // requireGlobeAccess; see requireGlobeOwner's doc comment.
+  const access = await requireGlobeOwner();
+  if (!access) {
+    return fail({ _: ["Only the Globe owner can invite people."] });
+  }
+  const { globe } = access;
   const parsed = inviteEmailSchema.safeParse(email);
   if (!parsed.success) return validationResult(parsed.error);
 
   try {
     await db.globeInvite.create({
-      data: { globeId: globe.id, email: parsed.data, token: randomUUID(), role: "member" },
+      data: {
+        globeId: globe.id,
+        email: parsed.data,
+        token: randomUUID(),
+        role: "member",
+        expiresAt: new Date(Date.now() + GLOBE_INVITE_EXPIRY_MS),
+      },
     });
   } catch (err) {
     // Already invited (unique [globeId, email]) — treat as success (idempotent).
