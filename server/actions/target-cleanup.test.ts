@@ -46,14 +46,17 @@ vi.mock("@/lib/storage", async (importOriginal) => {
 });
 
 // ARCH-DAT-3: blob destruction is deferred. cleanupTargetSideData /
-// deleteBlobsBestEffort no longer call storage.delete directly — they hand
-// storage keys to scheduleBlobDeletion, which records them in DeletedBlob for
-// scripts/sweep-deleted-blobs.ts to destroy later.
+// cleanupGlobeAttachments / cleanupTargetSideDataTx no longer call
+// storage.delete directly — they hand storage keys to scheduleBlobDeletion,
+// which records them in DeletedBlob for scripts/sweep-deleted-blobs.ts to
+// destroy later. (deleteBlobsBestEffort was deleted in fix round 1, I4 — its
+// only job, scheduling AFTER a $transaction committed, moved inside
+// cleanupTargetSideDataTx itself, see below.)
 vi.mock("@/lib/blob-retention", () => ({
   scheduleBlobDeletion: scheduleBlobDeletionMock,
 }));
 
-import { cleanupTargetSideData, cleanupTargetSideDataTx, deleteBlobsBestEffort } from "./target-cleanup";
+import { cleanupTargetSideData, cleanupTargetSideDataTx } from "./target-cleanup";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -126,6 +129,14 @@ describe("cleanupTargetSideData", () => {
       cleanupTargetSideData("t4", "ACCOMMODATION", "acc-1"),
     ).resolves.toBeUndefined();
 
+    // Minor (fix round 1): this used to be vacuous — without asserting
+    // scheduleBlobDeletion was actually reached, a revert to a direct
+    // per-key storage.delete loop (which would never call the rejecting
+    // mock at all) would pass this test too, since the DB-cleanup
+    // assertions below don't depend on it. Prove the rejected mock was
+    // really exercised, and that no direct storage.delete crept back in.
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["bad-key", "good-key"]);
+    expect(storageDeleteMock).not.toHaveBeenCalled();
     // DB cleanup still ran
     expect(attachmentDeleteManyMock).toHaveBeenCalled();
     expect(noteDeleteManyMock).toHaveBeenCalled();
@@ -167,7 +178,7 @@ describe("cleanupTargetSideDataTx", () => {
     } as any;
   }
 
-  it("deletes attachment and note rows inside the tx and returns storage keys (no blob deletes)", async () => {
+  it("deletes attachment and note rows, and schedules blob retention, all inside the SAME tx (I3, fix round 1)", async () => {
     const tx = fakeTx([{ storageKey: "k1" }, { storageKey: null }]);
 
     const keys = await cleanupTargetSideDataTx(tx, "t1", "TRANSPORT", "tr1");
@@ -184,6 +195,10 @@ describe("cleanupTargetSideDataTx", () => {
       where: { tripId: "t1", targetType: "TRANSPORT", targetId: "tr1" },
     });
     expect(storageDeleteMock).not.toHaveBeenCalled();
+    // scheduleBlobDeletion is called with the SAME tx handle (not the
+    // post-commit global db) — that's what makes the row deletes and the
+    // DeletedBlob write commit or roll back together.
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["k1"], tx);
   });
 
   it("returns an empty array when there are no attachments", async () => {
@@ -192,6 +207,7 @@ describe("cleanupTargetSideDataTx", () => {
     const keys = await cleanupTargetSideDataTx(tx, "t2", "ITEM", "item-1");
 
     expect(keys).toEqual([]);
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([], tx);
   });
 
   it("filters out null storageKeys", async () => {
@@ -200,32 +216,6 @@ describe("cleanupTargetSideDataTx", () => {
     const keys = await cleanupTargetSideDataTx(tx, "t3", "ACCOMMODATION", "acc-1");
 
     expect(keys).toEqual(["k2"]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// deleteBlobsBestEffort
-// ---------------------------------------------------------------------------
-
-describe("deleteBlobsBestEffort", () => {
-  it("schedules retention rather than calling storage.delete, even for an empty list", async () => {
-    await deleteBlobsBestEffort([]);
-    expect(storageDeleteMock).not.toHaveBeenCalled();
-    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([]);
-  });
-
-  it("schedules retention for all keys in one call (ARCH-DAT-3)", async () => {
-    await deleteBlobsBestEffort(["k1", "k2"]);
-
-    expect(storageDeleteMock).not.toHaveBeenCalled();
-    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["k1", "k2"]);
-  });
-
-  it("swallows a scheduleBlobDeletion failure (best-effort)", async () => {
-    scheduleBlobDeletionMock.mockRejectedValueOnce(new Error("db down"));
-
-    await expect(deleteBlobsBestEffort(["bad-key", "good-key"])).resolves.toBeUndefined();
-
-    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["bad-key", "good-key"]);
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["k2"], tx);
   });
 });

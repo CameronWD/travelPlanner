@@ -16,6 +16,7 @@ const {
   tripCreateMock, tripUpdateMock, tripDeleteMock, attachmentFindManyMock,
   chapterCreateMock, stopCreateMock, transportCreateMock, accommodationCreateMock,
   itemCreateMock, voteCreateMock, costCreateMock, exchangeRateCreateMock, checklistItemCreateMock,
+  scheduleBlobDeletionMock, storageDeleteMock,
 } = vi.hoisted(() => ({
   findManyMock: vi.fn(),
   userFindUniqueMock: vi.fn(),
@@ -35,6 +36,15 @@ const {
   costCreateMock: vi.fn(),
   exchangeRateCreateMock: vi.fn(),
   checklistItemCreateMock: vi.fn(),
+  // ARCH-DAT-3 (fix round 1, C1): wipeRealTrip used to hard-delete blobs
+  // directly via storage.delete — the most dangerous instance of the
+  // finding, since this file's own docs call wipeRealTrip out as a path
+  // meant to run against production. scheduleBlobDeletion is loaded via a
+  // dynamic import() inside wipeRealTrip (same lazy-loading discipline as
+  // loadDb()); vi.mock intercepts that the same way it intercepts a static
+  // import (see the file-level comment above).
+  scheduleBlobDeletionMock: vi.fn().mockResolvedValue(undefined),
+  storageDeleteMock: vi.fn(),
 }));
 vi.mock("@/lib/db", () => ({
   db: {
@@ -53,12 +63,22 @@ vi.mock("@/lib/db", () => ({
     checklistItem: { create: checklistItemCreateMock },
   },
 }));
+vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
+vi.mock("@/lib/storage", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/storage")>();
+  return {
+    ...real,
+    getStorage: vi.fn(() => ({ save: vi.fn(), delete: storageDeleteMock, read: vi.fn() })),
+  };
+});
 
 import {
   resolvePaidAt,
   assertNoExistingRealTrip,
   addExistingUserAsMember,
   persistRealTrip,
+  wipeRealTrip,
+  REAL_TRIP_NAME,
   REAL_PARTNER_EMAIL,
   REAL_USER,
 } from "./persist";
@@ -489,5 +509,52 @@ describe("persistRealTrip", () => {
     expect(tripDeleteMock).not.toHaveBeenCalled();
     expect(attachmentFindManyMock).not.toHaveBeenCalled();
     expect(tripLookupsDuringPersist).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// wipeRealTrip (ARCH-DAT-3, fix round 1, C1)
+// ---------------------------------------------------------------------------
+
+describe("wipeRealTrip", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("schedules attachment blobs for retention instead of destroying them, then deletes the trip row", async () => {
+    findManyMock.mockResolvedValueOnce([{ id: "trip_real" }]);
+    attachmentFindManyMock.mockResolvedValueOnce([
+      { storageKey: "trips/trip_real/a.pdf" },
+      { storageKey: "trips/trip_real/b.png" },
+    ]);
+    tripDeleteMock.mockResolvedValue({});
+
+    await wipeRealTrip();
+
+    expect(findManyMock).toHaveBeenCalledWith({
+      where: { name: REAL_TRIP_NAME },
+      select: { id: true },
+    });
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([
+      "trips/trip_real/a.pdf",
+      "trips/trip_real/b.png",
+    ]);
+    expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: "trip_real" } });
+    // Blobs scheduled before the row that justified deleting them is gone.
+    expect(scheduleBlobDeletionMock.mock.invocationCallOrder[0]).toBeLessThan(
+      tripDeleteMock.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("is a no-op on a fresh DB — no matching trip", async () => {
+    findManyMock.mockResolvedValueOnce([]);
+
+    await wipeRealTrip();
+
+    expect(attachmentFindManyMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).not.toHaveBeenCalled();
+    expect(tripDeleteMock).not.toHaveBeenCalled();
+    expect(storageDeleteMock).not.toHaveBeenCalled();
   });
 });

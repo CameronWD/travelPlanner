@@ -64,6 +64,12 @@ const {
   const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const attachmentDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const noteDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  // ARCH-DAT-3 (fix round 1, I3): cleanupTargetSideDataTx runs for real here
+  // (see the comment below the target-cleanup mock) and now schedules blob
+  // retention INSIDE the tx via scheduleBlobDeletion(keys, tx) — the fake tx
+  // needs deletedBlob.createMany so that call has somewhere real to land
+  // instead of silently erroring.
+  const deletedBlobCreateManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const transactionMock = vi.fn(async (arg: unknown) => {
     // Interactive form: invoke the callback with a tx client.
     if (typeof arg === "function") {
@@ -77,6 +83,7 @@ const {
         cost: { findMany: costFindManyMock, update: costUpdateMock, deleteMany: costDeleteManyMock },
         attachment: { findMany: attachmentFindManyMock, deleteMany: attachmentDeleteManyMock },
         note: { deleteMany: noteDeleteManyMock },
+        deletedBlob: { createMany: deletedBlobCreateManyMock },
       });
     }
     // Array form (kept for any batch-transaction callers).
@@ -168,17 +175,18 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-// Partial mock: cleanupTargetSideDataTx / deleteBlobsBestEffort run for REAL
-// against the tx fixture above (mirrors Task 2's accommodation/items/transport
-// test approach) so deleteStop's tx-scoped cleanup is exercised end-to-end;
-// only the legacy non-tx cleanupTargetSideData and the post-commit blob
-// deleter are stubbed.
+// Partial mock: cleanupTargetSideDataTx runs for REAL against the tx fixture
+// above (mirrors Task 2's accommodation/items/transport test approach) so
+// deleteStop's tx-scoped cleanup — including its ARCH-DAT-3 blob-retention
+// scheduling, now done inside that same tx (fix round 1, I3) — is exercised
+// end-to-end; only the legacy non-tx cleanupTargetSideData is stubbed.
+// deleteBlobsBestEffort was deleted (fix round 1, I4) — its post-commit
+// scheduling call moved inside cleanupTargetSideDataTx itself.
 vi.mock("@/server/actions/target-cleanup", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/server/actions/target-cleanup")>();
   return {
     ...real,
     cleanupTargetSideData: vi.fn().mockResolvedValue(undefined),
-    deleteBlobsBestEffort: vi.fn().mockResolvedValue(undefined),
   };
 });
 

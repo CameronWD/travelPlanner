@@ -102,23 +102,32 @@ export async function addExistingUserAsMember(
 }
 
 /**
- * Idempotent teardown: delete every trip named REAL_TRIP_NAME (deleting its
- * attachment blobs first so no orphaned storage objects remain). Safe on a
- * fresh DB — the lookup returns [] so nothing is deleted.
+ * Idempotent teardown: delete every trip named REAL_TRIP_NAME, scheduling its
+ * attachment blobs for retention/sweep (ARCH-DAT-3, scripts/sweep-deleted-blobs.ts)
+ * rather than destroying them synchronously. Safe on a fresh DB — the lookup
+ * returns [] so nothing is deleted.
  *
  * DANGER: deletes real data. Not referenced by the additive seed path
  * (prisma/seed-real.ts) — kept only as a manual escape hatch, never wired in.
+ *
+ * ARCH-DAT-3 (fix round 1, C1): this used to hard-delete blobs directly —
+ * the exact regression this task exists to close, and the most dangerous
+ * instance of it, since this file's own docs (above) call it out as a path
+ * meant to run against production. `scheduleBlobDeletion` is loaded lazily,
+ * same as `db` (loadDb()) — this module must stay importable with no
+ * DATABASE_URL set, and lib/blob-retention.ts imports @/lib/db at its own
+ * top level, so a static import here would defeat that.
  */
 export async function wipeRealTrip(): Promise<void> {
   const db = await loadDb();
-  const storage = getStorage();
+  const { scheduleBlobDeletion } = await import("@/lib/blob-retention");
   const trips = await db.trip.findMany({ where: { name: REAL_TRIP_NAME }, select: { id: true } });
   for (const t of trips) {
     const atts = await db.attachment.findMany({
       where: { tripId: t.id, storageKey: { not: null } },
       select: { storageKey: true },
     });
-    for (const a of atts) if (a.storageKey) await storage.delete(a.storageKey);
+    await scheduleBlobDeletion(atts.map((a) => a.storageKey));
     await db.trip.delete({ where: { id: t.id } });
   }
 }

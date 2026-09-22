@@ -16,7 +16,7 @@ import { insertionOrder, collisionPush } from "@/lib/reorder";
 import { compareScheduled, orderPlanStops } from "@/lib/plan-order";
 import { chapterSpan } from "@/lib/chapter-span";
 import { type ActionResult, validationResult } from "@/lib/action-result";
-import { cleanupTargetSideDataTx, deleteBlobsBestEffort } from "@/server/actions/target-cleanup";
+import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { recomputeChapterSpans, shiftStopPayloadTx, reflowSpanTx, lockPlanStopsTx } from "@/server/actions/stop-flow";
 
@@ -512,7 +512,9 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
   });
   const doomed = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
 
-  const storageKeys = await db.$transaction(async (tx) => {
+  // cleanupTargetSideDataTx schedules attachment blobs for retention inside
+  // this same transaction (ARCH-DAT-3) — no post-commit blob call needed.
+  await db.$transaction(async (tx) => {
     await tx.stop.delete({ where: { id: stopId } });
     await deleteOwnedCostsTx(
       tx,
@@ -523,13 +525,11 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
         label: a.name ?? "Accommodation",
       })),
     );
-    const keys = await cleanupTargetSideDataTx(tx, stop.tripId, "STOP", stopId);
+    await cleanupTargetSideDataTx(tx, stop.tripId, "STOP", stopId);
     for (const acc of cascadedAccommodations) {
-      keys.push(...(await cleanupTargetSideDataTx(tx, stop.tripId, "ACCOMMODATION", acc.id)));
+      await cleanupTargetSideDataTx(tx, stop.tripId, "ACCOMMODATION", acc.id);
     }
-    return keys;
   });
-  await deleteBlobsBestEffort(storageKeys);
 
   await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
 

@@ -6,8 +6,9 @@
  *
  * Key design decisions:
  *   - `wipeDemo` is fully idempotent: safe on a fresh DB (all lookups guard for
- *     missing rows) and on a re-seed (blobs are deleted before rows so no
- *     orphaned storage objects remain).
+ *     missing rows) and on a re-seed (attachment blobs are scheduled for
+ *     retention/sweep — ARCH-DAT-3, scripts/sweep-deleted-blobs.ts — rather
+ *     than destroyed synchronously, same as every other deletion path).
  *   - `GlobeMember.userId` has a UNIQUE constraint (one globe per user, ADR 0023).
  *     `wipeDemo` deletes the Globe (cascades members) before re-persisting, so
  *     `persistGlobe` never hits a duplicate.
@@ -17,6 +18,7 @@
 
 import { db } from "@/lib/db";
 import { getStorage, generateKey } from "@/lib/storage";
+import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { DEMO_TRIP_NAMES } from "@/lib/demo";
 import type { DemoGlobe, DemoTrip, DemoPlan, Who } from "@/lib/demo/types";
 import { gradientPng } from "@/lib/demo/cover-image";
@@ -63,17 +65,24 @@ export async function ensureUsers(): Promise<{ you: User; partner: User }> {
  *
  * Order:
  *  1. Delete every Trip whose name is in DEMO_TRIP_NAMES:
- *     - Delete attachment blobs from storage first (non-null storageKey rows).
+ *     - Schedule attachment blobs for retention/sweep (ARCH-DAT-3, non-null
+ *       storageKey rows) rather than destroying them synchronously.
  *     - Then db.trip.delete (cascades all children).
  *  2. Delete the demo users' Globe (if it exists):
  *     - Find GlobeMember rows for the two demo user ids.
- *     - For each referenced globe, delete attachment blobs, then db.globe.delete.
+ *     - For each referenced globe, schedule attachment blobs for retention,
+ *       then db.globe.delete.
  *
  * Safe on a fresh DB — all lookups return empty arrays / null so nothing throws.
+ *
+ * ARCH-DAT-3 (fix round 1, C1): this used to hard-delete blobs directly.
+ * Fixed even though this is demo-seed teardown, not a live Traveller delete
+ * path — `db:seed:demo` isn't provably confined to a throwaway database, and
+ * the demo users' accounts are real rows in whatever DATABASE_URL is
+ * configured, so "no code path in this repo hard-deletes a Traveller
+ * attachment blob" has to hold here too.
  */
 export async function wipeDemo(): Promise<void> {
-  const storage = getStorage();
-
   // --- 1. Trips ------------------------------------------------------------
   const trips = await db.trip.findMany({
     where: { name: { in: DEMO_TRIP_NAMES } },
@@ -85,9 +94,7 @@ export async function wipeDemo(): Promise<void> {
       where: { tripId: t.id, storageKey: { not: null } },
       select: { storageKey: true },
     });
-    for (const a of atts) {
-      if (a.storageKey) await storage.delete(a.storageKey);
-    }
+    await scheduleBlobDeletion(atts.map((a) => a.storageKey));
     await db.trip.delete({ where: { id: t.id } });
   }
 
@@ -113,9 +120,7 @@ export async function wipeDemo(): Promise<void> {
       where: { globeId, storageKey: { not: null } },
       select: { storageKey: true },
     });
-    for (const a of atts) {
-      if (a.storageKey) await storage.delete(a.storageKey);
-    }
+    await scheduleBlobDeletion(atts.map((a) => a.storageKey));
     await db.globe.delete({ where: { id: globeId } });
   }
 }

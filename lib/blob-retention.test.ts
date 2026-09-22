@@ -60,4 +60,26 @@ describe("scheduleBlobDeletion", () => {
     deletedBlobCreateManyMock.mockRejectedValue(new Error("db down"));
     await expect(scheduleBlobDeletion(["k"])).resolves.toBeUndefined();
   });
+
+  // Fix round 1, I3: callers that already hold a transaction handle (e.g.
+  // cleanupTargetSideDataTx, uploadAttachment's partial-write cleanup) can
+  // pass it here so the DeletedBlob write commits atomically with the row
+  // delete it accompanies — a process crash between "row gone" and "blob
+  // recorded" can otherwise orphan a blob with no pointer at all, invisible
+  // even to the sweep.
+  it("writes through a caller-supplied client (e.g. a transaction handle) instead of the default db", async () => {
+    const txCreateManyMock = vi.fn().mockResolvedValue({ count: 1 });
+    const fakeTx = { deletedBlob: { createMany: txCreateManyMock } };
+
+    await scheduleBlobDeletion(["k1"], fakeTx as unknown as Parameters<typeof scheduleBlobDeletion>[1]);
+
+    expect(txCreateManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: [{ storageKey: "k1" }],
+        skipDuplicates: true,
+      }),
+    );
+    // The default client (the module-level db) must not have been touched.
+    expect(dbMock.deletedBlob.createMany).not.toHaveBeenCalled();
+  });
 });

@@ -13,7 +13,7 @@ import { entityLabel, describeChanges } from "@/lib/activity";
 import { planScope, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { type ActionResult, validationResult } from "@/lib/action-result";
-import { cleanupTargetSideDataTx, deleteBlobsBestEffort } from "@/server/actions/target-cleanup";
+import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { lockPlanTransportsTx } from "@/server/actions/stop-flow";
 
@@ -447,14 +447,15 @@ export async function deleteTransport(
   const doomed = await db.transport.findUnique({ where: { id: transportId } });
   const ownerLabel = entityLabel("TRANSPORT", (doomed ?? {}) as unknown as Record<string, unknown>);
 
-  const storageKeys = await db.$transaction(async (tx) => {
+  // cleanupTargetSideDataTx schedules attachment blobs for retention inside
+  // this same transaction (ARCH-DAT-3) — no post-commit blob call needed.
+  await db.$transaction(async (tx) => {
     await tx.transport.delete({ where: { id: transportId } });
     await deleteOwnedCostsTx(tx, transport.tripId, [
       { type: "TRANSPORT", id: transportId, label: ownerLabel },
     ]);
-    return cleanupTargetSideDataTx(tx, transport.tripId, "TRANSPORT", transportId);
+    await cleanupTargetSideDataTx(tx, transport.tripId, "TRANSPORT", transportId);
   });
-  await deleteBlobsBestEffort(storageKeys);
 
   await recordPlanActivity(transport.forkId, { tripId: transport.tripId, verb: "DELETED", entityType: "TRANSPORT", entityId: transportId, entityLabel: ownerLabel });
 

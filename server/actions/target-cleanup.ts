@@ -52,9 +52,20 @@ export async function cleanupGlobeAttachments(
 
 /**
  * Transaction-scoped variant of cleanupTargetSideData: deletes Attachment and
- * Note ROWS inside the caller's transaction and returns the storage keys so
- * the caller can delete the blobs best-effort AFTER commit (a blob delete
- * cannot be rolled back, so it must not run inside the tx).
+ * Note ROWS inside the caller's transaction and schedules their blobs for
+ * retention/sweep (ARCH-DAT-3) in that SAME transaction, via scheduleBlobDeletion's
+ * tx-handle overload (fix round 1, I3). Previously the caller collected the
+ * returned keys and scheduled them in a separate call AFTER the transaction
+ * committed — a blob-destroying delete genuinely couldn't run inside the tx
+ * (unrollbackable), but a DeletedBlob row is just an insert, and running it
+ * as a separate post-commit step left a crash window where the rows were
+ * gone and no DeletedBlob record existed for their blobs: a leak invisible
+ * even to the sweep. Doing both inside one tx closes that window — either
+ * both commit or neither does.
+ *
+ * Still returns the storage keys (now purely informational/for tests) since
+ * scheduling failures are swallowed internally by scheduleBlobDeletion and
+ * never roll back the row deletes.
  */
 export async function cleanupTargetSideDataTx(
   tx: Prisma.TransactionClient,
@@ -68,15 +79,7 @@ export async function cleanupTargetSideDataTx(
   });
   await tx.attachment.deleteMany({ where: { tripId, targetType, targetId } });
   await tx.note.deleteMany({ where: { tripId, targetType, targetId } });
-  return attachments.map((a) => a.storageKey).filter((k): k is string => k != null);
-}
-
-/**
- * Schedule blobs for retention/sweep (ARCH-DAT-3) — run AFTER the transaction
- * commits. Despite the name (kept for its many callers), this no longer
- * destroys anything synchronously: it records the keys in DeletedBlob via
- * scheduleBlobDeletion, which never throws, so it never fails the mutation.
- */
-export async function deleteBlobsBestEffort(storageKeys: string[]): Promise<void> {
-  await scheduleBlobDeletion(storageKeys).catch(() => {});
+  const storageKeys = attachments.map((a) => a.storageKey).filter((k): k is string => k != null);
+  await scheduleBlobDeletion(storageKeys, tx);
+  return storageKeys;
 }

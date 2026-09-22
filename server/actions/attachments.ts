@@ -135,18 +135,24 @@ export async function uploadAttachment(
       await getStorage().save(storageKey, bytes, file.type);
     } catch (err) {
       // Blob write failed: remove the placeholder row so no orphan Attachment
-      // (empty url, no storageKey) is left behind. Best-effort delete — the
-      // failure we report is the write, not the cleanup.
-      await db.attachment
-        .delete({ where: { id: attachment.id } })
+      // (empty url, no storageKey) is left behind, and schedule the partially-
+      // written blob for retention/sweep (ARCH-DAT-3) — in the SAME
+      // transaction (I3, fix round 1). The DeletedBlob record is the only
+      // pointer to that partial blob: if the row-delete and the schedule ran
+      // as two separate statements, a process crash between them would leave
+      // the row gone and no record of the blob anywhere — a leak invisible
+      // even to the sweep. scheduleBlobDeletion never throws, so a write
+      // failure here still commits the row delete; it just doesn't roll back
+      // the transaction — the failure we report below is the original write,
+      // not this cleanup.
+      await db
+        .$transaction(async (tx) => {
+          await tx.attachment.delete({ where: { id: attachment.id } });
+          await scheduleBlobDeletion([storageKey], tx);
+        })
         .catch((cleanupErr) =>
           console.error("uploadAttachment: orphan-row cleanup failed", cleanupErr),
         );
-      // A failed save may still have partially written the blob — schedule it
-      // for retention/sweep too, so it never lingers with no row pointing at
-      // it (ARCH-DAT-3: never destroy synchronously, scheduleBlobDeletion
-      // never throws).
-      await scheduleBlobDeletion([storageKey]);
       // I2 (fix round 1): reported AFTER cleanup, not before. reportError
       // can run a full notifyAdmins round-trip (2.5s per admin device, two
       // DB queries) — putting it ahead of the cleanup meant a function that
@@ -201,18 +207,21 @@ export async function uploadAttachment(
     await getStorage().save(storageKey, bytes, file.type);
   } catch (err) {
     // Blob write failed: remove the placeholder row so no orphan Attachment
-    // (empty url, no storageKey) is left behind. Best-effort delete — the
-    // failure we report is the write, not the cleanup.
-    await db.attachment
-      .delete({ where: { id: attachment.id } })
+    // (empty url, no storageKey) is left behind, and schedule the partially-
+    // written blob for retention/sweep (ARCH-DAT-3) — in the SAME transaction
+    // (I3, fix round 1). See the globe-scoped path above for why this must be
+    // atomic: the DeletedBlob record is the only pointer to that partial
+    // blob, and running the row-delete and the schedule as two separate
+    // statements leaves a crash window where the row is gone and nothing
+    // records the blob at all.
+    await db
+      .$transaction(async (tx) => {
+        await tx.attachment.delete({ where: { id: attachment.id } });
+        await scheduleBlobDeletion([storageKey], tx);
+      })
       .catch((cleanupErr) =>
         console.error("uploadAttachment: orphan-row cleanup failed", cleanupErr),
       );
-    // A failed save may still have partially written the blob — schedule it
-    // for retention/sweep too, so it never lingers with no row pointing at it
-    // (ARCH-DAT-3: never destroy synchronously, scheduleBlobDeletion never
-    // throws).
-    await scheduleBlobDeletion([storageKey]);
     // I2 (fix round 1): reported AFTER cleanup, not before — see the
     // globe-scoped path above for the reasoning.
     await reportError(err, {

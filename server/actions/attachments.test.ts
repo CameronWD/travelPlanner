@@ -22,31 +22,45 @@ const {
   storageSaveMock,
   storageDeleteMock,
   scheduleBlobDeletionMock,
+  transactionMock,
   recordActivityMock,
   reportErrorMock,
-} = vi.hoisted(() => ({
-  requireTripAccessMock: vi.fn().mockResolvedValue({
-    user: { id: "user-1" },
-    membership: { role: "member" },
-  }),
-  requireGlobeAccessMock: vi.fn().mockResolvedValue({
-    user: { id: "u1" },
-    globe: { id: "g1" },
-  }),
-  revalidatePathMock: vi.fn(),
-  notFoundMock: vi.fn(() => {
-    throw new Error("NOT_FOUND");
-  }),
-  attachmentFindUniqueMock: vi.fn(),
-  attachmentCreateMock: vi.fn(),
-  attachmentUpdateMock: vi.fn(),
-  attachmentDeleteMock: vi.fn(),
-  storageSaveMock: vi.fn(),
-  storageDeleteMock: vi.fn(),
-  scheduleBlobDeletionMock: vi.fn().mockResolvedValue(undefined),
-  recordActivityMock: vi.fn().mockResolvedValue(undefined),
-  reportErrorMock: vi.fn().mockResolvedValue(undefined),
-}));
+} = vi.hoisted(() => {
+  const attachmentDeleteMock = vi.fn();
+  // db.$transaction(cb) — invokes cb with a fake tx whose attachment.delete
+  // is the SAME mock as the top-level one, so existing assertions on
+  // attachmentDeleteMock keep working whether a call goes through db.* or
+  // tx.* (I3, fix round 1: uploadAttachment's cleanup now runs inside a
+  // transaction so the row-delete and the blob schedule commit atomically).
+  const transactionMock = vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
+    const tx = { attachment: { delete: attachmentDeleteMock } };
+    return cb(tx);
+  });
+  return {
+    requireTripAccessMock: vi.fn().mockResolvedValue({
+      user: { id: "user-1" },
+      membership: { role: "member" },
+    }),
+    requireGlobeAccessMock: vi.fn().mockResolvedValue({
+      user: { id: "u1" },
+      globe: { id: "g1" },
+    }),
+    revalidatePathMock: vi.fn(),
+    notFoundMock: vi.fn(() => {
+      throw new Error("NOT_FOUND");
+    }),
+    attachmentFindUniqueMock: vi.fn(),
+    attachmentCreateMock: vi.fn(),
+    attachmentUpdateMock: vi.fn(),
+    attachmentDeleteMock,
+    storageSaveMock: vi.fn(),
+    storageDeleteMock: vi.fn(),
+    scheduleBlobDeletionMock: vi.fn().mockResolvedValue(undefined),
+    transactionMock,
+    recordActivityMock: vi.fn().mockResolvedValue(undefined),
+    reportErrorMock: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/globe", () => ({ requireGlobeAccess: requireGlobeAccessMock }));
@@ -65,6 +79,7 @@ vi.mock("@/lib/db", () => ({
       update: attachmentUpdateMock,
       delete: attachmentDeleteMock,
     },
+    $transaction: transactionMock,
   },
 }));
 vi.mock("@/lib/storage", async (importOriginal) => {
@@ -303,11 +318,14 @@ describe("uploadAttachment", () => {
       });
       // A partial write is scheduled for retention/sweep (ARCH-DAT-3) rather
       // than destroyed synchronously, keyed the same way the successful path
-      // would have been.
+      // would have been — and inside the SAME db.$transaction as the row
+      // delete (I3, fix round 1), so a crash between the two can't happen.
       expect(storageDeleteMock).not.toHaveBeenCalled();
-      expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([
-        `trips/${TRIP_ID}/${ATTACHMENT_ID}-test.pdf`,
-      ]);
+      expect(transactionMock).toHaveBeenCalled();
+      expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(
+        [`trips/${TRIP_ID}/${ATTACHMENT_ID}-test.pdf`],
+        expect.anything(),
+      );
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
       expect(recordActivityMock).not.toHaveBeenCalled();
       expect(revalidatePathMock).not.toHaveBeenCalled();
@@ -340,9 +358,11 @@ describe("uploadAttachment", () => {
         where: { id: ATTACHMENT_ID },
       });
       expect(storageDeleteMock).not.toHaveBeenCalled();
-      expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([
-        `globes/g1/${ATTACHMENT_ID}-test.pdf`,
-      ]);
+      expect(transactionMock).toHaveBeenCalled();
+      expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(
+        [`globes/g1/${ATTACHMENT_ID}-test.pdf`],
+        expect.anything(),
+      );
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
       expect(revalidatePathMock).not.toHaveBeenCalled();
       // ARCH-OBS-1
@@ -434,10 +454,16 @@ describe("deleteAttachment", () => {
     expect(attachmentDeleteMock).not.toHaveBeenCalled();
   });
 
-  it("skips storage.delete when storageKey is null", async () => {
+  it("passes a null storageKey through to scheduleBlobDeletion (which no-ops on it) rather than calling storage.delete", async () => {
     attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow({ storageKey: null }));
     const result = await deleteAttachment(ATTACHMENT_ID);
     expect(storageDeleteMock).not.toHaveBeenCalled();
+    // Minor (fix round 1): this used to be vacuous — storage.delete is never
+    // called by deleteAttachment any more regardless of storageKey, so
+    // asserting only "not called" wouldn't catch a revert to the old
+    // direct-storage.delete implementation. Assert scheduleBlobDeletion WAS
+    // reached (its own null-filtering is lib/blob-retention.test.ts's job).
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([null]);
     expect(result).toEqual({ success: true });
   });
 
