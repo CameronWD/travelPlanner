@@ -208,6 +208,38 @@ describe("delete confirmation gating", () => {
     });
   });
 
+  it("ARCH-DAT-1: surfaces the server refusal as a toast when deleteStop resolves success:false", async () => {
+    // deleteStop never throws on an authorisation refusal (ARCH-DAT-1b) — it
+    // resolves { success: false, errors }. Regression test for the handler
+    // silently swallowing that: a stale page (rendered isOwner=true before a
+    // role change) still shows the control, but the server still refuses.
+    const user = userEvent.setup();
+    const stop = makeStop({ id: "stop-abc", name: "Rome" });
+    vi.mocked(deleteStop).mockResolvedValueOnce({
+      success: false,
+      errors: { _: ["Only the trip owner can delete a Stop."] },
+    });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[stop]} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Delete Rome" }));
+    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
+    await user.click(deleteBtn);
+
+    await waitFor(() => {
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: "destructive",
+          title: "Only the trip owner can delete a Stop.",
+        }),
+      );
+    });
+    // The refusal must not be treated as a successful delete: the Stop stays.
+    expect(screen.getByText("Rome")).toBeInTheDocument();
+  });
+
   it("ARCH-DAT-1: hides the Delete Stop control for a non-owner", () => {
     const stop = makeStop({ id: "stop-abc", name: "Rome" });
 

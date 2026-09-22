@@ -1,5 +1,13 @@
 "use client";
 
+// DEAD CODE: superseded by ItineraryManager (components/trip/itinerary-manager.tsx),
+// which the live Plan page actually renders. Not referenced from any route —
+// only from this file's own test. Kept around only for its test coverage; if
+// this is ever revived, it needs the same ARCH-DAT-1b owner-only gate on
+// deleteStop that ItineraryManager has (an `isOwner` prop controlling
+// whether `onDelete` is passed to StopCard) — deleteStop's server-side gate
+// alone is not a reason to skip hiding the control here too.
+
 import * as React from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";

@@ -657,7 +657,19 @@ export function ItineraryManager({
     if (!confirmed) return;
     setPendingId(stopId);
     try {
-      await deleteStop(stopId);
+      const result = await deleteStop(stopId);
+      if (!result.success) {
+        // deleteStop resolves (never throws) on a refusal — e.g. ARCH-DAT-1b's
+        // owner-only gate, hit when this Traveller's page is stale relative to
+        // a role change (the Delete control was rendered from the
+        // server-computed `isOwner` at page load). Same shape as
+        // reorderStops's caller above: surface the server's own message
+        // rather than a generic one, so the Traveller learns why.
+        const firstError = result.errors
+          ? Object.values(result.errors).flat()[0]
+          : "Couldn't delete this stop.";
+        toast({ variant: "destructive", title: firstError ?? "Couldn't delete this stop." });
+      }
     } catch {
       // A rejected action (network, thrown server error) must behave like a
       // failed one: report, and tell callers nothing was dated so pending
