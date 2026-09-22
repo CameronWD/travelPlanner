@@ -32,17 +32,16 @@ const {
 }));
 
 vi.mock("@/lib/guards", async () => {
-  // Re-derive isTripOwnerOrAdmin (a pure predicate over role + email,
-  // ARCH-BND-3) rather than importing the real lib/guards.ts — that module
-  // also imports lib/auth, which this test file never otherwise loads. This
-  // still routes through the isAdminEmail mock below, since vi.mock applies
-  // module-graph-wide.
-  const { isAdminEmail } = await import("@/lib/admin");
-  return {
-    requireTripAccess: requireTripAccessMock,
-    isTripOwnerOrAdmin: (membership: { role: string }, email: string | null | undefined) =>
-      membership.role === "owner" || isAdminEmail(email),
-  };
+  // isTripOwnerOrAdmin (ARCH-BND-3) lives in lib/access.ts, which is
+  // framework/db-free, so it can be imported for real here — unlike
+  // lib/guards.ts itself, which also imports lib/auth (next-auth →
+  // next/server), a module graph this test file never otherwise loads. The
+  // real isTripOwnerOrAdmin still calls isAdminEmail internally, which
+  // resolves to the isAdminEmailMock below (vi.mock applies module-graph
+  // wide, not just to direct importers) — so "allows an admin who is not
+  // the owner" below still exercises isAdminEmailMock.
+  const { isTripOwnerOrAdmin } = await import("@/lib/access");
+  return { requireTripAccess: requireTripAccessMock, isTripOwnerOrAdmin };
 });
 vi.mock("@/lib/admin", () => ({ isAdminEmail: isAdminEmailMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));

@@ -72,7 +72,6 @@ vi.mock("react", async (importOriginal) => {
 
 import {
   assertForkingAllowed,
-  isTripOwnerOrAdmin,
   requireAdmin,
   requireForkAccess,
   requireTripAccess,
@@ -327,21 +326,5 @@ describe("requireAdmin", () => {
 
     await expect(requireAdmin()).rejects.toThrow("NEXT_REDIRECT");
     expect(redirectMock).toHaveBeenCalledOnce();
-  });
-});
-
-describe("isTripOwnerOrAdmin", () => {
-  it("is true for the owner", () => {
-    expect(isTripOwnerOrAdmin({ role: "owner" }, "member@example.com")).toBe(true);
-  });
-
-  it("is false for a plain member who is not an admin", () => {
-    delete process.env.ADMIN_EMAILS;
-    expect(isTripOwnerOrAdmin({ role: "member" }, "member@example.com")).toBe(false);
-  });
-
-  it("is true for a non-owner member whose email is in ADMIN_EMAILS", () => {
-    process.env.ADMIN_EMAILS = "ops@example.com";
-    expect(isTripOwnerOrAdmin({ role: "member" }, "ops@example.com")).toBe(true);
   });
 });
