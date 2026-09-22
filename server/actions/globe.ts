@@ -7,6 +7,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireGlobeAccess, requireGlobeOwner } from "@/lib/globe";
 import { inviteeAlreadyHasGlobe } from "@/lib/globe-invites";
+import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { markerSchema, type MarkerInput } from "@/lib/validations/marker";
 import { searchPlacesWithStatus, reverseGeocode, type GeoCandidate, type PlaceSearchOutcome } from "@/lib/geocode";
 import { type ActionResult, fail, validationResult } from "@/lib/action-result";
@@ -107,8 +108,6 @@ export async function deleteMarker(markerId: string): Promise<GlobeActionResult>
 
 const inviteEmailSchema = z.string().trim().toLowerCase().email("Enter a valid email address");
 
-const GLOBE_INVITE_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
-
 export async function inviteToGlobe(email: string): Promise<GlobeActionResult> {
   // ARCH-TEN-4: inviting is owner-only — a plain Globe member could
   // otherwise mint standing access to the whole Globe (a Traveller's entire
@@ -142,7 +141,7 @@ export async function inviteToGlobe(email: string): Promise<GlobeActionResult> {
         email: parsed.data,
         token: randomUUID(),
         role: "member",
-        expiresAt: new Date(Date.now() + GLOBE_INVITE_EXPIRY_MS),
+        expiresAt: new Date(Date.now() + INVITE_EXPIRY_MS),
       },
     });
   } catch (err) {

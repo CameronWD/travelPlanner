@@ -7,6 +7,7 @@ import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { requireUser, requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
+import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { recordActivity } from "@/server/actions/activity";
 import { recomputeChapterSpans } from "@/server/actions/stop-flow";
 import {
@@ -299,8 +300,6 @@ export type DuplicateTripResult =
   | { success: true; tripId: string }
   | { success: false; error: string };
 
-const TRIP_INVITE_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
-
 /**
  * Duplicate a trip. Creates a new trip with the same structure but with all
  * dates reset to null (rough skeleton). The duplicator alone becomes the
@@ -392,7 +391,7 @@ export async function duplicateTrip(
             email,
             token: crypto.randomUUID(),
             role: m.role,
-            expiresAt: new Date(Date.now() + TRIP_INVITE_EXPIRY_MS),
+            expiresAt: new Date(Date.now() + INVITE_EXPIRY_MS),
           },
         });
       } catch (err) {
