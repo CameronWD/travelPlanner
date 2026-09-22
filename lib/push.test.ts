@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const sendNotificationMock = vi.fn();
 const setVapidDetailsMock = vi.fn();
+const reportErrorMock = vi.fn();
 
 vi.mock("web-push", () => ({
   default: {
@@ -15,6 +16,13 @@ vi.mock("web-push", () => ({
   setVapidDetails: setVapidDetailsMock,
   sendNotification: sendNotificationMock,
 }));
+
+// lib/push.ts reaches lib/error-sink.ts via a lazy `await import(...)` (same
+// pattern as the `web-push` import above) rather than a static one, to avoid
+// a circular dependency (error-sink -> admin-notify -> push) and to keep
+// this module import-safe without a live database. Mocked here so ARCH-OBS-1
+// wiring doesn't need a real ErrorReport table.
+vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -89,6 +97,7 @@ describe("sendPush", () => {
   beforeEach(() => {
     sendNotificationMock.mockReset();
     setVapidDetailsMock.mockReset();
+    reportErrorMock.mockReset();
     vi.resetModules();
   });
 
@@ -178,6 +187,38 @@ describe("sendPush", () => {
     const result = await sendPush(STUB_SUB, STUB_PAYLOAD);
 
     expect(result).toEqual({ sent: false });
+
+    vi.unstubAllEnvs();
+  });
+
+  it("reports a non-404/410 send failure to the error sink (ARCH-OBS-1)", async () => {
+    vi.stubEnv("VAPID_PUBLIC_KEY", "pub-key");
+    vi.stubEnv("VAPID_PRIVATE_KEY", "priv-key");
+    vi.stubEnv("VAPID_SUBJECT", "mailto:test@example.com");
+
+    const networkErr = new Error("Network error");
+    sendNotificationMock.mockRejectedValue(networkErr);
+
+    const { sendPush } = await import("@/lib/push");
+    await sendPush(STUB_SUB, STUB_PAYLOAD);
+
+    expect(reportErrorMock).toHaveBeenCalledWith(networkErr, { source: "server" });
+
+    vi.unstubAllEnvs();
+  });
+
+  it("does NOT report a gone (404/410) subscription to the error sink", async () => {
+    vi.stubEnv("VAPID_PUBLIC_KEY", "pub-key");
+    vi.stubEnv("VAPID_PRIVATE_KEY", "priv-key");
+    vi.stubEnv("VAPID_SUBJECT", "mailto:test@example.com");
+
+    const goneErr = Object.assign(new Error("Gone"), { statusCode: 410 });
+    sendNotificationMock.mockRejectedValue(goneErr);
+
+    const { sendPush } = await import("@/lib/push");
+    await sendPush(STUB_SUB, STUB_PAYLOAD);
+
+    expect(reportErrorMock).not.toHaveBeenCalled();
 
     vi.unstubAllEnvs();
   });

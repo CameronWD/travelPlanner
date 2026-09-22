@@ -22,6 +22,7 @@ const {
   storageSaveMock,
   storageDeleteMock,
   recordActivityMock,
+  reportErrorMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "user-1" },
@@ -42,11 +43,15 @@ const {
   storageSaveMock: vi.fn(),
   storageDeleteMock: vi.fn(),
   recordActivityMock: vi.fn().mockResolvedValue(undefined),
+  reportErrorMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/globe", () => ({ requireGlobeAccess: requireGlobeAccessMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
+// ARCH-OBS-1: the storage-write catch reports to the error sink. Mocked
+// entirely here — reportError's own behaviour is lib/error-sink.test.ts's job.
+vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("next/navigation", () => ({ notFound: notFoundMock }));
 vi.mock("@/lib/db", () => ({
@@ -301,6 +306,11 @@ describe("uploadAttachment", () => {
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
       expect(recordActivityMock).not.toHaveBeenCalled();
       expect(revalidatePathMock).not.toHaveBeenCalled();
+      // ARCH-OBS-1
+      expect(reportErrorMock).toHaveBeenCalledWith(expect.any(Error), {
+        route: "server/actions/attachments.ts#uploadAttachment",
+        source: "server",
+      });
     });
 
     it("globe path: deletes the placeholder row and reports failure", async () => {
@@ -317,6 +327,11 @@ describe("uploadAttachment", () => {
       );
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
       expect(revalidatePathMock).not.toHaveBeenCalled();
+      // ARCH-OBS-1
+      expect(reportErrorMock).toHaveBeenCalledWith(expect.any(Error), {
+        route: "server/actions/attachments.ts#uploadAttachment",
+        source: "server",
+      });
     });
 
     it("still succeeds when the write works (row-first order preserved)", async () => {

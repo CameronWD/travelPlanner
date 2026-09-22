@@ -115,7 +115,14 @@ export async function sendPush(
       return { sent: false, gone: true };
     }
 
-    console.error("[push] sendNotification failed:", err);
+    // Lazy import (ARCH-OBS-1), same pattern as the `web-push` import above:
+    // a static import of lib/error-sink.ts here would create a circular
+    // dependency (error-sink -> admin-notify -> push) and would pull
+    // lib/db.ts into every test that imports this module. reportError
+    // itself console.errors this failure (lib/error-sink.ts), so nothing is
+    // lost by not calling console.error directly here.
+    const { reportError } = await import("@/lib/error-sink");
+    await reportError(err, { source: "server" });
     return { sent: false };
   }
 }

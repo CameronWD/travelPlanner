@@ -8,6 +8,7 @@ import { requireGlobeAccess } from "@/lib/globe";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
 import { targetTypeSchema } from "@/lib/enums";
 import { recordActivity } from "@/server/actions/activity";
+import { reportError } from "@/lib/error-sink";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -135,7 +136,10 @@ export async function uploadAttachment(
       // Blob write failed: remove the placeholder row so no orphan Attachment
       // (empty url, no storageKey) is left behind. Best-effort delete — the
       // failure we report is the write, not the cleanup.
-      console.error("uploadAttachment: storage write failed", err);
+      await reportError(err, {
+        route: "server/actions/attachments.ts#uploadAttachment",
+        source: "server",
+      });
       await db.attachment
         .delete({ where: { id: attachment.id } })
         .catch((cleanupErr) =>
@@ -193,7 +197,10 @@ export async function uploadAttachment(
     // Blob write failed: remove the placeholder row so no orphan Attachment
     // (empty url, no storageKey) is left behind. Best-effort delete — the
     // failure we report is the write, not the cleanup.
-    console.error("uploadAttachment: storage write failed", err);
+    await reportError(err, {
+      route: "server/actions/attachments.ts#uploadAttachment",
+      source: "server",
+    });
     await db.attachment
       .delete({ where: { id: attachment.id } })
       .catch((cleanupErr) =>

@@ -58,6 +58,10 @@ import { isPushConfigured } from "@/lib/push";
 import { dispatchDigest } from "@/lib/digest-dispatch";
 import { slotForZone } from "@/lib/digest-schedule";
 import { instantToZonedDateISO } from "@/lib/tz";
+import { reportError } from "@/lib/error-sink";
+
+/** ARCH-OBS-1: the route string every reportError call from here carries. */
+const ROUTE = "/api/cron/digest";
 
 // Force Node.js runtime — required for Prisma + web-push (not edge-compatible)
 export const runtime = "nodejs";
@@ -153,7 +157,7 @@ export async function GET(req: NextRequest) {
       update: { lastRunAt: now },
     });
   } catch (err) {
-    console.error("[cron/digest] heartbeat write failed:", err);
+    await reportError(err, { route: ROUTE, source: "server" });
   }
 
   /** Distinct people examined this run, each resolved to one zone. */
@@ -242,10 +246,19 @@ export async function GET(req: NextRequest) {
           if (result.skipped) skipped++;
         } catch (err) {
           failed++;
+          // ARCH-OBS-1: alongside, not instead of, the console.error above.
+          // That line's per-user/per-trip text is load-bearing — it is what
+          // makes a specific burnt ledger slot findable — and a deduped
+          // ErrorReport signature deliberately cannot carry that (it would
+          // explode into one row per (user, trip) instead of one row per
+          // distinct failure). The sink adds the thing the console can't:
+          // noticing the SAME failure recurring across runs, and telling an
+          // admin the first time it happens.
           console.error(
             `[cron/digest] Digest dispatch failed for user ${userId} trip ${tripId}:`,
             err,
           );
+          await reportError(err, { route: ROUTE, source: "server", userId });
         }
       }
     }
@@ -277,13 +290,13 @@ export async function GET(req: NextRequest) {
           data: { lastSuccessAt: new Date() },
         });
       } catch (err) {
-        console.error("[cron/digest] success stamp failed:", err);
+        await reportError(err, { route: ROUTE, source: "server" });
       }
     }
 
     return NextResponse.json({ considered, dispatched, sent, skipped, failed });
   } catch (err) {
-    console.error("[cron/digest] Error:", err);
+    await reportError(err, { route: ROUTE, source: "server" });
     return NextResponse.json(
       {
         error: "Internal server error",

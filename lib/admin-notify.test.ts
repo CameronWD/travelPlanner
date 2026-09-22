@@ -118,6 +118,31 @@ describe("notifyAdmins", () => {
     await expect(notifyAdmins("t", "b", "/u")).resolves.toBeUndefined();
   });
 
+  it("logs a rejecting sendPush call instead of discarding it silently (carry-forward, Task 16)", async () => {
+    // A previous fix round replaced this arm's console.error with a bare
+    // discard. That was tolerable when the only caller was an invite
+    // notification; now notifyAdmins is the error sink's own delivery path
+    // (lib/error-sink.ts), so a silently discarded push failure here means
+    // errors are recorded and never surfaced — the hardest failure mode in
+    // the whole system to notice.
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    process.env.ADMIN_EMAILS = "admin@example.com";
+    userFindManyMock.mockResolvedValue([{ id: "u1" }]);
+    pushSubscriptionFindManyMock.mockResolvedValue([
+      { id: "sub1", endpoint: "https://push/1", p256dh: "p1", auth: "a1" },
+    ]);
+    const rejection = new Error("push exploded");
+    sendPushMock.mockRejectedValue(rejection);
+
+    await notifyAdmins("t", "b", "/u");
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("[admin-notify]"),
+      rejection,
+    );
+    consoleErrorSpy.mockRestore();
+  });
+
   it("parses ADMIN_EMAILS into a trimmed, lowercased, case-insensitive OR filter", async () => {
     // Corrected name (fix round 1, item 2): the previous version of this
     // test only proved the env var was parsed — it stubbed findMany to []
@@ -234,6 +259,27 @@ describe("notifyAdmins — stalled push endpoints (fix round 1, item 3)", () => 
     // Settles once PUSH_TIMEOUT_MS has elapsed.
     await vi.advanceTimersByTimeAsync(2000);
     expect(settled).toHaveBeenCalledTimes(1);
+  });
+
+  it("logs when a push endpoint times out instead of staying silent (carry-forward, Task 16)", async () => {
+    // The timeout arm logged nothing at all before this. Same reasoning as
+    // the rejection-arm test above: with notifyAdmins now the error sink's
+    // delivery path, a push that silently times out means an error was
+    // recorded and nobody was ever told.
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    process.env.ADMIN_EMAILS = "admin@example.com";
+    userFindManyMock.mockResolvedValue([{ id: "u1" }]);
+    pushSubscriptionFindManyMock.mockResolvedValue([
+      { id: "sub1", endpoint: "https://push/stalled", p256dh: "p1", auth: "a1" },
+    ]);
+    sendPushMock.mockImplementation(() => new Promise(() => {}));
+
+    const done = notifyAdmins("t", "b", "/u");
+    await vi.advanceTimersByTimeAsync(3000);
+    await done;
+
+    expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining("[admin-notify]"));
+    consoleWarnSpy.mockRestore();
   });
 });
 

@@ -39,14 +39,26 @@ function withTimeout(
   ms: number,
 ): Promise<PushOutcome> {
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve({ sent: false, timedOut: true }), ms);
+    // Both arms below log (carry-forward, Task 16): a previous fix round
+    // replaced the rejection arm's console.error with a silent discard, and
+    // this timeout arm never logged at all. That was tolerable when the
+    // only caller was an invite notification — a missed push just meant a
+    // slower-than-usual admit. Now notifyAdmins is the error sink's own
+    // delivery path (lib/error-sink.ts), so a push that rejects or silently
+    // times out here means an error was recorded and NOBODY was ever told —
+    // the single hardest failure mode to notice in the whole system.
+    const timer = setTimeout(() => {
+      console.warn(`[admin-notify] sendPush timed out after ${ms}ms`);
+      resolve({ sent: false, timedOut: true });
+    }, ms);
     promise.then(
       (result) => {
         clearTimeout(timer);
         resolve(result);
       },
-      () => {
+      (err) => {
         clearTimeout(timer);
+        console.error("[admin-notify] sendPush failed:", err);
         resolve({ sent: false });
       },
     );

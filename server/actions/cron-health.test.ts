@@ -10,9 +10,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * actually asserted to run.
  */
 
-const { requireUserMock, findUniqueMock } = vi.hoisted(() => ({
+const { requireUserMock, findUniqueMock, reportErrorMock } = vi.hoisted(() => ({
   requireUserMock: vi.fn().mockResolvedValue({ id: "user-1" }),
   findUniqueMock: vi.fn(),
+  reportErrorMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireUser: requireUserMock }));
@@ -21,6 +22,9 @@ vi.mock("@/lib/db", () => ({
     cronHeartbeat: { findUnique: findUniqueMock },
   },
 }));
+// ARCH-OBS-1: the read's catch reports to the error sink. Mocked entirely
+// here — reportError's own behaviour is lib/error-sink.test.ts's job.
+vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 
 import { getDispatcherHealth } from "@/server/actions/cron-health";
 
@@ -118,10 +122,16 @@ describe("getDispatcherHealth", () => {
   // not throw out of AccountPage's Promise.all and take the whole Devices
   // list down with it.
   it("reports never-run rather than throwing when the table read fails", async () => {
-    findUniqueMock.mockRejectedValue(new Error("relation \"CronHeartbeat\" does not exist"));
+    const boom = new Error("relation \"CronHeartbeat\" does not exist");
+    findUniqueMock.mockRejectedValue(boom);
 
     const result = await getDispatcherHealth();
 
     expect(result).toEqual({ lastRunAt: null, lastSuccessAt: null, stale: true });
+    // ARCH-OBS-1
+    expect(reportErrorMock).toHaveBeenCalledWith(boom, {
+      route: "server/actions/cron-health.ts#getDispatcherHealth",
+      source: "server",
+    });
   });
 });

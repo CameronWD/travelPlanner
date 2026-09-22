@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
+import { reportError } from "@/lib/error-sink";
 
 export type CoverActionResult =
   | { success: true }
@@ -49,7 +50,10 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
   } catch (err) {
     // Blob-first order: nothing has been written to the Trip row yet, so a
     // failed write needs no cleanup — just report it honestly.
-    console.error("setTripCover: storage write failed", err);
+    await reportError(err, {
+      route: "server/actions/cover.ts#setTripCover",
+      source: "server",
+    });
     return { success: false, error: "Upload failed — nothing was saved. Please try again." };
   }
 

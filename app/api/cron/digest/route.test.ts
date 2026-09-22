@@ -20,6 +20,7 @@ const {
   dispatchDigestMock,
   cronHeartbeatUpsertMock,
   cronHeartbeatUpdateMock,
+  reportErrorMock,
 } = vi.hoisted(() => ({
   pushFindManyMock: vi.fn(),
   tripMemberFindManyMock: vi.fn(),
@@ -27,6 +28,7 @@ const {
   dispatchDigestMock: vi.fn(),
   cronHeartbeatUpsertMock: vi.fn(),
   cronHeartbeatUpdateMock: vi.fn(),
+  reportErrorMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -47,6 +49,12 @@ vi.mock("@/lib/push", () => ({
 }));
 vi.mock("@/lib/digest-dispatch", () => ({
   dispatchDigest: dispatchDigestMock,
+}));
+// ARCH-OBS-1: the route reports best-effort-write and whole-run failures to
+// the error sink. Mocked entirely here (same as @/lib/digest-dispatch above)
+// — reportError's own behaviour is lib/error-sink.test.ts's job.
+vi.mock("@/lib/error-sink", () => ({
+  reportError: reportErrorMock,
 }));
 
 import { GET } from "./route";
@@ -78,6 +86,7 @@ beforeEach(() => {
   dispatchDigestMock.mockResolvedValue({ sent: 1, skipped: false });
   cronHeartbeatUpsertMock.mockResolvedValue({ id: "digest", lastRunAt: new Date() });
   cronHeartbeatUpdateMock.mockResolvedValue({ id: "digest", lastSuccessAt: new Date() });
+  reportErrorMock.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -190,7 +199,6 @@ describe("GET /api/cron/digest — heartbeat (lib/cron-health.ts)", () => {
     tripMemberFindManyMock.mockResolvedValue([{ tripId: "trip-1" }]);
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-12-01T19:00:00.000Z"));
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const res = await GET(req({ secret: "right" }));
 
@@ -203,11 +211,12 @@ describe("GET /api/cron/digest — heartbeat (lib/cron-health.ts)", () => {
       skipped: 0,
       failed: 0,
     });
-    expect(errorSpy).toHaveBeenCalledWith(
-      "[cron/digest] heartbeat write failed:",
-      expect.any(Error),
-    );
-    errorSpy.mockRestore();
+    // ARCH-OBS-1: a best-effort write failing is still worth a row in the
+    // error sink, even though the run itself must not be affected by it.
+    expect(reportErrorMock).toHaveBeenCalledWith(expect.any(Error), {
+      route: "/api/cron/digest",
+      source: "server",
+    });
   });
 
   it("stamps lastSuccessAt on a quiet run — nothing sent, nothing failed", async () => {
@@ -601,6 +610,16 @@ describe("GET /api/cron/digest — slot dispatch", () => {
       expect.any(Error),
     );
     expect(errorSpy.mock.calls[0][0]).toContain("trip-1");
+    // ARCH-OBS-1: the sink is wired ALONGSIDE this console.error, not instead
+    // of it — the per-user/per-trip text above is load-bearing (a burnt
+    // ledger slot needs the specific subscriber to find it), which a deduped
+    // ErrorReport signature deliberately cannot carry without exploding into
+    // one row per (user, trip). Both channels fire.
+    expect(reportErrorMock).toHaveBeenCalledWith(expect.any(Error), {
+      route: "/api/cron/digest",
+      source: "server",
+      userId: "user-1",
+    });
     errorSpy.mockRestore();
   });
 
@@ -640,7 +659,6 @@ describe("GET /api/cron/digest — slot dispatch", () => {
     tripMemberFindManyMock
       .mockResolvedValueOnce([{ tripId: "trip-1" }])
       .mockRejectedValueOnce(new Error("connection lost"));
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const res = await GET(req({ secret: "right" }));
 
@@ -653,7 +671,13 @@ describe("GET /api/cron/digest — slot dispatch", () => {
       skipped: 0,
       failed: 0,
     });
-    errorSpy.mockRestore();
+    // ARCH-OBS-1: the whole-run failure is the highest-value site in this
+    // route — this is the one case where the per-trip catch could not
+    // contain the failure.
+    expect(reportErrorMock).toHaveBeenCalledWith(expect.any(Error), {
+      route: "/api/cron/digest",
+      source: "server",
+    });
   });
 
   it("uses the most recently seen device's zone and dispatches once per person", async () => {

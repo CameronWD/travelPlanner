@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { deviceLabelFromUserAgent } from "@/lib/device-label";
+import { reportError } from "@/lib/error-sink";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -99,7 +100,10 @@ export async function subscribeToPush(sub: {
 
     return { ok: true };
   } catch (err) {
-    console.error("[push] failed to save a push subscription:", err);
+    await reportError(err, {
+      route: "server/actions/push.ts#subscribeToPush",
+      source: "server",
+    });
     return { ok: false, error: "Failed to save push subscription." };
   }
 }
@@ -122,7 +126,10 @@ export async function unsubscribeFromPush(
 
     return { ok: true };
   } catch (err) {
-    console.error("[push] failed to remove a push subscription:", err);
+    await reportError(err, {
+      route: "server/actions/push.ts#unsubscribeFromPush",
+      source: "server",
+    });
     return { ok: false, error: "Failed to remove push subscription." };
   }
 }
@@ -264,7 +271,10 @@ export async function healRotatedSubscription(
     });
     return { ok: true, mode: "registered" };
   } catch (err) {
-    console.error("[push] failed to heal a rotated push subscription:", err);
+    await reportError(err, {
+      route: "server/actions/push.ts#healRotatedSubscription",
+      source: "server",
+    });
     return { ok: false, error: "Failed to heal push subscription.", reason: "internal" };
   }
 }

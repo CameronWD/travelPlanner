@@ -18,6 +18,7 @@ const {
   storageSaveMock,
   storageDeleteMock,
   storageReadMock,
+  reportErrorMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "u1" },
@@ -29,10 +30,14 @@ const {
   storageSaveMock: vi.fn(),
   storageDeleteMock: vi.fn(),
   storageReadMock: vi.fn().mockResolvedValue(null),
+  reportErrorMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+// ARCH-OBS-1: the storage-write catch reports to the error sink. Mocked
+// entirely here — reportError's own behaviour is lib/error-sink.test.ts's job.
+vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     trip: {
@@ -153,6 +158,11 @@ describe("setTripCover", () => {
     expect(result.error).toBe("Upload failed — nothing was saved. Please try again.");
     expect(tripUpdateMock).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
+    // ARCH-OBS-1
+    expect(reportErrorMock).toHaveBeenCalledWith(expect.any(Error), {
+      route: "server/actions/cover.ts#setTripCover",
+      source: "server",
+    });
   });
 
   it("is access-checked before the write", async () => {
