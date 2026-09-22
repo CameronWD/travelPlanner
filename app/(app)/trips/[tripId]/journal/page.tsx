@@ -5,6 +5,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
 import { EmptyState } from "@/components/ui/empty-state";
 import { relativeTime } from "@/lib/relative-time";
+import { AttachmentLink } from "@/components/trip/attachment-link";
 
 /** Reading-width wrapper applied to the entries column. Exported for tests. */
 export const JOURNAL_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
@@ -131,10 +132,11 @@ export default async function JournalPage({
               {dayPhotos.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {dayPhotos.map((photo) => (
-                    <a
+                    <AttachmentLink
                       key={photo.id}
                       href={photo.url}
-                      aria-label={`View photo ${photo.filename}`}
+                      mime={photo.mime}
+                      label={`View photo ${photo.filename}`}
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
@@ -142,7 +144,7 @@ export default async function JournalPage({
                         alt={photo.filename}
                         className="h-24 w-full rounded-xl object-cover transition-opacity hover:opacity-80"
                       />
-                    </a>
+                    </AttachmentLink>
                   ))}
                 </div>
               ) : null}

@@ -42,6 +42,13 @@ vi.mock("@/components/ui/animated-list", () => ({
   AnimatedItem: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
 }));
 
+// WhatsNewBanner reads the database directly and is covered by its own test
+// — stub it here so this page test doesn't also have to stand up a
+// db.user.findUnique mock just to satisfy an unrelated component.
+vi.mock("@/components/whats-new/whats-new-banner", () => ({
+  WhatsNewBanner: () => null,
+}));
+
 import TripsPage from "./page";
 
 beforeEach(() => {

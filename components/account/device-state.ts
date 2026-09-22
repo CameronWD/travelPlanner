@@ -1,5 +1,7 @@
 "use client";
 
+import { isStandalone } from "@/lib/standalone";
+
 /**
  * What THIS browser knows about itself as a **Device** (CONTEXT.md).
  *
@@ -30,10 +32,7 @@ export function isIosWithoutInstall(): boolean {
     /iPad|iPhone|iPod/.test(ua) ||
     (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   if (!isIos) return false;
-  const standalone =
-    window.matchMedia?.("(display-mode: standalone)").matches === true ||
-    (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-  return !standalone;
+  return !isStandalone();
 }
 
 export function isPushSupported(): boolean {

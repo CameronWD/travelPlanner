@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
+import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { PhaseSketching } from "@/components/trip/home/phase-sketching";
@@ -67,8 +68,11 @@ export default async function TripHomePage({
   const today = todayISOInZone(currentTripTimezone(orderPlanStops(trip.stops)));
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
 
+  // Taller on a phone than on desktop, deliberately: the hero spans the full
+  // content width, so on a wide screen extra height makes an enormous band,
+  // while on a phone it is the only way a portrait cover gets real room.
   const cover = (
-    <div className="relative -mt-2 mb-2 h-40 w-full overflow-hidden rounded-2xl border border-border shadow-soft sm:h-48">
+    <div className="relative -mt-2 mb-2 h-56 w-full overflow-hidden rounded-2xl border border-border shadow-soft sm:h-48">
       <TripCover
         tripId={tripId}
         name={trip.name}
@@ -101,6 +105,7 @@ export default async function TripHomePage({
 
   return (
     <>
+      <WhatsNewBanner />
       {cover}
       {phaseEl}
       <section className="mt-6 flex flex-col gap-1">

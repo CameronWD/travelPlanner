@@ -23,8 +23,9 @@ export const MAX_WARM_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
 /**
  * The set of same-origin paths worth pre-caching for offline viewing of a trip:
- * the read-while-travelling essentials (including the user guide) + one page
- * per dated day (capped). Pure — no browser APIs.
+ * the read-while-travelling essentials (including the user guide and the
+ * What's new page, ADR 0056) + one page per dated day (capped). Pure — no
+ * browser APIs.
  */
 export function tripOfflinePaths(
   tripId: string,
@@ -33,7 +34,11 @@ export function tripOfflinePaths(
   attachments: WarmAttachment[] = [],
 ): string[] {
   const base = `/trips/${tripId}`;
-  const paths = [base, `${base}/plan`, `${base}/summary`, `${base}/today`, `${base}/checklists`, `${base}/files`, `${base}/help`];
+  // `/whats-new` is account-level, not trip-scoped, but it's a read-only doc
+  // route exactly like `${base}/help` — the project already treats those as
+  // worth warming — so it rides along in the same list rather than needing
+  // its own warm-set mechanism.
+  const paths = [base, `${base}/plan`, `${base}/summary`, `${base}/today`, `${base}/checklists`, `${base}/files`, `${base}/help`, '/whats-new'];
   if (startDate && endDate && endDate >= startDate) {
     const span = Math.min(daysBetween(startDate, endDate), MAX_WARM_DAYS - 1);
     for (let i = 0; i <= span; i++) {

@@ -28,13 +28,39 @@ function monogram(name: string): string {
 /** Decision component: photo → route-render → monogram. */
 export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, className, coverVersion }: TripCoverProps) {
   if (hasCover) {
+    const src = `/api/trips/${tripId}/cover${coverVersion ? `?v=${encodeURIComponent(coverVersion)}` : ""}`;
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable
-      <img
-        src={`/api/trips/${tripId}/cover${coverVersion ? `?v=${encodeURIComponent(coverVersion)}` : ""}`}
-        alt={`${name} cover`}
-        className={`size-full object-contain bg-muted ${className ?? ""}`}
-      />
+      // Two layers of the SAME image. The foreground is object-contain, so the
+      // photo is never cropped — that was the point of 274455a, and a Traveller
+      // whose cover is a portrait phone photo must not lose its top and bottom.
+      // But object-contain alone left most of a landscape box as flat bg-muted,
+      // because almost every cover is shot in portrait. The backdrop fills that
+      // space with a blurred, dimmed copy instead of grey. Same URL as the
+      // foreground, so it is one network request and one cache entry — which
+      // matters for the offline warm-set.
+      //
+      // The backdrop is inset by a fixed -inset-8 (32px) rather than scaled up,
+      // because blur-xl's fringe is a fixed 24px radius, not a percentage of the
+      // box. A percentage scale (e.g. scale-110) shrinks with the box and would
+      // leave that fringe visible on the shortest cover (the h-36 card). 32px of
+      // margin clears the 24px radius with room to spare at every box size. If
+      // either the blur radius or this margin changes, check that 32 still beats
+      // the radius.
+      <div className={`relative size-full overflow-hidden bg-muted ${className ?? ""}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable */}
+        <img
+          src={src}
+          alt=""
+          aria-hidden="true"
+          className="absolute -inset-8 object-cover blur-xl brightness-75"
+        />
+        {/* eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable */}
+        <img
+          src={src}
+          alt={`${name} cover`}
+          className="relative size-full object-contain"
+        />
+      </div>
     );
   }
   if (stops.length > 0) {

@@ -97,7 +97,7 @@ export function TripCard({
         )}
       >
         {/* Cover */}
-        <div className="relative h-28 w-full overflow-hidden">
+        <div className="relative h-36 w-full overflow-hidden">
           <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} home={home} roundTrip={roundTrip} coverVersion={coverVersion} />
           {phase && (
             <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-soft">

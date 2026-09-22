@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess, requireUser } from "@/lib/guards";
 import { requireGlobeAccess } from "@/lib/globe";
 import { getStorage } from "@/lib/storage";
+import { rendersInline } from "@/lib/attachment-display";
 
 /**
  * GET /api/attachments/:id
@@ -87,8 +88,9 @@ export async function GET(
   }
 
   // 4. Response headers (used by both the presigned and the streamed path).
-  const isInline =
-    attachment.mime.startsWith("image/") || attachment.mime === "application/pdf";
+  // Shared with the attachment links (lib/attachment-display.ts) so a file the
+  // browser downloads is never given a new tab it would leave empty.
+  const isInline = rendersInline(attachment.mime);
 
   // Strip CR/LF/quotes so a crafted filename can't inject headers (response
   // splitting) or break the Content-Disposition value.
