@@ -299,10 +299,17 @@ export type DuplicateTripResult =
   | { success: true; tripId: string }
   | { success: false; error: string };
 
+const TRIP_INVITE_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
+
 /**
  * Duplicate a trip. Creates a new trip with the same structure but with all
- * dates reset to null (rough skeleton). The duplicator becomes the owner;
- * co-traveller memberships are copied as-is.
+ * dates reset to null (rough skeleton). The duplicator alone becomes the
+ * owner; every other source member gets a pending Invite on the copy rather
+ * than automatic membership (ARCH-ADR-1) — carrying the Traveller list over
+ * as live membership bypassed the consent ADR 0017 requires. A source member
+ * whose email can't be resolved is skipped outright: neither Invite nor
+ * membership. (ADR 0018's "co-traveller memberships are copied as-is" claim
+ * is now stale and needs amending — tracked separately.)
  *
  * Accommodations, costs, FX rates and all history are dropped per ADR-0018.
  */
@@ -335,6 +342,20 @@ export async function duplicateTrip(
   });
   if (!source) return { success: false, error: "Trip not found" };
 
+  // Resolve emails for every OTHER source member up front — the source of
+  // truth for who gets invited to the copy. A member id that doesn't resolve
+  // to a User (e.g. a deleted account) is skipped below rather than silently
+  // granted membership.
+  const otherMemberIds = source.members.map((m) => m.userId).filter((id) => id !== user.id);
+  const otherUsers =
+    otherMemberIds.length > 0
+      ? await db.user.findMany({
+          where: { id: { in: otherMemberIds } },
+          select: { id: true, email: true },
+        })
+      : [];
+  const emailByUserId = new Map(otherUsers.map((u) => [u.id, u.email]));
+
   const name = newName.trim() || `Copy of ${source.name}`;
   const plan = buildDuplicatePlan(
     {
@@ -354,11 +375,32 @@ export async function duplicateTrip(
   const newTrip = await db.$transaction(async (tx) => {
     const trip = await tx.trip.create({ data: { ...plan.trip, createdById: user.id } });
 
-    // Owner = duplicator; copy every co-traveller membership too (ADR-0018).
+    // Owner = duplicator. Every OTHER source member gets a pending Invite on
+    // the copy instead of an automatic TripMember row (ARCH-ADR-1) — this is
+    // what restores the consent ADR 0017 already requires for membership.
     await tx.tripMember.create({ data: { tripId: trip.id, userId: user.id, role: "owner" } });
     for (const m of source.members) {
       if (m.userId === user.id) continue;
-      await tx.tripMember.create({ data: { tripId: trip.id, userId: m.userId, role: m.role } });
+      const email = emailByUserId.get(m.userId);
+      // No resolvable email: skip entirely rather than silently falling back
+      // to membership.
+      if (!email) continue;
+      try {
+        await tx.invite.create({
+          data: {
+            tripId: trip.id,
+            email,
+            token: crypto.randomUUID(),
+            role: m.role,
+            expiresAt: new Date(Date.now() + TRIP_INVITE_EXPIRY_MS),
+          },
+        });
+      } catch (err) {
+        // (tripId, email) is unique, and a freshly-minted trip.id makes a
+        // collision impossible in practice — but treat a P2002 as idempotent
+        // success anyway, matching how inviteToGlobe handles the same race.
+        if (!isUniqueConstraintError(err)) throw err;
+      }
     }
 
     const chapterIdMap = new Map<string, string>();
@@ -565,4 +607,22 @@ export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
   revalidatePath("/trips");
 
   return { success: true };
+}
+
+/**
+ * True for a Prisma unique-constraint violation (P2002). Checked structurally
+ * (by `code`) rather than via `instanceof` so it stays driver-adapter-agnostic
+ * and trivially mockable in tests.
+ *
+ * NOTE: this helper is intentionally inlined here (and in lib/invites.ts,
+ * lib/globe-invites.ts, server/actions/globe.ts) — consolidation into a
+ * shared util is tracked separately.
+ */
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "P2002"
+  );
 }

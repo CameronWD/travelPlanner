@@ -23,7 +23,9 @@ const {
   memberCreateMock,
   memberDeleteManyMock,
   userFindUniqueMock,
+  userFindManyMock,
   inviteDeleteManyMock,
+  inviteCreateMock,
   chapterCreateMock,
   stopCreateMock,
   itemCreateMock,
@@ -45,7 +47,9 @@ const {
   const memberCreateMock = vi.fn();
   const memberDeleteManyMock = vi.fn().mockResolvedValue({ count: 1 });
   const userFindUniqueMock = vi.fn().mockResolvedValue(null);
+  const userFindManyMock = vi.fn().mockResolvedValue([]);
   const inviteDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const inviteCreateMock = vi.fn();
   const chapterCreateMock = vi.fn();
   const stopCreateMock = vi.fn();
   const itemCreateMock = vi.fn();
@@ -70,6 +74,7 @@ const {
       transport: { create: transportCreateMock },
       checklistItem: { create: checklistItemCreateMock },
       fork: { findMany: forkFindManyMock },
+      invite: { create: inviteCreateMock },
     };
     return cb(tx);
   });
@@ -91,7 +96,9 @@ const {
     memberCreateMock,
     memberDeleteManyMock,
     userFindUniqueMock,
+    userFindManyMock,
     inviteDeleteManyMock,
+    inviteCreateMock,
     chapterCreateMock,
     stopCreateMock,
     itemCreateMock,
@@ -141,9 +148,11 @@ vi.mock("@/lib/db", () => ({
     },
     user: {
       findUnique: userFindUniqueMock,
+      findMany: userFindManyMock,
     },
     invite: {
       deleteMany: inviteDeleteManyMock,
+      create: inviteCreateMock,
     },
   },
 }));
@@ -759,11 +768,12 @@ describe("setTripHardEndDate", () => {
 // ---------------------------------------------------------------------------
 
 describe("duplicateTrip", () => {
-  it("creates a new trip + owner membership + copies co-travellers, and remaps children", async () => {
+  it("creates a new trip + owner membership + invites co-travellers, and remaps children", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "user-1", email: "you@example.com" },
       membership: { userId: "user-1", role: "owner" },
     });
+    userFindManyMock.mockResolvedValueOnce([{ id: "user-2", email: "co@example.com" }]);
     tripFindUniqueMock.mockResolvedValue({
       id: "src", name: "Europe 2026", homeCurrency: "AUD", drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
       members: [{ userId: "user-1", role: "owner" }, { userId: "user-2", role: "member" }],
@@ -798,9 +808,23 @@ describe("duplicateTrip", () => {
     expect(tripCreateMock).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ name: "Copy of Europe 2026", homeCurrency: "AUD", createdById: "user-1" }),
     }));
-    // owner + one co-traveller membership
+    // Only the duplicator becomes a member of the copy — no co-traveller membership.
+    expect(memberCreateMock).toHaveBeenCalledTimes(1);
     expect(memberCreateMock).toHaveBeenCalledWith({ data: { tripId: "new", userId: "user-1", role: "owner" } });
-    expect(memberCreateMock).toHaveBeenCalledWith({ data: { tripId: "new", userId: "user-2", role: "member" } });
+    // The co-traveller gets a pending Invite instead (ARCH-ADR-1).
+    expect(userFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ["user-2"] } } }),
+    );
+    expect(inviteCreateMock).toHaveBeenCalledTimes(1);
+    expect(inviteCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        tripId: "new",
+        email: "co@example.com",
+        role: "member",
+        token: expect.any(String),
+        expiresAt: expect.any(Date),
+      }),
+    });
     // stops created rough (dates null), remapped to new chapter
     expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", name: "Rome", arriveDate: null, departDate: null, chapterId: "new-ch1" }) });
     expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", name: "Florence", arriveDate: null, departDate: null, chapterId: "new-ch1" }) });
@@ -810,6 +834,28 @@ describe("duplicateTrip", () => {
     expect(transportCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", fromStopId: "new-s1", toStopId: "new-s2", depAt: null, arrAt: null, reference: null }) });
     // checklist item copied with dates cleared and done reset
     expect(checklistItemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", text: "Passport", done: false, dueDate: null, assignedToId: null }) });
+  });
+
+  it("ARCH-ADR-1: a source member whose email can't be resolved is skipped — no Invite and no membership", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-1", email: "you@example.com" },
+      membership: { userId: "user-1", role: "owner" },
+    });
+    // db.user.findMany resolves nothing for user-2 — e.g. a deleted account.
+    userFindManyMock.mockResolvedValueOnce([]);
+    tripFindUniqueMock.mockResolvedValue({
+      id: "src", name: "Europe 2026", homeCurrency: "AUD", drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
+      members: [{ userId: "user-1", role: "owner" }, { userId: "user-2", role: "member" }],
+      chapters: [], stops: [], items: [], transports: [], checklistItems: [],
+    });
+    tripCreateMock.mockResolvedValue({ id: "new" });
+
+    const result = await duplicateTrip("src", "Copy of Europe 2026");
+
+    expect(result).toEqual({ success: true, tripId: "new" });
+    expect(memberCreateMock).toHaveBeenCalledTimes(1);
+    expect(memberCreateMock).toHaveBeenCalledWith({ data: { tripId: "new", userId: "user-1", role: "owner" } });
+    expect(inviteCreateMock).not.toHaveBeenCalled();
   });
 
   it("refuses a non-owner member — a Traveller cannot mint themselves a copy", async () => {

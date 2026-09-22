@@ -86,8 +86,8 @@ export function DuplicateTripDialog({
           <DialogTitle>{disguised ? "Duplicate this project?" : "Duplicate this trip?"}</DialogTitle>
           <DialogDescription>
             {disguised
-              ? "Collaborators will be added too."
-              : "Your co-travellers will be added to the duplicate too."}
+              ? "Collaborators will be invited to it, not added automatically."
+              : "Your co-travellers will be invited to the duplicate, not added automatically — they'll need to accept before they can see it."}
           </DialogDescription>
         </DialogHeader>
 
