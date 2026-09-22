@@ -181,23 +181,53 @@ export function JournalEditor({
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const { confirm, dialog } = useConfirm();
 
+  // Tracks whichever saveJournalEntry call is currently in flight, so a
+  // delete can wait for it to land rather than race it (ARCH-DAT-6 fix
+  // round 1, Finding 1). Blur-triggered autosave and the explicit Remove
+  // button share this editor instance, and the browser fires
+  // mousedown → blur → click when Remove is clicked while the textarea has
+  // unsaved edits — so handleSave() can already be in flight by the time
+  // handleDelete() runs. Without serialising them, a slow save's upsert can
+  // resolve *after* the delete's deleteMany and resurrect the row the
+  // Traveller just confirmed removing.
+  const pendingSaveRef = React.useRef<Promise<void> | null>(null);
+  // Referenced by handleBlur to recognise "focus is moving to Remove".
+  const removeButtonRef = React.useRef<HTMLButtonElement>(null);
+
   function handleSave() {
     // Cancel any pending timer before starting a new save
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
 
     setSaveError(null);
     setSaveStatus("saving");
+
+    // Capture the in-flight promise in a ref *before* handing it to
+    // startTransition, so handleDelete can await the actual network/state
+    // work regardless of how fast or slow it is.
+    let markDone: () => void;
+    const done = new Promise<void>((resolve) => {
+      markDone = resolve;
+    });
+    pendingSaveRef.current = done;
+
     startTransition(async () => {
-      const result = await saveJournalEntry(tripId, date, body);
-      if (!result.success) {
-        const firstError = Object.values(result.errors)[0]?.[0];
-        setSaveError(firstError ?? "Failed to save.");
-        setSaveStatus(null);
-      } else {
-        setBaseline(body);
-        setLastSaved(new Date());
-        setSaveStatus("saved");
-        saveTimerRef.current = setTimeout(() => setSaveStatus(null), 2000);
+      try {
+        const result = await saveJournalEntry(tripId, date, body);
+        if (!result.success) {
+          const firstError = Object.values(result.errors)[0]?.[0];
+          setSaveError(firstError ?? "Failed to save.");
+          setSaveStatus(null);
+        } else {
+          setBaseline(body);
+          setLastSaved(new Date());
+          setSaveStatus("saved");
+          saveTimerRef.current = setTimeout(() => setSaveStatus(null), 2000);
+        }
+      } finally {
+        markDone();
+        if (pendingSaveRef.current === done) {
+          pendingSaveRef.current = null;
+        }
       }
     });
   }
@@ -209,7 +239,16 @@ export function JournalEditor({
     };
   }, []);
 
-  function handleBlur() {
+  function handleBlur(e: React.FocusEvent<HTMLTextAreaElement>) {
+    // Skip the autosave outright when focus is moving straight to the
+    // Remove control — that click is about to explicitly delete this entry,
+    // so kicking off a save we're just going to have to wait on (or worse,
+    // forgetting to wait on it) is pure waste. This is a UX/efficiency
+    // optimisation only, not the correctness fix: it covers the common
+    // mouse-click path but not every way a save could already be in flight
+    // (keyboard activation, an earlier blur, etc.) — handleDelete's await
+    // on pendingSaveRef below is what actually guarantees ordering.
+    if (e.relatedTarget === removeButtonRef.current) return;
     // Autosave on blur if body changed from the last-known-persisted value
     if (body !== baseline) {
       handleSave();
@@ -227,6 +266,16 @@ export function JournalEditor({
       destructive: true,
     });
     if (!confirmed) return;
+
+    // Correctness fix (fix round 1, Finding 1): if a save is still in
+    // flight, wait for it to land *before* issuing the delete. This
+    // guarantees deleteJournalEntry's deleteMany always runs strictly after
+    // any earlier saveJournalEntry's upsert has resolved on the server, no
+    // matter how slow that save is — so the DB can never end up with a row
+    // the Traveller just explicitly confirmed removing.
+    if (pendingSaveRef.current) {
+      await pendingSaveRef.current;
+    }
 
     startDeleteTransition(async () => {
       const result = await deleteJournalEntry(tripId, date);
@@ -307,6 +356,7 @@ export function JournalEditor({
             <div className="flex items-center justify-between">
               {hasEntry ? (
                 <Button
+                  ref={removeButtonRef}
                   type="button"
                   variant="ghost"
                   size="sm"

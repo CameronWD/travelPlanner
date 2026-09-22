@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/journal", () => ({
@@ -168,6 +168,71 @@ describe("JournalEditor", () => {
       await waitFor(() =>
         expect(screen.queryByRole("button", { name: /^remove/i })).not.toBeInTheDocument(),
       );
+    });
+
+    it("ARCH-DAT-6 (fix round 1, Finding 1): a slow in-flight save cannot resurrect an entry that was explicitly removed", async () => {
+      const callOrder: string[] = [];
+      let resolveSave: (() => void) | undefined;
+      vi.mocked(saveJournalEntry).mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveSave = () => {
+              callOrder.push("save-resolved");
+              resolve({ success: true });
+            };
+          }),
+      );
+      vi.mocked(deleteJournalEntry).mockImplementationOnce(async () => {
+        callOrder.push("delete-called");
+        return { success: true };
+      });
+
+      const user = userEvent.setup();
+      render(<JournalEditor {...BASE_PROPS} updatedAt={new Date("2026-06-01T10:00:00Z")} />);
+
+      const textarea = screen.getByRole("textbox", { name: /journal entry/i });
+      await user.type(textarea, " more");
+
+      // Open the confirm dialog first, while Remove is still enabled (no
+      // save has started yet). This deliberately routes around the
+      // Remove-button `disabled={isSaving}` guard and the relatedTarget
+      // blur-suppression — jsdom faithfully blocks both userEvent and
+      // fireEvent clicks on a genuinely disabled button, so there's no way
+      // to reproduce the literal same-gesture mousedown→blur→click browser
+      // timing footgun here. What this test isolates instead is the actual
+      // correctness mechanism the fix relies on: once a save is in flight,
+      // however it started, the pending confirm must not let delete run
+      // ahead of it.
+      const removeButton = screen.getByRole("button", { name: /^remove entry$/i });
+      await user.click(removeButton);
+      expect(await screen.findByRole("heading")).toBeInTheDocument();
+
+      // Put a slow save in flight *while the confirm dialog is open and
+      // awaiting the Traveller's click* — e.g. focus briefly returning to
+      // the textarea, or any other blur source the relatedTarget check
+      // doesn't cover.
+      fireEvent.blur(textarea);
+      expect(saveJournalEntry).toHaveBeenCalledTimes(1);
+
+      // Confirm the removal. The dialog's own "Remove" button isn't gated
+      // by isSaving, so this always succeeds.
+      await user.click(screen.getByRole("button", { name: /^remove$/i }));
+
+      // The save is still in flight (we haven't resolved it) — deleting
+      // must wait for it, not race it.
+      expect(deleteJournalEntry).not.toHaveBeenCalled();
+      expect(callOrder).toEqual([]);
+
+      // Now let the slow save land.
+      resolveSave?.();
+
+      await waitFor(() =>
+        expect(deleteJournalEntry).toHaveBeenCalledWith("trip-1", "2026-06-01"),
+      );
+      // The save must resolve strictly before the delete fires — never the
+      // other way round, or the confirmed removal could be undone by a
+      // stale upsert landing late.
+      expect(callOrder).toEqual(["save-resolved", "delete-called"]);
     });
 
     it("never uses 'Member' language in visible or assistive-tech copy", () => {
