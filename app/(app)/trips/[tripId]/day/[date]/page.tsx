@@ -25,6 +25,7 @@ import { DayFeasibility } from "@/components/trip/day-feasibility";
 import { WeatherDaylightCard } from "@/components/trip/weather-daylight-card";
 import { AddItemButton } from "@/components/trip/item-form-dialog";
 import { JournalEditor } from "@/components/trip/journal-editor";
+import { JournalEntryView } from "@/components/trip/journal-entry-view";
 import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
 import type { TransportMode } from "@/lib/enums";
 
@@ -41,7 +42,7 @@ export default async function DayPage({
   params: Promise<{ tripId: string; date: string }>;
 }) {
   const { tripId, date } = await params;
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
 
   // Validate date param format
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -72,7 +73,7 @@ export default async function DayPage({
         ? trip.endDate
         : date;
 
-  const [stops, items, transports, accommodations, journalEntry, journalPhotos, wishlist, allAttachments] =
+  const [stops, items, transports, accommodations, journalEntries, journalPhotos, wishlist, allAttachments] =
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops don't appear on a dated day view.
@@ -149,12 +150,18 @@ export default async function DayPage({
           lng: true,
         },
       }),
-      db.journalEntry.findUnique({
-        where: { tripId_date: { tripId, date: effectiveDate } },
+      // Every Traveller's entry for this date (ARCH-DAT-6: per-Traveller
+      // entries, not one shared row) — split into "mine" (editable) and
+      // "theirs" (read-only) below.
+      db.journalEntry.findMany({
+        where: { tripId, date: effectiveDate },
+        orderBy: { createdAt: "asc" },
         select: {
           id: true,
           body: true,
+          authorId: true,
           updatedAt: true,
+          author: { select: { name: true } },
         },
       }),
       db.attachment.findMany({
@@ -241,6 +248,11 @@ export default async function DayPage({
       notes: a.notes,
     })),
   });
+
+  // Split the date's journal entries into the current Traveller's own
+  // (editable) entry and everyone else's (read-only).
+  const myJournalEntry = journalEntries.find((e) => e.authorId === user.id) ?? null;
+  const otherJournalEntries = journalEntries.filter((e) => e.authorId !== user.id);
 
   const dayPlan = itinerary.find((d) => d.dateISO === effectiveDate);
   if (!dayPlan) {
@@ -512,14 +524,25 @@ export default async function DayPage({
               Journal
             </h3>
           </div>
-          <div className="rounded-xl border border-border bg-card px-4 py-4">
-            <JournalEditor
-              tripId={tripId}
-              date={effectiveDate}
-              initialBody={journalEntry?.body ?? ""}
-              updatedAt={journalEntry?.updatedAt ?? null}
-              photos={journalPhotos}
-            />
+          <div className="flex flex-col gap-3">
+            {/* Other Travellers' entries for this day — read-only */}
+            {otherJournalEntries.map((entry) => (
+              <JournalEntryView
+                key={entry.id}
+                body={entry.body}
+                updatedAt={entry.updatedAt}
+                authorName={entry.author.name}
+              />
+            ))}
+            <div className="rounded-xl border border-border bg-card px-4 py-4">
+              <JournalEditor
+                tripId={tripId}
+                date={effectiveDate}
+                initialBody={myJournalEntry?.body ?? ""}
+                updatedAt={myJournalEntry?.updatedAt ?? null}
+                photos={journalPhotos}
+              />
+            </div>
           </div>
         </section>
       </div>

@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Plus, Save } from "lucide-react";
+import { Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FormError } from "@/components/ui/form-error";
 import { Textarea } from "@/components/ui/textarea";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { cn } from "@/lib/cn";
-import { saveJournalEntry } from "@/server/actions/journal";
+import { saveJournalEntry, deleteJournalEntry } from "@/server/actions/journal";
 import { uploadAttachment, deleteAttachment } from "@/server/actions/attachments";
 import { compressImage, oversizeUploadMessage } from "@/lib/image-compress";
 import type { AttachmentView } from "@/components/trip/attachment-list";
@@ -161,13 +162,24 @@ export function JournalEditor({
   photos,
 }: JournalEditorProps) {
   const [body, setBody] = React.useState(initialBody);
+  // The body last known to be persisted — diffed against `body` to decide
+  // whether there are unsaved changes. Starts at `initialBody` (what the
+  // server loaded) and is advanced on every successful save or delete, so
+  // "Save" and "Remove entry" reflect reality even though `initialBody`
+  // itself (a prop) never changes for the life of this component instance.
+  const [baseline, setBaseline] = React.useState(initialBody);
   const [isSaving, startTransition] = React.useTransition();
+  const [isDeleting, startDeleteTransition] = React.useTransition();
   const [saveError, setSaveError] = React.useState<string | null>(null);
+  // lastSaved doubles as "does a persisted entry currently exist" — it
+  // starts from the server-loaded updatedAt, moves forward on every save,
+  // and resets to null once the entry is removed.
   const [lastSaved, setLastSaved] = React.useState<Date | null>(
     updatedAt ?? null,
   );
   const [saveStatus, setSaveStatus] = React.useState<"saving" | "saved" | null>(null);
   const saveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { confirm, dialog } = useConfirm();
 
   function handleSave() {
     // Cancel any pending timer before starting a new save
@@ -182,6 +194,7 @@ export function JournalEditor({
         setSaveError(firstError ?? "Failed to save.");
         setSaveStatus(null);
       } else {
+        setBaseline(body);
         setLastSaved(new Date());
         setSaveStatus("saved");
         saveTimerRef.current = setTimeout(() => setSaveStatus(null), 2000);
@@ -197,13 +210,38 @@ export function JournalEditor({
   }, []);
 
   function handleBlur() {
-    // Autosave on blur if body changed from initial
-    if (body !== initialBody) {
+    // Autosave on blur if body changed from the last-known-persisted value
+    if (body !== baseline) {
       handleSave();
     }
   }
 
-  const hasChanges = body !== initialBody;
+  // Removing an entry is a separate, explicit, confirmed action — blanking
+  // the textarea and letting it autosave must never delete (ARCH-DAT-6).
+  async function handleDelete() {
+    const confirmed = await confirm({
+      title: "Remove your journal entry?",
+      description:
+        "This removes only your own entry for this day. It can't be undone.",
+      confirmLabel: "Remove",
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    startDeleteTransition(async () => {
+      const result = await deleteJournalEntry(tripId, date);
+      if (result.success) {
+        setBody("");
+        setBaseline("");
+        setLastSaved(null);
+        setSaveStatus(null);
+        setSaveError(null);
+      }
+    });
+  }
+
+  const hasChanges = body !== baseline;
+  const hasEntry = lastSaved !== null;
 
   // Format date label for header (YYYY-MM-DD → e.g. "Monday 1 Jun 2026")
   const dateLabel = React.useMemo(() => {
@@ -220,72 +258,97 @@ export function JournalEditor({
   }, [date]);
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-      <div className="space-y-3">
-        {/* Header row: date label + combined save status / char count */}
-        <div className="flex items-center justify-between">
-          <span className="font-display text-sm font-bold text-foreground">
-            {dateLabel}
-          </span>
-          {/* role="status" aria-live="polite" — always mounted, stable position */}
-          <p
-            role="status"
-            aria-live="polite"
-            className="text-[11px] font-medium text-success"
-          >
-            {saveStatus === "saving"
-              ? "Saving…"
-              : saveStatus === "saved"
-                ? "Saved"
-                : lastSaved
-                  ? "Saved"
-                  : ""}
-            {" · "}
-            {body.length}/5000
-          </p>
-        </div>
-
-        {/* Text area */}
-        <Textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          onBlur={handleBlur}
-          placeholder="How was today? Jot a memory…"
-          rows={6}
-          maxLength={5000}
-          className="rounded-xl resize-none"
-          aria-label="Journal entry"
-          disabled={isSaving}
-        />
-
-        {/* Save error */}
-        <FormError>{saveError ?? undefined}</FormError>
-
-        {/* Save button — visible when there are unsaved changes */}
-        {hasChanges ? (
-          <div className="flex justify-end">
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleSave}
-              disabled={isSaving}
+    <>
+      {dialog}
+      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+        <div className="space-y-3">
+          {/* Header row: date label + combined save status / char count */}
+          <div className="flex items-center justify-between">
+            <span className="font-display text-sm font-bold text-foreground">
+              {dateLabel}
+            </span>
+            {/* role="status" aria-live="polite" — always mounted, stable position */}
+            <p
+              role="status"
+              aria-live="polite"
+              className="text-[11px] font-medium text-success"
             >
-              {isSaving ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Save className="size-4" />
-              )}
-              {isSaving ? "Saving…" : "Save"}
-            </Button>
+              {saveStatus === "saving"
+                ? "Saving…"
+                : saveStatus === "saved"
+                  ? "Saved"
+                  : lastSaved
+                    ? "Saved"
+                    : ""}
+              {" · "}
+              {body.length}/5000
+            </p>
           </div>
-        ) : null}
 
-        {/* Photo strip */}
-        <div className="space-y-2">
-          <h4 className="text-sm font-medium text-foreground">Photos</h4>
-          <PhotoStrip tripId={tripId} date={date} photos={photos} />
+          {/* Text area */}
+          <Textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            onBlur={handleBlur}
+            placeholder="How was today? Jot a memory…"
+            rows={6}
+            maxLength={5000}
+            className="rounded-xl resize-none"
+            aria-label="Journal entry"
+            disabled={isSaving}
+          />
+
+          {/* Save error */}
+          <FormError>{saveError ?? undefined}</FormError>
+
+          {/* Action row — Remove entry (left, once an entry exists) and Save
+              (right, once there are unsaved changes) */}
+          {hasEntry || hasChanges ? (
+            <div className="flex items-center justify-between">
+              {hasEntry ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleDelete}
+                  disabled={isSaving || isDeleting}
+                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                >
+                  {isDeleting ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-4" />
+                  )}
+                  Remove entry
+                </Button>
+              ) : (
+                <span />
+              )}
+              {hasChanges ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={isSaving || isDeleting}
+                >
+                  {isSaving ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Save className="size-4" />
+                  )}
+                  {isSaving ? "Saving…" : "Save"}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* Photo strip */}
+          <div className="space-y-2">
+            <h4 className="text-sm font-medium text-foreground">Photos</h4>
+            <PhotoStrip tripId={tripId} date={date} photos={photos} />
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

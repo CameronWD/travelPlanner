@@ -4,8 +4,8 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
 import { EmptyState } from "@/components/ui/empty-state";
-import { relativeTime } from "@/lib/relative-time";
 import { AttachmentLink } from "@/components/trip/attachment-link";
+import { JournalEntryView } from "@/components/trip/journal-entry-view";
 
 /** Reading-width wrapper applied to the entries column. Exported for tests. */
 export const JOURNAL_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
@@ -18,10 +18,12 @@ export default async function JournalPage({
   const { tripId } = await params;
   await requireTripAccess(tripId);
 
-  // Fetch all journal entries ordered by date (trip order — oldest first)
+  // Fetch all journal entries ordered by date (trip order — oldest first).
+  // Entries are per-Traveller (ARCH-DAT-6): a date may hold several, one per
+  // author, so this always returns every author's entry for every date.
   const entries = await db.journalEntry.findMany({
     where: { tripId },
-    orderBy: { date: "asc" },
+    orderBy: [{ date: "asc" }, { createdAt: "asc" }],
     select: {
       id: true,
       date: true,
@@ -71,8 +73,14 @@ export default async function JournalPage({
   ]);
   const sortedDates = Array.from(allDates).sort();
 
-  // Build a map: date → entry (for fast lookup)
-  const entryByDate = new Map(entries.map((e) => [e.date, e]));
+  // Build a map: date → entries (every Traveller's entry for that date, not
+  // just one — ARCH-DAT-6).
+  const entriesByDate = new Map<string, typeof entries>();
+  for (const entry of entries) {
+    const existing = entriesByDate.get(entry.date) ?? [];
+    existing.push(entry);
+    entriesByDate.set(entry.date, existing);
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -89,7 +97,7 @@ export default async function JournalPage({
 
       <div className={`${JOURNAL_READING_WIDTH_CLASS} flex flex-col gap-10`}>
         {sortedDates.map((date) => {
-          const entry = entryByDate.get(date);
+          const dayEntries = entriesByDate.get(date) ?? [];
           const dayPhotos = photosByDate.get(date) ?? [];
 
           return (
@@ -105,26 +113,17 @@ export default async function JournalPage({
                 <span className="h-px flex-1 bg-border" aria-hidden="true" />
               </div>
 
-              {/* Body */}
-              {entry ? (
-                <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-                    {entry.body}
-                  </p>
-                  <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
-                    {entry.author.name ? (
-                      <>
-                        <span className="flex size-6 items-center justify-center rounded-full bg-secondary text-[10px] font-bold text-secondary-foreground">
-                          {entry.author.name.charAt(0).toUpperCase()}
-                        </span>
-                        <span>{entry.author.name} · {relativeTime(entry.updatedAt)}</span>
-                      </>
-                    ) : (
-                      <time dateTime={entry.updatedAt.toISOString()}>
-                        {relativeTime(entry.updatedAt)}
-                      </time>
-                    )}
-                  </div>
+              {/* Body — every Traveller's entry for this date */}
+              {dayEntries.length > 0 ? (
+                <div className="flex flex-col gap-3">
+                  {dayEntries.map((entry) => (
+                    <JournalEntryView
+                      key={entry.id}
+                      body={entry.body}
+                      updatedAt={entry.updatedAt}
+                      authorName={entry.author.name}
+                    />
+                  ))}
                 </div>
               ) : null}
 

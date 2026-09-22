@@ -14,7 +14,7 @@ const {
   itemFindManyMock,
   transportFindManyMock,
   accommodationFindManyMock,
-  journalEntryFindUniqueMock,
+  journalEntryFindManyMock,
   attachmentFindManyMock,
   buildItineraryMock,
   isFreeFormDayMock,
@@ -33,7 +33,7 @@ const {
   itemFindManyMock: vi.fn(),
   transportFindManyMock: vi.fn(),
   accommodationFindManyMock: vi.fn(),
-  journalEntryFindUniqueMock: vi.fn(),
+  journalEntryFindManyMock: vi.fn(),
   attachmentFindManyMock: vi.fn(),
   buildItineraryMock: vi.fn(),
   isFreeFormDayMock: vi.fn(),
@@ -54,7 +54,7 @@ vi.mock("@/lib/db", () => ({
     item: { findMany: itemFindManyMock },
     transport: { findMany: transportFindManyMock },
     accommodation: { findMany: accommodationFindManyMock },
-    journalEntry: { findUnique: journalEntryFindUniqueMock },
+    journalEntry: { findMany: journalEntryFindManyMock },
     attachment: { findMany: attachmentFindManyMock },
   },
 }));
@@ -178,7 +178,7 @@ describe("Day page — Day ideas mount and phase gating (Task 16)", () => {
     stopFindManyMock.mockResolvedValue([STOP]);
     transportFindManyMock.mockResolvedValue([]);
     accommodationFindManyMock.mockResolvedValue([]);
-    journalEntryFindUniqueMock.mockResolvedValue(null);
+    journalEntryFindManyMock.mockResolvedValue([]);
     // Both attachment.findMany calls (journal photos + all-attachments).
     attachmentFindManyMock.mockResolvedValue([]);
     buildDayMapModelMock.mockReturnValue({});
