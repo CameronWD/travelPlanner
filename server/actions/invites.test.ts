@@ -31,7 +31,19 @@ const {
   inviteDeleteMock: vi.fn(),
 }));
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+vi.mock("@/lib/guards", async () => {
+  // Re-derive isTripOwnerOrAdmin (a pure predicate over role + email,
+  // ARCH-BND-3) rather than importing the real lib/guards.ts — that module
+  // also imports lib/auth, which this test file never otherwise loads. This
+  // still routes through the isAdminEmail mock below, since vi.mock applies
+  // module-graph-wide.
+  const { isAdminEmail } = await import("@/lib/admin");
+  return {
+    requireTripAccess: requireTripAccessMock,
+    isTripOwnerOrAdmin: (membership: { role: string }, email: string | null | undefined) =>
+      membership.role === "owner" || isAdminEmail(email),
+  };
+});
 vi.mock("@/lib/admin", () => ({ isAdminEmail: isAdminEmailMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({

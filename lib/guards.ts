@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { findMembership } from "@/lib/access";
+import { isAdminEmail } from "@/lib/admin";
 import type { TripPhase } from "@/lib/trip-phase";
 
 export { findMembership } from "@/lib/access";
@@ -108,4 +109,46 @@ export async function requireForkAccess(forkId: string) {
   if (!fork) notFound();
   await requireTripAccess(fork.tripId);
   return { user, fork, trip: fork.trip };
+}
+
+/**
+ * Pure owner-or-admin predicate (ARCH-BND-3). Extracted from three hand-rolled
+ * copies in server/actions/trips.ts (deleteTrip, duplicateTrip) and
+ * server/actions/invites.ts (inviteToTrip), each of which returns a
+ * user-facing typed error rather than throwing — so those call sites use this
+ * predicate directly instead of the throwing `requireTripOwner` below.
+ *
+ * Does not check membership itself — callers are expected to have already
+ * called `requireTripAccess` (or equivalent), same as the three copies did.
+ */
+export function isTripOwnerOrAdmin(
+  membership: { role: string },
+  email: string | null | undefined,
+): boolean {
+  return membership.role === "owner" || isAdminEmail(email);
+}
+
+/**
+ * Require that the current user OWNS `tripId` (or is an ADMIN_EMAILS operator
+ * who is already a member — ADR 0045 grants no access to trips they aren't
+ * on). For new callers that want a throwing guard rather than a typed error
+ * result; see `isTripOwnerOrAdmin` for the pure predicate used by call sites
+ * that return a friendly error message instead.
+ *
+ * Extracted from three hand-rolled copies (ARCH-BND-3). Non-members get the
+ * same notFound() as requireTripAccess, so this never leaks a trip's existence.
+ */
+export async function requireTripOwner(tripId: string) {
+  const { user, membership } = await requireTripAccess(tripId);
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
+    notFound();
+  }
+  return { user, membership };
+}
+
+/** Require an ADMIN_EMAILS operator. notFound() for everyone else. */
+export async function requireAdmin() {
+  const user = await requireUser();
+  if (!isAdminEmail(user.email)) notFound();
+  return user;
 }

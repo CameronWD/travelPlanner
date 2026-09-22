@@ -4,8 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
-import { requireUser, requireTripAccess } from "@/lib/guards";
-import { isAdminEmail } from "@/lib/admin";
+import { requireUser, requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { recordActivity } from "@/server/actions/activity";
@@ -255,7 +254,7 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
   // Owner, or an operator listed in ADMIN_EMAILS. Membership is still
   // required — requireTripAccess above already notFound()s for non-members,
   // and an admin gets no bypass of it (ADR 0045).
-  if (membership.role !== "owner" && !isAdminEmail(user.email)) {
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
     return { success: false, error: "Only the trip owner can delete the trip." };
   }
 
@@ -319,7 +318,7 @@ export async function duplicateTrip(
   // is not an authorization check — the server action is directly callable by
   // any member. Without this, a Traveller could mint a fully-owned copy of
   // someone else's trip, members and all.
-  if (membership.role !== "owner" && !isAdminEmail(user.email)) {
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
     return { success: false, error: "Only the trip owner can duplicate the trip." };
   }
 

@@ -99,10 +99,20 @@ const {
   };
 });
 
-vi.mock("@/lib/guards", () => ({
-  requireUser: requireUserMock,
-  requireTripAccess: requireTripAccessMock,
-}));
+vi.mock("@/lib/guards", async () => {
+  // Re-derive isTripOwnerOrAdmin (a pure predicate over role + email,
+  // ARCH-BND-3) from the real isAdminEmail rather than importing the real
+  // lib/guards.ts — that module also imports lib/auth, which this test file
+  // never otherwise loads. Only requireUser/requireTripAccess need
+  // session/db mocking.
+  const { isAdminEmail } = await import("@/lib/admin");
+  return {
+    requireUser: requireUserMock,
+    requireTripAccess: requireTripAccessMock,
+    isTripOwnerOrAdmin: (membership: { role: string }, email: string | null | undefined) =>
+      membership.role === "owner" || isAdminEmail(email),
+  };
+});
 vi.mock("@/lib/geocode", () => ({
   geocodePlaceDetailed: geocodePlaceDetailedMock,
 }));

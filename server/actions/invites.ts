@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
-import { isAdminEmail } from "@/lib/admin";
+import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
@@ -46,7 +45,7 @@ export async function inviteToTrip(
   // member on purpose (ADR 0052). Same admin bypass as Delete and Duplicate
   // (ADR 0045); membership is still required, since requireTripAccess above
   // already notFound()s for a non-member.
-  if (membership.role !== "owner" && !isAdminEmail(user.email)) {
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
     return {
       success: false,
       error: "Only the trip owner can invite someone to this trip.",
