@@ -11,8 +11,13 @@ export interface AccessRequestAttempt {
  * True for a Prisma unique-constraint violation (P2002). Checked structurally
  * (by `code`) rather than via `instanceof` so it stays driver-adapter-agnostic
  * and trivially mockable in tests — same idiom as lib/globe.ts, lib/invites.ts.
+ *
+ * Exported (unlike the other four structurally-identical copies of this
+ * function in the repo) so server/actions/access-requests.ts — the nearest
+ * caller, in the same domain — can reuse it for `approveAccessRequest`'s
+ * idempotent `AllowedEmail` create, rather than adding a sixth copy.
  */
-function isUniqueConstraintError(err: unknown): boolean {
+export function isUniqueConstraintError(err: unknown): boolean {
   return (
     typeof err === "object" &&
     err !== null &&
