@@ -486,6 +486,13 @@ exists and is nullable, `FeedbackNote.authorName` exists and is nullable, and
 `FeedbackNote_authorId_fkey` is gone. `prisma migrate status` reports "Database
 schema is up to date" across all 28 migrations.
 
+**Provenance:** this was verified first-hand by the main session before
+implementation began — a read-only `prisma migrate status` and a read-only
+`information_schema` query against the production database — not by any
+agent working under this plan's own constraints, which rule out database
+access entirely. Recorded here so a future reader isn't left guessing
+whether "verified" means checked or assumed.
+
 They were written on branch `chore/close-the-open-backlog` alongside the code
 that reads their columns, and were **not** applied by the agent that wrote
 them — that branch had no database access. The descriptions below stand as
@@ -791,7 +798,7 @@ re-derive the trade.
 - **Source:** raised 2026-09-21 while planning the attachment new-tab change;
   settled the same day by the amendment to ADR 0043.
 - **The observation:** `/api/attachments/:id` is session-authenticated
-  (`app/api/attachments/[id]/route.ts:45`), and a standalone iOS PWA can hold
+  (`app/api/attachments/[id]/route.ts:46`), and a standalone iOS PWA can hold
   a cookie jar separate from Safari — so a link opened out of the installed
   app might arrive unauthenticated and bounce to sign-in.
 - **Why it is settled rather than owed:** the behaviour that would have caused
