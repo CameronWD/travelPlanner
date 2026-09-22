@@ -5,11 +5,15 @@ const {
   allowedEmailUpsertMock,
   inviteFindFirstMock,
   globeInviteFindFirstMock,
+  recordAccessRequestMock,
+  notifyAdminsMock,
 } = vi.hoisted(() => ({
   allowedEmailFindUniqueMock: vi.fn(),
   allowedEmailUpsertMock: vi.fn(),
   inviteFindFirstMock: vi.fn(),
   globeInviteFindFirstMock: vi.fn(),
+  recordAccessRequestMock: vi.fn(),
+  notifyAdminsMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -21,6 +25,8 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@auth/prisma-adapter", () => ({ PrismaAdapter: () => ({}) }));
 vi.mock("@/lib/invites", () => ({ acceptPendingInvitesForUser: vi.fn() }));
+vi.mock("@/lib/access-requests", () => ({ recordAccessRequest: recordAccessRequestMock }));
+vi.mock("@/lib/admin-notify", () => ({ notifyAdmins: notifyAdminsMock }));
 // See lib/auth-dev-login.test.ts: NextAuth's core package reaches into
 // "next/server" as soon as it's invoked, which vitest's jsdom environment
 // can't resolve outside a real Next build. Mock the default export so
@@ -63,6 +69,15 @@ describe("signIn callback", () => {
       update: {},
       create: { email: "invited@example.com", note: "admitted by Trip Invite" },
     });
+
+    // NEW REQUIREMENT: growth by Invite must be visible, not silent — the
+    // first admission notifies admins.
+    expect(notifyAdminsMock).toHaveBeenCalledTimes(1);
+    expect(notifyAdminsMock).toHaveBeenCalledWith(
+      expect.stringContaining("invitation"),
+      expect.stringContaining("invited@example.com"),
+      expect.any(String),
+    );
   });
 
   it("stays admitted on a SECOND sign-in after the Invite has been accepted (the one-shot-ticket lifecycle bug)", async () => {
@@ -80,6 +95,7 @@ describe("signIn callback", () => {
       } as any),
     ).resolves.toBe(true);
     expect(allowedEmailUpsertMock).toHaveBeenCalledTimes(1);
+    expect(notifyAdminsMock).toHaveBeenCalledTimes(1);
 
     // events.signIn / app/(app)/layout.tsx mark the Invite accepted right
     // after — so hasPendingTripInvite would now say false — but the upsert
@@ -97,6 +113,8 @@ describe("signIn callback", () => {
     ).resolves.toBe(true);
     // No second promotion needed — isAllowedEmail short-circuits first.
     expect(allowedEmailUpsertMock).toHaveBeenCalledTimes(1);
+    // And no re-notification either — still just the one, from admission.
+    expect(notifyAdminsMock).toHaveBeenCalledTimes(1);
   });
 
   it("does NOT admit on a Globe Invite", async () => {
@@ -116,9 +134,17 @@ describe("signIn callback", () => {
 
     // hasPendingTripInvite is Trip-only — it must never consult GlobeInvite.
     expect(globeInviteFindFirstMock).not.toHaveBeenCalled();
+
+    // Task 14: the refusal records (or bumps) an Access request, from
+    // Google's verified profile.
+    expect(recordAccessRequestMock).toHaveBeenCalledWith({
+      email: "globe-invited@example.com",
+      name: null,
+      image: null,
+    });
   });
 
-  it("refuses Google sign-in when the email is not verified", async () => {
+  it("refuses Google sign-in when the email is not verified, and does NOT record an Access request", async () => {
     allowedEmailFindUniqueMock.mockResolvedValue({ email: "cam@example.com" });
 
     await expect(
@@ -129,9 +155,14 @@ describe("signIn callback", () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
     ).resolves.toBe(false);
+
+    // An Access request must only ever come from a VERIFIED profile —
+    // recording one for an unverified email would let anyone squat on an
+    // address they don't control.
+    expect(recordAccessRequestMock).not.toHaveBeenCalled();
   });
 
-  it("refuses Google sign-in when profile.email_verified is missing entirely", async () => {
+  it("refuses Google sign-in when profile.email_verified is missing entirely, and does NOT record an Access request", async () => {
     allowedEmailFindUniqueMock.mockResolvedValue({ email: "cam@example.com" });
 
     await expect(
@@ -142,6 +173,8 @@ describe("signIn callback", () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
     ).resolves.toBe(false);
+
+    expect(recordAccessRequestMock).not.toHaveBeenCalled();
   });
 
   it("lets the dev-login provider through outside production", async () => {
@@ -199,7 +232,7 @@ describe("signIn callback", () => {
     expect(allowedEmailFindUniqueMock).not.toHaveBeenCalled();
   });
 
-  it("refuses an unlisted, uninvited email", async () => {
+  it("refuses an unlisted, uninvited email, and records an Access request from the verified profile", async () => {
     process.env.ALLOWED_EMAILS = "";
     allowedEmailFindUniqueMock.mockResolvedValue(null);
     inviteFindFirstMock.mockResolvedValue(null);
@@ -208,13 +241,23 @@ describe("signIn callback", () => {
       signInCallback({
         user: { email: "stranger@example.com" },
         account: { provider: "google" },
-        profile: { email_verified: true },
+        profile: {
+          email_verified: true,
+          name: "Stranger Person",
+          picture: "https://example.com/pic.jpg",
+        },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
     ).resolves.toBe(false);
+
+    expect(recordAccessRequestMock).toHaveBeenCalledWith({
+      email: "stranger@example.com",
+      name: "Stranger Person",
+      image: "https://example.com/pic.jpg",
+    });
   });
 
-  it("refuses when the user has no email at all", async () => {
+  it("refuses when the user has no email at all, without recording an Access request", async () => {
     await expect(
       signInCallback({
         user: { email: null },
@@ -225,6 +268,7 @@ describe("signIn callback", () => {
     ).resolves.toBe(false);
 
     expect(allowedEmailFindUniqueMock).not.toHaveBeenCalled();
+    expect(recordAccessRequestMock).not.toHaveBeenCalled();
   });
 
   it("fails closed: rejects rather than admitting when the allowlist lookup throws", async () => {

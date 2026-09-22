@@ -141,6 +141,7 @@ describe("hasPendingTripInvite", () => {
 
 describe("admitByTripInvite", () => {
   it("upserts an AllowedEmail row for the lowercased address, noting it was admitted by Trip Invite", async () => {
+    allowedEmailFindUniqueMock.mockResolvedValue(null);
     allowedEmailUpsertMock.mockResolvedValue({ email: "invited@example.com" });
     await admitByTripInvite("Invited@Example.com");
     expect(allowedEmailUpsertMock).toHaveBeenCalledWith({
@@ -151,6 +152,7 @@ describe("admitByTripInvite", () => {
   });
 
   it("is idempotent — an existing row is left untouched, not overwritten", async () => {
+    allowedEmailFindUniqueMock.mockResolvedValue({ id: "ae1" });
     allowedEmailUpsertMock.mockResolvedValue({ email: "invited@example.com" });
     await admitByTripInvite("invited@example.com");
     // `update: {}` — a second admission must not clobber a row that, say,
@@ -161,7 +163,20 @@ describe("admitByTripInvite", () => {
   });
 
   it("does nothing for an empty email", async () => {
-    await admitByTripInvite("   ");
+    await expect(admitByTripInvite("   ")).resolves.toEqual({ created: false });
+    expect(allowedEmailFindUniqueMock).not.toHaveBeenCalled();
     expect(allowedEmailUpsertMock).not.toHaveBeenCalled();
+  });
+
+  it("reports created: true for a first admission (no prior row)", async () => {
+    allowedEmailFindUniqueMock.mockResolvedValue(null);
+    allowedEmailUpsertMock.mockResolvedValue({ email: "invited@example.com" });
+    await expect(admitByTripInvite("invited@example.com")).resolves.toEqual({ created: true });
+  });
+
+  it("reports created: false for a repeat admission (row already existed)", async () => {
+    allowedEmailFindUniqueMock.mockResolvedValue({ id: "ae1" });
+    allowedEmailUpsertMock.mockResolvedValue({ email: "invited@example.com" });
+    await expect(admitByTripInvite("invited@example.com")).resolves.toEqual({ created: false });
   });
 });

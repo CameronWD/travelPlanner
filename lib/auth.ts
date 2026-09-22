@@ -6,6 +6,8 @@ import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
 import { acceptPendingInvitesForUser } from "@/lib/invites";
 import { isAllowedEmail, hasPendingTripInvite, admitByTripInvite } from "@/lib/allowlist";
+import { recordAccessRequest } from "@/lib/access-requests";
+import { notifyAdmins } from "@/lib/admin-notify";
 
 /**
  * Auth.js (NextAuth v5) configuration.
@@ -104,11 +106,31 @@ export const authConfig: NextAuthConfig = {
         // false — locking out anyone whose session lapses or who signs out.
         // Promote them into the durable allowlist instead (lib/allowlist.ts,
         // admitByTripInvite).
-        await admitByTripInvite(email);
+        const { created } = await admitByTripInvite(email);
+        if (created) {
+          // Admission by Invite is transitive — anyone admitted can create a
+          // Trip and invite others — which the operator has accepted on
+          // condition that growth is visible rather than silent. Fire once,
+          // on the admission that actually created the AllowedEmail row, not
+          // on every subsequent sign-in. notifyAdmins never throws (see its
+          // own doc comment), so awaiting it here cannot fail this sign-in.
+          await notifyAdmins(
+            "New Traveller joined by invitation",
+            `${email} was admitted to TEEPEE via a Trip Invite.`,
+            "/admin",
+          );
+        }
         return true;
       }
 
-      // Task 14 records the Access request here before refusing.
+      // Refused: record (or bump) the Access request from Google's verified
+      // profile, then decline. recordAccessRequest never throws — a failure
+      // to record it must not turn this clean refusal into a 500.
+      await recordAccessRequest({
+        email,
+        name: profile?.name ?? null,
+        image: profile?.picture ?? null,
+      });
       return false;
     },
     jwt({ token, user }) {

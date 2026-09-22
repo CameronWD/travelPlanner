@@ -86,13 +86,30 @@ export async function hasPendingTripInvite(email: string): Promise<boolean> {
  * takes this path, and `update: {}` deliberately never overwrites an
  * existing row (e.g. one an approved Access request already wrote with a
  * different note).
+ *
+ * Returns whether this call is what created the row. The caller (lib/auth.ts)
+ * uses that to fire an admin notification on the FIRST admission only —
+ * admission by Invite is otherwise silent, and the operator has accepted
+ * that it's transitive (anyone admitted can create a Trip and invite others)
+ * on condition that growth stays visible. Checking existence before the
+ * upsert (rather than trying to read create-vs-update off Prisma's result,
+ * which doesn't expose that) is a separate query, not atomic with the
+ * upsert — the only consequence of losing that race is a duplicate
+ * notification, which notifyAdmins already tolerates.
  */
-export async function admitByTripInvite(email: string): Promise<void> {
+export async function admitByTripInvite(
+  email: string,
+): Promise<{ created: boolean }> {
   const needle = email.trim().toLowerCase();
-  if (!needle) return;
+  if (!needle) return { created: false };
+  const existing = await db.allowedEmail.findUnique({
+    where: { email: needle },
+    select: { id: true },
+  });
   await db.allowedEmail.upsert({
     where: { email: needle },
     update: {},
     create: { email: needle, note: "admitted by Trip Invite" },
   });
+  return { created: existing === null };
 }
