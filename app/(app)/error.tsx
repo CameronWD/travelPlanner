@@ -19,6 +19,19 @@ export default function AppError({
 }) {
   useEffect(() => {
     console.error("[app error boundary]", error);
+    // Best-effort report to the sink (ARCH-OBS-2) alongside the console log
+    // above — .catch(() => {}) so a failed report can never surface a
+    // second failure on top of the one this screen is already recovering
+    // from. See app/api/client-error/route.ts for what happens server-side.
+    fetch("/api/client-error", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        message: error.message,
+        stack: error.stack,
+        route: window.location.pathname,
+      }),
+    }).catch(() => {});
   }, [error]);
 
   return (

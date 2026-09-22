@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireAdmin } from "@/lib/guards";
 import { listAccessRequests, listAllowedEmails } from "@/server/actions/access-requests";
+import { listErrorReports } from "@/server/actions/error-reports";
 import {
   Card,
   CardContent,
@@ -9,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { AccessRequestsPanel } from "./access-requests";
 import { AllowedEmailsPanel } from "./allowed-emails";
+import { ErrorReportsPanel } from "./error-reports";
 
 export const metadata: Metadata = { title: "Admin" };
 
@@ -21,9 +23,10 @@ export const metadata: Metadata = { title: "Admin" };
 export default async function AdminPage() {
   const admin = await requireAdmin();
 
-  const [accessRequests, allowedEmails] = await Promise.all([
+  const [accessRequests, allowedEmails, errorReports] = await Promise.all([
     listAccessRequests(),
     listAllowedEmails(),
+    listErrorReports(),
   ]);
 
   // One instant for the whole page, computed server-side so the client
@@ -62,9 +65,17 @@ export default async function AdminPage() {
         </CardContent>
       </Card>
 
-      {/* ── Errors — slot for Task 17 (ARCH-OBS-2). Deliberately left empty
-          here; that task adds app/(app)/admin/error-reports.tsx and a
-          server/actions/error-reports.ts, and wires a Card into this spot. ── */}
+      {/* ── Errors (ARCH-OBS-2) ── */}
+      <Card>
+        <CardHeader className="p-5 pb-0">
+          <CardTitle className="font-display text-base font-bold tracking-tight">
+            Errors
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-5 pt-3">
+          <ErrorReportsPanel initial={errorReports} now={now} />
+        </CardContent>
+      </Card>
     </div>
   );
 }
