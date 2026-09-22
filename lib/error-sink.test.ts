@@ -72,6 +72,28 @@ describe("reportError", () => {
     expect(notifyAdminsMock).not.toHaveBeenCalled();
   });
 
+  it("I1: falls back to an atomic increment when a concurrent occurrence wins the create race (P2002), without a second notify", async () => {
+    // Two concurrent NEW occurrences of the same signature both see
+    // findUnique -> null; one create wins, the other must not be lost.
+    dbMock.errorReport.findUnique.mockResolvedValue(null);
+    const p2002 = Object.assign(new Error("Unique constraint failed on the fields: (`signature`)"), {
+      code: "P2002",
+    });
+    dbMock.errorReport.create.mockRejectedValue(p2002);
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await reportError(new Error("boom"), { source: "server" });
+
+    expect(dbMock.errorReport.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ count: { increment: 1 } }),
+      }),
+    );
+    // The winning create's own caller already notified — a second notify
+    // here would double-push for one distinct failure.
+    expect(notifyAdminsMock).not.toHaveBeenCalled();
+  });
+
   it("never throws, even when the database is unreachable", async () => {
     dbMock.errorReport.findUnique.mockRejectedValue(new Error("db down"));
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});

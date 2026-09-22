@@ -311,6 +311,18 @@ describe("uploadAttachment", () => {
         route: "server/actions/attachments.ts#uploadAttachment",
         source: "server",
       });
+      // I2 (fix round 1): the report must not sit between the failed write
+      // and the orphan-row cleanup — a full notifyAdmins round-trip (2.5s
+      // per admin device, two DB queries) ahead of a delete-row cleanup
+      // means a function that hits its time limit in that window leaves the
+      // orphan Attachment row (the cleanup's entire purpose) behind
+      // permanently. Cleanup must run, and complete, first.
+      expect(attachmentDeleteMock.mock.invocationCallOrder[0]).toBeLessThan(
+        reportErrorMock.mock.invocationCallOrder[0],
+      );
+      expect(storageDeleteMock.mock.invocationCallOrder[0]).toBeLessThan(
+        reportErrorMock.mock.invocationCallOrder[0],
+      );
     });
 
     it("globe path: deletes the placeholder row and reports failure", async () => {
@@ -332,6 +344,13 @@ describe("uploadAttachment", () => {
         route: "server/actions/attachments.ts#uploadAttachment",
         source: "server",
       });
+      // I2 (fix round 1) — see the trip-path test above for the reasoning.
+      expect(attachmentDeleteMock.mock.invocationCallOrder[0]).toBeLessThan(
+        reportErrorMock.mock.invocationCallOrder[0],
+      );
+      expect(storageDeleteMock.mock.invocationCallOrder[0]).toBeLessThan(
+        reportErrorMock.mock.invocationCallOrder[0],
+      );
     });
 
     it("still succeeds when the write works (row-first order preserved)", async () => {

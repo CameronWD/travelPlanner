@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { db } from "@/lib/db";
 import { notifyAdmins } from "@/lib/admin-notify";
+import { isUniqueConstraintError } from "@/lib/access-requests";
 
 /**
  * The server-side error sink (ARCH-OBS-1, ADR 0059).
@@ -75,7 +76,17 @@ function firstStackFrame(stack?: string): string {
   return frame ?? "";
 }
 
-/** A stable hash of name + message + first stack frame. Never the full stack. */
+/**
+ * A stable hash of name + message + first stack frame. Never the full stack.
+ *
+ * A non-`Error` throw (`throw "failed"`, `throw { code: 1 }`) has no stack,
+ * so `firstStackFrame` returns `""` and the signature collapses to just
+ * `name + message` — `normalizeError` gives every such throw the same name
+ * ("Error"), so two unrelated `throw "failed"` sites anywhere in the app
+ * will collide onto one row. Accepted: throwing non-Errors is already bad
+ * practice this sink can't fully compensate for, and the alternative (no
+ * dedup at all for these) is worse.
+ */
 function computeSignature(normalized: NormalizedError): string {
   const key = JSON.stringify([
     normalized.name,
@@ -114,16 +125,34 @@ export async function reportError(
       return;
     }
 
-    await db.errorReport.create({
-      data: {
-        signature,
-        message: normalized.message,
-        stack: normalized.stack ?? null,
-        route: ctx.route ?? null,
-        source: ctx.source ?? DEFAULT_SOURCE,
-        userId: ctx.userId ?? null,
-      },
-    });
+    try {
+      await db.errorReport.create({
+        data: {
+          signature,
+          message: normalized.message,
+          stack: normalized.stack ?? null,
+          route: ctx.route ?? null,
+          source: ctx.source ?? DEFAULT_SOURCE,
+          userId: ctx.userId ?? null,
+        },
+      });
+    } catch (createErr) {
+      if (!isUniqueConstraintError(createErr)) throw createErr;
+      // I1 (fix round 1): lost a create race — two concurrent NEW
+      // occurrences of this exact signature both saw `findUnique` return
+      // null, and a concurrent call's create landed between our own
+      // findUnique and this create. Without this, the outer catch below
+      // would swallow the P2002 as "reportError failed" (which reads like
+      // the sink is broken, not a benign race) and this occurrence would be
+      // lost entirely — count stays 1. Same idiom as
+      // lib/access-requests.ts's recordAccessRequest. Do NOT notify here:
+      // the winning create's own caller already will.
+      await db.errorReport.update({
+        where: { signature },
+        data: { count: { increment: 1 }, lastSeen: new Date() },
+      });
+      return;
+    }
 
     const routeSuffix = ctx.route ? ` on ${ctx.route}` : "";
     await notifyAdmins(

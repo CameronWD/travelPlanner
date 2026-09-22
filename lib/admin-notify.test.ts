@@ -56,19 +56,28 @@ describe("notifyAdmins", () => {
     expect(userFindManyMock).not.toHaveBeenCalled();
   });
 
-  it("does nothing, without throwing, when no admin User row exists", async () => {
+  it("does nothing, without throwing, when no admin User row exists — but warns (I4)", async () => {
+    // I4: a sink can now be recording ErrorReport rows while ADMIN_EMAILS
+    // doesn't resolve to a single real User — nobody is ever told, with no
+    // log line at all, unless this warns.
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     process.env.ADMIN_EMAILS = "admin@example.com";
     userFindManyMock.mockResolvedValue([]);
     await expect(notifyAdmins("t", "b", "/u")).resolves.toBeUndefined();
     expect(pushSubscriptionFindManyMock).not.toHaveBeenCalled();
+    expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining("[admin-notify]"));
+    consoleWarnSpy.mockRestore();
   });
 
-  it("does nothing, without throwing, when the admin has no Device", async () => {
+  it("does nothing, without throwing, when the admin has no Device — but warns (I4)", async () => {
+    const consoleWarnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     process.env.ADMIN_EMAILS = "admin@example.com";
     userFindManyMock.mockResolvedValue([{ id: "u1" }]);
     pushSubscriptionFindManyMock.mockResolvedValue([]);
     await expect(notifyAdmins("t", "b", "/u")).resolves.toBeUndefined();
     expect(sendPushMock).not.toHaveBeenCalled();
+    expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining("[admin-notify]"));
+    consoleWarnSpy.mockRestore();
   });
 
   it("sends the given title/body/url to every admin Device", async () => {
@@ -83,8 +92,11 @@ describe("notifyAdmins", () => {
     await notifyAdmins("New Access request", "someone asked to join", "/admin");
 
     expect(sendPushMock).toHaveBeenCalledTimes(2);
-    const [sub, payload] = sendPushMock.mock.calls[0];
+    const [sub, payload, options] = sendPushMock.mock.calls[0];
     expect(sub).toEqual({ endpoint: "https://push/1", p256dh: "p1", auth: "a1" });
+    // C1: notifyAdmins must never let its own delivery path feed back into
+    // the error sink — see lib/push.ts's SendPushOptions doc.
+    expect(options).toEqual({ report: false });
     expect(JSON.parse(payload)).toEqual({
       title: "New Access request",
       body: "someone asked to join",

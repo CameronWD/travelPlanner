@@ -68,6 +68,22 @@ export type SendPushResult =
   | { sent: true }
   | { sent: false; skipped?: true; gone?: true };
 
+export interface SendPushOptions {
+  /**
+   * Whether a non-404/410 failure is reported to the error sink
+   * (ARCH-OBS-1). Defaults to true. `lib/admin-notify.ts` passes `false`:
+   * notifyAdmins's own delivery path is itself built on this function, so
+   * without this a sendPush failure INSIDE notifyAdmins would call
+   * reportError, which (on a new signature) calls notifyAdmins again, which
+   * calls sendPush again — and because push errors embed resolved
+   * addresses/hostnames that vary per attempt (FCM round-robins DNS; admin
+   * devices span different push services), the dedup signature does not
+   * stay stable across attempts, so this does not self-limit. Ordinary
+   * push failures (Digest delivery, etc.) still report normally.
+   */
+  report?: boolean;
+}
+
 /**
  * Send the Digest push to a single subscription.
  *
@@ -81,6 +97,7 @@ export type SendPushResult =
 export async function sendPush(
   subscription: PushSubscriptionData,
   payload: string,
+  options: SendPushOptions = {},
 ): Promise<SendPushResult> {
   if (!isPushConfigured()) {
     return { sent: false, skipped: true };
@@ -115,14 +132,25 @@ export async function sendPush(
       return { sent: false, gone: true };
     }
 
-    // Lazy import (ARCH-OBS-1), same pattern as the `web-push` import above:
-    // a static import of lib/error-sink.ts here would create a circular
-    // dependency (error-sink -> admin-notify -> push) and would pull
-    // lib/db.ts into every test that imports this module. reportError
-    // itself console.errors this failure (lib/error-sink.ts), so nothing is
-    // lost by not calling console.error directly here.
-    const { reportError } = await import("@/lib/error-sink");
-    await reportError(err, { source: "server" });
+    if (options.report !== false) {
+      // Both the import and the call are inside their own try/catch (I3):
+      // lib/error-sink.ts statically imports lib/db.ts, which throws at
+      // MODULE EVALUATION time when DATABASE_URL is unset (e.g. a preview
+      // deploy with VAPID configured but no database) — so `await
+      // import(...)` itself can reject here, not just reportError (which is
+      // documented never to throw, but the import reaching it can still
+      // fail). This module promises to be import-safe and never-throwing in
+      // any environment (see module doc); that must hold even when the sink
+      // it reports to is unreachable. reportError itself console.errors
+      // this failure (lib/error-sink.ts), so nothing is lost by not calling
+      // console.error directly here.
+      try {
+        const { reportError } = await import("@/lib/error-sink");
+        await reportError(err, { route: "lib/push.ts#sendPush", source: "server" });
+      } catch (sinkErr) {
+        console.error("[push] reporting to the error sink failed:", sinkErr);
+      }
+    }
     return { sent: false };
   }
 }

@@ -191,7 +191,7 @@ describe("sendPush", () => {
     vi.unstubAllEnvs();
   });
 
-  it("reports a non-404/410 send failure to the error sink (ARCH-OBS-1)", async () => {
+  it("reports a non-404/410 send failure to the error sink, with its own route (ARCH-OBS-1, I5)", async () => {
     vi.stubEnv("VAPID_PUBLIC_KEY", "pub-key");
     vi.stubEnv("VAPID_PRIVATE_KEY", "priv-key");
     vi.stubEnv("VAPID_SUBJECT", "mailto:test@example.com");
@@ -202,7 +202,53 @@ describe("sendPush", () => {
     const { sendPush } = await import("@/lib/push");
     await sendPush(STUB_SUB, STUB_PAYLOAD);
 
-    expect(reportErrorMock).toHaveBeenCalledWith(networkErr, { source: "server" });
+    // I5: the single highest-volume error source in the system must not get
+    // a null route column / a bare "[error-sink]:" console line.
+    expect(reportErrorMock).toHaveBeenCalledWith(networkErr, {
+      route: "lib/push.ts#sendPush",
+      source: "server",
+    });
+
+    vi.unstubAllEnvs();
+  });
+
+  it("does NOT report to the sink when called with { report: false } (C1 — breaks the notifyAdmins feedback loop)", async () => {
+    // lib/admin-notify.ts's own delivery path calls sendPush with
+    // { report: false } for exactly this reason: without it, a sendPush
+    // failure inside notifyAdmins would call reportError, which on a new
+    // signature calls notifyAdmins again, which calls sendPush again — and
+    // because push errors embed resolved addresses/hostnames that vary per
+    // attempt, dedup does not stop it.
+    vi.stubEnv("VAPID_PUBLIC_KEY", "pub-key");
+    vi.stubEnv("VAPID_PRIVATE_KEY", "priv-key");
+    vi.stubEnv("VAPID_SUBJECT", "mailto:test@example.com");
+
+    sendNotificationMock.mockRejectedValue(new Error("Network error"));
+
+    const { sendPush } = await import("@/lib/push");
+    const result = await sendPush(STUB_SUB, STUB_PAYLOAD, { report: false });
+
+    expect(result).toEqual({ sent: false });
+    expect(reportErrorMock).not.toHaveBeenCalled();
+
+    vi.unstubAllEnvs();
+  });
+
+  it("still returns { sent: false } and does not throw when the error sink itself rejects (I3)", async () => {
+    // lib/error-sink.ts statically imports lib/db.ts, which throws at
+    // module-evaluation time when DATABASE_URL is unset — e.g. a preview
+    // deploy with VAPID configured but no database. sendPush promises to be
+    // "safe to import in any environment" and to never re-throw; this must
+    // hold even if reaching the sink itself fails.
+    vi.stubEnv("VAPID_PUBLIC_KEY", "pub-key");
+    vi.stubEnv("VAPID_PRIVATE_KEY", "priv-key");
+    vi.stubEnv("VAPID_SUBJECT", "mailto:test@example.com");
+
+    sendNotificationMock.mockRejectedValue(new Error("Network error"));
+    reportErrorMock.mockRejectedValue(new Error("sink is down too"));
+
+    const { sendPush } = await import("@/lib/push");
+    await expect(sendPush(STUB_SUB, STUB_PAYLOAD)).resolves.toEqual({ sent: false });
 
     vi.unstubAllEnvs();
   });

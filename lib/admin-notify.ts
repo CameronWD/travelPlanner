@@ -93,13 +93,29 @@ export async function notifyAdmins(
       },
       select: { id: true },
     });
-    if (admins.length === 0) return;
+    if (admins.length === 0) {
+      // I4 (fix round 1): a caller — increasingly the error sink itself —
+      // can be recording rows while ADMIN_EMAILS doesn't resolve to a
+      // single real User (typo, wrong casing beyond what the insensitive
+      // match above covers, nobody's signed in yet). Without this, nobody
+      // is ever told, with no log line at all — the exact failure mode the
+      // carry-forward logging existed to remove, one layer up.
+      console.warn(
+        `[admin-notify] ADMIN_EMAILS is set but matched no User row — nobody will be notified`,
+      );
+      return;
+    }
 
     const subscriptions = await db.pushSubscription.findMany({
       where: { userId: { in: admins.map((a) => a.id) } },
       select: { id: true, endpoint: true, p256dh: true, auth: true },
     });
-    if (subscriptions.length === 0) return;
+    if (subscriptions.length === 0) {
+      // I4: same reasoning — a real admin with zero registered Devices is a
+      // silent dead end otherwise.
+      console.warn(`[admin-notify] no admin has a registered push Device — nobody will be notified`);
+      return;
+    }
 
     const payload = buildDigestPayload({ title, body, url });
 
@@ -107,7 +123,18 @@ export async function notifyAdmins(
       subscriptions.map(async (sub) => ({
         id: sub.id,
         outcome: await withTimeout(
-          sendPush({ endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth }, payload),
+          // { report: false } (C1, fix round 1): without it, a sendPush
+          // failure HERE — notifyAdmins's own delivery path — would call
+          // reportError, which (on a new signature) calls notifyAdmins
+          // again, which calls sendPush again. Push errors embed resolved
+          // addresses/hostnames that vary per attempt, so the dedup
+          // signature this would otherwise rely on to self-limit does not
+          // stay stable — see lib/push.ts's SendPushOptions doc.
+          sendPush(
+            { endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
+            payload,
+            { report: false },
+          ),
           PUSH_TIMEOUT_MS,
         ),
       })),

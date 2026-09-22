@@ -136,10 +136,6 @@ export async function uploadAttachment(
       // Blob write failed: remove the placeholder row so no orphan Attachment
       // (empty url, no storageKey) is left behind. Best-effort delete — the
       // failure we report is the write, not the cleanup.
-      await reportError(err, {
-        route: "server/actions/attachments.ts#uploadAttachment",
-        source: "server",
-      });
       await db.attachment
         .delete({ where: { id: attachment.id } })
         .catch((cleanupErr) =>
@@ -150,6 +146,15 @@ export async function uploadAttachment(
       await getStorage()
         .delete(storageKey)
         .catch(() => {});
+      // I2 (fix round 1): reported AFTER cleanup, not before. reportError
+      // can run a full notifyAdmins round-trip (2.5s per admin device, two
+      // DB queries) — putting it ahead of the cleanup meant a function that
+      // hit its time limit in that window left the orphan Attachment row
+      // (the cleanup's entire purpose) behind permanently.
+      await reportError(err, {
+        route: "server/actions/attachments.ts#uploadAttachment",
+        source: "server",
+      });
       return { success: false, error: "Upload failed — nothing was saved. Please try again." };
     }
 
@@ -197,10 +202,6 @@ export async function uploadAttachment(
     // Blob write failed: remove the placeholder row so no orphan Attachment
     // (empty url, no storageKey) is left behind. Best-effort delete — the
     // failure we report is the write, not the cleanup.
-    await reportError(err, {
-      route: "server/actions/attachments.ts#uploadAttachment",
-      source: "server",
-    });
     await db.attachment
       .delete({ where: { id: attachment.id } })
       .catch((cleanupErr) =>
@@ -211,6 +212,12 @@ export async function uploadAttachment(
     await getStorage()
       .delete(storageKey)
       .catch(() => {});
+    // I2 (fix round 1): reported AFTER cleanup, not before — see the
+    // globe-scoped path above for the reasoning.
+    await reportError(err, {
+      route: "server/actions/attachments.ts#uploadAttachment",
+      source: "server",
+    });
     return { success: false, error: "Upload failed — nothing was saved. Please try again." };
   }
 
