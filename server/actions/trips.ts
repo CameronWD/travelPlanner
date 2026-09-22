@@ -455,3 +455,114 @@ export async function setChaptersEnabled(tripId: string, enabled: boolean): Prom
 
   return { success: true };
 }
+
+// ---------------------------------------------------------------------------
+// removeTripMember / leaveTrip
+// ---------------------------------------------------------------------------
+//
+// CAVEAT (ARCH-DAT-1a): these are the first two actions in the codebase that
+// mutate Trip membership. `requireTripAccess` is `cache()`-memoised per
+// `tripId` for the lifetime of the request (see its doc comment in
+// lib/guards.ts) — calling it again after the membership row is gone would
+// silently return yesterday's (still-a-member) answer. So each action calls
+// requireTripAccess exactly once, before the mutation, and never again.
+// Anything that needs a post-mutation membership answer must query
+// db.tripMember directly rather than go back through the guard.
+
+export type RemoveTripMemberResult =
+  | { success: true }
+  | { success: false; error: string };
+
+/**
+ * Remove a Traveller from a trip. Owner-only (plus an ADMIN_EMAILS operator
+ * who is already a member, ADR 0045) — same predicate as deleteTrip/
+ * duplicateTrip/inviteToTrip. The owner cannot remove themselves; there is no
+ * ownership-transfer feature yet, so that would strand the trip with no owner.
+ *
+ * Drops only the TripMember row — authored Journal entries, notes and
+ * attachments keep their authorId FKs, so nothing orphans (ADR: content
+ * survives the author leaving).
+ *
+ * Also deletes any still-pending Invite for the removed Traveller's email on
+ * this trip. Without this, a stale Invite would silently re-admit them the
+ * next time they sign in with that email (this matters more once a pending
+ * Invite is sufficient to create an account on the deployment — Task 13).
+ * An already-accepted Invite (the historical record of how they joined) is
+ * left alone, same as cancelInvite's convention.
+ */
+export async function removeTripMember(
+  tripId: string,
+  userId: string,
+): Promise<RemoveTripMemberResult> {
+  const { user, membership } = await requireTripAccess(tripId);
+
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
+    return { success: false, error: "Only the trip owner can remove a Traveller." };
+  }
+
+  if (userId === user.id && membership.role === "owner") {
+    return {
+      success: false,
+      error: "You can't remove yourself as the owner — transfer ownership to another Traveller first.",
+    };
+  }
+
+  // Uncached, direct lookup — deliberately not routed back through
+  // requireTripAccess (see the CAVEAT above).
+  const target = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
+
+  await db.tripMember.deleteMany({ where: { tripId, userId } });
+
+  if (target?.email) {
+    await db.invite.deleteMany({
+      where: { tripId, email: target.email.toLowerCase(), acceptedAt: null },
+    });
+  }
+
+  revalidatePath(`/trips/${tripId}/settings`);
+  revalidatePath(`/trips/${tripId}`);
+
+  return { success: true };
+}
+
+export type LeaveTripResult =
+  | { success: true }
+  | { success: false; error: string };
+
+/**
+ * Leave a trip the current user is a member of. The owner cannot leave
+ * without transferring ownership first (not built yet) — otherwise the trip
+ * is left with no owner. Any other Traveller can leave freely.
+ *
+ * Deletes only the caller's own TripMember row (their authored content stays,
+ * same as removeTripMember) and any still-pending Invite for their own email
+ * on this trip, for the same re-admission reason removeTripMember does.
+ *
+ * Does NOT redirect server-side — it returns a typed result like the rest of
+ * this file's non-redirecting actions, so the caller (client UI) can navigate
+ * after a successful leave.
+ */
+export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
+  const { user, membership } = await requireTripAccess(tripId);
+
+  if (membership.role === "owner") {
+    return {
+      success: false,
+      error: "As the owner, you can't leave this trip — transfer ownership to another Traveller first.",
+    };
+  }
+
+  await db.tripMember.deleteMany({ where: { tripId, userId: user.id } });
+
+  if (user.email) {
+    await db.invite.deleteMany({
+      where: { tripId, email: user.email.toLowerCase(), acceptedAt: null },
+    });
+  }
+
+  revalidatePath(`/trips/${tripId}/settings`);
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath("/trips");
+
+  return { success: true };
+}

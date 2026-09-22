@@ -144,6 +144,8 @@ export default async function SettingsPage({
             members={trip.members}
             pendingInvites={trip.invites}
             canInvite={canManageTrip}
+            currentUserId={user.id}
+            viewerIsOwner={isOwner}
           />
         </CardContent>
       </Card>

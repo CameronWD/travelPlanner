@@ -21,6 +21,9 @@ const {
   tripDeleteMock,
   tripFindUniqueMock,
   memberCreateMock,
+  memberDeleteManyMock,
+  userFindUniqueMock,
+  inviteDeleteManyMock,
   chapterCreateMock,
   stopCreateMock,
   itemCreateMock,
@@ -40,6 +43,9 @@ const {
   const tripDeleteMock = vi.fn();
   const tripFindUniqueMock = vi.fn();
   const memberCreateMock = vi.fn();
+  const memberDeleteManyMock = vi.fn().mockResolvedValue({ count: 1 });
+  const userFindUniqueMock = vi.fn().mockResolvedValue(null);
+  const inviteDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const chapterCreateMock = vi.fn();
   const stopCreateMock = vi.fn();
   const itemCreateMock = vi.fn();
@@ -83,6 +89,9 @@ const {
     tripDeleteMock,
     tripFindUniqueMock,
     memberCreateMock,
+    memberDeleteManyMock,
+    userFindUniqueMock,
+    inviteDeleteManyMock,
     chapterCreateMock,
     stopCreateMock,
     itemCreateMock,
@@ -127,6 +136,15 @@ vi.mock("@/lib/db", () => ({
     attachment: {
       findMany: attachmentFindManyMock,
     },
+    tripMember: {
+      deleteMany: memberDeleteManyMock,
+    },
+    user: {
+      findUnique: userFindUniqueMock,
+    },
+    invite: {
+      deleteMany: inviteDeleteManyMock,
+    },
   },
 }));
 vi.mock("@/lib/storage", () => ({
@@ -148,7 +166,16 @@ vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
 vi.mock("@/server/actions/stop-flow", () => ({ recomputeChapterSpans: recomputeChapterSpansMock }));
 
-import { createTrip, updateTrip, deleteTrip, setTripHardEndDate, duplicateTrip, setChaptersEnabled } from "./trips";
+import {
+  createTrip,
+  updateTrip,
+  deleteTrip,
+  setTripHardEndDate,
+  duplicateTrip,
+  setChaptersEnabled,
+  removeTripMember,
+  leaveTrip,
+} from "./trips";
 
 const VALID_INPUT = {
   name: "Japan 2026",
@@ -921,5 +948,195 @@ describe("setChaptersEnabled", () => {
 
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/plan`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// removeTripMember
+// ---------------------------------------------------------------------------
+
+describe("removeTripMember", () => {
+  it("ARCH-DAT-1: the owner can remove a Traveller", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce({ email: "traveller@example.com" });
+
+    const result = await removeTripMember("t1", "u2");
+
+    expect(result.success).toBe(true);
+    expect(memberDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", userId: "u2" } });
+  });
+
+  it("ARCH-DAT-1: a plain Traveller cannot remove anyone else", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    const result = await removeTripMember("t1", "u3");
+
+    expect(result.success).toBe(false);
+    expect(memberDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("ARCH-DAT-1: the owner cannot remove themselves", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+
+    const result = await removeTripMember("t1", "u1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/transfer/i);
+    }
+    expect(memberDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes a pending Invite for the removed Traveller's email on this trip", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce({ email: "Traveller@Example.com" });
+
+    await removeTripMember("t1", "u2");
+
+    expect(userFindUniqueMock).toHaveBeenCalledWith({ where: { id: "u2" }, select: { email: true } });
+    expect(inviteDeleteManyMock).toHaveBeenCalledWith({
+      where: { tripId: "t1", email: "traveller@example.com", acceptedAt: null },
+    });
+  });
+
+  it("still removes the membership row when the removed user can't be found for invite cleanup", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce(null);
+
+    const result = await removeTripMember("t1", "u2");
+
+    expect(result.success).toBe(true);
+    expect(memberDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", userId: "u2" } });
+    expect(inviteDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("revalidates the trip's settings and home pages after removal", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce(null);
+
+    await removeTripMember(TRIP_ID, "u2");
+
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+  });
+
+  it("is access-checked BEFORE the mutation — the trap this action is the first to risk", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce(null);
+
+    await removeTripMember(TRIP_ID, "u2");
+
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, memberDeleteManyMock);
+    // requireTripAccess (the cache()-memoised guard) must be called exactly
+    // once — a second call in the same request would read the stale,
+    // pre-removal membership table (see lib/guards.ts's warning).
+    expect(requireTripAccessMock).toHaveBeenCalledOnce();
+  });
+
+  it("lets an ADMIN_EMAILS operator remove a Traveller even without the owner role", async () => {
+    process.env.ADMIN_EMAILS = "admin@example.com";
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u-admin", email: "admin@example.com" },
+      membership: { role: "member" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce(null);
+
+    const result = await removeTripMember("t1", "u2");
+
+    expect(result.success).toBe(true);
+    expect(memberDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", userId: "u2" } });
+    delete process.env.ADMIN_EMAILS;
+  });
+});
+
+// ---------------------------------------------------------------------------
+// leaveTrip
+// ---------------------------------------------------------------------------
+
+describe("leaveTrip", () => {
+  it("ARCH-DAT-1: a Traveller can leave", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    const result = await leaveTrip("t1");
+
+    expect(result.success).toBe(true);
+    expect(memberDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", userId: "u2" } });
+  });
+
+  it("ARCH-DAT-1: the owner cannot leave without transferring ownership", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+
+    const result = await leaveTrip("t1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/transfer/i);
+    }
+    expect(memberDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes a pending Invite for the leaving Traveller's own email on this trip", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "Traveller@Example.com" },
+      membership: { role: "member" },
+    });
+
+    await leaveTrip("t1");
+
+    expect(inviteDeleteManyMock).toHaveBeenCalledWith({
+      where: { tripId: "t1", email: "traveller@example.com", acceptedAt: null },
+    });
+  });
+
+  it("revalidates the trip's settings, home, and the trips list after leaving", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    await leaveTrip(TRIP_ID);
+
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips");
+  });
+
+  it("is access-checked BEFORE the mutation, called exactly once (no stale re-check)", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    await leaveTrip(TRIP_ID);
+
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, memberDeleteManyMock);
+    expect(requireTripAccessMock).toHaveBeenCalledOnce();
   });
 });
