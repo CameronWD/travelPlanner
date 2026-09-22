@@ -258,7 +258,11 @@ action, not a missing guard.
 ### ARCH-TEN-4 · Any Globe member can invite anyone else onto the Globe
 *(Found independently by the tenancy lane and the ADR-drift lane as `ARCH-ADR-2`; merged.)*
 - **Severity: P1** · **Blocks rollout: yes** — a Globe is account-level and permanent, and
-  admitting someone is irreversible through the UI.
+  admitting someone is irreversible through the UI. **Raised further by the door decision:**
+  because a pending Invite will admit an address to the deployment, an ungated
+  `inviteToGlobe` would let any Globe member create accounts. See *"How the allowlist and
+  Invite must interact"* — either this is fixed first, or Globe Invites stay out of the
+  sign-in callback.
 - **Evidence:** `server/actions/globe.ts:109-125` — `inviteToGlobe` calls
   `requireGlobeAccess()` `:110` and nothing else; it never reads `GlobeMember.role`, which
   the schema does carry (`lib/globe.ts:42` creates the first member as `"owner"`,
@@ -1036,10 +1040,58 @@ env-var backed so it is revocable without a deploy, comma-separated, case-insens
 normalising with `trim().toLowerCase()`. Roughly one new predicate and four lines in
 `authConfig.callbacks`.
 
-**One design question this section deliberately leaves open**, because it is a product call:
-should a pending **Invite** be sufficient grounds to admit an address that is not on the
-allowlist? Today `lib/auth.ts:87-91` auto-accepts pending Invites on first sign-in, so
-whichever way it is decided, the Invite path and the allowlist path must agree.
+## How the allowlist and Invite must interact (decided 2026-09-22)
+
+**Read this before writing the callback — a plain allowlist silently breaks invites.**
+
+Auth.js has two hooks named `signIn`, and TEEPEE uses only one of them:
+
+- the **callback** runs *before* sign-in completes; returning `false` rejects it and no
+  `User` row is ever created;
+- the **event** runs *after* sign-in has already succeeded and cannot block anything.
+
+`lib/auth.ts:87-91` registers only the **event**, which calls
+`acceptPendingInvitesForUser`. So the order today is: Google verifies → `PrismaAdapter`
+creates the `User` → event fires → pending Invites are accepted by email match (ADR 0017).
+
+The allowlist has to live in the **callback**, which runs before all of that. A naive
+allowlist therefore bounces an invited Traveller *before* the event that would have
+accepted their Invite ever runs — they cannot sign in, and their Invite sits
+`acceptedAt: null` for ever.
+
+**Decision:** the callback admits on **allowlist OR a pending un-accepted Trip Invite for
+that email**.
+
+**Trip Invites only — not Globe Invites — and this is the load-bearing part.** The rule
+makes "who can create an Invite" exactly equal to "who can create an account on this
+deployment", and the two invite paths are not equally gated:
+
+| Path | Gate today | Evidence |
+|---|---|---|
+| `inviteToTrip` | **owner-or-admin** ✓ | `server/actions/invites.ts:49`, ADR 0052 |
+| `inviteToGlobe` | **none — any member** ✗ | `server/actions/globe.ts:109-125` (`ARCH-TEN-4`) |
+
+Both acceptance helpers match on email identically (`lib/invites.ts:80-86`,
+`lib/globe-invites.ts:42-45`). Honouring Globe Invites in the callback would therefore let
+**any Globe member mint accounts on the deployment** — `ARCH-TEN-4` promoted from "a
+stranger sees my saved places" to "a stranger gets an account". Either fix `ARCH-TEN-4`
+first, or keep Globe Invites out of the callback permanently: a Globe is a personal
+saved-places history, not an onboarding route.
+
+**Not a risk, recorded so it is not re-litigated:** the email is taken from Google's
+verified profile, so the person signing in cannot forge a match against someone else's
+Invite. All the trust sits with whoever *created* the Invite — which is precisely why the
+creation gate is what matters.
+
+**Add an Invite expiry at the same time.** Neither `Invite` (`prisma/schema.prisma:208-222`)
+nor `GlobeInvite` (`:668-680`) has an expiry field — only `createdAt` and `acceptedAt`.
+That is harmless while an Invite merely grants Trip membership. Under *Invite-as-account-grant*
+it means every address ever invited keeps a permanently open door to the deployment,
+including ones invited by typo. Either add `expiresAt`, or have the callback ignore pending
+Invites older than N days.
+
+**Approving an Access request simply adds the email to the allowlist**, so both doors
+converge on one list — which is the whole point of the one-door design.
 
 ## Access request — a new noun
 
@@ -1068,7 +1120,9 @@ email infrastructure.
 The one-door decision meets all three tests: hard to reverse (publishing an OAuth app and
 moving the gate into code), surprising without context (*"why is there an app-level allowlist
 when Google already gates?"*), and the result of a real trade-off against keeping two doors.
-Draft it at build time, not before — the open Invite question above should be settled in it.
+Draft it at build time, not before. It should record the allowlist-or-Trip-Invite rule above
+and, specifically, **why Globe Invites are excluded** — that exclusion is the non-obvious part
+a future reader will otherwise undo.
 
 ---
 
