@@ -138,4 +138,15 @@ describe("AppLayout", () => {
     const link = screen.getByRole("link", { name: /^account$/i });
     expect(link.getAttribute("href")).toBe("/account");
   });
+
+  it("offers a What's new link in the traveller dropdown", async () => {
+    // /whats-new is the only route in this feature reachable exclusively
+    // through this menu (the card links to /trips or a Trip's Home, never
+    // here directly), which makes this the one drift test in the set that
+    // actually guards a route with no other way in.
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const link = screen.getByRole("link", { name: /what's new/i });
+    expect(link.getAttribute("href")).toBe("/whats-new");
+  });
 });
