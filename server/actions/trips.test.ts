@@ -38,6 +38,7 @@ const {
   attachmentFindManyMock,
   storageDeleteMock,
   storageSaveMock,
+  scheduleBlobDeletionMock,
   geocodePlaceDetailedMock,
 } = vi.hoisted(() => {
   const tripCreateMock = vi.fn();
@@ -61,6 +62,7 @@ const {
   const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const storageDeleteMock = vi.fn().mockResolvedValue(undefined);
   const storageSaveMock = vi.fn().mockResolvedValue(undefined);
+  const scheduleBlobDeletionMock = vi.fn().mockResolvedValue(undefined);
 
   // $transaction executes the callback synchronously-ish in tests;
   // we simulate it by calling the callback with a fake tx object.
@@ -111,6 +113,7 @@ const {
     attachmentFindManyMock,
     storageDeleteMock,
     storageSaveMock,
+    scheduleBlobDeletionMock,
     geocodePlaceDetailedMock: vi.fn(),
   };
 });
@@ -170,6 +173,7 @@ vi.mock("@/lib/storage", () => ({
     return { ok: true };
   },
 }));
+vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
@@ -624,7 +628,7 @@ describe("deleteTrip", () => {
     expect(redirectMock).toHaveBeenCalledWith("/trips");
   });
 
-  it("deletes attachment blobs before cascading the trip rows away", async () => {
+  it("schedules attachment blobs for retention before cascading the trip rows away (ARCH-DAT-3)", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "user-1" },
       membership: { role: "owner" },
@@ -638,12 +642,14 @@ describe("deleteTrip", () => {
 
     await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/k1");
-    expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/k2");
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(
+      expect.arrayContaining(["trips/trip-abc/k1", "trips/trip-abc/k2"]),
+    );
     expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
   });
 
-  it("deletes the cover blob when the trip has a coverImageKey", async () => {
+  it("schedules the cover blob for retention when the trip has a coverImageKey (ARCH-DAT-3)", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "user-1" },
       membership: { role: "owner" },
@@ -654,7 +660,10 @@ describe("deleteTrip", () => {
 
     await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/uuid-cover.jpg");
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(
+      expect.arrayContaining(["trips/trip-abc/uuid-cover.jpg"]),
+    );
     expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
   });
 

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
+import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { requireUser, requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
@@ -259,8 +260,9 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
     return { success: false, error: "Only the trip owner can delete the trip." };
   }
 
-  // Best-effort: remove attachment blobs before the rows cascade away, so we
-  // don't orphan files in storage. Failures here must not block the delete.
+  // Schedule attachment + cover blobs for retention/sweep (ARCH-DAT-3) before
+  // the rows cascade away, rather than destroying them synchronously.
+  // scheduleBlobDeletion never throws, so it never blocks the delete.
   const [tripRow, attachments] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { coverImageKey: true } }),
     db.attachment.findMany({
@@ -269,20 +271,10 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
     }),
   ]);
 
-  const storage = getStorage();
-
-  const blobDeletes: Promise<void>[] = [];
-  if (tripRow?.coverImageKey) {
-    blobDeletes.push(storage.delete(tripRow.coverImageKey).catch(() => {}));
-  }
-  if (attachments.length > 0) {
-    for (const a of attachments) {
-      if (a.storageKey) blobDeletes.push(storage.delete(a.storageKey).catch(() => {}));
-    }
-  }
-  if (blobDeletes.length > 0) {
-    await Promise.all(blobDeletes);
-  }
+  await scheduleBlobDeletion([
+    tripRow?.coverImageKey,
+    ...attachments.map((a) => a.storageKey),
+  ]);
 
   await db.trip.delete({ where: { id: tripId } });
 

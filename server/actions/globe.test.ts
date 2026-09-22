@@ -7,6 +7,7 @@ const {
   attachmentFindManyMock,
   attachmentDeleteManyMock,
   storageDeleteMock,
+  scheduleBlobDeletionMock,
   userFindUniqueMock,
   globeMemberFindUniqueMock,
 } = vi.hoisted(() => ({
@@ -21,6 +22,7 @@ const {
   attachmentFindManyMock: vi.fn(),
   attachmentDeleteManyMock: vi.fn(),
   storageDeleteMock: vi.fn(),
+  scheduleBlobDeletionMock: vi.fn().mockResolvedValue(undefined),
   userFindUniqueMock: vi.fn(),
   globeMemberFindUniqueMock: vi.fn(),
 }));
@@ -68,6 +70,11 @@ vi.mock("@/lib/storage", async (importOriginal) => {
     })),
   };
 });
+// ARCH-DAT-3: deleteMarker's cleanup no longer calls storage.delete directly
+// — it schedules retention via scheduleBlobDeletion for scripts/sweep-deleted-blobs.ts.
+vi.mock("@/lib/blob-retention", () => ({
+  scheduleBlobDeletion: scheduleBlobDeletionMock,
+}));
 
 import { db } from "@/lib/db";
 import { createMarker, updateMarker, deleteMarker, inviteToGlobe } from "./globe";
@@ -137,12 +144,13 @@ describe("deleteMarker", () => {
     expect(dbm.marker.delete).toHaveBeenCalledWith({ where: { id: "m1" } });
   });
 
-  it("deletes a marker's attachments (rows + blobs) on delete", async () => {
+  it("deletes a marker's attachments (rows) and schedules their blobs for retention (ARCH-DAT-3) on delete", async () => {
     requireGlobeAccessMock.mockResolvedValue({ user: { id: "u1" }, globe: { id: "g1" } });
     markerFindUniqueMock.mockResolvedValue({ id: "m1", globeId: "g1" });
     attachmentFindManyMock.mockResolvedValue([{ id: "a1", storageKey: "globes/g1/a1-tickets.pdf" }]);
     await deleteMarker("m1");
-    expect(storageDeleteMock).toHaveBeenCalledWith("globes/g1/a1-tickets.pdf");
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["globes/g1/a1-tickets.pdf"]);
     expect(attachmentDeleteManyMock).toHaveBeenCalledWith({ where: { globeId: "g1", targetType: "MARKER", targetId: "m1" } });
   });
 });

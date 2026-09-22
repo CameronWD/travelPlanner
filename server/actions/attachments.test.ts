@@ -21,6 +21,7 @@ const {
   attachmentDeleteMock,
   storageSaveMock,
   storageDeleteMock,
+  scheduleBlobDeletionMock,
   recordActivityMock,
   reportErrorMock,
 } = vi.hoisted(() => ({
@@ -42,12 +43,14 @@ const {
   attachmentDeleteMock: vi.fn(),
   storageSaveMock: vi.fn(),
   storageDeleteMock: vi.fn(),
+  scheduleBlobDeletionMock: vi.fn().mockResolvedValue(undefined),
   recordActivityMock: vi.fn().mockResolvedValue(undefined),
   reportErrorMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/globe", () => ({ requireGlobeAccess: requireGlobeAccessMock }));
+vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
 // ARCH-OBS-1: the storage-write catch reports to the error sink. Mocked
 // entirely here — reportError's own behaviour is lib/error-sink.test.ts's job.
@@ -298,11 +301,13 @@ describe("uploadAttachment", () => {
       expect(attachmentDeleteMock).toHaveBeenCalledWith({
         where: { id: ATTACHMENT_ID },
       });
-      // Best-effort cleanup of whatever the failed write may have partially
-      // written, keyed the same way the successful path would have been.
-      expect(storageDeleteMock).toHaveBeenCalledWith(
+      // A partial write is scheduled for retention/sweep (ARCH-DAT-3) rather
+      // than destroyed synchronously, keyed the same way the successful path
+      // would have been.
+      expect(storageDeleteMock).not.toHaveBeenCalled();
+      expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([
         `trips/${TRIP_ID}/${ATTACHMENT_ID}-test.pdf`,
-      );
+      ]);
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
       expect(recordActivityMock).not.toHaveBeenCalled();
       expect(revalidatePathMock).not.toHaveBeenCalled();
@@ -320,7 +325,7 @@ describe("uploadAttachment", () => {
       expect(attachmentDeleteMock.mock.invocationCallOrder[0]).toBeLessThan(
         reportErrorMock.mock.invocationCallOrder[0],
       );
-      expect(storageDeleteMock.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(scheduleBlobDeletionMock.mock.invocationCallOrder[0]).toBeLessThan(
         reportErrorMock.mock.invocationCallOrder[0],
       );
     });
@@ -334,9 +339,10 @@ describe("uploadAttachment", () => {
       expect(attachmentDeleteMock).toHaveBeenCalledWith({
         where: { id: ATTACHMENT_ID },
       });
-      expect(storageDeleteMock).toHaveBeenCalledWith(
+      expect(storageDeleteMock).not.toHaveBeenCalled();
+      expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([
         `globes/g1/${ATTACHMENT_ID}-test.pdf`,
-      );
+      ]);
       expect(attachmentUpdateMock).not.toHaveBeenCalled();
       expect(revalidatePathMock).not.toHaveBeenCalled();
       // ARCH-OBS-1
@@ -348,7 +354,7 @@ describe("uploadAttachment", () => {
       expect(attachmentDeleteMock.mock.invocationCallOrder[0]).toBeLessThan(
         reportErrorMock.mock.invocationCallOrder[0],
       );
-      expect(storageDeleteMock.mock.invocationCallOrder[0]).toBeLessThan(
+      expect(scheduleBlobDeletionMock.mock.invocationCallOrder[0]).toBeLessThan(
         reportErrorMock.mock.invocationCallOrder[0],
       );
     });
@@ -386,11 +392,12 @@ describe("deleteAttachment", () => {
     expectAccessCheckedBeforeWrite(requireTripAccessMock, attachmentDeleteMock);
   });
 
-  it("calls storage.delete with the storageKey", async () => {
+  it("schedules the blob for retention instead of destroying it (ARCH-DAT-3)", async () => {
     const row = makeAttachmentRow();
     attachmentFindUniqueMock.mockResolvedValue(row);
     await deleteAttachment(ATTACHMENT_ID);
-    expect(storageDeleteMock).toHaveBeenCalledWith(row.storageKey);
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([row.storageKey]);
   });
 
   it("deletes the attachment row from the db", async () => {
@@ -412,9 +419,9 @@ describe("deleteAttachment", () => {
     expect(attachmentDeleteMock).not.toHaveBeenCalled();
   });
 
-  it("still deletes the row even when storage.delete throws", async () => {
+  it("still deletes the row even when scheduling the blob for retention fails", async () => {
     attachmentFindUniqueMock.mockResolvedValue(makeAttachmentRow());
-    storageDeleteMock.mockRejectedValue(new Error("blob gone"));
+    scheduleBlobDeletionMock.mockRejectedValueOnce(new Error("db down"));
     const result = await deleteAttachment(ATTACHMENT_ID);
     expect(result).toEqual({ success: true });
     expect(attachmentDeleteMock).toHaveBeenCalled();

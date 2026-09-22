@@ -1,16 +1,17 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { getStorage } from "@/lib/storage";
+import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import type { TargetType } from "@/lib/enums";
 
 /**
- * Deletes all Attachment rows (and their stored blobs, best-effort) and Note
- * rows for the given target. Called from each part-delete action so that
+ * Deletes all Attachment rows and Note rows for the given target, and
+ * schedules their blobs for retention/sweep (ARCH-DAT-3) rather than
+ * destroying them synchronously. Called from each part-delete action so that
  * orphaned side-data never accumulates after a stop/transport/accommodation/item
  * is removed.
  *
- * Storage deletes are best-effort: a failure to remove a blob will not prevent
- * the database rows from being cleaned up.
+ * scheduleBlobDeletion never throws: a retention-recording failure will not
+ * prevent the database rows from being cleaned up.
  */
 export async function cleanupTargetSideData(
   tripId: string,
@@ -22,25 +23,17 @@ export async function cleanupTargetSideData(
     select: { id: true, storageKey: true },
   });
 
-  const storage = getStorage();
-  for (const a of attachments) {
-    if (a.storageKey) {
-      try {
-        await storage.delete(a.storageKey);
-      } catch {
-        // best-effort: ignore storage errors so DB cleanup always runs
-      }
-    }
-  }
+  await scheduleBlobDeletion(attachments.map((a) => a.storageKey)).catch(() => {});
 
   await db.attachment.deleteMany({ where: { tripId, targetType, targetId } });
   await db.note.deleteMany({ where: { tripId, targetType, targetId } });
 }
 
 /**
- * Deletes all Attachment rows (and their stored blobs, best-effort) for a
- * globe-scoped target (e.g. a Marker). Unlike cleanupTargetSideData, there is
- * no Note cleanup — Markers carry their note in the marker row itself.
+ * Deletes all Attachment rows for a globe-scoped target (e.g. a Marker), and
+ * schedules their blobs for retention/sweep (ARCH-DAT-3) rather than
+ * destroying them synchronously. Unlike cleanupTargetSideData, there is no
+ * Note cleanup — Markers carry their note in the marker row itself.
  */
 export async function cleanupGlobeAttachments(
   globeId: string,
@@ -52,16 +45,7 @@ export async function cleanupGlobeAttachments(
     select: { id: true, storageKey: true },
   });
 
-  const storage = getStorage();
-  for (const a of attachments) {
-    if (a.storageKey) {
-      try {
-        await storage.delete(a.storageKey);
-      } catch {
-        // best-effort: ignore storage errors so DB cleanup always runs
-      }
-    }
-  }
+  await scheduleBlobDeletion(attachments.map((a) => a.storageKey)).catch(() => {});
 
   await db.attachment.deleteMany({ where: { globeId, targetType, targetId } });
 }
@@ -87,15 +71,12 @@ export async function cleanupTargetSideDataTx(
   return attachments.map((a) => a.storageKey).filter((k): k is string => k != null);
 }
 
-/** Best-effort blob deletion — run AFTER the transaction commits. */
+/**
+ * Schedule blobs for retention/sweep (ARCH-DAT-3) — run AFTER the transaction
+ * commits. Despite the name (kept for its many callers), this no longer
+ * destroys anything synchronously: it records the keys in DeletedBlob via
+ * scheduleBlobDeletion, which never throws, so it never fails the mutation.
+ */
 export async function deleteBlobsBestEffort(storageKeys: string[]): Promise<void> {
-  if (storageKeys.length === 0) return;
-  const storage = getStorage();
-  for (const key of storageKeys) {
-    try {
-      await storage.delete(key);
-    } catch {
-      // best-effort: an unreferenced blob is harmless; never fail the mutation
-    }
-  }
+  await scheduleBlobDeletion(storageKeys).catch(() => {});
 }

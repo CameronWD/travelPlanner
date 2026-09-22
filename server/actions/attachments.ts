@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { requireGlobeAccess } from "@/lib/globe";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
+import { scheduleBlobDeletion } from "@/lib/blob-retention";
 import { targetTypeSchema } from "@/lib/enums";
 import { recordActivity } from "@/server/actions/activity";
 import { reportError } from "@/lib/error-sink";
@@ -141,11 +142,11 @@ export async function uploadAttachment(
         .catch((cleanupErr) =>
           console.error("uploadAttachment: orphan-row cleanup failed", cleanupErr),
         );
-      // A failed save may still have partially written the blob — clear it
-      // too, best-effort, so it never lingers with no row pointing at it.
-      await getStorage()
-        .delete(storageKey)
-        .catch(() => {});
+      // A failed save may still have partially written the blob — schedule it
+      // for retention/sweep too, so it never lingers with no row pointing at
+      // it (ARCH-DAT-3: never destroy synchronously, scheduleBlobDeletion
+      // never throws).
+      await scheduleBlobDeletion([storageKey]);
       // I2 (fix round 1): reported AFTER cleanup, not before. reportError
       // can run a full notifyAdmins round-trip (2.5s per admin device, two
       // DB queries) — putting it ahead of the cleanup meant a function that
@@ -207,11 +208,11 @@ export async function uploadAttachment(
       .catch((cleanupErr) =>
         console.error("uploadAttachment: orphan-row cleanup failed", cleanupErr),
       );
-    // A failed save may still have partially written the blob — clear it
-    // too, best-effort, so it never lingers with no row pointing at it.
-    await getStorage()
-      .delete(storageKey)
-      .catch(() => {});
+    // A failed save may still have partially written the blob — schedule it
+    // for retention/sweep too, so it never lingers with no row pointing at it
+    // (ARCH-DAT-3: never destroy synchronously, scheduleBlobDeletion never
+    // throws).
+    await scheduleBlobDeletion([storageKey]);
     // I2 (fix round 1): reported AFTER cleanup, not before — see the
     // globe-scoped path above for the reasoning.
     await reportError(err, {
@@ -242,24 +243,20 @@ export async function uploadAttachment(
 }
 
 /**
- * Delete an attachment (blob + database row).
+ * Delete an attachment (schedules the blob for retention + database row).
  *
  * Access-checked: requireAttachmentAccess branches on globe vs trip scope.
- * Storage errors are swallowed so a missing blob never blocks row cleanup.
+ * The blob is not destroyed here — ARCH-DAT-3: a nightly pg_dump can outlive
+ * it, so deletion is deferred via scheduleBlobDeletion (lib/blob-retention.ts)
+ * and applied later by `npm run sweep:blobs`. scheduleBlobDeletion never
+ * throws, so it never blocks row cleanup.
  */
 export async function deleteAttachment(
   id: string,
 ): Promise<AttachmentActionResult> {
   const attachment = await requireAttachmentAccess(id);
 
-  // Remove the blob — swallow storage errors so the row is always cleaned up.
-  if (attachment.storageKey) {
-    try {
-      await getStorage().delete(attachment.storageKey);
-    } catch {
-      // Swallow: blob may already be gone; row deletion must still succeed.
-    }
-  }
+  await scheduleBlobDeletion([attachment.storageKey]).catch(() => {});
 
   await db.attachment.delete({ where: { id } });
 
