@@ -2138,6 +2138,107 @@ describe("ARCH-TEN-1: restoreStops rejects payload rows from another trip", () =
     expect(result.success).toBe(false);
     expect(transactionMock).not.toHaveBeenCalled();
   });
+
+  // Fix round 1: the Item's own tripId isn't the only caller-supplied field on
+  // this write — an entry may also carry the Stop it is being re-filed onto
+  // (ADR 0055). Validating the Item alone still lets a Traveller re-file their
+  // own, legitimately-owned Item onto another tenancy's Stop.
+  it("refuses a payload whose Item carries a re-file stopId belonging to another Trip", async () => {
+    stopFindManyMock
+      .mockResolvedValueOnce([{ id: "s1", tripId: "trip-A", forkId: null }]) // rows lookup (resolves tripId)
+      .mockResolvedValueOnce([{ id: "stop-foreign", tripId: "trip-B" }]); // stopId ownership check
+    // The Item itself is legitimately owned by trip-A...
+    itemFindManyMock.mockResolvedValue([{ id: "i-owned", tripId: "trip-A" }]);
+
+    const result = await restoreStops(
+      [{ id: "s1", sortOrder: 0, chapterId: null, arriveDate: null, departDate: null }],
+      null,
+      // ...but the attacker names a stopId that lives on trip-B.
+      { items: [{ id: "i-owned", date: "2026-01-01", stopId: "stop-foreign" }], accommodations: [] },
+    );
+
+    expect(result.success).toBe(false);
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  // Fix round 1, finding 2: Prisma's `in` filter returns one row per DISTINCT
+  // id, so counting against the raw (non-deduped) payload length would
+  // falsely reject a legitimate restore that happens to name the same id
+  // twice — a user-visible failure of Undo.
+  it("does not falsely reject a payload naming the same Item id twice", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "s1", tripId: "trip-A", forkId: null }]);
+    queryRawMock.mockResolvedValue([{ id: "s1" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([{ id: "i1", tripId: "trip-A" }]);
+
+    const result = await restoreStops(
+      [{ id: "s1", sortOrder: 0, chapterId: null, arriveDate: "2026-01-01", departDate: "2026-01-02" }],
+      null,
+      {
+        items: [
+          { id: "i1", date: "2026-01-01" },
+          { id: "i1", date: "2026-01-01" },
+        ],
+        accommodations: [],
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(transactionMock).toHaveBeenCalled();
+  });
+
+  it("does not falsely reject a payload naming the same Accommodation id twice", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "s1", tripId: "trip-A", forkId: null }]);
+    queryRawMock.mockResolvedValue([{ id: "s1" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([{ id: "a1", tripId: "trip-A" }]);
+
+    const result = await restoreStops(
+      [{ id: "s1", sortOrder: 0, chapterId: null, arriveDate: "2026-01-01", departDate: "2026-01-02" }],
+      null,
+      {
+        items: [],
+        accommodations: [
+          { id: "a1", checkIn: "2026-01-01", checkOut: "2026-01-02" },
+          { id: "a1", checkIn: "2026-01-01", checkOut: "2026-01-02" },
+        ],
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(transactionMock).toHaveBeenCalled();
+  });
+
+  it("does not falsely reject a payload whose Items share the same re-file stopId", async () => {
+    stopFindManyMock
+      .mockResolvedValueOnce([{ id: "s1", tripId: "trip-A", forkId: null }]) // rows lookup
+      .mockResolvedValueOnce([{ id: "munich", tripId: "trip-A" }]); // stopId ownership check: one distinct id
+    queryRawMock.mockResolvedValue([{ id: "s1" }]);
+    stopUpdateMock.mockResolvedValue({});
+    chapterFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([
+      { id: "dinner", tripId: "trip-A" },
+      { id: "lunch", tripId: "trip-A" },
+    ]);
+
+    const result = await restoreStops(
+      [{ id: "s1", sortOrder: 0, chapterId: null, arriveDate: "2026-01-01", departDate: "2026-01-02" }],
+      null,
+      {
+        items: [
+          { id: "dinner", date: "2026-01-01", stopId: "munich" },
+          { id: "lunch", date: "2026-01-01", stopId: "munich" },
+        ],
+        accommodations: [],
+      },
+    );
+
+    expect(result.success).toBe(true);
+    expect(transactionMock).toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------

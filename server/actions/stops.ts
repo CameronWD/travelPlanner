@@ -1306,7 +1306,10 @@ export async function restoreStops(
   // names Items and Accommodations by id alone, so without this every
   // authenticated Traveller could rewrite another tenancy's rows via Undo.
   // Verify ownership BEFORE the transaction so a rejected call writes nothing.
-  const payloadItemIds = (payload?.items ?? []).map((i) => i.id);
+  // Id lists are de-duplicated via Set before counting: Prisma's `in` filter
+  // returns one row per DISTINCT id, so a payload that (harmlessly) names the
+  // same id twice must not fail the length check meant to catch a missing row.
+  const payloadItemIds = [...new Set((payload?.items ?? []).map((i) => i.id))];
   if (payloadItemIds.length > 0) {
     const owned = await db.item.findMany({
       where: { id: { in: payloadItemIds } },
@@ -1317,7 +1320,24 @@ export async function restoreStops(
     }
   }
 
-  const payloadAccIds = (payload?.accommodations ?? []).map((a) => a.id);
+  // ARCH-TEN-1 follow-up: an Item entry may also carry the Stop it is being
+  // re-filed onto (ADR 0055's re-file Undo). That `stopId` is caller-supplied
+  // too — validating only the Item's own tripId above would still let a
+  // Traveller re-file their own (validated) Item onto another tenancy's Stop.
+  const payloadStopIds = [
+    ...new Set((payload?.items ?? []).map((i) => i.stopId).filter((id): id is string => !!id)),
+  ];
+  if (payloadStopIds.length > 0) {
+    const owned = await db.stop.findMany({
+      where: { id: { in: payloadStopIds } },
+      select: { id: true, tripId: true },
+    });
+    if (owned.length !== payloadStopIds.length || owned.some((s) => s.tripId !== tripId)) {
+      return { success: false, errors: { id: ["Restore payload re-files an item onto a stop from another trip."] } };
+    }
+  }
+
+  const payloadAccIds = [...new Set((payload?.accommodations ?? []).map((a) => a.id))];
   if (payloadAccIds.length > 0) {
     // Accommodation carries tripId directly (prisma/schema.prisma) — no need
     // to join through Stop.
