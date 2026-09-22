@@ -1,6 +1,6 @@
 # TEEPEE
 
-A collaborative web app for a couple to plan and run a holiday together: scoping where to go, building a day-by-day itinerary, and tracking what it all costs. Designed to work for any trip, not just one.
+A web app for Travellers to plan and run their trips: scoping where to go, building a day-by-day itinerary, and tracking what it all costs. Each Traveller keeps their own Trips; a Trip may be planned alone or shared with the other Travellers on it. Designed to work for any trip, not just one.
 
 ## Language
 
