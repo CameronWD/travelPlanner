@@ -61,7 +61,15 @@ export async function acceptPendingGlobeInvitesForUser(
   try {
     const normalEmail = email.toLowerCase();
     const pending = await db.globeInvite.findMany({
-      where: { email: normalEmail, acceptedAt: null },
+      where: {
+        email: normalEmail,
+        acceptedAt: null,
+        // Expiry kills acceptance, not just sign-in admission: a stale Invite
+        // must not silently grant Globe membership months later (ADR 0017,
+        // amended 2026-09-22). `expiresAt: null` is a pre-migration row and
+        // stays valid.
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
       select: { id: true, globeId: true, email: true },
     });
     if (pending.length === 0) return;

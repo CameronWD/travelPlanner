@@ -143,6 +143,22 @@ describe("inviteToTrip", () => {
     );
   });
 
+  it("sets expiresAt 30 days out on creation", async () => {
+    tripMemberFindManyMock.mockResolvedValue([]);
+    inviteUpsertMock.mockResolvedValue({ id: "inv-1" });
+
+    const before = Date.now();
+    await inviteToTrip(TRIP_ID, "partner@example.com");
+    const after = Date.now();
+
+    const call = inviteUpsertMock.mock.calls[0][0];
+    const expiresAt: Date = call.create.expiresAt;
+    expect(expiresAt).toBeInstanceOf(Date);
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + thirtyDaysMs);
+    expect(expiresAt.getTime()).toBeLessThanOrEqual(after + thirtyDaysMs);
+  });
+
   it("returns the upsert's resolved id on the no-duplicate path (idempotent)", async () => {
     tripMemberFindManyMock.mockResolvedValue([]);
     // Simulate the conflict path: a row for (tripId, email) already exists, so

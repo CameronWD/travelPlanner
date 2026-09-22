@@ -23,6 +23,12 @@ export type CancelInviteResult =
 
 const emailSchema = z.string().email("Please enter a valid email address");
 
+// Same value as duplicateTrip's TRIP_INVITE_EXPIRY_MS (server/actions/trips.ts)
+// and inviteToGlobe's GLOBE_INVITE_EXPIRY_MS (server/actions/globe.ts) — no
+// shared constant exists yet, so this follows the established per-file local
+// const pattern rather than inventing a third spelling.
+const TRIP_INVITE_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
+
 /**
  * Invite someone to a trip by email.
  *
@@ -84,6 +90,7 @@ export async function inviteToTrip(
       email: normalised,
       token: crypto.randomUUID(),
       role: "member",
+      expiresAt: new Date(Date.now() + TRIP_INVITE_EXPIRY_MS),
     },
     select: { id: true },
   });
