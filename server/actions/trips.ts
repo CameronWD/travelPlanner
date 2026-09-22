@@ -388,7 +388,14 @@ export async function duplicateTrip(
         await tx.invite.create({
           data: {
             tripId: trip.id,
-            email,
+            // User.email itself is never normalised (it's whatever the OAuth
+            // provider reported), so lowercase here — matching inviteToTrip
+            // (server/actions/invites.ts) and the deleteMany lookups in
+            // removeTripMember/leaveTrip below, which key on
+            // email.toLowerCase(). A mixed-case Invite.email would never
+            // auto-accept (lib/invites.ts lowercases too) and would never get
+            // cleaned up by those deleteMany calls.
+            email: email.toLowerCase(),
             token: crypto.randomUUID(),
             role: m.role,
             expiresAt: new Date(Date.now() + INVITE_EXPIRY_MS),

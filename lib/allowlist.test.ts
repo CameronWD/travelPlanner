@@ -1,18 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { allowedEmailFindUniqueMock, inviteFindFirstMock } = vi.hoisted(() => ({
-  allowedEmailFindUniqueMock: vi.fn(),
-  inviteFindFirstMock: vi.fn(),
-}));
+const { allowedEmailFindUniqueMock, allowedEmailUpsertMock, inviteFindFirstMock } =
+  vi.hoisted(() => ({
+    allowedEmailFindUniqueMock: vi.fn(),
+    allowedEmailUpsertMock: vi.fn(),
+    inviteFindFirstMock: vi.fn(),
+  }));
 
 vi.mock("@/lib/db", () => ({
   db: {
-    allowedEmail: { findUnique: allowedEmailFindUniqueMock },
+    allowedEmail: { findUnique: allowedEmailFindUniqueMock, upsert: allowedEmailUpsertMock },
     invite: { findFirst: inviteFindFirstMock },
   },
 }));
 
-import { isAllowedEmail, hasPendingTripInvite } from "./allowlist";
+import { isAllowedEmail, hasPendingTripInvite, admitByTripInvite } from "./allowlist";
 
 const ORIGINAL_ALLOWED_EMAILS = process.env.ALLOWED_EMAILS;
 
@@ -56,6 +58,12 @@ describe("isAllowedEmail", () => {
     await expect(isAllowedEmail("cam@example.com")).resolves.toBe(true);
     expect(allowedEmailFindUniqueMock).not.toHaveBeenCalled();
   });
+
+  it("fails closed (propagates rather than swallows) when the table lookup throws", async () => {
+    process.env.ALLOWED_EMAILS = "";
+    allowedEmailFindUniqueMock.mockRejectedValue(new Error("db down"));
+    await expect(isAllowedEmail("cam@example.com")).rejects.toThrow("db down");
+  });
 });
 
 describe("hasPendingTripInvite", () => {
@@ -80,5 +88,80 @@ describe("hasPendingTripInvite", () => {
   it("is false for an empty email without querying the database", async () => {
     await expect(hasPendingTripInvite("   ")).resolves.toBe(false);
     expect(inviteFindFirstMock).not.toHaveBeenCalled();
+  });
+
+  // The two P0 refusal cases. Prisma itself is mocked everywhere else in this
+  // file, so a mocked findFirst that just returns a canned value can't prove
+  // the WHERE clause actually excludes these rows — these two tests instead
+  // drive the mock off the real `where` shape hasPendingTripInvite sends,
+  // against a single fixture row, so a regression that drops the
+  // `acceptedAt: null` or `expiresAt` filter fails the test rather than
+  // silently re-admitting someone who shouldn't be.
+  it("refuses an ALREADY-ACCEPTED invite", async () => {
+    const row: { email: string; acceptedAt: Date | null; expiresAt: Date | null } = {
+      email: "accepted@example.com",
+      acceptedAt: new Date("2026-01-01"),
+      expiresAt: null,
+    };
+    inviteFindFirstMock.mockImplementation(
+      async ({ where }: { where: { email: string; acceptedAt: null; OR: Array<{ expiresAt: null | { gt: Date } }> } }) => {
+        const matches =
+          row.email === where.email &&
+          where.acceptedAt === null &&
+          row.acceptedAt === null &&
+          where.OR.some((clause) =>
+            "gt" in (clause.expiresAt ?? {}) ? row.expiresAt !== null && row.expiresAt > (clause.expiresAt as { gt: Date }).gt : row.expiresAt === null,
+          );
+        return matches ? { id: "inv" } : null;
+      },
+    );
+    await expect(hasPendingTripInvite("accepted@example.com")).resolves.toBe(false);
+  });
+
+  it("refuses an EXPIRED invite", async () => {
+    const row: { email: string; acceptedAt: Date | null; expiresAt: Date | null } = {
+      email: "expired@example.com",
+      acceptedAt: null,
+      expiresAt: new Date("2020-01-01"),
+    };
+    inviteFindFirstMock.mockImplementation(
+      async ({ where }: { where: { email: string; acceptedAt: null; OR: Array<{ expiresAt: null | { gt: Date } }> } }) => {
+        const matches =
+          row.email === where.email &&
+          row.acceptedAt === where.acceptedAt &&
+          where.OR.some((clause) =>
+            "gt" in (clause.expiresAt ?? {}) ? row.expiresAt !== null && row.expiresAt > (clause.expiresAt as { gt: Date }).gt : row.expiresAt === null,
+          );
+        return matches ? { id: "inv" } : null;
+      },
+    );
+    await expect(hasPendingTripInvite("expired@example.com")).resolves.toBe(false);
+  });
+});
+
+describe("admitByTripInvite", () => {
+  it("upserts an AllowedEmail row for the lowercased address, noting it was admitted by Trip Invite", async () => {
+    allowedEmailUpsertMock.mockResolvedValue({ email: "invited@example.com" });
+    await admitByTripInvite("Invited@Example.com");
+    expect(allowedEmailUpsertMock).toHaveBeenCalledWith({
+      where: { email: "invited@example.com" },
+      update: {},
+      create: { email: "invited@example.com", note: "admitted by Trip Invite" },
+    });
+  });
+
+  it("is idempotent — an existing row is left untouched, not overwritten", async () => {
+    allowedEmailUpsertMock.mockResolvedValue({ email: "invited@example.com" });
+    await admitByTripInvite("invited@example.com");
+    // `update: {}` — a second admission must not clobber a row that, say,
+    // later got a different note from an approved Access request.
+    expect(allowedEmailUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({ update: {} }),
+    );
+  });
+
+  it("does nothing for an empty email", async () => {
+    await admitByTripInvite("   ");
+    expect(allowedEmailUpsertMock).not.toHaveBeenCalled();
   });
 });

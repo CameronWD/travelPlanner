@@ -5,7 +5,7 @@ import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
 import { acceptPendingInvitesForUser } from "@/lib/invites";
-import { isAllowedEmail, hasPendingTripInvite } from "@/lib/allowlist";
+import { isAllowedEmail, hasPendingTripInvite, admitByTripInvite } from "@/lib/allowlist";
 
 /**
  * Auth.js (NextAuth v5) configuration.
@@ -77,20 +77,36 @@ export const authConfig: NextAuthConfig = {
     async signIn({ user, account, profile }) {
       // The dev-login provider is already unregistrable in production
       // (lib/auth.ts:35 — ALLOW_DEV_LOGIN *and* NODE_ENV !== "production"),
-      // so it passes through. Auth.js runs this callback for EVERY provider.
-      if (account?.provider === "dev-login") return true;
+      // so this NODE_ENV check is belt-and-braces: a future refactor of the
+      // provider list can't silently reopen a production dev-login door
+      // through this callback alone. Auth.js runs this callback for EVERY
+      // provider.
+      if (account?.provider === "dev-login") {
+        return process.env.NODE_ENV !== "production";
+      }
 
       const email = user.email;
       if (!email) return false;
 
-      // Auth.js's own guidance for this callback: enforce verification rather
-      // than assume it.
-      if (account?.provider === "google" && profile?.email_verified !== true) {
-        return false;
-      }
+      // Fail-closed by construction: every OTHER provider — today just
+      // Google, but any future one too — must present a verified email
+      // rather than being trusted by default. Auth.js's own guidance for
+      // this callback is to enforce verification rather than assume it.
+      if (profile?.email_verified !== true) return false;
 
       if (await isAllowedEmail(email)) return true;
-      if (await hasPendingTripInvite(email)) return true;
+
+      if (await hasPendingTripInvite(email)) {
+        // Admission by Invite is otherwise a one-shot ticket: the Invite
+        // gets marked accepted moments after this (events.signIn below, and
+        // app/(app)/layout.tsx again on every load), so a second
+        // hasPendingTripInvite check for the same address would come back
+        // false — locking out anyone whose session lapses or who signs out.
+        // Promote them into the durable allowlist instead (lib/allowlist.ts,
+        // admitByTripInvite).
+        await admitByTripInvite(email);
+        return true;
+      }
 
       // Task 14 records the Access request here before refusing.
       return false;

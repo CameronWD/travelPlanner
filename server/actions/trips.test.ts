@@ -836,6 +836,29 @@ describe("duplicateTrip", () => {
     expect(checklistItemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", text: "Passport", done: false, dueDate: null, assignedToId: null }) });
   });
 
+  it("IMPORTANT fix (round 1): normalises a mixed-case source member email before writing the Invite", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-1", email: "you@example.com" },
+      membership: { userId: "user-1", role: "owner" },
+    });
+    // User.email is never normalised anywhere — simulate a co-traveller
+    // whose account happens to have mixed casing.
+    userFindManyMock.mockResolvedValueOnce([{ id: "user-2", email: "Co@Example.com" }]);
+    tripFindUniqueMock.mockResolvedValue({
+      id: "src", name: "Europe 2026", homeCurrency: "AUD", drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
+      members: [{ userId: "user-1", role: "owner" }, { userId: "user-2", role: "member" }],
+      chapters: [], stops: [], items: [], transports: [], checklistItems: [],
+    });
+    tripCreateMock.mockResolvedValue({ id: "new" });
+
+    const result = await duplicateTrip("src", "Copy of Europe 2026");
+
+    expect(result).toEqual({ success: true, tripId: "new" });
+    expect(inviteCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ email: "co@example.com" }),
+    });
+  });
+
   it("ARCH-ADR-1: a source member whose email can't be resolved is skipped — no Invite and no membership", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "user-1", email: "you@example.com" },

@@ -1,15 +1,20 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const { allowedEmailFindUniqueMock, inviteFindFirstMock, globeInviteFindFirstMock } =
-  vi.hoisted(() => ({
-    allowedEmailFindUniqueMock: vi.fn(),
-    inviteFindFirstMock: vi.fn(),
-    globeInviteFindFirstMock: vi.fn(),
-  }));
+const {
+  allowedEmailFindUniqueMock,
+  allowedEmailUpsertMock,
+  inviteFindFirstMock,
+  globeInviteFindFirstMock,
+} = vi.hoisted(() => ({
+  allowedEmailFindUniqueMock: vi.fn(),
+  allowedEmailUpsertMock: vi.fn(),
+  inviteFindFirstMock: vi.fn(),
+  globeInviteFindFirstMock: vi.fn(),
+}));
 
 vi.mock("@/lib/db", () => ({
   db: {
-    allowedEmail: { findUnique: allowedEmailFindUniqueMock },
+    allowedEmail: { findUnique: allowedEmailFindUniqueMock, upsert: allowedEmailUpsertMock },
     invite: { findFirst: inviteFindFirstMock },
     globeInvite: { findFirst: globeInviteFindFirstMock },
   },
@@ -36,7 +41,7 @@ afterEach(() => {
 });
 
 describe("signIn callback", () => {
-  it("admits a Traveller holding an unexpired pending Trip Invite", async () => {
+  it("admits a Traveller holding an unexpired pending Trip Invite, and promotes them into AllowedEmail", async () => {
     process.env.ALLOWED_EMAILS = "";
     allowedEmailFindUniqueMock.mockResolvedValue(null);
     inviteFindFirstMock.mockResolvedValue({ id: "inv1" });
@@ -49,6 +54,49 @@ describe("signIn callback", () => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any),
     ).resolves.toBe(true);
+
+    // CRITICAL (fix round 1): admission by Invite must write a durable
+    // AllowedEmail row, not just admit this one sign-in — see
+    // admitByTripInvite's doc comment in lib/allowlist.ts for why.
+    expect(allowedEmailUpsertMock).toHaveBeenCalledWith({
+      where: { email: "invited@example.com" },
+      update: {},
+      create: { email: "invited@example.com", note: "admitted by Trip Invite" },
+    });
+  });
+
+  it("stays admitted on a SECOND sign-in after the Invite has been accepted (the one-shot-ticket lifecycle bug)", async () => {
+    process.env.ALLOWED_EMAILS = "";
+    allowedEmailFindUniqueMock.mockResolvedValue(null);
+    inviteFindFirstMock.mockResolvedValue({ id: "inv1" });
+
+    // First sign-in: admitted via the pending Invite.
+    await expect(
+      signInCallback({
+        user: { email: "invited@example.com" },
+        account: { provider: "google" },
+        profile: { email_verified: true },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    ).resolves.toBe(true);
+    expect(allowedEmailUpsertMock).toHaveBeenCalledTimes(1);
+
+    // events.signIn / app/(app)/layout.tsx mark the Invite accepted right
+    // after — so hasPendingTripInvite would now say false — but the upsert
+    // above landed, so isAllowedEmail says true instead.
+    inviteFindFirstMock.mockResolvedValue(null);
+    allowedEmailFindUniqueMock.mockResolvedValue({ email: "invited@example.com" });
+
+    await expect(
+      signInCallback({
+        user: { email: "invited@example.com" },
+        account: { provider: "google" },
+        profile: { email_verified: true },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    ).resolves.toBe(true);
+    // No second promotion needed — isAllowedEmail short-circuits first.
+    expect(allowedEmailUpsertMock).toHaveBeenCalledTimes(1);
   });
 
   it("does NOT admit on a Globe Invite", async () => {
@@ -96,17 +144,43 @@ describe("signIn callback", () => {
     ).resolves.toBe(false);
   });
 
-  it("lets the dev-login provider through untouched", async () => {
-    await expect(
-      signInCallback({
-        user: { email: "you@example.com" },
-        account: { provider: "dev-login" },
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any),
-    ).resolves.toBe(true);
+  it("lets the dev-login provider through outside production", async () => {
+    const prevEnv = process.env.NODE_ENV;
+    // @ts-expect-error -- NODE_ENV is typed readonly; tests still need to set it.
+    process.env.NODE_ENV = "test";
+    try {
+      await expect(
+        signInCallback({
+          user: { email: "you@example.com" },
+          account: { provider: "dev-login" },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any),
+      ).resolves.toBe(true);
+    } finally {
+      // @ts-expect-error -- see above.
+      process.env.NODE_ENV = prevEnv;
+    }
 
     expect(allowedEmailFindUniqueMock).not.toHaveBeenCalled();
     expect(inviteFindFirstMock).not.toHaveBeenCalled();
+  });
+
+  it("MINOR fix: refuses the dev-login provider outright in production, belt-and-braces with lib/auth.ts:36's registration guard", async () => {
+    const prevEnv = process.env.NODE_ENV;
+    // @ts-expect-error -- see above.
+    process.env.NODE_ENV = "production";
+    try {
+      await expect(
+        signInCallback({
+          user: { email: "you@example.com" },
+          account: { provider: "dev-login" },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any),
+      ).resolves.toBe(false);
+    } finally {
+      // @ts-expect-error -- see above.
+      process.env.NODE_ENV = prevEnv;
+    }
   });
 
   it("admits via ALLOWED_EMAILS alone, without a table row or invite", async () => {
@@ -151,5 +225,31 @@ describe("signIn callback", () => {
     ).resolves.toBe(false);
 
     expect(allowedEmailFindUniqueMock).not.toHaveBeenCalled();
+  });
+
+  it("fails closed: rejects rather than admitting when the allowlist lookup throws", async () => {
+    allowedEmailFindUniqueMock.mockRejectedValue(new Error("db down"));
+
+    await expect(
+      signInCallback({
+        user: { email: "cam@example.com" },
+        account: { provider: "google" },
+        profile: { email_verified: true },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    ).rejects.toThrow("db down");
+  });
+
+  it("verification is enforced fail-closed by construction: a hypothetical future non-dev-login provider without email_verified: true is refused", async () => {
+    allowedEmailFindUniqueMock.mockResolvedValue({ email: "cam@example.com" });
+
+    await expect(
+      signInCallback({
+        user: { email: "cam@example.com" },
+        account: { provider: "some-future-oauth-provider" },
+        profile: {},
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    ).resolves.toBe(false);
   });
 });

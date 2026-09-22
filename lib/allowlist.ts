@@ -3,12 +3,23 @@ import { db } from "@/lib/db";
 /**
  * Sign-in allowlist (ADR 0057). ONE predicate, TWO sources:
  *
- *   - ALLOWED_EMAILS env var — bootstrap and break-glass. This is how the
- *     operator gets in on a fresh or restored deployment before any row
- *     exists. NEVER written by code.
- *   - AllowedEmail table — everyone admitted through the product, written by
- *     approving an Access request. Revocable by deleting a row, which is
- *     instant; an env-var change needs a redeploy.
+ *   - ALLOWED_EMAILS env var — bootstrap and break-glass against a wiped or
+ *     restored-empty AllowedEmail table. It is NOT break-glass against a
+ *     *down* database: the table lookup below, and the Prisma adapter one
+ *     line after this callback runs in lib/auth.ts, both need Postgres
+ *     regardless, so an outage takes sign-in down either way. NEVER written
+ *     by code.
+ *   - AllowedEmail table — everyone admitted through the product: by
+ *     approving an Access request, or, for someone who signed in on a
+ *     pending Trip Invite, written by admitByTripInvite below at the moment
+ *     they're admitted.
+ *
+ * Revocation is NOT instant for either source. Sessions are Auth.js JWTs
+ * with no maxAge override (Auth.js's default is 30 days), and nothing
+ * re-checks the allowlist against an existing session — so deleting a row,
+ * same as dropping an address from ALLOWED_EMAILS, only takes effect at that
+ * person's next sign-in. The table is easier to edit than a redeploy; it is
+ * not faster to take effect.
  *
  * "One door" means one predicate at one call site, not one storage location.
  * Shaped like isAdminEmail (lib/admin.ts): server-only, trimmed, lowercased.
@@ -54,4 +65,34 @@ export async function hasPendingTripInvite(email: string): Promise<boolean> {
     select: { id: true },
   });
   return invite !== null;
+}
+
+/**
+ * Promote someone admitted via a pending Trip Invite into the permanent
+ * AllowedEmail table.
+ *
+ * Without this, admission by Invite is a one-shot ticket: the Invite itself
+ * gets marked accepted moments after sign-in (the events.signIn hook in
+ * lib/auth.ts, and app/(app)/layout.tsx again on every authenticated load),
+ * so a second call to hasPendingTripInvite for the same address comes back
+ * false. The next time that person's JWT session lapses or they sign out —
+ * Auth.js's default session lifetime is 30 days — they hold a User row, a
+ * TripMember row, and authored content, but the signIn callback refuses
+ * them. This closes that gap by writing the same durable admission an
+ * approved Access request would have written, at the moment the Invite does
+ * its job.
+ *
+ * Upsert, not create: idempotent against being called on every sign-in that
+ * takes this path, and `update: {}` deliberately never overwrites an
+ * existing row (e.g. one an approved Access request already wrote with a
+ * different note).
+ */
+export async function admitByTripInvite(email: string): Promise<void> {
+  const needle = email.trim().toLowerCase();
+  if (!needle) return;
+  await db.allowedEmail.upsert({
+    where: { email: needle },
+    update: {},
+    create: { email: needle, note: "admitted by Trip Invite" },
+  });
 }
