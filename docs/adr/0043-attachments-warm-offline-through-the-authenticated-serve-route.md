@@ -1,7 +1,7 @@
 # 0043 — Attachments warm for offline through the authenticated serve route
 
 ## Status
-Accepted (2026-09-14). Narrows ADR 0016.
+Accepted (2026-09-14). Narrows ADR 0016. Amended 2026-09-21 (see below).
 
 ## Context
 ADR 0016 excluded file attachments from the offline warm set on two grounds:
@@ -38,10 +38,14 @@ case where losing signal and needing a document coincide most often.
 - `/trips/:id/files` joins the base set of warmed pages, so the page that
   lists every attachment is itself available offline (the links on it work
   because the attachments behind them are warmed too).
-- Attachment links (`attachment-links.tsx`, `attachment-list.tsx`) open as
-  plain same-tab navigations rather than `target="_blank"`, so viewing a
-  ticket stays in-app instead of handing off to a new browser tab/window
-  that a PWA shell may not carry offline state into.
+- Attachment links (`attachment-links.tsx`, `attachment-list.tsx`,
+  `journal-editor.tsx`, `journal/page.tsx` — all four now funnelled through
+  the one shared `components/trip/attachment-link.tsx`) open as plain
+  same-tab navigations rather than `target="_blank"`, so viewing a ticket
+  stays in-app instead of handing off to a new browser tab/window that a PWA
+  shell may not carry offline state into. **Scoped by the 2026-09-21
+  amendment below** to the installed PWA only — in an ordinary browser tab
+  these now open out.
 - `components/pwa-register.tsx` requests `navigator.storage.persist()` on
   registration, reducing the odds the browser evicts the runtime cache
   (including warmed attachment bytes) under storage pressure.
