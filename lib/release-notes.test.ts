@@ -88,4 +88,16 @@ describe("RELEASE_NOTES", () => {
   it("caps the card at three", () => {
     expect(WHATS_NEW_CARD_LIMIT).toBe(3);
   });
+
+  it("dates no note in the future", () => {
+    // A future-dated note is "unread" until the clock catches up, which
+    // makes a dismissal in that window not stick (see dismissWhatsNew's
+    // seenAt clamp in server/actions/release-notes.ts). The clamp covers the
+    // case if it ever happens anyway, but a note should never actually be
+    // written ahead of when it ships.
+    const now = Date.now();
+    for (const note of RELEASE_NOTES) {
+      expect(Date.parse(note.publishedAt)).toBeLessThanOrEqual(now);
+    }
+  });
 });

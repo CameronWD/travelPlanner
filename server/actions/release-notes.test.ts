@@ -9,6 +9,7 @@ vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { revalidatePath } from "next/cache";
+import { RELEASE_NOTES } from "@/lib/release-notes";
 import { dismissWhatsNew } from "./release-notes";
 
 const mockUpdate = db.user.update as unknown as ReturnType<typeof vi.fn>;
@@ -54,5 +55,21 @@ describe("dismissWhatsNew", () => {
     });
     await dismissWhatsNew();
     expect(order).toEqual(["auth", "write"]);
+  });
+
+  it("stamps at least as late as a future-dated note, so the dismissal actually sticks", async () => {
+    // Notes are hand-written constants with no relationship to deploy time.
+    // A note timestamped ahead of "now" must not leave the card
+    // un-dismissable: seenAt has to cover it, not just the moment of the
+    // click, or unreadReleaseNotes would call it unread again immediately.
+    const futurePublishedAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    RELEASE_NOTES.unshift({ publishedAt: futurePublishedAt, text: "From the future" });
+    try {
+      await dismissWhatsNew();
+      const stamped = mockUpdate.mock.calls[0][0].data.whatsNewSeenAt as Date;
+      expect(stamped.getTime()).toBeGreaterThanOrEqual(Date.parse(futurePublishedAt));
+    } finally {
+      RELEASE_NOTES.shift();
+    }
   });
 });

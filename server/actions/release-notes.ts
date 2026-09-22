@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { ok, type ActionResult } from "@/lib/action-result";
+import { RELEASE_NOTES } from "@/lib/release-notes";
 
 /**
  * "I have read this release."
@@ -25,9 +26,22 @@ import { ok, type ActionResult } from "@/lib/action-result";
 export async function dismissWhatsNew(): Promise<ActionResult> {
   const user = await requireUser();
 
+  // Notes are hand-written constants with no relationship to deploy time, so
+  // nothing stops one from being timestamped ahead of when it actually ships
+  // (write a note at 09:00 dated 12:00Z and it is "unread" until the clock
+  // catches up). Stamping plain `new Date()` in that window would make the
+  // card reappear after every dismissal — the Traveller taps X, it hides,
+  // they navigate, it's back — because `unreadReleaseNotes` compares against
+  // `publishedAt`, not against when the dismissal happened. Stamping the
+  // *later* of now and the newest note's `publishedAt` guarantees a dismissal
+  // always clears everything currently published, regardless of clock skew
+  // between a note's timestamp and its actual release.
+  const newestPublishedAt = Math.max(...RELEASE_NOTES.map((n) => Date.parse(n.publishedAt)));
+  const seenAt = new Date(Math.max(Date.now(), newestPublishedAt));
+
   await db.user.update({
     where: { id: user.id },
-    data: { whatsNewSeenAt: new Date() },
+    data: { whatsNewSeenAt: seenAt },
   });
 
   // The card renders on the trips list AND on every Trip's Home, so both
