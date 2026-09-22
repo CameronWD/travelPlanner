@@ -1302,6 +1302,34 @@ export async function restoreStops(
   }
   const restoreForkId: PlanId = forkId ?? rows[0].forkId ?? null;
 
+  // ARCH-TEN-1: the guard above authorised the Stops' Trip only — the payload
+  // names Items and Accommodations by id alone, so without this every
+  // authenticated Traveller could rewrite another tenancy's rows via Undo.
+  // Verify ownership BEFORE the transaction so a rejected call writes nothing.
+  const payloadItemIds = (payload?.items ?? []).map((i) => i.id);
+  if (payloadItemIds.length > 0) {
+    const owned = await db.item.findMany({
+      where: { id: { in: payloadItemIds } },
+      select: { id: true, tripId: true },
+    });
+    if (owned.length !== payloadItemIds.length || owned.some((i) => i.tripId !== tripId)) {
+      return { success: false, errors: { id: ["Restore payload names items from another trip."] } };
+    }
+  }
+
+  const payloadAccIds = (payload?.accommodations ?? []).map((a) => a.id);
+  if (payloadAccIds.length > 0) {
+    // Accommodation carries tripId directly (prisma/schema.prisma) — no need
+    // to join through Stop.
+    const owned = await db.accommodation.findMany({
+      where: { id: { in: payloadAccIds } },
+      select: { id: true, tripId: true },
+    });
+    if (owned.length !== payloadAccIds.length || owned.some((a) => a.tripId !== tripId)) {
+      return { success: false, errors: { id: ["Restore payload names accommodations from another trip."] } };
+    }
+  }
+
   await db.$transaction(async (tx) => {
     // Lock the WHOLE plan's stops FOR UPDATE, in canonical id order, to
     // serialise with concurrent reorders (ADR 0007 — never a subset: the

@@ -2085,6 +2085,62 @@ describe("Task 10: restoreStops — writes each entry verbatim inside the locked
 });
 
 // ---------------------------------------------------------------------------
+// ARCH-TEN-1: restoreStops must validate that the payload's Items and
+// Accommodations belong to the same Trip the Stops were authorised against —
+// the payload names rows by id alone, so without this check any authenticated
+// Traveller could rewrite another tenancy's Item dates / Accommodation
+// check-in-out via Undo.
+// ---------------------------------------------------------------------------
+
+describe("ARCH-TEN-1: restoreStops rejects payload rows from another trip", () => {
+  it("refuses a payload whose Items belong to another Trip", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "s1", tripId: "trip-A", forkId: null }]);
+    // The attacker names an Item that lives on trip-B.
+    itemFindManyMock.mockResolvedValue([{ id: "i-foreign", tripId: "trip-B" }]);
+
+    const result = await restoreStops(
+      [{ id: "s1", sortOrder: 0, chapterId: null, arriveDate: null, departDate: null }],
+      null,
+      { items: [{ id: "i-foreign", date: "2026-01-01" }], accommodations: [] },
+    );
+
+    expect(result.success).toBe(false);
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a payload whose Accommodations belong to another Trip", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "s1", tripId: "trip-A", forkId: null }]);
+    itemFindManyMock.mockResolvedValue([]);
+    // Accommodation carries tripId directly (prisma/schema.prisma) — not via Stop.
+    accommodationFindManyMock.mockResolvedValue([{ id: "a-foreign", tripId: "trip-B" }]);
+
+    const result = await restoreStops(
+      [{ id: "s1", sortOrder: 0, chapterId: null, arriveDate: null, departDate: null }],
+      null,
+      { items: [], accommodations: [{ id: "a-foreign", checkIn: "2026-01-01", checkOut: "2026-01-02" }] },
+    );
+
+    expect(result.success).toBe(false);
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses a payload naming an Item id that matches no row at all", async () => {
+    stopFindManyMock.mockResolvedValue([{ id: "s1", tripId: "trip-A", forkId: null }]);
+    // No such item exists.
+    itemFindManyMock.mockResolvedValue([]);
+
+    const result = await restoreStops(
+      [{ id: "s1", sortOrder: 0, chapterId: null, arriveDate: null, departDate: null }],
+      null,
+      { items: [{ id: "i-nonexistent", date: "2026-01-01" }], accommodations: [] },
+    );
+
+    expect(result.success).toBe(false);
+    expect(transactionMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // restoreStops payload restore (ADR 0038) — Task 5
 // ---------------------------------------------------------------------------
 
@@ -2094,6 +2150,8 @@ describe("restoreStops payload restore (ADR 0038)", () => {
     queryRawMock.mockResolvedValue([{ id: "s1" }]);
     stopUpdateMock.mockResolvedValue({});
     chapterFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([{ id: "i1", tripId: "t1" }]);
+    accommodationFindManyMock.mockResolvedValue([{ id: "a1", tripId: "t1" }]);
 
     const result = await restoreStops(
       [{ id: "s1", sortOrder: 0, chapterId: null, arriveDate: "2026-06-01", departDate: "2026-06-04" }],
@@ -2121,6 +2179,7 @@ describe("restoreStops payload restore (ADR 0038)", () => {
     queryRawMock.mockResolvedValue([{ id: "munich" }]);
     stopUpdateMock.mockResolvedValue({});
     chapterFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([{ id: "dinner", tripId: "t1" }]);
 
     const result = await restoreStops(
       [{ id: "munich", sortOrder: 0, chapterId: null, arriveDate: "2026-05-05", departDate: "2026-05-10" }],
