@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireGlobeAccess, requireGlobeOwner } from "@/lib/globe";
+import { inviteeAlreadyHasGlobe } from "@/lib/globe-invites";
 import { markerSchema, type MarkerInput } from "@/lib/validations/marker";
 import { searchPlacesWithStatus, reverseGeocode, type GeoCandidate, type PlaceSearchOutcome } from "@/lib/geocode";
 import { type ActionResult, fail, validationResult } from "@/lib/action-result";
@@ -120,6 +121,19 @@ export async function inviteToGlobe(email: string): Promise<GlobeActionResult> {
   const { globe } = access;
   const parsed = inviteEmailSchema.safeParse(email);
   if (!parsed.success) return validationResult(parsed.error);
+
+  // ARCH-ADR-3: a Traveller belongs to at most one Globe (ADR 0023), so an
+  // invite to someone who already has one can never be accepted. Report
+  // that now, at creation time, instead of silently dead-ending later in
+  // decideGlobeMembership while the inviter was told "Invited". An email
+  // with no matching User yet is unaffected — that invite is still created.
+  if (await inviteeAlreadyHasGlobe(parsed.data)) {
+    return fail({
+      _: [
+        "This Traveller already has a Globe of their own — a Traveller can only belong to one, so this invite could never be accepted.",
+      ],
+    });
+  }
 
   try {
     await db.globeInvite.create({

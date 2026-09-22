@@ -7,6 +7,8 @@ const {
   attachmentFindManyMock,
   attachmentDeleteManyMock,
   storageDeleteMock,
+  userFindUniqueMock,
+  globeMemberFindUniqueMock,
 } = vi.hoisted(() => ({
   requireGlobeAccessMock: vi.fn(async () => ({ user: { id: "u1" }, globe: { id: "g1" } })),
   requireGlobeOwnerMock: vi.fn(
@@ -19,12 +21,21 @@ const {
   attachmentFindManyMock: vi.fn(),
   attachmentDeleteManyMock: vi.fn(),
   storageDeleteMock: vi.fn(),
+  userFindUniqueMock: vi.fn(),
+  globeMemberFindUniqueMock: vi.fn(),
 }));
 
-vi.mock("@/lib/globe", () => ({
-  requireGlobeAccess: requireGlobeAccessMock,
-  requireGlobeOwner: requireGlobeOwnerMock,
-}));
+// Keep the real getUserGlobe/getOrCreateUserGlobe (used by
+// lib/globe-invites.ts's inviteeAlreadyHasGlobe) while still stubbing the
+// two gate functions this file's tests drive directly.
+vi.mock("@/lib/globe", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/globe")>();
+  return {
+    ...real,
+    requireGlobeAccess: requireGlobeAccessMock,
+    requireGlobeOwner: requireGlobeOwnerMock,
+  };
+});
 vi.mock("@/lib/guards", () => ({ requireUser: vi.fn(async () => ({ id: "u1" })) }));
 vi.mock("@/lib/geocode", () => ({
   searchPlaces: vi.fn(),
@@ -44,6 +55,8 @@ vi.mock("@/lib/db", () => ({
       deleteMany: attachmentDeleteManyMock,
     },
     globeInvite: { create: vi.fn() },
+    user: { findUnique: userFindUniqueMock },
+    globeMember: { findUnique: globeMemberFindUniqueMock },
   },
 }));
 vi.mock("@/lib/storage", async (importOriginal) => {
@@ -68,6 +81,8 @@ beforeEach(() => {
   attachmentFindManyMock.mockResolvedValue([]);
   attachmentDeleteManyMock.mockResolvedValue({ count: 0 });
   storageDeleteMock.mockResolvedValue(undefined);
+  userFindUniqueMock.mockResolvedValue(null);
+  globeMemberFindUniqueMock.mockResolvedValue(null);
 });
 
 describe("createMarker", () => {
@@ -175,5 +190,18 @@ describe("inviteToGlobe", () => {
     dbm.globeInvite.create.mockResolvedValue({ id: "i1" });
     const res = await inviteToGlobe("friend@example.com");
     expect(res.success).toBe(true);
+  });
+
+  it("ARCH-ADR-3: reports the real outcome when the invitee already has a Globe", async () => {
+    dbm.user.findUnique.mockResolvedValue({ id: "u9", email: "taken@example.com" });
+    dbm.globeMember.findUnique.mockResolvedValue({ globeId: "g-other" });
+
+    const result = await inviteToGlobe("taken@example.com");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors["_"]?.join(" ")).toMatch(/already has a Globe/i);
+    }
+    expect(dbm.globeInvite.create).not.toHaveBeenCalled();
   });
 });
