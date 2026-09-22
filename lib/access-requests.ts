@@ -8,6 +8,20 @@ export interface AccessRequestAttempt {
 }
 
 /**
+ * True for a Prisma unique-constraint violation (P2002). Checked structurally
+ * (by `code`) rather than via `instanceof` so it stays driver-adapter-agnostic
+ * and trivially mockable in tests — same idiom as lib/globe.ts, lib/invites.ts.
+ */
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "P2002"
+  );
+}
+
+/**
  * Record (or bump) an Access request from a refused sign-in attempt.
  *
  * The sign-in attempt IS the Access request: this is called from inside the
@@ -46,20 +60,44 @@ export async function recordAccessRequest({
         where: { id: existing.id },
         data: {
           lastAttemptAt: new Date(),
-          attempts: existing.attempts + 1,
+          // Atomic increment (fix round 1, item 4) rather than a
+          // read-modify-write off the row `findUnique` just returned —
+          // that read is stale the instant a concurrent attempt for the
+          // same address lands between the read and this write.
+          attempts: { increment: 1 },
         },
       });
       return;
     }
 
-    await db.accessRequest.create({
-      data: {
-        email: needle,
-        name,
-        image,
-        status: "pending",
-      },
-    });
+    try {
+      await db.accessRequest.create({
+        data: {
+          email: needle,
+          name,
+          image,
+          status: "pending",
+        },
+      });
+    } catch (err) {
+      if (!isUniqueConstraintError(err)) throw err;
+      // Fix round 1, item 5: lost a create race — a concurrent attempt for
+      // this same address created the row between our `findUnique` above
+      // and this `create`. Without this, the outer catch swallowed the
+      // P2002 and this attempt vanished — not recorded at all — and every
+      // later attempt would take the `existing` branch above regardless, so
+      // it could never be recovered. Record it as a repeat instead (`email`
+      // is unique, so this can update by it directly without re-reading for
+      // an id), and do NOT notify: the winning create already will.
+      await db.accessRequest.update({
+        where: { email: needle },
+        data: {
+          lastAttemptAt: new Date(),
+          attempts: { increment: 1 },
+        },
+      });
+      return;
+    }
 
     await notifyAdmins(
       "New Access request",

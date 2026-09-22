@@ -55,12 +55,18 @@ describe("recordAccessRequest", () => {
     expect(notifyAdminsMock).toHaveBeenCalledTimes(1);
   });
 
-  it("bumps lastAttemptAt and attempts on a repeat, without duplicating", async () => {
+  it("bumps lastAttemptAt and atomically increments attempts on a repeat, without duplicating", async () => {
     accessRequestFindUniqueMock.mockResolvedValue({ id: "ar1", status: "pending", attempts: 3 });
     await recordAccessRequest({ email: "new@example.com", name: null, image: null });
     expect(accessRequestCreateMock).not.toHaveBeenCalled();
+    // Fix round 1, item 4: `attempts: { increment: 1 }`, not a
+    // read-modify-write off `existing.attempts` — that read goes stale the
+    // instant a concurrent attempt for the same address lands in between.
     expect(accessRequestUpdateMock).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: "ar1" }, data: expect.objectContaining({ attempts: 4 }) }),
+      expect.objectContaining({
+        where: { id: "ar1" },
+        data: expect.objectContaining({ attempts: { increment: 1 } }),
+      }),
     );
   });
 
@@ -112,5 +118,57 @@ describe("recordAccessRequest", () => {
     await recordAccessRequest({ email: "   ", name: null, image: null });
     expect(accessRequestFindUniqueMock).not.toHaveBeenCalled();
     expect(accessRequestCreateMock).not.toHaveBeenCalled();
+  });
+
+  describe("losing a create race (fix round 1, item 5)", () => {
+    it("falls through to a bump (by email, not id) when create raises P2002", async () => {
+      accessRequestFindUniqueMock.mockResolvedValue(null);
+      accessRequestCreateMock.mockRejectedValue(
+        Object.assign(new Error("Unique constraint failed"), { code: "P2002" }),
+      );
+
+      await recordAccessRequest({ email: "race@example.com", name: null, image: null });
+
+      expect(accessRequestUpdateMock).toHaveBeenCalledWith({
+        where: { email: "race@example.com" },
+        data: {
+          lastAttemptAt: expect.any(Date),
+          attempts: { increment: 1 },
+        },
+      });
+    });
+
+    it("does not notify on the losing side of the race — the winning create already will", async () => {
+      accessRequestFindUniqueMock.mockResolvedValue(null);
+      accessRequestCreateMock.mockRejectedValue(
+        Object.assign(new Error("Unique constraint failed"), { code: "P2002" }),
+      );
+
+      await recordAccessRequest({ email: "race@example.com", name: null, image: null });
+
+      expect(notifyAdminsMock).not.toHaveBeenCalled();
+    });
+
+    it("still resolves without throwing when create raises P2002", async () => {
+      accessRequestFindUniqueMock.mockResolvedValue(null);
+      accessRequestCreateMock.mockRejectedValue(
+        Object.assign(new Error("Unique constraint failed"), { code: "P2002" }),
+      );
+
+      await expect(
+        recordAccessRequest({ email: "race@example.com", name: null, image: null }),
+      ).resolves.toBeUndefined();
+    });
+
+    it("does not swallow a non-P2002 create error into the bump path (still never throws overall)", async () => {
+      accessRequestFindUniqueMock.mockResolvedValue(null);
+      accessRequestCreateMock.mockRejectedValue(new Error("db exploded"));
+
+      await expect(
+        recordAccessRequest({ email: "z@example.com", name: null, image: null }),
+      ).resolves.toBeUndefined();
+      expect(accessRequestUpdateMock).not.toHaveBeenCalled();
+      expect(notifyAdminsMock).not.toHaveBeenCalled();
+    });
   });
 });

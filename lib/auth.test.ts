@@ -46,6 +46,17 @@ afterEach(() => {
   else process.env.ALLOWED_EMAILS = ORIGINAL_ALLOWED_EMAILS;
 });
 
+describe("authConfig.pages", () => {
+  // Fix round 1: AccessDenied (thrown when signIn returns false) has no
+  // `kind: "signIn"`, so Auth.js resolves its redirect against
+  // `pages.error`, not `pages.signIn`. Without `error` also pointed at
+  // /signin, a refused Traveller lands on Auth.js's unbranded 403 instead of
+  // the explanatory card — pin the coupling so it can't regress silently.
+  it("routes BOTH signIn and error to /signin", () => {
+    expect(authConfig.pages).toEqual({ signIn: "/signin", error: "/signin" });
+  });
+});
+
 describe("signIn callback", () => {
   it("admits a Traveller holding an unexpired pending Trip Invite, and promotes them into AllowedEmail", async () => {
     process.env.ALLOWED_EMAILS = "";
