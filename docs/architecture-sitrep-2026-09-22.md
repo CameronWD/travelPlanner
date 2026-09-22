@@ -9,8 +9,10 @@ decided, and every claim then re-checked by the orchestrator before it entered t
 document.
 
 This is **not** `docs/things-to-fix.md`. That document is a defect backlog and is
-**fully closed** — every item in it, including `P0-4` and `P1-5`, is fixed
-(`things-to-fix.md:127`, `:188`, `:783`), and two reviewers independently re-verified
+**fully closed** — every defect in it, including `P0-4` and `P1-5`, is fixed
+(`things-to-fix.md:136`, `:197`, `:792`; three verification-only sub-items at `:636`,
+`:695`, `:703` remain blocked on a prod DB or running app, not open defects), and two
+reviewers independently re-verified
 that the behaviours behind those two have **not** regressed in current code. This
 document is about structure: what the architecture assumes, and which of those
 assumptions stop being true when the people using TEEPEE are no longer one household.
@@ -69,13 +71,22 @@ surface in the codebase, and it is why `ARCH-TEN-7` below matters so much.
 Console state; whether the off-repo NAS pull of backup artifacts mentioned in
 `db-backup.yml:5-6` exists or works.
 
+**Re-verified 2026-09-22, second pass.** Before implementation, every finding was
+re-checked against the code by an independent verification pass (seven parallel
+reviewers, every citation opened, every disputed claim re-read by the orchestrator).
+All 43 findings survive with their severities intact. The corrections that pass
+produced — stale citations, two impossible fix sketches, one refuted containment
+claim and one refuted failure scenario — have been applied inline below. The baseline
+table was re-run the same day and still holds (3999/3999 tests, `tsc` and lint clean).
+
 ## Where TEEPEE actually stands
 
 The headline is better than you might expect, and the exceptions are sharp rather than
 diffuse.
 
 **The foundations are sound.** All 33 non-test files in `server/actions/` and all 7
-route handlers were rowed — 117 exported functions — and **zero published server actions
+route handlers were rowed — 135 exported functions (125 published in `"use server"`
+files plus 10 internal transaction helpers) — and **zero published server actions
 are unguarded**. `lib/guards.ts` centralises `requireUser` / `requireTripAccess` /
 `requireForkAccess`, `lib/globe.ts` parallels it for the Globe, and defence-in-depth is
 an explicit stated convention rather than an accident. Of 56 ADRs, the 18 that constrain
@@ -109,7 +120,7 @@ answer to "what has to happen before I tell 15 friends the URL".
 
 | Id | P | One line |
 |---|---|---|
-| `ARCH-TEN-1` | **P0** | `restoreStops` writes caller-supplied Item and Accommodation rows into **any** Trip — the one place an authenticated Traveller can write outside their own tenancy |
+| `ARCH-TEN-1` | **P0** | `restoreStops` writes caller-supplied Item and Accommodation rows into **any** Trip — the one place an authenticated Traveller can alter another tenancy's existing rows |
 | `ARCH-DAT-6` | **P0** | Journal is one shared last-write-wins row per Trip-day; a stale tab silently replaces another Traveller's prose, and blanking the box deletes it with no confirm |
 | `ARCH-TEN-2` | P1 | `recordActivity` is a published action that writes a forged Activity row into any Trip id you name, under `requireUser` alone, inside a silent `catch` |
 | `ARCH-TEN-7` | P1 | A Calendar feed URL exposes booking refs, confirmation numbers, addresses and private notes — the Share link's own floor forbids exactly this, and ADR 0052 justified the feed's looser gate on the belief it exposed less |
@@ -137,7 +148,7 @@ answer to "what has to happen before I tell 15 friends the URL".
 **Two P2s worth doing while you are in there**, because they are what make Group 1
 verifiable rather than merely fixed: `ARCH-BND-3` (the owner-or-admin predicate is
 copy-pasted three times instead of being one named guard) and `ARCH-BND-2` (the
-`forkId: null` real-plan discriminator is hand-typed in 40+ places despite
+`forkId: null` real-plan discriminator is hand-typed in ~96 places despite
 `lib/plan-scope.ts` existing for exactly this, which ADR 0020 itself calls the main
 ongoing cost of the approach).
 
@@ -178,13 +189,14 @@ worth fixing soon · **P3** = polish / doc drift.
 
 ## Tenancy and authorisation
 
-The guard-coverage matrix (117 exports, 7 route handlers, all rowed) found **zero
+The guard-coverage matrix (135 exports, 7 route handlers, all rowed) found **zero
 unguarded published actions**. Every finding here is a scope mismatch inside a guarded
 action, not a missing guard.
 
 ### ARCH-TEN-1 · `restoreStops` writes caller-supplied Item and Accommodation rows without checking they belong to the Trip it authorised
 - **Severity: P0** · **Blocks rollout: yes** — the only place in the codebase where an
-  authenticated Traveller can write a row in a Trip they are not a member of.
+  authenticated Traveller can modify existing rows in a Trip they are not a member of
+  (`ARCH-TEN-2` lets them *create* a row there, but touches nothing that exists).
 - **Evidence:** `server/actions/stops.ts:1274-1341`. `"use server"` at `:1`, so it is
   network-reachable by any session. Access derives *only* from `entries[]`: rows read
   `:1285-1288`, `tripId` from `rows[0].tripId` `:1296`, `requireTripAccess(tripId)`
@@ -193,7 +205,8 @@ action, not a missing guard.
   `:1327-1333` and `tx.accommodation.update({ where: { id: acc.id } })` `:1336`. Neither
   `payload.items[].id`, nor `payload.items[].stopId`, nor `payload.accommodations[].id`
   is checked against `tripId`. The correct shape exists one function above: `reorderStops`
-  re-reads every id as `{ id: { in: ... }, tripId }` `:1165-1168`.
+  re-reads every id as `{ id: { in: ... }, tripId }` `:1165-1168` (its explicit rejection
+  of foreign ids fires at `:1221-1224` via `STOP_NOT_IN_TRIP`).
 - **Verification:** code read, independently re-verified.
 - **Failure scenario:** Priya and Marcus share no Trip. Priya drags a Stop in her own
   Trip, lets the undo toast fire, and appends one entry to `payload.items`:
@@ -238,7 +251,8 @@ action, not a missing guard.
   is no longer necessarily someone the reader knows.
 - **Evidence:** `server/actions/activity.ts:1` is `"use server"`. `:7-32` — the only
   guard is `requireUser()` `:16`; `input.tripId` goes straight into `db.activity.create`
-  `:18-28`. `requireTripAccess` is *imported* at `:4` and never called. `verb`,
+  `:18-28`. `requireTripAccess` is *imported* at `:4` and never called **in `recordActivity`** —
+  the file's other exports do call it (`:44`, `:54`), so do not delete the import. `verb`,
   `entityType`, `entityLabel` and `changes` are all caller-controlled. The whole body is
   wrapped in `try { ... } catch {}` `:15-31`, so abuse is invisible.
 - **Verification:** code read, independently re-verified.
@@ -250,7 +264,8 @@ action, not a missing guard.
 - **Fix sketch:** `recordActivity` is only ever called *from* other server actions that
   have already run `requireTripAccess`, so the cheapest correct fix is to stop publishing
   it — move the body into `lib/` and leave `server/actions/activity.ts` exporting only the
-  three genuinely client-facing reads. If it must stay an action, add
+  three genuinely client-facing actions (two reads plus `markAllRead`, a write that is
+  self-scoped by `userId`). If it must stay an action, add
   `await requireTripAccess(input.tripId)` above the create; `cache()` makes it free on the
   common path.
 - **See also:** `ARCH-OBS-3` — the same function's silent `catch`.
@@ -281,8 +296,10 @@ action, not a missing guard.
   explicitly notes it "doesn't address whether the asymmetry still reads right as a Trip's
   own membership grows past a couple" — and which never considered the Globe at all.
 - **Fix sketch:** Gate `inviteToGlobe` on `GlobeMember.role === "owner"` with the
-  `isAdminEmail` bypass ADR 0045 grants elsewhere — `requireGlobeAccess` must return the
-  role it already reads. Pair it with a `removeGlobeMember` so admission is reversible.
+  `isAdminEmail` bypass ADR 0045 grants elsewhere — `requireGlobeAccess` must be
+  extended to read and return `GlobeMember.role`; today it selects only ids
+  (`lib/globe.ts:19-25`, `:62-69`), so there is no existing role read to surface.
+  Pair it with a `removeGlobeMember` so admission is reversible.
 
 ### ARCH-TEN-7 · A leaked Calendar feed token exposes booking references, confirmation numbers, addresses and private notes — not "only schedule"
 - **Severity: P1** · **Blocks rollout: yes** — a subscription URL is the artefact most
@@ -318,11 +335,13 @@ action, not a missing guard.
   stated rationale matches the code.
 
 ### ARCH-TEN-5 · A Stop's `chapterId` is written from client input without confirming the Chapter belongs to the same Trip
-- **Severity: P2** · **Blocks rollout: no** — damage is contained. Every Chapter read is
-  Trip-scoped and `recomputeChapterSpans` only iterates chapters it read
-  `where { tripId, ...planScope }` (`stop-flow.ts:88-91, 104-107`), so a foreign
-  `chapterId` cannot write into another Trip or surface its Chapter's name. The Stop simply
-  renders ungrouped in its own Trip.
+- **Severity: P2** · **Blocks rollout: no** — write damage is contained.
+  `recomputeChapterSpans` only iterates chapters it read `where { tripId, ...planScope }`
+  (`stop-flow.ts:88-91, 104-107`), so a foreign `chapterId` cannot write into another
+  Trip, and the Stop simply renders ungrouped in its own Trip. It **can** leak the
+  foreign Chapter's *name*: `stops.ts:1122-1133` fetches both chapter names by bare id
+  (no trip scope) and records them into the caller's own Activity feed — a cross-tenant
+  read oracle, gated only by cuid guessability like `ARCH-TEN-1`.
 - **Evidence:** three reachable paths — `stops.ts:1108-1120` (`assignStopToChapter`, no
   validation at all), `stops.ts:412` (`updateStop`'s rough branch), `stops.ts:167-172` and
   `:280-288` (`createStop` checks only `chapter.forkId`; the select is `{ forkId: true }`
@@ -333,11 +352,14 @@ action, not a missing guard.
 - **Fix sketch:** Give `stops.ts` the check `chapters.ts` already has, in all three paths.
   Better: delete one of the two same-named `assignStopToChapter` exports — only the
   `chapters.ts` one is correct, and two exports with one name and different authorisation
-  behaviour is itself the hazard.
+  behaviour is itself the hazard. They are not interchangeable, though: the `chapters.ts`
+  one rejects dated Stops and records no Activity; the `stops.ts` one accepts dated Stops
+  and records a chapter-change Activity (`:1126-1133`) — migrate callers knowing they
+  lose both behaviours, not just gain the check.
 
 ### ARCH-TEN-6 · `createFeedbackNote` returns an existing note to any caller who supplies its `clientKey`
-- **Severity: P2** · **Blocks rollout: no** — a `clientKey` is a v4 UUID, so guessing cost
-  is prohibitive. Filed because the *check* is absent, and because Feedback notes are where
+- **Severity: P2** · **Blocks rollout: no** — a `clientKey` is an `fk_`-prefixed v4 UUID
+  (`lib/feedback-queue.ts:167`), so guessing cost is prohibitive. Filed because the *check* is absent, and because Feedback notes are where
   a Traveller writes candidly about their own Trip.
 - **Evidence:** `server/actions/feedback.ts:52-65` —
   `upsert({ where: { clientKey }, update: {}, create: {...}, select: VIEW_SELECT })`.
@@ -363,12 +385,18 @@ action, not a missing guard.
   the hazard. There is no IP allow-list and no second factor.
 - **Verification:** code read (citation-checked). **`INFERENCE`** that Vercel retains full
   request URLs in access logs.
-- **Failure scenario:** the URL leaks into a support ticket or a log export. Each
-  unauthorised run claims the ledger slot for every subscriber *before* sending
-  `:236-237`, so the real run later finds the slot taken and sends nothing — and
-  `lastSuccessAt` is still stamped because `failed === 0` `:273`.
-- **Fix sketch:** Drop the query-param branch; the GitHub Actions workflow can set a header
-  just as easily. Three lines plus a workflow edit.
+- **Failure scenario:** the URL leaks into a support ticket or a log export, and anyone
+  holding it can trigger dispatch runs at will. The cost is unauthorised triggering —
+  off-schedule sends and load — **not** lost Digests: the dispatcher releases its claimed
+  ledger slot on the empty path, on zero delivery and on any throw
+  (`lib/digest-dispatch.ts:677`, `:711-719`, `:724-731`), so a slot survives only when
+  the run actually delivered. (The route's own comment at `:235-237` claims a throw
+  "burns that slot for good" — that comment is stale against `digest-dispatch.ts`; fix
+  it alongside.)
+- **Fix sketch:** Drop the query-param branch. The GitHub Actions workflow **already**
+  sends the secret as an `Authorization: Bearer` header (`digest-cron.yml:80`), and the
+  route checks that header first (`route.ts:102-104`) — so this is three deleted lines
+  and no workflow edit at all.
 
 ### ARCH-TEN-9 · `targetId` is accepted unvalidated on `uploadAttachment` and `addNote`
 - **Severity: P3** · **Blocks rollout: no** — the created row always carries the guarded
@@ -396,12 +424,17 @@ action, not a missing guard.
 - **Severity: P3** · **Blocks rollout: no** — the ids belong to fellow members of a Trip the
   caller can already see, and a `cuid` is not a credential.
 - **Evidence:** `server/actions/activity.ts:49` —
-  `include: { actor: { select: { id: true, name: true, image: true } } }`. Compare
+  `include: { actor: { select: { id: true, name: true, image: true } } }`. A second,
+  larger shipper exists: `app/(app)/trips/[tripId]/activity/page.tsx:19-23` runs its own
+  `db.activity.findMany` with the identical `actor` select over 100 rows. Compare
   `lib/feedback-view.ts:29-34`, which records that FN-04 deliberately stopped shipping
   `authorId` and computed the one boolean it answered server-side instead.
-- **Verification:** code read for the select. **`INFERENCE`** that no client component needs
-  `actor.id`.
-- **Fix sketch:** Drop `id` from the `actor` select. One word.
+- **Verification:** code read for both selects; re-verified that no client component
+  renders `actor.id` (`notification-bell.tsx` and `activity-feed.tsx` use only
+  `name`/`image`).
+- **Fix sketch:** Drop `id` from both `actor` selects (`activity.ts:49`,
+  `activity/page.tsx:21`) and remove `id` from `ActivityRow.actor` in
+  `components/trip/activity-feed.tsx:16-20` — three small edits, not one.
 
 ### ARCH-TEN-12 · The service-worker attachment cache is purged only when a Traveller presses Sign out
 - **Severity: P2** · **Blocks rollout: no** — the strategy is network-first, so a cached
@@ -486,13 +519,14 @@ worth reading in full if you touch deletion. The house rule is stated at
   would silently discard fourteen other people's last day, so in practice you will decline
   to restore at all.
 - **Evidence:** `.github/workflows/db-backup.yml` is genuinely good and **better than you
-  may remember**: daily `pg_dump --format=custom` at 23:26 UTC via the direct unpooled URL
-  `:28, :72`, verified readable with `pg_restore --list` before being called a backup
-  `:78-88`, uploaded as a 30-day artifact `:96`, and deliberately fail-loud when configured
-  but broken `:22-25`. What is missing is everything after it: `docs/DEPLOY.md` is 275 lines
-  and never mentions the workflow, `pg_restore`, or what to do after a bad delete. Its only
-  restore-shaped instruction `:92-93` is a **migration-rehearsal** step. Grepping `docs/`
-  and every root `*.md` for `pg_restore` and `db-backup` returns **zero hits**.
+  may remember**: daily `pg_dump --format=custom` at 23:26 UTC (`:28`) via the direct
+  unpooled URL `:72-73`, verified readable with `pg_restore --list` before being called a
+  backup `:78-88`, uploaded as a 30-day artifact `:96`, and deliberately fail-loud when
+  configured but broken `:22-25`. What is missing is everything after it: `docs/DEPLOY.md`
+  is 275 lines and never mentions the workflow, `pg_restore`, or what to do after a bad
+  delete. Its only restore-shaped instruction `:91-93` is a **migration-rehearsal** step.
+  Grepping `docs/` and every root `*.md` for `pg_restore` and `db-backup` returns **zero
+  hits outside this document**.
 - **Verification:** code read, independently re-verified (workflow and the absence).
   **`INFERENCE`** on the off-repo NAS pull mentioned at `db-backup.yml:5-6`.
 - **Recovery reality today:** RPO up to ~24 hours; retention 30 days; **RTO undefined**;
@@ -522,9 +556,9 @@ worth reading in full if you touch deletion. The house rule is stated at
 
 ### ARCH-DAT-4 · Deleting a Stop silently destroys its Accommodations, their confirmation numbers and their unpaid Costs
 - **Severity: P1** · **Blocks rollout: yes** — the most common destructive click in the app
-  and the one a first-time Traveller is likeliest to make. Trip-delete and Fork-promote both
-  itemise their blast radius; Stop delete, reachable from two surfaces and one tap away,
-  does not.
+  and the one a first-time Traveller is likeliest to make. Fork-promote itemises its blast
+  radius and Trip-delete at least names the categories it destroys; Stop delete, reachable
+  from two surfaces and one tap away, says nothing at all.
 - **Evidence:** `server/actions/stops.ts:497-519` reads the cascaded Accommodations *before*
   the delete precisely because `schema.prisma:337` cascades them, then runs
   `deleteOwnedCostsTx` and `cleanupTargetSideDataTx` over each. The dialog copy is
@@ -552,9 +586,9 @@ filed it P0 on the grounds it was silent — that premise is refuted, see below.
 - **Evidence:** `server/actions/forks.ts:788-794` — `tx.cost.deleteMany` over
   `{ tripId, forkId: null, NOT: { ownerType: "ITEM", ownerId: { in: ideas } } }`. The
   predicate tests only whether the owner is a surviving Wishlist idea; `paidMinor` and
-  `paidAt` are never consulted and `deleteOwnedCostsTx` (`owned-costs.ts:44-59`) is not
-  called — unlike every other deletion path (`items.ts:437`, `accommodation.ts:292`,
-  `transport.ts:451`, `stops.ts:505`). `CONTEXT.md:109` promises *"every figure here is real
+  `paidAt` are never consulted and `deleteOwnedCostsTx` (`server/actions/owned-costs.ts:44-59`)
+  is not called — unlike every other deletion path (`items.ts:437`, `accommodation.ts:293`,
+  `transport.ts:452`, `stops.ts:505`). `CONTEXT.md:110` promises *"every figure here is real
   money; nothing paid ever counts as zero"*.
   **Why not P0:** `forks.ts:648` pushes a `kind: "PAID_COST"` entry into the promotion loss
   list for every paid Cost, and `promote-fork-dialog.tsx:213-251` renders them in a
@@ -587,9 +621,11 @@ filed it P0 on the grounds it was silent — that premise is refuted, see below.
   that no longer exists.
 - **Verification:** code read (citation-checked).
 - **Fix sketch:** Pick one and make the dialog match — re-target the rows onto the promoted
-  entities using the ID map the transaction already has (the better fit for a Trip-wide
-  model), or delete them and keep the copy honest. Either way add a sweep for rows whose
-  `targetId` matches nothing live.
+  entities, **which first requires persisting an old→new id map at Fork creation**: no such
+  map exists at promote time, because the transaction retags rows in bulk
+  (`forks.ts:795-802`) and fork copies deliberately null their source links
+  (`lib/fork-plan.ts:266`, `sourceItemId: null`). Or delete them and keep the copy honest —
+  the cheap option. Either way add a sweep for rows whose `targetId` matches nothing live.
 
 ### ARCH-DAT-8 · Deleting a Traveller destroys other Travellers' files and notes, or fails outright
 - **Severity: P2** · **Blocks rollout: no** — nothing in the app deletes a `User` today. But
@@ -628,8 +664,10 @@ filed it P0 on the grounds it was silent — that premise is refuted, see below.
   disagrees with itself.
 - **Evidence:** `schema.prisma:370` — `Item.stop ... onDelete: SetNull`; the Item keeps its
   `date`. The Plan editor groups day rows by Stop date coverage
-  (`plan/page.tsx:330` → `lib/stop-days.ts:85-100`) and drops unfiled Items outright at
-  `plan/page.tsx:322` (`if (!item.stopId) continue;`). The Calendar still shows them —
+  (`plan/page.tsx:330` → `lib/stop-days.ts:85-100`), and detached **dated** Items never
+  reach that grouping at all — the `scheduledItems` query filters on
+  `stopId: { not: null }` (`plan/page.tsx:161-162`); dateless ones are separately dropped
+  at `plan/page.tsx:322` (`if (!item.stopId) continue;`). The Calendar still shows them —
   `calendar/page.tsx:42-43` queries `{ tripId, forkId: null, date: { not: null } }` with no
   Stop join. Their Costs still roll into the Budget. `items.ts:540-544` states the
   consequence in its own comment.
@@ -662,8 +700,8 @@ filed it P0 on the grounds it was silent — that premise is refuted, see below.
   only people writing during a deploy were the operator and his partner, who knew a deploy
   was happening. `docs/DEPLOY.md:99` still advises *"Deploy at a quiet moment"* — a control
   you no longer have once Travellers are spread across time zones.
-- **Evidence:** `vercel.json:4` — `prisma migrate deploy && next build`, no gate between
-  them. `docs/DEPLOY.md:74-142` documents all three hazard shapes thoroughly and `:127-135`
+- **Evidence:** `vercel.json:4` — the build command runs `prisma migrate deploy`
+  (production-env-gated, so previews skip it) `&& next build`, no gate between them. `docs/DEPLOY.md:74-142` documents all three hazard shapes thoroughly and `:127-135`
   records the `share_links_per_audience` case.
 - **Verification:** code read (citation-checked).
 - **Note:** the §4b procedure is genuinely good and all three 2026-09-21 migrations pass it
@@ -678,9 +716,10 @@ filed it P0 on the grounds it was silent — that premise is refuted, see below.
   `ARCH-DAT-1` through `-4`, because it lets a Traveller rescue themselves without you.
 - **Evidence:** the full `app/api/` route inventory is `fx`, `push`, `calendar/[token]`,
   `auth/[...nextauth]`, `attachments/[id]`, `cron/digest`, `trips/[tripId]/cover` — no
-  export route, and no export-shaped name anywhere in `app/`, `components/`, `server/`,
-  `lib/` or `docs/`. The ICS feed publishes schedule only and carries no Costs, Notes,
-  Journal or files.
+  export route, and no export-shaped name anywhere in `app/`, `components/`, `server/` or
+  `lib/` (docs mention "export" only for the operator-side Feedback inbox, ADR 0040). The
+  ICS feed publishes schedule only and carries no Costs, Note entities, Journal or files —
+  though it does carry Item/Accommodation free-text `notes` fields, which is `ARCH-TEN-7`.
 - **Verification:** code read (citation-checked).
 - **Fix sketch:** A per-Trip JSON export on Settings covering the six plan entities plus
   Notes, Journal, Checklists and an attachment manifest, gated by membership. It is a
@@ -691,7 +730,8 @@ filed it P0 on the grounds it was silent — that premise is refuted, see below.
 
 Confirmed and not re-derived: **no Sentry or equivalent exists anywhere in the codebase**.
 `@vercel/analytics` is pageview and web-vitals telemetry only; its `beforeSend`
-(`components/analytics.tsx:43-48`) redacts URLs and reports no errors.
+(`components/analytics.tsx:43-48`) redacts share tokens from URLs (trip ids are
+deliberately kept) and reports no errors.
 
 ### ARCH-OBS-1 · Every server-side failure terminates in a bare `console.*` with no downstream sink
 - **Severity: P1** · **Blocks rollout: yes** *(orchestrator override — the reviewer filed
@@ -743,13 +783,15 @@ Confirmed and not re-derived: **no Sentry or equivalent exists anywhere in the c
   (`lib/cron-health.ts:69-75`) stays false — and Sofia's own Account page tells *her* the
   dispatcher is healthy. That page is the exact screen ADR 0048 built so a Traveller could
   self-diagnose a broken Digest. This can run for months with no signal to her or to you.
-- **Prior art:** re-raises digest entry **CD-06**, whose `_Rests on:_` line reads *"nothing
-  about Traveller count — one global signal for the whole deployment's dispatcher, not per
-  Traveller."* That is precisely the assumption independent Travellers break: one bit of
-  health state was an adequate proxy for "is my digest working" only while one household sat
-  behind it.
+- **Prior art:** re-raises **CD-06** (`docs/open-follow-ups.md:1400`): its shipped design
+  is one global signal for the whole deployment's dispatcher, with nothing per Traveller.
+  That is precisely the assumption independent Travellers break: one bit of health state
+  was an adequate proxy for "is my digest working" only while one household sat behind it.
 - **Fix sketch:** Add a per-(user, trip) failure signal — a `lastFailedAt` or consecutive-
-  failure count on `DigestDispatch` — surfaced on that Traveller's own Account view. The
+  failure count on `DigestPreference` (already keyed per user and trip) or a dedicated
+  health row — surfaced on that Traveller's own Account view. **Not on `DigestDispatch`:**
+  its rows are claims that `releaseClaim` deletes on failure precisely so the slot can be
+  retried (`lib/digest-dispatch.ts:643-649`), so a counter there records nothing. The
   global `CronHeartbeat` row can stay as the coarse "is the cron firing at all" check.
 
 ### ARCH-OBS-3 · `recordActivity` swallows every failure silently
@@ -757,7 +799,7 @@ Confirmed and not re-derived: **no Sentry or equivalent exists anywhere in the c
   the quietest failure path in the codebase.
 - **Evidence:** `server/actions/activity.ts:15-32` — the entire body including `requireUser()`
   and the `create` is wrapped in `try { ... } catch { }` with no logging at all. Other
-  deliberate-swallow sites (`attachments.ts:138,196`, `target-cleanup.ts:30-34,60-64`) at
+  deliberate-swallow sites (`attachments.ts:148,206`, `target-cleanup.ts:30-34,60-64`) at
   least name what they swallow in a comment.
 - **Verification:** code read, independently re-verified alongside `ARCH-TEN-2`.
 - **Fix sketch:** `console.error` inside the catch with `tripId`, `verb` and `entityType`.
@@ -767,8 +809,8 @@ Confirmed and not re-derived: **no Sentry or equivalent exists anywhere in the c
 ### ARCH-OBS-5 · The cron watchdog never inspects its own response body
 - **Severity: P2** · **Blocks rollout: no** — compounds `ARCH-OBS-4` rather than adding a
   new failure mode.
-- **Evidence:** `.github/workflows/digest-cron.yml:76-92` captures only the HTTP status:
-  `exit 1` on `503` `:85-89`, a soft `::warning` on other non-2xx `:90-92`, nothing
+- **Evidence:** `.github/workflows/digest-cron.yml:76-98` captures only the HTTP status:
+  `exit 1` on `503` `:85-92`, a soft `::warning` on other non-2xx `:93-95`, nothing
   otherwise. The body — `{ considered, dispatched, sent, skipped, failed }`
   (`route.ts:284`) — is only `cat`'d into the run log for a human. No `jq`, no threshold,
   no failure on `failed > 0`.
@@ -781,7 +823,7 @@ Confirmed and not re-derived: **no Sentry or equivalent exists anywhere in the c
 ### ARCH-OBS-6 · Recovery from ADR 0048's own documented failure mode is entirely passive
 - **Severity: P2** · **Blocks rollout: no** — but it is the gap most likely to recur, since
   ADR 0048 documents it already happening once.
-- **Evidence:** `lib/devices.ts:14` defines `DEVICE_STALE_AFTER_DAYS = 14`;
+- **Evidence:** `lib/devices.ts:15` defines `DEVICE_STALE_AFTER_DAYS = 14`;
   `isDeviceStale`/`formatLastSeen` (`:33, :52`) have exactly two consumers —
   `server/actions/devices.ts:181` and `components/account/devices-panel.tsx:218`, both
   feeding the Account device list. Nothing else reads either: no banner, no alternate-channel
@@ -821,13 +863,15 @@ with no bypasses; `lib/globe.ts` is a legitimate parallel access gate, not a lay
 violation; and the flat 98-module `lib/` namespace was checked for concept-level collisions
 in money, dates, fork and auth — none found.
 
-### ARCH-BND-2 · The `forkId: null` real-plan discriminator is hand-typed in 40+ places despite a shared constant existing
+### ARCH-BND-2 · The `forkId: null` real-plan discriminator is hand-typed in ~96 places despite a shared constant existing
 - **Severity: P2** · **Blocks rollout: yes, narrowly** — ADR 0020 itself calls auditing every
   `forkId`-scoped query *"the main ongoing cost of this approach"*, and scattering the literal
   defeats that audit.
-- **Evidence:** `lib/plan-scope.ts:8, 11-13` defines `REAL_PLAN`/`planScope()`; only
-  `server/actions/ai.ts`, `chapters.ts` and `search.ts` import it. 45+ inline literals
-  elsewhere, e.g. `calendar/page.tsx:30,43,60,76,92`; `summary/page.tsx:124,132,195,212,229,239,243,256,262`;
+- **Evidence:** `lib/plan-scope.ts:8, 11-13` defines `REAL_PLAN`/`planScope()`. Only
+  `server/actions/ai.ts`, `chapters.ts` and `search.ts` import `REAL_PLAN`; `planScope()`
+  is additionally imported by `plan/page.tsx`, `budget/page.tsx`, `items.ts`,
+  `stop-flow.ts`, `stops.ts` and `transport.ts` — adoption is real but partial. ~96
+  inline literals remain elsewhere, e.g. `calendar/page.tsx:30,43,60,76,92`; `summary/page.tsx:124,132,195,212,229,239,243,256,262`;
   `day/[date]/page.tsx:79,95,115,135,174,360`; `app/share/[token]/page.tsx:105,123,142,161`;
   `lib/digest-dispatch.ts:157,211,241,372,376,423,437`; `forks.ts:70,435,588,589,747,775-793`.
   `chapters.ts` mixes both styles — `planScope` at `:61,72,179`, hardcoded at `:352`.
@@ -885,10 +929,12 @@ rough-chapter persist where the chapter reorder succeeds and the follow-up stop 
   move was wrong and clicks Undo. `restoreStops` writes back the pre-Stop-A state for every
   Stop in the plan, silently reverting Stop B's move and the accommodation edit, with no
   toast and no way to tell beyond re-reading the whole plan.
-- **Fix sketch:** Scope the snapshot and restore to the rows that actually changed — the
-  server's `changed` list already identifies them — or have `restoreStops` no-op per row when
-  the current state does not match what the snapshot expected to revert from. The second is
-  an optimistic-concurrency check and also closes part of `ARCH-TEN-1`'s shape.
+- **Fix sketch:** Scope the snapshot and restore to the rows that actually changed (note
+  the server's `changed` list names only date-shifted rows — a reorder also rewrites
+  `sortOrder` on rows whose dates never moved, so `changed` alone under-counts), or have
+  `restoreStops` no-op per row when the current state does not match what the snapshot
+  expected to revert from. The second is an optimistic-concurrency check, also closes part
+  of `ARCH-TEN-1`'s shape, and is the sounder option.
 - **See also:** `ARCH-TEN-1` — the same function's missing ownership check.
 
 ### ARCH-CMP-1 · A revalidation can silently discard an in-flight local edit, because the props-to-local resync treats any new object reference as authoritative
@@ -909,8 +955,10 @@ rough-chapter persist where the chapter reorder succeeds and the follow-up stop 
   a new array not yet reflecting her delete, and the reference-only guard overwrites her
   optimistic removal; the leg flickers back until her own revalidation lands.
 - **Fix sketch:** Compare incoming props by content (id + `updatedAt`) rather than array
-  identity before clobbering, or track "has an uncommitted local mutation" and defer. At
-  minimum memoise the arrays built in `page.tsx`.
+  identity before clobbering, or track "has an uncommitted local mutation" and defer.
+  (Memoising the arrays in `page.tsx` is **not** a fix: it is an async Server Component,
+  and props cross the RSC serialisation boundary, so the client receives fresh references
+  on every revalidation regardless of what the server memoises.)
 
 ### ARCH-CMP-3 · On a failed reorder, local state reverts to raw un-normalised props, bypassing the file's own ordering invariant
 - **Severity: P2** · **Blocks rollout: no** — order-only, until the next unrelated
@@ -985,7 +1033,9 @@ reasoning has expired, and three are vocabulary slips.
 - **Severity: P3** · **Blocks rollout: no**
 - **Evidence:** `CONTEXT.md`'s **Traveller** *Avoid* list forbids "Member" —
   `app/(app)/trips/[tripId]/layout.tsx:127`, `components/trip/checklist.tsx:553, 558`,
-  `components/trip/settings/invite-panel.tsx:89`.
+  `components/trip/settings/invite-panel.tsx:89`; also `layout.tsx:119`
+  (`aria-label="Trip members"`) and `components/trip/help-guide.tsx:1021`
+  ("member avatars" in visible help prose).
 - **Fix sketch:** Rename the fallback strings to "Traveller" / "Assigned Traveller".
 
 ### ARCH-ADR-5 · "Command palette" — a deliberately internal name — reaches screen readers
@@ -1040,6 +1090,15 @@ env-var backed so it is revocable without a deploy, comma-separated, case-insens
 normalising with `trim().toLowerCase()`. Roughly one new predicate and four lines in
 `authConfig.callbacks`.
 
+Two things the callback must handle, because Auth.js runs it for **every** provider:
+
+- **The dev-only Credentials provider** (`lib/auth.ts:35-57`) passes through the same
+  callback. Either allowlist your seeded dev emails or special-case
+  `account.provider === "dev-login"` — safe, because that provider is already
+  unregistrable in production (`lib/auth.ts:35`).
+- **Check `profile.email_verified`** for the Google branch — Auth.js's own guidance for
+  exactly this callback — so "the email is verified" is enforced rather than assumed.
+
 ## How the allowlist and Invite must interact (decided 2026-09-22)
 
 **Read this before writing the callback — a plain allowlist silently breaks invites.**
@@ -1053,6 +1112,13 @@ Auth.js has two hooks named `signIn`, and TEEPEE uses only one of them:
 `lib/auth.ts:87-91` registers only the **event**, which calls
 `acceptPendingInvitesForUser`. So the order today is: Google verifies → `PrismaAdapter`
 creates the `User` → event fires → pending Invites are accepted by email match (ADR 0017).
+
+The event is not the only acceptance path: `app/(app)/layout.tsx:61-65` also reconciles
+pending Trip **and Globe** Invites on every authenticated app load — ADR 0017 calls the
+layout hook the important one, since the event never fires for an already-signed-in
+Traveller. Both paths run only after a completed sign-in, so the conclusion below is
+unaffected; but anyone touching acceptance must know there are two call sites, and that
+the layout one also accepts Globe Invites.
 
 The allowlist has to live in the **callback**, which runs before all of that. A naive
 allowlist therefore bounces an invited Traveller *before* the event that would have
