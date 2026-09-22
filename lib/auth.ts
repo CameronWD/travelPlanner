@@ -5,6 +5,7 @@ import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { db } from "@/lib/db";
 import { acceptPendingInvitesForUser } from "@/lib/invites";
+import { isAllowedEmail, hasPendingTripInvite } from "@/lib/allowlist";
 
 /**
  * Auth.js (NextAuth v5) configuration.
@@ -66,6 +67,34 @@ export const authConfig: NextAuthConfig = {
   pages: { signIn: "/signin" },
   providers,
   callbacks: {
+    /**
+     * The rollout gate (ADR 0057). Nothing else in the repo decides who may
+     * sign in — this callback is the one door. It runs BEFORE sign-in
+     * completes; returning false rejects it and no User row is created. (The
+     * `events.signIn` hook below runs only AFTER a successful sign-in and
+     * cannot block one — leave it alone.)
+     */
+    async signIn({ user, account, profile }) {
+      // The dev-login provider is already unregistrable in production
+      // (lib/auth.ts:35 — ALLOW_DEV_LOGIN *and* NODE_ENV !== "production"),
+      // so it passes through. Auth.js runs this callback for EVERY provider.
+      if (account?.provider === "dev-login") return true;
+
+      const email = user.email;
+      if (!email) return false;
+
+      // Auth.js's own guidance for this callback: enforce verification rather
+      // than assume it.
+      if (account?.provider === "google" && profile?.email_verified !== true) {
+        return false;
+      }
+
+      if (await isAllowedEmail(email)) return true;
+      if (await hasPendingTripInvite(email)) return true;
+
+      // Task 14 records the Access request here before refusing.
+      return false;
+    },
     jwt({ token, user }) {
       // On sign-in, persist the DB user id onto the token.
       if (user) token.id = user.id;
