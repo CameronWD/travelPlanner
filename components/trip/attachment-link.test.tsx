@@ -54,7 +54,31 @@ describe("AttachmentLink", () => {
     );
     const link = screen.getByRole("link", { name: "View ticket.pdf" });
     const prevented = clickAndCapture(link);
-    expect(window.open).toHaveBeenCalledWith("/api/attachments/a1", "_blank", "noopener");
+    expect(window.open).toHaveBeenCalledWith("/api/attachments/a1", "_blank");
+    expect(prevented).toBe(true);
+  });
+
+  it("does not fall back to a same-tab navigation when window.open succeeds", () => {
+    // window.open() returns null whenever "noopener" is in the features
+    // string — on success as well as on failure — so a mock that returns a
+    // real-ish object only discriminates the fix if "noopener" is actually
+    // gone from the call. This is the assertion that would have failed
+    // before the fix: with "noopener" present, the fallback below fires
+    // unconditionally and clobbers window.location.href.
+    mockIsStandalone.mockReturnValue(false);
+    const openedWindow = { opener: {} as unknown } as Window;
+    vi.stubGlobal("open", vi.fn().mockReturnValue(openedWindow));
+    vi.stubGlobal("location", { href: "" });
+    render(
+      <AttachmentLink href="/api/attachments/a1" mime="application/pdf" label="View ticket.pdf">
+        ticket.pdf
+      </AttachmentLink>,
+    );
+    const link = screen.getByRole("link", { name: "View ticket.pdf" });
+    const prevented = clickAndCapture(link);
+    expect(window.open).toHaveBeenCalledWith("/api/attachments/a1", "_blank");
+    expect(window.location.href).toBe("");
+    expect(openedWindow.opener).toBeNull();
     expect(prevented).toBe(true);
   });
 
@@ -125,7 +149,7 @@ describe("AttachmentLink", () => {
     );
     const link = screen.getByRole("link", { name: "View ticket.pdf" });
     const prevented = clickAndCapture(link);
-    expect(window.open).toHaveBeenCalledWith("/api/attachments/a1", "_blank", "noopener");
+    expect(window.open).toHaveBeenCalledWith("/api/attachments/a1", "_blank");
     expect(window.location.href).toBe("/api/attachments/a1");
     expect(prevented).toBe(true);
   });

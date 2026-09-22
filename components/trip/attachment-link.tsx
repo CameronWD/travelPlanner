@@ -47,13 +47,24 @@ export function AttachmentLink({
     if (!rendersInline(mime)) return;
     if (isStandalone()) return;
     e.preventDefault();
-    const opened = window.open(href, "_blank", "noopener");
-    // An extension or an embedded webview can block window.open even for a
-    // gesture-synchronous call like this one. If that happens, the default
-    // navigation we just prevented is gone too, and the click would do
-    // nothing at all — worse than the same-tab behaviour we started from.
-    // Fall back to it.
-    if (!opened) window.location.href = href;
+    // Deliberately no "noopener" in the features string: per the HTML spec,
+    // window.open() returns null whenever "noopener" is present — on success
+    // as well as on failure — which would make the blocked-popup check below
+    // always take the fallback branch, even when the tab opened fine. The
+    // target is same-origin and same-app, so noopener buys nothing here; we
+    // null out `opener` by hand instead, which gets the same isolation
+    // without losing the return value we need to detect a real block.
+    const opened = window.open(href, "_blank");
+    if (opened) {
+      opened.opener = null;
+    } else {
+      // An extension or an embedded webview can block window.open even for a
+      // gesture-synchronous call like this one. If that happens, the default
+      // navigation we just prevented is gone too, and the click would do
+      // nothing at all — worse than the same-tab behaviour we started from.
+      // Fall back to it.
+      window.location.href = href;
+    }
   }
 
   return (
