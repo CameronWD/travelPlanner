@@ -39,16 +39,22 @@ function initials(name: string | null, email: string): string {
  * waiting on `router.refresh()`, so the queue visibly shrinks under the
  * admin's own click.
  */
+/** Which row, and which of its two actions, is currently in flight. */
+interface PendingAction {
+  id: string;
+  action: "approve" | "dismiss";
+}
+
 export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) {
   const [requests, setRequests] = React.useState<AccessRequestView[]>(initial);
-  const [pendingId, setPendingId] = React.useState<string | null>(null);
+  const [pending, setPending] = React.useState<PendingAction | null>(null);
   const [message, setMessage] = React.useState<string | null>(null);
 
   async function handleApprove(request: AccessRequestView) {
-    setPendingId(request.id);
+    setPending({ id: request.id, action: "approve" });
     setMessage(null);
     const result = await approveAccessRequest(request.id);
-    setPendingId(null);
+    setPending(null);
     if (result.success) {
       setRequests((prev) => prev.filter((r) => r.id !== request.id));
     } else {
@@ -57,10 +63,10 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
   }
 
   async function handleDismiss(request: AccessRequestView) {
-    setPendingId(request.id);
+    setPending({ id: request.id, action: "dismiss" });
     setMessage(null);
     const result = await dismissAccessRequest(request.id);
-    setPendingId(null);
+    setPending(null);
     if (result.success) {
       setRequests((prev) => prev.filter((r) => r.id !== request.id));
     } else {
@@ -78,7 +84,14 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
 
       {requests.map((request) => {
         const label = request.name ?? request.email;
-        const busy = pendingId === request.id;
+        // Keyed on row id AND action: which button shows a spinner must
+        // match which one is actually running — a click on Dismiss must
+        // never render Approve as in-flight (or vice versa), since this is
+        // the admin surface of the sign-in door and the two actions have
+        // opposite effects.
+        const dismissBusy = pending?.id === request.id && pending.action === "dismiss";
+        const approveBusy = pending?.id === request.id && pending.action === "approve";
+        const rowBusy = dismissBusy || approveBusy;
         return (
           <div
             key={request.id}
@@ -115,7 +128,8 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
                 variant="outline"
                 size="sm"
                 className="gap-1.5"
-                disabled={busy}
+                loading={dismissBusy}
+                disabled={rowBusy}
                 onClick={() => handleDismiss(request)}
               >
                 <X className="size-4" aria-hidden="true" />
@@ -126,7 +140,8 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
                 variant="primary"
                 size="sm"
                 className="gap-1.5"
-                loading={busy}
+                loading={approveBusy}
+                disabled={rowBusy}
                 onClick={() => handleApprove(request)}
               >
                 <Check className="size-4" aria-hidden="true" />

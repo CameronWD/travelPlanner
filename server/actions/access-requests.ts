@@ -96,6 +96,14 @@ export async function listAccessRequests(): Promise<AccessRequestView[]> {
  * the request — it must not throw and must not leave the request stuck
  * pending just because the grant was already in place.
  *
+ * Refuses a request that is already resolved (`resolvedAt` set), whether by
+ * this same action or by dismiss. `AccessRequest.email` is `@unique`, so
+ * there is only ever one row per address — with two admin tabs open, a
+ * dismiss in one followed by an unguarded approve in the other would grant
+ * access AND overwrite `resolvedAt` while `status` stayed "dismissed",
+ * leaving the one audit row contradicting itself (says declined, behaves
+ * admitted). Acting only on a still-open request closes that race.
+ *
  * Does NOT set `status` — see listAccessRequests' doc comment.
  */
 export async function approveAccessRequest(id: string): Promise<ActionResult> {
@@ -104,6 +112,9 @@ export async function approveAccessRequest(id: string): Promise<ActionResult> {
   const request = await db.accessRequest.findUnique({ where: { id } });
   if (!request) {
     return fail({ _form: ["That access request no longer exists."] });
+  }
+  if (request.resolvedAt) {
+    return fail({ _form: ["That request has already been resolved."] });
   }
 
   const email = request.email.trim().toLowerCase();
@@ -135,6 +146,11 @@ export async function approveAccessRequest(id: string): Promise<ActionResult> {
 /**
  * Decline: set `status: "dismissed"` and stamp `resolvedAt`. Never writes an
  * `AllowedEmail` row — dismissing must not grant access.
+ *
+ * Refuses an already-resolved request for the same two-tab reason as
+ * approveAccessRequest above: approve-then-dismiss would set
+ * `status: "dismissed"` on a row whose `AllowedEmail` grant survives (dismiss
+ * never revokes), again leaving the audit row contradicting reality.
  */
 export async function dismissAccessRequest(id: string): Promise<ActionResult> {
   await requireAdmin();
@@ -142,6 +158,9 @@ export async function dismissAccessRequest(id: string): Promise<ActionResult> {
   const request = await db.accessRequest.findUnique({ where: { id } });
   if (!request) {
     return fail({ _form: ["That access request no longer exists."] });
+  }
+  if (request.resolvedAt) {
+    return fail({ _form: ["That request has already been resolved."] });
   }
 
   await db.accessRequest.update({
@@ -183,7 +202,13 @@ export async function listAllowedEmails(): Promise<AllowedEmailView[]> {
     revocable: true,
   }));
 
-  const dbEmails = new Set(dbViews.map((v) => v.email));
+  // Lowercased defensively, same reasoning as approveAccessRequest's write:
+  // every known writer of AllowedEmail.email already lowercases, but this
+  // dedup must not silently double-list the same address (once revocable,
+  // once "not revocable here") just because some row — hand-seeded, restored
+  // from a pre-normalisation backup, or written by a future path that
+  // forgets — isn't already lowercase.
+  const dbEmails = new Set(dbViews.map((v) => v.email.trim().toLowerCase()));
   const raw = process.env.ALLOWED_EMAILS;
   const envEmails = raw
     ? raw
@@ -215,8 +240,16 @@ export async function listAllowedEmails(): Promise<AllowedEmailView[]> {
  * Refuses to let an admin revoke their own address — the exact lockout this
  * whole feature exists to fix, in reverse: revoking the address that lets
  * the acting admin sign in at all, with no path back short of raw SQL.
- * Compared case-insensitively, matching every other email comparison in this
- * codebase (`isAllowedEmail`, `isAdminEmail`).
+ * Compared case-insensitively on BOTH sides, matching every other email
+ * comparison in this codebase (`isAllowedEmail`, `isAdminEmail`) — the admin's
+ * own email is lowercased here same as always, but the stored row's email is
+ * lowercased too rather than trusted as already-normalised. Every known
+ * writer of `AllowedEmail.email` does lowercase it, but approveAccessRequest
+ * (above) already declined to lean on that same invariant for its own write;
+ * this read applies the same scepticism. A row that somehow isn't lowercase
+ * (hand-seeded, restored from a pre-normalisation backup, a future writer
+ * that forgets) would otherwise make this guard silently miss, and the
+ * delete would run — exactly the lockout this exists to prevent.
  *
  * No-op-safe: revoking an already-gone row still returns success, same as
  * revokeShareLink (server/actions/share.ts).
@@ -238,7 +271,7 @@ export async function revokeAllowedEmail(id: string): Promise<ActionResult> {
   }
 
   const adminEmail = (admin.email ?? "").trim().toLowerCase();
-  if (row.email === adminEmail) {
+  if (row.email.trim().toLowerCase() === adminEmail) {
     return fail({
       _form: [
         "You can't revoke your own address — ask another admin, or it locks you out with no way back in.",

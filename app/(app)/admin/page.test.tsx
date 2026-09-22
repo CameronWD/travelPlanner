@@ -51,13 +51,19 @@ describe("AdminPage", () => {
     expect(metadata.title).toBe("Admin");
   });
 
+  // I3 fix: `toHaveBeenCalled()` alone cannot distinguish "the page has its
+  // own guard call" from "the page has no guard call of its own and merely
+  // relies on listAccessRequests/listAllowedEmails calling requireAdmin
+  // internally" — both shapes leave requireAdminMock called (twice, from the
+  // two actions) and both shapes make the "non-admin gets notFound()" test
+  // below pass too, since either way the first requireAdmin call to reject
+  // aborts everything downstream. The only observable that actually depends
+  // on the page having a THIRD, its-own call is the total count: 1 direct +
+  // 1 inside listAccessRequests + 1 inside listAllowedEmails = 3. Remove the
+  // page's own `await requireAdmin()` and this drops to 2.
   it("calls requireAdmin() itself, not just relying on its data calls", async () => {
     await AdminPage();
-    // requireAdmin is called at least once directly by the page, plus once
-    // each inside listAccessRequests/listAllowedEmails — the page-level call
-    // is what's under test here, and it's what makes a non-admin's rejection
-    // (below) happen before ANY data is read.
-    expect(requireAdminMock).toHaveBeenCalled();
+    expect(requireAdminMock).toHaveBeenCalledTimes(3);
   });
 
   it("a non-admin gets notFound() and no data is read", async () => {

@@ -19,6 +19,7 @@ const {
   allowedEmailFindManyMock,
   allowedEmailFindUniqueMock,
   allowedEmailDeleteMock,
+  revalidatePathMock,
 } = vi.hoisted(() => ({
   requireAdminMock: vi.fn(),
   accessRequestFindUniqueMock: vi.fn(),
@@ -28,6 +29,7 @@ const {
   allowedEmailFindManyMock: vi.fn(),
   allowedEmailFindUniqueMock: vi.fn(),
   allowedEmailDeleteMock: vi.fn(),
+  revalidatePathMock: vi.fn(),
 }));
 
 vi.mock("@/lib/guards", () => ({
@@ -51,7 +53,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 vi.mock("next/cache", () => ({
-  revalidatePath: vi.fn(),
+  revalidatePath: revalidatePathMock,
 }));
 
 import {
@@ -98,6 +100,9 @@ describe("approveAccessRequest", () => {
     expect(accessRequestUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ resolvedAt: expect.any(Date) }) }),
     );
+    // A second admin tab (or the same tab after a stale render) must not go
+    // on serving the request as still-pending after this resolves it.
+    expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
   });
 
   it("requires admin FIRST — a non-admin cannot approve and nothing is written", async () => {
@@ -186,6 +191,27 @@ describe("approveAccessRequest", () => {
     expect(result.success).toBe(false);
     expect(allowedEmailCreateMock).not.toHaveBeenCalled();
   });
+
+  // Two-admin-tab race: dismiss the request in tab A, then approve the SAME
+  // request in tab B before it re-renders. Without this guard, approve would
+  // grant access AND overwrite resolvedAt while status stayed "dismissed" —
+  // the one audit row (AccessRequest.email is @unique) would then say
+  // "declined" while behaving "admitted."
+  it("refuses to approve a request that is already resolved (e.g. dismissed in another tab)", async () => {
+    mockAdmin();
+    accessRequestFindUniqueMock.mockResolvedValue({
+      id: "ar1",
+      email: "friend@example.com",
+      status: "dismissed",
+      resolvedAt: new Date("2026-09-01T00:00:00.000Z"),
+    });
+
+    const result = await approveAccessRequest("ar1");
+
+    expect(result.success).toBe(false);
+    expect(allowedEmailCreateMock).not.toHaveBeenCalled();
+    expect(accessRequestUpdateMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -210,6 +236,7 @@ describe("dismissAccessRequest", () => {
         data: expect.objectContaining({ status: "dismissed", resolvedAt: expect.any(Date) }),
       }),
     );
+    expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
   });
 
   it("requires admin FIRST — a non-admin cannot dismiss", async () => {
@@ -228,6 +255,25 @@ describe("dismissAccessRequest", () => {
     expect(result.success).toBe(false);
     expect(accessRequestUpdateMock).not.toHaveBeenCalled();
   });
+
+  // The mirror ordering: approve in tab A, then dismiss the same request in
+  // tab B. Dismiss never revokes, so an unguarded dismiss here would leave
+  // the AllowedEmail grant standing while status flips to "dismissed" — the
+  // one audit row again says the opposite of what actually happened.
+  it("refuses to dismiss a request that is already resolved (e.g. approved in another tab)", async () => {
+    mockAdmin();
+    accessRequestFindUniqueMock.mockResolvedValue({
+      id: "ar1",
+      email: "friend@example.com",
+      status: "pending",
+      resolvedAt: new Date("2026-09-01T00:00:00.000Z"),
+    });
+
+    const result = await dismissAccessRequest("ar1");
+
+    expect(result.success).toBe(false);
+    expect(accessRequestUpdateMock).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -235,13 +281,15 @@ describe("dismissAccessRequest", () => {
 // ---------------------------------------------------------------------------
 
 describe("listAccessRequests", () => {
-  it("requires admin", async () => {
-    mockAdmin();
-    accessRequestFindManyMock.mockResolvedValue([]);
+  // This is the leak path the brief singled out: an unguarded list exposes
+  // every requester's email and avatar. `toHaveBeenCalled()` alone would
+  // pass even if the guard were called AFTER the read — assert the read
+  // never happens at all.
+  it("a non-admin cannot list — requireAdmin rejects, and nothing is read", async () => {
+    requireAdminMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
 
-    await listAccessRequests();
-
-    expect(requireAdminMock).toHaveBeenCalled();
+    await expect(listAccessRequests()).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(accessRequestFindManyMock).not.toHaveBeenCalled();
   });
 
   // Approve deliberately never touches `status` (no third status value), so
@@ -294,14 +342,13 @@ describe("listAccessRequests", () => {
 // ---------------------------------------------------------------------------
 
 describe("listAllowedEmails", () => {
-  it("requires admin", async () => {
-    mockAdmin();
-    allowedEmailFindManyMock.mockResolvedValue([]);
-    delete process.env.ALLOWED_EMAILS;
+  // Same leak-path reasoning as listAccessRequests above — this list is the
+  // full allowlist, not just pending requests.
+  it("a non-admin cannot list — requireAdmin rejects, and nothing is read", async () => {
+    requireAdminMock.mockRejectedValueOnce(new Error("NEXT_NOT_FOUND"));
 
-    await listAllowedEmails();
-
-    expect(requireAdminMock).toHaveBeenCalled();
+    await expect(listAllowedEmails()).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(allowedEmailFindManyMock).not.toHaveBeenCalled();
   });
 
   it("marks database rows as revocable", async () => {
@@ -350,6 +397,25 @@ describe("listAllowedEmails", () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({ email: "both@example.com", revocable: true });
   });
+
+  // I1: every known writer of AllowedEmail.email lowercases, but this dedup
+  // must not lean on that invariant either — a not-already-lowercase row
+  // (hand-seeded, a pre-normalisation backup, a future writer that forgets)
+  // must still be recognised as the same address as its ALLOWED_EMAILS
+  // counterpart, not double-listed once revocable and once not.
+  it("does not double-list when the DATABASE row's casing (not the env var's) is the mismatched one", async () => {
+    mockAdmin();
+    const createdAt = new Date("2026-09-01T00:00:00.000Z");
+    allowedEmailFindManyMock.mockResolvedValue([
+      { id: "ae1", email: "Both@Example.com", note: null, createdAt },
+    ]);
+    process.env.ALLOWED_EMAILS = "both@example.com";
+
+    const result = await listAllowedEmails();
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ revocable: true });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -368,6 +434,7 @@ describe("revokeAllowedEmail", () => {
 
     expect(result.success).toBe(true);
     expect(allowedEmailDeleteMock).toHaveBeenCalledWith({ where: { id: "ae1" } });
+    expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
   });
 
   it("requires admin FIRST — a non-admin cannot revoke", async () => {
@@ -398,6 +465,26 @@ describe("revokeAllowedEmail", () => {
     allowedEmailFindUniqueMock.mockResolvedValue({
       id: "ae1",
       email: "ops@example.com",
+    });
+
+    const result = await revokeAllowedEmail("ae1");
+
+    expect(result.success).toBe(false);
+    expect(allowedEmailDeleteMock).not.toHaveBeenCalled();
+  });
+
+  // I1: the mirror of the test above — the STORED ROW's casing is the
+  // mismatched one this time, not the admin's own. Every known writer of
+  // AllowedEmail.email lowercases, but this guard must not lean on that
+  // invariant either (approveAccessRequest, ten lines away in this same
+  // file, already declined to lean on it for its own write) — a row that
+  // somehow isn't lowercase must still be recognised as the acting admin's
+  // own address, or the guard misses and the delete runs.
+  it("compares case-insensitively on the STORED ROW's side too, not just the admin's", async () => {
+    mockAdmin("ops@example.com", "admin-1");
+    allowedEmailFindUniqueMock.mockResolvedValue({
+      id: "ae1",
+      email: "Ops@Example.com",
     });
 
     const result = await revokeAllowedEmail("ae1");

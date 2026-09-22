@@ -97,6 +97,24 @@ describe("AllowedEmailsPanel", () => {
     expect(screen.getByRole("button", { name: "Revoke friend@example.com" })).toBeInTheDocument();
   });
 
+  // I1: the entry's own casing must be normalised too, not just the (already
+  // lowercased-by-the-page) viewerEmail prop — this client-side guard must
+  // fail independently of the server-side one in revokeAllowedEmail, not
+  // share the same "the row is already lowercase" assumption.
+  it("offers no Revoke button for the viewer's own address even when the entry's stored casing differs", () => {
+    render(
+      <AllowedEmailsPanel
+        initial={[{ ...entries[1], email: "Ops@Example.com" }]}
+        now={NOW}
+        viewerEmail="ops@example.com"
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Revoke Ops@Example.com" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText(/that.?s you/i)).toBeInTheDocument();
+  });
+
   it("keeps the row and shows an error message when revoke fails", async () => {
     revokeAllowedEmail.mockResolvedValue({
       success: false,

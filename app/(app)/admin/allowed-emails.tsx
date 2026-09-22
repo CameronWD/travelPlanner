@@ -67,7 +67,12 @@ export function AllowedEmailsPanel({ initial, now, viewerEmail }: AllowedEmailsP
 
       {entries.map((entry) => {
         const busy = pendingId === entry.id;
-        const isSelf = viewerEmail !== null && entry.email === viewerEmail;
+        // Lowercased on the entry side too, not just the (already-lowercased
+        // by the page) viewerEmail — so this client-side guard and the
+        // server-side one in revokeAllowedEmail fail independently rather
+        // than sharing the same "row is already lowercase" assumption. See
+        // that function's doc comment for why that assumption isn't trusted.
+        const isSelf = viewerEmail !== null && entry.email.trim().toLowerCase() === viewerEmail;
         return (
           <div
             key={entry.id}
