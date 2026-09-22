@@ -124,7 +124,16 @@ const {
   };
 });
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+vi.mock("@/lib/guards", async () => {
+  // isTripOwnerOrAdmin (ARCH-BND-3) lives in lib/access.ts, which is
+  // framework/db-free, so it can be imported for real here — unlike
+  // lib/guards.ts itself, which also imports lib/auth (next-auth →
+  // next/server), a module graph this test file never otherwise loads. Only
+  // requireTripAccess needs db mocking (see trips.test.ts / invites.test.ts
+  // for the same pattern).
+  const { isTripOwnerOrAdmin } = await import("@/lib/access");
+  return { requireTripAccess: requireTripAccessMock, isTripOwnerOrAdmin };
+});
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/geocode", () => ({ geocodePlace: geocodePlaceMock, geocodePlaceDetailed: geocodePlaceDetailedMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: vi.fn().mockResolvedValue(undefined) }));
@@ -853,6 +862,43 @@ describe("deleteStop", () => {
       data: { ownerType: "OTHER", ownerId: null, label: "Hotel Lisboa (deleted)" },
     });
     expect(costDeleteManyMock).toHaveBeenCalledWith({ where: { id: { in: ["c2"] } } });
+  });
+
+  it("ARCH-DAT-1: a plain Traveller cannot delete a Stop", async () => {
+    stopFindUniqueMock.mockResolvedValueOnce({
+      id: "stop-1",
+      tripId: "trip-1",
+      sortOrder: 0,
+      arriveDate: null,
+      departDate: null,
+      nights: null,
+      pinned: false,
+    }); // requireStopAccess
+    requireTripAccessMock.mockResolvedValue({
+      user: { id: "user-2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    const result = await deleteStop("stop-1");
+
+    expect(result.success).toBe(false);
+    expect(transactionMock).not.toHaveBeenCalled();
+    expect(stopDeleteMock).not.toHaveBeenCalled();
+  });
+
+  it("ARCH-DAT-1: the trip owner can delete a Stop", async () => {
+    stopFindUniqueMock
+      .mockResolvedValueOnce({ id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false }) // requireStopAccess
+      .mockResolvedValueOnce({ name: "London" }); // doomed label
+    requireTripAccessMock.mockResolvedValue({
+      user: { id: "user-1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    stopDeleteMock.mockResolvedValue({});
+
+    const result = await deleteStop("stop-1");
+
+    expect(result.success).toBe(true);
   });
 });
 

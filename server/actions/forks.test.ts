@@ -201,11 +201,21 @@ vi.mock("@/lib/compare", () => ({
   diffMetrics: diffMetricsMock,
 }));
 
-vi.mock("@/lib/guards", () => ({
-  requireTripAccess: requireTripAccessMock,
-  requireForkAccess: requireForkAccessMock,
-  assertForkingAllowed: assertForkingAllowedMock,
-}));
+vi.mock("@/lib/guards", async () => {
+  // isTripOwnerOrAdmin (ARCH-BND-3) lives in lib/access.ts, which is
+  // framework/db-free, so it can be imported for real here — unlike
+  // lib/guards.ts itself, which also imports lib/auth (next-auth →
+  // next/server), a module graph this test file never otherwise loads. Only
+  // requireTripAccess/requireForkAccess need db mocking (see trips.test.ts /
+  // invites.test.ts for the same pattern).
+  const { isTripOwnerOrAdmin } = await import("@/lib/access");
+  return {
+    requireTripAccess: requireTripAccessMock,
+    requireForkAccess: requireForkAccessMock,
+    assertForkingAllowed: assertForkingAllowedMock,
+    isTripOwnerOrAdmin,
+  };
+});
 
 vi.mock("@/lib/trip-phase", () => ({
   computeTripPhase: computeTripPhaseMock,
@@ -1341,11 +1351,45 @@ describe("promoteFork", () => {
       fork: { id: "fork-9", tripId: "trip-1", name: "Plan B" },
       trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14" },
     });
+    // Reset to the owner default for every test in this describe (ARCH-DAT-1
+    // tests below override it per-case) — matches requireForkAccessMock's own
+    // reset above, so test order within this file can't leak a "member" role
+    // override into an unrelated later test.
+    requireTripAccessMock.mockResolvedValue({
+      user: { id: "user-1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
     computeTripPhaseMock.mockReturnValue("planning");
     tripFindUniqueMock.mockResolvedValue({
       id: "trip-1",
       startDate: "2026-10-01",
       endDate: "2026-10-14",
+    });
+  });
+
+  describe("access control (ARCH-DAT-1)", () => {
+    it("a plain Traveller cannot promote a Fork", async () => {
+      requireForkAccessMock.mockResolvedValue({
+        user: { id: "user-2", email: "traveller@example.com" },
+        fork: { id: "fork-9", tripId: "trip-1", name: "Plan B" },
+        trip: { id: "trip-1", startDate: "2026-10-01", endDate: "2026-10-14" },
+      });
+      requireTripAccessMock.mockResolvedValue({
+        user: { id: "user-2", email: "traveller@example.com" },
+        membership: { role: "member" },
+      });
+
+      const result = await promoteFork("fork-9");
+
+      expect(result).toEqual({ success: false, error: expect.any(String) });
+      expect(txMock).not.toHaveBeenCalled();
+    });
+
+    it("the trip owner can promote a Fork", async () => {
+      // beforeEach above already sets the owner default.
+      const result = await promoteFork("fork-9");
+
+      expect(result).toEqual({ success: true });
     });
   });
 

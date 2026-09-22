@@ -28,6 +28,16 @@ interface TripMeta {
 export interface CompareTableProps {
   trip: TripMeta;
   plans: ComparisonPlan[];
+  /**
+   * Whether the current Traveller owns this trip (or is an ADMIN_EMAILS
+   * operator — see ADR 0045). Promoting a Fork discards the current real
+   * plan and every other Fork, irreversibly (ARCH-DAT-1b), and is
+   * owner-only; this drives whether the Promote button renders at all.
+   * Hiding is cosmetic — promoteFork's own server-side gate is the real
+   * access control. Defaults `true` so existing callers/tests that don't
+   * pass it keep rendering Promote.
+   */
+  isOwner?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -269,7 +279,7 @@ function ReorderArrows({
 // Main component
 // ---------------------------------------------------------------------------
 
-export function CompareTable({ trip, plans }: CompareTableProps) {
+export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps) {
   const [promoteOpenFor, setPromoteOpenFor] = React.useState<string | null>(null);
   const router = useRouter();
   const [reorderPending, startReorder] = React.useTransition();
@@ -435,16 +445,18 @@ export function CompareTable({ trip, plans }: CompareTableProps) {
                       onMove={(d) => handleMove(plan.forkId!, d)}
                       pending={reorderPending}
                     />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      shape="pill"
-                      className="border-[1.5px] text-[11px] font-bold shrink-0"
-                      onClick={() => setPromoteOpenFor(plan.forkId)}
-                      aria-label={`Promote ${plan.name}`}
-                    >
-                      Promote
-                    </Button>
+                    {isOwner && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        shape="pill"
+                        className="border-[1.5px] text-[11px] font-bold shrink-0"
+                        onClick={() => setPromoteOpenFor(plan.forkId)}
+                        aria-label={`Promote ${plan.name}`}
+                      >
+                        Promote
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -510,16 +522,18 @@ export function CompareTable({ trip, plans }: CompareTableProps) {
                             pending={reorderPending}
                           />
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          shape="pill"
-                          className="w-fit border-[1.5px] text-[11px] font-bold"
-                          onClick={() => setPromoteOpenFor(plan.forkId)}
-                          aria-label={`Promote ${plan.name}`}
-                        >
-                          Promote
-                        </Button>
+                        {isOwner && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            shape="pill"
+                            className="w-fit border-[1.5px] text-[11px] font-bold"
+                            onClick={() => setPromoteOpenFor(plan.forkId)}
+                            aria-label={`Promote ${plan.name}`}
+                          >
+                            Promote
+                          </Button>
+                        )}
                       </div>
                     </th>
                   );

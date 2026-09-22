@@ -208,6 +208,16 @@ describe("delete confirmation gating", () => {
     });
   });
 
+  it("ARCH-DAT-1: hides the Delete Stop control for a non-owner", () => {
+    const stop = makeStop({ id: "stop-abc", name: "Rome" });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[stop]} isOwner={false} />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Delete Rome" })).not.toBeInTheDocument();
+  });
+
   it("shows the stop name in the delete dialog title", async () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "stop-abc", name: "Rome" });

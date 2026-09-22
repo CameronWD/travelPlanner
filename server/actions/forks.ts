@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireTripAccess, requireForkAccess, assertForkingAllowed } from "@/lib/guards";
+import { requireTripAccess, requireForkAccess, assertForkingAllowed, isTripOwnerOrAdmin } from "@/lib/guards";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { buildForkPlan, MAX_FORKS } from "@/lib/fork-plan";
 import { recordActivity } from "@/server/actions/activity";
@@ -738,8 +738,20 @@ export type PromoteForkResult = { success: true } | { success: false; error: str
  */
 export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
   // 1. Auth + existence check
-  const { fork, trip } = await requireForkAccess(forkId);
+  const { user, fork, trip } = await requireForkAccess(forkId);
   const tripId = fork.tripId;
+
+  // ARCH-DAT-1b: promoting a Fork is whole-branch destruction — it discards
+  // the current real plan (and every other Fork), irreversibly — so it is
+  // owner-only even though editing a Fork stays open to every Traveller.
+  // requireForkAccess above only checked membership; a second
+  // `requireTripAccess` call gets the role — free, since it's `cache()`-
+  // memoised per `tripId` (see lib/guards.ts), rather than a second uncached
+  // query, since requireForkAccess's return shape doesn't carry the role.
+  const { membership } = await requireTripAccess(tripId);
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
+    return { success: false, error: "Only the trip owner can promote a Fork." };
+  }
 
   // 2. Phase gate
   // Same clock the fork switcher uses (see createFork above, AB-03).

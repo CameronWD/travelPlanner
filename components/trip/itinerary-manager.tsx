@@ -201,6 +201,15 @@ interface ItineraryManagerProps {
    * that don't pass it keep the pre-toggle behaviour.
    */
   chaptersEnabled?: boolean;
+  /**
+   * Whether the current Traveller owns this trip (or is an ADMIN_EMAILS
+   * operator — see ADR 0045). Deleting a Stop is whole-branch destruction
+   * (ARCH-DAT-1b) and is owner-only; this drives whether StopCard's delete
+   * control renders at all. Hiding is cosmetic — deleteStop's own server-side
+   * gate is the real access control. Defaults `true` so existing
+   * callers/tests that don't pass it keep rendering the delete control.
+   */
+  isOwner?: boolean;
 }
 
 /** Stable empty-array reference so `effectiveChapters` doesn't churn identity
@@ -505,6 +514,7 @@ export function ItineraryManager({
   homeCountryCode,
   roundTrip,
   chaptersEnabled = true,
+  isOwner = true,
 }: ItineraryManagerProps) {
   const { confirm, dialog } = useConfirm();
 
@@ -1571,7 +1581,7 @@ export function ItineraryManager({
         onEdit={(s) => setEditingStop(s)}
         onMoveUp={(id) => handleMoveStop(id, "up")}
         onMoveDown={(id) => handleMoveStop(id, "down")}
-        onDelete={handleDeleteStop}
+        onDelete={isOwner ? handleDeleteStop : undefined}
         onStartChapter={chaptersEnabled ? handleStartChapterHere : undefined}
         onAssignToChapter={chaptersEnabled ? (s) => setAssigningStop(s) : undefined}
         onTogglePin={handleTogglePin}

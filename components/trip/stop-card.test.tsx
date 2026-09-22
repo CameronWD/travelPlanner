@@ -53,6 +53,11 @@ it("shows the date range and a pin control for a scheduled stop", () => {
   expect(screen.getByRole("button", { name: /pin/i })).toBeInTheDocument();
 });
 
+it("ARCH-DAT-1: hides the Delete control when onDelete is omitted (non-owner)", () => {
+  render(<StopCard stop={roughStop} isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} />);
+  expect(screen.queryByRole("button", { name: /^Delete Rome$/ })).not.toBeInTheDocument();
+});
+
 // Task 5 tests — drag handle slot + retire desktop arrows
 
 it("renders a drag handle for a rough stop when dragHandle is provided", () => {

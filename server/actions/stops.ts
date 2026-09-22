@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
@@ -487,10 +487,22 @@ export async function updateStop(
 /**
  * Delete a stop.
  *
- * Verifies the stop belongs to a trip the user can access.
+ * Verifies the stop belongs to a trip the user can access, then that they
+ * own the trip (ARCH-DAT-1b): deleting a Stop is whole-branch destruction —
+ * irreversible, cascading to its Accommodation, Items and Costs — so it is
+ * owner-only even though everyday Stop editing stays open to every
+ * Traveller. requireStopAccess above only checked membership; the role check
+ * needs a second `requireTripAccess` call, which is free — it's `cache()`-
+ * memoised per `tripId` (see lib/guards.ts) — rather than a second uncached
+ * query, since requireStopAccess's return shape doesn't carry the role.
  */
 export async function deleteStop(stopId: string): Promise<StopActionResult> {
   const stop = await requireStopAccess(stopId);
+
+  const { user, membership } = await requireTripAccess(stop.tripId);
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
+    return { success: false, errors: { _: ["Only the trip owner can delete a Stop."] } };
+  }
 
   // Read names BEFORE the delete: the DB cascades Accommodation rows with the
   // Stop, and converted costs need the accommodation's name for their label.
