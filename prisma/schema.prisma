@@ -212,6 +212,9 @@ model Invite {
   token      String    @unique
   role       String    @default("member")
   acceptedAt DateTime?
+  /// Backfilled to NOW() + 30 days at the rollout-gate migration, never from
+  /// createdAt — see that migration's header for why.
+  expiresAt  DateTime?
 
   trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
 
@@ -605,7 +608,10 @@ model JournalEntry {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([tripId, date])
+  // Per-Traveller entries per day, not one shared entry (rollout-gate
+  // migration) — each Traveller keeps their own Journal entry for a date
+  // rather than overwriting the other's.
+  @@unique([tripId, date, authorId])
   @@index([tripId])
 }
 
@@ -672,6 +678,9 @@ model GlobeInvite {
   token      String    @unique
   role       String    @default("member")
   acceptedAt DateTime?
+  /// Backfilled to NOW() + 30 days at the rollout-gate migration, never from
+  /// createdAt — see that migration's header for why.
+  expiresAt  DateTime?
 
   globe Globe @relation(fields: [globeId], references: [id], onDelete: Cascade)
 
@@ -800,4 +809,65 @@ model CronHeartbeat {
   /// Nullable so the migration is additive on the write path too — the
   /// still-running old build never writes it (docs/DEPLOY.md §4b).
   lastSuccessAt DateTime?
+}
+
+// ---------------------------------------------------------------------------
+// Rollout gate — who is allowed to sign in, and the operator-facing sinks
+// that keep the gate itself observable and honest.
+// ---------------------------------------------------------------------------
+
+/// An email permitted to sign in. Read together with the ALLOWED_EMAILS env
+/// var by lib/allowlist.ts — the env var is bootstrap and break-glass, this
+/// table is everyone admitted through the product (ADR 0057).
+model AllowedEmail {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  addedById String?
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+/// A person without an account asking for one. Distinct from Invite, which is
+/// Trip-scoped and owner-only (ADRs 0017, 0052). Written by the signIn
+/// callback from Google's verified profile at the moment of rejection.
+model AccessRequest {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  image         String?
+  status        String    @default("pending") // "pending" | "dismissed"
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  lastAttemptAt DateTime  @default(now())
+  attempts      Int       @default(1)
+
+  @@index([status])
+}
+
+/// A captured application failure. Deduped by `signature` so a loop logs one
+/// row with a count, not ten thousand rows (ADR 0059).
+model ErrorReport {
+  id        String   @id @default(cuid())
+  signature String   @unique
+  message   String
+  stack     String?
+  route     String?
+  source    String   @default("server") // "server" | "client"
+  userId    String?
+  count     Int      @default(1)
+  firstSeen DateTime @default(now())
+  lastSeen  DateTime @default(now())
+
+  @@index([lastSeen])
+}
+
+/// A storage blob whose owning row is gone but which is retained so a database
+/// restore can still find its file. Swept after 35 days — deliberately longer
+/// than db-backup.yml's 30-day dump retention (ARCH-DAT-3).
+model DeletedBlob {
+  id         String   @id @default(cuid())
+  storageKey String   @unique
+  deletedAt  DateTime @default(now())
+
+  @@index([deletedAt])
 }
