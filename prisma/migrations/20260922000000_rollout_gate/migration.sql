@@ -81,6 +81,7 @@ CREATE TABLE "ErrorReport" (
     "route" TEXT,
     "source" TEXT NOT NULL DEFAULT 'server',
     "userId" TEXT,
+    "digest" TEXT,
     "count" INTEGER NOT NULL DEFAULT 1,
     "firstSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "lastSeen" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

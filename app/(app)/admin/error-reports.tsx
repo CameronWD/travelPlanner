@@ -4,9 +4,11 @@ import * as React from "react";
 import { Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { relativeTime } from "@/lib/relative-time";
 import {
   clearErrorReport,
+  clearAllErrorReports,
   type ErrorReportView,
 } from "@/server/actions/error-reports";
 
@@ -19,14 +21,22 @@ export interface ErrorReportsPanelProps {
 /**
  * The `ErrorReport` sink (ARCH-OBS-1, ARCH-OBS-2), surfaced by `lastSeen`
  * desc — the same order `listErrorReports` returns, so this component just
- * renders it. `clearErrorReport` calls `requireAdmin()` server-side before
+ * renders it, capped at `listErrorReports`' own LIST_LIMIT. `clearErrorReport`
+ * and `clearAllErrorReports` both call `requireAdmin()` server-side before
  * doing anything; this panel only reflects that, it grants nothing on its
  * own.
+ *
+ * Per-row Clear has no confirm dialog (a log row the sink will simply
+ * recreate on the next occurrence is not an access grant, and a modal per
+ * row would make the panel unusable) — but "Clear all" is a different blast
+ * radius entirely, so it's the one destructive action here that does confirm.
  */
 export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
   const [reports, setReports] = React.useState<ErrorReportView[]>(initial);
   const [pendingId, setPendingId] = React.useState<string | null>(null);
+  const [clearingAll, setClearingAll] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
+  const { confirm, dialog } = useConfirm();
 
   async function handleClear(report: ErrorReportView) {
     setPendingId(report.id);
@@ -40,8 +50,45 @@ export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
     }
   }
 
+  async function handleClearAll() {
+    const confirmed = await confirm({
+      title: `Clear all ${reports.length} errors?`,
+      description:
+        "This clears every reported error's history. Anything that happens again will simply be reported fresh.",
+      confirmLabel: "Clear all",
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    setClearingAll(true);
+    setMessage(null);
+    const result = await clearAllErrorReports();
+    setClearingAll(false);
+    if (result.success) {
+      setReports([]);
+    } else {
+      setMessage(result.errors._form?.[0] ?? "Couldn't clear all errors.");
+    }
+  }
+
   return (
     <div className="flex flex-col gap-3">
+      {reports.length > 0 && (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5 border-destructive text-destructive hover:bg-destructive/5"
+            loading={clearingAll}
+            onClick={handleClearAll}
+          >
+            <Trash2 className="size-4" aria-hidden="true" />
+            Clear all
+          </Button>
+        </div>
+      )}
+
       {reports.length === 0 && (
         <p className="text-sm text-muted-foreground">No errors reported.</p>
       )}
@@ -76,6 +123,7 @@ export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
               </span>
               <span className="truncate text-[10px] text-muted-foreground/70">
                 {report.signature}
+                {report.digest && ` · digest ${report.digest}`}
               </span>
             </div>
 
@@ -102,6 +150,8 @@ export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
           {message}
         </p>
       )}
+
+      {dialog}
     </div>
   );
 }

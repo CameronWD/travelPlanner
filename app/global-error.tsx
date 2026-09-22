@@ -31,6 +31,11 @@ export default function GlobalError({
           message: error.message,
           stack: error.stack,
           route: window.location.pathname,
+          // I2 (fix round 1): production React replaces a server-component
+          // error's message with one fixed generic string, so `digest` is
+          // the only thing left that can correlate this report back to the
+          // specific server-side failure in the runtime logs.
+          digest: error.digest,
         }),
       }).catch(() => {});
     } catch {

@@ -164,7 +164,7 @@ describe("reportError", () => {
     expect(signatureA).not.toBe(signatureB);
   });
 
-  it("passes route, source and userId through onto the created row", async () => {
+  it("passes route, source, userId and digest through onto the created row", async () => {
     dbMock.errorReport.findUnique.mockResolvedValue(null);
     consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -172,6 +172,7 @@ describe("reportError", () => {
       route: "/api/cron/digest",
       source: "server",
       userId: "user-1",
+      digest: "abc123",
     });
 
     expect(dbMock.errorReport.create).toHaveBeenCalledWith(
@@ -181,8 +182,57 @@ describe("reportError", () => {
           route: "/api/cron/digest",
           source: "server",
           userId: "user-1",
+          digest: "abc123",
         }),
       }),
+    );
+  });
+
+  // C1 (fix round 1): an unauthenticated caller (app/api/client-error/route.ts)
+  // fully controls a client-sourced report's message, and the create path
+  // pushes to every admin Device on a new signature. Capping the message's
+  // length (done at the route) bounds the payload; refusing to push for
+  // client-sourced reports at all removes the unauthenticated-push primitive
+  // entirely — the same { report: false } trade already applied to
+  // notifyAdmins's own sendPush call in lib/admin-notify.ts. The row, the
+  // dedup and the /admin surface are unaffected; only the push is skipped.
+  it("C1: creates the row for a client-sourced report but never notifies admins", async () => {
+    dbMock.errorReport.findUnique.mockResolvedValue(null);
+    // Overrides the P2002 rejection an earlier test left on this mock (only
+    // `.mockClear()`'d between tests, not `.mockReset()`'d) — this test
+    // needs create to actually succeed so execution reaches the
+    // notifyAdmins call it's asserting against.
+    dbMock.errorReport.create.mockResolvedValue({ id: "new-row" });
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await reportError(new Error("render failed"), {
+      route: "/trips/t1",
+      source: "client",
+    });
+
+    expect(dbMock.errorReport.create).toHaveBeenCalled();
+    expect(notifyAdminsMock).not.toHaveBeenCalled();
+  });
+
+  // M1 (fix round 1): the push title was a hardcoded "New server error" —
+  // now built from ctx.source (falling back to DEFAULT_SOURCE), the same
+  // value stored on the row and returned by /admin's listErrorReports, so
+  // the two can never disagree about what produced a given push. Only
+  // "server" can reach this branch today (client-sourced reports never
+  // notify at all — see the C1 test above), but the title is now a genuine
+  // interpolation rather than a string that happened to match by accident.
+  it("M1: the notification title is built from the source, not a bare hardcoded string", async () => {
+    dbMock.errorReport.findUnique.mockResolvedValue(null);
+    // See the C1 test above for why this override is needed.
+    dbMock.errorReport.create.mockResolvedValue({ id: "new-row" });
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await reportError(new Error("boom"), {});
+
+    expect(notifyAdminsMock).toHaveBeenCalledWith(
+      "New server error",
+      expect.anything(),
+      expect.anything(),
     );
   });
 });

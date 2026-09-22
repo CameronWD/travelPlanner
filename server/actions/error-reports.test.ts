@@ -11,14 +11,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const {
   requireAdminMock,
   errorReportFindManyMock,
-  errorReportFindUniqueMock,
-  errorReportDeleteMock,
+  errorReportDeleteManyMock,
   revalidatePathMock,
 } = vi.hoisted(() => ({
   requireAdminMock: vi.fn(),
   errorReportFindManyMock: vi.fn(),
-  errorReportFindUniqueMock: vi.fn(),
-  errorReportDeleteMock: vi.fn(),
+  errorReportDeleteManyMock: vi.fn(),
   revalidatePathMock: vi.fn(),
 }));
 
@@ -30,8 +28,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     errorReport: {
       findMany: errorReportFindManyMock,
-      findUnique: errorReportFindUniqueMock,
-      delete: errorReportDeleteMock,
+      deleteMany: errorReportDeleteManyMock,
     },
   },
 }));
@@ -40,7 +37,7 @@ vi.mock("next/cache", () => ({
   revalidatePath: revalidatePathMock,
 }));
 
-import { listErrorReports, clearErrorReport } from "./error-reports";
+import { listErrorReports, clearErrorReport, clearAllErrorReports } from "./error-reports";
 
 afterEach(() => vi.clearAllMocks());
 
@@ -52,6 +49,7 @@ const ROW = {
   route: "/trips/t1",
   source: "client",
   userId: "u1",
+  digest: "d1",
   count: 3,
   firstSeen: new Date("2026-09-01T00:00:00.000Z"),
   lastSeen: new Date("2026-09-20T00:00:00.000Z"),
@@ -86,33 +84,74 @@ describe("listErrorReports", () => {
       }),
     ]);
   });
+
+  // I1 (fix round 1): ErrorReport is the one table designed to grow, and
+  // clearing was per-row only until clearAllErrorReports below — an
+  // unbounded `findMany` here means the one cleanup surface fails exactly
+  // when the table is largest, leaving raw SQL as the only recovery path.
+  it("I1: caps the query at 200 rows", async () => {
+    requireAdminMock.mockResolvedValue({ id: "admin1", email: "a@x.com" });
+    errorReportFindManyMock.mockResolvedValue([]);
+
+    await listErrorReports();
+
+    expect(errorReportFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 200 }),
+    );
+  });
 });
 
 describe("clearErrorReport", () => {
   it("requires admin before deleting", async () => {
     requireAdminMock.mockRejectedValue(new Error("not admin"));
     await expect(clearErrorReport("e1")).rejects.toThrow("not admin");
-    expect(errorReportDeleteMock).not.toHaveBeenCalled();
+    expect(errorReportDeleteManyMock).not.toHaveBeenCalled();
   });
 
-  it("deletes the row and revalidates /admin", async () => {
+  // M2 (fix round 1): was findUnique + delete — two round trips, and the
+  // second one throws P2025 (record not found) when another admin tab wins
+  // a race to clear the same row first. clearErrorReport's caller
+  // (ErrorReportsPanel.handleClear) has no try/catch, so that throw left
+  // `pendingId` stuck set and the Clear button spinning forever.
+  // `deleteMany` is atomic and a no-op (matches zero rows) rather than an
+  // error when the row is already gone — one round trip, no failure mode
+  // to leave a caller mid-state.
+  it("M2: deletes via deleteMany (atomic, no-op-safe) and revalidates /admin", async () => {
     requireAdminMock.mockResolvedValue({ id: "admin1", email: "a@x.com" });
-    errorReportFindUniqueMock.mockResolvedValue(ROW);
+    errorReportDeleteManyMock.mockResolvedValue({ count: 1 });
 
     const result = await clearErrorReport("e1");
 
-    expect(errorReportDeleteMock).toHaveBeenCalledWith({ where: { id: "e1" } });
+    expect(errorReportDeleteManyMock).toHaveBeenCalledWith({ where: { id: "e1" } });
     expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
     expect(result.success).toBe(true);
   });
 
-  it("is a no-op success when the row is already gone", async () => {
+  it("M2: is a no-op success when the row is already gone (zero rows matched, no throw)", async () => {
     requireAdminMock.mockResolvedValue({ id: "admin1", email: "a@x.com" });
-    errorReportFindUniqueMock.mockResolvedValue(null);
+    errorReportDeleteManyMock.mockResolvedValue({ count: 0 });
 
     const result = await clearErrorReport("gone");
 
-    expect(errorReportDeleteMock).not.toHaveBeenCalled();
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("clearAllErrorReports", () => {
+  it("requires admin before deleting", async () => {
+    requireAdminMock.mockRejectedValue(new Error("not admin"));
+    await expect(clearAllErrorReports()).rejects.toThrow("not admin");
+    expect(errorReportDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes every row and revalidates /admin", async () => {
+    requireAdminMock.mockResolvedValue({ id: "admin1", email: "a@x.com" });
+    errorReportDeleteManyMock.mockResolvedValue({ count: 42 });
+
+    const result = await clearAllErrorReports();
+
+    expect(errorReportDeleteManyMock).toHaveBeenCalledWith({});
+    expect(revalidatePathMock).toHaveBeenCalledWith("/admin");
     expect(result.success).toBe(true);
   });
 });

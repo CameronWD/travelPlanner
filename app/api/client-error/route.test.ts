@@ -89,4 +89,83 @@ describe("POST /api/client-error", () => {
     const res = await POST(post({ message: "boom" }));
     expect(res.status).toBe(204);
   });
+
+  // C1 (fix round 1): message is the entire entropy of reportError's dedup
+  // signature and this route is unauthenticated — an unbounded message let
+  // a caller mint a fresh signature (and, before this round, a fresh push)
+  // on demand. A schema-rejected body still returns 204 and never reaches
+  // reportError, same as any other malformed input.
+  it("C1: rejects an over-long message, still 204, never reaches reportError", async () => {
+    authMock.mockResolvedValue(null);
+    const res = await POST(post({ message: "x".repeat(501) }));
+    expect(res.status).toBe(204);
+    expect(reportErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("C1: rejects an over-long route, still 204, never reaches reportError", async () => {
+    authMock.mockResolvedValue(null);
+    const res = await POST(post({ message: "boom", route: "/".repeat(201) }));
+    expect(res.status).toBe(204);
+    expect(reportErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("C1: accepts a message right at the cap", async () => {
+    authMock.mockResolvedValue(null);
+    reportErrorMock.mockResolvedValue(undefined);
+    const res = await POST(post({ message: "x".repeat(500) }));
+    expect(res.status).toBe(204);
+    expect(reportErrorMock).toHaveBeenCalled();
+  });
+
+  // I2 (fix round 1): React replaces a server-component error's message with
+  // one fixed generic string in production — the digest is the only thing
+  // left that can tell two such reports apart.
+  it("I2: passes the React error digest through to reportError", async () => {
+    authMock.mockResolvedValue(null);
+    reportErrorMock.mockResolvedValue(undefined);
+
+    await POST(post({ message: "boom", digest: "abc123" }));
+
+    expect(reportErrorMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ digest: "abc123" }),
+    );
+  });
+
+  it("I2: digest is optional — omitting it still reports", async () => {
+    authMock.mockResolvedValue(null);
+    reportErrorMock.mockResolvedValue(undefined);
+
+    await POST(post({ message: "boom" }));
+
+    expect(reportErrorMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ digest: undefined }),
+    );
+  });
+
+  // I3 (fix round 1): when the client sends no stack, `new Error(message)`
+  // retains its OWN stack — pointing at this route handler — unless it's
+  // explicitly cleared. A stored stack describing app/api/client-error's own
+  // POST function, not the client failure, would be actively misleading
+  // (and would feed a wrong frame into reportError's signature).
+  it("I3: an omitted client stack does not leak this route's own stack", async () => {
+    authMock.mockResolvedValue(null);
+    reportErrorMock.mockResolvedValue(undefined);
+
+    await POST(post({ message: "boom" }));
+
+    const [err] = reportErrorMock.mock.calls[0] as [Error, unknown];
+    expect(err.stack).toBeUndefined();
+  });
+
+  it("I3: a provided client stack is used verbatim (capped)", async () => {
+    authMock.mockResolvedValue(null);
+    reportErrorMock.mockResolvedValue(undefined);
+
+    await POST(post({ message: "boom", stack: "at ClientComponent" }));
+
+    const [err] = reportErrorMock.mock.calls[0] as [Error, unknown];
+    expect(err.stack).toBe("at ClientComponent");
+  });
 });

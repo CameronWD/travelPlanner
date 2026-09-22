@@ -854,6 +854,11 @@ model ErrorReport {
   route     String?
   source    String   @default("server") // "server" | "client"
   userId    String?
+  /// React's own error digest (Error & { digest?: string }), present on
+  /// server-component render errors — the only handle that still
+  /// correlates a client report back to a specific server-side failure once
+  /// production React has replaced its message with a fixed generic string.
+  digest    String?
   count     Int      @default(1)
   firstSeen DateTime @default(now())
   lastSeen  DateTime @default(now())

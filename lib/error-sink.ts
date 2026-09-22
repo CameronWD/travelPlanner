@@ -39,6 +39,17 @@ export interface ReportErrorContext {
   route?: string;
   source?: "server" | "client";
   userId?: string;
+  /**
+   * React's own error digest (Error & { digest?: string }), present on
+   * server-component render errors. In production React replaces the
+   * message of a server-component error with one fixed generic string
+   * before it ever reaches the client, so without this a batch of distinct
+   * server-render failures collapses into one ErrorReport row with a
+   * climbing count and no way to tell them apart. The digest is the only
+   * handle that still correlates a client report back to the specific
+   * server-side failure in the Vercel runtime logs.
+   */
+  digest?: string;
 }
 
 interface NormalizedError {
@@ -134,6 +145,7 @@ export async function reportError(
           route: ctx.route ?? null,
           source: ctx.source ?? DEFAULT_SOURCE,
           userId: ctx.userId ?? null,
+          digest: ctx.digest ?? null,
         },
       });
     } catch (createErr) {
@@ -154,12 +166,29 @@ export async function reportError(
       return;
     }
 
-    const routeSuffix = ctx.route ? ` on ${ctx.route}` : "";
-    await notifyAdmins(
-      "New server error",
-      `An error was reported${routeSuffix}: ${normalized.message}`,
-      "/admin",
-    );
+    // C1 (fix round 1): client-sourced reports come from
+    // app/api/client-error/route.ts, which is deliberately reachable
+    // without a session (ADR 0059) — so an unauthenticated caller fully
+    // controls `message`, and until now a new signature meant an
+    // unauthenticated string reached every admin Device's lock screen
+    // verbatim. Skipping the push for `source === "client"` removes that
+    // primitive entirely while keeping everything else (the row, the
+    // dedup, the /admin surface): the operator still sees it, just not as
+    // an interrupt. Same trade as `{ report: false }` on notifyAdmins's own
+    // sendPush call in lib/admin-notify.ts — applied here to an
+    // unauthenticated endpoint, which is a strictly easier case to justify
+    // than the one already accepted there.
+    if (ctx.source !== "client") {
+      const routeSuffix = ctx.route ? ` on ${ctx.route}` : "";
+      // M1 (fix round 1): built from the actual source rather than a bare
+      // "New server error" literal, so this can't silently go stale the
+      // next time a new source value is introduced.
+      await notifyAdmins(
+        `New ${ctx.source ?? DEFAULT_SOURCE} error`,
+        `An error was reported${routeSuffix}: ${normalized.message}`,
+        "/admin",
+      );
+    }
   } catch (sinkErr) {
     // The sink must never become the outage — see module doc. This branch
     // covers the database (or notifyAdmins, though it has the same

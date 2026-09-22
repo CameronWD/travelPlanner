@@ -31,16 +31,20 @@ import { reportError } from "@/lib/error-sink";
  * experience. The whole body is wrapped for exactly that reason, mirroring
  * reportError's own "never throws" contract.
  *
- * No normalisation of the client-supplied `message` is done here before it
- * reaches reportError, even though interpolated ids/URLs in a rendering
- * error's message will each mint their own ErrorReport row (reportError
- * hashes name + message + first stack frame — see lib/error-sink.ts). That
- * gap is real but left to the review this task's brief already flags it
- * for: a normaliser written blind, with no sample of what client messages
- * actually look like in production, risks collapsing genuinely distinct
- * failures together as easily as it collapses noise. Safer to let the
- * review look at real rows through the /admin surface below and decide
- * what (if anything) to collapse, than to guess a regex now.
+ * `message` and `route` are length-capped in the schema below (fix round 1,
+ * C1). This is not the normalisation ARCH-OBS-2's original brief left for a
+ * later review to decide (interpolated ids/URLs in a message still mint
+ * their own signature) — that gap is still open, deliberately. Capping is a
+ * bound, not a normaliser: it exists because this route is unauthenticated
+ * and `message` is the entire entropy of reportError's dedup signature
+ * (`name` is always "Error" here, and the first stack frame is effectively
+ * constant per call site) — so an uncapped `message` handed a caller full
+ * control over signature creation, and on a new signature that used to mean
+ * an unauthenticated string landing on every admin Device's lock screen
+ * verbatim. lib/error-sink.ts now also refuses to push for
+ * `source: "client"` at all (same round, same reasoning) — the cap here is
+ * defence in depth on top of that, bounding what reaches the database and
+ * the console regardless of whether a push would ever follow.
  */
 
 // A stack trace with dozens of frames, comfortably including source-mapped
@@ -49,10 +53,23 @@ import { reportError } from "@/lib/error-sink";
 // the database uncapped.
 const MAX_STACK_CHARS = 8_000;
 
+// No real client-thrown `message` is anywhere near this long; it exists to
+// bound the entropy an unauthenticated caller can put into reportError's
+// dedup signature (see module doc, C1).
+const MAX_MESSAGE_CHARS = 500;
+
+// A pathname, not free text — comfortably covers any real route in this app.
+const MAX_ROUTE_CHARS = 200;
+
 const bodySchema = z.object({
-  message: z.string().min(1),
+  message: z.string().min(1).max(MAX_MESSAGE_CHARS),
   stack: z.string().optional(),
-  route: z.string().optional(),
+  route: z.string().max(MAX_ROUTE_CHARS).optional(),
+  // React's error digest (Error & { digest?: string }) — see
+  // ReportErrorContext.digest in lib/error-sink.ts for why this matters.
+  // Capped defensively for the same "unauthenticated caller" reason as
+  // message/route above, even though it isn't part of the dedup signature.
+  digest: z.string().max(200).optional(),
 });
 
 export async function POST(req: Request): Promise<Response> {
@@ -61,16 +78,24 @@ export async function POST(req: Request): Promise<Response> {
     const parsed = bodySchema.safeParse(raw);
 
     if (parsed.success) {
-      const { message, stack, route } = parsed.data;
+      const { message, stack, route, digest } = parsed.data;
       const session = await auth();
 
       const err = new Error(message);
-      if (stack) err.stack = stack.slice(0, MAX_STACK_CHARS);
+      // I3 (fix round 1): without this, an omitted client `stack` left
+      // `new Error(message)`'s OWN stack in place — a frame pointing at
+      // this route handler, not at the client failure being reported. That
+      // frame would then have been what firstStackFrame (lib/error-sink.ts)
+      // hashed into the signature, and what an admin reading the row would
+      // have seen: this route's location, not the Traveller's. Always
+      // overwrite it, to the capped client value or to nothing.
+      err.stack = stack ? stack.slice(0, MAX_STACK_CHARS) : undefined;
 
       await reportError(err, {
         source: "client",
         route,
         userId: session?.user?.id,
+        digest,
       });
     }
   } catch {
