@@ -24,18 +24,23 @@ export async function GET(
   }
 
   const tripId = feed.trip.id;
+  // ARCH-TEN-7: a feed URL is bearer auth — calendar clients fetch it
+  // unauthenticated and the URL travels wherever a subscribed calendar is
+  // shared. It therefore inherits the Share link's floor (server/actions/share.ts:14):
+  // money, notes, confirmations and booking refs are never emitted. The
+  // confirmation lives in the app, offline, behind the Traveller's account.
   const [stops, items, transports, accommodations] = await Promise.all([
     db.stop.findMany({ where: { tripId, forkId: null, arriveDate: { not: null } }, select: { id: true, name: true, timezone: true } }),
     db.item.findMany({
       where: { tripId, forkId: null, date: { not: null } },
       select: {
         id: true, title: true, category: true, date: true, startTime: true, endTime: true,
-        stopId: true, address: true, link: true, booking: true, notes: true,
+        stopId: true, address: true, link: true,
       },
     }),
     db.transport.findMany({
       where: { tripId, forkId: null },
-      select: { id: true, mode: true, depPlace: true, arrPlace: true, depAt: true, arrAt: true, reference: true },
+      select: { id: true, mode: true, depPlace: true, arrPlace: true, depAt: true, arrAt: true },
     }),
     db.accommodation.findMany({
       where: { tripId, forkId: null },
@@ -45,8 +50,6 @@ export async function GET(
         checkIn: true,
         checkOut: true,
         address: true,
-        confirmation: true,
-        notes: true,
         checkOutTime: true,
         stopId: true,
       },

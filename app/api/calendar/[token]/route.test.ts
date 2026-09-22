@@ -52,8 +52,6 @@ function seedRows() {
       stopId: "stop-1",
       address: null,
       link: null,
-      booking: null,
-      notes: null,
     },
   ]);
   transportFindManyMock.mockResolvedValue([
@@ -64,7 +62,6 @@ function seedRows() {
       arrPlace: "Paris",
       depAt: new Date("2026-07-01T08:00:00Z"),
       arrAt: new Date("2026-07-01T09:30:00Z"),
-      reference: "BA123",
     },
   ]);
   accommodationFindManyMock.mockResolvedValue([
@@ -74,8 +71,6 @@ function seedRows() {
       checkIn: "2026-07-01",
       checkOut: "2026-07-04",
       address: null,
-      confirmation: null,
-      notes: null,
     },
   ]);
 }
@@ -192,7 +187,6 @@ describe("GET /api/calendar/[token] — Alarms", () => {
         arrPlace: "Vienna",
         depAt: new Date("2026-12-10T08:00:00Z"),
         arrAt: new Date("2026-12-10T10:30:00Z"),
-        reference: "BA123",
       },
       {
         id: "trans-train",
@@ -201,7 +195,6 @@ describe("GET /api/calendar/[token] — Alarms", () => {
         arrPlace: "Salzburg",
         depAt: new Date("2026-12-11T09:00:00Z"),
         arrAt: new Date("2026-12-11T11:30:00Z"),
-        reference: null,
       },
     ]);
 
@@ -248,8 +241,6 @@ describe("GET /api/calendar/[token] — Alarms", () => {
         checkIn: "2026-12-07",
         checkOut: "2026-12-10",
         address: null,
-        confirmation: null,
-        notes: null,
         checkOutTime: "10:00",
         stopId: "stop-vienna",
       },
@@ -302,8 +293,6 @@ describe("GET /api/calendar/[token] — Alarms", () => {
         checkIn: "2026-08-01",
         checkOut: "2026-08-04",
         address: null,
-        confirmation: null,
-        notes: null,
         checkOutTime: "10:00",
         stopId: "stop-rough",
       },
@@ -354,8 +343,6 @@ describe("GET /api/calendar/[token] — Alarms", () => {
         checkIn: "2026-08-01",
         checkOut: "2026-08-04",
         address: null,
-        confirmation: null,
-        notes: null,
         checkOutTime: "10:00",
         stopId: "stop-1",
       },
@@ -391,7 +378,6 @@ describe("GET /api/calendar/[token] — Alarms", () => {
         arrPlace: "Vienna",
         depAt: new Date("2026-12-10T08:00:00Z"),
         arrAt: new Date("2026-12-10T10:30:00Z"),
-        reference: "BA123",
       },
     ]);
     accommodationFindManyMock.mockResolvedValue([
@@ -401,8 +387,6 @@ describe("GET /api/calendar/[token] — Alarms", () => {
         checkIn: "2026-12-07",
         checkOut: "2026-12-10",
         address: null,
-        confirmation: null,
-        notes: null,
         checkOutTime: "10:00",
         stopId: "stop-vienna",
       },
@@ -415,5 +399,86 @@ describe("GET /api/calendar/[token] — Alarms", () => {
     const body = await res.text();
 
     expect(body).not.toContain("BEGIN:VALARM");
+  });
+});
+
+/**
+ * ARCH-TEN-7: a Calendar feed URL is bearer auth — Google/Apple fetch it
+ * unauthenticated, and it travels wherever a subscribed calendar is shared.
+ * It must therefore obey the same field floor as the Share link
+ * (server/actions/share.ts:14): money, notes, confirmations and booking refs
+ * are never emitted. Address/place fields are kept — a location is what a
+ * calendar is for, and it's not on the forbidden list.
+ */
+describe("GET /api/calendar/[token] — ARCH-TEN-7 field floor", () => {
+  it("never emits confirmations, booking refs or notes, even though address survives", async () => {
+    feedFindUniqueMock.mockResolvedValue({
+      includeTransport: true,
+      includeAccommodation: true,
+      includeActivities: true,
+      alarmTransport: false,
+      alarmCheckOut: false,
+      trip: { id: "trip-1", name: "Summer Trip" },
+    });
+    stopFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([
+      {
+        id: "item-1",
+        title: ITEM_TITLE,
+        category: "Activity",
+        date: "2026-07-01",
+        startTime: null,
+        endTime: null,
+        stopId: null,
+        address: "1 Rue de Rivoli",
+        link: null,
+        // Present even though the route no longer selects these — this
+        // guards the serializer itself, not just the select clause.
+        booking: "ITEM-BOOK-999",
+        notes: "leave key under the mat",
+      },
+    ]);
+    transportFindManyMock.mockResolvedValue([
+      {
+        id: "trans-1",
+        mode: "FLIGHT",
+        depPlace: "London",
+        arrPlace: "Paris",
+        depAt: new Date("2026-07-01T08:00:00Z"),
+        arrAt: new Date("2026-07-01T09:30:00Z"),
+        reference: "BA2490-XYZ",
+      },
+    ]);
+    accommodationFindManyMock.mockResolvedValue([
+      {
+        id: "accom-1",
+        name: "Hotel Lumiere",
+        checkIn: "2026-07-01",
+        checkOut: "2026-07-04",
+        address: "12 Rue de Lumiere",
+        confirmation: "ABC-123",
+        notes: "door code 4821, paid by Cam",
+      },
+    ]);
+
+    const res = await GET(new Request("http://localhost/api/calendar/tok-1"), {
+      params: Promise.resolve({ token: "tok-1" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.text();
+
+    // Forbidden fields, wherever the builder might have put them
+    // (DESCRIPTION, or — for transport — SUMMARY):
+    expect(body).not.toContain("ABC-123");
+    expect(body).not.toContain("door code 4821");
+    expect(body).not.toContain("paid by Cam");
+    expect(body).not.toContain("BA2490-XYZ");
+    expect(body).not.toContain("ITEM-BOOK-999");
+    expect(body).not.toContain("leave key under the mat");
+
+    // Still a useful calendar: locations survive.
+    expect(body).toContain("BEGIN:VEVENT");
+    expect(body).toContain("LOCATION:1 Rue de Rivoli");
+    expect(body).toContain("LOCATION:12 Rue de Lumiere");
   });
 });
