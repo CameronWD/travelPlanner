@@ -1,5 +1,14 @@
 # Things to fix
 
+> **This document is CLOSED — every item in it is fixed (see line 783). Nothing here is
+> open work.** If you are looking for what needs building or fixing, go to
+> **`docs/architecture-sitrep-2026-09-22.md`**, which supersedes this file as the live
+> backlog. It is architecture-level rather than defect-level, and its shortlist is the
+> work that gates opening TEEPEE to more Travellers.
+>
+> Keep this file. Its *Deliberate behaviour — do NOT "fix" these* section is still in
+> force, and its fixed items are the record of what has already been tried.
+
 An audited backlog of real defects and gaps in TEEPEE, written to be handed to an
 agent one item at a time. Compiled 2026-08-14 from: a full verification run (all
 green — see baseline below), a code audit of the high-risk areas (timezone handling,
