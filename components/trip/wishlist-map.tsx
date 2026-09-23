@@ -18,7 +18,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
 import { escapeHtml } from "@/lib/escape-html";
-import { pinHex } from "@/lib/map-pins";
+import { pinHex, pinHtml, pinSize } from "@/lib/map-pins";
 import { applyLeafletIconDefaults } from "@/lib/map-icons";
 
 // Leaflet CSS imported here; the bundle includes it once.
@@ -48,23 +48,15 @@ export interface WishlistMapProps {
 function categoryIcon(
   L: typeof import("leaflet"),
   category: string,
+  dark: boolean,
 ): import("leaflet").DivIcon {
-  const hex = pinHex(category);
+  const size = pinSize("category");
   return L.divIcon({
-    html: `<div style="
-      width:28px;height:28px;
-      border-radius:50%;
-      background:${hex};
-      color:#fff;
-      display:flex;align-items:center;justify-content:center;
-      font-size:12px;font-weight:700;font-family:sans-serif;
-      border:2px solid #fff;
-      box-shadow:0 2px 6px rgba(0,0,0,0.3);
-    ">●</div>`,
+    html: pinHtml({ variant: "category", fill: pinHex(category, dark), dark }),
     className: "",
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -16],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -(size / 2 + 2)],
   });
 }
 
@@ -114,7 +106,7 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
 
       // Place a marker per wishlist item
       for (const item of items) {
-        const icon = categoryIcon(L, item.category);
+        const icon = categoryIcon(L, item.category, isDark);
         const popupHtml = `<div style="min-width:min(140px,80vw);max-width:min(240px,90vw);line-height:1.5">
           <strong style="font-size:14px">${escapeHtml(item.title)}</strong>
         </div>`;

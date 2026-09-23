@@ -15,7 +15,7 @@ import type { MarkerView } from "@/components/globe/types";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
 import { escapeHtml } from "@/lib/escape-html";
-import { pinHex } from "@/lib/map-pins";
+import { pinHex, pinHtml, pinSize } from "@/lib/map-pins";
 import { applyLeafletIconDefaults } from "@/lib/map-icons";
 
 export interface GlobeMapProps {
@@ -28,25 +28,25 @@ export interface GlobeMapProps {
   attachmentsByMarkerId?: Record<string, { id: string }[]>;
 }
 
-function categoryIcon(L: typeof import("leaflet"), category: string): import("leaflet").DivIcon {
-  const hex = pinHex(category);
+function categoryIcon(L: typeof import("leaflet"), category: string, dark: boolean): import("leaflet").DivIcon {
+  const size = pinSize("category");
   return L.divIcon({
-    html: `<div style="width:24px;height:24px;border-radius:50%;background:${hex};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)">●</div>`,
+    html: pinHtml({ variant: "category", fill: pinHex(category, dark), dark }),
     className: "",
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -14],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -(size / 2 + 2)],
   });
 }
 
-function selectedIcon(L: typeof import("leaflet"), category: string): import("leaflet").DivIcon {
-  const hex = pinHex(category);
+function selectedIcon(L: typeof import("leaflet"), category: string, dark: boolean): import("leaflet").DivIcon {
+  const size = pinSize("category");
   return L.divIcon({
-    html: `<div style="width:34px;height:34px;border-radius:50%;background:${hex};color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;border:3px solid #fff;box-shadow:0 0 0 2px ${hex},0 4px 12px rgba(0,0,0,0.4)">●</div>`,
+    html: pinHtml({ variant: "category", fill: pinHex(category, dark), dark, selected: true }),
     className: "",
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-    popupAnchor: [0, -19],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -(size / 2 + 2)],
   });
 }
 
@@ -156,7 +156,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
 
       for (const mk of located) {
         const isSelected = mk.id === selectedId;
-        const icon = isSelected ? selectedIcon(L, mk.category) : categoryIcon(L, mk.category);
+        const icon = isSelected ? selectedIcon(L, mk.category, isDark) : categoryIcon(L, mk.category, isDark);
         const attachCount = attachmentsByMarkerId?.[mk.id]?.length ?? 0;
         const attachLine = attachCount > 0
           ? `<p style="font-size:12px;color:#6b7280;margin:0 0 4px">📎 ${attachCount}</p>`
@@ -194,7 +194,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, located.map((m) => `${m.id}:${m.lat},${m.lng}:${m.category}`).join("|"), JSON.stringify(attachmentsByMarkerId ? Object.fromEntries(Object.entries(attachmentsByMarkerId).map(([k, v]) => [k, v.length])) : null)]);
+  }, [ready, isDark, located.map((m) => `${m.id}:${m.lat},${m.lng}:${m.category}`).join("|"), JSON.stringify(attachmentsByMarkerId ? Object.fromEntries(Object.entries(attachmentsByMarkerId).map(([k, v]) => [k, v.length])) : null)]);
 
   // Fly to + highlight the selected marker whenever selectedId changes.
   useEffect(() => {
@@ -207,7 +207,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
         const instance = markerInstancesRef.current.get(mk.id);
         if (!instance) continue;
         const isSelected = mk.id === selectedId;
-        instance.setIcon(isSelected ? selectedIcon(L, mk.category) : categoryIcon(L, mk.category));
+        instance.setIcon(isSelected ? selectedIcon(L, mk.category, isDark) : categoryIcon(L, mk.category, isDark));
         instance.setZIndexOffset(isSelected ? 1000 : 0);
       }
       // Fly to + open popup of the newly selected marker.

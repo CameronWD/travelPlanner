@@ -27,6 +27,7 @@ import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
 import { escapeHtml } from "@/lib/escape-html";
 import { applyLeafletIconDefaults } from "@/lib/map-icons";
+import { pinHtml, pinSize } from "@/lib/map-pins";
 
 // Leaflet CSS imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
@@ -59,22 +60,19 @@ function itemIcon(
   });
 }
 
-function accommodationIcon(L: typeof import("leaflet")): import("leaflet").DivIcon {
+// Converted to `pinHtml` (variant "home"): the hand-rolled version put white
+// text on a #0d9488 fill, measuring 3.74:1 against the 4.5:1 AA text requires
+// -- one of the map-pin contrast failures the full-app audit found. `pinHtml`'s
+// "home" variant keeps the distinct rounded-square shape (vs. the circular
+// item pins) but swaps to an ink/paper pair that clears AA in both themes.
+function accommodationIcon(L: typeof import("leaflet"), dark: boolean): import("leaflet").DivIcon {
+  const size = pinSize("home");
   return L.divIcon({
-    html: `<div style="
-      width:28px;height:28px;
-      border-radius:6px;
-      background:#0d9488;
-      color:#fff;
-      display:flex;align-items:center;justify-content:center;
-      font-size:13px;font-weight:700;font-family:sans-serif;
-      border:2px solid #fff;
-      box-shadow:0 2px 6px rgba(0,0,0,0.3);
-    ">H</div>`,
+    html: pinHtml({ variant: "home", label: "H", dark }),
     className: "",
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -16],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -(size / 2 + 2)],
   });
 }
 
@@ -196,7 +194,7 @@ export function DayMap({
         if (point.kind === "item") {
           icon = itemIcon(lf, point.order ?? 1);
         } else if (point.kind === "accommodation") {
-          icon = accommodationIcon(lf);
+          icon = accommodationIcon(lf, isDark);
         } else {
           icon = transportIcon(lf);
         }
