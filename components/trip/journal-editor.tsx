@@ -320,7 +320,7 @@ export function JournalEditor({
             <p
               role="status"
               aria-live="polite"
-              className="text-[11px] font-medium text-success"
+              className="text-[11px] font-medium text-teal-text"
             >
               {saveStatus === "saving"
                 ? "Saving…"

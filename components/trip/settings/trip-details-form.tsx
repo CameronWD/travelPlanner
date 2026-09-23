@@ -163,7 +163,7 @@ export function TripDetailsForm({ tripId, defaultValues }: TripDetailsFormProps)
           Save changes
         </Button>
         {saved && (
-          <span className="flex items-center gap-1.5 text-sm text-success">
+          <span className="flex items-center gap-1.5 text-sm text-teal-text">
             <CheckCircle2 className="size-4" aria-hidden="true" />
             Saved!
           </span>
