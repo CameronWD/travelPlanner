@@ -60,6 +60,28 @@
   --sun-text: 43 79% 28%; /* #80600F */
   --teal-text: 179 60% 27%; /* #1C706E */
   --lilac-text: 262 47% 49%; /* #6D43B8 */
+
+  /* Categorical hue ramp: 8 hues + stone. Shared by item categories (lib/categories.ts) and chapter colours (lib/chapter-colours.ts).
+     fill = chip/pin/band fill, always with ink text + 2px ink outline. -text = the hue as text/icon on paper or card (>= 4.8:1). */
+  --hue-sky: 197 84% 75%; /* #8AD6F5 */
+  --hue-sky-text: 195 70% 35%; /* #1B7998 */
+  --hue-sun: 42 100% 70%; /* #FFD166 */
+  --hue-sun-text: 43 79% 28%; /* #80600F */
+  --hue-leaf: 88 59% 63%; /* #A6D96A */
+  --hue-leaf-text: 82 78% 27%; /* #527A0F */
+  --hue-lilac: 264 100% 82%; /* #C7A2FF */
+  --hue-lilac-text: 262 47% 49%; /* #6D43B8 */
+  --hue-pink: 336 100% 81%; /* #FF9EC4 */
+  --hue-pink-text: 335 37% 50%; /* #AD5077 */
+  --hue-teal: 179 44% 55%; /* #5BC0BE */
+  --hue-teal-text: 179 60% 27%; /* #1C706E */
+  --hue-coral: 11 100% 65%; /* #FF6B4A */
+  --hue-coral-text: 11 73% 42%; /* #B8391D */
+  --hue-indigo: 230 100% 75%; /* #7F94FF */
+  --hue-indigo-text: 232 58% 58%; /* #5566D2 */
+  --hue-stone: 39 20% 80%; /* #D6CFC2 */
+  --hue-stone-text: 39 21% 40%; /* #7C6D51 */
+
   --on-accent: 60 4% 11%; /* #1D1D1B */
   --on-accent-muted: 34 8% 17%; /* #302D29 */
   --canvas: 37 33% 91%; /* #EFE9DF */
@@ -122,6 +144,27 @@
   --sun-text: 42 68% 69%; /* #E6C57A */
   --teal-text: 177 34% 58%; /* #6FB8B4 */
   --lilac-text: 259 53% 76%; /* #B5A0E2 */
+
+  /* Hue ramp, dark: fills desaturated to carry dark ink; -text = fill (>= 4.9:1 on card). */
+  --hue-sky: 198 47% 69%; /* #8CC0D6 */
+  --hue-sky-text: 198 47% 69%; /* #8CC0D6 */
+  --hue-sun: 42 68% 69%; /* #E6C57A */
+  --hue-sun-text: 42 68% 69%; /* #E6C57A */
+  --hue-leaf: 89 39% 63%; /* #A1C57A */
+  --hue-leaf-text: 89 39% 63%; /* #A1C57A */
+  --hue-lilac: 259 53% 76%; /* #B5A0E2 */
+  --hue-lilac-text: 259 53% 76%; /* #B5A0E2 */
+  --hue-pink: 338 58% 76%; /* #E6A0BA */
+  --hue-pink-text: 338 58% 76%; /* #E6A0BA */
+  --hue-teal: 177 34% 58%; /* #6FB8B4 */
+  --hue-teal-text: 177 34% 58%; /* #6FB8B4 */
+  --hue-coral: 13 73% 67%; /* #E8866C */
+  --hue-coral-text: 13 73% 67%; /* #E8866C */
+  --hue-indigo: 229 58% 69%; /* #8192DE */
+  --hue-indigo-text: 229 58% 69%; /* #8192DE */
+  --hue-stone: 39 9% 71%; /* #BCB7AE */
+  --hue-stone-text: 39 9% 71%; /* #BCB7AE */
+
   --on-accent: 36 10% 10%; /* #1C1A17 */
   --on-accent-muted: 38 10% 21%; /* #3A362F */
   --canvas: 36 12% 8%; /* #181613 */
@@ -178,6 +221,27 @@
   --color-sun-text: hsl(var(--sun-text));
   --color-teal-text: hsl(var(--teal-text));
   --color-lilac-text: hsl(var(--lilac-text));
+
+  /* Hue ramp: bg-hue-sky, text-hue-sky-text, border-hue-sky, bg-hue-sky/25 … */
+  --color-hue-sky: hsl(var(--hue-sky));
+  --color-hue-sky-text: hsl(var(--hue-sky-text));
+  --color-hue-sun: hsl(var(--hue-sun));
+  --color-hue-sun-text: hsl(var(--hue-sun-text));
+  --color-hue-leaf: hsl(var(--hue-leaf));
+  --color-hue-leaf-text: hsl(var(--hue-leaf-text));
+  --color-hue-lilac: hsl(var(--hue-lilac));
+  --color-hue-lilac-text: hsl(var(--hue-lilac-text));
+  --color-hue-pink: hsl(var(--hue-pink));
+  --color-hue-pink-text: hsl(var(--hue-pink-text));
+  --color-hue-teal: hsl(var(--hue-teal));
+  --color-hue-teal-text: hsl(var(--hue-teal-text));
+  --color-hue-coral: hsl(var(--hue-coral));
+  --color-hue-coral-text: hsl(var(--hue-coral-text));
+  --color-hue-indigo: hsl(var(--hue-indigo));
+  --color-hue-indigo-text: hsl(var(--hue-indigo-text));
+  --color-hue-stone: hsl(var(--hue-stone));
+  --color-hue-stone-text: hsl(var(--hue-stone-text));
+
   --color-on-accent: hsl(var(--on-accent));
   --color-on-accent-muted: hsl(var(--on-accent-muted));
   --color-canvas: hsl(var(--canvas));
