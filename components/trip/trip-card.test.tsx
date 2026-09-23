@@ -151,7 +151,7 @@ describe("TripCard", () => {
     );
     const dot = container.querySelector("[data-testid='phase-dot']") as HTMLElement;
     expect(dot).toBeTruthy();
-    expect(dot.className).toContain("bg-amber");
+    expect(dot.className).toContain("bg-hue-sun");
   });
 
   it("renders a leading hue dot inside the phase badge for past phase", () => {
@@ -163,6 +163,6 @@ describe("TripCard", () => {
     );
     const dot = container.querySelector("[data-testid='phase-dot']") as HTMLElement;
     expect(dot).toBeTruthy();
-    expect(dot.className).toContain("bg-stone");
+    expect(dot.className).toContain("bg-hue-stone");
   });
 });

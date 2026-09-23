@@ -450,7 +450,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
 
         {/* Out-of-trip notice */}
         {isBeforeTrip && (
-          <p className="mt-1 text-sm text-amber-600 dark:text-amber-400">
+          <p className="mt-1 text-sm text-warning">
             Your trip starts on {formatLongDate(startDate)} — here&apos;s day one.
           </p>
         )}
@@ -573,12 +573,12 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
                 Tonight&apos;s stay
               </h3>
-              <div className="flex items-start gap-3 rounded-2xl bg-emerald-50 px-4 py-3 dark:bg-emerald-950/20">
-                <Bed className="mt-0.5 size-5 shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
+              <div className="flex items-start gap-3 rounded-2xl bg-hue-leaf/25 px-4 py-3">
+                <Bed className="mt-0.5 size-5 shrink-0 text-hue-leaf-text" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-emerald-900 dark:text-emerald-100">{tonightAccom.name}</p>
+                  <p className="font-medium text-hue-leaf-text">{tonightAccom.name}</p>
                   {tonightAccom.address && (
-                    <div className="mt-0.5 flex items-center gap-1 text-xs text-emerald-700/80 dark:text-emerald-300/70">
+                    <div className="mt-0.5 flex items-center gap-1 text-xs text-hue-leaf-text/80">
                       <span className="truncate">{tonightAccom.address}</span>
                       <MapLink
                         lat={tonightAccom.lat}

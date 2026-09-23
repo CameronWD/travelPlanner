@@ -293,7 +293,7 @@ function TransportRow({
 
         {/* Multi-day notice */}
         {isDep && depEntry && !depEntry.arrivesSameDay && depEntry.arrivalDateISO && (
-          <p className="mt-0.5 text-xs sm:text-[11px] text-amber-600 dark:text-amber-400">
+          <p className="mt-0.5 text-xs sm:text-[11px] text-warning">
             Arrives {depEntry.arrivalDateISO}
           </p>
         )}
@@ -468,13 +468,13 @@ function AccomCheckinRow({
       className={cn(
         "flex items-center gap-2",
         isDay
-          ? "rounded-2xl bg-emerald-100 px-3 py-2.5 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+          ? "rounded-2xl bg-hue-leaf/25 px-3 py-2.5 text-hue-leaf-text"
           : "px-2 py-1 rounded-lg",
       )}
     >
       <TimeGutter time={a.checkInTime ?? null} isDay={isDay} />
       <LogIn
-        className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+        className="size-4 shrink-0 text-hue-leaf-text"
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
@@ -508,13 +508,13 @@ function AccomCheckoutRow({
       className={cn(
         "flex items-center gap-2",
         isDay
-          ? "rounded-2xl bg-rose-100 px-3 py-2.5 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+          ? "rounded-2xl bg-hue-pink/25 px-3 py-2.5 text-hue-pink-text"
           : "px-2 py-1 rounded-lg",
       )}
     >
       <TimeGutter time={a.checkOutTime ?? null} isDay={isDay} />
       <LogOut
-        className="size-4 shrink-0 text-rose-600 dark:text-rose-400"
+        className="size-4 shrink-0 text-hue-pink-text"
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">

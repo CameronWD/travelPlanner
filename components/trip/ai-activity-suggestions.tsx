@@ -119,8 +119,8 @@ export function AiActivitySuggestions({
       )}
 
       {hasSuggestions && expanded && (
-        <div className="flex flex-col gap-1.5 rounded-xl border border-violet-200 bg-violet-50 p-3 dark:border-violet-800 dark:bg-violet-950/30">
-          <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mb-1">
+        <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-hue-lilac/25 p-3">
+          <p className="text-xs font-medium text-hue-lilac-text mb-1">
             AI suggestions for {stopName}
           </p>
           <ul className="flex flex-col gap-2">

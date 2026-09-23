@@ -96,14 +96,14 @@ export function MonthGrid({
                   })}
                   {day?.accommodationEntries.map((a) =>
                     a.kind === "accommodation-checkin" ? (
-                      <LogIn key={`in-${a.accommodation.id}`} className="size-3 shrink-0 text-emerald-600" aria-hidden="true" />
+                      <LogIn key={`in-${a.accommodation.id}`} className="size-3 shrink-0 text-hue-leaf-text" aria-hidden="true" />
                     ) : (
-                      <LogOut key={`out-${a.accommodation.id}`} className="size-3 shrink-0 text-rose-600" aria-hidden="true" />
+                      <LogOut key={`out-${a.accommodation.id}`} className="size-3 shrink-0 text-hue-pink-text" aria-hidden="true" />
                     ),
                   )}
                   {packed && (
                     <span
-                      className="size-1.5 rounded-full bg-amber-500"
+                      className="size-1.5 rounded-full bg-warning"
                       title="Busy day"
                       aria-label="Busy day"
                     />

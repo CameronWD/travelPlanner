@@ -40,11 +40,11 @@ describe("UpcomingPaymentsCard", () => {
     expect(screen.getByText("comes out today")).toBeInTheDocument();
   });
 
-  it("shows 'was due N day(s) ago' and an amber treatment for overdue rows", () => {
+  it("shows 'was due N day(s) ago' and a warning treatment for overdue rows", () => {
     render(<UpcomingPaymentsCard payments={[payment({ costId: "a", daysUntil: -4 })]} tripId="trip-1" />);
     const phrase = screen.getByText("was due 4 day(s) ago");
     expect(phrase).toBeInTheDocument();
-    expect(phrase.className).toMatch(/amber-600/);
+    expect(phrase.className).toMatch(/text-warning/);
   });
 
   it("links each row through to the trip's budget page", () => {

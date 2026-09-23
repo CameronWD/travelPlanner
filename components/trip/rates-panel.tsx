@@ -59,7 +59,7 @@ export function formatRate(rate: number): string {
 export function SourceBadge({ source }: { source: RateEntry["source"]; stale?: boolean }) {
   if (source === "manual") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-violet-600 dark:text-violet-400">
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-hue-lilac-text">
         <Lock className="size-3" aria-hidden="true" />
         Manual
       </span>
@@ -67,7 +67,7 @@ export function SourceBadge({ source }: { source: RateEntry["source"]; stale?: b
   }
   if (source === "fetched") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
         <CheckCircle2 className="size-3" aria-hidden="true" />
         Live
       </span>
@@ -78,7 +78,7 @@ export function SourceBadge({ source }: { source: RateEntry["source"]; stale?: b
   // being labelled stale if there is any prop mismatch.
   if (source === "stale") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-warning">
         <Clock className="size-3" aria-hidden="true" />
         Stale
       </span>

@@ -22,8 +22,8 @@ describe("NextStepsCard", () => {
   it("shows a count badge and severity-hued icon chips", () => {
     const { container } = render(<NextStepsCard steps={[warn, info]} />);
     expect(screen.getByText("2")).toBeInTheDocument();
-    expect(container.querySelector(".bg-amber-500")).toBeTruthy(); // warning chip
-    expect(container.querySelector(".bg-sky-500")).toBeTruthy(); // info chip
+    expect(container.querySelector(".bg-warning")).toBeTruthy(); // warning chip
+    expect(container.querySelector(".bg-hue-sky")).toBeTruthy(); // info chip
   });
 
   it("renders subtitle line when subtitle is present", () => {
@@ -36,6 +36,6 @@ describe("NextStepsCard", () => {
     const { container } = render(<NextStepsCard steps={[transport]} />);
     expect(container.querySelector(".bg-primary")).toBeTruthy();
     // should NOT use sky for transport
-    expect(container.querySelector(".bg-sky-500")).toBeFalsy();
+    expect(container.querySelector(".bg-hue-sky")).toBeFalsy();
   });
 });

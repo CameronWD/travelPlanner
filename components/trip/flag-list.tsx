@@ -31,18 +31,16 @@ export interface FlagListProps {
 
 const SEVERITY_CONFIG = {
   warning: {
-    containerClass:
-      "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800/50",
-    iconClass: "text-amber-600 dark:text-amber-400",
-    labelClass: "text-amber-800 dark:text-amber-300",
+    containerClass: "bg-warning/10 border-warning/40",
+    iconClass: "text-warning",
+    labelClass: "text-warning",
     icon: AlertTriangle,
     label: "Warning",
   },
   info: {
-    containerClass:
-      "bg-sky-50 border-sky-200 dark:bg-sky-950/30 dark:border-sky-800/50",
-    iconClass: "text-sky-600 dark:text-sky-400",
-    labelClass: "text-sky-800 dark:text-sky-300",
+    containerClass: "bg-hue-sky/25 border-border",
+    iconClass: "text-hue-sky-text",
+    labelClass: "text-hue-sky-text",
     icon: Info,
     label: "Info",
   },

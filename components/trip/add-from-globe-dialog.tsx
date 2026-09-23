@@ -144,7 +144,7 @@ export function AddFromGlobeDialog({
                       </div>
 
                       {isAdded ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-success/40 bg-success/15 px-2 py-0.5 text-xs font-medium text-success">
                           <Check className="size-3" aria-hidden="true" />
                           Added
                         </span>

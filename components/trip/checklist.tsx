@@ -530,7 +530,7 @@ function ChecklistRow({
               className={cn(
                 "inline-flex items-center gap-1 text-xs font-semibold",
                 status.variant === "overdue" && "text-destructive",
-                status.variant === "soon" && "text-amber-700 dark:text-amber-400",
+                status.variant === "soon" && "text-warning",
                 status.variant === "normal" && "text-muted-foreground",
               )}
             >

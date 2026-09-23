@@ -36,7 +36,7 @@ export function CostAmounts({
         className={
           "text-right whitespace-nowrap" +
           (paidTotalMinor !== null
-            ? " text-emerald-600 dark:text-emerald-400"
+            ? " text-success"
             : " text-muted-foreground")
         }
       >

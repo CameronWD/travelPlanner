@@ -410,7 +410,7 @@ const dayPlanWithUntimedItem: DayPlan = {
 describe("Timeline — Task 8 Bold-Modular day row class-string regressions", () => {
   it("day timed rows get a category-hued left border card", () => {
     const { container } = render(<Timeline day={dayPlanWithTimedFood} variant="day" />);
-    expect(container.querySelector(".border-l-4.border-l-amber-500")).toBeTruthy();
+    expect(container.querySelector(".border-l-4.border-l-hue-sun")).toBeTruthy();
   });
 
   it("day untimed rows use a dashed border", () => {

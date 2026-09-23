@@ -469,7 +469,7 @@ export function OtherCostEditor({
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span
                         className={cn(
-                          isPaid && "text-emerald-600 dark:text-emerald-400",
+                          isPaid && "text-success",
                         )}
                       >
                         {formatMoney(shownMinor, cost.currency)}

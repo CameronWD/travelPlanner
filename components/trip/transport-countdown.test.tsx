@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 import { TransportCountdown } from "./transport-countdown";
 
 describe("TransportCountdown", () => {
-  it("renders an amber-tinted block for a future departure", () => {
+  it("renders a warning-tinted block for a future departure", () => {
     // Set departure ~2 hours from now so the component does NOT bail to null
     const futureDepAt = new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString();
 
@@ -19,9 +19,9 @@ describe("TransportCountdown", () => {
     // Component should render something (not null bail-out)
     expect(container.firstChild).not.toBeNull();
 
-    // Outer wrapper must contain amber classes
+    // Outer wrapper must contain warning-token classes
     const wrapper = container.firstChild as HTMLElement;
-    expect(wrapper.className).toMatch(/amber/);
+    expect(wrapper.className).toMatch(/warning/);
   });
 
   it("renders null when departure has already passed", () => {
