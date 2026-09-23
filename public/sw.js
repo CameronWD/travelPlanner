@@ -262,11 +262,10 @@ self.addEventListener('push', (event) => {
     const options = {
       body: data.body ?? '',
       data: { url: data.url ?? '/' },
-      // `/icon` — served by app/manifest.ts. NOT `/icons/icon-192.png`, which
-      // nothing has ever served: this path had never been exercised because no
-      // push had ever been delivered (follow-up item 5).
-      icon: '/icon',
-      badge: '/icon',
+      // Static files under public/icons/, added when the generated `/icon`
+      // route was retired.
+      icon: '/icons/icon-192.png',
+      badge: '/icons/push-badge-96.png',
     };
 
     event.waitUntil(self.registration.showNotification(title, options));
