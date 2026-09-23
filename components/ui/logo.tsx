@@ -1,4 +1,5 @@
 import { cn } from "@/lib/cn";
+import { WORDMARK_VIEWBOX, WORDMARK_ASPECT, WORDMARK_TRANSFORM, WORDMARK_WORD_D, WORDMARK_DOT_D } from "./logo-paths";
 
 /** Server Component. Tent-pin mark + lowercase wordmark. Mark colours are fixed brand colours. */
 function Mark({ size = 28, onDark = false }: { size?: number; onDark?: boolean }) {
@@ -16,10 +17,16 @@ function Mark({ size = 28, onDark = false }: { size?: number; onDark?: boolean }
 export interface LogoProps { variant?: "lockup" | "mark" | "wordmark"; size?: number; onDark?: boolean; className?: string }
 
 function Logo({ variant = "lockup", size = 28, onDark, className }: LogoProps) {
-  const word = <span className="whitespace-nowrap font-display font-extrabold leading-none tracking-[-0.04em] text-foreground" style={{ fontSize: size }}>teepee<span className="text-coral">.</span></span>;
+  // Outlined paths (Bricolage 800 @ font-size 100). size = the old font-size, so glyph box height = size × 0.814.
+  const h = size * 0.814;
+  const word = (
+    <svg width={h * WORDMARK_ASPECT} height={h} viewBox={WORDMARK_VIEWBOX} aria-hidden="true" className="shrink-0 text-foreground">
+      <g transform={WORDMARK_TRANSFORM}><path fill="currentColor" d={WORDMARK_WORD_D} /><path fill="#FF6B4A" d={WORDMARK_DOT_D} /></g>
+    </svg>
+  );
   if (variant === "mark") return <Mark size={size} onDark={onDark} />;
-  if (variant === "wordmark") return <span className={className}>{word}</span>;
-  return <span className={cn("inline-flex items-center gap-2", className)} aria-label="Teepee"><Mark size={size} onDark={onDark} />{word}</span>;
+  if (variant === "wordmark") return <span role="img" aria-label="Teepee" className={cn("inline-flex", className)}>{word}</span>;
+  return <span role="img" className={cn("inline-flex items-center gap-2", className)} aria-label="Teepee"><Mark size={size} onDark={onDark} />{word}</span>;
 }
 
 export { Logo };
