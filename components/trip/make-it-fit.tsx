@@ -9,8 +9,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import { setStopNights, deleteStop } from "@/server/actions/stops";
@@ -26,6 +26,11 @@ import {
   isFlexible,
   type FitStop,
 } from "@/lib/make-it-fit";
+import {
+  useStopDeletionPreview,
+  hasStopDeletionLosses,
+  StopDeletionLossList,
+} from "./stop-deletion-preview";
 
 interface MakeItFitProps {
   tripId: string;
@@ -116,7 +121,11 @@ function MakeItFitDialog({
     },
   );
   const [pending, setPending] = React.useState(false);
-  const { confirm, dialog } = useConfirm();
+  // ARCH-DAT-4: the Stop dropped here is pending its loss-preview confirm
+  // (DropConfirmDialog below) — replaces the old plain useConfirm() prompt,
+  // which said only "This stop will be permanently removed" with no idea
+  // what else it would take with it.
+  const [dropTarget, setDropTarget] = React.useState<{ id: string; name: string } | null>(null);
 
   const liveTrims = flex
     .filter((f) => nightsById[f.id] !== currentNights(f))
@@ -154,14 +163,10 @@ function MakeItFitDialog({
     }
   }
 
-  async function drop(id: string, name: string) {
-    const confirmed = await confirm({
-      title: `Drop "${name}"?`,
-      description: "This stop will be permanently removed from your trip.",
-      confirmLabel: "Drop",
-      destructive: true,
-    });
-    if (!confirmed) return;
+  // Performs the actual drop once DropConfirmDialog's own confirm step has
+  // already closed (mirrors the old confirm-then-delete sequencing exactly —
+  // only what happens BEFORE the delete call changed, not this part).
+  async function performDrop(id: string) {
     setPending(true);
     try {
       const r = await deleteStop(id);
@@ -179,7 +184,6 @@ function MakeItFitDialog({
 
   return (
     <>
-    {dialog}
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
@@ -282,7 +286,7 @@ function MakeItFitDialog({
                     variant="ghost"
                     size="sm"
                     disabled={pending}
-                    onClick={() => drop(c.id, c.name)}
+                    onClick={() => setDropTarget({ id: c.id, name: c.name })}
                   >
                     Drop {c.name}
                   </Button>
@@ -293,6 +297,66 @@ function MakeItFitDialog({
         </div>
       </DialogContent>
     </Dialog>
+    {dropTarget && (
+      <DropConfirmDialog
+        stopId={dropTarget.id}
+        stopName={dropTarget.name}
+        onCancel={() => setDropTarget(null)}
+        onConfirm={() => {
+          const { id } = dropTarget;
+          setDropTarget(null);
+          void performDrop(id);
+        }}
+      />
+    )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DropConfirmDialog — ARCH-DAT-4: itemises what dropping this Stop destroys,
+// using the SAME preview fetch + loss-list rendering as DeleteStopDialog
+// (stop-deletion-preview.tsx). Closes as soon as Drop is clicked, exactly
+// like the old useConfirm() prompt did — the actual delete (and Make it
+// fit's own pending/disable state) runs afterwards via performDrop, so this
+// is an addition to the confirm step, not a redesign of the surrounding flow.
+// ---------------------------------------------------------------------------
+
+interface DropConfirmDialogProps {
+  stopId: string;
+  stopName: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+function DropConfirmDialog({ stopId, stopName, onCancel, onConfirm }: DropConfirmDialogProps) {
+  const { preview, error } = useStopDeletionPreview(stopId);
+  const hasLosses = hasStopDeletionLosses(preview);
+  const ready = !!preview || !!error;
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onCancel(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Drop &quot;{stopName}&quot;?</DialogTitle>
+          <DialogDescription>
+            This stop will be permanently removed from your trip.
+            {!ready && " Loading what else this would remove…"}
+          </DialogDescription>
+        </DialogHeader>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        {hasLosses && preview && (
+          <StopDeletionLossList preview={preview} heading="Dropping this stop will also destroy:" />
+        )}
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="destructive" disabled={!ready} onClick={onConfirm}>
+            Drop
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

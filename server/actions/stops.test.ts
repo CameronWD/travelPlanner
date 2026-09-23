@@ -1004,6 +1004,29 @@ describe("previewStopDeletion", () => {
     }
   });
 
+  it("ARCH-DAT-4: a legacy paidMinor-without-paidAt row counts as paid (excluded from unpaidCosts)", async () => {
+    // owned-costs.ts's everPaid predicate is `paidMinor !== null || paidAt !== null`
+    // — a legacy row that was marked paid before paidAt existed still counts as
+    // paid and converts to an OTHER cost on delete rather than being destroyed.
+    // previewStopDeletion's unpaidCosts filter must be the exact negation of
+    // that predicate, not a simplified single-field check (paidAt === null
+    // alone would wrongly call this one unpaid and report it as a loss).
+    stopFindUniqueMock.mockResolvedValueOnce({
+      id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false,
+    });
+    accommodationFindManyMock.mockResolvedValue([{ id: "a1", name: "Hotel Bristol", confirmation: null }]);
+    costFindManyMock.mockResolvedValue([
+      { id: "c1", label: "Legacy paid cost", costMinor: 8000, currency: "EUR", paidMinor: 8000, paidAt: null },
+    ]);
+
+    const result = await previewStopDeletion("s1");
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.preview.unpaidCosts).toEqual([]);
+    }
+  });
+
   it("skips the Cost query when the Stop has no Accommodations", async () => {
     stopFindUniqueMock.mockResolvedValueOnce({
       id: "s2", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false,

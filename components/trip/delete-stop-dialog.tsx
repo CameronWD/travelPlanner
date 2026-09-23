@@ -2,10 +2,7 @@
 
 import * as React from "react";
 import { useTransition } from "react";
-import { AlertTriangle } from "lucide-react";
-import { previewStopDeletion, deleteStop } from "@/server/actions/stops";
-import type { StopDeletionPreview } from "@/server/actions/stops";
-import { formatMoney } from "@/lib/money";
+import { deleteStop } from "@/server/actions/stops";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,6 +14,11 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import { toast } from "@/components/ui/use-toast";
+import {
+  useStopDeletionPreview,
+  hasStopDeletionLosses,
+  StopDeletionLossList,
+} from "./stop-deletion-preview";
 
 // ---------------------------------------------------------------------------
 // Inner dialog body — only rendered when open=true (remount-on-open pattern,
@@ -36,37 +38,10 @@ function firstErrorMessage(errors: Record<string, string[]> | undefined, fallbac
 }
 
 function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
-  const [preview, setPreview] = React.useState<StopDeletionPreview | null>(null);
-  const [fetchError, setFetchError] = React.useState<string | null>(null);
-  const fetched = React.useRef(false);
-
-  React.useEffect(() => {
-    if (fetched.current) return;
-    fetched.current = true;
-    // Async IIFE — state updates happen asynchronously, never synchronously
-    // inside the effect body (react-hooks/set-state-in-effect compliance).
-    void (async () => {
-      try {
-        const result = await previewStopDeletion(stopId);
-        if (result.success) {
-          setPreview(result.preview);
-        } else {
-          setFetchError(firstErrorMessage(result.errors, "Couldn't load preview."));
-        }
-      } catch {
-        setFetchError("Could not load preview. Please try again.");
-      }
-    })();
-  }, [stopId]);
-
+  const { preview, error: fetchError } = useStopDeletionPreview(stopId);
   const [isPending, startTransition] = useTransition();
 
-  const hasLosses =
-    !!preview &&
-    (preview.accommodations.length > 0 ||
-      preview.unpaidCosts.length > 0 ||
-      preview.attachmentCount > 0 ||
-      preview.noteCount > 0);
+  const hasLosses = hasStopDeletionLosses(preview);
 
   function handleDelete() {
     startTransition(async () => {
@@ -134,55 +109,7 @@ function DeleteStopDialogInner({ stopId, stopName, onClose }: InnerProps) {
 
       {/* Loss list — only when non-empty */}
       {hasLosses && preview && (
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-destructive">
-            <AlertTriangle className="size-4 shrink-0" aria-hidden="true" />
-            Deleting this Stop will also destroy:
-          </div>
-          <ul className="space-y-1 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm">
-            {preview.accommodations.map((acc) => (
-              <li key={acc.id} className="flex items-start gap-2 min-w-0">
-                <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 text-xs font-medium text-destructive">
-                  Accommodation
-                </span>
-                <span className="min-w-0 truncate text-foreground">
-                  {acc.name}
-                  {acc.hasConfirmation ? " — holds a confirmation number" : ""}
-                </span>
-              </li>
-            ))}
-            {preview.unpaidCosts.map((cost) => (
-              <li key={cost.id} className="flex items-start gap-2 min-w-0">
-                <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 text-xs font-medium text-destructive">
-                  Unpaid cost
-                </span>
-                <span className="min-w-0 truncate text-foreground">
-                  {cost.label ?? "Cost"} ({formatMoney(cost.costMinor, cost.currency)})
-                </span>
-              </li>
-            ))}
-            {preview.attachmentCount > 0 && (
-              <li className="flex items-start gap-2 min-w-0">
-                <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 text-xs font-medium text-destructive">
-                  Attachment{preview.attachmentCount === 1 ? "" : "s"}
-                </span>
-                <span className="min-w-0 truncate text-foreground">
-                  {preview.attachmentCount} {preview.attachmentCount === 1 ? "file" : "files"}
-                </span>
-              </li>
-            )}
-            {preview.noteCount > 0 && (
-              <li className="flex items-start gap-2 min-w-0">
-                <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 text-xs font-medium text-destructive">
-                  Note{preview.noteCount === 1 ? "" : "s"}
-                </span>
-                <span className="min-w-0 truncate text-foreground">
-                  {preview.noteCount} {preview.noteCount === 1 ? "note" : "notes"}
-                </span>
-              </li>
-            )}
-          </ul>
-        </div>
+        <StopDeletionLossList preview={preview} heading="Deleting this Stop will also destroy:" />
       )}
 
       <DialogFooter>
