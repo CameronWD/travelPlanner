@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -81,6 +82,16 @@ export default async function SignInPage({
           )}
         </CardContent>
       </Card>
+
+      <p className="text-center text-xs text-muted-foreground">
+        <Link href="/privacy" className="underline underline-offset-2">
+          Privacy
+        </Link>{" "}
+        ·{" "}
+        <Link href="/terms" className="underline underline-offset-2">
+          Terms
+        </Link>
+      </p>
     </main>
   );
 }
