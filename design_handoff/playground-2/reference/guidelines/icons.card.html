@@ -1,0 +1,30 @@
+<!-- @dsCard group="Foundations" viewport="760x520" subtitle="Lucide base, 2.5px stroke, round caps. Glyph rules" name="Icons" -->
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>body{margin:0;background:var(--surface-page);color:var(--text-primary);font:var(--type-body);padding:20px;box-sizing:border-box} *{box-sizing:border-box}</style>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="../assets/dev-loader.js" data-root="../"></script></head><body>
+<div id="root"></div>
+<script type="text/babel">
+TeepeeDS.ready.then(() => { const { Icon } = TeepeeDS;
+const GROUPS = {
+  Actions: ['plus', 'minus', 'x', 'check', 'pencil', 'trash-2', 'copy', 'share', 'link', 'search', 'download', 'paperclip', 'refresh-cw'],
+  Navigation: ['chevron-left', 'chevron-right', 'chevron-down', 'arrow-left', 'arrow-right', 'home', 'list', 'ellipsis-vertical', 'settings', 'log-out'],
+  Trip: ['tent', 'map-pin', 'route', 'plane', 'train-front', 'bed', 'ticket', 'utensils', 'calendar', 'clock', 'wallet', 'camera', 'globe'],
+  'People & status': ['users', 'heart', 'bell', 'mail', 'sun', 'moon', 'wifi-off', 'circle-alert'],
+};
+const TYPO = [['Zz', 'lilac', 'beds'], ['¥', 'sun', 'money'], ['→', 'sun', 'transport'], ['CW', 'teal', 'people']];
+function App() { return <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.6fr) minmax(0,1fr)', gap: 18 }}>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>{Object.entries(GROUPS).map(([g, list]) => <div key={g}><div style={{ font: 'var(--type-label)', letterSpacing: 'var(--tracking-label)', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 6 }}>{g}</div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(62px, 1fr))', gap: 6 }}>{list.map(n => <div key={n} title={n} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 2px', border: '1px solid var(--outline-soft)', borderRadius: 10, background: 'var(--surface-card)' }}><Icon name={n} size={22} /><span style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{n}</span></div>)}</div></div>)}</div>
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ padding: 14, border: 'var(--border)', borderRadius: 'var(--radius-l)', background: 'var(--surface-card)' }}><div style={{ font: 'var(--type-h5)' }}>Specs</div><div style={{ font: 'var(--type-caption)', color: 'var(--text-body)', marginTop: 6, lineHeight: 1.6 }}>Lucide (ISC) on a 24px grid · stroke 2.5 · round caps and joins · currentColor.<br />Sizes 16 / 18 / 22 / 30. Use 3–3.5 stroke at 12–16px.<br />Next.js: <code>lucide-react</code> with <code>strokeWidth={'{2.5}'}</code>. Tent is custom, shipped in <code>components/core/Icon</code>.</div>
+      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', marginTop: 10 }}>{[16, 18, 22, 30].map(s => <Icon key={s} name="tent" size={s} />)}</div></div>
+    <div style={{ padding: 14, border: 'var(--border)', borderRadius: 'var(--radius-l)', background: 'var(--surface-card)' }}><div style={{ font: 'var(--type-h5)' }}>Typographic tiles stay</div><div style={{ font: 'var(--type-caption)', color: 'var(--text-body)', marginTop: 6 }}>Category tiles use type, not icons. It's part of the voice.</div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>{TYPO.map(([t, tone, l]) => <div key={t} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}><span style={{ width: 34, height: 34, borderRadius: 'var(--radius-s)', border: 'var(--border)', background: `var(--accent-${{ lilac: 'stay', sun: 'money', teal: 'route' }[tone]})`, color: 'var(--on-accent-text)', display: 'grid', placeItems: 'center', font: 'var(--type-label)', fontSize: 13, fontWeight: 800 }}>{t}</span><span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{l}</span></div>)}</div></div>
+    <div style={{ padding: 14, border: 'var(--border)', borderRadius: 'var(--radius-l)', background: 'var(--surface-card)', font: 'var(--type-caption)', color: 'var(--text-body)', lineHeight: 1.6 }}><div style={{ font: 'var(--type-h5)', color: 'var(--text-primary)' }}>Rules</div>• Controls always use icons (back, close, check, steppers).<br />• Icon-only buttons need a label (aria-label + tooltip).<br />• "→" stays as text inside routes: Kyoto → Osaka.<br />• No emoji in UI chrome.</div>
+  </div></div>; }
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+});
+</script></body></html>

@@ -1,0 +1,18 @@
+/* Motion — quick, springy, never floaty. Enter with --ease-pop / --ease-bounce, exit faster with --ease-exit.
+   Durations collapse to 1ms under prefers-reduced-motion (see a11y.css). */
+:root {
+  --dur-exit: 200ms;
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --stagger: 40ms;
+  --lift-hover: translate(-1px, -1px);
+}
+@keyframes tp-sheet-in { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes tp-sheet-out { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes tp-dialog-in { from { transform: translateY(16px) scale(.97); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes tp-scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes tp-toast-in { from { transform: translateY(24px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes tp-toast-out { from { transform: none; opacity: 1; } to { transform: translateY(12px); opacity: 0; } }
+@keyframes tp-rise-in { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes tp-pop { 0% { transform: scale(1); } 40% { transform: scale(1.25); } 100% { transform: scale(1); } }
+@keyframes tp-wiggle { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@keyframes tp-pulse { from { opacity: .35; } to { opacity: .7; } }

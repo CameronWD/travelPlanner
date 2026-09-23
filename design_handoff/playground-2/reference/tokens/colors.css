@@ -1,0 +1,147 @@
+:root {
+  /* Base palette */
+  --pg-ink: #1D1D1B;
+  --pg-paper: #FFFBF3;
+  --pg-canvas: #EFE9DF;
+  --pg-white: #FFFFFF;
+  --pg-coral: #FF6B4A;
+  --pg-sun: #FFD166;
+  --pg-teal: #5BC0BE;
+  --pg-lilac: #C7A2FF;
+  --pg-grey-600: #6B6660;
+  --pg-grey-700: #444444;
+  --pg-grey-300: #C9C4BA;
+  --pg-grey-200: #E4DFD4;
+
+  /* Semantic — surfaces */
+  --surface-page: var(--pg-paper);
+  --surface-canvas: var(--pg-canvas);
+  --surface-card: var(--pg-white);
+  --surface-inverse: var(--pg-ink);
+
+  /* Semantic — text */
+  --text-primary: var(--pg-ink);
+  --text-body: var(--pg-grey-700);
+  --text-muted: var(--pg-grey-600);
+  --text-inverse: var(--pg-paper);
+  --text-on-accent: var(--pg-ink);
+
+  /* Semantic — lines & shadows */
+  --outline: var(--pg-ink);
+  --outline-soft: var(--pg-grey-300);
+  --shadow-ink: var(--pg-ink);
+  --shadow-accent: var(--pg-coral);
+
+  /* Semantic — accents (one colour per idea) */
+  --accent-primary: var(--pg-coral);   /* the trip, CTAs, "now" */
+  --accent-money: var(--pg-sun);       /* costs, transport, to-dos */
+  --accent-route: var(--pg-teal);      /* chapters, places, done */
+  --accent-stay: var(--pg-lilac);      /* beds, sleeps, collaborators */
+
+  /* Semantic — status */
+  --status-success: var(--pg-teal);
+  --status-warning: var(--pg-sun);
+  --status-danger: var(--pg-coral);
+  --status-info: var(--pg-lilac);
+  --status-neutral: var(--pg-grey-200);
+
+  /* Accent islands — tokens re-scoped inside coloured cards so nested text, chips and bars stay legible in both themes */
+  --on-accent-text: #1D1D1B;
+  --on-accent-body: #2E2C29;
+  --on-accent-muted: #302D29;
+  --on-accent-surface: #FFFFFF;
+  --on-accent-outline: #1D1D1B;
+  --on-accent-inverse: #FFFBF3;
+
+  /* Accent as text/icon on neutral surfaces — raw accents fail 4.5:1 on paper; use these instead */
+  --accent-primary-text: #B8391D;
+  --accent-money-text: #80600F;
+  --accent-route-text: #1C706E;
+  --accent-stay-text: #6D43B8;
+
+  /* Controls & focus (WCAG 1.4.11 non-text contrast ≥ 3:1) */
+  --outline-control: var(--pg-ink);
+  --focus-ring: var(--pg-ink);
+  --focus-ring-width: 3px;
+  --focus-ring-offset: 3px;
+
+  /* Categorical hue ramp (categories + chapters) */
+  --hue-sky: #8AD6F5; --hue-sky-text: #1B7998;
+  --hue-sun: #FFD166; --hue-sun-text: #80600F;
+  --hue-leaf: #A6D96A; --hue-leaf-text: #527A0F;
+  --hue-lilac: #C7A2FF; --hue-lilac-text: #6D43B8;
+  --hue-pink: #FF9EC4; --hue-pink-text: #AD5077;
+  --hue-teal: #5BC0BE; --hue-teal-text: #1C706E;
+  --hue-coral: #FF6B4A; --hue-coral-text: #B8391D;
+  --hue-indigo: #7F94FF; --hue-indigo-text: #5566D2;
+  --hue-stone: #D6CFC2; --hue-stone-text: #7C6D51;
+}
+
+[data-theme="dark"] {
+  /* Dark v3: warm charcoal with clear surface steps, readable bone text, accents bright enough to carry dark ink */
+  --pg-ink: #EDE6D8;
+  --pg-paper: #211F1B;
+  --pg-canvas: #181613;
+  --pg-white: #2C2924;
+  --pg-grey-600: #A59D8F;
+  --pg-grey-700: #CFC8BA;
+  --pg-grey-300: #4A463F;
+  --pg-grey-200: #37342E;
+  --pg-coral: #E8866C;
+  --pg-sun: #E6C57A;
+  --pg-teal: #6FB8B4;
+  --pg-lilac: #B5A0E2;
+  --outline: #5A554C;
+  --shadow-ink: #0D0C0A;
+  --text-on-accent: #1C1A17;
+  --status-neutral: #37342E;
+  --on-accent-text: #1C1A17;
+  --on-accent-body: #2A2722;
+  --on-accent-muted: #3A362F;
+  --on-accent-surface: rgba(255, 249, 238, 0.38);
+  --on-accent-outline: #1C1A17;
+  --on-accent-inverse: #F6F0E4;
+  --accent-primary-text: var(--pg-coral);
+  --accent-money-text: var(--pg-sun);
+  --accent-route-text: var(--pg-teal);
+  --accent-stay-text: var(--pg-lilac);
+  --outline-control: #827B6E;
+  --focus-ring: var(--pg-ink);
+  --accent-primary: var(--pg-coral);
+  --accent-money: var(--pg-sun);
+  --accent-route: var(--pg-teal);
+  --accent-stay: var(--pg-lilac);
+  --status-success: var(--pg-teal);
+  --status-warning: var(--pg-sun);
+  --status-danger: var(--pg-coral);
+  --status-info: var(--pg-lilac);
+  --surface-page: var(--pg-paper);
+  --surface-canvas: var(--pg-canvas);
+  --surface-card: var(--pg-white);
+  --surface-inverse: var(--pg-ink);
+  --text-primary: var(--pg-ink);
+  --text-body: var(--pg-grey-700);
+  --text-muted: var(--pg-grey-600);
+  --text-inverse: var(--pg-paper);
+  --outline-soft: var(--pg-grey-300);
+  --border: 2px solid var(--outline);
+  --border-dashed: 2px dashed var(--outline);
+  --shadow-1: 3px 3px 0 var(--shadow-ink);
+  --shadow-2: 4px 4px 0 var(--shadow-ink);
+  --shadow-3: 5px 5px 0 var(--shadow-ink);
+  --shadow-4: 6px 6px 0 var(--shadow-ink);
+  --shadow-5: 8px 8px 0 var(--shadow-ink);
+  --shadow-accent: 4px 4px 0 var(--pg-coral);
+  --shadow-pressed: 1px 1px 0 var(--shadow-ink);
+
+  /* Hue ramp, dark */
+  --hue-sky: #8CC0D6; --hue-sky-text: #8CC0D6;
+  --hue-sun: #E6C57A; --hue-sun-text: #E6C57A;
+  --hue-leaf: #A1C57A; --hue-leaf-text: #A1C57A;
+  --hue-lilac: #B5A0E2; --hue-lilac-text: #B5A0E2;
+  --hue-pink: #E6A0BA; --hue-pink-text: #E6A0BA;
+  --hue-teal: #6FB8B4; --hue-teal-text: #6FB8B4;
+  --hue-coral: #E8866C; --hue-coral-text: #E8866C;
+  --hue-indigo: #8192DE; --hue-indigo-text: #8192DE;
+  --hue-stone: #BCB7AE; --hue-stone-text: #BCB7AE;
+}

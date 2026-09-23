@@ -1,0 +1,95 @@
+<!-- @dsCard group="Teepee Desktop" viewport="1400x900" subtitle="Web app — coloured left dock, 10 screens, click-through" name="Teepee desktop app" -->
+<!-- @startingPoint section="Teepee" subtitle="Desktop app — dock, plan, days, money" viewport="1400x900" -->
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Teepee · desktop UI kit</title>
+<link rel="stylesheet" href="../../styles.css">
+<style>body{margin:0;background:var(--surface-canvas);color:var(--text-primary);font:var(--type-body);min-height:100vh} *{box-sizing:border-box} button{font-family:inherit}</style>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="../../assets/dev-loader.js" data-root="../../" data-extra="../shared/data.js,../shared/kit.jsx,../shared/states.jsx,../shared/search.js,../shared/share.jsx,../shared/forms.jsx,../shared/onthego.jsx,../shared/together.jsx,../shared/admin.jsx,../shared/planedit.jsx,../teepee-mobile/Search.jsx,../teepee-mobile/Invite.jsx,./Shell.jsx,./DLanding.jsx,./DHome.jsx,./DTrips.jsx,./DPlan.jsx,./DDays.jsx,./DMoney.jsx,./DShared.jsx,./DWishlist.jsx,./DSettings.jsx,./DExtra.jsx"></script>
+</head><body>
+<div id="root" style="padding:28px"></div>
+<script type="text/babel">
+TeepeeDS.ready.then(() => {
+const D = TeepeeDS;
+const { Today, Summary, Globe, Checklists, Files, Journal, Activity, Compare, PrintView, TripSettings, Account, Help, WhatsNew, Feedback, SignIn, More, PlanEditor, TransportForm, CostFields, Card } = TeepeeDS;
+const { Button, Chip, Input, Stepper, Select, Segmented, Sheet, Toast, Shell, DLanding, DHome, DTrips, DPlan, DStopPanel, DDays, DDayPanel, DMoney, DShared, DWishlist, DSettings, DOnboarding, DSearch, DShare, DStates, EmptyScreen, EditStopForm, BookingForm, InviteBody } = TeepeeDS;
+const SHEETS = {
+  place: { title: 'Add a place', body: (s) => <><Input placeholder="Where? e.g. Nara" autoFocus /><div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>Nights <Stepper value={s.n} onChange={s.setN} /></div><Select label="Chapter" value={s.ch} onChange={s.setCh} options={['Kanto', 'Kansai', '+ New chapter']} /></>, cta: 'Add it', done: 'Nara added · after Kyoto' },
+  cost: { title: 'Add a cost', body: () => <><Input size="l" placeholder="¥0" autoFocus /><Input placeholder="What for?" /><D.Toggle checked={false} onChange={() => {}} label="Already paid" /></>, cta: 'Save cost', done: 'Cost saved · Trains jar' },
+  stay: { title: 'Somewhere to sleep in Hakone', body: () => <><Input placeholder="Hotel, ryokan, a mate's couch…" autoFocus /><Input placeholder="¥ per night" /><Segmented options={['Booked', 'Just an idea']} value="Just an idea" tone="lilac" /></>, cta: 'Add stay', done: 'Hakone has a bed · nice' },
+  transport: { title: 'Add transport', body: () => <TransportForm />, cta: 'Save leg', done: 'Leg added' },
+  costFull: { title: 'Add a cost', body: () => <><Input label="What for" value="Hakone Open-Air Museum" /><CostFields initial="4000" /></>, cta: 'Save cost', done: 'Cost saved' },
+  transportOld: { title: 'Kyoto → Osaka', body: () => <><Segmented options={['Train', 'Bus', 'Drive', 'Fly']} value="Train" tone="sun" /><Input placeholder="Line or operator" /></>, cta: 'Add leg', done: 'Leg added · Kyoto → Osaka' },
+  thing: { title: 'Add to Sat 18 Oct', body: () => <><Input placeholder="What are we doing?" autoFocus /><Input placeholder="Around what time?" /></>, cta: 'Add it', done: 'Added to Sat 18' },
+  editStop: { title: 'Edit Hakone', body: () => <EditStopForm />, cta: 'Save changes', done: 'Hakone updated' },
+  booking: { title: 'Add a booking', body: () => <BookingForm />, cta: 'Save booking', done: 'Booking saved · ticket works offline' },
+  idea: { title: 'An idea', body: () => <><Input placeholder="What's the idea?" autoFocus /></>, cta: 'Add to wishlist', done: 'Idea added · your people can vote' },
+};
+const PICK = [['signin', 'Sign in'], ['landing', 'Landing'], ['onboarding', 'Onboarding'], ['home', 'Home'], ['trips', 'Trips'], ['plan', 'Plan + stop'], ['days', 'Days'], ['money', 'Money'], ['shared', 'People'], ['wishlist', 'Wishlist'], ['settings', 'You'], ['today', 'Today'], ['summary', 'Summary'], ['planEdit', 'Plan editor'], ['globe', 'Globe'], ['more', 'More'], ['checklists', 'Checklists'], ['files', 'Files'], ['journal', 'Journal'], ['activity', 'Activity'], ['compare', 'Compare'], ['print', 'Print'], ['tripSettings', 'Trip settings'], ['account', 'Account'], ['help', 'Help'], ['whatsnew', "What's new"], ['feedback', 'Feedback'], ['search', 'Search ⌘K'], ['invite', 'Invite'], ['share', 'Public link'], ['forms', 'Forms'], ['states', 'States'], ['empty', 'Empty']];
+const EMPTIES = ['Home', 'Plan', 'Days', 'Money', 'Wishlist', 'People'];
+const STATES = [['loading', 'Loading'], ['offline', 'Offline'], ['error', 'Error'], ['push', 'Notifications'], ['install', 'Install']];
+const FORMS = [['place', 'Add place'], ['editStop', 'Edit stop'], ['booking', 'Booking'], ['cost', 'Cost'], ['transport', 'Transport'], ['costFull', 'Cost + paid'], ['thing', 'Thing to do'], ['idea', 'Idea']];
+function App() {
+  const [screen, setScreen] = React.useState('plan'); const [stopId, setStopId] = React.useState('hakone'); const [sel, setSel] = React.useState(18);
+  const [sheet, setSheet] = React.useState(null); const [n, setN] = React.useState(2); const [ch, setCh] = React.useState('Kansai');
+  const [toast, setToast] = React.useState(null); const [dark, setDark] = React.useState(false); const [fork, setFork] = React.useState('Real plan'); const [emptyView, setEmptyView] = React.useState('Home'); const [stateView, setStateView] = React.useState('loading');
+  React.useEffect(() => { const k = e => { if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setScreen('search'); } }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  const go = (s, id) => { if (id) setStopId(id); setScreen(s); };
+  const say = (t) => { setToast(t); clearTimeout(say.t); say.t = setTimeout(() => setToast(null), 2400); };
+  const close = (done) => { const d = sheet && SHEETS[sheet].done; setSheet(null); if (done && d) say(d); };
+  const common = { go, openSheet: setSheet, toast: say };
+  if (screen === 'landing') return <Stage><DLanding onSignIn={() => go('onboarding')} /></Stage>;
+  if (screen === 'onboarding') return <Stage><DOnboarding dark={dark} onDone={() => { go('home'); say('Japan in Autumn · 26 sleeps to go'); }} /></Stage>;
+  if (screen === 'share') return <Stage><DShare dark={dark} /></Stage>;
+  if (screen === 'signin') return <Stage><div data-theme={dark ? 'dark' : undefined} style={{ width: 1280, height: 800, background: 'var(--surface-page)', color: 'var(--text-primary)', border: '2px solid #1D1D1B', borderRadius: 'var(--radius-2xl)', boxShadow: '8px 8px 0 #1D1D1B', overflow: 'hidden', display: 'flex' }}><SignIn desktop /></div></Stage>;
+  const forkSel = <Select size="s" value={fork} onChange={setFork} options={['Real plan', 'Slow Kyoto', '+ New fork']} />;
+  const cfg = {
+    home: { title: null, body: <DHome {...common} /> }, trips: { title: 'Your trips', body: <DTrips {...common} />, cta: '+ Start a new trip' },
+    plan: { title: 'The plan', trailing: forkSel, cta: '+ Add a place', onCta: () => setSheet('place'), body: <DPlan {...common} stopId={stopId} setStopId={setStopId} />, aside: <DStopPanel stopId={stopId} openSheet={setSheet} /> },
+    days: { title: 'October', trailing: <Segmented options={['Month', 'Week']} value="Month" tone="sun" />, body: <DDays {...common} sel={sel} setSel={setSel} />, aside: <DDayPanel openSheet={setSheet} /> },
+    money: { title: 'Money', trailing: <Select size="s" value="JPY" options={['JPY', 'AUD']} />, cta: '+ Add a cost', onCta: () => setSheet('cost'), body: <DMoney {...common} /> },
+    shared: { title: 'Your people', body: <DShared {...common} /> }, wishlist: { title: 'Wishlist', trailing: <Chip size="s">6 ideas</Chip>, cta: '+ Add an idea', onCta: () => setSheet('idea'), body: <DWishlist {...common} /> },
+    settings: { title: 'You', body: <DSettings {...common} dark={dark} setDark={setDark} /> },
+    search: { title: null, body: <DHome {...common} /> },
+    today: { title: null, body: <Today desktop toast={say} /> },
+    summary: { title: 'Summary', trailing: forkSel, body: <Summary desktop toast={say} /> },
+    planEdit: { title: 'The plan', trailing: forkSel, cta: '+ Add a stop', onCta: () => setSheet('place'), body: <PlanEditor desktop toast={say} openSheet={setSheet} /> },
+    globe: { title: 'Your globe', cta: '+ Drop a pin', body: <Globe desktop toast={say} /> },
+    more: { title: 'Japan in Autumn', body: <div style={{ maxWidth: 720 }}><More go={go} /></div> },
+    checklists: { title: 'Checklists', body: <Checklists desktop /> },
+    files: { title: 'Files', cta: '+ Add files', body: <Files desktop toast={say} /> },
+    journal: { title: 'Journal', body: <Journal desktop /> },
+    activity: { title: 'Activity', body: <Activity desktop /> },
+    compare: { title: 'Compare plans', body: <Compare desktop toast={say} /> },
+    print: { title: 'Print and export', body: <PrintView desktop toast={say} /> },
+    tripSettings: { title: 'Trip settings', body: <TripSettings desktop toast={say} /> },
+    account: { title: 'Account', body: <Account desktop go={go} /> },
+    help: { title: 'Help', body: <Help desktop /> },
+    whatsnew: { title: "What's new", body: <WhatsNew desktop /> },
+    feedback: { title: 'Send feedback', body: <Feedback desktop toast={say} /> },
+    invite: { title: 'Your people', body: <DShared {...common} /> },
+    forms: { title: 'The plan', trailing: forkSel, body: <DPlan {...common} stopId={stopId} setStopId={setStopId} />, aside: <DStopPanel stopId={stopId} openSheet={setSheet} /> },
+    states: { title: { loading: null, offline: 'The plan', error: 'Money', push: null, install: null }[stateView], body: <DStates kind={stateView} toast={say} /> },
+    empty: { title: { Home: null, Plan: 'The plan', Days: 'October', Money: 'Money', Wishlist: 'Wishlist', People: 'Your people' }[emptyView], body: emptyView === 'Home' ? <DHome {...common} empty /> : emptyView === 'Plan' ? <DPlan {...common} empty stopId={stopId} setStopId={setStopId} /> : <div style={{ flex: 1, display: 'grid', placeItems: 'center' }}><EmptyScreen kind={emptyView} openSheet={setSheet} style={{ width: 420 }} /></div> },
+  }[screen];
+  return (
+    <Stage>
+      <Shell screen={{ search: 'home', invite: 'more', shared: 'more', forms: 'plan', planEdit: 'plan', states: 'home', empty: 'home', summary: 'more', checklists: 'more', files: 'more', journal: 'more', activity: 'more', compare: 'more', print: 'more', tripSettings: 'more', account: 'settings', help: 'settings', whatsnew: 'settings', feedback: 'settings' }[screen] || screen} go={go} dark={dark} title={cfg.title} trailing={cfg.trailing} cta={cfg.cta} onCta={cfg.onCta} aside={cfg.aside}>{cfg.body}</Shell>
+      {screen === 'search' && <DSearch go={go} onClose={() => go('home')} />}
+      {(screen === 'invite' || sheet === 'invite') && <div style={{ position: 'absolute', inset: 0 }}><Sheet open desktop title="Invite people" onClose={() => { setSheet(null); if (screen === 'invite') go('shared'); }}><InviteBody toast={say} onDone={() => { setSheet(null); if (screen === 'invite') go('shared'); }} /></Sheet></div>}
+      {sheet && SHEETS[sheet] && <div style={{ position: 'absolute', inset: 0 }}><Sheet open desktop title={SHEETS[sheet].title} onClose={() => close(false)} footer={<Button block size="l" onClick={() => close(true)}>{SHEETS[sheet].cta}</Button>}>{SHEETS[sheet].body({ n, setN, ch, setCh })}</Sheet></div>}
+      {toast && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 28, display: 'flex', justifyContent: 'center', zIndex: 25, pointerEvents: 'none' }}><Toast>{toast}</Toast></div>}
+    </Stage>
+  );
+  function Stage({ children }) {
+    return <div style={{ display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>{PICK.map(([k, l]) => <Chip key={k} tone={screen === k ? 'coral' : 'white'} selected={screen === k} onClick={() => go(k)}>{l}</Chip>)}<span style={{ width: 2, height: 22, background: 'var(--outline-soft)', margin: '0 6px' }} /><Segmented options={['Light', 'Dark']} value={dark ? 'Dark' : 'Light'} onChange={v => setDark(v === 'Dark')} tone="ink" />{screen === 'empty' && <Segmented options={EMPTIES} value={emptyView} onChange={setEmptyView} tone="sun" />}{screen === 'states' && <Segmented options={STATES.map(([value, label]) => ({ value, label }))} value={stateView} onChange={setStateView} tone="sun" />}{screen === 'forms' && FORMS.map(([k, l]) => <Chip key={k} tone={sheet === k ? 'sun' : 'white'} onClick={() => setSheet(k)}>{l}</Chip>)}</div>
+      <div style={{ position: 'relative', width: 1280, height: 800 }}>{children}</div>
+    </div>;
+  }
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+}).catch(e => { document.getElementById('root').innerHTML = '<pre style="color:#FF6B4A">' + e.message + '</pre>'; console.error(e); });
+</script>
+</body></html>

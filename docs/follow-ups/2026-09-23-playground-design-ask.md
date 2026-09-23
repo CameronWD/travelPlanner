@@ -7,6 +7,49 @@
 > defects found by actually building against the handoff, which the designer
 > cannot see from their side.
 
+> **Update, 2026-09-23 (second handoff landed).** A second, much larger
+> delivery arrived and is now tracked at `design_handoff/playground-2/`
+> (262 files). It answers most of sections A and B below: the screen kits and
+> specs, the notification copy rules, a nine-hue categorical ramp serving both
+> item categories and chapter bands, a Leaflet map palette, `ErrorPanel`, the
+> skeleton archetypes, the OG images, outlined wordmark SVGs, `global-error`,
+> and the screens that had no design at all. What each delivered file answers
+> is annotated inline below, next to the original ask, rather than deleted —
+> the asks are kept as the record of what was requested and when it was
+> resolved.
+>
+> **Delivered:** `reference/ui_kits/teepee-{mobile,tablet,desktop}` plus
+> `reference/ui_kits/shared/*.jsx`; `reference/specs/{index,motion,notifications}.html`;
+> `docs/notifications.md`; `lib/hues.ts` (one nine-hue ramp serving both
+> categories and chapters); `lib/map-palette.ts` and `lib/map-pins.ts`;
+> `components/ui/error-panel.tsx`; `components/ui/skeletons.tsx`; the OG images
+> and `lib/og-card.tsx`; `public/brand/*.svg` and `logo-paths.ts`;
+> `app/global-error.tsx`; and the missing screens (admin, three not-founds,
+> `(app)/error.tsx`, legal, notification bell).
+>
+> **Still outstanding — these are the live asks now, not the list above:**
+>
+> - **D1 touch targets: NOT fixed.** The second handoff's own
+>   `components/ui/stepper.tsx` still ships 36px (`size-9`) buttons and
+>   `components/ui/switch.tsx` still ships a 30px-tall track, neither with a
+>   drawn hit-area — its own `README.md` (line 182) still promises
+>   "Touch targets are ≥ 44px." We continue to work around this in-repo with
+>   invisible 44px pseudo-element overlays (see D1 below). This needs fixing at
+>   source, not worked around indefinitely.
+> - **D2 toast variants: still unanswered.** `toast.tsx` is not part of the
+>   second handoff either (only a `reference/components/feedback/Toast.jsx`
+>   spec, same single look as before) — the single-appearance-vs-three-variants
+>   problem below is untouched.
+> - **B9 restyle-by-hand components: still prose, not files.** None of
+>   `avatar`, `toast`, `sheet`, `select`, `textarea`, `money-input`, `tabs`,
+>   `popover`, `dropdown-menu` appear in the second handoff's `components/ui/`
+>   either. We have already restyled all nine by hand.
+> - **New ask: `lib/stop-colours.ts` has no handoff equivalent.** Per-stop
+>   colour bands keyed by `sortOrder`, used by the month grid and plan editor.
+>   Neither handoff defines this; we derive it from `lib/hues.ts`. Worth
+>   confirming the designer is happy with that derivation rather than us
+>   inventing a tenth-ish colour scheme unreviewed.
+
 Context: the handoff (now at `design_handoff/playground/`) landed with
 `README.md`, `app/globals.css`,
 `app/layout.tsx`, `app/manifest.ts`, `components/ui/*` (21 files), `public/`,
@@ -14,6 +57,13 @@ Context: the handoff (now at `design_handoff/playground/`) landed with
 primitives and navigation. It is **not** enough to restyle the screens, because
 everything the README points screen work at is missing, and because the repo has
 colour systems Playground doesn't define.
+
+**Note:** the sections below (A, B, C) describe the state after the *first*
+handoff only. Most of section A and much of section B has since been answered
+by the second handoff — see the update block above for what shipped. Sections
+are left as originally written, not pruned, so the asks remain the record of
+what was requested; where an item below is now delivered, the update block
+above is the current status.
 
 ---
 
@@ -82,6 +132,15 @@ polylines. They must stay mutually distinguishable — that's the whole point.
 **Ask:** 8 distinguishable band hues, same four outputs as B1. If Playground
 would rather chapters reuse the category ramp, say so and I'll collapse the two.
 
+### B2a. Stop colours — new, no handoff equivalent (added 2026-09-23)
+`lib/stop-colours.ts` gives each stop a colour band keyed by `sortOrder`, used
+by the month grid and the plan editor. Neither the first nor the second
+handoff defines an equivalent, so we derive it from `lib/hues.ts` rather than
+inventing an unreviewed tenth-ish colour scheme.
+
+**Ask:** confirm the designer is happy with deriving stop-band colour from the
+nine-hue ramp in `hues.ts`, or provide the intended values directly.
+
 ### B3. Map palette (Leaflet can't use Tailwind)
 `lib/map-pins.ts`, `components/trip/day-map.tsx`, `route-map.tsx`,
 `components/globe/globe-map.tsx`, `wishlist-map.tsx` all need literal colour
@@ -131,6 +190,11 @@ popover and dropdown-menu with one prose bullet each. Workable, but they're the
 components most likely to drift from the designer's intent.
 
 **Ask (nice to have):** ship them as real `.tsx` files like the other 21.
+
+> **2026-09-23:** still prose in the second handoff. None of `avatar`, `toast`,
+> `sheet`, `select`, `textarea`, `money-input`, `tabs`, `popover`,
+> `dropdown-menu` appear in `design_handoff/playground-2/components/ui/`. We
+> have already restyled all nine by hand. Still an open ask.
 
 ### B10. Screens with no design at all
 Not in the README's route table or its "also designed" list:
@@ -191,6 +255,11 @@ the drawn controls at their designed size. **Ask:** either raise the drawn sizes
 or state explicitly in the README that these two controls carry an oversized
 tappable region, so the next implementer does not "fix" the overlay away.
 
+> **2026-09-23:** unfixed in the second handoff. `design_handoff/playground-2/components/ui/stepper.tsx`
+> and `switch.tsx` ship the same 36px/30px sizes, and
+> `design_handoff/playground-2/README.md:182` still reads "Touch targets are
+> ≥ 44px." Still an open ask.
+
 ### D2. One toast appearance specified for a component with three variants
 The README prescribes a single toast look: `rounded-md border-2 border-border
 shadow-hard-2 bg-teal island`. The repo's toast has `default`, `success` and
@@ -209,11 +278,18 @@ accent-filled component needs the same care. **Ask:** either an on-destructive
 variant of `island`, or a note in the README that `island` is teal/coral/sun/
 lilac only.
 
+> **2026-09-23:** still unanswered. `toast.tsx` is not part of the second
+> handoff's `components/ui/` — only `reference/components/feedback/Toast.jsx`,
+> which specifies the same single teal look. Still an open ask.
+
 ### D3. `ErrorPanel` is named but not shipped
 The README's states row reads "Skeleton, ErrorPanel, OfflineBanner", but
 `components/ui/` contains no `error-panel.tsx`. This blocks the per-route
 `error.tsx` work. Already listed in section B4 — repeated here because it is a
 delivery gap rather than a scope decision.
+
+> **2026-09-23: delivered.** `design_handoff/playground-2/components/ui/error-panel.tsx`
+> is in the second handoff. Closed.
 
 ### D4. Two shipped assets are referenced by nothing
 `public/favicon-16.png` and `public/safari-pinned-tab.svg` are in the handoff,

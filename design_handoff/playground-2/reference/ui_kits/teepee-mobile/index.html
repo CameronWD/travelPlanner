@@ -1,0 +1,79 @@
+<!-- @dsCard group="Teepee Mobile" viewport="1400x920" subtitle="Phone — every screen, click-through" name="Teepee mobile app" -->
+<!-- @startingPoint section="Teepee" subtitle="Mobile app — Home, Plan, Days, Money and more" viewport="1400x920" -->
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Teepee · mobile UI kit</title>
+<link rel="stylesheet" href="../../styles.css">
+<style>body{margin:0;background:var(--surface-canvas);color:var(--text-primary);font:var(--type-body);min-height:100vh} *{box-sizing:border-box} button{font-family:inherit}</style>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="../../assets/dev-loader.js" data-root="../../" data-extra="../shared/data.js,../shared/kit.jsx,../shared/states.jsx,../shared/search.js,../shared/share.jsx,../shared/forms.jsx,../shared/onthego.jsx,../shared/together.jsx,../shared/admin.jsx,../shared/planedit.jsx,./Frame.jsx,./Landing.jsx,./Onboarding.jsx,./Home.jsx,./Trips.jsx,./Plan.jsx,./StopDetail.jsx,./Days.jsx,./Money.jsx,./Shared.jsx,./Wishlist.jsx,./Settings.jsx,./Search.jsx,./Invite.jsx,./States.jsx"></script>
+</head><body>
+<div id="root" style="padding:28px"></div>
+<script type="text/babel">
+TeepeeDS.ready.then(() => {
+const D = TeepeeDS; const { Button, Chip, Card, Input, Stepper, Select, Segmented, TabBar, Sheet, Toast, ListRow, Frame, Landing, Onboarding, Home, Trips, Plan, StopDetail, Days, Money, Shared, Wishlist, Settings, Search, Invite, States, SharePage, EmptyScreen, EditStopForm, BookingForm, TopBar, IconButton, Icon, Page, Today, Summary, Globe, Checklists, Files, Journal, Activity, Compare, PrintView, TripSettings, Account, Help, WhatsNew, Feedback, SignIn, More, PlanEditor, TransportForm, CostFields } = D;
+const TABS = [{ key: 'home', label: 'Home' }, { key: 'plan', label: 'Plan' }, { key: 'days', label: 'Days' }, { key: 'money', label: 'Money' }, { key: 'more', label: 'More' }];
+const SHEETS = {
+  place: { title: 'Add a place', body: (s) => <><Input placeholder="Where? e.g. Nara" autoFocus /><div style={{ display: 'flex', gap: 10, alignItems: 'center', font: 'var(--type-body)' }}>Nights <Stepper value={s.n} onChange={s.setN} /></div><Select label="Chapter" value="Kansai" options={['Kanto', 'Kansai', '+ New chapter']} /></>, cta: 'Add it', done: 'Nara added · after Kyoto' },
+  cost: { title: 'Add a cost', body: () => <><Input size="l" placeholder="¥0" autoFocus /><Input placeholder="What for? e.g. Shinkansen tickets" /><Select label="Jar" value="Trains" options={['Beds', 'Trains', 'Food', 'Fun']} /><D.Toggle checked={false} onChange={() => {}} label="Already paid" /></>, cta: 'Save cost', done: 'Cost saved · Trains jar' },
+  stay: { title: 'Somewhere to sleep', body: () => <><Input placeholder="Hotel, ryokan, a mate's couch…" autoFocus /><Input placeholder="¥ per night" /><Segmented options={['Booked', 'Just an idea']} value="Just an idea" tone="lilac" /></>, cta: 'Add stay', done: 'Hakone has a bed · nice' },
+  transport: { title: 'Add transport', body: () => <TransportForm />, cta: 'Save leg', done: 'Leg added' },
+  costFull: { title: 'Add a cost', body: () => <><Input label="What for" value="Hakone Open-Air Museum" /><CostFields initial="4000" /></>, cta: 'Save cost', done: 'Cost saved' },
+  thing: { title: 'Add to Sat 18 Oct', body: () => <><Input placeholder="What are we doing?" autoFocus /><Input placeholder="Around what time?" /></>, cta: 'Add it', done: 'Added to Sat 18' },
+  editStop: { title: 'Edit Hakone', body: () => <EditStopForm />, cta: 'Save changes', done: 'Hakone updated' },
+  booking: { title: 'Add a booking', body: () => <BookingForm />, cta: 'Save booking', done: 'Booking saved · ticket works offline' },
+  idea: { title: 'An idea', body: () => <><Input placeholder="What's the idea?" autoFocus /><Select label="Where would it fit?" value="Not sure" options={['Not sure', 'Tokyo', 'Hakone', 'Kyoto', 'Osaka']} /></>, cta: 'Add to wishlist', done: 'Idea added · your people can vote' },
+};
+const PICK = [['signin', 'Sign in'], ['landing', 'Landing'], ['onboarding', 'Onboarding'], ['home', 'Home'], ['trips', 'Trips'], ['plan', 'Plan'], ['stop', 'Stop'], ['days', 'Days'], ['money', 'Money'], ['shared', 'Shared'], ['wishlist', 'Wishlist'], ['settings', 'You'], ['more', 'More'], ['today', 'Today'], ['summary', 'Summary'], ['planEdit', 'Plan editor'], ['globe', 'Globe'], ['checklists', 'Checklists'], ['files', 'Files'], ['journal', 'Journal'], ['activity', 'Activity'], ['compare', 'Compare'], ['print', 'Print'], ['tripSettings', 'Trip settings'], ['account', 'Account'], ['help', 'Help'], ['whatsnew', "What's new"], ['feedback', 'Feedback'], ['search', 'Search'], ['invite', 'Invite'], ['share', 'Public link'], ['forms', 'Forms'], ['states', 'States'], ['empty', 'Empty']];
+const EMPTIES = ['Home', 'Plan', 'Days', 'Money', 'Wishlist', 'People'];
+const STATES = [['loading', 'Loading'], ['offline', 'Offline'], ['error', 'Error'], ['push', 'Notifications'], ['install', 'Install']];
+const FORMS = [['place', 'Add place'], ['editStop', 'Edit stop'], ['booking', 'Booking'], ['cost', 'Cost'], ['transport', 'Transport'], ['costFull', 'Cost + paid'], ['thing', 'Thing to do'], ['idea', 'Idea']];
+function App() {
+  const [screen, setScreen] = React.useState('home'); const [stopId, setStopId] = React.useState('hakone');
+  const [sheet, setSheet] = React.useState(null); const [n, setN] = React.useState(2);
+  const [toast, setToast] = React.useState(null); const [dark, setDark] = React.useState(false); const [fork, setFork] = React.useState('Real plan');
+  const [emptyView, setEmptyView] = React.useState('Home'); const [stateView, setStateView] = React.useState('loading');
+  const go = (s, id) => { if (id) setStopId(id); setScreen(s); };
+  const say = (t) => { setToast(t); clearTimeout(say.t); say.t = setTimeout(() => setToast(null), 2400); };
+  const close = (done) => { const d = sheet && SHEETS[sheet].done; setSheet(null); if (done && d) say(d); };
+  const tab = ['stop', 'planEdit'].includes(screen) ? 'plan' : ['home', 'days', 'money'].includes(screen) ? screen : 'more';
+  const chrome = !['landing', 'onboarding', 'share', 'search', 'invite', 'signin'].includes(screen);
+  const common = { go, openSheet: setSheet, toast: say };
+  const Sub = (title, el, back = 'more') => <><TopBar title={title} size="m" leading={<IconButton tone="ghost" label="Back" onClick={() => go(back)}><Icon name="chevron-left" size={22} /></IconButton>} /><Page>{el}</Page></>;
+  const body = {
+    signin: <SignIn />, more: <><TopBar title="More" /><Page><More go={go} /></Page></>,
+    today: Sub('Today', <Today toast={say} />, 'home'), summary: Sub('Summary', <Summary toast={say} />), planEdit: Sub('The plan', <PlanEditor toast={say} openSheet={setSheet} />, 'plan'),
+    globe: Sub('Your globe', <Globe toast={say} />), checklists: Sub('Checklists', <Checklists />), files: Sub('Files', <Files toast={say} />), journal: Sub('Journal', <Journal />),
+    activity: Sub('Activity', <Activity />), compare: Sub('Compare plans', <Compare toast={say} />), print: Sub('Print and export', <PrintView toast={say} />),
+    tripSettings: Sub('Trip settings', <TripSettings toast={say} />), account: Sub('Account', <Account go={go} />), help: Sub('Help', <Help />, 'account'), whatsnew: Sub("What's new", <WhatsNew />, 'account'), feedback: Sub('Feedback', <Feedback toast={say} />, 'account'),
+    landing: <Landing onSignIn={() => go('onboarding')} />, onboarding: <Onboarding onDone={() => { go('home'); say('Japan in Autumn · 26 sleeps to go'); }} onBack={() => go('landing')} />,
+    home: <Home {...common} />, trips: <Trips {...common} />, plan: <Plan {...common} fork={fork} setFork={setFork} />, stop: <StopDetail {...common} id={stopId} />,
+    days: <Days {...common} />, money: <Money {...common} />, shared: <Shared {...common} />, wishlist: <Wishlist {...common} />, settings: <Settings {...common} dark={dark} setDark={setDark} />,
+    search: <Search {...common} />, invite: <Invite {...common} />, share: <SharePage onJoin={() => say('Request sent to Cameron')} />,
+    forms: <Plan {...common} fork={fork} setFork={setFork} />, states: <States kind={stateView} toast={say} />,
+    empty: emptyView === 'Home' ? <Home {...common} empty /> : emptyView === 'Plan' ? <Plan {...common} fork={fork} setFork={setFork} empty /> : <><TopBar title={emptyView === 'People' ? 'Your people' : emptyView === 'Days' ? 'October' : emptyView} /><div style={{ flex: 1, padding: '18px var(--page-gutter)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}><EmptyScreen kind={emptyView} openSheet={setSheet} /></div></>,
+  }[screen];
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', maxWidth: 900 }}>
+        {PICK.map(([k, l]) => <Chip key={k} tone={screen === k ? 'coral' : 'white'} selected={screen === k} onClick={() => go(k)}>{l}</Chip>)}
+        <span style={{ width: 2, height: 22, background: 'var(--outline-soft)', margin: '0 6px' }} />
+        <Segmented options={['Light', 'Dark']} value={dark ? 'Dark' : 'Light'} onChange={v => setDark(v === 'Dark')} tone="ink" />
+        {screen === 'empty' && <Segmented options={EMPTIES} value={emptyView} onChange={setEmptyView} tone="sun" />}
+        {screen === 'states' && <Segmented options={STATES.map(([value, label]) => ({ value, label }))} value={stateView} onChange={setStateView} tone="sun" />}
+        {screen === 'forms' && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{FORMS.map(([k, l]) => <Chip key={k} tone={sheet === k ? 'sun' : 'white'} onClick={() => setSheet(k)}>{l}</Chip>)}</div>}
+      </div>
+      <Frame dark={dark}>
+        {body}
+        {chrome && <TabBar items={TABS} value={tab} onChange={go} />}
+        {sheet === 'invite' && <Sheet open title="Invite people" onClose={() => setSheet(null)}><D.InviteBody toast={say} onDone={() => setSheet(null)} /></Sheet>}
+        {sheet && SHEETS[sheet] && <Sheet open title={SHEETS[sheet].title} onClose={() => close(false)} footer={<Button block size="l" onClick={() => close(true)}>{SHEETS[sheet].cta}</Button>}>{SHEETS[sheet].body({ n, setN })}</Sheet>}
+        {toast && <div style={{ position: 'absolute', left: 18, right: 18, bottom: chrome ? 100 : 30, display: 'flex', justifyContent: 'center', zIndex: 25, pointerEvents: 'none' }}><Toast>{toast}</Toast></div>}
+      </Frame>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+}).catch(e => { document.getElementById('root').innerHTML = '<pre style="color:#FF6B4A">' + e.message + '</pre>'; console.error(e); });
+</script>
+</body></html>

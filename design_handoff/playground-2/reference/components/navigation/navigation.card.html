@@ -1,0 +1,21 @@
+<!-- @dsCard group="Components" viewport="700x330" subtitle="TabBar, Dock, TopBar, ListRow" name="Navigation" -->
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<style>body{margin:0;background:var(--surface-page);color:var(--text-primary);font:var(--type-body);padding:20px;box-sizing:border-box} *{box-sizing:border-box}</style><script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="../../assets/dev-loader.js" data-root="../../"></script></head><body>
+<div id="root"></div>
+<script type="text/babel">
+TeepeeDS.ready.then(() => { const { Logo, Icon, Button, IconButton, Chip, Badge, Card, ProgressBar, StatCard, Avatar, AvatarStack, Input, Select, Stepper, Toggle, Checkbox, Segmented, TabBar, Dock, TopBar, ListRow, Sheet, Toast, Tooltip, EmptyState } = TeepeeDS;
+function Demo(){ const [t,setT]=React.useState('home'); const [d,setD]=React.useState('plan'); const items=[{key:'home',label:'Home'},{key:'plan',label:'Plan'},{key:'days',label:'Days'},{key:'money',label:'Money'},{key:'more',label:'More'}];
+  return <div style={{display:'grid',gridTemplateColumns:'96px 1fr',gap:16,height:280}}>
+    <div style={{border:'var(--border)',borderRadius:'var(--radius-l)',overflow:'hidden',display:'flex'}}><Dock items={[...items.slice(0,4),{key:'summary',label:'Summary'},{key:'more',label:'More',muted:true}]} value={d} onChange={setD} people={[{initials:'CW'},{initials:'JM',tone:'lilac'}]} /></div>
+    <div style={{display:'flex',flexDirection:'column',gap:12}}>
+      <div style={{border:'var(--border)',borderRadius:'var(--radius-l)',overflow:'hidden',background:'var(--surface-page)'}}><TopBar title="The plan" leading={<IconButton tone="ghost" label="Back">‹</IconButton>} trailing={<Select size="s" value="Real plan" options={['Real plan']} />} /><div style={{height:12}} /></div>
+      <Card><ListRow tile="Zz" title="Hakone needs a bed" sub="1 night · Oct 17" /><ListRow tile="→" tileTone="sun" title="Kyoto → Osaka, how?" sub="Oct 21 · no transport yet" style={{marginTop:10}} /></Card>
+      <div style={{border:'var(--border)',borderRadius:'var(--radius-l)',overflow:'hidden',marginTop:'auto'}}><TabBar items={items} value={t} onChange={setT} style={{padding:'10px 12px 12px'}} /></div>
+    </div></div>; }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+});
+</script>
+</body></html>

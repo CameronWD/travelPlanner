@@ -1,0 +1,43 @@
+:root {
+  /* Spacing (4px base, chunky steps) */
+  --space-1: 4px; --space-2: 6px; --space-3: 8px; --space-4: 10px; --space-5: 12px;
+  --space-6: 14px; --space-7: 16px; --space-8: 18px; --space-9: 20px; --space-10: 24px;
+  --space-11: 28px; --space-12: 32px; --space-13: 40px; --space-14: 48px;
+  --page-gutter: 18px;      /* mobile edge padding */
+  --page-gutter-desktop: 32px;
+
+  /* Radii — everything is rounded, the chunkier the block the rounder it is */
+  --radius-xs: 6px;    /* tiny squares (H marker) */
+  --radius-s: 10px;    /* icon tiles */
+  --radius-m: 14px;    /* tab pills, inline blocks */
+  --radius-l: 20px;    /* cards */
+  --radius-xl: 24px;   /* hero cards */
+  --radius-2xl: 28px;  /* desktop frames */
+  --radius-pill: 999px;
+
+  /* Outline — always 2px ink */
+  --border-w: 2px;
+  --border: 2px solid var(--outline);
+  --border-dashed: 2px dashed var(--outline);
+
+  /* Hard shadows — offset, no blur, ink */
+  --shadow-1: 3px 3px 0 var(--shadow-ink);
+  --shadow-2: 4px 4px 0 var(--shadow-ink);
+  --shadow-3: 5px 5px 0 var(--shadow-ink);
+  --shadow-4: 6px 6px 0 var(--shadow-ink);
+  --shadow-5: 8px 8px 0 var(--shadow-ink);
+  --shadow-accent: 4px 4px 0 var(--shadow-accent);
+  --shadow-pressed: 1px 1px 0 var(--shadow-ink);
+  --shadow-float: 0 30px 60px rgba(0,0,0,.25); /* device frames only */
+
+  /* Motion — quick, springy, never floaty */
+  --ease-pop: cubic-bezier(.2,.8,.2,1);
+  --ease-bounce: cubic-bezier(.34,1.56,.64,1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 320ms;
+  --press-offset: translate(2px,2px);
+
+  /* Hit targets */
+  --hit-min: 44px;
+}
