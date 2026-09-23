@@ -54,7 +54,7 @@ ToastViewport.displayName = ToastPrimitive.Viewport.displayName;
 
 const toastVariants = cva(
   cn(
-    "group pointer-events-auto relative flex w-full items-start justify-between gap-3 overflow-hidden rounded-md border-2 border-border p-4 shadow-hard-2 bg-teal island",
+    "group pointer-events-auto relative flex w-full items-start justify-between gap-3 overflow-hidden rounded-md border-2 border-border p-4 shadow-hard-2",
     // Gate slide/fade animations behind motion-safe so reduced-motion users get no animation.
     // Note: globals.css also has a prefers-reduced-motion rule that collapses all tp-* durations
     // to 0.01ms — this motion-safe: layer makes the intent explicit at the component level.
@@ -75,9 +75,22 @@ const toastVariants = cva(
   {
     variants: {
       variant: {
-        default: "",
-        success: "",
-        destructive: "",
+        // The design's single toast look: a neutral confirmation and a
+        // success read the same way, so these two collapse together.
+        default: "bg-teal island",
+        success: "bg-teal island",
+        // `island` is deliberately NOT used here: it rescopes --foreground /
+        // --muted-foreground / --border to the on-accent (ink) values, which
+        // are correct for teal but wrong for destructive's white-on-red
+        // (light) / near-black-on-salmon (dark) fill. Instead we rescope the
+        // same three variables straight to --destructive-foreground, so
+        // ToastTitle (inherits `color`), ToastDescription
+        // (`text-muted-foreground`), ToastAction's border (`border-border`)
+        // and ToastClose (`text-muted-foreground`, `hover:text-foreground`)
+        // all resolve legibly against bg-destructive without any of those
+        // components needing to know which variant they're in.
+        destructive:
+          "bg-destructive text-destructive-foreground [--foreground:var(--destructive-foreground)] [--muted-foreground:var(--destructive-foreground)] [--border:var(--destructive-foreground)]",
       },
     },
     defaultVariants: {

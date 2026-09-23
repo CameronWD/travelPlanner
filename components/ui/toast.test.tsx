@@ -132,6 +132,63 @@ describe("ToastViewport", () => {
   });
 });
 
+describe("Toast variant", () => {
+  // A Traveller must be able to tell a failure from a confirmation at a
+  // glance. If `destructive` ever collapses back onto the same fill as
+  // `default`/`success` (e.g. because a base class silently wins a
+  // tailwind-merge conflict again), every "Couldn't save/update/delete..."
+  // toast across the app reads as a success. This protects that distinction.
+  it("gives destructive a different fill than default and success, so an error toast doesn't read as a confirmation", () => {
+    render(
+      <ToastProvider>
+        <Toast open data-testid="toast-default">
+          <ToastTitle>Saved</ToastTitle>
+        </Toast>
+        <Toast open variant="success" data-testid="toast-success">
+          <ToastTitle>Added</ToastTitle>
+        </Toast>
+        <Toast open variant="destructive" data-testid="toast-destructive">
+          <ToastTitle>Couldn&apos;t save</ToastTitle>
+        </Toast>
+        <ToastViewport />
+      </ToastProvider>,
+    );
+
+    const defaultCard = screen.getByTestId("toast-default");
+    const successCard = screen.getByTestId("toast-success");
+    const destructiveCard = screen.getByTestId("toast-destructive");
+
+    // default and success intentionally share the one designed look.
+    expect(defaultCard.className).toContain("bg-teal");
+    expect(defaultCard.className).toContain("island");
+    expect(successCard.className).toContain("bg-teal");
+    expect(successCard.className).toContain("island");
+
+    // destructive must carry its own fill, not the teal one.
+    expect(destructiveCard.className).toContain("bg-destructive");
+    expect(destructiveCard.className).toContain("text-destructive-foreground");
+    expect(destructiveCard.className).not.toContain("bg-teal");
+    expect(destructiveCard.className.split(/\s+/)).not.toContain("island");
+  });
+
+  it("rescopes --foreground, --muted-foreground and --border on destructive instead of using island, so Description/Action/Close stay legible on the red fill instead of the teal-tuned ink", () => {
+    render(
+      <ToastProvider>
+        <Toast open variant="destructive" data-testid="toast-destructive-vars">
+          <ToastTitle>Couldn&apos;t save</ToastTitle>
+        </Toast>
+        <ToastViewport />
+      </ToastProvider>,
+    );
+    const card = screen.getByTestId("toast-destructive-vars");
+    expect(card.className).toContain("[--foreground:var(--destructive-foreground)]");
+    expect(card.className).toContain(
+      "[--muted-foreground:var(--destructive-foreground)]",
+    );
+    expect(card.className).toContain("[--border:var(--destructive-foreground)]");
+  });
+});
+
 describe("ToastClose", () => {
   it("has a touch target of at least 44px via p-3.5 padding", () => {
     render(
