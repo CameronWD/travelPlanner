@@ -143,7 +143,16 @@ const ToastAction = React.forwardRef<
   <ToastPrimitive.Action
     ref={ref}
     className={cn(
-      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-border bg-transparent px-3 text-sm font-medium transition-colors hover:bg-muted",
+      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-border bg-transparent px-3 text-sm font-medium transition-colors",
+      // Hover background derives from --foreground (same variable the text
+      // colour comes from), not --muted: --muted is an unrescoped surface
+      // token, so on an accent-filled toast (island's ink, or destructive's
+      // white/near-black) a --muted patch and the on-top text would come from
+      // two different colour systems and could fail contrast against each
+      // other independently of the toast's own fill. Deriving both from
+      // --foreground means they can never drift apart on any current or
+      // future variant.
+      "hover:bg-foreground/10",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       className,
     )}
@@ -161,7 +170,12 @@ const ToastClose = React.forwardRef<
     aria-label="Close"
     className={cn(
       // p-3.5 (14px each side) + 16px icon = 44px total; meets the 44px touch target.
-      "shrink-0 rounded-md p-3.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+      "shrink-0 rounded-md p-3.5 text-muted-foreground transition-colors hover:text-foreground",
+      // Same reasoning as ToastAction: the hover patch derives from
+      // --foreground, the same variable hover:text-foreground reads, so the
+      // two can't drift apart on an accent-filled toast. Not --muted, which
+      // is never rescoped.
+      "hover:bg-foreground/10",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       className,
     )}
