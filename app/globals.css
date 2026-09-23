@@ -4,6 +4,17 @@
 /* Class-based dark mode (Tailwind v4) */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ---------------------------------------------------------------------------
+   Leaflet stacking-context containment
+   Leaflet assigns high z-index values to its internal panes (200–700) and
+   controls (1000). Without a stacking context on the map root, those values
+   leak into the page's root context and paint ABOVE our modal layer (dialog
+   overlay/content are z-50), so an open dialog appears *behind* the map.
+   `isolation: isolate` gives every map its own stacking context: the internal
+   layering is preserved, but the whole map now sits at the container's level
+   in the page (~0), safely below the z-50 dialogs. Applies to all maps
+   (globe, wishlist, route, day) via Leaflet's shared .leaflet-container class.
+--------------------------------------------------------------------------- */
 .leaflet-container {
   isolation: isolate;
 }
@@ -242,6 +253,9 @@
 @keyframes tp-pulse { from { opacity: 0.35; } to { opacity: 0.7; } }
 
 @utility tp-fade-in { animation: tp-fade-in var(--dur-base) linear; }
+/* Paced to tp-slide-up (--dur-slow), so a sheet's backdrop and its panel arrive
+   together. tp-fade-in stays at --dur-base for dialogs, which have no slide
+   to keep step with. */
 @utility tp-fade-in-sheet { animation: tp-fade-in var(--dur-slow) linear; }
 @utility tp-fade-out { animation: tp-fade-out var(--dur-exit) var(--ease-exit); }
 @utility tp-pop-in { animation: tp-zoom-in var(--dur-slow) var(--ease-pop); }
