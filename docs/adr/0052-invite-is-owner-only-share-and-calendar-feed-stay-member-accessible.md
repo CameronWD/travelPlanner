@@ -93,3 +93,50 @@ access — is why the three split rather than moving together.
   gate — worth stating plainly, since the equivalent P0 (`duplicateTrip`)
   really was the latter. A Traveller who relied on inviting a partner
   themselves loses that ability unless they are the owner or an admin.
+
+## Amendment — 2026-09-23 (`feat/rollout-gate`, `ARCH-TEN-7` and `ARCH-DAT-1`)
+
+**1. The Calendar feed now actually carries ADR 0051's never-shared floor.**
+
+The Context above justifies the feed's member-accessible gate on the belief
+that "a Calendar feed exposes only schedule (Transport, Accommodation dates,
+scheduled Items) — never cost, Notes, or any of the floor's contents".
+`ARCH-TEN-7` found that **that belief was false of the code**: the feed's
+route selected `Item.booking`, `Item.notes`, `Accommodation.confirmation` and
+`Accommodation.notes` into the event DESCRIPTION, and `Transport.reference` —
+a booking reference — into the event **SUMMARY**, where it reaches calendar
+previews, notifications and lock screens. A bearer-token URL with no identity
+was handing out exactly what ADR 0051 built a structural floor to keep off a
+Share link.
+
+All five fields are now removed from the feed — from the route's `select`
+blocks, from the `Ics*` types, and from the SUMMARY builder in `lib/ics.ts`,
+which is the real serialiser. Addresses, place names and route endpoints are
+kept: they are schedule, and a calendar event without a location is not much
+of a calendar event.
+
+**The reasoning in the Context above is therefore now sound rather than
+merely stated.** The asymmetry it rests on — Invite grants unbounded
+transitive access; a Share link and a Calendar feed grant bounded,
+non-membership access — is what actually holds in the code. Decision 2
+(`createShareLink` and `createCalendarFeed` stay open to any member) is
+unchanged and is now on firmer ground than when it was written.
+
+**2. Whole-branch destruction is owner-only.**
+
+`ARCH-DAT-1`'s other half was that every member held irreversible delete
+power over everything. Two actions that destroy a whole branch of a Trip's
+content now take the same owner-or-admin gate as Delete, Duplicate and
+Invite:
+
+- **`deleteStop`** — a Stop takes its Accommodations, their confirmation
+  numbers and its unpaid Costs with it.
+- **`promoteFork`** — promoting discards the outgoing real plan and every
+  other Fork.
+
+Everything else on a Trip remains open to any Traveller on it, which is still
+the rule this ADR's Consequences describe. The line drawn is *destroying a
+branch of the Trip*, not *editing the Trip*. A Trip member can also now be
+removed (`removeTripMember`) or leave (`leaveTrip`), which the original
+membership model had no path for at all — note that neither revokes
+deployment-level sign-in, which is ADR 0057's allowlist, not this one's.

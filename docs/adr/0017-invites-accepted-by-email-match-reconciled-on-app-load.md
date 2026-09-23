@@ -14,3 +14,29 @@ An **Invite** is just a pending `(tripId, email)` record; it carries no email or
 - Acceptance is best-effort and must never block page render or sign-in: failures are logged, not thrown.
 - **Direct deep-link race (known, self-healing).** Because the reconcile lives in the `(app)` layout, a brand-new invitee who navigates *straight* to a specific `/trips/{id}/...` URL (rather than landing on `/trips` first) may have the trip-level `requireTripAccess` check run before the layout's reconcile finishes, yielding a one-time 404. It clears on the next navigation/refresh, and the common path (post-login lands on `/trips`, which is under `(app)`) is unaffected. If this ever needs to be bulletproof, reconcile in `requireUser`/`requireTripAccess` instead of (or as well as) the layout.
 - The `toAcceptOnly` branch relies on the `@@unique([tripId, email])` constraint: it assumes at most one pending invite per trip per email, so marking the "already-joined" leftovers accepted can never strand a membership.
+
+## Amendment — 2026-09-23 (`feat/rollout-gate`, ADR 0057)
+
+**Invite expiry now blocks *acceptance*, not only sign-in admission.**
+
+`Invite` and `GlobeInvite` gained an `expiresAt` column (30 days from
+creation, `INVITE_EXPIRY_MS` in `lib/invite-expiry.ts`). Both acceptance
+helpers — `acceptPendingInvitesForUser` and
+`acceptPendingGlobeInvitesForUser`, and therefore **both** call sites
+described above, the `signIn` event and the `(app)` layout reconcile — now
+filter on `acceptedAt IS NULL AND (expiresAt IS NULL OR expiresAt > now())`.
+An expired Invite is inert everywhere, not merely refused at the door: it
+never becomes membership, and it is not an account-grant either.
+
+The reason it is not only a sign-in check is ADR 0057: under that ADR a
+pending Trip Invite is sufficient to create an account on the deployment, so
+an Invite that stayed acceptable for ever would be a permanently open door —
+including one created by typo. Expiry has to be a property of the Invite, not
+a condition attached to one of the places it is read.
+
+**`expiresAt: null` is deliberately treated as VALID, not expired.** It is
+what every pre-migration row looks like, and what a row written by the *old*
+build during the deploy window looks like. Treating null as expired would
+have revoked every live invitation at the instant of deploy. For the same
+reason the migration backfills `expiresAt` to **deploy date + 30 days**,
+never `createdAt + 30`.
