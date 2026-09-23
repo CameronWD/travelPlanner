@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MobileTabBar } from "./mobile-tab-bar";
 
 // Use a vi.fn() so individual tests can override the return value per-test.
@@ -24,7 +25,7 @@ describe("MobileTabBar", () => {
     expect(nav?.className).toContain("env(safe-area-inset-bottom)");
   });
 
-  it("does NOT give the More button text-primary when a primary route is the current pathname", () => {
+  it("does NOT give the More button its active styling when a primary route is the current pathname", () => {
     // mockUsePathname already returns "/trips/t1" from beforeEach
     const { container } = render(<MobileTabBar tripId="t1" />);
     const buttons = container.querySelectorAll("button");
@@ -32,11 +33,12 @@ describe("MobileTabBar", () => {
       (b) => b.textContent?.trim() === "More",
     );
     expect(moreButton).toBeTruthy();
-    // Base route (/trips/t1) is a primary tab, not a More sub-route → no text-primary
-    expect(moreButton?.className).not.toContain("text-primary");
+    // Base route (/trips/t1) is a primary tab, not a More sub-route → inactive
+    expect(moreButton?.className).not.toContain("text-on-accent");
+    expect(moreButton?.getAttribute("aria-current")).toBeNull();
   });
 
-  it("gives the More button text-primary when a More sub-route is the current pathname", () => {
+  it("gives the More button its active styling when a More sub-route is the current pathname", () => {
     mockUsePathname.mockReturnValue("/trips/t1/settings");
     const { container } = render(<MobileTabBar tripId="t1" />);
     const buttons = container.querySelectorAll("button");
@@ -44,7 +46,14 @@ describe("MobileTabBar", () => {
       (b) => b.textContent?.trim() === "More",
     );
     expect(moreButton).toBeTruthy();
-    expect(moreButton?.className).toContain("text-primary");
+    expect(moreButton?.className).toContain("text-on-accent");
+    // Not aria-current="page" — the trigger opens a sheet, it isn't a page,
+    // and the sheet's own current link already carries aria-current (see
+    // "reaches all eight More-only routes" below). The trigger's accessible
+    // name carries the "a route behind this trigger is current" signal
+    // instead, so it doesn't collide with the sheet link's aria-current.
+    expect(moreButton?.getAttribute("aria-current")).toBeNull();
+    expect(moreButton?.getAttribute("aria-label")).toBe("More trip sections, Settings selected");
   });
 
   it("publishes its height via --tp-tab-bar-h so the FAB and toasts can clear it", () => {
@@ -53,5 +62,43 @@ describe("MobileTabBar", () => {
     expect(nav.className).toContain(
       "h-[calc(var(--tp-tab-bar-h)+env(safe-area-inset-bottom))]",
     );
+  });
+
+  // Regression: Home's href (the trip base path) is a prefix of every trip
+  // route, and TabBar's pill-index fallback (Math.max(0, -1) === 0) used to
+  // mark item 0 — Home — active whenever NOTHING matched, instead of nothing
+  // being active. A dated day view and /compare are both routes with no
+  // TabBar slot at all, so they're exactly where that bug showed up.
+  it("marks nothing as current on an unlisted trip route (day view) — Home does not light up", () => {
+    mockUsePathname.mockReturnValue("/trips/t1/day/2026-01-02");
+    const { container } = render(<MobileTabBar tripId="t1" />);
+    expect(container.querySelectorAll('[aria-current="page"]').length).toBe(0);
+  });
+
+  it("marks nothing as current on an unlisted trip route (compare) — Home does not light up", () => {
+    mockUsePathname.mockReturnValue("/trips/t1/compare");
+    const { container } = render(<MobileTabBar tripId="t1" />);
+    expect(container.querySelectorAll('[aria-current="page"]').length).toBe(0);
+  });
+
+  // These eight routes have no other mobile entry point (see task-7 brief).
+  it("reaches all eight More-only routes from the sheet", async () => {
+    const user = userEvent.setup();
+    render(<MobileTabBar tripId="t1" />);
+    await user.click(screen.getByRole("button", { name: "More" }));
+
+    const expected = [
+      ["Summary", "/trips/t1/summary"],
+      ["Wishlist", "/trips/t1/wishlist"],
+      ["Journal", "/trips/t1/journal"],
+      ["Checklists", "/trips/t1/checklists"],
+      ["Files", "/trips/t1/files"],
+      ["Activity", "/trips/t1/activity"],
+      ["Settings", "/trips/t1/settings"],
+      ["Help", "/trips/t1/help"],
+    ];
+    for (const [label, href] of expected) {
+      expect(screen.getByRole("link", { name: label }).getAttribute("href")).toBe(href);
+    }
   });
 });

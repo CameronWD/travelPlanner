@@ -711,7 +711,7 @@ export default async function SummaryPage({
                   />
                 )}
                 {budget.hasMissingRates && (
-                  <p className="w-full text-xs text-amber-600">
+                  <p className="w-full text-xs text-sun-text">
                     ⚠ Some costs in {budget.missingRates.join(", ")} are excluded
                     (no FX rate available).
                   </p>

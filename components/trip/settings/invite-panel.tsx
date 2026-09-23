@@ -248,7 +248,7 @@ export function InvitePanel({
             </Button>
           </form>
           {inviteSuccess && (
-            <p role="status" className="mt-2 text-sm text-success">
+            <p role="status" className="mt-2 text-sm text-teal-text">
               Invite created — no email was sent. They&apos;ll join automatically the next time they sign in.
             </p>
           )}

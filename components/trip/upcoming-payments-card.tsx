@@ -46,7 +46,7 @@ export function UpcomingPaymentsCard({ payments, tripId }: UpcomingPaymentsCardP
                 <span
                   className={cn(
                     "shrink-0 text-xs",
-                    overdue ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",
+                    overdue ? "text-sun-text" : "text-muted-foreground",
                   )}
                 >
                   {timingPhrase(payment.daysUntil)}

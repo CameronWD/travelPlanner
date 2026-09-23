@@ -15,6 +15,7 @@ import type { PhaseDescription, TripPhase } from "@/lib/trip-phase";
 import { TripCover } from "./trip-cover";
 import type { LatLng } from "@/lib/route-render";
 import { DuplicateTripDialog } from "./duplicate-trip-dialog";
+import { HUE_CLASSES } from "@/lib/hues";
 
 /**
  * Format a YYYY-MM-DD date range into a friendly string like "1 Jul – 12 Jul".
@@ -54,9 +55,9 @@ export interface TripCardProps {
 const PHASE_DOT_CLASS: Record<TripPhase, string> = {
   planning: "bg-primary",
   "final-prep": "bg-primary",
-  sketching: "bg-amber-500",
-  travelling: "bg-teal-500",
-  past: "bg-stone-400",
+  sketching: HUE_CLASSES.sun.fill,
+  travelling: HUE_CLASSES.teal.fill,
+  past: HUE_CLASSES.stone.fill,
 };
 
 /**

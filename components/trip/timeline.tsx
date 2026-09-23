@@ -196,7 +196,7 @@ function TimeGutter({
 }) {
   if (!isDay) return null;
   return (
-    <span className="w-9 sm:w-11 shrink-0 text-right text-xs sm:text-[11px] font-mono text-muted-foreground/80 leading-tight pt-0.5">
+    <span className="w-9 sm:w-11 shrink-0 text-right text-xs sm:text-[11px] font-mono text-foreground/80 leading-tight pt-0.5">
       {time ?? ""}
     </span>
   );
@@ -293,7 +293,7 @@ function TransportRow({
 
         {/* Multi-day notice */}
         {isDep && depEntry && !depEntry.arrivesSameDay && depEntry.arrivalDateISO && (
-          <p className="mt-0.5 text-xs sm:text-[11px] text-amber-600 dark:text-amber-400">
+          <p className="mt-0.5 text-xs sm:text-[11px] text-sun-text">
             Arrives {depEntry.arrivalDateISO}
           </p>
         )}
@@ -468,13 +468,13 @@ function AccomCheckinRow({
       className={cn(
         "flex items-center gap-2",
         isDay
-          ? "rounded-2xl bg-emerald-100 px-3 py-2.5 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+          ? "rounded-2xl bg-hue-leaf/25 px-3 py-2.5 text-foreground"
           : "px-2 py-1 rounded-lg",
       )}
     >
       <TimeGutter time={a.checkInTime ?? null} isDay={isDay} />
       <LogIn
-        className="size-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+        className="size-4 shrink-0 text-foreground"
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
@@ -482,7 +482,7 @@ function AccomCheckinRow({
           Check-in — {a.name}
         </span>
         {isDay && a.confirmation && (
-          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-foreground/80">
             <Hash className="size-3 shrink-0" aria-hidden="true" />
             {a.confirmation}
           </p>
@@ -508,13 +508,13 @@ function AccomCheckoutRow({
       className={cn(
         "flex items-center gap-2",
         isDay
-          ? "rounded-2xl bg-rose-100 px-3 py-2.5 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+          ? "rounded-2xl bg-hue-pink/25 px-3 py-2.5 text-foreground"
           : "px-2 py-1 rounded-lg",
       )}
     >
       <TimeGutter time={a.checkOutTime ?? null} isDay={isDay} />
       <LogOut
-        className="size-4 shrink-0 text-rose-600 dark:text-rose-400"
+        className="size-4 shrink-0 text-foreground"
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">

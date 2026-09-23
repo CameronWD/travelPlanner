@@ -72,7 +72,7 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
                     />
                   ) : (
                     <TrendingDown
-                      className="size-3.5 text-emerald-600 dark:text-emerald-400"
+                      className="size-3.5 text-teal-text"
                       aria-hidden="true"
                     />
                   )}
@@ -80,7 +80,7 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
                     className={
                       isOver
                         ? "text-over"
-                        : "text-emerald-700 dark:text-emerald-400"
+                        : "text-teal-text"
                     }
                   >
                     {formatMoney(absVariance, homeCurrency)} {isOver ? "over" : "under"}

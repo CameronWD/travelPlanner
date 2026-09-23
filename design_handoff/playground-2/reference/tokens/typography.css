@@ -1,0 +1,27 @@
+:root {
+  --font-display: "Bricolage Grotesque", "Plus Jakarta Sans", system-ui, sans-serif;
+  --font-body: "Plus Jakarta Sans", system-ui, sans-serif;
+
+  /* Display (Bricolage 800, tight) */
+  --type-display-xl: 800 76px/0.9 var(--font-display);
+  --type-display-l: 800 56px/0.9 var(--font-display);
+  --type-h1: 800 36px/1 var(--font-display);
+  --type-h2: 800 30px/1.05 var(--font-display);
+  --type-h3: 800 24px/1.1 var(--font-display);
+  --type-h4: 800 18px/1.2 var(--font-display);
+  --type-h5: 700 16px/1.25 var(--font-display);
+  --tracking-display: -0.03em;
+  --tracking-display-xl: -0.05em;
+
+  /* Body (Plus Jakarta) */
+  --type-body-l: 600 15px/1.4 var(--font-body);
+  --type-body: 600 14px/1.4 var(--font-body);
+  --type-body-s: 500 13px/1.45 var(--font-body);
+  --type-caption: 600 12px/1.4 var(--font-body);
+  --type-label: 700 11px/1.2 var(--font-body);
+  --type-micro: 800 10px/1.2 var(--font-body);
+  --tracking-label: 0.08em;
+  --tracking-micro: 0.12em;
+  --type-button: 800 13px/1 var(--font-body);
+  --type-button-l: 800 15px/1 var(--font-body);
+}

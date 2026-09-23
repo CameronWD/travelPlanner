@@ -102,71 +102,75 @@ export default async function TripLayout({
   const offlinePaths = tripOfflinePaths(tripId, trip.startDate, trip.endDate, warmAttachments);
 
   return (
-    <div className="flex flex-col gap-0">
-      {/* ── Trip header ── */}
-      <div className="pb-4 pt-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex flex-col gap-1">
-            <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">
-              {trip.name}
-            </h1>
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <span>{dateRange}</span>
-              <Badge variant="outline" className="font-mono text-xs">
-                {trip.homeCurrency}
-              </Badge>
-            </div>
-          </div>
-
-          {/* Member avatars + fork switcher + notification bell */}
-          <div className="flex items-center gap-2">
-            {trip.members.length > 0 && (
-              <div className="flex -space-x-2" aria-label="Trip members">
-                {trip.members.slice(0, 6).map(({ user }) => (
-                  <Avatar
-                    key={user.id}
-                    className="size-8 ring-2 ring-background"
-                    title={user.name ?? undefined}
-                  >
-                    {user.image ? (
-                      <AvatarImage src={user.image} alt={user.name ?? "Member"} />
-                    ) : null}
-                    <AvatarFallback className="text-xs">
-                      {initials(user.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
-                {trip.members.length > 6 && (
-                  <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">
-                    +{trip.members.length - 6}
-                  </div>
-                )}
-              </div>
-            )}
-            {showForkSwitcher && (
-              <ForkSwitcher
-                tripId={tripId}
-                forks={forks}
-                phase={tripPhase}
-              />
-            )}
-            <NotificationBell
-              tripId={tripId}
-              unreadCount={unreadCount}
-              recent={recent}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* ── Trip nav ── */}
+    // md+: the rail (TripNav → Dock) sits left of the header+content column,
+    // matching the desktop kit's Shell. Below md the rail is hidden (Dock's
+    // own "hidden ... md:flex") and MobileTabBar takes over instead.
+    <div className="flex flex-col gap-0 md:flex-row">
       <TripNav tripId={tripId} />
 
-      {/* ── Page content ── */}
-      <div className="py-6 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] md:pb-6">
-        <OfflineWarmer paths={offlinePaths} />
-        <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
-        {children}
+      <div className="flex min-w-0 flex-1 flex-col gap-0 md:pl-6">
+        {/* ── Trip header ── */}
+        <div className="pb-4 pt-2">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-col gap-1">
+              <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">
+                {trip.name}
+              </h1>
+              <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <span>{dateRange}</span>
+                <Badge variant="outline" className="font-mono text-xs">
+                  {trip.homeCurrency}
+                </Badge>
+              </div>
+            </div>
+
+            {/* Member avatars + fork switcher + notification bell */}
+            <div className="flex items-center gap-2">
+              {trip.members.length > 0 && (
+                <div className="flex -space-x-2" aria-label="Trip members">
+                  {trip.members.slice(0, 6).map(({ user }) => (
+                    <Avatar
+                      key={user.id}
+                      className="size-8 ring-2 ring-background"
+                      title={user.name ?? undefined}
+                    >
+                      {user.image ? (
+                        <AvatarImage src={user.image} alt={user.name ?? "Member"} />
+                      ) : null}
+                      <AvatarFallback className="text-xs">
+                        {initials(user.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                  ))}
+                  {trip.members.length > 6 && (
+                    <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">
+                      +{trip.members.length - 6}
+                    </div>
+                  )}
+                </div>
+              )}
+              {showForkSwitcher && (
+                <ForkSwitcher
+                  tripId={tripId}
+                  forks={forks}
+                  phase={tripPhase}
+                />
+              )}
+              <NotificationBell
+                tripId={tripId}
+                unreadCount={unreadCount}
+                recent={recent}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Page content ── */}
+        <div className="py-6 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] md:pb-6">
+          <OfflineWarmer paths={offlinePaths} />
+          <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
+          {children}
+        </div>
       </div>
 
       {/* ── Mobile bottom tab bar ── */}

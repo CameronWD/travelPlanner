@@ -100,7 +100,7 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
   },
   {
     group: "marker",
-    specimen: <Check className="size-4 text-success" />,
+    specimen: <Check className="size-4 text-teal-text" />,
     meaning: "Done, or already in this plan",
   },
   {
@@ -122,7 +122,7 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
   },
   {
     group: "marker",
-    specimen: <AlertTriangle className="size-4 text-warning" />,
+    specimen: <AlertTriangle className="size-4 text-sun-text" />,
     meaning: "Something needs your attention",
   },
   {
@@ -235,8 +235,8 @@ export function HelpLegend() {
           {[
             { icon: <Home className="size-5" />, label: "Home" },
             { icon: <Map className="size-5" />, label: "Plan" },
-            { icon: <CalendarDays className="size-5" />, label: "Calendar" },
-            { icon: <Wallet className="size-5" />, label: "Budget" },
+            { icon: <CalendarDays className="size-5" />, label: "Days" },
+            { icon: <Wallet className="size-5" />, label: "Money" },
             { icon: <Menu className="size-5" />, label: "More" },
           ].map(({ icon, label }) => (
             <li key={label} className="flex items-center gap-2">

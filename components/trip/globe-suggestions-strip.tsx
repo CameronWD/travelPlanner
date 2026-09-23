@@ -59,7 +59,7 @@ export function GlobeSuggestionsStrip({
     <section className="rounded-2xl bg-accent/10 p-3">
       <div className="flex items-center gap-2">
         <Globe2 className="size-4 text-accent" aria-hidden="true" />
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-accent">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-coral-text">
           <span
             data-testid="globe-eyebrow-dot"
             aria-hidden="true"
@@ -92,7 +92,7 @@ export function GlobeSuggestionsStrip({
           <button
             type="button"
             onClick={onSeeMore}
-            className="px-1 text-xs font-semibold text-accent hover:underline"
+            className="px-1 text-xs font-semibold text-coral-text hover:underline"
           >
             +{overflow} more
           </button>

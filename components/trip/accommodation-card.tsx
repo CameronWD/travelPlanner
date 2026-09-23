@@ -85,23 +85,23 @@ export function AccommodationCard({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2.5 rounded-xl border bg-emerald-50 border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-900 px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
+        "flex flex-col gap-2.5 rounded-xl border border-border bg-hue-leaf/25 px-4 py-3 shadow-soft transition-shadow hover:shadow-soft-lg",
         isPending && "opacity-60 pointer-events-none",
       )}
     >
       {/* Top row: leading icon + name + controls */}
       <div className="flex items-start gap-3">
         <Home
-          className="size-4 shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400"
+          className="size-4 shrink-0 mt-0.5 text-hue-leaf-text"
           aria-hidden="true"
         />
         <div className="flex flex-1 items-start justify-between gap-3 min-w-0">
           <div className="min-w-0">
-            <h4 className="font-display text-base font-semibold leading-tight text-emerald-900 dark:text-emerald-100 truncate">
+            <h4 className="font-display text-base font-semibold leading-tight text-foreground truncate">
               {a.name}
             </h4>
             {a.address && (
-              <div className="mt-0.5 flex items-center gap-1 text-xs text-emerald-700/70 dark:text-emerald-300/70">
+              <div className="mt-0.5 flex items-center gap-1 text-xs text-foreground/80">
                 {/* No decorative pin here: MapLink below renders the real one,
                     and help-legend.tsx teaches that glyph as "has a location"
                     (HG-02/HG-10). This MapLink call always has a real address
@@ -109,7 +109,7 @@ export function AccommodationCard({
                     fire via the label-only fallback — no coordinate guard
                     needed here, unlike stop-card.tsx's country line. */}
                 <span className="truncate">{a.address}</span>
-                <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} className="ml-0.5 text-emerald-600/60 dark:text-emerald-400/60" />
+                <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} className="ml-0.5 text-foreground/80" />
               </div>
             )}
           </div>
@@ -132,7 +132,7 @@ export function AccommodationCard({
       </div>
 
       {/* Dates + nights */}
-      <div className="flex flex-wrap items-center gap-3 text-xs text-emerald-700/70 dark:text-emerald-300/70">
+      <div className="flex flex-wrap items-center gap-3 text-xs text-foreground/80">
         <div className="flex items-center gap-1.5">
           <Calendar className="size-3.5 shrink-0" aria-hidden="true" />
           <span>{dateRange}</span>
@@ -144,16 +144,16 @@ export function AccommodationCard({
 
       {/* Confirmation */}
       {a.confirmation && (
-        <div className="flex items-center gap-1.5 text-xs text-emerald-700/80 dark:text-emerald-300/80">
+        <div className="flex items-center gap-1.5 text-xs text-foreground/80">
           <Hash className="size-3 shrink-0" aria-hidden="true" />
           <span className="font-mono">{a.confirmation}</span>
-          <span className="font-semibold text-emerald-700 dark:text-emerald-400">· Confirmed</span>
+          <span className="font-semibold text-foreground">· Confirmed</span>
         </div>
       )}
 
       {/* Notes */}
       {a.notes && (
-        <div className="flex items-start gap-1.5 text-xs text-emerald-700/70 dark:text-emerald-300/70">
+        <div className="flex items-start gap-1.5 text-xs text-foreground/80">
           <StickyNote className="size-3.5 mt-0.5 shrink-0" aria-hidden="true" />
           <p className="line-clamp-2">{a.notes}</p>
         </div>
@@ -177,7 +177,7 @@ export function AccommodationCard({
 
       {/* Costs */}
       {costs !== undefined && tripId && (
-        <div className="border-t border-emerald-200/60 dark:border-emerald-900/60 pt-2">
+        <div className="border-t border-border/60 pt-2">
           <CostEditor
             tripId={tripId}
             ownerType="ACCOMMODATION"

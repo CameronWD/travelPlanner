@@ -96,8 +96,8 @@ export function AiBookingParser({ tripId, aiConfigured }: AiBookingParserProps) 
       )}
 
       {parsed && (
-        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-950/30">
-          <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mb-3">
+        <div className="rounded-2xl border border-border bg-hue-lilac/25 p-4">
+          <p className="text-xs font-medium text-foreground mb-3">
             Extracted draft — review and add manually
           </p>
 

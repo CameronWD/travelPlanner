@@ -336,7 +336,7 @@ export default async function BudgetPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="sr-only">Budget</h2>
+      <h2 className="sr-only">Money</h2>
 
       {activeFork && (
         <>
@@ -349,13 +349,13 @@ export default async function BudgetPage({
 
       {/* Missing rates warning */}
       {budget.hasMissingRates && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-3">
-          <AlertTriangle className="size-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+        <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
+          <AlertTriangle className="size-4 shrink-0 mt-0.5 text-sun-text" aria-hidden="true" />
           <div className="flex-1 text-sm">
-            <p className="font-medium text-amber-800 dark:text-amber-300">
+            <p className="font-medium text-sun-text">
               Some costs are missing exchange rates
             </p>
-            <p className="mt-0.5 text-amber-700 dark:text-amber-400">
+            <p className="mt-0.5 text-sun-text">
               {budget.missingRates.join(", ")} — costs in these currencies are excluded from totals.
               Set rates in the <strong>Exchange Rates</strong> section below.
             </p>
@@ -378,7 +378,7 @@ export default async function BudgetPage({
       {/* Legend for the cost-vs-paid columns shown in the sections below */}
       <div className="flex items-center justify-end gap-4 px-1 text-xs text-muted-foreground">
         <span>Cost</span>
-        <span className="text-emerald-600 dark:text-emerald-400">Paid</span>
+        <span className="text-teal-text">Paid</span>
       </div>
 
       {/* Two-column grid: main roll-up | right rail (rates + other costs) */}
@@ -389,9 +389,9 @@ export default async function BudgetPage({
 
           {/* Legacy paid-without-date costs notice */}
           {!activeFork && legacyCount > 0 && (
-            <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm">
-              <AlertTriangle className="size-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-              <p className="text-amber-800 dark:text-amber-300">
+            <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+              <AlertTriangle className="size-4 shrink-0 mt-0.5 text-sun-text" aria-hidden="true" />
+              <p className="text-sun-text">
                 {legacyCount} {legacyCount === 1 ? "cost has" : "costs have"} a recorded payment but no date —
                 tick {legacyCount === 1 ? "it" : "them"} off below to confirm; the amount you paid is offered back.
               </p>
@@ -435,7 +435,7 @@ export default async function BudgetPage({
                               <span
                                 title="Some costs in this category are excluded — missing exchange rate"
                                 aria-label="Missing rate"
-                                className="shrink-0 inline-flex items-center gap-0.5 rounded-sm bg-amber-100 dark:bg-amber-900/40 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400"
+                                className="shrink-0 inline-flex items-center gap-0.5 rounded-sm bg-warning/20 px-1 py-0.5 text-[10px] font-medium text-sun-text"
                               >
                                 <AlertTriangle className="size-2.5" aria-hidden="true" />
                                 No rate

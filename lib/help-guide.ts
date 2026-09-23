@@ -176,8 +176,8 @@ export type GuideTripSegment = (typeof GUIDE_TRIP_SEGMENTS)[number];
 export const GUIDE_NAV_LABELS = [
   "Home",
   "Plan",
-  "Calendar",
-  "Budget",
+  "Days",
+  "Money",
   "Summary",
   "Wishlist",
   "Journal",

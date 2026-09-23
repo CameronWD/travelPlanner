@@ -438,9 +438,9 @@ export default async function PrintPage({
                                     </span>
                                   )}
                                   {entry.kind === "accommodation-checkin" ? (
-                                    <LogIn className="size-3.5 shrink-0 text-emerald-600" aria-hidden="true" />
+                                    <LogIn className="size-3.5 shrink-0 text-hue-leaf-text" aria-hidden="true" />
                                   ) : (
-                                    <LogOut className="size-3.5 shrink-0 text-rose-600" aria-hidden="true" />
+                                    <LogOut className="size-3.5 shrink-0 text-hue-pink-text" aria-hidden="true" />
                                   )}
                                   <span>
                                     {entry.kind === "accommodation-checkin" ? "Check-in" : "Check-out"} —{" "}
@@ -590,7 +590,7 @@ export default async function PrintPage({
             )}
 
             {budget.hasMissingRates && (
-              <p className="mt-3 text-xs text-amber-600">
+              <p className="mt-3 text-xs text-sun-text">
                 Note: Some costs in {budget.missingRates.join(", ")} are excluded (no FX rate available).
               </p>
             )}

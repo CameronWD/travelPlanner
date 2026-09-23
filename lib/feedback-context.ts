@@ -14,9 +14,9 @@ function normalise(route: string): string {
 /** Trip sub-routes, keyed by the segment after the trip id. */
 const TRIP_SUBPAGE_LABELS: Record<string, string> = {
   plan: "Plan editor",
-  budget: "Budget",
+  budget: "Money",
   summary: "Summary",
-  calendar: "Calendar",
+  calendar: "Days",
   today: "Today",
   wishlist: "Wishlist",
   checklists: "Checklists",

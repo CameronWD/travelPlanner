@@ -54,7 +54,7 @@ describe("HelpLegend", () => {
 
   it("documents the five mobile tab bar destinations", () => {
     render(<HelpLegend />);
-    for (const label of ["Home", "Plan", "Calendar", "Budget", "More"]) {
+    for (const label of ["Home", "Plan", "Days", "Money", "More"]) {
       expect(screen.getByText(label)).toBeTruthy();
     }
   });

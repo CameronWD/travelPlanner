@@ -513,15 +513,15 @@ export default async function SharePage({
                                   return (
                                     <div
                                       key={`ci-${a.id}`}
-                                      className="flex items-center gap-2 text-sm rounded-lg bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-800/30 px-3 py-1.5"
+                                      className="flex items-center gap-2 text-sm rounded-lg bg-hue-leaf/25 border border-hue-leaf/40 px-3 py-1.5"
                                     >
                                       {a.checkInTime && (
-                                        <span className="font-mono text-xs text-muted-foreground shrink-0 w-8 sm:w-10 text-right">
+                                        <span className="font-mono text-xs text-foreground/80 shrink-0 w-8 sm:w-10 text-right">
                                           {a.checkInTime}
                                         </span>
                                       )}
                                       <LogIn
-                                        className="size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
+                                        className="size-3.5 shrink-0 text-foreground"
                                         aria-hidden="true"
                                       />
                                       <span className="font-medium text-foreground">
@@ -535,15 +535,15 @@ export default async function SharePage({
                                   return (
                                     <div
                                       key={`co-${a.id}`}
-                                      className="flex items-center gap-2 text-sm rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-800/30 px-3 py-1.5"
+                                      className="flex items-center gap-2 text-sm rounded-lg bg-hue-pink/25 border border-hue-pink/40 px-3 py-1.5"
                                     >
                                       {a.checkOutTime && (
-                                        <span className="font-mono text-xs text-muted-foreground shrink-0 w-8 sm:w-10 text-right">
+                                        <span className="font-mono text-xs text-foreground/80 shrink-0 w-8 sm:w-10 text-right">
                                           {a.checkOutTime}
                                         </span>
                                       )}
                                       <LogOut
-                                        className="size-3.5 shrink-0 text-rose-600 dark:text-rose-400"
+                                        className="size-3.5 shrink-0 text-foreground"
                                         aria-hidden="true"
                                       />
                                       <span className="font-medium text-foreground">

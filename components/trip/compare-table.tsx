@@ -11,9 +11,10 @@ import { moveFork } from "@/server/actions/forks";
 import { PromoteForkDialog } from "@/components/trip/promote-fork-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { HUE_CLASSES } from "@/lib/hues";
 
 /** Column accent-dot colours by fork index (the real plan uses bg-primary). */
-const FORK_DOT_COLORS = ["bg-accent", "bg-violet-500", "bg-sky-500"];
+const FORK_DOT_COLORS = ["bg-accent", HUE_CLASSES.lilac.fill, HUE_CLASSES.sky.fill];
 
 // ---------------------------------------------------------------------------
 // Types
@@ -192,18 +193,18 @@ function DiffStopRow({ stop }: { stop: RouteDiffStop }) {
   }
   const tone =
     stop.kind === "added"
-      ? "text-emerald-700 dark:text-emerald-400"
+      ? "text-teal-text"
       : stop.kind === "renighted"
-        ? "text-amber-700 dark:text-amber-400"
+        ? "text-sun-text"
         : "text-foreground";
   return (
     <div className={base}>
-      {stop.kind === "added" && <span className="shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden="true">+</span>}
+      {stop.kind === "added" && <span className="shrink-0 text-teal-text" aria-hidden="true">+</span>}
       {stop.kind === "moved" && <span className="shrink-0 text-muted-foreground" aria-hidden="true">↕</span>}
       <span className={`truncate min-w-0 font-medium ${tone}`}>{stop.name}</span>
       {stop.country && <span className="text-xs text-muted-foreground">{stop.country}</span>}
       {stop.kind === "renighted" ? (
-        <span className="ml-auto text-xs text-amber-700 dark:text-amber-400 font-mono">{stop.baseNights ?? "?"}→{stop.nights ?? "?"}n</span>
+        <span className="ml-auto text-xs text-sun-text font-mono">{stop.baseNights ?? "?"}→{stop.nights ?? "?"}n</span>
       ) : (
         nightsLabel(stop.nights) && <span className="ml-auto text-xs text-muted-foreground font-mono">{nightsLabel(stop.nights)}</span>
       )}
@@ -220,7 +221,7 @@ function RouteDiffCell({ realPlan, plan }: { realPlan: ComparisonPlan; plan: Com
         <DiffStopRow key={i} stop={s} />
       ))}
       {diff.legChanges.map((l, i) => (
-        <p key={`leg-${i}`} className="text-xs text-amber-700 dark:text-amber-400 truncate">
+        <p key={`leg-${i}`} className="text-xs text-sun-text truncate">
           {l.fromName}→{l.toName}: {l.fromMode.toLowerCase()} → {l.toMode.toLowerCase()}
         </p>
       ))}
@@ -240,7 +241,7 @@ function DeltaBadge({ text }: { text: string }) {
         "inline-flex items-center rounded-[5px] px-2 py-0.5 text-xs font-medium",
         isNegative
           ? "bg-over/10 text-over"
-          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+          : "bg-success/10 text-teal-text",
       ].join(" ")}
     >
       {text}
@@ -348,7 +349,7 @@ export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps)
         return (
           <div className="flex flex-col gap-0.5 text-sm">
             {m.flagCounts.warning > 0 && (
-              <span className="text-amber-600">⚠ {m.flagCounts.warning}</span>
+              <span className="text-sun-text">⚠ {m.flagCounts.warning}</span>
             )}
             {m.flagCounts.info > 0 && (
               <span className="text-muted-foreground">ℹ {m.flagCounts.info}</span>

@@ -1,7 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { HelpGuide, HELP_PRINT_STYLE } from "./help-guide";
 import { HELP_SECTIONS, sectionsInGroup, type HelpGroup } from "@/lib/help-guide";
+
+// trip-nav.tsx is a client component that imports next/navigation at module
+// scope; stub it so the pure primaryNav/moreNav exports can be imported here
+// (same defensive stub lib/help-guide.test.ts uses for the same reason).
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/trips/t1",
+  useSearchParams: () => new URLSearchParams(),
+}));
+vi.mock("@/components/trip/nav-more-menu", () => ({ NavMoreMenu: () => null }));
+
+import { primaryNav, moreNav } from "@/components/trip/trip-nav";
 
 /** Minimum body text for a section to count as written rather than stubbed. */
 const MIN_BODY_CHARS = 200;
@@ -80,13 +91,15 @@ describe("HelpGuide", () => {
     expect(screen.getByText("Buttons you’ll tap")).toBeTruthy();
   });
 
-  it("warns prominently that an undated thing to do stays off the calendar", () => {
+  it("warns prominently that an undated thing to do stays off Days", () => {
     // ADR 0022: a thing to do with no date appears in NO dated view. Without
-    // this callout it reads as a bug.
+    // this callout it reads as a bug. "Days" is the nav tab's real label
+    // (trip-nav.tsx's primaryNav) — the dated view used to be called
+    // "Calendar" before task 7's Playground rail rename.
     render(<HelpGuide tripId="t1" />);
     const callout = screen.getByTestId("undated-callout");
     expect(callout.textContent).toMatch(/won't show up|won’t show up/i);
-    expect(callout.textContent).toMatch(/calendar/i);
+    expect(callout.textContent).toMatch(/Days/);
   });
 
   it("deep-links into the trip when a tripId is given", () => {
@@ -279,7 +292,7 @@ describe("HelpGuide", () => {
     // always follow the real plan.
     const { container } = render(<HelpGuide tripId="t1" />);
     const body = container.querySelector("details#forks")?.textContent ?? "";
-    expect(body).toContain("the Plan, the Budget and the Wishlist");
+    expect(body).toContain("the Plan, Money and the Wishlist");
   });
 
   it("does not claim the Wishlist is a screen a variant can change", () => {
@@ -401,5 +414,44 @@ describe("HELP_PRINT_STYLE", () => {
     // overriding the children's `display` is a no-op. Both rules are required.
     expect(HELP_PRINT_STYLE).toContain("::details-content");
     expect(HELP_PRINT_STYLE).toContain("content-visibility: visible");
+  });
+});
+
+describe("drift guard: <Go> link text matches the real nav label", () => {
+  // lib/help-guide.test.ts's nav-label guard checks primaryNav/moreNav's
+  // OWN output against GUIDE_NAV_LABELS — it never reads this file's prose,
+  // so a rename that renamed the data source correctly (as task 7's Days/
+  // Money rename did) could still leave a stale label sitting inside a <Go>
+  // here, and nothing would fail. This guard reads the actual rendered
+  // <Go> links instead: every one of them is a real navigable link into the
+  // trip (guideTripHref), so its visible text SHOULD be exactly whatever
+  // primaryNav/moreNav currently calls that route. A structural check on
+  // <Go>'s own children, rather than a scan of the whole file's prose for
+  // risky words — deliberately, so it can never flag "calendar feed", a
+  // lowercase "calendar button", or CalendarSkeleton: none of those are
+  // inside a <Go>.
+  it("every <Go> link's visible text matches primaryNav/moreNav's current label for that route", () => {
+    const bySegment = new Map<string, string>();
+    for (const item of [...primaryNav("t1"), ...moreNav("t1")]) {
+      const path = item.href.split("?")[0];
+      bySegment.set(path.split("/").pop()!, item.label);
+    }
+
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const tripLinks = Array.from(
+      container.querySelectorAll<HTMLAnchorElement>('a[href^="/trips/t1/"]'),
+    );
+    // If this is ever 0, the guard below is vacuously true — guard the guard.
+    expect(tripLinks.length).toBeGreaterThan(0);
+
+    for (const link of tripLinks) {
+      const segment = link.getAttribute("href")!.split("?")[0].split("/").pop()!;
+      const expected = bySegment.get(segment);
+      if (!expected) continue; // a route <Go> doesn't cover (none today) — not this guard's job
+      expect(
+        link.textContent,
+        `<Go segment="${segment}"> says "${link.textContent}" but the real nav calls this route "${expected}"`,
+      ).toBe(expected);
+    }
   });
 });

@@ -68,7 +68,7 @@ export function DayNav({
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded",
           )}
         >
-          Calendar
+          Days
         </Link>
       </div>
 

@@ -119,8 +119,8 @@ export function AiPackingSuggestions({
       )}
 
       {hasItems && (
-        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-3 dark:border-violet-800 dark:bg-violet-950/30">
-          <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mb-2">
+        <div className="rounded-2xl border border-border bg-hue-lilac/25 p-3">
+          <p className="text-xs font-medium text-foreground mb-2">
             AI suggested packing items
           </p>
           <ul className="flex flex-col gap-1">

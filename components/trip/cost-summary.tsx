@@ -61,12 +61,12 @@ export function CostSummary({ cost, homeCurrency, className }: CostSummaryProps)
         <span
           className={cn(
             "flex items-center gap-0.5",
-            isPaid ? "text-emerald-600 dark:text-emerald-400" : "font-medium text-foreground",
+            isPaid ? "text-teal-text" : "font-medium text-foreground",
           )}
         >
           {isPaid && (
             <CheckCircle2
-              className="size-3 shrink-0 text-emerald-600 dark:text-emerald-400"
+              className="size-3 shrink-0 text-teal-text"
               aria-label="Paid"
             />
           )}

@@ -24,10 +24,10 @@ function tripPages(tripId: string): Array<{ label: string; href: string }> {
   return [
     { label: "Home", href: base },
     { label: "Plan", href: `${base}/plan` },
-    { label: "Calendar", href: `${base}/calendar` },
+    { label: "Days", href: `${base}/calendar` },
     { label: "Today", href: `${base}/today` },
     { label: "Wishlist", href: `${base}/wishlist` },
-    { label: "Budget", href: `${base}/budget` },
+    { label: "Money", href: `${base}/budget` },
     { label: "Summary", href: `${base}/summary` },
     { label: "Checklists", href: `${base}/checklists` },
     { label: "Files", href: `${base}/files` },

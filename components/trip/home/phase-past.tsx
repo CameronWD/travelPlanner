@@ -278,7 +278,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
     <section className="rounded-2xl border border-border bg-card p-5 shadow-soft">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Final spend</span>
-        <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", underBudget ? "bg-success/15 text-success" : "bg-over/10 text-over")}>
+        <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", underBudget ? "bg-success/15 text-teal-text" : "bg-over/10 text-over")}>
           {formatMoney(Math.abs(varianceMinor), trip.homeCurrency)} {underBudget ? "under" : "over"}
         </span>
       </div>

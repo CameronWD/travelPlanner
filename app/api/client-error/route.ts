@@ -6,10 +6,11 @@ import { reportError } from "@/lib/error-sink";
 /**
  * POST /api/client-error
  *
- * The client half of ARCH-OBS-2. The app's three error boundaries
- * (app/(app)/error.tsx, app/global-error.tsx, app/(app)/trips/[tripId]/error.tsx)
- * are client components — a `console.error` there lands only in the
- * Traveller's own devtools, where nobody but that Traveller can ever see it.
+ * The client half of ARCH-OBS-2. Every error.tsx boundary under app/(app)/
+ * (one per route, since Task 6 of the Playground reskin) plus the root
+ * app/global-error.tsx are client components — a `console.error` there lands
+ * only in the Traveller's own devtools, where nobody but that Traveller can
+ * ever see it.
  * This route gives them somewhere else to send it: the same `ErrorReport`
  * sink server failures already report to (lib/error-sink.ts, ADR 0059).
  *

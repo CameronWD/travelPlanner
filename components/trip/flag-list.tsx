@@ -31,18 +31,20 @@ export interface FlagListProps {
 
 const SEVERITY_CONFIG = {
   warning: {
-    containerClass:
-      "bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800/50",
-    iconClass: "text-amber-600 dark:text-amber-400",
-    labelClass: "text-amber-800 dark:text-amber-300",
+    containerClass: "bg-warning/10 border-warning/40",
+    iconClass: "text-sun-text",
+    labelClass: "text-sun-text",
     icon: AlertTriangle,
     label: "Warning",
   },
   info: {
-    containerClass:
-      "bg-sky-50 border-sky-200 dark:bg-sky-950/30 dark:border-sky-800/50",
-    iconClass: "text-sky-600 dark:text-sky-400",
-    labelClass: "text-sky-800 dark:text-sky-300",
+    containerClass: "bg-hue-sky/25 border-border",
+    // Not text-hue-sky-text: that token is tuned for text on paper/card, and
+    // on a tint of the same hue (containerClass, above) it fails contrast in
+    // dark mode — same root cause as the hue-ramp's soft+text composition
+    // (see lib/hues.ts's HueClasses.onSoft).
+    iconClass: "text-foreground",
+    labelClass: "text-foreground",
     icon: Info,
     label: "Info",
   },

@@ -81,27 +81,27 @@ describe("AccommodationCard NoteThread", () => {
   });
 });
 
-describe("AccommodationCard emerald Bold-Modular styling (D3)", () => {
-  it("applies emerald wash class on the root element", () => {
+describe("AccommodationCard leaf-hue styling (D3)", () => {
+  it("applies a leaf-hue wash class on the root element", () => {
     const { container } = render(
       <AccommodationCard accommodation={baseAcc} stop={baseStop} />,
     );
     const root = container.firstChild as HTMLElement;
-    expect(root.className).toMatch(/bg-emerald/);
+    expect(root.className).toMatch(/bg-hue-leaf/);
   });
 
-  it("renders a Home or BedDouble icon with emerald colour class", () => {
+  it("renders a Home or BedDouble icon with a leaf-hue colour class", () => {
     const { container } = render(
       <AccommodationCard accommodation={baseAcc} stop={baseStop} />,
     );
     // The leading icon is an aria-hidden SVG; its className is an SVGAnimatedString
     const svgs = container.querySelectorAll("svg[aria-hidden='true']");
     expect(svgs.length).toBeGreaterThan(0);
-    // At least one of the aria-hidden SVGs carries an emerald colour class
-    const emeraldSvg = Array.from(svgs).find((svg) =>
-      (svg.getAttribute("class") ?? "").includes("emerald"),
+    // At least one of the aria-hidden SVGs carries a leaf-hue colour class
+    const leafSvg = Array.from(svgs).find((svg) =>
+      (svg.getAttribute("class") ?? "").includes("hue-leaf"),
     );
-    expect(emeraldSvg).toBeDefined();
+    expect(leafSvg).toBeDefined();
   });
 
   it("shows 'Confirmed' affirmative label when confirmation exists", () => {

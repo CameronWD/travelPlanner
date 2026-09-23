@@ -1,0 +1,51 @@
+<!-- @dsCard group="Teepee Tablet" viewport="1400x1000" subtitle="768–1023px: dock + fluid mobile screens, split view in landscape" name="Teepee tablet" -->
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>Teepee · tablet UI kit</title>
+<link rel="stylesheet" href="../../styles.css">
+<style>body{margin:0;background:var(--surface-canvas);color:var(--text-primary);font:var(--type-body);min-height:100vh} *{box-sizing:border-box} button{font-family:inherit}</style>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="../../assets/dev-loader.js" data-root="../../" data-extra="../shared/data.js,../shared/kit.jsx,../shared/states.jsx,../shared/search.js,../shared/share.jsx,../shared/forms.jsx,../shared/onthego.jsx,../shared/together.jsx,../shared/admin.jsx,../shared/planedit.jsx,../teepee-mobile/Home.jsx,../teepee-mobile/Plan.jsx,../teepee-mobile/StopDetail.jsx,../teepee-mobile/Days.jsx,../teepee-mobile/Money.jsx,../teepee-mobile/Wishlist.jsx,../teepee-mobile/Shared.jsx,../teepee-mobile/Search.jsx,../teepee-mobile/Invite.jsx"></script>
+</head><body>
+<div id="root" style="padding:28px"></div>
+<script type="text/babel">
+TeepeeDS.ready.then(() => {
+const D = TeepeeDS; const { Button, Chip, Input, Stepper, Select, Segmented, Dock, Sheet, Toast, Home, Plan, StopDetail, Days, Money, Wishlist, Shared, Search, EditStopForm } = D;
+const NAV = [{ key: 'today', label: 'Today' }, { key: 'home', label: 'Home' }, { key: 'plan', label: 'Plan' }, { key: 'days', label: 'Days' }, { key: 'money', label: 'Money' }, { key: 'wishlist', label: 'Wishlist' }, { key: 'more', label: 'More' }, { key: 'search', label: 'Search', muted: true }];
+const SUB = { summary: 'Summary', globe: 'Your globe', checklists: 'Checklists', files: 'Files', journal: 'Journal', activity: 'Activity', compare: 'Compare plans', print: 'Print and export', tripSettings: 'Trip settings', account: 'Account', help: 'Help', whatsnew: "What's new", feedback: 'Feedback', planEdit: 'The plan' };
+const SIZES = { Portrait: [820, 1180], Landscape: [1180, 820] };
+function App() {
+  const [screen, setScreen] = React.useState('plan'); const [stopId, setStopId] = React.useState('hakone');
+  const [orient, setOrient] = React.useState('Landscape'); const [dark, setDark] = React.useState(false);
+  const [sheet, setSheet] = React.useState(null); const [toast, setToast] = React.useState(null); const [fork, setFork] = React.useState('Real plan');
+  const say = t => { setToast(t); clearTimeout(say.t); say.t = setTimeout(() => setToast(null), 2400); };
+  const [W, H] = SIZES[orient]; const split = orient === 'Landscape' && (screen === 'plan' || screen === 'stop');
+  const go = (s, id) => { if (id) setStopId(id); setScreen(split && s === 'stop' ? 'plan' : s); };
+  const common = { go, openSheet: setSheet, toast: say };
+  const main = { home: <Home {...common} />, plan: <Plan {...common} fork={fork} setFork={setFork} />, stop: <StopDetail {...common} id={stopId} />, days: <Days {...common} />, money: <Money {...common} />, wishlist: <Wishlist {...common} />, shared: <Shared {...common} />, search: <Search {...common} />, invite: <D.Invite {...common} />,
+    today: <div style={{ padding: '8px var(--page-gutter) 24px', overflowY: 'auto' }}><D.Today toast={say} desktop={orient === 'Landscape'} /></div>,
+    more: <div style={{ padding: '8px var(--page-gutter) 24px', overflowY: 'auto' }}><D.More go={go} /></div>,
+    ...Object.fromEntries(Object.entries(SUB).map(([k, title]) => { const C = { summary: D.Summary, globe: D.Globe, checklists: D.Checklists, files: D.Files, journal: D.Journal, activity: D.Activity, compare: D.Compare, print: D.PrintView, tripSettings: D.TripSettings, account: D.Account, help: D.Help, whatsnew: D.WhatsNew, feedback: D.Feedback, planEdit: D.PlanEditor }[k]; return [k, <><D.TopBar title={title} /><div style={{ padding: '8px var(--page-gutter) 24px', overflowY: 'auto', flex: 1, minHeight: 0 }}><C desktop={orient === 'Landscape'} toast={say} go={go} openSheet={setSheet} /></div></>]; })) }[screen];
+  const scale = Math.min(1, 1100 / W, 900 / H);
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 18, alignItems: 'flex-start' }}>
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+      {NAV.map(n => <Chip key={n.key} tone={screen === n.key ? 'coral' : 'white'} selected={screen === n.key} onClick={() => go(n.key)}>{n.label}</Chip>)}
+      <span style={{ width: 2, height: 22, background: 'var(--outline-soft)', margin: '0 6px' }}></span>
+      <Segmented options={['Portrait', 'Landscape']} value={orient} onChange={setOrient} tone="sun" />
+      <Segmented options={['Light', 'Dark']} value={dark ? 'Dark' : 'Light'} onChange={v => setDark(v === 'Dark')} tone="ink" />
+      <span style={{ font: 'var(--type-caption)', color: 'var(--text-muted)', marginLeft: 6, whiteSpace: 'nowrap' }}>{W} × {H}{scale < 1 ? ' · shown at ' + Math.round(scale * 100) + '%' : ''}</span>
+    </div>
+    <div style={{ width: W * scale, height: H * scale }}>
+      <div data-theme={dark ? 'dark' : undefined} style={{ width: W, height: H, transform: 'scale(' + scale + ')', transformOrigin: '0 0', background: 'var(--surface-page)', color: 'var(--text-primary)', border: '12px solid #1D1D1B', borderRadius: 40, boxShadow: 'var(--shadow-float)', overflow: 'hidden', display: 'grid', gridTemplateColumns: split ? '96px minmax(0,1fr) 380px' : '96px minmax(0,1fr)', position: 'relative', font: 'var(--type-body)' }}>
+        <Dock items={NAV} value={screen === 'stop' || screen === 'planEdit' ? 'plan' : SUB[screen] || screen === 'invite' || screen === 'shared' ? 'more' : screen} onChange={go} people={D.people} />
+        <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden', paddingTop: 12 }}><div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', width: '100%', maxWidth: split ? undefined : 720, margin: '0 auto' }}>{main}</div></div>
+        {split && <aside style={{ borderLeft: 'var(--border)', background: 'var(--surface-card)', display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden', paddingTop: 12 }}><StopDetail key={stopId} {...common} id={stopId} embedded /></aside>}
+        {sheet && <div style={{ position: 'absolute', inset: 0 }}><Sheet open desktop title={sheet === 'editStop' ? 'Edit Hakone' : 'Add a place'} onClose={() => setSheet(null)} footer={<Button block size="l" onClick={() => { setSheet(null); say('Saved'); }}>Save</Button>}>{sheet === 'editStop' ? <EditStopForm /> : <><Input placeholder="Where? e.g. Nara" autoFocus /><div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>Nights <Stepper value={2} /></div></>}</Sheet></div>}
+        {toast && <div style={{ position: 'absolute', left: 0, right: 0, bottom: 28, display: 'flex', justifyContent: 'center', zIndex: 25, pointerEvents: 'none' }}><Toast>{toast}</Toast></div>}
+      </div>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+}).catch(e => { document.getElementById('root').innerHTML = '<pre style="color:#FF6B4A">' + e.message + '</pre>'; console.error(e); });
+</script></body></html>

@@ -25,7 +25,7 @@ export function NextStepsCard({ steps, seeAllHref }: NextStepsCardProps) {
       </div>
       {steps.length === 0 ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <CheckCircle2 className="size-4 text-emerald-500" aria-hidden="true" />
+          <CheckCircle2 className="size-4 text-teal-text" aria-hidden="true" />
           You&apos;re all set — nothing needs attention right now.
         </div>
       ) : (
@@ -40,8 +40,12 @@ export function NextStepsCard({ steps, seeAllHref }: NextStepsCardProps) {
                 >
                   <span
                     className={cn(
-                      "flex size-10 shrink-0 items-center justify-center rounded-xl text-white",
-                      isWarning ? "bg-amber-500" : step.kind === "transport" ? "bg-primary" : "bg-sky-500",
+                      "flex size-10 shrink-0 items-center justify-center rounded-xl",
+                      isWarning
+                        ? "bg-warning text-warning-foreground"
+                        : step.kind === "transport"
+                          ? "bg-primary text-white"
+                          : "bg-hue-sky text-on-accent",
                     )}
                   >
                     {isWarning ? (

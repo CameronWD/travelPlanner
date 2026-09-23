@@ -1,0 +1,38 @@
+<!-- @dsCard group="Foundations" viewport="760x420" subtitle="Contrast rules, focus ring, motion, targets" name="Accessibility" -->
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css">
+<style>body{margin:0;background:var(--surface-page);color:var(--text-primary);font:var(--type-body);padding:20px;box-sizing:border-box} *{box-sizing:border-box}</style></head><body>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px">
+<div style="padding:14px;border:var(--border);border-radius:var(--radius-l);background:var(--surface-card)">
+<div style="font:var(--type-h5)">Accent as text</div>
+<div style="font:var(--type-caption);color:var(--text-muted);margin-top:2px">Raw accents are fills only (1.4–2.7:1 on paper). For text or icons use the <b style="color:var(--text-primary)">-text</b> tokens.</div>
+<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;font:var(--type-h5)"><span style="color:var(--accent-primary-text)">Coral 5.6</span><span style="color:var(--accent-money-text)">Sun 5.7</span><span style="color:var(--accent-route-text)">Teal 5.7</span><span style="color:var(--accent-stay-text)">Lilac 6.5</span></div>
+</div>
+<div style="padding:14px;border:var(--border);border-radius:var(--radius-l);background:var(--surface-card)">
+<div style="font:var(--type-h5)">On accent fills</div>
+<div style="font:var(--type-caption);color:var(--text-muted);margin-top:2px">Coloured cards always carry dark ink, in both themes. Muted text inside uses --on-accent-muted.</div>
+<div style="display:flex;gap:6px;margin-top:10px"><span style="padding:6px 10px;border-radius:var(--radius-pill);border:var(--border);background:var(--accent-primary);color:var(--on-accent-text);font:var(--type-label)">6.0</span><span style="padding:6px 10px;border-radius:var(--radius-pill);border:var(--border);background:var(--accent-money);color:var(--on-accent-text);font:var(--type-label)">11.7</span><span style="padding:6px 10px;border-radius:var(--radius-pill);border:var(--border);background:var(--accent-route);color:var(--on-accent-text);font:var(--type-label)">7.8</span><span style="padding:6px 10px;border-radius:var(--radius-pill);border:var(--border);background:var(--accent-stay);color:var(--on-accent-text);font:var(--type-label)">8.1</span></div>
+</div>
+<div style="padding:14px;border:var(--border);border-radius:var(--radius-l);background:var(--surface-card)">
+<div style="font:var(--type-h5)">Focus ring</div>
+<div style="font:var(--type-caption);color:var(--text-muted);margin-top:2px">3px ink ring, 3px gap, keyboard only (:focus-visible). Offset keeps it separate from the 2px outline.</div>
+<div style="margin-top:14px;padding-left:4px"><span style="display:inline-flex;height:44px;align-items:center;padding:0 18px;border:var(--border);border-radius:var(--radius-pill);background:var(--surface-inverse);color:var(--text-inverse);font:var(--type-button);outline:var(--focus-ring-width) solid var(--focus-ring);outline-offset:var(--focus-ring-offset)">Start a trip</span></div>
+</div>
+<div style="padding:14px;border:var(--border);border-radius:var(--radius-l);background:var(--surface-card)">
+<div style="font:var(--type-h5)">Controls</div>
+<div style="font:var(--type-caption);color:var(--text-muted);margin-top:2px">Inputs, toggles, checkboxes, steppers use --outline-control (≥3:1 in dark, where card outlines are softer).</div>
+<div style="margin-top:12px;height:44px;border:2px solid var(--outline-control);border-radius:var(--radius-m);display:flex;align-items:center;padding:0 14px;color:var(--text-muted)">Somewhere warm?</div>
+</div>
+<div style="padding:14px;border:var(--border);border-radius:var(--radius-l);background:var(--surface-card);grid-column:span 2">
+<div style="font:var(--type-h5)">Rules</div>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 18px;margin-top:6px;font:var(--type-body-s);color:var(--text-body)">
+<div>• Body text ≥ 4.5:1, display ≥ 3:1: checked in both themes</div>
+<div>• Targets ≥ 44px on touch; clickable chips ≥ 28px with 8px spacing</div>
+<div>• Clickable Card, Chip, ListRow get role="button" + Enter/Space</div>
+<div>• Sheet: dialog role, focus moves in, Esc closes, focus returns</div>
+<div>• Reduced motion: durations → 1ms, no bounce, no sheet slide</div>
+<div>• Glyph-only controls need aria-label; decorative glyphs aria-hidden</div>
+<div>• Never colour alone: pair status colour with a word or icon</div>
+<div>• Forced-colors mode keeps control borders visible</div>
+</div></div>
+</div>
+</body></html>

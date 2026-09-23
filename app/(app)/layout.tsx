@@ -118,7 +118,12 @@ export default async function AppLayout({
             </>
           </Link>
 
-          {/* Right-hand controls */}
+          {/*
+            Right-hand controls. The trip rail (components/trip/trip-nav.tsx)
+            has its own muted "Globe" item, but the rail only renders inside
+            a trip at md+ — someone on /trips, or on any route below md, has
+            no other way to Globe, so the link stays here too.
+          */}
           <div className="flex items-center gap-1">
             <CommandPaletteTrigger />
             <Link

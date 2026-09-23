@@ -13,7 +13,7 @@ export function VariantBanner({ tripId, variantName }: { tripId: string; variant
   return (
     <div
       role="status"
-      className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-200"
+      className="flex flex-col gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"
     >
       <p className="min-w-0">
         <span className="font-medium">Editing variant &ldquo;{variantName}&rdquo;</span> — not live.
