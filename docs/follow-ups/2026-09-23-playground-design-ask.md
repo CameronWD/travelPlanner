@@ -332,9 +332,17 @@ so it cannot follow a token.
 `globals.css`, which disagree with the true conversion), the shipped dark value
 `38 11% 60%` (`#A59D8F`) measures **5.257:1** on `--card` — short of the
 README's own claim — and **4.499:1** on `--muted`, which fails WCAG AA (4.5:1)
-outright. This showed up as ~29 of 34 findings in the first full-app contrast
+outright. This showed up as 8 of the 34 findings in the first full-app contrast
 audit: every `text-muted-foreground` on `bg-muted` badge pill, dark theme,
-across the plan, calendar and elsewhere, failing by a thousandth.
+on the plan and calendar routes, failing by a thousandth. (The audit's other
+26 findings are unrelated white bullets on globe map pins — a separate defect,
+owned by a different task; see the commit history for the corrected
+decomposition. An earlier draft of this entry said "~29 of 34" for the badge
+share, reasoning from an /globe measurement taken before its Leaflet markers
+had finished mounting, which undercounted the pin failures and so overcounted
+the badge share. Re-measured with the app rendered and Leaflet markers
+confirmed present before reading colours, the true split is 8 badge + 26
+globe pin = 34.)
 
 **Worked around** by raising the token locally to `38 11% 62%` (`#A9A193`),
 which measures 4.780:1 on muted and 5.584:1 on card — clearing AA and making
