@@ -6,6 +6,7 @@ import { acceptPendingInvitesForUser } from "@/lib/invites";
 import { acceptPendingGlobeInvitesForUser } from "@/lib/globe-invites";
 import { isAdminEmail } from "@/lib/admin";
 import { listAccessRequests } from "@/server/actions/access-requests";
+import { Logo } from "@/components/ui/logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -94,28 +95,10 @@ export default async function AppLayout({
           {/* Wordmark */}
           <Link
             href="/trips"
-            className="flex items-center gap-1.5 font-display text-lg font-semibold tracking-tight text-foreground hover:text-foreground/80 transition-colors"
+            className="flex items-center gap-1.5"
             aria-label="Teepee — go to your trips"
           >
-            <>
-              <svg
-                data-testid="tent-icon"
-                aria-hidden="true"
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="size-6 text-primary"
-              >
-                <path d="M12 3 4 21M12 3l8 18M8.5 12h7M10 21l2-5 2 5" />
-              </svg>
-              Teepee
-            </>
+            <Logo variant="lockup" />
           </Link>
 
           {/*

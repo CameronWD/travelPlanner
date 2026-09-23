@@ -15,6 +15,7 @@ import { tonightsStay } from "@/lib/share-view";
 import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
 import { buildItinerary, orderDayEntries } from "@/lib/itinerary";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
+import { Logo } from "@/components/ui/logo";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enums";
 import { homeMapPoint } from "@/lib/route-map";
@@ -292,9 +293,8 @@ export default async function SharePage({
       {/* ── Minimal header ── */}
       <header className="border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-6">
-          <span className="flex items-center gap-1.5 font-display text-lg font-semibold text-foreground">
-            <span aria-hidden="true">🛖</span>
-            Teepee
+          <span className="flex items-center">
+            <Logo variant="lockup" />
           </span>
           <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
             Shared itinerary — read only

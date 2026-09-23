@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Logo } from "@/components/ui/logo";
 
 export const metadata: Metadata = {
   title: "Privacy",
@@ -69,12 +70,8 @@ export default function PrivacyPage() {
     <div className="min-h-screen bg-background">
       <header className="border-b border-border bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-3xl items-center px-4 sm:px-6">
-          <Link
-            href="/signin"
-            className="flex items-center gap-1.5 font-display text-lg font-semibold text-foreground"
-          >
-            <span aria-hidden="true">🛖</span>
-            Teepee
+          <Link href="/signin" className="flex items-center">
+            <Logo variant="lockup" />
           </Link>
         </div>
       </header>
