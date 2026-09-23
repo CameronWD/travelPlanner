@@ -31,4 +31,13 @@ describe("ErrorPanel", () => {
     render(<ErrorPanel title="Something went wrong" digest="abc123" />);
     expect(screen.getByText(/abc123/)).toBeInTheDocument();
   });
+
+  it("interrupts for a genuine error but only announces politely for the rest", () => {
+    const { rerender } = render(<ErrorPanel kind="error" title="That didn't load" />);
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+
+    rerender(<ErrorPanel kind="offline" title="You're offline" />);
+    expect(screen.getByRole("status")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
 });

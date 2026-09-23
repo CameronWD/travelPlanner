@@ -24,7 +24,7 @@ function Logo({ variant = "lockup", size = 28, onDark, className }: LogoProps) {
       <g transform={WORDMARK_TRANSFORM}><path fill="currentColor" d={WORDMARK_WORD_D} /><path fill="#FF6B4A" d={WORDMARK_DOT_D} /></g>
     </svg>
   );
-  if (variant === "mark") return <Mark size={size} onDark={onDark} />;
+  if (variant === "mark") return <span role="img" aria-label="Teepee" className={cn("inline-flex", className)}><Mark size={size} onDark={onDark} /></span>;
   if (variant === "wordmark") return <span role="img" aria-label="Teepee" className={cn("inline-flex", className)}>{word}</span>;
   return <span role="img" className={cn("inline-flex items-center gap-2", className)} aria-label="Teepee"><Mark size={size} onDark={onDark} />{word}</span>;
 }

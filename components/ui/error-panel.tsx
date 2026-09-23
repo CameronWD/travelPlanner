@@ -32,7 +32,7 @@ function ErrorPanel({ kind = "error", title, description, actions, digest, layou
   const p = PRESET[kind];
   const Icon = p.icon;
   return (
-    <div role={kind === "error" ? "alert" : undefined}
+    <div role={kind === "error" ? "alert" : "status"}
       className={cn(
         "flex flex-col items-center gap-3 text-center",
         layout === "page" ? "min-h-[60vh] justify-center px-5 py-10" : "rounded-xl border-2 border-border bg-card px-6 py-8",
