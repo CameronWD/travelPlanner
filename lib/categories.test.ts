@@ -46,7 +46,7 @@ describe("categories", () => {
 
   it("labels Getting around in sentence case with the indigo colour", () => {
     expect(categoryMeta("GETTING_AROUND")).toEqual({
-      value: "GETTING_AROUND", label: "Getting around", color: "indigo",
+      value: "GETTING_AROUND", label: "Getting around", color: "indigo", hue: "indigo", icon: "tram-front",
     });
   });
 });

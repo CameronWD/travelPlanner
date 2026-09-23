@@ -4,11 +4,11 @@ import { CATEGORY_PIN_HEX, pinHex } from "./map-pins";
 
 describe("pinHex", () => {
   it("returns the sky hex for SIGHTSEEING", () => {
-    expect(pinHex("SIGHTSEEING")).toBe("#0ea5e9");
+    expect(pinHex("SIGHTSEEING")).toBe("#8AD6F5");
   });
 
-  it("returns the amber hex for FOOD", () => {
-    expect(pinHex("FOOD")).toBe("#f59e0b");
+  it("returns the amber (sun) hex for FOOD", () => {
+    expect(pinHex("FOOD")).toBe("#FFD166");
   });
 
   it("falls back to the OTHER hex for an unknown category", () => {
@@ -23,7 +23,7 @@ describe("pinHex", () => {
 describe("CATEGORY_PIN_HEX", () => {
   it("covers every known category, so no pin ever silently falls back", () => {
     for (const c of CATEGORIES) {
-      expect(CATEGORY_PIN_HEX[c.value]).toMatch(/^#[0-9a-f]{6}$/);
+      expect(CATEGORY_PIN_HEX[c.value]).toMatch(/^#[0-9a-fA-F]{6}$/);
     }
   });
 

@@ -452,7 +452,7 @@ describe("Task 10 — StopCard Bold-Modular anatomy", () => {
       />,
     );
     const card = container.firstChild as HTMLElement;
-    expect(card.className).toMatch(/border-l-sky-400/);
+    expect(card.className).toMatch(/border-l-hue-sky/);
     expect(card.className).toMatch(/border-l-4/);
   });
 
@@ -466,7 +466,7 @@ describe("Task 10 — StopCard Bold-Modular anatomy", () => {
       />,
     );
     const card = container.firstChild as HTMLElement;
-    expect(card.className).toMatch(/border-l-amber-400/);
+    expect(card.className).toMatch(/border-l-hue-sun/);
     expect(card.className).toMatch(/border-l-4/);
     // Still dashed for rough stops
     expect(card.className).toMatch(/border-dashed/);
