@@ -1,5 +1,14 @@
 @import "tailwindcss";
 
+/*
+ * design_handoff/ is committed reference material, not application code, but
+ * Tailwind v4 auto-discovers content and only skips gitignored paths — so
+ * without this it scans 300+ reference files and ships their utilities.
+ * Note this does not fully isolate us: the scanner reads prose too, so a class
+ * name written in any committed comment or doc stays in the bundle regardless.
+ */
+@source not "../design_handoff";
+
 /* Teepee · Playground. Generated from the design system (tokens/colors.css). */
 /* Class-based dark mode (Tailwind v4) */
 @custom-variant dark (&:where(.dark, .dark *));
