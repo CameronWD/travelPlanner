@@ -61,15 +61,29 @@ const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("sticky top-0 z-10 -mx-[18px] -mt-3.5 mb-1 flex min-h-[72px] flex-col justify-center gap-1 bg-background px-[18px] pr-16 pt-3.5 text-left sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6", className)} {...props} />;
+  // before: covers the gap the negative top margin opens above the sticky
+  // header during elastic/rubber-band overscroll on iOS Safari.
+  return (
+    <div
+      className={cn(
+        "sticky top-0 z-10 -mx-[18px] -mt-3.5 mb-1 flex min-h-[72px] flex-col justify-center gap-1 bg-background px-[18px] pr-16 pt-3.5 text-left sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6",
+        "before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-3.5 before:bg-background sm:before:h-6",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 DialogHeader.displayName = "DialogHeader";
 
 function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  // after: covers the gap the negative bottom margin opens below the sticky
+  // footer during elastic/rubber-band overscroll on iOS Safari.
   return (
     <div
       className={cn(
         "sticky bottom-0 z-10 -mx-[18px] -mb-[calc(1.375rem+env(safe-area-inset-bottom))] mt-2 bg-background px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6",
+        "after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-[calc(1.375rem+env(safe-area-inset-bottom))] after:bg-background",
         "flex flex-row gap-2 [&>*]:flex-1 sm:justify-end sm:[&>*]:flex-initial",
         className,
       )}

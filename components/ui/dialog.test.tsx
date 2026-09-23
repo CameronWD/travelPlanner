@@ -115,6 +115,16 @@ describe("Dialog", () => {
     expect(header?.className).toContain("mb-1");
   });
 
+  it("covers the header's negative-margin gap during iOS elastic overscroll", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+
+    const header = screen.getByText("Invite traveller").closest("div");
+    expect(header?.className).toContain("before:bg-background");
+  });
+
   it("pads the scroll body for the mobile safe-area inset", async () => {
     const user = userEvent.setup();
     render(<Example />);
@@ -175,5 +185,22 @@ describe("DialogFooter", () => {
     expect(footer.className).toContain("bg-background");
     // Cancels the scroll body's own bottom padding so the stuck footer sits flush.
     expect(footer.className).toContain("-mb-[calc(1.375rem+env(safe-area-inset-bottom))]");
+  });
+
+  it("covers the footer's negative-margin gap during iOS elastic overscroll", () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Test</DialogTitle>
+          <DialogFooter>
+            <button>Cancel</button>
+            <button>Save</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>,
+    );
+
+    const footer = screen.getByRole("button", { name: "Cancel" }).closest("div")!;
+    expect(footer.className).toContain("after:bg-background");
   });
 });
