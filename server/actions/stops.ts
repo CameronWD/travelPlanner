@@ -537,6 +537,111 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
   return { success: true };
 }
 
+// ---------------------------------------------------------------------------
+// previewStopDeletion
+// ---------------------------------------------------------------------------
+
+export interface StopDeletionPreviewAccommodation {
+  id: string;
+  name: string;
+  /** Whether this Accommodation holds a confirmation number — never the
+   *  value itself (ARCH-DAT-4 / ARCH-TEN-7: confirmation numbers leak too
+   *  easily; "holds a confirmation number" is exactly as motivating and
+   *  strictly safer than showing it). */
+  hasConfirmation: boolean;
+}
+
+export interface StopDeletionPreviewCost {
+  id: string;
+  label: string | null;
+  costMinor: number;
+  currency: string;
+}
+
+export interface StopDeletionPreview {
+  /** Accommodations that cascade-delete with the Stop. */
+  accommodations: StopDeletionPreviewAccommodation[];
+  /** Costs owned by those Accommodations that have never been paid — these
+   *  are destroyed outright (deleteOwnedCostsTx converts ever-paid costs to
+   *  a standalone OTHER cost instead, so they are not a loss and are not
+   *  reported here). */
+  unpaidCosts: StopDeletionPreviewCost[];
+  /** Attachments on the Stop itself plus its cascaded Accommodations. */
+  attachmentCount: number;
+  /** Notes on the Stop itself plus its cascaded Accommodations. */
+  noteCount: number;
+}
+
+export type StopDeletionPreviewResult = ActionResult<{ preview: StopDeletionPreview }>;
+
+/**
+ * Preview what deleting a Stop will destroy, so the confirm dialog can say
+ * so (ARCH-DAT-4) instead of just "This can't be undone." Read-only —
+ * mirrors deleteStop's own cascade (cascaded Accommodations, their unpaid
+ * Costs, and the Stop's + those Accommodations' Attachments/Notes) without
+ * performing it.
+ *
+ * Access-checked identically to deleteStop (ARCH-DAT-1b): owner-only, so a
+ * Traveller who cannot delete the Stop also cannot see what deleting it
+ * would destroy — the query below never runs for them.
+ */
+export async function previewStopDeletion(stopId: string): Promise<StopDeletionPreviewResult> {
+  const stop = await requireStopAccess(stopId);
+
+  const { user, membership } = await requireTripAccess(stop.tripId);
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
+    return { success: false, errors: { _: ["Only the trip owner can preview a Stop deletion."] } };
+  }
+
+  const accommodations = await db.accommodation.findMany({
+    where: { stopId },
+    select: { id: true, name: true, confirmation: true },
+  });
+  const accIds = accommodations.map((a) => a.id);
+
+  // Mirrors deleteOwnedCostsTx's own everPaid predicate: a cost that has ever
+  // been paid converts to an OTHER cost on delete rather than being
+  // destroyed, so only the never-paid ones are a loss.
+  const costs = accIds.length > 0
+    ? await db.cost.findMany({
+        where: { ownerType: "ACCOMMODATION", ownerId: { in: accIds } },
+        select: { id: true, label: true, costMinor: true, currency: true, paidMinor: true, paidAt: true },
+      })
+    : [];
+  const unpaidCosts: StopDeletionPreviewCost[] = costs
+    .filter((c) => c.paidMinor === null && c.paidAt === null)
+    .map((c) => ({ id: c.id, label: c.label, costMinor: c.costMinor, currency: c.currency }));
+
+  // Attachment/Note counts: the Stop's own side-data plus each cascaded
+  // Accommodation's — the same two target scopes cleanupTargetSideDataTx
+  // wipes inside deleteStop's transaction (Items merely lose their stopId,
+  // via schema onDelete: SetNull, so they and their side-data survive).
+  const [stopAttachments, accAttachments, stopNotes, accNotes] = await Promise.all([
+    db.attachment.count({ where: { targetType: "STOP", targetId: stopId } }),
+    accIds.length > 0
+      ? db.attachment.count({ where: { targetType: "ACCOMMODATION", targetId: { in: accIds } } })
+      : Promise.resolve(0),
+    db.note.count({ where: { targetType: "STOP", targetId: stopId } }),
+    accIds.length > 0
+      ? db.note.count({ where: { targetType: "ACCOMMODATION", targetId: { in: accIds } } })
+      : Promise.resolve(0),
+  ]);
+
+  return {
+    success: true,
+    preview: {
+      accommodations: accommodations.map((a) => ({
+        id: a.id,
+        name: a.name,
+        hasConfirmation: a.confirmation !== null,
+      })),
+      unpaidCosts,
+      attachmentCount: stopAttachments + accAttachments,
+      noteCount: stopNotes + accNotes,
+    },
+  };
+}
+
 /**
  * Move a stop up or down in sortOrder by swapping with its adjacent neighbour.
  *

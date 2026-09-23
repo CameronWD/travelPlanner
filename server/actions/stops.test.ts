@@ -40,7 +40,9 @@ const {
   costDeleteManyMock,
   attachmentFindManyMock,
   attachmentDeleteManyMock,
+  attachmentCountMock,
   noteDeleteManyMock,
+  noteCountMock,
 } = vi.hoisted(() => {
   const stopFindFirstMock = vi.fn();
   const stopFindUniqueMock = vi.fn();
@@ -63,7 +65,9 @@ const {
   const costDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const attachmentDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const attachmentCountMock = vi.fn().mockResolvedValue(0);
   const noteDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const noteCountMock = vi.fn().mockResolvedValue(0);
   // ARCH-DAT-3 (fix round 1, I3): cleanupTargetSideDataTx runs for real here
   // (see the comment below the target-cleanup mock) and now schedules blob
   // retention INSIDE the tx via scheduleBlobDeletion(keys, tx) — the fake tx
@@ -127,7 +131,9 @@ const {
     costDeleteManyMock,
     attachmentFindManyMock,
     attachmentDeleteManyMock,
+    attachmentCountMock,
     noteDeleteManyMock,
+    noteCountMock,
   };
 });
 
@@ -171,6 +177,15 @@ vi.mock("@/lib/db", () => ({
       findMany: itemFindManyMock,
       update: itemUpdateMock,
     },
+    cost: {
+      findMany: costFindManyMock,
+    },
+    attachment: {
+      count: attachmentCountMock,
+    },
+    note: {
+      count: noteCountMock,
+    },
     $transaction: transactionMock,
   },
 }));
@@ -207,6 +222,7 @@ import {
   createStop,
   updateStop,
   deleteStop,
+  previewStopDeletion,
   moveStop,
   reorderStops,
   restoreStops,
@@ -279,6 +295,9 @@ beforeEach(() => {
   attachmentFindManyMock.mockResolvedValue([]);
   attachmentDeleteManyMock.mockResolvedValue({ count: 0 });
   noteDeleteManyMock.mockResolvedValue({ count: 0 });
+  // Default: previewStopDeletion's attachment/note counts are zero.
+  attachmentCountMock.mockResolvedValue(0);
+  noteCountMock.mockResolvedValue(0);
 });
 
 afterEach(() => {
@@ -905,6 +924,130 @@ describe("deleteStop", () => {
     stopDeleteMock.mockResolvedValue({});
 
     const result = await deleteStop("stop-1");
+
+    expect(result.success).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// previewStopDeletion (ARCH-DAT-4)
+// ---------------------------------------------------------------------------
+
+describe("previewStopDeletion", () => {
+  it("ARCH-DAT-4: reports the Accommodations, unpaid Costs, attachment count and note count that deletion will destroy", async () => {
+    stopFindUniqueMock.mockResolvedValueOnce({
+      id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false,
+    }); // requireStopAccess
+    accommodationFindManyMock.mockResolvedValue([{ id: "a1", name: "Hotel Bristol", confirmation: "ABC123" }]);
+    costFindManyMock.mockResolvedValue([
+      { id: "c1", label: "Hotel Bristol", costMinor: 42000, currency: "EUR", paidMinor: null, paidAt: null },
+      // Ever-paid cost: deleteOwnedCostsTx converts this to an OTHER cost rather
+      // than destroying it, so the preview must NOT count it as a loss.
+      { id: "c2", label: "Deposit", costMinor: 10000, currency: "EUR", paidMinor: 10000, paidAt: new Date("2026-01-01") },
+    ]);
+    // Two separate scopes are counted (Stop's own + its cascaded
+    // Accommodations') — differentiate by targetType so the test catches a
+    // regression that drops either scope, rather than a single blanket value
+    // that would pass even if only one scope were ever queried.
+    attachmentCountMock.mockImplementation(({ where }: { where: { targetType: string } }) =>
+      Promise.resolve(where.targetType === "STOP" ? 2 : 1),
+    );
+    noteCountMock.mockImplementation(({ where }: { where: { targetType: string } }) =>
+      Promise.resolve(where.targetType === "STOP" ? 1 : 0),
+    );
+
+    const result = await previewStopDeletion("s1");
+
+    expect(result.success).toBe(true);
+    if (!result.success) throw new Error("expected success");
+    expect(result.preview.accommodations).toEqual([{ id: "a1", name: "Hotel Bristol", hasConfirmation: true }]);
+    expect(result.preview.unpaidCosts).toHaveLength(1);
+    expect(result.preview.unpaidCosts[0]).toMatchObject({ id: "c1", label: "Hotel Bristol", costMinor: 42000, currency: "EUR" });
+    expect(result.preview.attachmentCount).toBe(3); // 2 (Stop) + 1 (Accommodation)
+    expect(result.preview.noteCount).toBe(1); // 1 (Stop) + 0 (Accommodation)
+
+    expect(costFindManyMock).toHaveBeenCalledWith({
+      where: { ownerType: "ACCOMMODATION", ownerId: { in: ["a1"] } },
+      select: { id: true, label: true, costMinor: true, currency: true, paidMinor: true, paidAt: true },
+    });
+  });
+
+  it("ARCH-DAT-4: never includes the confirmation number value, only whether one exists", async () => {
+    stopFindUniqueMock.mockResolvedValueOnce({
+      id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false,
+    });
+    accommodationFindManyMock.mockResolvedValue([{ id: "a1", name: "Hotel Bristol", confirmation: "SECRET-REF-999" }]);
+
+    const result = await previewStopDeletion("s1");
+
+    expect(result.success).toBe(true);
+    // The raw confirmation value must never reach the returned payload — only
+    // the boolean "holds a confirmation" flag (the whole point of ARCH-DAT-4:
+    // ARCH-TEN-7 already established confirmation numbers leak too easily).
+    expect(JSON.stringify(result)).not.toContain("SECRET-REF-999");
+    if (result.success) {
+      expect(result.preview.accommodations).toEqual([{ id: "a1", name: "Hotel Bristol", hasConfirmation: true }]);
+    }
+  });
+
+  it("ARCH-DAT-4: an Accommodation without a confirmation reports hasConfirmation: false", async () => {
+    stopFindUniqueMock.mockResolvedValueOnce({
+      id: "s1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false,
+    });
+    accommodationFindManyMock.mockResolvedValue([{ id: "a1", name: "Hostel Nomad", confirmation: null }]);
+
+    const result = await previewStopDeletion("s1");
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.preview.accommodations).toEqual([{ id: "a1", name: "Hostel Nomad", hasConfirmation: false }]);
+    }
+  });
+
+  it("skips the Cost query when the Stop has no Accommodations", async () => {
+    stopFindUniqueMock.mockResolvedValueOnce({
+      id: "s2", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false,
+    });
+    accommodationFindManyMock.mockResolvedValue([]);
+
+    const result = await previewStopDeletion("s2");
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.preview.accommodations).toEqual([]);
+      expect(result.preview.unpaidCosts).toEqual([]);
+    }
+    expect(costFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it("ARCH-DAT-4: a plain Traveller cannot preview a Stop deletion", async () => {
+    stopFindUniqueMock.mockResolvedValueOnce({
+      id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false,
+    }); // requireStopAccess
+    requireTripAccessMock.mockResolvedValue({
+      user: { id: "user-2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    const result = await previewStopDeletion("stop-1");
+
+    expect(result.success).toBe(false);
+    // Refusing before any query runs is the leak-prevention guarantee itself —
+    // a non-owner must never see even the shape of what they can't delete.
+    expect(accommodationFindManyMock).not.toHaveBeenCalled();
+  });
+
+  it("ARCH-DAT-4: the trip owner can preview a Stop deletion", async () => {
+    stopFindUniqueMock.mockResolvedValueOnce({
+      id: "stop-1", tripId: "trip-1", sortOrder: 0, arriveDate: null, departDate: null, nights: null, pinned: false,
+    });
+    requireTripAccessMock.mockResolvedValue({
+      user: { id: "user-1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    accommodationFindManyMock.mockResolvedValue([]);
+
+    const result = await previewStopDeletion("stop-1");
 
     expect(result.success).toBe(true);
   });

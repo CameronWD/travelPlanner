@@ -14,6 +14,13 @@ import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/stops", () => ({
   deleteStop: vi.fn().mockResolvedValue({ success: true }),
+  // ARCH-DAT-4: DeleteStopDialog fetches this preview on open. Default to an
+  // empty (no-losses) preview so the existing plain-confirm-style tests below
+  // keep exercising the "no loss list" branch unless a test overrides it.
+  previewStopDeletion: vi.fn().mockResolvedValue({
+    success: true,
+    preview: { accommodations: [], unpaidCosts: [], attachmentCount: 0, noteCount: 0 },
+  }),
   moveStop: vi.fn().mockResolvedValue({ success: true }),
   firmUpSegment: vi.fn().mockResolvedValue({ success: true }),
   firmUpTrip: vi.fn().mockResolvedValue({ success: true }),
@@ -477,7 +484,11 @@ describe("optimistic pending state", () => {
     });
   });
 
-  it("stop card enters pending state (pointer-events-none) while deleteStop is in flight", async () => {
+  it("delete-stop dialog's own Delete button enters a pending state while deleteStop is in flight", async () => {
+    // ARCH-DAT-4: the delete confirmation is now DeleteStopDialog (it fetches
+    // a loss preview before deleting), so the in-flight indicator moved from
+    // the StopCard row itself (the old plain useConfirm flow) to the dialog's
+    // own Delete button — same place PromoteForkDialog shows its spinner.
     let resolveDelete!: (v: { success: true }) => void;
     const pendingPromise = new Promise<{ success: true }>((res) => {
       resolveDelete = res;
@@ -487,27 +498,28 @@ describe("optimistic pending state", () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s-1", name: "Paris" });
 
-    const { container } = render(
+    render(
       <ItineraryManager {...baseProps} initialStops={[stop]} />,
     );
 
     await user.click(screen.getByRole("button", { name: "Delete Paris" }));
 
     // Confirm the dialog
-    const deleteBtn = await screen.findByRole("button", { name: "Delete" });
+    const dialog = await screen.findByRole("dialog");
+    const deleteBtn = within(dialog).getByRole("button", { name: "Delete" });
     await user.click(deleteBtn);
 
-    // While in-flight, the StopCard root div gets pointer-events-none AND the delete button is disabled
+    // While in-flight, the dialog's own Delete button is disabled; Cancel is too.
     await waitFor(() => {
-      const card = container.querySelector(".pointer-events-none");
-      expect(card).not.toBeNull();
-      expect(screen.getByRole("button", { name: "Delete Paris" })).toBeDisabled();
+      expect(within(dialog).getByRole("button", { name: "Delete" })).toBeDisabled();
+      expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
     });
 
     resolveDelete({ success: true });
 
+    // Resolving closes the dialog.
     await waitFor(() => {
-      expect(container.querySelector(".pointer-events-none")).toBeNull();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
   });
 });

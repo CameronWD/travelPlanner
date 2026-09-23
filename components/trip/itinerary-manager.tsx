@@ -12,6 +12,7 @@ import { TransportFormDialog, type StopOption, HOME_ENDPOINT } from "./transport
 import { type AccommodationCardAccommodation } from "./accommodation-card";
 import { AccommodationRow } from "./accommodation-row";
 import { AccommodationFormDialog } from "./accommodation-form-dialog";
+import { DeleteStopDialog } from "./delete-stop-dialog";
 import { ChapterFormDialog } from "./chapter-form-dialog";
 import { ChapterChip } from "./chapter-chip";
 import { HomeBaseCard } from "./home-base-card";
@@ -33,7 +34,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  deleteStop,
   moveStop,
   toggleStopPin,
   makeStopRough,
@@ -559,6 +559,10 @@ export function ItineraryManager({
   // ── Stop dialog state ──
   const [editingStop, setEditingStop] = React.useState<StopCardStop | null>(null);
   const [addStopOpen, setAddStopOpen] = React.useState(false);
+  // ARCH-DAT-4: which Stop is pending the delete-preview dialog (itemises
+  // the Accommodations/Costs/Attachments/Notes it will destroy) — replaces
+  // the old generic "This can't be undone." confirm for this one flow.
+  const [deletingStop, setDeletingStop] = React.useState<{ id: string; name: string } | null>(null);
 
   // ── Transport dialog state ──
   const [editingTransport, setEditingTransport] =
@@ -646,38 +650,13 @@ export function ItineraryManager({
   const [isSuggesting, startSuggestTransition] = React.useTransition();
 
   // ── Stop handlers ──
-  async function handleDeleteStop(stopId: string) {
+  // ARCH-DAT-4: opens the delete-preview dialog (DeleteStopDialog) instead of
+  // deleting directly — it fetches previewStopDeletion, itemises what would
+  // be destroyed, and performs the deleteStop call itself once the Traveller
+  // confirms.
+  function handleDeleteStop(stopId: string) {
     const stop = localStops.find((s) => s.id === stopId);
-    const confirmed = await confirm({
-      title: `Delete "${stop?.name ?? "this stop"}"?`,
-      description: "This can't be undone.",
-      confirmLabel: "Delete",
-      destructive: true,
-    });
-    if (!confirmed) return;
-    setPendingId(stopId);
-    try {
-      const result = await deleteStop(stopId);
-      if (!result.success) {
-        // deleteStop resolves (never throws) on a refusal — e.g. ARCH-DAT-1b's
-        // owner-only gate, hit when this Traveller's page is stale relative to
-        // a role change (the Delete control was rendered from the
-        // server-computed `isOwner` at page load). Same shape as
-        // reorderStops's caller above: surface the server's own message
-        // rather than a generic one, so the Traveller learns why.
-        const firstError = result.errors
-          ? Object.values(result.errors).flat()[0]
-          : "Couldn't delete this stop.";
-        toast({ variant: "destructive", title: firstError ?? "Couldn't delete this stop." });
-      }
-    } catch {
-      // A rejected action (network, thrown server error) must behave like a
-      // failed one: report, and tell callers nothing was dated so pending
-      // markers (the accommodation nudge) get cleared (things-to-fix P2-1).
-      toast({ variant: "destructive", title: "Something went wrong — nothing was changed. Try again." });
-    } finally {
-      setPendingId(null);
-    }
+    setDeletingStop({ id: stopId, name: stop?.name ?? "this stop" });
   }
 
   async function handleMoveStop(stopId: string, direction: "up" | "down") {
@@ -2234,6 +2213,18 @@ export function ItineraryManager({
           chapters={effectiveChapters.map((c) => ({ id: c.id, name: c.name }))}
           forkId={forkId ?? null}
           attachments={attachmentsByStopId?.get(editingStop.id) ?? []}
+        />
+      )}
+
+      {/* Delete stop — ARCH-DAT-4: itemises what will be destroyed */}
+      {deletingStop && (
+        <DeleteStopDialog
+          stopId={deletingStop.id}
+          stopName={deletingStop.name}
+          open={Boolean(deletingStop)}
+          onOpenChange={(open) => {
+            if (!open) setDeletingStop(null);
+          }}
         />
       )}
 
