@@ -58,6 +58,23 @@ describe("MobileTabBar", () => {
     );
   });
 
+  // Regression: Home's href (the trip base path) is a prefix of every trip
+  // route, and TabBar's pill-index fallback (Math.max(0, -1) === 0) used to
+  // mark item 0 — Home — active whenever NOTHING matched, instead of nothing
+  // being active. A dated day view and /compare are both routes with no
+  // TabBar slot at all, so they're exactly where that bug showed up.
+  it("marks nothing as current on an unlisted trip route (day view) — Home does not light up", () => {
+    mockUsePathname.mockReturnValue("/trips/t1/day/2026-01-02");
+    const { container } = render(<MobileTabBar tripId="t1" />);
+    expect(container.querySelectorAll('[aria-current="page"]').length).toBe(0);
+  });
+
+  it("marks nothing as current on an unlisted trip route (compare) — Home does not light up", () => {
+    mockUsePathname.mockReturnValue("/trips/t1/compare");
+    const { container } = render(<MobileTabBar tripId="t1" />);
+    expect(container.querySelectorAll('[aria-current="page"]').length).toBe(0);
+  });
+
   // These eight routes have no other mobile entry point (see task-7 brief).
   it("reaches all eight More-only routes from the sheet", async () => {
     const user = userEvent.setup();

@@ -227,9 +227,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 until you decide when.
               </li>
               <li>
-                Give each one a day on the{" "}
+                Give each one a day on{" "}
                 <Go tripId={tripId} segment="calendar">
-                  Calendar
+                  Days
                 </Go>
                 . This is the step everyone forgets — the next two sections are
                 all about it.
@@ -238,7 +238,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 Put a number against anything that costs money, then watch the
                 running total on{" "}
                 <Go tripId={tripId} segment="budget">
-                  Budget
+                  Money
                 </Go>
                 .
               </li>
@@ -378,9 +378,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2"
             >
               <strong className="font-semibold">Worth knowing:</strong> a thing
-              to do won&rsquo;t show up on the{" "}
+              to do won&rsquo;t show up on{" "}
               <Go tripId={tripId} segment="calendar">
-                Calendar
+                Days
               </Go>{" "}
               until you give it a day. That&rsquo;s on purpose — it&rsquo;s
               parked against the place, waiting for you to decide when. Giving
@@ -394,9 +394,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
 
           <Section section={sectionById("giving-a-day")}>
             <p>
-              Giving something a day is what puts it on the{" "}
+              Giving something a day is what puts it on{" "}
               <Go tripId={tripId} segment="calendar">
-                Calendar
+                Days
               </Go>
               , on that day&rsquo;s own page, and on the screen you&rsquo;ll live
               off while you&rsquo;re travelling. Two routes work on something
@@ -411,7 +411,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 whole job.
               </li>
               <li>
-                <strong className="font-semibold">From the Calendar.</strong> The
+                <strong className="font-semibold">From Days.</strong> The
                 toggle at the top switches between{" "}
                 <strong className="font-semibold">Month</strong> — a grid of the
                 whole month — and{" "}
@@ -546,7 +546,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               Anything that costs money carries two numbers, and they mean
               different things. Getting this straight makes the whole of{" "}
               <Go tripId={tripId} segment="budget">
-                Budget
+                Money
               </Go>{" "}
               read properly.
             </p>
@@ -576,7 +576,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
             <p>
               <Go tripId={tripId} segment="budget">
-                Budget
+                Money
               </Go>{" "}
               is where it all adds up: a row of totals along the top — what the
               trip costs, what you&rsquo;ve paid, what&rsquo;s still to pay and
@@ -696,9 +696,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             <ul className={`list-disc ${LIST_CLASS}`}>
               <li>
                 <strong className="font-semibold">Go to</strong> — every screen
-                in this trip, so &ldquo;bud&rdquo; is enough to land on{" "}
+                in this trip, so &ldquo;mon&rdquo; is enough to land on{" "}
                 <Go tripId={tripId} segment="budget">
-                  Budget
+                  Money
                 </Go>
                 . Your other trips are in here too, marked{" "}
                 <strong className="font-semibold">Switch →</strong>, which is
@@ -864,7 +864,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               band over a stretch of dates. It gives you something to group by:
               the plan, the{" "}
               <Go tripId={tripId} segment="budget">
-                Budget
+                Money
               </Go>{" "}
               and the{" "}
               <Go tripId={tripId} segment="summary">
@@ -1236,7 +1236,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 <dt className="font-semibold text-foreground">Thing to do</dt>
                 <dd className="text-muted-foreground">
                   Something you want to see, eat or do. It can sit under a place
-                  with no date yet, or be given a day and land on the Calendar.
+                  with no date yet, or be given a day and land on Days.
                 </dd>
               </div>
               <div>

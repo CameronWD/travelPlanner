@@ -37,6 +37,7 @@ export function NavMoreMenu({
     <DropdownMenu>
       <DropdownMenuTrigger
         aria-label="More trip sections"
+        aria-current={active ? "page" : undefined}
         className={cn(
           "grid h-11 w-16 place-items-center rounded-md border-2 text-[11px] font-bold",
           active

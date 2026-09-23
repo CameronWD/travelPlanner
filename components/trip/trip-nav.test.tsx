@@ -82,7 +82,7 @@ describe("TripNav", () => {
   // Named for the reason, not the mechanism: losing this silently drops a
   // Traveller working in a fork back to the real plan (ADR 0020) — the UI
   // gives no other sign it happened.
-  it("keeps a fork's ?plan= alive across navigation, in the Plan and Budget hrefs but not Calendar", () => {
+  it("keeps a fork's ?plan= alive across navigation, in the Plan and Money hrefs but not Days", () => {
     mockUsePathname.mockReturnValue("/trips/t1/plan");
     mockUseSearchParams.mockReturnValue(new URLSearchParams("plan=abc"));
     const { getByText } = render(<TripNav tripId="t1" />);
@@ -96,9 +96,9 @@ describe("TripNav", () => {
       [...primaryNav("t1", "fork-9"), ...moreNav("t1", "fork-9")].map((i) => [i.label, i.href]),
     );
     expect(hrefs["Plan"]).toBe("/trips/t1/plan?plan=fork-9");
-    expect(hrefs["Budget"]).toBe("/trips/t1/budget?plan=fork-9");
+    expect(hrefs["Money"]).toBe("/trips/t1/budget?plan=fork-9");
     expect(hrefs["Wishlist"]).toBe("/trips/t1/wishlist?plan=fork-9");
-    expect(hrefs["Calendar"]).toBe("/trips/t1/calendar");
+    expect(hrefs["Days"]).toBe("/trips/t1/calendar");
     expect(hrefs["Summary"]).toBe("/trips/t1/summary");
     expect(hrefs["Home"]).toBe("/trips/t1");
   });

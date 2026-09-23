@@ -108,7 +108,7 @@ export default async function TripLayout({
     <div className="flex flex-col gap-0 md:flex-row">
       <TripNav tripId={tripId} />
 
-      <div className="flex min-w-0 flex-1 flex-col gap-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-0 md:pl-6">
         {/* ── Trip header ── */}
         <div className="pb-4 pt-2">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

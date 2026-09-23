@@ -20,23 +20,23 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
   const base = `/trips/${tripId}`;
   const [open, setOpen] = React.useState(false);
 
-  const nav = primaryNav(tripId, planParam); // Home, Plan, Calendar, Budget, Summary
+  const nav = primaryNav(tripId, planParam); // Home, Plan, Days, Money, Summary
   const more = moreNav(tripId, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
   const byLabel = (label: string) => nav.find((i) => i.label === label)!;
 
   // Unlike the desktop rail (trip-nav.tsx), which promotes Wishlist to its
-  // own item, mobile keeps the primary row at four items (Home, Plan,
-  // Calendar, Budget) plus More as the fifth — so all eight routes that have
-  // no other mobile entry point (Wishlist, Journal, Checklists, Files,
-  // Activity, Settings, Help, Summary) stay behind this one sheet.
+  // own item, mobile keeps the primary row at four items (Home, Plan, Days,
+  // Money) plus More as the fifth — so all eight routes that have no other
+  // mobile entry point (Wishlist, Journal, Checklists, Files, Activity,
+  // Settings, Help, Summary) stay behind this one sheet.
   const sheetItems = [byLabel("Summary"), ...more];
   const sheetActive = sheetItems.some((item) => isNavActive(item.href, pathname, base));
 
   const items: TabItem[] = [
     { href: byLabel("Home").href, label: "Home", match: (p) => isNavActive(byLabel("Home").href, p, base) },
     { href: byLabel("Plan").href, label: "Plan", match: (p) => isNavActive(byLabel("Plan").href, p, base) },
-    { href: byLabel("Calendar").href, label: "Days", match: (p) => isNavActive(byLabel("Calendar").href, p, base) },
-    { href: byLabel("Budget").href, label: "Money", match: (p) => isNavActive(byLabel("Budget").href, p, base) },
+    { href: byLabel("Days").href, label: "Days", match: (p) => isNavActive(byLabel("Days").href, p, base) },
+    { href: byLabel("Money").href, label: "Money", match: (p) => isNavActive(byLabel("Money").href, p, base) },
     {
       href: `${base}/more`,
       label: "More",
