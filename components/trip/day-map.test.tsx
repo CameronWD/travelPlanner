@@ -15,6 +15,11 @@ vi.mock("@/components/ui/theme-provider", () => ({
 
 import { DayMap } from "./day-map";
 
+/** The mock's `divIcon` returns its options verbatim, untyped; narrow just the `html` we assert on. */
+function iconHtml(marker: { options: Record<string, unknown> }): string {
+  return (marker.options.icon as { html: string }).html;
+}
+
 const MODEL: DayMapModel = {
   points: [
     { kind: "item", id: "i1", lat: 35.65, lng: 139.74, label: "Tokyo Tower", order: 1 },
@@ -70,6 +75,38 @@ describe("DayMap theme handling", () => {
     );
     expect(mapInstance.remove).not.toHaveBeenCalled();
     expect(hoisted.leaflet!.maps).toHaveLength(1);
+  });
+
+  it("recolours the accommodation marker in place (setIcon) when the theme flips, without touching the item marker", async () => {
+    const { rerender } = render(<DayMap tripId="t1" model={MODEL} />);
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    const mapInstance = hoisted.leaflet!.maps[0];
+    // MODEL.points is [item, accommodation], and the component places markers
+    // in that same order.
+    const [itemMarker, accommodationMarker] = hoisted.leaflet!.markers;
+
+    // Light-mode ink/paper swap baked in at creation time (variant "home").
+    expect(iconHtml(accommodationMarker)).toContain("#1D1D1B");
+    expect(iconHtml(accommodationMarker)).toContain("#FFFBF3");
+
+    hoisted.theme = "dark";
+    rerender(<DayMap tripId="t1" model={MODEL} />);
+
+    await waitFor(() => expect(accommodationMarker.setIcon).toHaveBeenCalled());
+
+    // The new icon passed to setIcon carries the dark-mode ink/paper swap.
+    expect(accommodationMarker.setIcon).toHaveBeenLastCalledWith(
+      expect.objectContaining({ html: expect.stringContaining("#EDE6D8") }),
+    );
+
+    // itemIcon isn't theme-aware (measured/computed as passing contrast
+    // either way -- see the task report), so it should never be recoloured.
+    expect(itemMarker.setIcon).not.toHaveBeenCalled();
+
+    // Recoloured in place: no map rebuild, no new markers created.
+    expect(mapInstance.remove).not.toHaveBeenCalled();
+    expect(hoisted.leaflet!.markers).toHaveLength(2);
+    expect(accommodationMarker.remove).not.toHaveBeenCalled();
   });
 
   it("still rebuilds when the plotted points actually change", async () => {

@@ -70,6 +70,10 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
   const leafletMapRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tileLayerRef = useRef<any>(null);
+  // Ref map: item id → Leaflet Marker instance, so a theme flip can recolour
+  // markers in place (setIcon) instead of tearing the map down.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markerInstancesRef = useRef<Map<string, any>>(new Map());
 
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -105,6 +109,7 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
         .addTo(mapInstance);
 
       // Place a marker per wishlist item
+      markerInstancesRef.current.clear();
       for (const item of items) {
         const icon = categoryIcon(L, item.category, isDark);
         const popupHtml = `<div style="min-width:min(140px,80vw);max-width:min(240px,90vw);line-height:1.5">
@@ -119,6 +124,7 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
         marker.on("click", () => {
           onSelect(item.id);
         });
+        markerInstancesRef.current.set(item.id, marker);
       }
 
       // Fit bounds to all items
@@ -127,15 +133,18 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
       mapInstance.fitBounds(bounds, { padding: [40, 40] });
     });
 
+    const markerInstances = markerInstancesRef.current;
     return () => {
       if (leafletMapRef.current) {
         leafletMapRef.current.remove();
         leafletMapRef.current = null;
       }
+      markerInstances.clear();
     };
     // `isDark` is deliberately NOT a dependency: this effect's cleanup destroys
     // the map, so depending on the theme would rebuild it (losing pan/zoom) on
-    // every toggle. The separate setUrl effect below swaps tiles in place.
+    // every toggle. The separate setUrl effect below swaps tiles in place, and
+    // the recolour effect below that updates marker icons in place.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     items.length,
@@ -147,6 +156,24 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
   useEffect(() => {
     tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
   }, [isDark]);
+
+  // Recolour existing markers in place when the theme flips. Uses `setIcon`
+  // rather than remove-and-recreate, so a currently-open popup and the
+  // viewport (pan/zoom) are both left alone -- only the icon's own colours
+  // change. No-ops on the very first render (before the init effect above has
+  // asynchronously created the map and populated markerInstancesRef).
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+    import("leaflet").then((leaflet) => {
+      const L = leaflet.default ?? leaflet;
+      for (const item of items) {
+        const instance = markerInstancesRef.current.get(item.id);
+        instance?.setIcon(categoryIcon(L, item.category, isDark));
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDark, items.map((p) => `${p.id}:${p.category}`).join("|")]);
 
   if (items.length === 0) {
     return (

@@ -150,6 +150,12 @@ export function DayMap({
   const leafletMapRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tileLayerRef = useRef<any>(null);
+  // Ref map: `${kind}:${id}` → Leaflet Marker instance, so a theme flip can
+  // recolour markers in place (setIcon). Keyed on kind+id rather than just id
+  // because a single Transport row can produce both a transport-dep and a
+  // transport-arr point sharing the same underlying id.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markerInstancesRef = useRef<Map<string, any>>(new Map());
 
   const { theme } = useTheme();
   const isDark = theme === "dark";
@@ -189,6 +195,7 @@ export function DayMap({
         .addTo(mapInstance);
 
       // Place markers for all points
+      markerInstancesRef.current.clear();
       for (const point of points) {
         let icon: import("leaflet").DivIcon;
         if (point.kind === "item") {
@@ -202,9 +209,10 @@ export function DayMap({
         const prev = point.kind === "item" ? perItemPrev[point.id] : undefined;
         const popupHtml = buildPopupHtml(point, prev);
 
-        lf.marker([point.lat, point.lng], { icon })
+        const marker = lf.marker([point.lat, point.lng], { icon })
           .addTo(mapInstance)
           .bindPopup(popupHtml);
+        markerInstancesRef.current.set(`${point.kind}:${point.id}`, marker);
       }
 
       // Polyline through routePoints in order
@@ -224,15 +232,18 @@ export function DayMap({
       mapInstance.fitBounds(bounds, { padding: [40, 40] });
     });
 
+    const markerInstances = markerInstancesRef.current;
     return () => {
       if (leafletMapRef.current) {
         leafletMapRef.current.remove();
         leafletMapRef.current = null;
       }
+      markerInstances.clear();
     };
     // `isDark` is deliberately NOT a dependency: this effect's cleanup destroys
     // the map, so depending on the theme would rebuild it (losing pan/zoom) on
-    // every toggle. The separate setUrl effect below swaps tiles in place.
+    // every toggle. The separate setUrl effect below swaps tiles in place, and
+    // the recolour effect below that updates marker icons in place.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     points.length,
@@ -244,6 +255,26 @@ export function DayMap({
   useEffect(() => {
     tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
   }, [isDark]);
+
+  // Recolour the accommodation marker in place when the theme flips. Uses
+  // `setIcon` rather than remove-and-recreate, so a currently-open popup and
+  // the viewport (pan/zoom) are both left alone. `itemIcon`/`transportIcon`
+  // aren't theme-aware (they measured/computed as passing contrast either
+  // way, so weren't converted -- see the task report), so only the
+  // accommodation point needs a live update here.
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+    import("leaflet").then((leaflet) => {
+      const L = leaflet.default ?? leaflet;
+      for (const point of points) {
+        if (point.kind !== "accommodation") continue;
+        const instance = markerInstancesRef.current.get(`${point.kind}:${point.id}`);
+        instance?.setIcon(accommodationIcon(L, isDark));
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDark, points.map((p) => `${p.kind}:${p.id}`).join("|")]);
 
   if (points.length === 0) return null;
 
