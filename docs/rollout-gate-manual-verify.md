@@ -50,17 +50,28 @@ production side-effects are unverified.
 `scripts/sweep-deleted-blobs.ts` **does** load `.env*` files, via
 `import "./load-env"`, the same as `feedback-pull` and `feedback-resolve`
 (final fix wave, C1 — it did not before, which is what made the `--execute`
-bug below possible). Two consequences worth knowing before you type anything:
+bug below possible). Three consequences worth knowing before you type
+anything, and the first one is the reason §3 opens with a warning:
 
-- **`.env.production.local` wins over an inline variable.** `load-env` calls
-  dotenv with `override: true` for that file, so `DATABASE_URL=… npm run
-  sweep:blobs` does **not** override it when the file exists — the file's
-  value is used. On the operator's machine both point at production anyway,
-  so this is a naming hazard rather than a targeting one, but do not read an
-  inline `DATABASE_URL=` on a command line as proof of where a run went. (When
-  there is no `.env.production.local`, plain `config()` is used and it does
-  *not* override an already-set variable, so the inline value stands.)
+- **`.env.production.local` wins over an inline variable, and over `env -u`.**
+  `load-env` calls dotenv with `override: true` for that file
+  (`scripts/load-env.ts:20-21`), so when the file exists it re-sets every
+  variable it defines **after** your shell prefix has run and **before**
+  `main()` reads any of them. `DATABASE_URL=… npm run sweep:blobs` therefore
+  does not override `DATABASE_URL`; `env -u STORAGE_DRIVER npm run
+  sweep:blobs` does not leave `STORAGE_DRIVER` unset; `STORAGE_DRIVER=r2 npm
+  run sweep:blobs` does not select r2. **On the operator's machine there is no
+  shell-level way to change what this script sees.** Change the file, or run
+  the script somewhere that file is not.
+- **The operator's `.env.production.local` sets `STORAGE_DRIVER="local"`** —
+  alongside a production `DATABASE_URL`. So a sweep run on that machine is
+  always "production database, local-disk storage driver" unless the file
+  itself is changed. That combination is safe for a dry run and **catastrophic
+  for `--execute`**: see the warning opening §3.
 - **`STORAGE_DRIVER` now decides whether `--execute` runs at all** — see §3.1.
+  Because dotenv makes the variable explicit on the operator's machine, the
+  refusal never fires there; the refusal protects a machine *without* that
+  file, and cannot be demonstrated on one that has it (§3.1a).
 
 **`BROWSER`** — do it by hand in a real browser. There is no headless browser
 in this repo's test setup, so nothing below marked `BROWSER` has any automated
@@ -201,7 +212,8 @@ trusting the upstream value.
 
 1. In `/admin`, press **Approve** on the request from §1.3.
 2. **Expect:** the row leaves the Access requests list and the address appears
-   in the Allowed emails list on the same page.
+   in the **"Who can sign in"** card on the same page (that is the allowlist
+   panel's title — `app/(app)/admin/page.tsx`).
 3. `SELECT email, note FROM "AllowedEmail" WHERE email = LOWER('<address>');`
    → exactly one row, the email **lowercased** even if the Google profile was
    mixed case.
@@ -211,6 +223,14 @@ trusting the upstream value.
    **Do not expect the open session to end** — revocation is JWT-bounded
    (ADR 0057): it takes effect at the next sign-in, not immediately. Sign out
    in the private window, then try again — *that* attempt should be refused.
+6. **Expect that refused attempt to put the request BACK in the Access
+   requests list**, with a fresh admin notification headed "Access request
+   reopened". This is deliberate, not a duplicate of §1.3: approving stamps
+   `resolvedAt` (which is what `listAccessRequests` filters on), so without
+   the reopen a revoked person would be invisible in `/admin` forever — the
+   page has no reopen control and no add-an-address control
+   (`lib/access-requests.ts`, final fix wave I2). A **dismissed** request is
+   the one case that must *not* reopen.
 
 ### 1.5 THE LOCKOUT REGRESSION — an invited Traveller signs in TWICE
 
@@ -305,6 +325,32 @@ cross-check with the `pg_indexes` query in §1.1.
 
 ## 3. Attachments and blob retention (`ARCH-DAT-3`)
 
+> ### ⚠ Never run `--execute` as part of this verification
+>
+> **Nothing in this section asks you to.** Every step here is a dry run or a
+> read-only query, and that is the whole design — `--execute` destroys
+> objects, and on the operator's machine it destroys them *wrongly*.
+>
+> `--execute` is safe to run only when `STORAGE_DRIVER` is genuinely resolved
+> to the **production** driver (`r2`) for that process. On a machine holding
+> `.env.production.local`, it is not and cannot be made so from the command
+> line: that file sets `STORAGE_DRIVER="local"` and `load-env` applies it with
+> `override: true`, so an inline `STORAGE_DRIVER=r2` prefix is silently
+> discarded. The run then pairs a **production database** with a **local-disk
+> storage driver** whose `delete()` is `fs.rm(..., { force: true })` — a
+> silent no-op for a key that is not on this laptop. Result: every
+> `DeletedBlob` row deleted, every R2 object left alive and permanently
+> orphaned, and `destroyed N, failed 0` printed as if it had worked. That is
+> the exact failure §3.1a records, and the `--execute` refusal does **not**
+> catch it here, because the variable is set — just set to the wrong thing.
+>
+> **The printed `Storage driver:` line is the only reliable confirmation of
+> what a run will act through.** Not the command line, not the environment you
+> think you exported. If that line does not say `r2`, do not run `--execute`.
+> A real sweep belongs on a host configured for R2 (or after editing
+> `.env.production.local` itself and confirming the printed line), never as a
+> verification step.
+
 ### 3.1 The dry run destroys nothing
 
 **Why:** an earlier version of these steps shipped `npm run sweep:blobs
@@ -319,6 +365,10 @@ separator is mandatory.
 DATABASE_URL='<production pooled URL>' npm run sweep:blobs -- --days=1
 ```
 
+(The inline `DATABASE_URL` is **ignored** when `.env.production.local` exists
+— see "How to run the steps". It is written out for a machine without that
+file, and so you can see which database the run is meant for.)
+
 **Expect:** npm echoes `tsx scripts/sweep-deleted-blobs.ts --days=1` — if the
 echoed line has no `--days=1` on it, the separator was lost and the run is
 meaningless. **Expect** a `Storage driver: …` line first, then a candidate
@@ -327,10 +377,30 @@ it constructs no storage client at all, so it cannot destroy anything even
 with R2 credentials in the environment.
 
 **Read that `Storage driver:` line.** It is printed on every run, dry or not,
-so the dry run tells you what the real one would act through. If it says
-`local (default — STORAGE_DRIVER is not set)` while the blobs you care about
-live in R2, stop: a real run would have deleted nothing and said it deleted
-everything (see §3.1a).
+so the dry run tells you what the real one would act through — and it is the
+*only* trustworthy statement of that (see the warning opening §3). On a dry
+run it carries a suffix, so the whole line reads:
+
+```
+Storage driver: local (dry run — nothing will be destroyed)
+```
+
+**`local` is what you will see on the operator's machine, and it is the stop
+sign.** It means a real run would act through the local-disk driver while
+reading the production database: it would delete nothing from R2 and report
+that it had deleted everything (§3.1a). Blobs that live in R2 can only be
+swept from an environment where this line says `r2`.
+
+Two labels, and which one you get:
+
+- `local` (or `r2`, `s3`) — plain, no parenthetical. `STORAGE_DRIVER` was set
+  explicitly, which on this machine means `.env.production.local` set it.
+  **This is the only label the operator will ever see.**
+- `local (default — STORAGE_DRIVER is not set)` — the variable was genuinely
+  absent (`lib/sweep-blobs-driver.ts:61`). This **cannot** appear on a machine
+  with `.env.production.local`, because dotenv sets the variable before the
+  script reads it. Do not wait to see this label; the plain `local` above
+  carries exactly the same warning.
 
 **A run that prints `Nothing to sweep.` and exits is also a pass.** On a
 fresh deployment there is nothing older than a day, so the candidate query
@@ -350,9 +420,10 @@ DATABASE_URL='<production pooled URL>' npm run sweep:blobs -- --days=0
 positive number.` If it instead runs a normal 35-day dry run, the `--` was
 dropped and every other sweep command you type is a no-op in the same way.
 
-**Do not run `--execute` as part of verification.** It destroys objects.
+**Do not run `--execute` as part of verification** — not in any form, not with
+any prefix. See the warning opening §3.
 
-### 3.1a `--execute` refuses to guess the storage driver
+### 3.1a `--execute` refuses to guess the storage driver — and why that is not a step
 
 **Why:** the failure this closes was silent in both directions. With only
 `DATABASE_URL` in the environment — exactly how the steps above are written —
@@ -364,19 +435,42 @@ R2 object alive with nothing pointing at it and no record that it had ever
 been scheduled — unfindable by any future sweep. The dry-run path builds no
 driver, so no amount of dry-run checking could have surfaced it.
 
-`SHELL` — this one is safe to run, because it is the refusal:
+**There is no step to run here, and that is deliberate.** An earlier version
+of this section told you to run
+`env -u STORAGE_DRIVER npm run sweep:blobs -- --execute` and called it safe
+"because it is the refusal". On the operator's machine it is not the refusal —
+it is the bug. `load-env` re-sets `STORAGE_DRIVER` to `"local"` from
+`.env.production.local` with `override: true`, **after** `env -u` has cleared
+it and **before** `main()` reads it, so the variable is set, the guard is
+satisfied, and the command becomes a real `--execute` against the production
+database through the no-op local-disk driver. It is harmless only while
+`DeletedBlob` happens to be empty; the day a row ages past 35 days it wipes
+the retention ledger and deletes nothing. Do not resurrect that command, and
+do not reach for `env -u`, `VAR=` or `export` to work around it — none of
+them survive dotenv's `override: true`.
 
-```bash
-env -u STORAGE_DRIVER npm run sweep:blobs -- --execute
-```
+**What the guard actually does**, for the record: with `--execute` and
+`STORAGE_DRIVER` genuinely unset, `resolveSweepDriver` returns a refusal
+naming the variable, `main()` prints it and sets `process.exitCode = 1`
+*before the candidate query runs*, and nothing is read or written.
+`STORAGE_DRIVER=local` is **accepted** for `--execute` — setting it is a
+choice, not a default. Only the unset case refuses, which is why the guard
+does nothing for the operator: on that machine the variable is never unset.
 
-**Expect** a refusal naming `STORAGE_DRIVER`, **a non-zero exit code**
-(`echo $?` → `1`), and **no query at all** — the check runs before the
-candidate lookup. If it instead starts listing candidates, this fix is not in
-the deployed build and `--execute` must not be run.
+**How it is verified instead.** `resolveSweepDriver` is a pure function,
+extracted from the script precisely so this can be checked without a database
+or a destructive run; `lib/sweep-blobs-driver.test.ts` covers the refusal, the
+whitespace-only case, explicit `local`, explicit `r2`, and both dry-run
+labels. That is the cover for the guard, and it is enough — the guard is a
+backstop, not a feature, and the thing that actually protects a real sweep is
+reading the `Storage driver:` line (§3.1).
 
-`STORAGE_DRIVER=local` is *accepted* for `--execute`: setting it is a choice,
-not a default. It is the unset case that refuses.
+The one thing worth confirming by hand, and it is free: a dry run in §3.1 that
+prints a `Storage driver:` line **at all** is a build that has this fix.
+That line and the refusal are emitted by the same `resolveSweepDriver` call
+(`scripts/sweep-deleted-blobs.ts:96-102`), so a run that prints a candidate
+count with no driver line above it is the *old* build, and `--execute` must
+not be run against it under any configuration.
 
 ### 3.2 A deleted attachment's blob still exists
 
@@ -413,6 +507,15 @@ points at.
      npx tsx blob-check.ts '<key>'
    rm blob-check.ts
    ```
+   **The inline variables above genuinely take effect here** — unlike every
+   `npm run sweep:blobs` invocation in §3.1. `blob-check.ts` does not import
+   `scripts/load-env`, so nothing calls dotenv and nothing overrides your
+   shell. Confirm it anyway: if `read` returns bytes for a key that only
+   exists in R2, you were talking to R2. Do not add a `load-env` import to
+   this throwaway script — it would silently pin it to `STORAGE_DRIVER="local"`
+   and turn `PRESENT`/`MISSING` into a statement about this laptop's
+   `.uploads/` directory.
+
    **Expect `PRESENT (<n> bytes)`.** `MISSING` means something still
    hard-deletes and the retention window is fiction. (Both output branches of
    this script were exercised in the sandbox against the local-disk driver;
@@ -468,9 +571,28 @@ screens.
    populated feed and are not passing vacuously on an empty one) followed by
    `PASS — no sentinel value appears in the feed`. Any `grep` hit is a leak;
    a hit on a `SUMMARY:` line is the worst case.
-4. Confirm the feed is still **useful**: the same file should contain the
-   Stop/Accommodation place names and addresses in `LOCATION:`. Those are
-   schedule and are deliberately kept.
+4. Confirm the feed is still **useful**. What `lib/ics.ts` actually emits —
+   check for these, and do *not* expect anything else:
+   - **Accommodation** → `SUMMARY:🛏 Stay: <name>` and, **only when the
+     Accommodation has an `address`**, a `LOCATION:` carrying that address.
+     The name is in the SUMMARY, never the LOCATION (`lib/ics.ts:253-262`).
+   - **Item** → `SUMMARY:<title>`, plus `LOCATION:<address>` when the Item has
+     an address, and `CATEGORIES:<category>` (`lib/ics.ts:174-197`). Only
+     Items with a `date` are emitted.
+   - **Transport** → `SUMMARY:✈ <departure> → <arrival>` and
+     `CATEGORIES:Transport`, with **no `LOCATION:` line at all** — the event
+     builder is passed `null` for location (`lib/ics.ts:221`). An absent
+     LOCATION on a Transport event is correct, not a fault.
+   - **Stops emit no VEVENT whatsoever.** They are fetched only to build the
+     timezone map the other three loops resolve wall-clock times against
+     (`lib/ics.ts:139`). A Stop name appearing nowhere in the file is the
+     expected result — looking for one and not finding it is not a bug.
+
+   Two things that will make a naive `grep` miss a value that *is* present:
+   RFC-5545 escaping puts a backslash before every comma and semicolon (so an
+   address renders as `12 High St\, Bath`), and lines longer than 75 octets
+   are folded onto continuation lines beginning with a space. Grep for a
+   distinctive word rather than a whole address.
 5. `BROWSER`: subscribe to the URL in a real calendar client once. ICS
    escaping and line folding are unit-tested, but no test has ever handed the
    output to a calendar application.
@@ -484,15 +606,21 @@ screens.
 `BROWSER`:
 
 1. Trigger a client-side error boundary (the simplest reliable way is to POST
-   a synthetic report from the browser console on the deployed origin):
+   a synthetic report from the browser console on the deployed origin).
+   **Edit the date to today's, then paste the snippet whole** — step 5 pastes
+   it again completely unchanged, and the two only dedup together if the
+   `message` is byte-identical both times:
    ```js
    fetch('/api/client-error', {
      method: 'POST',
      headers: { 'Content-Type': 'application/json' },
-     body: JSON.stringify({ message: 'manual verify probe ' + Date.now(), route: '/signin' }),
+     body: JSON.stringify({ message: 'manual verify probe 2026-09-23', route: '/signin' }),
    }).then(r => console.log(r.status));
    ```
-   **Expect `204`.**
+   **Expect `204`.** The date is there to keep this run's probe distinct from
+   an earlier verification's, so it is a **fixed literal you type once** —
+   never `Date.now()`, which would mint a different message (and so a
+   different dedup signature, and so a second row) on every call.
 2. Do it **while signed out**, from `/signin`. The endpoint is deliberately
    open (ADR 0059) because a boundary can fire before there is a session.
 3. Open `/admin` as an Admin. **Expect** the report in the Errors section with
@@ -500,13 +628,23 @@ screens.
 4. **Expect NO push notification for it.** Client-sourced reports record but
    never push — that is decision 5 in ADR 0059, and a notification here would
    mean an unauthenticated caller can put text on your lock screen.
-5. Repeat step 1 with the **same** `message` (drop the `Date.now()`).
-   **Expect** the existing row's `count` to increment rather than a second row.
+5. Paste the **exact same snippet** from step 1 a second time — same date,
+   same every character. (If you navigated away in steps 2–4, paste it again
+   from this document rather than retyping it.) **Expect** the existing row's
+   `count` to increment to 2 rather than a second row appearing. The dedup
+   signature is `name + message + first stack frame`, hashed
+   (`lib/error-sink.ts`); `name` is always "Error" here and the route clears
+   the stack when the caller sends none, so `message` is the only thing that
+   distinguishes the two. Change one character of it and you get a second row
+   with `count = 1`, which looks exactly like the failure this step is
+   checking for.
 6. `SQL`:
    ```sql
-   SELECT signature, source, count, "firstSeen", "lastSeen", left(message, 60)
+   SELECT signature, source, "count", "firstSeen", "lastSeen", left(message, 60)
    FROM "ErrorReport" ORDER BY "lastSeen" DESC LIMIT 10;
    ```
+   **Expect one row** for the probe message, with `count = 2`, `source =
+   client`, and `firstSeen` < `lastSeen`.
 
 ### 5.2 A server error pushes once
 
@@ -560,7 +698,9 @@ is unverified is the rendering and the real-guard behaviour end to end.
 - **Calendar client rendering.** §4.1 step 5.
 - **R2 presigned GETs against a real bucket.** Already packaged as
   `npx tsx scripts/verify-r2-presign.ts` (needs the four R2 env vars); it
-  creates and removes its own throwaway object.
+  creates and removes its own throwaway object. It sets `STORAGE_DRIVER="r2"`
+  on itself and does **not** import `scripts/load-env`, so inline variables on
+  its command line are honoured — the §3 hazard does not apply to it.
 - **Google Cloud Console state.** Whether the OAuth app is published, and what
   the consent screen requires, is not observable from this repository.
 - **`_prisma_migrations` drift.** If Vercel's `DIRECT_URL` and the connection
