@@ -24,7 +24,7 @@ function PageHead({ action = true }: { action?: boolean }) {
   );
 }
 
-/** Trips, plan, wishlist, checklists, files, journal, activity, admin. */
+/** Trips, plan, wishlist, checklists, files, journal, activity, admin, help, whats-new. */
 export function ListSkeleton({ rows = 5, label = "Loading" }: { rows?: number; label?: string }) {
   return (
     <div className="flex flex-col gap-4">
@@ -44,7 +44,11 @@ export function ListSkeleton({ rows = 5, label = "Loading" }: { rows?: number; l
   );
 }
 
-/** Trip home, stop detail, summary, today, account, trip settings. */
+/**
+ * Trip home, budget, compare, day, print, summary. (`today` deliberately has
+ * no loading.tsx — it's a bare redirect. `account` and trip `settings` use
+ * FormSkeleton, not this one.)
+ */
 export function DetailSkeleton({ label = "Loading" }: { label?: string }) {
   return (
     <div className="flex flex-col gap-4">
@@ -58,7 +62,7 @@ export function DetailSkeleton({ label = "Loading" }: { label?: string }) {
   );
 }
 
-/** Calendar month grid and day view. */
+/** Calendar month grid. (`day/[date]` reads as a single detailed report, not a grid — it uses DetailSkeleton instead.) */
 export function CalendarSkeleton({ label = "Loading calendar" }: { label?: string }) {
   return (
     <div className="flex flex-col gap-4">
@@ -93,7 +97,7 @@ export function MapSkeleton({ height = 340, label = "Loading map" }: { height?: 
   );
 }
 
-/** Trip new, settings sections, any FormDialog page fallback. */
+/** Trip new, account, trip settings, any FormDialog page fallback. */
 export function FormSkeleton({ fields = 4, label = "Loading" }: { fields?: number; label?: string }) {
   return (
     <div className="flex max-w-xl flex-col gap-5">
