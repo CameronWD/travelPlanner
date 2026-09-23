@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/guards";
 import { NewTripForm } from "./new-trip-form";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: "New trip · TEEPEE" };
+  return { title: "New trip" };
 }
 
 export default async function NewTripPage() {

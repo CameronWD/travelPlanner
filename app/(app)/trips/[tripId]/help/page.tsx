@@ -3,7 +3,7 @@ import { requireTripAccess } from "@/lib/guards";
 import { HelpGuide } from "@/components/trip/help-guide";
 
 export const metadata: Metadata = {
-  title: "How to use TEEPEE",
+  title: "How to use Teepee",
   description: "A short guide to planning this trip together.",
 };
 
@@ -22,7 +22,7 @@ export default async function TripHelpPage({
             page <h1> above {children}, and every other trip page tops out at
             <h2>. Visual classes are unchanged. */}
         <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
-          How to use TEEPEE
+          How to use Teepee
         </h2>
         <p className="text-sm text-muted-foreground">
           Everything you need, shortest bits first. The links jump straight to

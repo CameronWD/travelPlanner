@@ -147,7 +147,7 @@ export async function recordAccessRequest({
 
     await notifyAdmins(
       "New Access request",
-      name ? `${name} (${needle}) asked to join TEEPEE.` : `${needle} asked to join TEEPEE.`,
+      name ? `${name} (${needle}) asked to join Teepee.` : `${needle} asked to join Teepee.`,
       "/admin",
     );
   } catch (err) {

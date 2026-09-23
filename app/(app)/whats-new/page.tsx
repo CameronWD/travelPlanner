@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/guards";
 import { RELEASE_NOTES, releaseNoteDate } from "@/lib/release-notes";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: "What's new · TEEPEE" };
+  return { title: "What's new" };
 }
 
 function formatDate(iso: string): string {
@@ -41,7 +41,7 @@ export default async function WhatsNewPage() {
           What&apos;s new
         </h1>
         <p className="text-sm text-muted-foreground">
-          Changes to TEEPEE, newest first.
+          Changes to Teepee, newest first.
         </p>
       </div>
 

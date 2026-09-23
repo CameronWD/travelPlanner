@@ -104,10 +104,10 @@ describe("AppLayout", () => {
     expect(redirect).toHaveBeenCalledTimes(1);
   });
 
-  it("renders the TEEPEE wordmark link when authenticated", async () => {
+  it("renders the Teepee wordmark link when authenticated", async () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
-    expect(screen.getByText("TEEPEE")).toBeInTheDocument();
+    expect(screen.getByText("Teepee")).toBeInTheDocument();
   });
 
   it("renders the avatar trigger button for the user menu", async () => {
@@ -121,7 +121,7 @@ describe("AppLayout", () => {
     const ui = await AppLayout({ children: <div /> });
     const { container } = render(ui as React.ReactElement);
     expect(container.querySelector("svg[data-testid='tent-icon']")).toBeInTheDocument();
-    expect(screen.getByText("TEEPEE")).toBeInTheDocument();
+    expect(screen.getByText("Teepee")).toBeInTheDocument();
   });
 
   it("ramps the content width up on large screens", async () => {

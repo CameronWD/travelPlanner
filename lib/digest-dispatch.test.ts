@@ -491,7 +491,7 @@ describe("dispatchDigest", () => {
     await dispatch({ force: true });
 
     const payload = JSON.parse(sendPushMock.mock.calls[0][1] as string);
-    expect(payload.title).toBe("Test · TEEPEE");
+    expect(payload.title).toBe("Test · Teepee");
     expect(payload.body).toBe(
       "Push is working. Your digest arrives in the evening when there's something to say.",
     );

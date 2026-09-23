@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Privacy · TEEPEE",
-  description: "What TEEPEE collects, who it shares it with, and how long it keeps it.",
+  title: "Privacy",
+  description: "What Teepee collects, who it shares it with, and how long it keeps it.",
 };
 
 /**
@@ -74,7 +74,7 @@ export default function PrivacyPage() {
             className="flex items-center gap-1.5 font-display text-lg font-semibold text-foreground"
           >
             <span aria-hidden="true">🛖</span>
-            TEEPEE
+            Teepee
           </Link>
         </div>
       </header>
@@ -86,25 +86,25 @@ export default function PrivacyPage() {
               Privacy
             </h1>
             <p className="text-sm text-muted-foreground">
-              TEEPEE is an invite-only trip planner for a small group of
+              Teepee is an invite-only trip planner for a small group of
               Travellers, not a public product. This page describes, plainly
               and specifically, what it collects about you and why — not a
               legal document, just an accurate account of what the system
-              actually does. The Admin (TEEPEE&apos;s operator) has read it and is
+              actually does. The Admin (Teepee&apos;s operator) has read it and is
               the person to ask if anything here is unclear.
             </p>
           </div>
 
           <section className="flex flex-col gap-3">
             <h2 className="font-display text-xl font-semibold text-foreground">
-              What TEEPEE collects
+              What Teepee collects
             </h2>
             <ul className="flex flex-col gap-3 text-sm text-muted-foreground">
               <li>
                 <span className="font-medium text-foreground">
                   Your Google profile and sign-in tokens.
                 </span>{" "}
-                Signing in is Google sign-in only, so TEEPEE receives your
+                Signing in is Google sign-in only, so Teepee receives your
                 name, email address and avatar image from Google, and stores
                 the OAuth tokens Google issues for your session (the access
                 token, refresh token, ID token, the granted scope, and a
@@ -146,7 +146,7 @@ export default function PrivacyPage() {
                 <span className="font-medium text-foreground">
                   Push subscriptions.
                 </span>{" "}
-                If you turn on the Digest on a Device, TEEPEE stores what
+                If you turn on the Digest on a Device, Teepee stores what
                 that Device&apos;s browser gives it to deliver a push
                 notification, plus a coarse device type (&quot;iPhone&quot;,
                 &quot;Mac&quot;, and similar — derived once from the
@@ -158,7 +158,7 @@ export default function PrivacyPage() {
                 <span className="font-medium text-foreground">
                   Error reports.
                 </span>{" "}
-                When something in TEEPEE breaks — including a failure caught
+                When something in Teepee breaks — including a failure caught
                 in your browser — it records the error message, a stack
                 trace, the route it happened on, and your account id if you
                 were signed in at the time. It is also written to Vercel&apos;s
@@ -173,14 +173,14 @@ export default function PrivacyPage() {
                   Access requests — including from people who never get an
                   account.
                 </span>{" "}
-                TEEPEE is invite-only: if you sign in with Google and your
+                Teepee is invite-only: if you sign in with Google and your
                 address is not on the invite list, sign-in is refused, and
                 that refusal itself is recorded — your name, email, avatar,
                 and how many times you&apos;ve tried, exactly as Google&apos;s
                 sign-in flow supplies them — so the Admin can see who has
                 asked and decide whether to invite them. This is the most
                 surprising thing on this page, so we are saying it plainly:
-                TEEPEE can hold a record about you even if you are never
+                Teepee can hold a record about you even if you are never
                 granted an account. The Admin can approve a request (granting
                 access) or dismiss it; a dismissed request is closed for
                 good — it does not return to the Admin&apos;s queue, even if
@@ -190,7 +190,7 @@ export default function PrivacyPage() {
                 <span className="font-medium text-foreground">
                   Feedback notes.
                 </span>{" "}
-                A remark you write to the Admin about TEEPEE itself (a
+                A remark you write to the Admin about Teepee itself (a
                 defect, an annoyance, a suggestion) carries the note text
                 plus the circumstances it was written in — the route, a page
                 label, the Trip you were viewing (if any), your browser&apos;s
@@ -206,9 +206,9 @@ export default function PrivacyPage() {
               Who it is shared with
             </h2>
             <p className="text-sm text-muted-foreground">
-              TEEPEE is one small app, not an ad-funded product — nothing
+              Teepee is one small app, not an ad-funded product — nothing
               here is sold, and nothing is shared for marketing. The
-              following named services are the ones TEEPEE&apos;s code actually
+              following named services are the ones Teepee&apos;s code actually
               contacts:
             </p>
             <ul className="flex flex-col gap-2 text-sm text-muted-foreground">
@@ -253,13 +253,13 @@ export default function PrivacyPage() {
                   Anthropic (Claude) — an optional AI assist, off unless the
                   Admin turns it on.
                 </span>{" "}
-                TEEPEE includes an AI assist for three things: suggesting
+                Teepee includes an AI assist for three things: suggesting
                 activities, drafting a packing list, and parsing a pasted
                 booking confirmation into a Transport or Accommodation. It
                 only runs if the Admin has configured an API key for it —
                 turning it on is a deployment setting, not a code change, so
                 whether this is live can change without this page changing.
-                When it is on, TEEPEE sends: a Stop&apos;s name and country, plus
+                When it is on, Teepee sends: a Stop&apos;s name and country, plus
                 the titles of the Items already on that Stop (so it does not
                 repeat them), for a suggestion; the Trip name with its Stops
                 and dates, for a packing list; or, for parsing, the entire
@@ -290,7 +290,7 @@ export default function PrivacyPage() {
                 of the database — every Trip, Note, email address, Access
                 request and Error report in it. Who can download a GitHub
                 Actions artifact is exactly who can read the repository it
-                belongs to. That setting lives on GitHub, not in TEEPEE, and
+                belongs to. That setting lives on GitHub, not in Teepee, and
                 the Admin can tell you what it is today.
               </li>
             </ul>
@@ -301,9 +301,9 @@ export default function PrivacyPage() {
               Analytics, advertising and trackers
             </h2>
             <p className="text-sm text-muted-foreground">
-              There is no advertising in TEEPEE, and no third-party tracker
+              There is no advertising in Teepee, and no third-party tracker
               in the ad-tech sense — no cross-site tracking, no ad targeting,
-              no data broker, nothing sold. TEEPEE does use{" "}
+              no data broker, nothing sold. Teepee does use{" "}
               <span className="font-medium text-foreground">
                 Vercel Web Analytics
               </span>{" "}
@@ -316,7 +316,7 @@ export default function PrivacyPage() {
               secret token as part of the address, so that token is stripped
               before the page view is sent to analytics — it still appears,
               unredacted, in an Error report if that specific page happens to
-              throw (see &quot;What TEEPEE collects&quot; above). A Trip&apos;s id in a
+              throw (see &quot;What Teepee collects&quot; above). A Trip&apos;s id in a
               URL like <code>/trips/…</code> is deliberately not redacted
               from analytics, so usage can be broken down per Trip; a Trip id
               is useless to anyone without an account on that Trip. Beyond

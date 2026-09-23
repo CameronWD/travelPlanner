@@ -95,7 +95,7 @@ export default async function AppLayout({
           <Link
             href="/trips"
             className="flex items-center gap-1.5 font-display text-lg font-semibold tracking-tight text-foreground hover:text-foreground/80 transition-colors"
-            aria-label="TEEPEE — go to your trips"
+            aria-label="Teepee — go to your trips"
           >
             <>
               <svg
@@ -114,7 +114,7 @@ export default async function AppLayout({
               >
                 <path d="M12 3 4 21M12 3l8 18M8.5 12h7M10 21l2-5 2 5" />
               </svg>
-              TEEPEE
+              Teepee
             </>
           </Link>
 
@@ -158,7 +158,7 @@ export default async function AppLayout({
                 <DropdownMenuSeparator />
 
                 <DropdownMenuItem asChild>
-                  <Link href="/help">How to use TEEPEE</Link>
+                  <Link href="/help">How to use Teepee</Link>
                 </DropdownMenuItem>
 
                 <DropdownMenuItem asChild>

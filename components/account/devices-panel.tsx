@@ -250,7 +250,7 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
                 <span>
                   This device recorded no timezone, so there is no local 8pm
                   to send at and it is skipped every run — no digest will ever
-                  reach it. Open TEEPEE on that device and press Enable again
+                  reach it. Open Teepee on that device and press Enable again
                   to record one.
                 </span>
               </p>
@@ -292,12 +292,12 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
               <p className="text-xs text-muted-foreground">
                 iPhone only sends a digest to an installed app. Tap Share,
                 then &ldquo;Add to <span>Home</span> Screen&rdquo;, open
-                TEEPEE from there, and this will work.
+                Teepee from there, and this will work.
               </p>
             </div>
           ) : local.permission === "denied" ? (
             <p className="text-xs text-muted-foreground">
-              This device has blocked digests. Allow them for TEEPEE in your
+              This device has blocked digests. Allow them for Teepee in your
               browser or phone settings, then come back.
             </p>
           ) : local.permission === "unsupported" ? (

@@ -42,7 +42,7 @@ export function AllowedEmailsPanel({ initial, now, viewerEmail }: AllowedEmailsP
     const confirmed = await confirm({
       title: `Revoke ${entry.email}?`,
       description:
-        "They'll lose the ability to sign in to TEEPEE the next time their session ends. Anything they've already added stays.",
+        "They'll lose the ability to sign in to Teepee the next time their session ends. Anything they've already added stays.",
       confirmLabel: "Revoke",
       destructive: true,
     });

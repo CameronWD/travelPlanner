@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Terms · TEEPEE",
-  description: "What TEEPEE is, and the terms of using it.",
+  title: "Terms",
+  description: "What Teepee is, and the terms of using it.",
 };
 
 /**
@@ -20,7 +20,7 @@ export default function TermsPage() {
             className="flex items-center gap-1.5 font-display text-lg font-semibold text-foreground"
           >
             <span aria-hidden="true">🛖</span>
-            TEEPEE
+            Teepee
           </Link>
         </div>
       </header>
@@ -32,7 +32,7 @@ export default function TermsPage() {
               Terms
             </h1>
             <p className="text-sm text-muted-foreground">
-              What TEEPEE honestly is, in place of a document neither side
+              What Teepee honestly is, in place of a document neither side
               needs pretending it is something bigger.
             </p>
           </div>
@@ -42,7 +42,7 @@ export default function TermsPage() {
               What this is
             </h2>
             <p className="text-sm text-muted-foreground">
-              TEEPEE is a personal project: a trip planner built and run by
+              Teepee is a personal project: a trip planner built and run by
               one operator (the Admin) for a small, invite-only group of
               Travellers. It is not a company, not a commercial service, and
               not something with a support team behind it — it is software
@@ -55,7 +55,7 @@ export default function TermsPage() {
               No warranty
             </h2>
             <p className="text-sm text-muted-foreground">
-              TEEPEE is provided as-is, without warranty of any kind. It is
+              Teepee is provided as-is, without warranty of any kind. It is
               built carefully and backed up nightly, but nothing about it is
               guaranteed — not uptime, not that a feature keeps working the
               way it does today, not that data is never lost. Do not rely on
@@ -68,7 +68,7 @@ export default function TermsPage() {
               Access can be revoked
             </h2>
             <p className="text-sm text-muted-foreground">
-              Being invited to TEEPEE does not entitle you to keep using it.
+              Being invited to Teepee does not entitle you to keep using it.
               The Admin can revoke access at any time, for any reason or no
               reason, without notice.
             </p>
@@ -94,7 +94,7 @@ export default function TermsPage() {
               <Link href="/privacy" className="underline underline-offset-2">
                 Privacy
               </Link>{" "}
-              page for what TEEPEE collects and keeps. For anything else,
+              page for what Teepee collects and keeps. For anything else,
               ask the Admin.
             </p>
           </section>

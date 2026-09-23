@@ -321,7 +321,7 @@ describe("asTestDigest", () => {
     const test = asTestDigest(null, "trip-1");
 
     expect(test).toEqual({
-      title: "Test · TEEPEE",
+      title: "Test · Teepee",
       body: "Push is working. Your digest arrives in the evening when there's something to say.",
       url: "/trips/trip-1/settings",
     });

@@ -512,7 +512,7 @@ export function FeedbackLauncher() {
           type="button"
           size="icon"
           variant="secondary"
-          aria-label="Leave feedback about TEEPEE"
+          aria-label="Leave feedback about Teepee"
           className="fixed bottom-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] right-4 z-40 size-11 rounded-full shadow-lg md:bottom-[calc(1rem+env(safe-area-inset-bottom))] print:hidden"
         >
           <MessageSquarePlus className="size-5" aria-hidden />
@@ -636,7 +636,7 @@ export function FeedbackLauncher() {
             value={body}
             onChange={handleBodyChange}
             placeholder="What's on your mind?"
-            aria-label="Your feedback about TEEPEE"
+            aria-label="Your feedback about Teepee"
             rows={3}
             maxLength={BODY_MAX}
           />
