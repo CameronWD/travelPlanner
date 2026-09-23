@@ -54,7 +54,7 @@ ToastViewport.displayName = ToastPrimitive.Viewport.displayName;
 
 const toastVariants = cva(
   cn(
-    "group pointer-events-auto relative flex w-full items-start justify-between gap-3 overflow-hidden rounded-xl border p-4 shadow-soft-lg",
+    "group pointer-events-auto relative flex w-full items-start justify-between gap-3 overflow-hidden rounded-md border-2 border-border p-4 shadow-hard-2 bg-teal island",
     // Gate slide/fade animations behind motion-safe so reduced-motion users get no animation.
     // Note: globals.css also has a prefers-reduced-motion rule that collapses all tp-* durations
     // to 0.01ms — this motion-safe: layer makes the intent explicit at the component level.
@@ -69,17 +69,15 @@ const toastVariants = cva(
     // selector each) the later, md: rule takes it whenever both its media
     // conditions (width and motion) hold — verified against the actual build
     // output rather than assumed.
-    "motion-safe:data-[state=open]:tp-slide-in-right md:motion-safe:data-[state=open]:tp-slide-in-left motion-safe:data-[state=closed]:tp-fade-out",
+    "motion-safe:data-[state=open]:tp-slide-in-right md:motion-safe:data-[state=open]:tp-slide-in-left motion-safe:data-[state=closed]:tp-toast-out",
     "data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=cancel]:translate-x-0 motion-safe:data-[swipe=end]:tp-slide-out-right",
   ),
   {
     variants: {
       variant: {
-        default: "border-border bg-card text-card-foreground",
-        success:
-          "border-success/30 bg-card text-card-foreground",
-        destructive:
-          "border-destructive/40 bg-card text-card-foreground",
+        default: "",
+        success: "",
+        destructive: "",
       },
     },
     defaultVariants: {

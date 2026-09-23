@@ -36,7 +36,7 @@ describe("Sheet", () => {
     const panel = screen.getByRole("dialog");
     expect(panel.className).toContain("inset-x-0");
     expect(panel.className).toContain("bottom-0");
-    expect(panel.querySelector('[aria-hidden="true"].bg-muted-foreground\\/30')).not.toBeNull();
+    expect(panel.querySelector('[aria-hidden="true"].bg-border')).not.toBeNull();
   });
 
   it("docks to the bottom right from md up and fills the screen below it", () => {
@@ -66,7 +66,7 @@ describe("Sheet", () => {
     // holds the panel and a query rooted there returns null whatever the
     // variant renders.
     const panel = screen.getByRole("dialog");
-    expect(panel.querySelector(".bg-muted-foreground\\/30")).toBeNull();
+    expect(panel.querySelector('[aria-hidden="true"].bg-border')).toBeNull();
   });
 
   it("caps the bottom sheet with dvh and scrolls overflowing content internally", () => {

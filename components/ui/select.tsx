@@ -16,9 +16,9 @@ const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-11 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-base text-foreground shadow-soft transition-colors sm:text-sm",
+      "flex h-11 w-full items-center justify-between gap-2 rounded-md border-2 border-input bg-card px-3 py-2 text-base text-foreground transition-[transform,box-shadow] duration-[var(--dur-fast)] ease-pop sm:text-sm",
       "data-[placeholder]:text-muted-foreground",
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+      "focus-visible:-translate-x-0.5 focus-visible:-translate-y-0.5 focus-visible:border-border focus-visible:shadow-hard-2 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring",
       "disabled:cursor-not-allowed disabled:opacity-50",
       "[&>span]:line-clamp-1",
       className,
@@ -71,7 +71,7 @@ const SelectContent = React.forwardRef<
       ref={ref}
       position={position}
       className={cn(
-        "relative z-50 max-h-(--radix-select-content-available-height) min-w-32 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-soft-lg",
+        "relative z-50 max-h-(--radix-select-content-available-height) min-w-32 overflow-hidden rounded-md border-2 border-border bg-card text-popover-foreground shadow-hard-3",
         "data-[state=open]:tp-pop-in data-[state=closed]:tp-pop-out",
         position === "popper" &&
           "data-[side=bottom]:translate-y-1 data-[side=top]:-translate-y-1",

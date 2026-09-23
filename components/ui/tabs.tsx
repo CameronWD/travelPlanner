@@ -13,7 +13,7 @@ const TabsList = React.forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "inline-flex h-11 max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+      "inline-flex h-11 max-w-full items-center gap-1 overflow-x-auto rounded-full border-2 border-input bg-card p-1 text-muted-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
       className,
     )}
     {...props}
@@ -28,10 +28,10 @@ const TabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      "inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all",
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-      "disabled:pointer-events-none disabled:opacity-50",
-      "data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-soft",
+      "inline-flex h-8 min-w-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border-2 border-transparent px-3.5 text-[13px] font-extrabold text-muted-foreground transition-colors duration-[var(--dur-fast)]",
+      "hover:text-foreground disabled:pointer-events-none disabled:opacity-45",
+      "data-[state=active]:border-border data-[state=active]:bg-primary data-[state=active]:text-primary-foreground",
+      "[&_svg]:size-4 [&_svg]:shrink-0",
       className,
     )}
     {...props}
