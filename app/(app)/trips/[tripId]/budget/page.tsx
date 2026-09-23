@@ -336,7 +336,7 @@ export default async function BudgetPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="sr-only">Budget</h2>
+      <h2 className="sr-only">Money</h2>
 
       {activeFork && (
         <>
