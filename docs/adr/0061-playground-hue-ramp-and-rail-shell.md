@@ -271,17 +271,53 @@ be assumed complete once the code-level rename is verified.
 
 ## Owed by a human — say plainly, do not soften
 
-Nobody has looked at any of this with human eyes. Phase 1 already owed a
-light/dark visual pass on `/trips` and a trip page, and a PWA-install check —
-neither possible from a sandbox with no display, and neither done since.
-Phase 2 adds a colour system touching roughly 36 files and a navigation
-restructure touching every authenticated route, on top of that unpaid debt.
+Nobody has looked at the screens this phase actually changed with human
+eyes. Phase 1 already owed a light/dark visual pass on `/trips` and a trip
+page, and a PWA-install check; phase 2 adds a colour system touching
+roughly 36 files and a navigation restructure touching every authenticated
+route, on top of that unpaid debt.
+
+What owed that debt was never "a sandbox with no display" — that framing
+was false, not just unresolved. A headless Chromium is available here, and
+pages render, screenshot, and inspect without issue: `/signin`, `/privacy`,
+and `/terms` were rendered in both themes and checked, and pass — paper,
+2px ink borders, hard offset shadows, Bricolage Grotesque headings, pill
+buttons, correct dark-mode inversion. A contrast audit against rendered
+elements (not inferred from token names) walked 164 text nodes across those
+three routes in both themes and found zero failures. The focus ring was
+measured live on a focused element at `outline-width: 3px`,
+`outline-offset: 3px`, `rgb(29,29,27)` — spec met, inherited globally. The
+PWA-install check has a genuinely separate blocker: install flows need a
+real device or real browser chrome, neither available here.
+
+The real, narrower blocker is the database. Dev sign-in fails with
+`ECONNREFUSED 127.0.0.1:5432` — there is no Postgres and no Docker to start
+one in this container — so `/trips`, every trip route, and `/account`
+cannot be reached. That is exactly where the hue ramp, the rail, and the
+route states this ADR is about live. The gap is real and it is the whole
+subject of this section; it is just narrower than "nobody could look," and
+worse, because it means the one check that could have caught this ADR's own
+defects was skipped on an excuse rather than a fact.
+
 Every green gate in this ADR is necessary and none of it is sufficient:
-`tsc`, lint, tests and a production build can all be clean while the rendered
-result is wrong in a way only a human looking at a real screen would catch —
-exactly the class of defect the light-mode contrast finding above turned out
-to be. Treating "all four gates pass" as equivalent to "this looks right"
-would be a mistake; it is not evaluated here at all.
+`tsc`, lint, tests and a production build can all be clean while the
+rendered result is wrong in a way only a human looking at a real screen
+would catch — exactly the class of defect the light-mode contrast finding
+above turned out to be. Treating "all four gates pass" as equivalent to
+"this looks right" would be a mistake; it is not evaluated here at all.
+
+**The sandbox claim was this ADR's own thesis, failed.** The thesis argued
+here is that contrast has to be measured against what actually renders, not
+inferred from a token's name. "A visual pass is impossible from a sandbox"
+was the identical mistake in a different register: a limit asserted rather
+than tested, which then excused skipping the one check that would have
+caught the defects this ADR documents. The correction is not just rhetorical
+— a rendered-element contrast audit now exists, it measured 164 text nodes
+across three routes and both themes, and it found zero failures on
+everything it could reach. Pointing that same audit at the authenticated
+screens — `/trips`, a trip page, `/account` — the moment a database is
+reachable is the single highest-value verification still available for this
+work.
 
 ## Still outstanding from the designer
 
@@ -307,14 +343,22 @@ by this phase:
 
 ## Also outstanding, not the designer's to close
 
-- **`public/brand/*.svg` (four files) were removed as unreferenced.** Task 6
-  — the task most likely to consume them — found no natural slot for them in
-  `ErrorPanel` or the skeleton archetypes, and nothing else in this phase's
-  scope (colour, foundations, per-route states, navigation) had a legitimate
-  place to put a brand mark beyond what `logo.tsx` already renders. A later
-  whole-branch review removed `lockup.svg`, `lockup-on-dark.svg`,
-  `wordmark.svg` and `wordmark-on-dark.svg` rather than carry them
-  indefinitely as dead weight; they remain in git history and a single
+- **`public/brand/*.svg` (four files) were removed as unreferenced — but not
+  for the reason first given here.** Task 6 found no natural slot for them
+  in `ErrorPanel` or the skeleton archetypes, and nothing else in this
+  phase's scope (colour, foundations, per-route states, navigation) had a
+  legitimate place to put a brand mark; that much stands. What was wrong is
+  the implied cause: they weren't unreferenced because the brand didn't
+  need a standalone lockup or wordmark file, they were unreferenced because
+  nothing had wired `Logo` into the header yet — the app header was still a
+  hand-rolled inline SVG, and `/signin`, `/privacy`, `/terms`, and the share
+  page were still a hut emoji. A later commit (`af7a7a0`) fixed that,
+  putting `Logo` on all five sites, and it renders its wordmark from the
+  component's own inline paths (`logo-paths.ts`), not from these files. The
+  removal was still the right call — the static SVGs remain genuinely
+  unneeded until the Open Graph and email work in phase 3 wants a standalone
+  asset — but "unreferenced" was a symptom of the wiring gap, not evidence
+  the brand didn't need them. They remain in git history and a single
   `git checkout` restores them if phase 3 finds a use.
 - **Stale "three error boundaries" claims** in `docs/adr/0059-*.md` and
   `docs/architecture-sitrep-2026-09-22.md` predated this phase's navigation
