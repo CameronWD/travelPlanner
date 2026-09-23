@@ -200,6 +200,11 @@ describe("InvitePanel", () => {
       />,
     );
     expect(screen.queryByRole("button", { name: "Leave trip" })).not.toBeInTheDocument();
-    expect(screen.getByText(/transfer ownership to another Traveller first/i)).toBeInTheDocument();
+    // I4 (final fix wave): this used to tell the Owner to "transfer ownership
+    // to another Traveller first" — instructing them to use a feature the
+    // glossary says will never exist. It states the constraint instead.
+    expect(
+      screen.getByText(/Owner role can.?t be transferred to another Traveller yet/i),
+    ).toBeInTheDocument();
   });
 });

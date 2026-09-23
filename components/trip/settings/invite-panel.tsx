@@ -255,13 +255,14 @@ export function InvitePanel({
         </div>
       )}
 
-      {/* Leave this trip — every Traveller except the owner, who must
-          transfer ownership first (not built yet, so they're told why not). */}
+      {/* Leave this trip — every Traveller except the owner, who cannot,
+          because the Owner role does not transfer (CONTEXT.md). Told plainly
+          rather than pointed at a hand-over feature that does not exist. */}
       <div className="border-t border-border pt-4">
         {viewerIsOwner ? (
           <p className="text-xs text-muted-foreground">
-            As the owner, you can&apos;t leave this trip — transfer ownership to another Traveller
-            first.
+            As the owner, you can&apos;t leave this trip — the Owner role can&apos;t be transferred
+            to another Traveller yet.
           </p>
         ) : (
           <Button

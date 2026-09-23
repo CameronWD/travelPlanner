@@ -594,9 +594,9 @@ export type LeaveTripResult =
   | { success: false; error: string };
 
 /**
- * Leave a trip the current user is a member of. The owner cannot leave
- * without transferring ownership first (not built yet) — otherwise the trip
- * is left with no owner. Any other Traveller can leave freely.
+ * Leave a trip the current user is a member of. The owner cannot leave at
+ * all: the Owner role does not transfer (CONTEXT.md), so a trip they left
+ * would have no owner and no way back. Any other Traveller can leave freely.
  *
  * Deletes only the caller's own TripMember row (their authored content stays,
  * same as removeTripMember) and any still-pending Invite for their own email
@@ -612,7 +612,7 @@ export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
   if (membership.role === "owner") {
     return {
       success: false,
-      error: "As the owner, you can't leave this trip — transfer ownership to another Traveller first.",
+      error: "As the owner, you can't leave this trip — the Owner role can't be transferred to another Traveller yet.",
     };
   }
 
