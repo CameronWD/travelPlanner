@@ -97,6 +97,10 @@ export default async function SharePage({
     includeDailyPlans: shareLink.includeDailyPlans,
   };
 
+  // ARCH-BND-2 exception: a dated view — always reads the real plan
+  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
+  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+
   // Fetch itinerary data — NO costs, no notes, no confirmations. An off dial
   // means the corresponding query never runs: hidden data never leaves the
   // database, so no rendering bug can leak it.

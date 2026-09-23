@@ -17,6 +17,10 @@ export default async function CalendarPage({
   const { tripId } = await params;
   await requireTripAccess(tripId);
 
+  // ARCH-BND-2 exception: a dated view — always reads the real plan
+  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
+  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+
   // Fetch the trip dates + all relevant data
   const trip = await db.trip.findUnique({
     where: { id: tripId },

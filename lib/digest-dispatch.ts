@@ -36,6 +36,7 @@
  * cares about.
  */
 import { db } from "@/lib/db";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import {
   asTestDigest,
   buildDigest,
@@ -154,7 +155,7 @@ export async function collectDigestInput(opts: {
       ? db.cost.findMany({
           where: {
             tripId,
-            forkId: null,
+            ...REAL_PLAN,
             paidAt: null,
             dueDate: { gte: localDate, lte: windowEnd },
           },
@@ -208,7 +209,7 @@ export async function collectDigestInput(opts: {
   // reading a departure's wall clock.
   const stops = needStopsAndTransports
     ? await db.stop.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -238,7 +239,7 @@ export async function collectDigestInput(opts: {
   // Likewise one transport lookup, with the union of the fields both jobs need.
   const transportRows = needStopsAndTransports
     ? await db.transport.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         orderBy: { depAt: "asc" },
         select: {
           id: true,
@@ -369,11 +370,11 @@ async function buildPaymentLines(args: {
   if (hasOwnedCosts) {
     const [items, accommodations] = await Promise.all([
       db.item.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         select: { id: true, title: true },
       }),
       db.accommodation.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         select: { id: true, name: true },
       }),
     ]);
@@ -420,7 +421,7 @@ async function collectSchedule(args: {
     db.accommodation.findMany({
       where: {
         tripId,
-        forkId: null,
+        ...REAL_PLAN,
         OR: [{ checkIn: targetDate }, { checkOut: targetDate }],
       },
       orderBy: { checkIn: "asc" },
@@ -434,7 +435,7 @@ async function collectSchedule(args: {
       },
     }),
     db.item.findMany({
-      where: { tripId, forkId: null, date: targetDate },
+      where: { tripId, ...REAL_PLAN, date: targetDate },
       orderBy: [{ startTime: "asc" }, { sortOrder: "asc" }],
       select: { id: true, title: true, startTime: true },
     }),

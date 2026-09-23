@@ -41,6 +41,10 @@ export default async function TripLayout({
   // Guard: 404 for non-members
   await requireTripAccess(tripId);
 
+  // ARCH-BND-2 exception: a dated view — always reads the real plan
+  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
+  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+
   const trip = await db.trip.findUnique({
     where: { id: tripId },
     select: {

@@ -44,6 +44,10 @@ export default async function DayPage({
   const { tripId, date } = await params;
   const { user } = await requireTripAccess(tripId);
 
+  // ARCH-BND-2 exception: a dated view — always reads the real plan
+  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
+  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+
   // Validate date param format
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     notFound();

@@ -29,6 +29,10 @@ export async function GET(
   // shared. It therefore inherits the Share link's floor (server/actions/share.ts:14):
   // money, notes, confirmations and booking refs are never emitted. The
   // confirmation lives in the app, offline, behind the Traveller's account.
+  //
+  // ARCH-BND-2 exception: a dated view — always reads the real plan
+  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
+  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
   const [stops, items, transports, accommodations] = await Promise.all([
     db.stop.findMany({ where: { tripId, forkId: null, arriveDate: { not: null } }, select: { id: true, name: true, timezone: true } }),
     db.item.findMany({

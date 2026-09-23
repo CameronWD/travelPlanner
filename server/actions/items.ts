@@ -10,7 +10,7 @@ import { resolveOwningStop, type ItineraryStop } from "@/lib/itinerary";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
-import { planScope, type PlanId } from "@/lib/plan-scope";
+import { planScope, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { getUserGlobe } from "@/lib/globe";
 import { markerToWishlistItemData } from "@/lib/marker-to-item";
@@ -243,7 +243,7 @@ export async function addMarkerToWishlist(
 
   // Idempotency: already pulled into this trip's wishlist?
   const existing = await db.item.findFirst({
-    where: { tripId, forkId: null, stopId: null, date: null, sourceMarkerId: markerId },
+    where: { tripId, ...REAL_PLAN, stopId: null, date: null, sourceMarkerId: markerId },
     select: { id: true },
   });
   if (existing) return { success: true };

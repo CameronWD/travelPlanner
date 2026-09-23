@@ -28,6 +28,10 @@ export default async function TripHomePage({
   // is in the docblock on requireTripAccess in lib/guards.ts (RM-15).
   await requireTripAccess(tripId);
 
+  // ARCH-BND-2 exception: a dated view — always reads the real plan
+  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
+  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+
   const trip = await db.trip.findUnique({
     where: { id: tripId },
     select: {

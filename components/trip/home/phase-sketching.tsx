@@ -18,7 +18,8 @@ export async function PhaseSketching({ tripId, tripName, chaptersEnabled = true 
   const [stops, chapters] = await Promise.all([
     db.stop.findMany({
       // Dated views follow the real plan — CONTEXT.md; consistent with
-      // calendar/day/print/summary.
+      // calendar/day/print/summary. ARCH-BND-2 exception: deliberately
+      // ignores `?plan=` — don't "finish the job" with planScope() here.
       where: { tripId, forkId: null },
       orderBy: [{ chapterSortOrder: "asc" }, { sortOrder: "asc" }],
       select: { id: true, name: true, country: true, nights: true, chapterId: true, arriveDate: true },

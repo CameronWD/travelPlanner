@@ -20,6 +20,10 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function TripsPage() {
   const user = await requireUser();
 
+  // ARCH-BND-2 exception: a dated view — always reads the real plan
+  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
+  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+
   // Fetch trips where the current user is a member, newest first.
   const memberships = await db.tripMember.findMany({
     where: { userId: user.id },

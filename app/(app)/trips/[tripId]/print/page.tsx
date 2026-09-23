@@ -65,6 +65,10 @@ export default async function PrintPage({
 
   const { homeCurrency, startDate, endDate } = trip;
 
+  // ARCH-BND-2 exception: a dated view — always reads the real plan
+  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
+  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+
   // Fetch all the trip data we need for the print view
   const [rawStops, transports, accommodations, items, costs, exchangeRates] =
     await Promise.all([
