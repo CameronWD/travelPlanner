@@ -196,7 +196,7 @@ function TimeGutter({
 }) {
   if (!isDay) return null;
   return (
-    <span className="w-9 sm:w-11 shrink-0 text-right text-xs sm:text-[11px] font-mono text-muted-foreground/80 leading-tight pt-0.5">
+    <span className="w-9 sm:w-11 shrink-0 text-right text-xs sm:text-[11px] font-mono text-foreground/80 leading-tight pt-0.5">
       {time ?? ""}
     </span>
   );
@@ -482,7 +482,7 @@ function AccomCheckinRow({
           Check-in — {a.name}
         </span>
         {isDay && a.confirmation && (
-          <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+          <p className="mt-0.5 flex items-center gap-1 text-xs text-foreground/80">
             <Hash className="size-3 shrink-0" aria-hidden="true" />
             {a.confirmation}
           </p>

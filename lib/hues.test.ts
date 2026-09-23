@@ -47,6 +47,21 @@ describe("stored colour values never change", () => {
   // own `-text` token — dark mode defines `-text` identically to the hue
   // itself, so pairing it with `soft` puts a colour on top of itself
   // (measured 3.87-4.30:1 on card before this was a dedicated field).
+  //
+  // This pins the *class name*, not the *contrast ratio* it produces. The
+  // real ratios (worst case 4.88:1 — stone's `/40` tint, over card, dark
+  // mode; every other hue/base/theme combination measures higher — see
+  // HueClasses.onSoft's docblock) were computed by hand against the raw
+  // HSL custom properties in app/globals.css, not by any code path this
+  // repo has. Reproducing that here would mean either duplicating a WCAG
+  // relative-luminance/HSL→RGB implementation with no other caller (a new
+  // maintenance surface with its own bug risk, for one test file), or
+  // reading rendered computed styles from jsdom, which does not implement
+  // colour compositing over an alpha background. Neither is practical
+  // given what this repo already has, so the numeric claim is measured by
+  // hand and recorded in the docblock and in the fix report instead —
+  // deliberately less than the test coverage that field's TEXT correctness
+  // gets below, not an oversight.
   it("pairs every hue's soft tint with the neutral foreground, not the hue's own text colour", () => {
     for (const h of HUES) {
       expect(HUE_CLASSES[h].onSoft).toBe("text-foreground");

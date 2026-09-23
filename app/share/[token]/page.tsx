@@ -516,7 +516,7 @@ export default async function SharePage({
                                       className="flex items-center gap-2 text-sm rounded-lg bg-hue-leaf/25 border border-hue-leaf/40 px-3 py-1.5"
                                     >
                                       {a.checkInTime && (
-                                        <span className="font-mono text-xs text-muted-foreground shrink-0 w-8 sm:w-10 text-right">
+                                        <span className="font-mono text-xs text-foreground/80 shrink-0 w-8 sm:w-10 text-right">
                                           {a.checkInTime}
                                         </span>
                                       )}
@@ -538,7 +538,7 @@ export default async function SharePage({
                                       className="flex items-center gap-2 text-sm rounded-lg bg-hue-pink/25 border border-hue-pink/40 px-3 py-1.5"
                                     >
                                       {a.checkOutTime && (
-                                        <span className="font-mono text-xs text-muted-foreground shrink-0 w-8 sm:w-10 text-right">
+                                        <span className="font-mono text-xs text-foreground/80 shrink-0 w-8 sm:w-10 text-right">
                                           {a.checkOutTime}
                                         </span>
                                       )}

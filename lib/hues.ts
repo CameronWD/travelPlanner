@@ -23,9 +23,12 @@ export interface HueClasses {
    * to the hue itself (correct for text on the dark *page*), so pairing it
    * with `soft` (a tint of that same hue) puts a colour on top of itself and
    * fails contrast (measured 3.87–4.30:1 on card, all six stop hues, before
-   * this field existed). The neutral foreground reads >= 6.4:1 on any hue's
-   * `soft` tint in both themes, in either paper or card context — verified
-   * in lib/hues.test.ts.
+   * this field existed). The neutral foreground clears 4.5:1 on every hue's
+   * `soft` tint in both themes and both paper/card contexts — the minimum
+   * across all nine hues is 4.88:1 (stone's `/40` tint, over card, dark
+   * mode); every other hue/base/theme combination measures well above that.
+   * `lib/hues.test.ts` pins the class, not the ratio — see that file's
+   * comment for why.
    */
   onSoft: string;
   /** Solid fill only (bars, rails). */

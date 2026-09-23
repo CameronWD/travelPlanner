@@ -201,6 +201,24 @@ measured, not inferred from a token's name — including the ramp's own
 tokens, unpaired `-foreground` tokens, fill tokens used as text, and any
 hue at reduced opacity on a tint of itself.**
 
+**A second review pass, on the fix above, found the pattern had a second
+axis.** Fixing "a hue's own `-text` on its own `soft` tint" (the bullets
+above) does not fix "neutral muted text on a `soft` tint this branch
+introduced" — a different failure with the same shape: `text-muted-foreground`
+(and its opacity-reduced variants) predates this phase and was never tuned
+against a hue tint, because no hue tint used to sit behind it. Commit
+`c904260` wrapped `bg-hue-leaf/25`/`bg-hue-pink/25` containers around
+pre-existing muted text in `timeline.tsx` (`TimeGutter`, the accommodation
+confirmation number), `phase-travelling.tsx` (the `MapLink` beside tonight's
+address), and the public share page's mirror of the same rows — all four
+measured failing in dark mode (as low as 2.19:1) once the tint moved in
+behind them, fixed by routing them through the same neutral-foreground
+approach as the ramp's `onSoft`. **The general rule: introducing a tinted
+container is two checks, not one — does the hue's own text read on it, and
+does every *other* colour already inside that container (muted text
+included) still read on it too.** Both need checking whenever a `soft`/tint
+class is added to an element that already has children.
+
 ## The trap worth recording: a newer handoff is not newer file-by-file
 
 Three files in the second handoff — `components/ui/dialog.tsx`,
@@ -306,6 +324,21 @@ by this phase:
   corrected both to match `route.ts`'s "one per route, plus the root
   boundary" phrasing rather than naming a count that drifts every time a
   route is added.
+- **Muted text on a tint, pre-dating this branch, out of scope for the
+  review that found it.** The same axis as the `c904260` regression above
+  (neutral muted text that was never checked against a hue/status tint) also
+  exists on tints this branch did *not* introduce, so fixing it wasn't a
+  regression fix and was left for the next phase rather than folded in here:
+  - The `ai-booking-parser.tsx`/`ai-activity-suggestions.tsx`/
+    `ai-packing-suggestions.tsx` panels' body copy on `bg-hue-lilac/25` —
+    3.67:1 light / 3.24:1 dark.
+  - `app/(app)/trips/[tripId]/budget/page.tsx:446` on `bg-warning/20` —
+    3.73:1 light / 3.27:1 dark.
+  - `phase-past.tsx:286` and `wishlist-board.tsx:364` on `bg-success/15` —
+    3.98:1 on card, dark.
+
+  All measured below 4.5:1 in at least one theme. Named here with ratios so
+  the next phase inherits a list, not a rediscovery.
 
 ## Consequences
 

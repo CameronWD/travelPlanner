@@ -585,7 +585,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
                         lng={tonightAccom.lng}
                         address={tonightAccom.address}
                         label={tonightAccom.name}
-                        className="shrink-0 text-muted-foreground/60 hover:text-primary"
+                        className="shrink-0 text-foreground/80 hover:text-primary"
                       />
                     </div>
                   )}
@@ -594,7 +594,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
                       lat={tonightAccom.lat}
                       lng={tonightAccom.lng}
                       label={tonightAccom.name}
-                      className="mt-0.5 text-xs text-muted-foreground/60 hover:text-primary"
+                      className="mt-0.5 text-xs text-foreground/80 hover:text-primary"
                     />
                   )}
                   <AttachmentLinks attachments={attachmentsByTarget[tonightAccom.id] ?? []} />
