@@ -26,9 +26,28 @@ export const metadata: Metadata = {
  *     lib/weather.ts, lib/fx.ts (outbound third parties)
  *   - components/analytics.tsx + app/layout.tsx (Vercel Web Analytics — what
  *     it redacts and what it deliberately keeps)
- *   - .github/workflows/db-backup.yml (GitHub holds the backups),
+ *   - .github/workflows/db-backup.yml (GitHub holds the backups — no claim
+ *     made here about who else can read a GitHub Actions artifact, since
+ *     that depends on repo visibility, which lives outside this repo),
  *     lib/blob-retention.ts + scripts/sweep-deleted-blobs.ts (blob deletion
  *     is a manual sweep, not a scheduled job)
+ *   - lib/ai.ts, server/actions/ai.ts, components/trip/ai-booking-parser.tsx,
+ *     README.md's "AI (optional, paid)" step (Anthropic — env-gated on
+ *     ANTHROPIC_API_KEY, off unless the Admin sets it, flippable without a
+ *     code change — so this page describes the mechanism, not a snapshot of
+ *     whether it happens to be on today)
+ *   - vercel.json (the migration only runs when VERCEL_ENV=production)
+ *   - lib/admin-notify.ts, lib/admin.ts (Admin push needs ADMIN_EMAILS set
+ *     and only fires on a new error signature, never a repeat)
+ *
+ * Fix round 2 corrected: Anthropic undisclosed (and worded to survive the
+ * on/off flip rather than assert either state); "private build artifact"
+ * claimed a GitHub repo visibility this repo cannot confirm; the Admin push
+ * and migration claims were both broader than the code; id_token was
+ * missing from the OAuth token list; the GitHub-backup wording implied the
+ * Admin's pull happens after the 30 days rather than during them; Globe
+ * Markers were listed as Trip content when CONTEXT.md defines the Globe as
+ * explicitly account-level, not Trip-owned.
  */
 export default function PrivacyPage() {
   return (
@@ -73,16 +92,24 @@ export default function PrivacyPage() {
                 Signing in is Google sign-in only, so TEEPEE receives your
                 name, email address and avatar image from Google, and stores
                 the OAuth tokens Google issues for your session (the access
-                and refresh tokens, the granted scope, and a session token
-                identifying your browser).
+                token, refresh token, ID token, the granted scope, and a
+                session token identifying your browser).
               </li>
               <li>
                 <span className="font-medium text-foreground">
                   Everything you put in a Trip.
                 </span>{" "}
                 Stops, Transport, Accommodation, Items, Costs, Notes, Journal
-                entries, Checklists, Globe Markers — the trip content you and
-                the other Travellers on a Trip enter.
+                entries and Checklists — the trip content you and the other
+                Travellers on a Trip enter.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">
+                  Your Globe.
+                </span>{" "}
+                Markers — places you and whoever shares your Globe want to
+                visit someday. This lives separately from any Trip, at the
+                account level, not as part of a Trip&apos;s content.
               </li>
               <li>
                 <span className="font-medium text-foreground">
@@ -120,10 +147,11 @@ export default function PrivacyPage() {
                 in your browser — it records the error message, a stack
                 trace, the route it happened on, and your account id if you
                 were signed in at the time. It is also written to Vercel&apos;s
-                own runtime logs, and for a server-side failure, the raw
-                error message is pushed straight to every Admin&apos;s Device —
-                that push is skipped for a browser-reported failure, but the
-                row and the runtime log are not.
+                own runtime logs. The first time a given server-side failure
+                is seen, its raw error message is pushed to every Admin&apos;s
+                Device (if the Admin has one registered) — a repeat of the
+                same failure only bumps a count, never pushes again, and a
+                browser-reported failure is never pushed this way at all.
               </li>
               <li>
                 <span className="font-medium text-foreground">
@@ -207,14 +235,31 @@ export default function PrivacyPage() {
               </li>
               <li>
                 <span className="font-medium text-foreground">
+                  Anthropic (Claude) — an optional AI assist, off unless the
+                  Admin turns it on.
+                </span>{" "}
+                TEEPEE includes an AI assist for three things: suggesting
+                activities, drafting a packing list, and parsing a pasted
+                booking confirmation into a Transport or Accommodation. It
+                only runs if the Admin has configured an API key for it —
+                turning it on is a deployment setting, not a code change, so
+                whether this is live can change without this page changing.
+                When it is on, TEEPEE sends: a Stop&apos;s name and country (for
+                a suggestion), the Trip name with its Stops and dates (for a
+                packing list), or, for parsing, the entire text you paste
+                in — which can include names, addresses and booking or
+                confirmation numbers, since it is whatever you pasted.
+              </li>
+              <li>
+                <span className="font-medium text-foreground">
                   Cloudflare R2
                 </span>{" "}
                 — stores uploaded Attachments and Trip cover images.
               </li>
               <li>
                 <span className="font-medium text-foreground">Vercel</span> —
-                hosts the app, runs the database migration at each deploy,
-                and runs the Web Analytics described below.
+                hosts the app, runs the database migration on a production
+                deploy, and runs the Web Analytics described below.
               </li>
               <li>
                 <span className="font-medium text-foreground">Neon</span> —
@@ -222,12 +267,11 @@ export default function PrivacyPage() {
               </li>
               <li>
                 <span className="font-medium text-foreground">GitHub</span> —
-                holds the nightly full database backup described under
-                &quot;How long it&apos;s kept&quot; below: for up to 30 days, GitHub
-                stores a complete copy of the database — every Trip, Note,
-                email address, Access request and Error report in it — as a
-                private build artifact, before it is pulled off to the
-                Admin&apos;s own storage outside GitHub.
+                the nightly database backup described under &quot;How long it&apos;s
+                kept&quot; below is uploaded to GitHub as a GitHub Actions build
+                artifact and stored there for up to 30 days: a complete copy
+                of the database — every Trip, Note, email address, Access
+                request and Error report in it.
               </li>
             </ul>
           </section>
@@ -270,9 +314,10 @@ export default function PrivacyPage() {
                   Database backups
                 </span>{" "}
                 run nightly — the rollback path if a bug or a bad migration
-                damages data. Each one is held on GitHub for 30 days as a
-                private build artifact, then the Admin pulls it to their own
-                storage outside GitHub.
+                damages data. Each one is held on GitHub for up to 30 days as
+                a build artifact. During that window the Admin also copies
+                it to storage outside GitHub — this page makes no claim
+                about how long that separate copy is kept.
               </li>
               <li>
                 <span className="font-medium text-foreground">

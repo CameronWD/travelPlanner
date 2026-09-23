@@ -94,9 +94,82 @@ describe("PrivacyPage", () => {
   });
 
   // Fix round 1: Google OAuth tokens (Account.access_token/refresh_token/
-  // id_token/scope, Session.sessionToken) were undisclosed.
-  it("discloses the stored Google OAuth tokens", async () => {
+  // id_token/scope, Session.sessionToken) were undisclosed. Fix round 2, N5:
+  // id_token itself was still missing from the list.
+  it("discloses the stored Google OAuth tokens, including the ID token", async () => {
     render(await PrivacyPage());
-    expect(screen.getByText(/access and refresh tokens/i)).toBeInTheDocument();
+    expect(screen.getByText(/access token, refresh token, ID token/i)).toBeInTheDocument();
+  });
+
+  // Fix round 2, N1: Anthropic was undisclosed, and must be worded so it
+  // stays true whether ANTHROPIC_API_KEY is set or not (lib/ai.ts's
+  // isAiConfigured gate, flippable per README.md with no code change) — so
+  // the page must not simply assert it as a live, unconditional contact.
+  it("discloses Anthropic as an optional, admin-gated AI assist", async () => {
+    render(await PrivacyPage());
+    expect(screen.getByText(/Anthropic \(Claude\)/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/off unless the\s*Admin turns it on/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/the entire text you paste/i),
+    ).toBeInTheDocument();
+  });
+
+  // Fix round 2, N2/N6: "private build artifact" asserted a GitHub repo
+  // visibility this repo cannot confirm, and implied the Admin's own copy
+  // is made only after the 30-day window rather than during it.
+  it("does not characterise the GitHub backup artifact as private", async () => {
+    render(await PrivacyPage());
+    expect(screen.queryByText(/private build artifact/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/During that window the Admin also copies/i),
+    ).toBeInTheDocument();
+  });
+
+  // Fix round 2, N3: the admin-notify push only fires on a NEW error
+  // signature (lib/error-sink.ts), and only when ADMIN_EMAILS/a Device is
+  // configured — not unconditionally on every server error.
+  it("states the admin push only fires on a new error signature", async () => {
+    render(await PrivacyPage());
+    expect(
+      screen.getByText(/first time a given server-side failure/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/a repeat of the\s*same failure only bumps a count/i),
+    ).toBeInTheDocument();
+  });
+
+  // Fix round 2, N4: vercel.json only runs `prisma migrate deploy` when
+  // VERCEL_ENV=production, not on every deploy.
+  it("scopes the migration claim to a production deploy", async () => {
+    render(await PrivacyPage());
+    expect(
+      screen.getByText(/runs the database migration on a production/i),
+    ).toBeInTheDocument();
+  });
+
+  // Fix round 2, pre-existing cheap fix: the Globe is account-level, not
+  // Trip content (CONTEXT.md) — Markers must not be listed under "Everything
+  // you put in a Trip".
+  it("lists the Globe separately from Trip content", async () => {
+    render(await PrivacyPage());
+    expect(screen.getByText(/Your Globe\./)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Globe Markers/i),
+    ).not.toBeInTheDocument();
+  });
+
+  // Fix round 2: the missing test for C4's narrowed share-token wording —
+  // the subtlest correction on the page, and the one round 1 shipped
+  // without a pin.
+  it("narrows the share-token redaction to the analytics payload only", async () => {
+    render(await PrivacyPage());
+    expect(
+      screen.getByText(/stripped\s*before the page view is sent to analytics/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/still appears,\s*unredacted, in an Error report/i),
+    ).toBeInTheDocument();
   });
 });
