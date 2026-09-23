@@ -31,8 +31,10 @@ import { reportError } from "@/lib/error-sink";
  * experience. The whole body is wrapped for exactly that reason, mirroring
  * reportError's own "never throws" contract.
  *
- * `message` and `route` are length-capped in the schema below (fix round 1,
- * C1). This is not the normalisation ARCH-OBS-2's original brief left for a
+ * `message` and `route` are length-bounded in the schema below (fix round 1,
+ * C1) by TRUNCATION, not rejection (final fix wave, D2 — they used to reject,
+ * which threw the whole report away). This is not the normalisation
+ * ARCH-OBS-2's original brief left for a
  * later review to decide (interpolated ids/URLs in a message still mint
  * their own signature) — that gap is still open, deliberately. Capping is a
  * bound, not a normaliser: it exists because this route is unauthenticated
@@ -61,15 +63,31 @@ const MAX_MESSAGE_CHARS = 500;
 // A pathname, not free text — comfortably covers any real route in this app.
 const MAX_ROUTE_CHARS = 200;
 
+// A React error digest is a short hash. Capped defensively for the same
+// "unauthenticated caller" reason as message/route, even though it isn't part
+// of the dedup signature.
+const MAX_DIGEST_CHARS = 200;
+
+// TRUNCATE, NOT REJECT (final fix wave, D2). These were `.max(...)`
+// constraints, so an over-cap `message` or `route` failed the whole parse and
+// the report was dropped entirely — no row, no console line, nothing. That
+// trades an observation away for nothing: truncation bounds the entropy a
+// caller can put into reportError's dedup signature exactly as well as
+// rejection does, and still keeps the report. `stack` keeps its existing
+// slice in the handler below.
 const bodySchema = z.object({
-  message: z.string().min(1).max(MAX_MESSAGE_CHARS),
+  message: z.string().min(1).transform((s) => s.slice(0, MAX_MESSAGE_CHARS)),
   stack: z.string().optional(),
-  route: z.string().max(MAX_ROUTE_CHARS).optional(),
+  route: z
+    .string()
+    .optional()
+    .transform((s) => (s === undefined ? undefined : s.slice(0, MAX_ROUTE_CHARS))),
   // React's error digest (Error & { digest?: string }) — see
   // ReportErrorContext.digest in lib/error-sink.ts for why this matters.
-  // Capped defensively for the same "unauthenticated caller" reason as
-  // message/route above, even though it isn't part of the dedup signature.
-  digest: z.string().max(200).optional(),
+  digest: z
+    .string()
+    .optional()
+    .transform((s) => (s === undefined ? undefined : s.slice(0, MAX_DIGEST_CHARS))),
 });
 
 export async function POST(req: Request): Promise<Response> {

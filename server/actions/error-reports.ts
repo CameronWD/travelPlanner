@@ -85,6 +85,12 @@ export async function clearErrorReport(id: string): Promise<ActionResult> {
  * `LIST_LIMIT` above: per-row Clear alone can't keep pace with a table that
  * grows by design, so this is the bulk escape hatch that keeps raw SQL from
  * ever being the only way to empty it out.
+ *
+ * `deleteMany({})` is EVERY row, not just the `LIST_LIMIT` the panel renders.
+ * ErrorReportsPanel's confirm used to say "Clear all {reports.length}
+ * errors?", which understated that by exactly the amount the list was
+ * truncated — worst when the table is biggest, which is the one time the
+ * number matters. Its copy no longer cites a count (final fix wave).
  */
 export async function clearAllErrorReports(): Promise<ActionResult> {
   await requireAdmin();

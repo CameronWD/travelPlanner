@@ -93,28 +93,61 @@ describe("POST /api/client-error", () => {
   // C1 (fix round 1): message is the entire entropy of reportError's dedup
   // signature and this route is unauthenticated — an unbounded message let
   // a caller mint a fresh signature (and, before this round, a fresh push)
-  // on demand. A schema-rejected body still returns 204 and never reaches
-  // reportError, same as any other malformed input.
-  it("C1: rejects an over-long message, still 204, never reaches reportError", async () => {
+  // on demand.
+  //
+  // D2 (final fix wave): the bound TRUNCATES rather than rejects. Rejecting
+  // dropped the whole report — no row, no console line — for a legitimate
+  // client error that happened to carry a long message, which trades an
+  // observation away for nothing: truncation bounds the entropy identically.
+  it("D2: truncates an over-long message instead of dropping the report", async () => {
     authMock.mockResolvedValue(null);
-    const res = await POST(post({ message: "x".repeat(501) }));
+    reportErrorMock.mockResolvedValue(undefined);
+
+    const res = await POST(post({ message: "x".repeat(900) }));
+
     expect(res.status).toBe(204);
-    expect(reportErrorMock).not.toHaveBeenCalled();
+    expect(reportErrorMock).toHaveBeenCalledTimes(1);
+    const err = reportErrorMock.mock.calls[0][0] as Error;
+    expect(err.message).toHaveLength(500);
   });
 
-  it("C1: rejects an over-long route, still 204, never reaches reportError", async () => {
+  it("D2: truncates an over-long route instead of dropping the report", async () => {
     authMock.mockResolvedValue(null);
-    const res = await POST(post({ message: "boom", route: "/".repeat(201) }));
+    reportErrorMock.mockResolvedValue(undefined);
+
+    const res = await POST(post({ message: "boom", route: "/".repeat(400) }));
+
     expect(res.status).toBe(204);
-    expect(reportErrorMock).not.toHaveBeenCalled();
+    expect(reportErrorMock).toHaveBeenCalledTimes(1);
+    const ctx = reportErrorMock.mock.calls[0][1] as { route?: string };
+    expect(ctx.route).toHaveLength(200);
   });
 
-  it("C1: accepts a message right at the cap", async () => {
+  it("D2: truncates an over-long digest instead of dropping the report", async () => {
+    authMock.mockResolvedValue(null);
+    reportErrorMock.mockResolvedValue(undefined);
+
+    const res = await POST(post({ message: "boom", digest: "d".repeat(400) }));
+
+    expect(res.status).toBe(204);
+    const ctx = reportErrorMock.mock.calls[0][1] as { digest?: string };
+    expect(ctx.digest).toHaveLength(200);
+  });
+
+  it("C1: accepts a message right at the cap unchanged", async () => {
     authMock.mockResolvedValue(null);
     reportErrorMock.mockResolvedValue(undefined);
     const res = await POST(post({ message: "x".repeat(500) }));
     expect(res.status).toBe(204);
     expect(reportErrorMock).toHaveBeenCalled();
+    expect((reportErrorMock.mock.calls[0][0] as Error).message).toHaveLength(500);
+  });
+
+  it("still drops a body with no message at all — min(1) is untouched", async () => {
+    authMock.mockResolvedValue(null);
+    const res = await POST(post({ message: "" }));
+    expect(res.status).toBe(204);
+    expect(reportErrorMock).not.toHaveBeenCalled();
   });
 
   // I2 (fix round 1): React replaces a server-component error's message with

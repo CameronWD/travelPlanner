@@ -38,23 +38,37 @@ export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
   const [message, setMessage] = React.useState<string | null>(null);
   const { confirm, dialog } = useConfirm();
 
+  // Both handlers wrap the server call in try/finally (final fix wave).
+  // Neither had a catch, so a rejection — requireAdmin's notFound(), a dropped
+  // connection, a deploy mid-click — skipped the loading reset and left the
+  // button spinning forever with no message, which reads as "still working"
+  // rather than "failed".
   async function handleClear(report: ErrorReportView) {
     setPendingId(report.id);
     setMessage(null);
-    const result = await clearErrorReport(report.id);
-    setPendingId(null);
-    if (result.success) {
-      setReports((prev) => prev.filter((r) => r.id !== report.id));
-    } else {
-      setMessage(result.errors._form?.[0] ?? "Couldn't clear that error.");
+    try {
+      const result = await clearErrorReport(report.id);
+      if (result.success) {
+        setReports((prev) => prev.filter((r) => r.id !== report.id));
+      } else {
+        setMessage(result.errors._form?.[0] ?? "Couldn't clear that error.");
+      }
+    } catch {
+      setMessage("Couldn't clear that error.");
+    } finally {
+      setPendingId(null);
     }
   }
 
   async function handleClearAll() {
+    // No count in the title: `reports` is capped at listErrorReports' own
+    // LIST_LIMIT while clearAllErrorReports is `deleteMany({})`, so citing
+    // `reports.length` understated the blast radius exactly when the table was
+    // biggest — the one time an admin most needs the number to be right.
     const confirmed = await confirm({
-      title: `Clear all ${reports.length} errors?`,
+      title: "Clear every reported error?",
       description:
-        "This clears every reported error's history. Anything that happens again will simply be reported fresh.",
+        "This clears every reported error in the database, including any beyond the ones listed here. Anything that happens again will simply be reported fresh.",
       confirmLabel: "Clear all",
       destructive: true,
     });
@@ -62,12 +76,17 @@ export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
 
     setClearingAll(true);
     setMessage(null);
-    const result = await clearAllErrorReports();
-    setClearingAll(false);
-    if (result.success) {
-      setReports([]);
-    } else {
-      setMessage(result.errors._form?.[0] ?? "Couldn't clear all errors.");
+    try {
+      const result = await clearAllErrorReports();
+      if (result.success) {
+        setReports([]);
+      } else {
+        setMessage(result.errors._form?.[0] ?? "Couldn't clear all errors.");
+      }
+    } catch {
+      setMessage("Couldn't clear all errors.");
+    } finally {
+      setClearingAll(false);
     }
   }
 
