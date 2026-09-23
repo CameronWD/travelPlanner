@@ -172,6 +172,37 @@ describe("MakeItFit", () => {
     expect(screen.getByText(/nights past/i)).toBeInTheDocument();
   });
 
+  // I5 (final fix wave): Task 10 gated deleteStop server-side and Task 19 put
+  // the loss preview on Drop, but the affordance itself was never gated — so a
+  // non-owner got a confirm dialog whose body was the raw server string "Only
+  // the trip owner can preview a Stop deletion." with Drop still enabled, then
+  // a toast. Trimming is not owner-gated, so only the Drop half is hidden.
+  describe("isOwner", () => {
+    it("hides the whole Drop half from a non-owner", async () => {
+      render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" isOwner={false} />);
+      fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+      await screen.findByText(/4 nights past/i);
+
+      expect(screen.queryByRole("region", { name: /drop a stop/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(/or drop a stop/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^drop /i })).not.toBeInTheDocument();
+    });
+
+    it("still offers the trim half to a non-owner — trimming nights is open to any Traveller", async () => {
+      render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" isOwner={false} />);
+      fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+
+      expect(await screen.findByRole("button", { name: /apply trim/i })).toBeInTheDocument();
+    });
+
+    it("shows the Drop half to an owner", async () => {
+      render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" isOwner />);
+      fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+
+      expect(await screen.findByText(/or drop a stop/i)).toBeInTheDocument();
+    });
+  });
+
   it("is full-bleed on mobile and wide (2xl) on desktop", () => {
     renderMakeItFit();
     fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));

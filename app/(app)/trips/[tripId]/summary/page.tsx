@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
@@ -97,7 +97,10 @@ export default async function SummaryPage({
   params: Promise<{ tripId: string }>;
 }) {
   const { tripId } = await params;
-  await requireTripAccess(tripId);
+  // Membership is kept (not discarded) so Make it fit can gate its owner-only
+  // Drop half — same predicate as the plan and compare pages (I5).
+  const { user, membership } = await requireTripAccess(tripId);
+  const isOwner = isTripOwnerOrAdmin(membership, user.email);
 
   // Policy (not a BND-2 spelling exemption): this dated view deliberately
   // always shows the real plan and ignores `?plan=` — see
@@ -678,6 +681,7 @@ export default async function SummaryPage({
                 stops={fitStops}
                 anchor={trip.startDate ?? null}
                 hardEndDate={projection.hardEndDate}
+                isOwner={isOwner}
               />
             )}
             <FlagList flags={flags} tripBasePath={tripBasePath} />

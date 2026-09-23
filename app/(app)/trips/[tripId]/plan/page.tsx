@@ -368,6 +368,7 @@ export default async function TripPlanPage({
           <div className="flex flex-col gap-6 lg:order-2">
             <PlanOverview
               tripId={tripId}
+              isOwner={isOwner}
               summary={planSummary}
               startDate={trip?.startDate ?? null}
               fitStops={stops.map((s) => ({

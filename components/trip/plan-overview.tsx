@@ -11,6 +11,8 @@ interface PlanOverviewProps {
   summary: PlanSummary;
   startDate: string | null;
   fitStops: FitStop[];
+  /** Passed straight through to MakeItFit, which gates its Drop half on it (I5). */
+  isOwner?: boolean;
 }
 
 const HARD_END_TONE: Record<HardEndState, string> = {
@@ -41,7 +43,7 @@ function hardEndStatusText(summary: PlanSummary): string | null {
   return null;
 }
 
-export function PlanOverview({ tripId, summary, startDate, fitStops }: PlanOverviewProps) {
+export function PlanOverview({ tripId, summary, startDate, fitStops, isOwner = true }: PlanOverviewProps) {
   const {
     stopCount, roughCount, scheduledNights, projectedNights,
     spanStart, scheduledEnd, projectedEnd, hardEndDate, hardEndState,
@@ -104,7 +106,7 @@ export function PlanOverview({ tripId, summary, startDate, fitStops }: PlanOverv
               </span>
             )}
             {summary.hardEndState === "over" && (
-              <MakeItFit tripId={tripId} stops={fitStops} anchor={startDate} hardEndDate={summary.hardEndDate} />
+              <MakeItFit tripId={tripId} stops={fitStops} anchor={startDate} hardEndDate={summary.hardEndDate} isOwner={isOwner} />
             )}
           </span>
         </div>

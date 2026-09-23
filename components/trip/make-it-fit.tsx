@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import { setStopNights, deleteStop } from "@/server/actions/stops";
+import { cn } from "@/lib/cn";
 import { formatLongDate } from "@/lib/dates";
 import { computeProjectedEnd } from "@/lib/firm-up";
 import { orderPlanStops } from "@/lib/plan-order";
@@ -37,6 +38,15 @@ interface MakeItFitProps {
   stops: FitStop[];
   anchor: string | null;
   hardEndDate: string | null;
+  /**
+   * Whether the viewer may destroy a Stop (owner, or an ADMIN_EMAILS
+   * operator). Gates the "Or drop a stop" half only — trimming nights is open
+   * to any Traveller, so the dialog itself is not owner-only.
+   *
+   * Defaults to true, matching ItineraryManager and CompareTable. Both real
+   * call sites pass it explicitly.
+   */
+  isOwner?: boolean;
 }
 
 export function MakeItFit({
@@ -44,6 +54,7 @@ export function MakeItFit({
   stops,
   anchor,
   hardEndDate,
+  isOwner = true,
 }: MakeItFitProps) {
   const [open, setOpen] = React.useState(false);
   const projectedEnd = React.useMemo(
@@ -81,6 +92,7 @@ export function MakeItFit({
           stops={stops}
           anchor={anchor}
           hardEndDate={hardEndDate}
+          isOwner={isOwner}
           projectedEnd={projectedEnd}
           over={over}
           onClose={() => setOpen(false)}
@@ -94,6 +106,7 @@ function MakeItFitDialog({
   stops,
   anchor,
   hardEndDate,
+  isOwner = true,
   projectedEnd,
   over,
   onClose,
@@ -201,7 +214,15 @@ function MakeItFitDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-6 sm:grid-cols-2">
+        {/* I5 (final fix wave): the Drop half is owner-only, same as Delete in
+            ItineraryManager and Promote in CompareTable. Task 10 gated
+            deleteStop server-side and Task 19 added the loss preview here, but
+            nothing gated the affordance — so a non-owner got a confirm dialog
+            whose body was the raw server string "Only the trip owner can
+            preview a Stop deletion." with the Drop button still enabled, then
+            a toast. Trimming nights stays open to any Traveller, so only this
+            section is hidden, not the whole dialog. */}
+        <div className={cn("grid gap-6", isOwner && "sm:grid-cols-2")}>
           <section aria-label="Trim plan" className="flex flex-col gap-3">
             <h3 className="flex items-center gap-2 text-sm font-semibold">
               <Scissors className="size-4" aria-hidden="true" /> Trim nights
@@ -257,6 +278,7 @@ function MakeItFitDialog({
             </Button>
           </section>
 
+          {isOwner && (
           <section aria-label="Drop a stop" className="flex flex-col gap-3">
             <h3 className="flex items-center gap-2 text-sm font-semibold">
               <Trash2 className="size-4" aria-hidden="true" /> Or drop a stop
@@ -294,6 +316,7 @@ function MakeItFitDialog({
               ))}
             </ul>
           </section>
+          )}
         </div>
       </DialogContent>
     </Dialog>
