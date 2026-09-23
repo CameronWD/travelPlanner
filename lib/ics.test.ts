@@ -24,7 +24,7 @@ describe("buildICS", () => {
     const ics = buildICS({
       ...base,
       items: [
-        { id: "i1", title: "Louvre", category: "SIGHTSEEING", date: "2026-07-09", startTime: "10:00", endTime: "12:00", stopId: "s-paris", address: "Rue de Rivoli", link: null, booking: null, notes: null },
+        { id: "i1", title: "Louvre", category: "SIGHTSEEING", date: "2026-07-09", startTime: "10:00", endTime: "12:00", stopId: "s-paris", address: "Rue de Rivoli", link: null },
       ],
     });
     expect(ics).toContain("SUMMARY:Louvre");
@@ -38,7 +38,7 @@ describe("buildICS", () => {
     const ics = buildICS({
       ...base,
       items: [
-        { id: "i2", title: "Colosseum", category: "SIGHTSEEING", date: "2026-07-10", startTime: null, endTime: null, stopId: null, address: null, link: null, booking: null, notes: null },
+        { id: "i2", title: "Colosseum", category: "SIGHTSEEING", date: "2026-07-10", startTime: null, endTime: null, stopId: null, address: null, link: null },
       ],
     });
     expect(ics).toContain("DTSTART;VALUE=DATE:20260710");
@@ -49,19 +49,34 @@ describe("buildICS", () => {
     const ics = buildICS({
       ...base,
       transports: [
-        { id: "t1", mode: "FLIGHT", depPlace: "Paris", arrPlace: "Rome", depAt: new Date("2026-07-09T12:30:00Z"), arrAt: new Date("2026-07-09T14:40:00Z"), reference: "BA123" },
+        { id: "t1", mode: "FLIGHT", depPlace: "Paris", arrPlace: "Rome", depAt: new Date("2026-07-09T12:30:00Z"), arrAt: new Date("2026-07-09T14:40:00Z") },
       ],
     });
     expect(ics).toContain("DTSTART:20260709T123000Z");
     expect(ics).toContain("DTEND:20260709T144000Z");
-    expect(ics).toMatch(/SUMMARY:.*Paris . Rome.*BA123/);
+    expect(ics).toMatch(/SUMMARY:.*Paris . Rome/);
+  });
+
+  // ARCH-TEN-7: a ticket/booking reference used to be appended to this
+  // SUMMARY line. That's worse than DESCRIPTION — it puts a booking ref in
+  // the event *title*, which propagates into calendar previews,
+  // notifications and lock screens. IcsTransport no longer has the field at
+  // all, so there is nothing left for the builder to append.
+  it("never appends a booking/ticket reference to the transport SUMMARY", () => {
+    const ics = buildICS({
+      ...base,
+      transports: [
+        { id: "t1", mode: "FLIGHT", depPlace: "Paris", arrPlace: "Rome", depAt: new Date("2026-07-09T12:30:00Z"), arrAt: new Date("2026-07-09T14:40:00Z") },
+      ],
+    });
+    expect(ics).toMatch(/SUMMARY:✈ Paris → Rome\r?\n/);
   });
 
   it("emits accommodation as a multi-day all-day Stay block", () => {
     const ics = buildICS({
       ...base,
       accommodations: [
-        { id: "a1", name: "Hotel Roma", checkIn: "2026-07-09", checkOut: "2026-07-12", address: "Via Roma 1", confirmation: "XYZ", notes: null },
+        { id: "a1", name: "Hotel Roma", checkIn: "2026-07-09", checkOut: "2026-07-12", address: "Via Roma 1" },
       ],
     });
     expect(ics).toContain("DTSTART;VALUE=DATE:20260709");
@@ -69,15 +84,28 @@ describe("buildICS", () => {
     expect(ics).toMatch(/SUMMARY:.*Stay.*Hotel Roma/);
   });
 
-  it("escapes commas, semicolons and newlines in text", () => {
+  // ARCH-TEN-7: confirmation/notes used to build this event's DESCRIPTION.
+  // Neither field exists on IcsAccommodation any more, so the event must
+  // carry no DESCRIPTION at all — not an empty one, none.
+  it("never emits a DESCRIPTION for accommodation — confirmation/notes are gone", () => {
+    const ics = buildICS({
+      ...base,
+      accommodations: [
+        { id: "a1", name: "Hotel Roma", checkIn: "2026-07-09", checkOut: "2026-07-12", address: "Via Roma 1" },
+      ],
+    });
+    const event = ics.slice(ics.indexOf("BEGIN:VEVENT"), ics.indexOf("END:VEVENT"));
+    expect(event).not.toContain("DESCRIPTION:");
+  });
+
+  it("escapes commas and semicolons in text", () => {
     const ics = buildICS({
       ...base,
       items: [
-        { id: "i3", title: "Dinner, fancy; nice", category: "FOOD", date: "2026-07-09", startTime: null, endTime: null, stopId: null, address: null, link: null, booking: null, notes: "line1\nline2" },
+        { id: "i3", title: "Dinner, fancy; nice\nSpecial", category: "FOOD", date: "2026-07-09", startTime: null, endTime: null, stopId: null, address: null, link: null },
       ],
     });
-    expect(ics).toContain("SUMMARY:Dinner\\, fancy\\; nice");
-    expect(ics).toContain("line1\\nline2");
+    expect(ics).toContain("SUMMARY:Dinner\\, fancy\\; nice\\nSpecial");
   });
 });
 

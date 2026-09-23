@@ -64,11 +64,13 @@ describe("saveJournalEntry", () => {
     expectAccessCheckedBeforeWrite(requireTripAccessMock, journalUpsertMock);
   });
 
-  it("upserts by (tripId, date) and sets authorId to current user", async () => {
+  it("upserts by (tripId, date, authorId) and sets authorId to current user on create", async () => {
     await saveJournalEntry(TRIP_ID, DATE, "A wonderful day in Paris.");
     expect(journalUpsertMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { tripId_date: { tripId: TRIP_ID, date: DATE } },
+        where: {
+          tripId_date_authorId: { tripId: TRIP_ID, date: DATE, authorId: "user-1" },
+        },
         create: expect.objectContaining({
           tripId: TRIP_ID,
           date: DATE,
@@ -77,10 +79,41 @@ describe("saveJournalEntry", () => {
         }),
         update: expect.objectContaining({
           body: "A wonderful day in Paris.",
-          authorId: "user-1",
         }),
       }),
     );
+  });
+
+  it("ARCH-DAT-6: two Travellers writing the same day get separate composite keys — both entries are kept", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-1" },
+      membership: { role: "member" },
+    });
+    await saveJournalEntry(TRIP_ID, DATE, "Cam's account of the day");
+    expect(journalUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tripId_date_authorId: { tripId: TRIP_ID, date: DATE, authorId: "user-1" },
+        },
+      }),
+    );
+
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-2" },
+      membership: { role: "member" },
+    });
+    await saveJournalEntry(TRIP_ID, DATE, "Alex's account of the day");
+    expect(journalUpsertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tripId_date_authorId: { tripId: TRIP_ID, date: DATE, authorId: "user-2" },
+        },
+      }),
+    );
+
+    // Neither call clobbers the other — both upserts happened, scoped to
+    // their own author.
+    expect(journalUpsertMock).toHaveBeenCalledTimes(2);
   });
 
   it("returns { success: true } on successful save", async () => {
@@ -94,20 +127,16 @@ describe("saveJournalEntry", () => {
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/journal`);
   });
 
-  it("deletes existing entry when body is empty", async () => {
+  it("ARCH-DAT-6: an empty body is a no-op — it does not delete and does not create", async () => {
     const result = await saveJournalEntry(TRIP_ID, DATE, "");
-    expect(journalDeleteManyMock).toHaveBeenCalledWith({
-      where: { tripId: TRIP_ID, date: DATE },
-    });
+    expect(journalDeleteManyMock).not.toHaveBeenCalled();
     expect(journalUpsertMock).not.toHaveBeenCalled();
     expect(result).toEqual({ success: true });
   });
 
-  it("deletes existing entry when body is whitespace-only", async () => {
+  it("ARCH-DAT-6: a whitespace-only body is also a no-op", async () => {
     const result = await saveJournalEntry(TRIP_ID, DATE, "   ");
-    expect(journalDeleteManyMock).toHaveBeenCalledWith({
-      where: { tripId: TRIP_ID, date: DATE },
-    });
+    expect(journalDeleteManyMock).not.toHaveBeenCalled();
     expect(journalUpsertMock).not.toHaveBeenCalled();
     expect(result).toEqual({ success: true });
   });
@@ -161,10 +190,21 @@ describe("deleteJournalEntry", () => {
     expectAccessCheckedBeforeWrite(requireTripAccessMock, journalDeleteManyMock);
   });
 
-  it("deletes the entry by (tripId, date)", async () => {
+  it("ARCH-DAT-6: deleteJournalEntry only removes the caller's own entry", async () => {
     await deleteJournalEntry(TRIP_ID, DATE);
     expect(journalDeleteManyMock).toHaveBeenCalledWith({
-      where: { tripId: TRIP_ID, date: DATE },
+      where: { tripId: TRIP_ID, date: DATE, authorId: "user-1" },
+    });
+  });
+
+  it("scopes deletion to a different caller's own id", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-2" },
+      membership: { role: "member" },
+    });
+    await deleteJournalEntry(TRIP_ID, DATE);
+    expect(journalDeleteManyMock).toHaveBeenCalledWith({
+      where: { tripId: TRIP_ID, date: DATE, authorId: "user-2" },
     });
   });
 

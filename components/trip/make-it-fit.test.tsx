@@ -6,9 +6,11 @@ import type { FitStop } from "@/lib/make-it-fit";
 
 const setStopNights = vi.fn();
 const deleteStop = vi.fn();
+const previewStopDeletion = vi.fn();
 vi.mock("@/server/actions/stops", () => ({
   setStopNights: (...a: unknown[]) => setStopNights(...a),
   deleteStop: (...a: unknown[]) => deleteStop(...a),
+  previewStopDeletion: (...a: unknown[]) => previewStopDeletion(...a),
 }));
 vi.mock("@/components/ui/use-toast", () => ({ toast: vi.fn() }));
 
@@ -31,6 +33,13 @@ describe("MakeItFit", () => {
   beforeEach(() => {
     setStopNights.mockReset().mockResolvedValue({ success: true });
     deleteStop.mockReset().mockResolvedValue({ success: true });
+    // ARCH-DAT-4: DropConfirmDialog fetches this preview on open. Default to
+    // an empty (no-losses) preview so the existing drop-flow tests below
+    // keep exercising the "no loss list" branch unless a test overrides it.
+    previewStopDeletion.mockReset().mockResolvedValue({
+      success: true,
+      preview: { accommodations: [], unpaidCosts: [], attachmentCount: 0, noteCount: 0 },
+    });
   });
 
   it("renders nothing when the trip already fits", () => {
@@ -60,11 +69,13 @@ describe("MakeItFit", () => {
 
     // Confirm dialog must appear with stop name
     expect(await screen.findByText(/Drop "Rome"\?/i)).toBeInTheDocument();
+    expect(previewStopDeletion).toHaveBeenCalledWith("a");
 
     // deleteStop must NOT have been called yet
     expect(deleteStop).not.toHaveBeenCalled();
 
-    // Confirm
+    // Confirm — wait for the loss preview to resolve so the Drop button enables
+    await waitFor(() => expect(screen.getByRole("button", { name: "Drop" })).toBeEnabled());
     await user.click(screen.getByRole("button", { name: "Drop" }));
     await waitFor(() => expect(deleteStop).toHaveBeenCalledWith("a"));
   });
@@ -81,6 +92,36 @@ describe("MakeItFit", () => {
     // Cancel
     await user.click(screen.getByRole("button", { name: /cancel/i }));
     expect(deleteStop).not.toHaveBeenCalled();
+  });
+
+  it("ARCH-DAT-4: drop confirmation itemises what else the stop would take with it", async () => {
+    const user = userEvent.setup();
+    previewStopDeletion.mockResolvedValueOnce({
+      success: true,
+      preview: {
+        accommodations: [{ id: "acc1", name: "Hotel Bristol", hasConfirmation: true }],
+        unpaidCosts: [{ id: "c1", label: "Colosseum tickets", costMinor: 5000, currency: "EUR" }],
+        attachmentCount: 2,
+        noteCount: 1,
+      },
+    });
+
+    render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" />);
+    fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+    const dropRome = await screen.findByRole("button", { name: /drop rome/i });
+    await user.click(dropRome);
+
+    expect(await screen.findByText(/dropping this stop will also destroy/i)).toBeInTheDocument();
+    expect(screen.getByText(/Hotel Bristol/)).toBeInTheDocument();
+    expect(screen.getByText(/holds a confirmation number/)).toBeInTheDocument();
+    expect(screen.getByText(/Colosseum tickets/)).toBeInTheDocument();
+
+    // The raw label is shown, but nothing resembling a confirmation VALUE was
+    // ever supplied here — this test only proves the loss list renders; the
+    // no-leak guarantee itself is proven server-side (stops.test.ts).
+    await waitFor(() => expect(screen.getByRole("button", { name: "Drop" })).toBeEnabled());
+    await user.click(screen.getByRole("button", { name: "Drop" }));
+    await waitFor(() => expect(deleteStop).toHaveBeenCalledWith("a"));
   });
 
   it("re-simulates live and disables Apply when the inputs are reset to current nights", () => {
@@ -129,6 +170,37 @@ describe("MakeItFit", () => {
     await waitFor(() => expect(setStopNights).toHaveBeenCalled());
     // dialog still shows the over headline
     expect(screen.getByText(/nights past/i)).toBeInTheDocument();
+  });
+
+  // I5 (final fix wave): Task 10 gated deleteStop server-side and Task 19 put
+  // the loss preview on Drop, but the affordance itself was never gated — so a
+  // non-owner got a confirm dialog whose body was the raw server string "Only
+  // the trip owner can preview a Stop deletion." with Drop still enabled, then
+  // a toast. Trimming is not owner-gated, so only the Drop half is hidden.
+  describe("isOwner", () => {
+    it("hides the whole Drop half from a non-owner", async () => {
+      render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" isOwner={false} />);
+      fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+      await screen.findByText(/4 nights past/i);
+
+      expect(screen.queryByRole("region", { name: /drop a stop/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(/or drop a stop/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^drop /i })).not.toBeInTheDocument();
+    });
+
+    it("still offers the trim half to a non-owner — trimming nights is open to any Traveller", async () => {
+      render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" isOwner={false} />);
+      fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+
+      expect(await screen.findByRole("button", { name: /apply trim/i })).toBeInTheDocument();
+    });
+
+    it("shows the Drop half to an owner", async () => {
+      render(<MakeItFit tripId="t1" stops={overStops} anchor="2026-07-01" hardEndDate="2026-07-07" isOwner />);
+      fireEvent.click(screen.getByRole("button", { name: /make it fit/i }));
+
+      expect(await screen.findByText(/or drop a stop/i)).toBeInTheDocument();
+    });
   });
 
   it("is full-bleed on mobile and wide (2xl) on desktop", () => {

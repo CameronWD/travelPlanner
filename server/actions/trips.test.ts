@@ -21,6 +21,12 @@ const {
   tripDeleteMock,
   tripFindUniqueMock,
   memberCreateMock,
+  memberDeleteManyMock,
+  memberFindUniqueMock,
+  userFindUniqueMock,
+  userFindManyMock,
+  inviteDeleteManyMock,
+  inviteCreateMock,
   chapterCreateMock,
   stopCreateMock,
   itemCreateMock,
@@ -33,6 +39,7 @@ const {
   attachmentFindManyMock,
   storageDeleteMock,
   storageSaveMock,
+  scheduleBlobDeletionMock,
   geocodePlaceDetailedMock,
 } = vi.hoisted(() => {
   const tripCreateMock = vi.fn();
@@ -40,6 +47,14 @@ const {
   const tripDeleteMock = vi.fn();
   const tripFindUniqueMock = vi.fn();
   const memberCreateMock = vi.fn();
+  const memberDeleteManyMock = vi.fn().mockResolvedValue({ count: 1 });
+  // The REMOVAL TARGET's membership row (I1). Defaults to a non-owner, which
+  // is what every pre-existing removeTripMember test means by "a Traveller".
+  const memberFindUniqueMock = vi.fn().mockResolvedValue({ role: "member" });
+  const userFindUniqueMock = vi.fn().mockResolvedValue(null);
+  const userFindManyMock = vi.fn().mockResolvedValue([]);
+  const inviteDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  const inviteCreateMock = vi.fn();
   const chapterCreateMock = vi.fn();
   const stopCreateMock = vi.fn();
   const itemCreateMock = vi.fn();
@@ -51,6 +66,7 @@ const {
   const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const storageDeleteMock = vi.fn().mockResolvedValue(undefined);
   const storageSaveMock = vi.fn().mockResolvedValue(undefined);
+  const scheduleBlobDeletionMock = vi.fn().mockResolvedValue(undefined);
 
   // $transaction executes the callback synchronously-ish in tests;
   // we simulate it by calling the callback with a fake tx object.
@@ -64,6 +80,7 @@ const {
       transport: { create: transportCreateMock },
       checklistItem: { create: checklistItemCreateMock },
       fork: { findMany: forkFindManyMock },
+      invite: { create: inviteCreateMock },
     };
     return cb(tx);
   });
@@ -83,6 +100,12 @@ const {
     tripDeleteMock,
     tripFindUniqueMock,
     memberCreateMock,
+    memberDeleteManyMock,
+    memberFindUniqueMock,
+    userFindUniqueMock,
+    userFindManyMock,
+    inviteDeleteManyMock,
+    inviteCreateMock,
     chapterCreateMock,
     stopCreateMock,
     itemCreateMock,
@@ -95,14 +118,24 @@ const {
     attachmentFindManyMock,
     storageDeleteMock,
     storageSaveMock,
+    scheduleBlobDeletionMock,
     geocodePlaceDetailedMock: vi.fn(),
   };
 });
 
-vi.mock("@/lib/guards", () => ({
-  requireUser: requireUserMock,
-  requireTripAccess: requireTripAccessMock,
-}));
+vi.mock("@/lib/guards", async () => {
+  // isTripOwnerOrAdmin (ARCH-BND-3) lives in lib/access.ts, which is
+  // framework/db-free, so it can be imported for real here — unlike
+  // lib/guards.ts itself, which also imports lib/auth (next-auth →
+  // next/server), a module graph this test file never otherwise loads. Only
+  // requireUser/requireTripAccess need session/db mocking.
+  const { isTripOwnerOrAdmin } = await import("@/lib/access");
+  return {
+    requireUser: requireUserMock,
+    requireTripAccess: requireTripAccessMock,
+    isTripOwnerOrAdmin,
+  };
+});
 vi.mock("@/lib/geocode", () => ({
   geocodePlaceDetailed: geocodePlaceDetailedMock,
 }));
@@ -117,6 +150,18 @@ vi.mock("@/lib/db", () => ({
     },
     attachment: {
       findMany: attachmentFindManyMock,
+    },
+    tripMember: {
+      deleteMany: memberDeleteManyMock,
+      findUnique: memberFindUniqueMock,
+    },
+    user: {
+      findUnique: userFindUniqueMock,
+      findMany: userFindManyMock,
+    },
+    invite: {
+      deleteMany: inviteDeleteManyMock,
+      create: inviteCreateMock,
     },
   },
 }));
@@ -134,12 +179,22 @@ vi.mock("@/lib/storage", () => ({
     return { ok: true };
   },
 }));
+vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("next/navigation", () => ({ redirect: redirectMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/server/actions/activity", () => ({ recordActivity: recordActivityMock }));
 vi.mock("@/server/actions/stop-flow", () => ({ recomputeChapterSpans: recomputeChapterSpansMock }));
 
-import { createTrip, updateTrip, deleteTrip, setTripHardEndDate, duplicateTrip, setChaptersEnabled } from "./trips";
+import {
+  createTrip,
+  updateTrip,
+  deleteTrip,
+  setTripHardEndDate,
+  duplicateTrip,
+  setChaptersEnabled,
+  removeTripMember,
+  leaveTrip,
+} from "./trips";
 
 const VALID_INPUT = {
   name: "Japan 2026",
@@ -579,7 +634,7 @@ describe("deleteTrip", () => {
     expect(redirectMock).toHaveBeenCalledWith("/trips");
   });
 
-  it("deletes attachment blobs before cascading the trip rows away", async () => {
+  it("schedules attachment blobs for retention before cascading the trip rows away (ARCH-DAT-3)", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "user-1" },
       membership: { role: "owner" },
@@ -593,12 +648,14 @@ describe("deleteTrip", () => {
 
     await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/k1");
-    expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/k2");
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(
+      expect.arrayContaining(["trips/trip-abc/k1", "trips/trip-abc/k2"]),
+    );
     expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
   });
 
-  it("deletes the cover blob when the trip has a coverImageKey", async () => {
+  it("schedules the cover blob for retention when the trip has a coverImageKey (ARCH-DAT-3)", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "user-1" },
       membership: { role: "owner" },
@@ -609,7 +666,10 @@ describe("deleteTrip", () => {
 
     await expect(deleteTrip(TRIP_ID)).rejects.toThrow("NEXT_REDIRECT");
 
-    expect(storageDeleteMock).toHaveBeenCalledWith("trips/trip-abc/uuid-cover.jpg");
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(
+      expect.arrayContaining(["trips/trip-abc/uuid-cover.jpg"]),
+    );
     expect(tripDeleteMock).toHaveBeenCalledWith({ where: { id: TRIP_ID } });
   });
 
@@ -723,11 +783,12 @@ describe("setTripHardEndDate", () => {
 // ---------------------------------------------------------------------------
 
 describe("duplicateTrip", () => {
-  it("creates a new trip + owner membership + copies co-travellers, and remaps children", async () => {
+  it("creates a new trip + owner membership + invites co-travellers, and remaps children", async () => {
     requireTripAccessMock.mockResolvedValueOnce({
       user: { id: "user-1", email: "you@example.com" },
       membership: { userId: "user-1", role: "owner" },
     });
+    userFindManyMock.mockResolvedValueOnce([{ id: "user-2", email: "co@example.com" }]);
     tripFindUniqueMock.mockResolvedValue({
       id: "src", name: "Europe 2026", homeCurrency: "AUD", drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
       members: [{ userId: "user-1", role: "owner" }, { userId: "user-2", role: "member" }],
@@ -762,9 +823,23 @@ describe("duplicateTrip", () => {
     expect(tripCreateMock).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ name: "Copy of Europe 2026", homeCurrency: "AUD", createdById: "user-1" }),
     }));
-    // owner + one co-traveller membership
+    // Only the duplicator becomes a member of the copy — no co-traveller membership.
+    expect(memberCreateMock).toHaveBeenCalledTimes(1);
     expect(memberCreateMock).toHaveBeenCalledWith({ data: { tripId: "new", userId: "user-1", role: "owner" } });
-    expect(memberCreateMock).toHaveBeenCalledWith({ data: { tripId: "new", userId: "user-2", role: "member" } });
+    // The co-traveller gets a pending Invite instead (ARCH-ADR-1).
+    expect(userFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ["user-2"] } } }),
+    );
+    expect(inviteCreateMock).toHaveBeenCalledTimes(1);
+    expect(inviteCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        tripId: "new",
+        email: "co@example.com",
+        role: "member",
+        token: expect.any(String),
+        expiresAt: expect.any(Date),
+      }),
+    });
     // stops created rough (dates null), remapped to new chapter
     expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", name: "Rome", arriveDate: null, departDate: null, chapterId: "new-ch1" }) });
     expect(stopCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", name: "Florence", arriveDate: null, departDate: null, chapterId: "new-ch1" }) });
@@ -774,6 +849,51 @@ describe("duplicateTrip", () => {
     expect(transportCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", fromStopId: "new-s1", toStopId: "new-s2", depAt: null, arrAt: null, reference: null }) });
     // checklist item copied with dates cleared and done reset
     expect(checklistItemCreateMock).toHaveBeenCalledWith({ data: expect.objectContaining({ tripId: "new", text: "Passport", done: false, dueDate: null, assignedToId: null }) });
+  });
+
+  it("IMPORTANT fix (round 1): normalises a mixed-case source member email before writing the Invite", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-1", email: "you@example.com" },
+      membership: { userId: "user-1", role: "owner" },
+    });
+    // User.email is never normalised anywhere — simulate a co-traveller
+    // whose account happens to have mixed casing.
+    userFindManyMock.mockResolvedValueOnce([{ id: "user-2", email: "Co@Example.com" }]);
+    tripFindUniqueMock.mockResolvedValue({
+      id: "src", name: "Europe 2026", homeCurrency: "AUD", drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
+      members: [{ userId: "user-1", role: "owner" }, { userId: "user-2", role: "member" }],
+      chapters: [], stops: [], items: [], transports: [], checklistItems: [],
+    });
+    tripCreateMock.mockResolvedValue({ id: "new" });
+
+    const result = await duplicateTrip("src", "Copy of Europe 2026");
+
+    expect(result).toEqual({ success: true, tripId: "new" });
+    expect(inviteCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ email: "co@example.com" }),
+    });
+  });
+
+  it("ARCH-ADR-1: a source member whose email can't be resolved is skipped — no Invite and no membership", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "user-1", email: "you@example.com" },
+      membership: { userId: "user-1", role: "owner" },
+    });
+    // db.user.findMany resolves nothing for user-2 — e.g. a deleted account.
+    userFindManyMock.mockResolvedValueOnce([]);
+    tripFindUniqueMock.mockResolvedValue({
+      id: "src", name: "Europe 2026", homeCurrency: "AUD", drivingWindingFactor: 1.5, drivingAvgSpeedKph: 80,
+      members: [{ userId: "user-1", role: "owner" }, { userId: "user-2", role: "member" }],
+      chapters: [], stops: [], items: [], transports: [], checklistItems: [],
+    });
+    tripCreateMock.mockResolvedValue({ id: "new" });
+
+    const result = await duplicateTrip("src", "Copy of Europe 2026");
+
+    expect(result).toEqual({ success: true, tripId: "new" });
+    expect(memberCreateMock).toHaveBeenCalledTimes(1);
+    expect(memberCreateMock).toHaveBeenCalledWith({ data: { tripId: "new", userId: "user-1", role: "owner" } });
+    expect(inviteCreateMock).not.toHaveBeenCalled();
   });
 
   it("refuses a non-owner member — a Traveller cannot mint themselves a copy", async () => {
@@ -912,5 +1032,252 @@ describe("setChaptersEnabled", () => {
 
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/plan`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// removeTripMember
+// ---------------------------------------------------------------------------
+
+describe("removeTripMember", () => {
+  it("ARCH-DAT-1: the owner can remove a Traveller", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce({ email: "traveller@example.com" });
+
+    const result = await removeTripMember("t1", "u2");
+
+    expect(result.success).toBe(true);
+    expect(memberDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", userId: "u2" } });
+  });
+
+  it("ARCH-DAT-1: a plain Traveller cannot remove anyone else", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    const result = await removeTripMember("t1", "u3");
+
+    expect(result.success).toBe(false);
+    expect(memberDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("ARCH-DAT-1: the owner cannot remove themselves", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+
+    const result = await removeTripMember("t1", "u1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/transfer/i);
+    }
+    expect(memberDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes a pending Invite for the removed Traveller's email on this trip", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce({ email: "Traveller@Example.com" });
+
+    await removeTripMember("t1", "u2");
+
+    expect(userFindUniqueMock).toHaveBeenCalledWith({ where: { id: "u2" }, select: { email: true } });
+    expect(inviteDeleteManyMock).toHaveBeenCalledWith({
+      where: { tripId: "t1", email: "traveller@example.com", acceptedAt: null },
+    });
+  });
+
+  it("still removes the membership row when the removed user can't be found for invite cleanup", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce(null);
+
+    const result = await removeTripMember("t1", "u2");
+
+    expect(result.success).toBe(true);
+    expect(memberDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", userId: "u2" } });
+    expect(inviteDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("revalidates the trip's settings and home pages after removal", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce(null);
+
+    await removeTripMember(TRIP_ID, "u2");
+
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+  });
+
+  it("is access-checked BEFORE the mutation — the trap this action is the first to risk", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce(null);
+
+    await removeTripMember(TRIP_ID, "u2");
+
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, memberDeleteManyMock);
+    // requireTripAccess (the cache()-memoised guard) must be called exactly
+    // once — a second call in the same request would read the stale,
+    // pre-removal membership table (see lib/guards.ts's warning).
+    expect(requireTripAccessMock).toHaveBeenCalledOnce();
+  });
+
+  it("lets an ADMIN_EMAILS operator remove a Traveller even without the owner role", async () => {
+    process.env.ADMIN_EMAILS = "admin@example.com";
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u-admin", email: "admin@example.com" },
+      membership: { role: "member" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce(null);
+
+    const result = await removeTripMember("t1", "u2");
+
+    expect(result.success).toBe(true);
+    expect(memberDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", userId: "u2" } });
+    delete process.env.ADMIN_EMAILS;
+  });
+
+  // I1 (final fix wave). The gate admits an ADMIN_EMAILS operator and the
+  // self-check only ever protected the CALLER, so nothing stopped an admin
+  // who is not the owner from removing the Trip's owner — leaving a Trip with
+  // Travellers on it and no owner, which can never again be deleted,
+  // duplicated, invited to, have a Stop deleted or a fork promoted, with no
+  // ownership transfer to recover with.
+  it("refuses to remove the trip's OWNER, even for an ADMIN_EMAILS operator", async () => {
+    process.env.ADMIN_EMAILS = "admin@example.com";
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u-admin", email: "admin@example.com" },
+      membership: { role: "member" },
+    });
+    memberFindUniqueMock.mockResolvedValueOnce({ role: "owner" });
+
+    const result = await removeTripMember("t1", "u-owner");
+
+    expect(result).toEqual({
+      success: false,
+      error:
+        "You can't remove the trip's owner — a trip with no owner could never be deleted, duplicated or invited to again.",
+    });
+    expect(memberDeleteManyMock).not.toHaveBeenCalled();
+    expect(inviteDeleteManyMock).not.toHaveBeenCalled();
+    delete process.env.ADMIN_EMAILS;
+  });
+
+  it("refuses to remove the trip's OWNER when another owner-role caller tries it", async () => {
+    // Belt-and-braces: the self-check only fires when the target IS the
+    // caller, so a second owner-role row (or a future transfer bug) must be
+    // caught by the target's role, not by identity.
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    memberFindUniqueMock.mockResolvedValueOnce({ role: "owner" });
+
+    const result = await removeTripMember("t1", "u-other-owner");
+
+    expect(result.success).toBe(false);
+    expect(memberDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("looks the target's role up by the (tripId, userId) membership key", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce(null);
+
+    await removeTripMember("t1", "u2");
+
+    expect(memberFindUniqueMock).toHaveBeenCalledWith({
+      where: { tripId_userId: { tripId: "t1", userId: "u2" } },
+      select: { role: true },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// leaveTrip
+// ---------------------------------------------------------------------------
+
+describe("leaveTrip", () => {
+  it("ARCH-DAT-1: a Traveller can leave", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    const result = await leaveTrip("t1");
+
+    expect(result.success).toBe(true);
+    expect(memberDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", userId: "u2" } });
+  });
+
+  it("ARCH-DAT-1: the owner cannot leave without transferring ownership", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+
+    const result = await leaveTrip("t1");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error).toMatch(/transfer/i);
+    }
+    expect(memberDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("deletes a pending Invite for the leaving Traveller's own email on this trip", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "Traveller@Example.com" },
+      membership: { role: "member" },
+    });
+
+    await leaveTrip("t1");
+
+    expect(inviteDeleteManyMock).toHaveBeenCalledWith({
+      where: { tripId: "t1", email: "traveller@example.com", acceptedAt: null },
+    });
+  });
+
+  it("revalidates the trip's settings, home, and the trips list after leaving", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    await leaveTrip(TRIP_ID);
+
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/settings`);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+    expect(revalidatePathMock).toHaveBeenCalledWith("/trips");
+  });
+
+  it("is access-checked BEFORE the mutation, called exactly once (no stale re-check)", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u2", email: "traveller@example.com" },
+      membership: { role: "member" },
+    });
+
+    await leaveTrip(TRIP_ID);
+
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, memberDeleteManyMock);
+    expect(requireTripAccessMock).toHaveBeenCalledOnce();
   });
 });

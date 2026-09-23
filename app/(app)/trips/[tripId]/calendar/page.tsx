@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarDays, MapPin } from "lucide-react";
 import { db } from "@/lib/db";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { buildItinerary } from "@/lib/itinerary";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -17,6 +18,10 @@ export default async function CalendarPage({
   const { tripId } = await params;
   await requireTripAccess(tripId);
 
+  // Policy (not a BND-2 spelling exemption): this dated view deliberately
+  // always shows the real plan and ignores `?plan=` — see
+  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
+
   // Fetch the trip dates + all relevant data
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -27,7 +32,7 @@ export default async function CalendarPage({
   const [stops, items, transports, accommodations, wishlistItems] = await Promise.all([
     db.stop.findMany({
       // Rough (date-less) stops have no place on a dated calendar.
-      where: { tripId, forkId: null, arriveDate: { not: null } },
+      where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -40,7 +45,7 @@ export default async function CalendarPage({
       },
     }),
     db.item.findMany({
-      where: { tripId, forkId: null, date: { not: null } },
+      where: { tripId, ...REAL_PLAN, date: { not: null } },
       orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
       select: {
         id: true,
@@ -57,7 +62,7 @@ export default async function CalendarPage({
       },
     }),
     db.transport.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...REAL_PLAN },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -73,7 +78,7 @@ export default async function CalendarPage({
       },
     }),
     db.accommodation.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...REAL_PLAN },
       orderBy: { checkIn: "asc" },
       select: {
         id: true,
@@ -89,7 +94,7 @@ export default async function CalendarPage({
       },
     }),
     db.item.findMany({
-      where: { tripId, forkId: null, date: null, stopId: null },
+      where: { tripId, ...REAL_PLAN, date: null, stopId: null },
       orderBy: { sortOrder: "asc" },
       select: { id: true, title: true, category: true, stopId: true },
     }),

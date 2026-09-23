@@ -34,6 +34,16 @@ migrations** (see *Migration state* below). Both have since been applied to
 production; a third, unrelated migration (`whatsNewSeenAt`, ADR 0056) is now
 the one written and awaiting the operator's call.
 
+**Reopened 2026-09-23** on branch `feat/rollout-gate`: one item, `RG-01`, now
+stands in *Open items* — the production database dumps were downloadable by
+anyone while the repository was public. It is not a code defect and was not
+found by reading this codebase; it surfaced because writing a privacy policy
+forced an inventory of where Traveller data actually goes. The remediation
+steps live in `docs/DEPLOY.md` §5b and are deliberately not copied here.
+(That branch also closed the 15 shortlist findings of
+`docs/architecture-sitrep-2026-09-22.md`, which is that document's own
+register, not this one's — this file does not track sitrep findings.)
+
 **Read this instead of the seven source docs.** Those docs accumulated from
 2026-08-12 onward with no drain mechanism: later branches fixed items
 incidentally and nobody struck them off, so by 2026-09-20 they no longer said
@@ -53,21 +63,22 @@ At the 2026-09-20 compile, eight agents re-verified all **127 items** then known
 against `main`, each against the source doc it owned. A ninth agent, which had
 performed none of that work, independently re-derived every `DONE` verdict from
 the code or the cited commit rather than trusting the evidence string. (The
-total is 134 today; seven have been added since: `SW-01`–`SW-03`, found by the
+total is 135 today; eight have been added since: `SW-01`–`SW-03`, found by the
 2026-09-21 sweep, `SW-04`–`SW-05`, found by the final whole-branch review that
 corrected this document, `CB-01`, found and closed on the 2026-09-21 close-out
-branch, and one extra entry created by **splitting `SW-02` in two** — its
-confusable instance was struck, its remainder settled. All were evidenced
-against the code at the time they were written.)
+branch, one extra entry created by **splitting `SW-02` in two** — its
+confusable instance was struck, its remainder settled — and `RG-01`, added
+2026-09-23. All were evidenced against the code at the time they were
+written.)
 
 | Verdict | Count | Where it lives in this doc |
 |---|---|---|
 | Already fixed — struck | 96 | *Struck* register (no action) |
-| Live — still open | 0 | *Open items* (empty) |
+| Live — still open | 1 | *Open items* — `RG-01` |
 | Needs a decision | 0 | *Needs a decision* (empty) |
 | Blocked on a deploy, device, or browser | 12 | *Blocked* |
 | Settled — declined deliberately | 26 | *Settled — do not re-raise* |
-| **Total** | **134** | |
+| **Total** | **135** | |
 
 **How 132 became 134:** `SW-02` split into two entries (one struck, one
 settled) and `CB-01` was added and closed. **How 83 struck became 96:** the
@@ -75,7 +86,10 @@ twelve entries closed out on 2026-09-21 (`SW-05`, `SW-01`, `SW-04`, `FN-05`,
 `CD-16`, `SW-02`'s confusable instance, `SW-03`, and the five decided-and-built
 `CD-02`, `CD-03`, `CD-04`, `CD-06`, `CD-07`) plus `CB-01`. **How 24 settled
 became 26:** `FP-07` and the `SW-02` remainder. *Blocked* is unchanged at 12
-and **nothing in it was verified on 2026-09-21.**
+and **nothing in it was verified on 2026-09-21.** **How 134 became 135:**
+`RG-01`, added 2026-09-23 — the first entry to stand in *Open items* since
+that section was drained, and the only one not found by reading this codebase
+(it is about where a copy of the database goes, which the code cannot see).
 
 **Both migrations written on 2026-09-21 are now applied.**
 `20260921000000_cron_heartbeat_last_success` (adds a nullable `lastSuccessAt`
@@ -87,11 +101,24 @@ applied to production on 2026-09-21 at 09:53 UTC, verified against
 *Migration state* below. Both were additive on reads **and** on writes per
 `docs/DEPLOY.md` §4b — the new columns are nullable, so the still-running old
 build could not violate a NOT NULL constraint, and dropping a foreign key
-removed a restriction rather than adding one. **A third migration,
-`20260921120000_user_whats_new_seen_at` (ADR 0056), is now written and NOT
-applied.** It adds a nullable `whatsNewSeenAt` to `User`, deliberately not
-backfilled. Running it is the operator's call; nothing in this document should
-be read as claiming it has run.
+removed a restriction rather than adding one. **TWO migrations are now
+written and NOT applied** (updated 2026-09-23; this section previously named
+only the first):
+
+1. `20260921120000_user_whats_new_seen_at` (ADR 0056) adds a nullable
+   `whatsNewSeenAt` to `User`, deliberately not backfilled. Additive on reads
+   and writes, so it opens no §4b window.
+2. `20260922000000_rollout_gate` (`feat/rollout-gate`; ADRs 0057, 0058, 0059)
+   — the bigger of the two and **the only one that opens a `docs/DEPLOY.md`
+   §4b window**. It changes `JournalEntry`'s unique key from `(tripId, date)`
+   to `(tripId, date, authorId)`, which drops the index the currently
+   deployed build's `upsert` uses as its `ON CONFLICT` target, so the old
+   build can read Journal entries but not save one for the length of the
+   build. One deploy is being taken deliberately — see `docs/DEPLOY.md` §4c,
+   which is the authority on both and carries the ordered checklist.
+
+Running either is the operator's call; nothing in this document should be read
+as claiming either has run.
 
 **Updated 2026-09-21.** The sweep on branch `chore/follow-ups-triage-and-sweep`
 closed **39** of the 42 items that were open on 2026-09-20 and moved them to the
@@ -397,17 +424,19 @@ naming, doc drift.
 | `OPS-` | operational debt owed by `docs/things-to-fix.md` |
 | `SW-` | **no source doc** — found during the 2026-09-21 sweep (`SW-01`–`SW-03`) or the final whole-branch review that corrected this document (`SW-04`–`SW-05`) |
 | `CB-` | **no source doc** — found during the 2026-09-21 close-out on branch `chore/close-the-open-backlog` (`CB-01`) |
+| `RG-` | **no source doc** — found while building the rollout gate on branch `feat/rollout-gate`, 2026-09-22/23 (`RG-01`) |
 
-`SW-` and `CB-` are the two prefixes with nothing to follow the citation back
-to. Those entries are self-contained: the evidence in them is all the evidence
-there is.
+`SW-`, `CB-` and `RG-` are the prefixes with nothing to follow the citation
+back to. Those entries are self-contained: the evidence in them is all the
+evidence there is.
 
 ---
 # Open items
 
-**0 items. This section is empty.** Everything that stood here was closed out
-on 2026-09-21 on branch `chore/close-the-open-backlog` — struck, settled, or
-split between the two. The trail:
+**1 item, added 2026-09-23: `RG-01`.** It is below. Everything that stood here
+before it was closed out on 2026-09-21 on branch
+`chore/close-the-open-backlog` — struck, settled, or split between the two.
+The trail:
 
 | Was here | Where it went | Commit |
 |---|---|---|
@@ -421,10 +450,55 @@ split between the two. The trail:
 | `SW-04` | *Struck* — built | `6480936` |
 | `SW-03` | *Struck* — was already fixed on the previous branch | `06f25a3` |
 
-**Do not read "empty" as "nothing is owed."** Twelve items sit in *Blocked*,
-untouched, and a third migration (`whatsNewSeenAt`, ADR 0056) is now the one
-written and unapplied — see the trust statement above. What is empty is the
-set of things an agent in this sandbox can pick up and build.
+**That trail emptied this section; it did not mean nothing was owed.** Twelve
+items sit in *Blocked*, untouched, and a third migration (`whatsNewSeenAt`,
+ADR 0056) is written and unapplied — see the trust statement above.
+
+### RG-01 · The production database dumps were downloadable by anyone while the repository was public
+
+- **Priority: P0** · **Effort: M** — not code. Console work, token rotation,
+  and one decision about where backups should live.
+- **Source:** none — surfaced on 2026-09-23 on branch `feat/rollout-gate`,
+  while writing `/privacy` forced an inventory of every place Traveller data
+  actually goes. The architecture sitrep explicitly listed the backup
+  artifacts as out of scope, and repository visibility is not observable from
+  inside the repository, so nothing was careless here: it was invisible from
+  where everyone was looking.
+- **What was exposed:** `.github/workflows/db-backup.yml` uploads a daily full
+  production `pg_dump` as a **GitHub Actions artifact** with 30-day retention.
+  Who can download an Actions artifact is exactly who can read the repository,
+  and **the repository was public until 2026-09-23**. The dumps carry bearer
+  tokens (`ShareLink`, `CalendarFeed`, `Invite`, `GlobeInvite`, and the stored
+  Google `Account` tokens), push subscription keys, and every Traveller's
+  content. **CI secrets are not in a dump** — `AUTH_SECRET` is a Vercel
+  environment variable — so session forgery from the dump alone is not
+  possible, and there is nothing to rotate on that account.
+- **The actions themselves are in `docs/DEPLOY.md` §5b** ("Outstanding
+  operator actions"), and stay there. This entry exists so they are findable
+  from the backlog rather than only from a runbook read before deploys —
+  these are urgent now and have nothing to do with deploying. **Do not copy
+  the list here**; two copies of a remediation is how one of them goes stale.
+- **Ordering is load-bearing: artifact deletion first.** Making the repository
+  private closed the door; it did not un-publish what was already reachable
+  through it. Rotating tokens while the old dumps are still downloadable
+  achieves less than it looks like it does.
+- **⚠ One step cannot be performed as written.** *"Force a Google re-auth"*
+  has **no mechanism in TEEPEE**: retiring the stored `Account.access_token` /
+  `refresh_token` / `id_token` means deleting `Account` rows by hand, or
+  revoking TEEPEE's grant from each Google account's own security settings.
+  The repo offers neither affordance. A step an operator cannot perform is one
+  they silently skip, so either build the affordance or do it deliberately
+  out-of-band — do not leave it reading like a button that exists.
+- **⚠ The cost of token rotation lands on the Travellers, not the operator.**
+  Every Share link and every Calendar feed URL already handed out stops
+  working, and the holders have to be sent new ones. That is exactly why this
+  gets postponed, and postponement here is invisible — nothing surfaces an
+  unrotated token. Make the trade deliberately and write down which way it
+  went; do not let it be made by drift.
+- **The durable fix is item 4 in §5b**: move the dump target off Actions
+  artifacts entirely (R2 is already configured). That removes the class rather
+  than leaving it depending on a repository setting nobody reading this
+  repository can see.
 
 ---
 
@@ -469,9 +543,12 @@ running app makes possible.**
 > believed unrun are in fact applied in production, and that part is history.
 > **The two migrations written on 2026-09-21 (`CD-06`, `FN-05`) are now
 > applied too** — see *Two migrations written on 2026-09-21* below for the
-> record. **A third, `20260921120000_user_whats_new_seen_at` (ADR 0056), is
-> now written and NOT applied**, so there *is* still something pending on the
-> database side of the next deploy. The rest is a short list of checks that
+> record. **Two others are written and NOT applied**:
+> `20260921120000_user_whats_new_seen_at` (ADR 0056) and
+> `20260922000000_rollout_gate` (`feat/rollout-gate`), the second of which is
+> the only one opening a `docs/DEPLOY.md` §4b window. So there *is* still
+> something pending on the database side of the next deploy, and it is larger
+> than this section used to say. The rest is a short list of checks that
 > need a person with a running app, a phone, a calendar client, or a browser.
 > **Nothing in this section was verified on 2026-09-21**, and nothing here may
 > be reported as such.
@@ -498,11 +575,23 @@ that reads their columns, and were **not** applied by the agent that wrote
 them — that branch had no database access. The descriptions below stand as
 written.
 
-> **A third migration is now written and not applied:**
-> `20260921120000_user_whats_new_seen_at` (ADR 0056) adds a **nullable**
-> `whatsNewSeenAt` to `User`, deliberately un-backfilled because `NULL`
-> carries meaning there. Additive on reads and writes per `docs/DEPLOY.md`
-> §4b. Applying it is the operator's call.
+> **Two further migrations are written and not applied** (corrected
+> 2026-09-23 — this note named only the first, while `docs/DEPLOY.md` §4c
+> already knew about both):
+>
+> - `20260921120000_user_whats_new_seen_at` (ADR 0056) adds a **nullable**
+>   `whatsNewSeenAt` to `User`, deliberately un-backfilled because `NULL`
+>   carries meaning there. Additive on reads and writes per `docs/DEPLOY.md`
+>   §4b, so it opens no window of its own.
+> - `20260922000000_rollout_gate` (`feat/rollout-gate`) re-keys
+>   `JournalEntry` to `(tripId, date, authorId)` and is **the one that does**
+>   open a §4b window: dropping the old unique index removes the `ON CONFLICT`
+>   target the deployed build's Journal `upsert` relies on, so that build can
+>   read but not save a Journal entry while the new one builds. One deploy is
+>   being taken deliberately (ADR 0058).
+>
+> Applying either is the operator's call; `docs/DEPLOY.md` §4c is the
+> authority, including what to do if the migration aborts (P3009).
 
 - **`20260921000000_cron_heartbeat_last_success`** (`CD-06`, `11fb9ba`,
   `5b62455`). Adds a **nullable** `lastSuccessAt` to `CronHeartbeat`, then

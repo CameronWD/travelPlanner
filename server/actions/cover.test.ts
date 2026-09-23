@@ -18,6 +18,8 @@ const {
   storageSaveMock,
   storageDeleteMock,
   storageReadMock,
+  scheduleBlobDeletionMock,
+  reportErrorMock,
 } = vi.hoisted(() => ({
   requireTripAccessMock: vi.fn().mockResolvedValue({
     user: { id: "u1" },
@@ -29,10 +31,16 @@ const {
   storageSaveMock: vi.fn(),
   storageDeleteMock: vi.fn(),
   storageReadMock: vi.fn().mockResolvedValue(null),
+  scheduleBlobDeletionMock: vi.fn().mockResolvedValue(undefined),
+  reportErrorMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+vi.mock("@/lib/blob-retention", () => ({ scheduleBlobDeletion: scheduleBlobDeletionMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
+// ARCH-OBS-1: the storage-write catch reports to the error sink. Mocked
+// entirely here — reportError's own behaviour is lib/error-sink.test.ts's job.
+vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 vi.mock("@/lib/db", () => ({
   db: {
     trip: {
@@ -133,13 +141,14 @@ describe("setTripCover", () => {
     );
   });
 
-  it("replacing an existing cover deletes the old blob", async () => {
+  it("replacing an existing cover schedules the old blob for retention (ARCH-DAT-3)", async () => {
     tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/old" });
     const fd = makeFormData({
       file: new File(["img"], "p.png", { type: "image/png" }),
     });
     await setTripCover(fd);
-    expect(storageDeleteMock).toHaveBeenCalledWith("trips/t1/old");
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["trips/t1/old"]);
   });
 
   it("returns a friendly failure and leaves the trip untouched when the blob write fails", async () => {
@@ -153,6 +162,11 @@ describe("setTripCover", () => {
     expect(result.error).toBe("Upload failed — nothing was saved. Please try again.");
     expect(tripUpdateMock).not.toHaveBeenCalled();
     expect(revalidatePathMock).not.toHaveBeenCalled();
+    // ARCH-OBS-1
+    expect(reportErrorMock).toHaveBeenCalledWith(expect.any(Error), {
+      route: "server/actions/cover.ts#setTripCover",
+      source: "server",
+    });
   });
 
   it("is access-checked before the write", async () => {
@@ -170,11 +184,12 @@ describe("setTripCover", () => {
 // ---------------------------------------------------------------------------
 
 describe("removeTripCover", () => {
-  it("deletes the blob and clears coverImageKey in the db", async () => {
+  it("schedules the blob for retention (ARCH-DAT-3) and clears coverImageKey in the db", async () => {
     tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/old" });
     const result = await removeTripCover(TRIP_ID);
     expect(result.success).toBe(true);
-    expect(storageDeleteMock).toHaveBeenCalledWith("trips/t1/old");
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["trips/t1/old"]);
     expect(tripUpdateMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: TRIP_ID },
@@ -188,5 +203,6 @@ describe("removeTripCover", () => {
     const result = await removeTripCover(TRIP_ID);
     expect(result.success).toBe(true);
     expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).not.toHaveBeenCalled();
   });
 });

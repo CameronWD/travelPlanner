@@ -14,11 +14,13 @@ const {
   attachmentDeleteManyMock,
   noteDeleteManyMock,
   storageDeleteMock,
+  scheduleBlobDeletionMock,
 } = vi.hoisted(() => ({
   attachmentFindManyMock: vi.fn(),
   attachmentDeleteManyMock: vi.fn(),
   noteDeleteManyMock: vi.fn(),
   storageDeleteMock: vi.fn(),
+  scheduleBlobDeletionMock: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -43,13 +45,25 @@ vi.mock("@/lib/storage", async (importOriginal) => {
   };
 });
 
-import { cleanupTargetSideData, cleanupTargetSideDataTx, deleteBlobsBestEffort } from "./target-cleanup";
+// ARCH-DAT-3: blob destruction is deferred. cleanupTargetSideData /
+// cleanupGlobeAttachments / cleanupTargetSideDataTx no longer call
+// storage.delete directly — they hand storage keys to scheduleBlobDeletion,
+// which records them in DeletedBlob for scripts/sweep-deleted-blobs.ts to
+// destroy later. (deleteBlobsBestEffort was deleted in fix round 1, I4 — its
+// only job, scheduling AFTER a $transaction committed, moved inside
+// cleanupTargetSideDataTx itself, see below.)
+vi.mock("@/lib/blob-retention", () => ({
+  scheduleBlobDeletion: scheduleBlobDeletionMock,
+}));
+
+import { cleanupTargetSideData, cleanupTargetSideDataTx } from "./target-cleanup";
 
 beforeEach(() => {
   vi.clearAllMocks();
   attachmentDeleteManyMock.mockResolvedValue({ count: 0 });
   noteDeleteManyMock.mockResolvedValue({ count: 0 });
   storageDeleteMock.mockResolvedValue(undefined);
+  scheduleBlobDeletionMock.mockResolvedValue(undefined);
 });
 
 // ---------------------------------------------------------------------------
@@ -57,7 +71,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("cleanupTargetSideData", () => {
-  it("deletes attachments (with blobs) and notes for a target", async () => {
+  it("schedules attachment blobs for retention (ARCH-DAT-3) and deletes notes for a target", async () => {
     attachmentFindManyMock.mockResolvedValue([
       { id: "a1", storageKey: "k1" },
       { id: "a2", storageKey: null },
@@ -65,8 +79,8 @@ describe("cleanupTargetSideData", () => {
 
     await cleanupTargetSideData("t1", "TRANSPORT", "tr1");
 
-    expect(storageDeleteMock).toHaveBeenCalledWith("k1");
-    expect(storageDeleteMock).toHaveBeenCalledTimes(1);
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["k1", null]);
     expect(attachmentDeleteManyMock).toHaveBeenCalledWith({
       where: { tripId: "t1", targetType: "TRANSPORT", targetId: "tr1" },
     });
@@ -75,7 +89,7 @@ describe("cleanupTargetSideData", () => {
     });
   });
 
-  it("calls storage.delete for each non-null storageKey", async () => {
+  it("schedules retention for every attachment's storageKey (nulls included, filtered downstream)", async () => {
     attachmentFindManyMock.mockResolvedValue([
       { id: "a1", storageKey: "key-a" },
       { id: "a2", storageKey: "key-b" },
@@ -84,17 +98,17 @@ describe("cleanupTargetSideData", () => {
 
     await cleanupTargetSideData("t2", "STOP", "stop-1");
 
-    expect(storageDeleteMock).toHaveBeenCalledTimes(2);
-    expect(storageDeleteMock).toHaveBeenCalledWith("key-a");
-    expect(storageDeleteMock).toHaveBeenCalledWith("key-b");
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["key-a", "key-b", null]);
   });
 
-  it("does not call storage.delete when there are no attachments", async () => {
+  it("still schedules retention (with an empty list) when there are no attachments", async () => {
     attachmentFindManyMock.mockResolvedValue([]);
 
     await cleanupTargetSideData("t3", "ITEM", "item-1");
 
     expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([]);
     expect(attachmentDeleteManyMock).toHaveBeenCalledWith({
       where: { tripId: "t3", targetType: "ITEM", targetId: "item-1" },
     });
@@ -103,22 +117,26 @@ describe("cleanupTargetSideData", () => {
     });
   });
 
-  it("swallows storage.delete errors (best-effort) and continues", async () => {
+  it("swallows a scheduleBlobDeletion failure (best-effort) and still cleans up the rows", async () => {
     attachmentFindManyMock.mockResolvedValue([
       { id: "a1", storageKey: "bad-key" },
       { id: "a2", storageKey: "good-key" },
     ]);
-    storageDeleteMock
-      .mockRejectedValueOnce(new Error("storage unavailable"))
-      .mockResolvedValueOnce(undefined);
+    scheduleBlobDeletionMock.mockRejectedValueOnce(new Error("db down"));
 
     // Should not throw
     await expect(
       cleanupTargetSideData("t4", "ACCOMMODATION", "acc-1"),
     ).resolves.toBeUndefined();
 
-    // Both deletes were attempted
-    expect(storageDeleteMock).toHaveBeenCalledTimes(2);
+    // Minor (fix round 1): this used to be vacuous — without asserting
+    // scheduleBlobDeletion was actually reached, a revert to a direct
+    // per-key storage.delete loop (which would never call the rejecting
+    // mock at all) would pass this test too, since the DB-cleanup
+    // assertions below don't depend on it. Prove the rejected mock was
+    // really exercised, and that no direct storage.delete crept back in.
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["bad-key", "good-key"]);
+    expect(storageDeleteMock).not.toHaveBeenCalled();
     // DB cleanup still ran
     expect(attachmentDeleteManyMock).toHaveBeenCalled();
     expect(noteDeleteManyMock).toHaveBeenCalled();
@@ -160,7 +178,7 @@ describe("cleanupTargetSideDataTx", () => {
     } as any;
   }
 
-  it("deletes attachment and note rows inside the tx and returns storage keys (no blob deletes)", async () => {
+  it("deletes attachment and note rows, and schedules blob retention, all inside the SAME tx (I3, fix round 1)", async () => {
     const tx = fakeTx([{ storageKey: "k1" }, { storageKey: null }]);
 
     const keys = await cleanupTargetSideDataTx(tx, "t1", "TRANSPORT", "tr1");
@@ -177,6 +195,10 @@ describe("cleanupTargetSideDataTx", () => {
       where: { tripId: "t1", targetType: "TRANSPORT", targetId: "tr1" },
     });
     expect(storageDeleteMock).not.toHaveBeenCalled();
+    // scheduleBlobDeletion is called with the SAME tx handle (not the
+    // post-commit global db) — that's what makes the row deletes and the
+    // DeletedBlob write commit or roll back together.
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["k1"], tx);
   });
 
   it("returns an empty array when there are no attachments", async () => {
@@ -185,6 +207,7 @@ describe("cleanupTargetSideDataTx", () => {
     const keys = await cleanupTargetSideDataTx(tx, "t2", "ITEM", "item-1");
 
     expect(keys).toEqual([]);
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([], tx);
   });
 
   it("filters out null storageKeys", async () => {
@@ -193,34 +216,6 @@ describe("cleanupTargetSideDataTx", () => {
     const keys = await cleanupTargetSideDataTx(tx, "t3", "ACCOMMODATION", "acc-1");
 
     expect(keys).toEqual(["k2"]);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// deleteBlobsBestEffort
-// ---------------------------------------------------------------------------
-
-describe("deleteBlobsBestEffort", () => {
-  it("does nothing when storageKeys is empty (does not call getStorage)", async () => {
-    await deleteBlobsBestEffort([]);
-    expect(storageDeleteMock).not.toHaveBeenCalled();
-  });
-
-  it("calls storage.delete for each key", async () => {
-    await deleteBlobsBestEffort(["k1", "k2"]);
-
-    expect(storageDeleteMock).toHaveBeenCalledTimes(2);
-    expect(storageDeleteMock).toHaveBeenCalledWith("k1");
-    expect(storageDeleteMock).toHaveBeenCalledWith("k2");
-  });
-
-  it("swallows storage.delete errors and continues (best-effort)", async () => {
-    storageDeleteMock
-      .mockRejectedValueOnce(new Error("storage unavailable"))
-      .mockResolvedValueOnce(undefined);
-
-    await expect(deleteBlobsBestEffort(["bad-key", "good-key"])).resolves.toBeUndefined();
-
-    expect(storageDeleteMock).toHaveBeenCalledTimes(2);
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["k2"], tx);
   });
 });

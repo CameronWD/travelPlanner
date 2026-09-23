@@ -17,6 +17,40 @@ that the behaviours behind those two have **not** regressed in current code. Thi
 document is about structure: what the architecture assumes, and which of those
 assumptions stop being true when the people using TEEPEE are no longer one household.
 
+## Status — 2026-09-23
+
+**The shortlist is closed.** All 15 of the findings this document said must
+happen before telling 15 friends the URL — the 14 flagged *Blocks rollout:
+YES*, minus `ARCH-DAT-2`, plus the two P2s (`ARCH-BND-2`, `ARCH-BND-3`) —
+were fixed on the branch **`feat/rollout-gate`**. Each finding below carries
+a dated **CLOSED** note saying what was actually done; this section is the
+index, not the record.
+
+| | |
+|---|---|
+| Closed | `ARCH-TEN-1` `ARCH-TEN-2` `ARCH-TEN-3` `ARCH-TEN-4` `ARCH-TEN-7` `ARCH-DAT-1` `ARCH-DAT-3` `ARCH-DAT-4` `ARCH-DAT-6` `ARCH-OBS-1` `ARCH-OBS-2` `ARCH-ADR-1` `ARCH-ADR-3` `ARCH-BND-2` `ARCH-BND-3` |
+| Deliberately deferred | `ARCH-DAT-2` — see its own note below |
+| Still open | the 24 findings that never blocked anyone arriving, unchanged |
+
+Three new ADRs record the decisions that were genuinely decisions rather than
+repairs: **ADR 0057** (the door), **ADR 0058** (per-Traveller Journal
+entries) and **ADR 0059** (errors report to our own database). ADRs 0017,
+0018 and 0052 carry dated amendments where this branch made their text
+untrue.
+
+`ARCH-DAT-2` was deferred by the operator, deliberately and with the
+reasoning written down: **soft-delete preserves the files, which is the
+irreversible half.** `ARCH-DAT-3`'s fix means a deleted blob survives long
+enough for a database restore to find it, and that is the part that cannot be
+bought back later. A restore *runbook* is prose — it can be written at any
+time, and nothing degrades while it is not written.
+
+Two things this branch produced that are not findings and belong with them:
+`docs/rollout-gate-manual-verify.md` (everything the sandbox could not check,
+with runnable steps) and the backup-artifact exposure recorded in
+`docs/DEPLOY.md` §5b, which surfaced only because writing a privacy policy
+forced an inventory of where the data actually goes.
+
 ## Baseline at time of audit
 
 | Check | Result |
@@ -194,6 +228,7 @@ unguarded published actions**. Every finding here is a scope mismatch inside a g
 action, not a missing guard.
 
 ### ARCH-TEN-1 · `restoreStops` writes caller-supplied Item and Accommodation rows without checking they belong to the Trip it authorised
+**CLOSED 2026-09-23** — `feat/rollout-gate`. `restoreStops` now re-reads every payload `id` **and** every payload `stopId` against the authorised `tripId` before the transaction opens, rejecting the whole call on any foreign id. Id lists are deduped so a duplicate-id payload cannot falsely reject a legitimate Undo.
 - **Severity: P0** · **Blocks rollout: yes** — the only place in the codebase where an
   authenticated Traveller can modify existing rows in a Trip they are not a member of
   (`ARCH-TEN-2` lets them *create* a row there, but touches nothing that exists).
@@ -224,6 +259,7 @@ action, not a missing guard.
 - **See also:** `ARCH-CMP-2` — a second, independent defect in the same function.
 
 ### ARCH-TEN-3 · Nothing in the repo decides who may sign in
+**CLOSED 2026-09-23** — `feat/rollout-gate`. The door is built, not just specified: a `signIn` **callback** admitting on allowlist **or** a pending unexpired Trip Invite, Access request capture on refusal, and an `/admin` surface to approve, dismiss and revoke. See **ADR 0057**, which also records four things found while building it — chiefly that admission by Invite must write an `AllowedEmail` row or it is a one-shot ticket.
 - **Severity: P0** · **Blocks rollout: yes** — it is the precondition for every other
   finding here.
 - **Evidence:** `lib/auth.ts:68-80` — `callbacks` defines only `jwt` and `session`; there
@@ -246,6 +282,7 @@ action, not a missing guard.
 - **Fix:** fully specified in **"The door"** below.
 
 ### ARCH-TEN-2 · `recordActivity` writes an Activity row into any Trip the caller names, with no membership check
+**CLOSED 2026-09-23** — `feat/rollout-gate`. `recordActivity` now takes `requireTripAccess` for the `tripId` it is handed, before the write. The silent `catch` is deliberately retained — that is `ARCH-OBS-3`, still deferred — with an inline comment saying why.
 - **Severity: P1** · **Blocks rollout: yes** — the Activity feed is what a Traveller
   reads to find out what changed. Forgeable entries make it untrustworthy, and the forger
   is no longer necessarily someone the reader knows.
@@ -272,6 +309,7 @@ action, not a missing guard.
 
 ### ARCH-TEN-4 · Any Globe member can invite anyone else onto the Globe
 *(Found independently by the tenancy lane and the ADR-drift lane as `ARCH-ADR-2`; merged.)*
+**CLOSED 2026-09-23** — `feat/rollout-gate`. `inviteToGlobe` is gated by a new `requireGlobeOwner`. The nine other `requireGlobeAccess` call sites are deliberately left ungated — over-gating was judged the more dangerous failure here. Load-bearing for **ADR 0057**, which nonetheless excludes Globe Invites from sign-in admission permanently and on independent grounds.
 - **Severity: P1** · **Blocks rollout: yes** — a Globe is account-level and permanent, and
   admitting someone is irreversible through the UI. **Raised further by the door decision:**
   because a pending Invite will admit an address to the deployment, an ungated
@@ -302,6 +340,7 @@ action, not a missing guard.
   Pair it with a `removeGlobeMember` so admission is reversible.
 
 ### ARCH-TEN-7 · A leaked Calendar feed token exposes booking references, confirmation numbers, addresses and private notes — not "only schedule"
+**CLOSED 2026-09-23** — `feat/rollout-gate`. `Item.booking`, `Item.notes`, `Accommodation.confirmation`, `Accommodation.notes` and `Transport.reference` — the last of which was in the event **SUMMARY**, not the DESCRIPTION — are removed from the feed route's selects, the `Ics*` types and the serialiser in `lib/ics.ts`. Addresses and place names are kept: they are schedule. **ADR 0052 amended.**
 - **Severity: P1** · **Blocks rollout: yes** — a subscription URL is the artefact most
   likely to leak, and there is no longer a single household whose members already know
   each other's confirmation numbers.
@@ -465,6 +504,7 @@ worth reading in full if you touch deletion. The house rule is stated at
 `components/trip/help-legend.tsx:96-98`: *"Deleting is never undoable."*
 
 ### ARCH-DAT-6 · The Journal autosaves a single shared row per Trip-day with last-write-wins
+**CLOSED 2026-09-23** — `feat/rollout-gate`. One shared row per Trip-day became one entry per Traveller (`@@unique([tripId, date, authorId])`), which removes the conflict class by construction rather than detecting it; blanking the box is now confirm-gated and awaits any in-flight autosave. See **ADR 0058**.
 - **Severity: P0** · **Blocks rollout: yes** — the Journal is the only place in TEEPEE
   holding prose a Traveller cannot reconstruct, it is shared by every member, and the
   destructive path needs nothing unusual: two members, one day, one stale tab.
@@ -492,6 +532,7 @@ worth reading in full if you touch deletion. The house rule is stated at
   shared model was never really intended.
 
 ### ARCH-DAT-1 · A Traveller admitted to a Trip can never be removed, and every member holds irreversible delete power over everything
+**CLOSED 2026-09-23** — `feat/rollout-gate`. `removeTripMember` and `leaveTrip` added — only the `TripMember` row is dropped, so the person's Journal entries, Notes and Costs survive — and the owner can neither self-remove nor leave. Whole-branch destruction (`deleteStop`, `promoteFork`) is now owner-or-admin. **ADR 0052 amended.** Note that Trip removal is *not* sign-in revocation; that is `/admin`'s allowlist (ADR 0057).
 - **Severity: P1** · **Blocks rollout: yes** — the whole point of independent Travellers is
   that each invites their own people. Today an invitation is a one-way grant.
 - **Evidence:** `lib/guards.ts:69-80` — `requireTripAccess` returns for *any* `TripMember`
@@ -514,6 +555,7 @@ worth reading in full if you touch deletion. The house rule is stated at
   and closes most of the blast radius.
 
 ### ARCH-DAT-2 · There is no documented restore procedure and no way to restore one Traveller's Trip
+**DEFERRED 2026-09-23 — deliberately, by the operator.** Not closed, and not an oversight. The irreversible half of this finding was `ARCH-DAT-3`: a hard-deleted R2 object cannot be recovered by any runbook, however good. That half is fixed — soft-delete plus a 35-day retention sweep now preserves the files. A restore **procedure** is writing, not engineering: it can be written at any time, against a database that is by then fully backed up, and nothing gets worse in the meantime. So it was taken out of the rollout-gate branch rather than left implicitly open.
 - **Severity: P1** · **Blocks rollout: yes** — with one household, "restore" meant "roll
   everything back, we're both here". With 10–15 independent Travellers, restoring one Trip
   would silently discard fourteen other people's last day, so in practice you will decline
@@ -538,6 +580,7 @@ worth reading in full if you touch deletion. The house rule is stated at
   guide, so a Traveller knows what is actually promised.
 
 ### ARCH-DAT-3 · Uploaded files are not backed up and are hard-deleted
+**CLOSED 2026-09-23** — `feat/rollout-gate`. Every hard-delete call site on a Traveller-attachment path now records a `DeletedBlob` row instead of destroying the object — including the three in `prisma/demo/persist.ts` and `prisma/real/persist.ts`, the latter being the manual escape hatch whose own docstring calls it the one most likely to be used in anger. A repo-wide grep confirms the only surviving `storage.delete` is `scripts/verify-r2-presign.ts`, on its own throwaway object. `npm run sweep:blobs` destroys only what is older than 35 days, re-checking liveness per chunk immediately before acting, and clearing the record for any key a restore has brought back so a later real deletion starts a fresh clock.
 - **Severity: P1** · **Blocks rollout: yes** — a friend's Trip is where they put the booking
   PDF and the passport scan. Restoring the database gives back the row and the filename and
   never the file, which reads as a worse betrayal than a clean loss.
@@ -555,6 +598,7 @@ worth reading in full if you touch deletion. The house rule is stated at
   the `storageKey` and sweep unreferenced objects weekly.
 
 ### ARCH-DAT-4 · Deleting a Stop silently destroys its Accommodations, their confirmation numbers and their unpaid Costs
+**CLOSED 2026-09-23** — `feat/rollout-gate`, on **both** live delete paths rather than the one the fix brief named: the delete-Stop dialog and **Make it fit → Drop** now render the same itemisation from one component (`components/trip/stop-deletion-preview.tsx`), fed by a new access-checked `previewStopDeletion`. A confirmation number's *value* never reaches the payload — only that there is one.
 - **Severity: P1** · **Blocks rollout: yes** — the most common destructive click in the app
   and the one a first-time Traveller is likeliest to make. Fork-promote itemises its blast
   radius and Trip-delete at least names the categories it destroys; Stop delete, reachable
@@ -734,6 +778,7 @@ Confirmed and not re-derived: **no Sentry or equivalent exists anywhere in the c
 deliberately kept) and reports no errors.
 
 ### ARCH-OBS-1 · Every server-side failure terminates in a bare `console.*` with no downstream sink
+**CLOSED 2026-09-23** — `feat/rollout-gate`. `reportError` and the `ErrorReport` table, wired into `lib/push.ts`, the cron digest route, the attachment storage-write catches, cover upload, the push actions and cron-health. `console.*` deliberately stays alongside every DB write. See **ADR 0059**, including the accepted blind spot: a database-down failure cannot write a database row.
 - **Severity: P1** · **Blocks rollout: yes** *(orchestrator override — the reviewer filed
   this "no"; its own text calls it "the direct, structural cause of the operator's #2 fear",
   and operating for 10–15 people with no error sink at all is a gate, not a nice-to-have)*
@@ -752,6 +797,7 @@ deliberately kept) and reports no errors.
   into "finds out same day".
 
 ### ARCH-OBS-2 · The app's own error boundaries log client-side only
+**CLOSED 2026-09-23** — `feat/rollout-gate`. `/api/client-error` — unauthenticated by design, because a boundary can fire on the sign-in page — plus all three error boundaries, surfaced in `/admin`. Client-sourced reports record but never push. See **ADR 0059**.
 - **Severity: P1** · **Blocks rollout: yes** *(orchestrator override, same reasoning —
   and stronger: OBS-1 is "you must go looking", this is "there is nothing to find")*
 - **Evidence:** `app/(app)/error.tsx:1, 20-22`, `app/(app)/trips/[tripId]/error.tsx:20-22`
@@ -864,6 +910,7 @@ violation; and the flat 98-module `lib/` namespace was checked for concept-level
 in money, dates, fork and auth — none found.
 
 ### ARCH-BND-2 · The `forkId: null` real-plan discriminator is hand-typed in ~96 places despite a shared constant existing
+**CLOSED 2026-09-23** — `feat/rollout-gate`. 100 hand-typed sites down to 16, of which all 10 remaining code sites are excluded **by design**: the `REAL_PLAN` definition itself, one plan-identity entry in `forks.ts`, and eight `data:` payloads (where the constant would be a `where`-clause spelling in a create). Note that the dated views' policy of ignoring `?plan=` is untouched — the finding was about how the filter is *expressed*, and the comments that implied those files were exempt have been reworded.
 - **Severity: P2** · **Blocks rollout: yes, narrowly** — ADR 0020 itself calls auditing every
   `forkId`-scoped query *"the main ongoing cost of this approach"*, and scattering the literal
   defeats that audit.
@@ -880,6 +927,7 @@ in money, dates, fork and auth — none found.
   is what makes "did we scope every query correctly?" answerable by grep rather than by hope.
 
 ### ARCH-BND-3 · "Owner, or an ADMIN_EMAILS operator" is copy-pasted three times instead of being one named guard
+**CLOSED 2026-09-23** — `feat/rollout-gate`. One `isTripOwnerOrAdmin`, in a new `lib/access.ts` deliberately kept free of any `next-auth` import chain so the two test files that wholesale-mock `@/lib/guards` can import the **real** predicate instead of hand-reimplementing it. Re-exported from `lib/guards.ts`.
 - **Severity: P2** · **Blocks rollout: yes** — this is the exact shape of the leak fear:
   duplicated authorisation predicates are harder to verify than one named function.
 - **Evidence:** identical `membership.role !== "owner" && !isAdminEmail(user.email)` at
@@ -996,6 +1044,7 @@ The findings below are therefore not drift in the usual sense. Two are decisions
 reasoning has expired, and three are vocabulary slips.
 
 ### ARCH-ADR-1 · Duplicating a Trip silently re-grants every co-Traveller's membership, with no per-Traveller consent
+**CLOSED 2026-09-23** — `feat/rollout-gate`. Duplication now carries co-Travellers as **pending Invites**, not memberships: one `TripMember` for the duplicator, one `Invite` per co-Traveller (source role, 30-day expiry, created inside the same transaction), and a co-Traveller with no resolvable email is skipped entirely. **ADR 0018 amended** — its "members are copied" section is now history.
 - **Severity: P1** · **Blocks rollout: yes** — for any Trip with more members than the
   duplicator, which is the normal shape once Trips have several independent Travellers.
 - **Evidence:** ADR 0018 copies co-Traveller memberships because *"this is a two-person app
@@ -1014,6 +1063,7 @@ reasoning has expired, and three are vocabulary slips.
   10–15 Travellers.
 
 ### ARCH-ADR-3 · A Globe invite to someone who already has a Globe dead-ends silently while reporting success
+**CLOSED 2026-09-23** — `feat/rollout-gate`. `inviteToGlobe` refuses an invitee who already has a Globe of their own, with an explanation, instead of reporting "Invited" on an invite that could never be accepted. The check sits **after** the new owner gate, so a non-owner cannot use it to probe whether an arbitrary address has an account.
 - **Severity: P1** · **Blocks rollout: yes** — a common case once Travellers are independent
   and may each already have a solo Globe, not the rare one ADR 0023 deferred.
 - **Evidence:** `lib/globe-invites.ts:21-29` returns `null` silently when
@@ -1052,7 +1102,28 @@ reasoning has expired, and three are vocabulary slips.
 
 ---
 
-# The door — specified, not built
+# The door — specified 2026-09-22, built 2026-09-23 (ADR 0057)
+
+> **BUILT 2026-09-23** on `feat/rollout-gate`. Everything below is the
+> specification as agreed on 2026-09-22 and is kept unedited, because it is
+> the reasoning the build was checked against. **Where it and the code
+> disagree, the code and `docs/adr/0057-one-door-sign-in-allowlist.md` are
+> right.** Three things the spec below does not know:
+>
+> - Admission by Invite must **write an `AllowedEmail` row**, or it is a
+>   one-shot ticket that locks every invited Traveller out on their *second*
+>   sign-in. This is the most important thing in ADR 0057 and it is not
+>   anywhere in this section.
+> - Admission is **transitive** — anyone admitted can create a Trip and
+>   invite others — so the allowlist is not a containment boundary. Accepted
+>   by the operator on the condition that each admission notifies the Admin.
+> - Revocation is **JWT-bounded, not instant**, for the table and the env var
+>   alike.
+>
+> The env-var-only shape sketched in *"One door, in code"* below was **not**
+> what shipped: the allowlist has two sources, because an env var cannot be
+> written at runtime and so Access request approval would have nowhere to put
+> the address. ADR 0057 decision 3 records that.
 
 This is the access-control design agreed with the operator on 2026-09-22. **No code was
 written for it.** It is recorded here so it can be built later from this section alone.
@@ -1086,9 +1157,17 @@ second, invisible, hand-maintained door. Every future login provider inherits th
 which is the reason for doing it this way rather than keeping two doors.
 
 Shape it exactly like `isAdminEmail` (`lib/admin.ts:13-24`): a server-only `lib/` predicate,
-env-var backed so it is revocable without a deploy, comma-separated, case-insensitive,
+env-var backed so it is ~~revocable without a deploy~~, comma-separated, case-insensitive,
 normalising with `trim().toLowerCase()`. Roughly one new predicate and four lines in
 `authConfig.callbacks`.
+
+> **STRUCK 2026-09-23 — this one clause is backwards, not merely superseded.**
+> An env var is the *less* revocable source: dropping an address from
+> `ALLOWED_EMAILS` needs a dashboard edit **and a redeploy**, where deleting an
+> `AllowedEmail` row is a button in `/admin`. That is precisely why the env var
+> is the break-glass source and the table is the product one (ADR 0057,
+> decision 3). Neither takes effect until the person's next sign-in, because
+> revocation is JWT-bounded. Do not quote this sentence.
 
 Two things the callback must handle, because Auth.js runs it for **every** provider:
 
@@ -1169,6 +1248,9 @@ plan their own Trips.
 The term is deliberately **not** being added to `CONTEXT.md` yet — the glossary describes what
 TEEPEE *is*, not what it will be. Add it when the feature is built.
 
+> **DONE 2026-09-23** — the feature is built, so **Access request** is now in
+> `CONTEXT.md`, next to **Invite**.
+
 ## Notification: in-app only, no email
 
 The app has **no mail dependency of any kind** — no Resend, nodemailer, SendGrid or Postmark —
@@ -1189,6 +1271,13 @@ when Google already gates?"*), and the result of a real trade-off against keepin
 Draft it at build time, not before. It should record the allowlist-or-Trip-Invite rule above
 and, specifically, **why Globe Invites are excluded** — that exclusion is the non-obvious part
 a future reader will otherwise undo.
+
+> **DONE 2026-09-23** — `docs/adr/0057-one-door-sign-in-allowlist.md`. It
+> records the three decisions above with their rejected alternatives, and the
+> four things found only while building it (the `AllowedEmail` write on
+> invite admission, transitivity, deployment-scoped rather than Trip-scoped
+> revocation, and JWT-bounded revocation). ADR 0058 and ADR 0059 cover the
+> Journal and the error sink from the same branch.
 
 ---
 

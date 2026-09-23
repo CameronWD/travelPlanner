@@ -128,8 +128,11 @@ describe("recordActivity", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("resolves without throwing when requireUser rejects (best-effort)", async () => {
-    requireUserMock.mockRejectedValue(new Error("Unauthenticated"));
+  it("resolves without throwing when requireTripAccess rejects (best-effort)", async () => {
+    // requireTripAccess is the guard recordActivity now uses (ARCH-TEN-2);
+    // this is the same best-effort-swallow intent the old requireUser
+    // variant of this test covered, updated to the new guard.
+    requireTripAccessMock.mockRejectedValue(new Error("Unauthenticated"));
     await expect(
       recordActivity({
         tripId: TRIP_ID,
@@ -151,6 +154,32 @@ describe("recordActivity", () => {
       changes,
     });
     expect(activityCreateMock).toHaveBeenCalledOnce();
+  });
+
+  it("ARCH-TEN-2: does not write an Activity row for a Trip the caller is not a member of", async () => {
+    // requireTripAccess() calls notFound() (a throw) for non-members; the
+    // caller-swallowing catch{} in recordActivity absorbs it, so a forged
+    // call becomes a silent no-op rather than a silent write.
+    requireTripAccessMock.mockRejectedValueOnce(new Error("NOT_FOUND"));
+
+    await recordActivity({
+      tripId: "trip-B",
+      verb: "CREATED",
+      entityType: "STOP",
+      entityLabel: "Forged",
+    });
+
+    expect(activityCreateMock).not.toHaveBeenCalled();
+  });
+
+  it("ARCH-TEN-2: checks Trip access before writing the Activity row", async () => {
+    await recordActivity({
+      tripId: TRIP_ID,
+      verb: "CREATED",
+      entityType: "STOP",
+      entityLabel: "Rome",
+    });
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, activityCreateMock);
   });
 });
 

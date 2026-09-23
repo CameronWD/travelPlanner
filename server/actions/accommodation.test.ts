@@ -36,6 +36,11 @@ const {
   const attachmentFindManyMock = vi.fn().mockResolvedValue([]);
   const attachmentDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const noteDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
+  // ARCH-DAT-3 (fix round 1, I3): cleanupTargetSideDataTx runs for real here
+  // (not stubbed below) and now schedules blob retention INSIDE the tx via
+  // scheduleBlobDeletion(keys, tx) — the fake tx needs deletedBlob.createMany
+  // so that call has somewhere real to land instead of silently erroring.
+  const deletedBlobCreateManyMock = vi.fn().mockResolvedValue({ count: 0 });
   const transactionMock = vi.fn(async (arg: unknown) => {
     if (typeof arg === "function") {
       return (arg as (tx: unknown) => unknown)({
@@ -51,6 +56,7 @@ const {
           deleteMany: attachmentDeleteManyMock,
         },
         note: { deleteMany: noteDeleteManyMock },
+        deletedBlob: { createMany: deletedBlobCreateManyMock },
         exchangeRate: { upsert: vi.fn().mockResolvedValue({}) },
       });
     }
@@ -121,7 +127,8 @@ vi.mock("@/server/actions/target-cleanup", async (importOriginal) => {
   return {
     ...real,
     cleanupTargetSideData: vi.fn().mockResolvedValue(undefined),
-    deleteBlobsBestEffort: vi.fn().mockResolvedValue(undefined),
+    // cleanupTargetSideDataTx (real) now schedules blob retention inside the
+    // tx itself — deleteBlobsBestEffort was deleted (fix round 1, I4).
   };
 });
 

@@ -67,7 +67,7 @@ vi.mock("@/lib/chapters", () => ({ chapterForDate: vi.fn() }));
 vi.mock("@/lib/spend-so-far", () => ({ buildSpendSoFar: vi.fn() }));
 vi.mock("@/lib/transport", () => ({ TRANSPORT_MODE_META: {} }));
 vi.mock("@/lib/time-display", () => ({ zoneLabel: vi.fn() }));
-vi.mock("@/lib/plan-scope", () => ({ WISHLIST_IDEA_WHERE: {}, THINGS_TO_DO_WHERE: {} }));
+vi.mock("@/lib/plan-scope", () => ({ WISHLIST_IDEA_WHERE: {}, THINGS_TO_DO_WHERE: {}, REAL_PLAN: { forkId: null } }));
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("next/link", () => ({ default: ({ children }: { children: React.ReactNode }) => children }));
 vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));

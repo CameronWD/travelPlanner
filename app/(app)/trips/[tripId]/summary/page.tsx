@@ -9,7 +9,8 @@ import {
   Flag as FlagIcon,
 } from "lucide-react";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { REAL_PLAN } from "@/lib/plan-scope";
+import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, nightsBetween } from "@/lib/dates";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
@@ -96,7 +97,14 @@ export default async function SummaryPage({
   params: Promise<{ tripId: string }>;
 }) {
   const { tripId } = await params;
-  await requireTripAccess(tripId);
+  // Membership is kept (not discarded) so Make it fit can gate its owner-only
+  // Drop half — same predicate as the plan and compare pages (I5).
+  const { user, membership } = await requireTripAccess(tripId);
+  const isOwner = isTripOwnerOrAdmin(membership, user.email);
+
+  // Policy (not a BND-2 spelling exemption): this dated view deliberately
+  // always shows the real plan and ignores `?plan=` — see
+  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -121,7 +129,7 @@ export default async function SummaryPage({
   // For a date-less trip: still show rough Stops (if any), then the date-less notice.
   if (!trip.startDate || !trip.endDate) {
     const roughStopsForDateless = await db.stop.findMany({
-      where: { tripId, forkId: null, arriveDate: null },
+      where: { tripId, ...REAL_PLAN, arriveDate: null },
       orderBy: { sortOrder: "asc" },
       select: { id: true, name: true, nights: true, country: true, chapterId: true },
     });
@@ -129,7 +137,7 @@ export default async function SummaryPage({
     // query entirely rather than fetch-then-discard.
     const datelessChapters = trip.chaptersEnabled && roughStopsForDateless.some((s) => s.chapterId)
       ? await db.chapter.findMany({
-          where: { tripId, forkId: null },
+          where: { tripId, ...REAL_PLAN },
           select: { id: true, name: true, colour: true },
         })
       : [];
@@ -192,7 +200,7 @@ export default async function SummaryPage({
       db.stop.findMany({
         // Rough (date-less) stops are excluded from the dated summary; a later
         // task surfaces them as "not yet scheduled".
-        where: { tripId, forkId: null, arriveDate: { not: null } },
+        where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -209,7 +217,7 @@ export default async function SummaryPage({
         },
       }),
       db.transport.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -226,7 +234,7 @@ export default async function SummaryPage({
         },
       }),
       db.accommodation.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         select: {
           id: true,
           stopId: true,
@@ -236,11 +244,11 @@ export default async function SummaryPage({
         },
       }),
       db.item.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         select: { id: true, stopId: true, category: true, date: true, startTime: true, endTime: true, lat: true, lng: true },
       }),
       db.cost.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         orderBy: { createdAt: "asc" },
         select: COST_SELECT,
       }),
@@ -253,13 +261,13 @@ export default async function SummaryPage({
       trip.chaptersEnabled
         ? db.chapter.findMany({
             // Only dated chapters group the dated summary.
-            where: { tripId, forkId: null, startDate: { not: null } },
+            where: { tripId, ...REAL_PLAN, startDate: { not: null } },
             orderBy: { startDate: "asc" },
             select: { id: true, name: true, colour: true, startDate: true, endDate: true },
           })
         : Promise.resolve([]),
       db.stop.findMany({
-        where: { tripId, forkId: null, arriveDate: null },
+        where: { tripId, ...REAL_PLAN, arriveDate: null },
         orderBy: { sortOrder: "asc" },
         select: { id: true, name: true, nights: true, country: true, chapterId: true, pinned: true, sortOrder: true },
       }),
@@ -673,6 +681,7 @@ export default async function SummaryPage({
                 stops={fitStops}
                 anchor={trip.startDate ?? null}
                 hardEndDate={projection.hardEndDate}
+                isOwner={isOwner}
               />
             )}
             <FlagList flags={flags} tripBasePath={tripBasePath} />

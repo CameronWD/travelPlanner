@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { planScope, THINGS_TO_DO_WHERE, firstSearchParam } from "@/lib/plan-scope";
 import { orderPlanStops } from "@/lib/plan-order";
 import { ItineraryManager } from "@/components/trip/itinerary-manager";
@@ -37,7 +37,10 @@ export default async function TripPlanPage({
   const { plan } = await searchParams;
   const selectedForkId = firstSearchParam(plan);
 
-  const { user } = await requireTripAccess(tripId);
+  const { user, membership } = await requireTripAccess(tripId);
+  // ARCH-DAT-1b: deleting a Stop is owner-only — this drives whether the
+  // delete control renders at all (deleteStop's own gate is the real check).
+  const isOwner = isTripOwnerOrAdmin(membership, user.email);
 
   // Validate the fork exists for this trip; fall back to real plan if not.
   const activeFork = selectedForkId
@@ -365,6 +368,7 @@ export default async function TripPlanPage({
           <div className="flex flex-col gap-6 lg:order-2">
             <PlanOverview
               tripId={tripId}
+              isOwner={isOwner}
               summary={planSummary}
               startDate={trip?.startDate ?? null}
               fitStops={stops.map((s) => ({
@@ -377,6 +381,7 @@ export default async function TripPlanPage({
         <div className="flex flex-col gap-6 lg:order-1">
           <ItineraryManager
             tripId={tripId}
+            isOwner={isOwner}
             homeCurrency={trip?.homeCurrency}
             homeBaseName={trip?.homeName}
             homeCountryCode={trip?.homeCountryCode}

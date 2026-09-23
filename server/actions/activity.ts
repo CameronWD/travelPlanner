@@ -13,7 +13,15 @@ export async function recordActivity(input: {
   changes?: ActivityChange[] | { excerpt: string } | ActivitySummary | null;
 }): Promise<void> {
   try {
-    const user = await requireUser();
+    // Guarded by Trip membership, not just requireUser(): recordActivity is a
+    // published server action, so a caller can name any tripId. Non-members
+    // hit requireTripAccess's notFound() (a throw), which the catch{} below
+    // absorbs — turning a forged call into a silent no-op rather than a
+    // silent write into a Trip the caller isn't on (ARCH-TEN-2).
+    // requireTripAccess is cache()'d, so calling it again here costs nothing
+    // when the caller (e.g. deleteAttachment) already checked access for the
+    // same tripId this request — see the comments atop lib/guards.ts.
+    const { user } = await requireTripAccess(input.tripId);
     if (input.verb === "UPDATED" && Array.isArray(input.changes) && input.changes.length === 0) return; // no real change
     await db.activity.create({
       data: {
@@ -28,7 +36,12 @@ export async function recordActivity(input: {
       },
     });
   } catch {
-    // best-effort: never break the caller's mutation
+    // best-effort: never break the caller's mutation. recordActivity is
+    // called from inside other mutations (e.g. deleteAttachment), so a
+    // failure here — including requireTripAccess's notFound() throw above —
+    // must never bubble up. This swallow is deliberate and intentionally
+    // silent; making it observable is ARCH-OBS-3, deferred and out of scope
+    // for this branch.
   }
 }
 

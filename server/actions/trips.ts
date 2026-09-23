@@ -4,10 +4,11 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
-import { requireUser, requireTripAccess } from "@/lib/guards";
-import { isAdminEmail } from "@/lib/admin";
+import { scheduleBlobDeletion } from "@/lib/blob-retention";
+import { requireUser, requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { buildDuplicatePlan } from "@/lib/duplicate-trip";
 import { geocodePlaceDetailed } from "@/lib/geocode";
+import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { recordActivity } from "@/server/actions/activity";
 import { recomputeChapterSpans } from "@/server/actions/stop-flow";
 import {
@@ -255,12 +256,13 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
   // Owner, or an operator listed in ADMIN_EMAILS. Membership is still
   // required — requireTripAccess above already notFound()s for non-members,
   // and an admin gets no bypass of it (ADR 0045).
-  if (membership.role !== "owner" && !isAdminEmail(user.email)) {
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
     return { success: false, error: "Only the trip owner can delete the trip." };
   }
 
-  // Best-effort: remove attachment blobs before the rows cascade away, so we
-  // don't orphan files in storage. Failures here must not block the delete.
+  // Schedule attachment + cover blobs for retention/sweep (ARCH-DAT-3) before
+  // the rows cascade away, rather than destroying them synchronously.
+  // scheduleBlobDeletion never throws, so it never blocks the delete.
   const [tripRow, attachments] = await Promise.all([
     db.trip.findUnique({ where: { id: tripId }, select: { coverImageKey: true } }),
     db.attachment.findMany({
@@ -269,20 +271,10 @@ export async function deleteTrip(tripId: string): Promise<DeleteTripResult> {
     }),
   ]);
 
-  const storage = getStorage();
-
-  const blobDeletes: Promise<void>[] = [];
-  if (tripRow?.coverImageKey) {
-    blobDeletes.push(storage.delete(tripRow.coverImageKey).catch(() => {}));
-  }
-  if (attachments.length > 0) {
-    for (const a of attachments) {
-      if (a.storageKey) blobDeletes.push(storage.delete(a.storageKey).catch(() => {}));
-    }
-  }
-  if (blobDeletes.length > 0) {
-    await Promise.all(blobDeletes);
-  }
+  await scheduleBlobDeletion([
+    tripRow?.coverImageKey,
+    ...attachments.map((a) => a.storageKey),
+  ]);
 
   await db.trip.delete({ where: { id: tripId } });
 
@@ -302,8 +294,13 @@ export type DuplicateTripResult =
 
 /**
  * Duplicate a trip. Creates a new trip with the same structure but with all
- * dates reset to null (rough skeleton). The duplicator becomes the owner;
- * co-traveller memberships are copied as-is.
+ * dates reset to null (rough skeleton). The duplicator alone becomes the
+ * owner; every other source member gets a pending Invite on the copy rather
+ * than automatic membership (ARCH-ADR-1) — carrying the Traveller list over
+ * as live membership bypassed the consent ADR 0017 requires. A source member
+ * whose email can't be resolved is skipped outright: neither Invite nor
+ * membership. (ADR 0018's "co-traveller memberships are copied as-is" claim
+ * was superseded by its 2026-09-23 amendment on this branch.)
  *
  * Accommodations, costs, FX rates and all history are dropped per ADR-0018.
  */
@@ -319,7 +316,7 @@ export async function duplicateTrip(
   // is not an authorization check — the server action is directly callable by
   // any member. Without this, a Traveller could mint a fully-owned copy of
   // someone else's trip, members and all.
-  if (membership.role !== "owner" && !isAdminEmail(user.email)) {
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
     return { success: false, error: "Only the trip owner can duplicate the trip." };
   }
 
@@ -335,6 +332,20 @@ export async function duplicateTrip(
     },
   });
   if (!source) return { success: false, error: "Trip not found" };
+
+  // Resolve emails for every OTHER source member up front — the source of
+  // truth for who gets invited to the copy. A member id that doesn't resolve
+  // to a User (e.g. a deleted account) is skipped below rather than silently
+  // granted membership.
+  const otherMemberIds = source.members.map((m) => m.userId).filter((id) => id !== user.id);
+  const otherUsers =
+    otherMemberIds.length > 0
+      ? await db.user.findMany({
+          where: { id: { in: otherMemberIds } },
+          select: { id: true, email: true },
+        })
+      : [];
+  const emailByUserId = new Map(otherUsers.map((u) => [u.id, u.email]));
 
   const name = newName.trim() || `Copy of ${source.name}`;
   const plan = buildDuplicatePlan(
@@ -355,11 +366,39 @@ export async function duplicateTrip(
   const newTrip = await db.$transaction(async (tx) => {
     const trip = await tx.trip.create({ data: { ...plan.trip, createdById: user.id } });
 
-    // Owner = duplicator; copy every co-traveller membership too (ADR-0018).
+    // Owner = duplicator. Every OTHER source member gets a pending Invite on
+    // the copy instead of an automatic TripMember row (ARCH-ADR-1) — this is
+    // what restores the consent ADR 0017 already requires for membership.
     await tx.tripMember.create({ data: { tripId: trip.id, userId: user.id, role: "owner" } });
     for (const m of source.members) {
       if (m.userId === user.id) continue;
-      await tx.tripMember.create({ data: { tripId: trip.id, userId: m.userId, role: m.role } });
+      const email = emailByUserId.get(m.userId);
+      // No resolvable email: skip entirely rather than silently falling back
+      // to membership.
+      if (!email) continue;
+      try {
+        await tx.invite.create({
+          data: {
+            tripId: trip.id,
+            // User.email itself is never normalised (it's whatever the OAuth
+            // provider reported), so lowercase here — matching inviteToTrip
+            // (server/actions/invites.ts) and the deleteMany lookups in
+            // removeTripMember/leaveTrip below, which key on
+            // email.toLowerCase(). A mixed-case Invite.email would never
+            // auto-accept (lib/invites.ts lowercases too) and would never get
+            // cleaned up by those deleteMany calls.
+            email: email.toLowerCase(),
+            token: crypto.randomUUID(),
+            role: m.role,
+            expiresAt: new Date(Date.now() + INVITE_EXPIRY_MS),
+          },
+        });
+      } catch (err) {
+        // (tripId, email) is unique, and a freshly-minted trip.id makes a
+        // collision impossible in practice — but treat a P2002 as idempotent
+        // success anyway, matching how inviteToGlobe handles the same race.
+        if (!isUniqueConstraintError(err)) throw err;
+      }
     }
 
     const chapterIdMap = new Map<string, string>();
@@ -455,4 +494,157 @@ export async function setChaptersEnabled(tripId: string, enabled: boolean): Prom
   revalidatePath(`/trips/${tripId}/plan`);
 
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// removeTripMember / leaveTrip
+// ---------------------------------------------------------------------------
+//
+// CAVEAT (ARCH-DAT-1a): these are the first two actions in the codebase that
+// mutate Trip membership. `requireTripAccess` is `cache()`-memoised per
+// `tripId` for the lifetime of the request (see its doc comment in
+// lib/guards.ts) — calling it again after the membership row is gone would
+// silently return yesterday's (still-a-member) answer. So each action calls
+// requireTripAccess exactly once, before the mutation, and never again.
+// Anything that needs a post-mutation membership answer must query
+// db.tripMember directly rather than go back through the guard.
+
+export type RemoveTripMemberResult =
+  | { success: true }
+  | { success: false; error: string };
+
+/**
+ * Remove a Traveller from a trip. Owner-only (plus an ADMIN_EMAILS operator
+ * who is already a member, ADR 0045) — same predicate as deleteTrip/
+ * duplicateTrip/inviteToTrip. The trip's owner can never be removed — not by
+ * themselves, and not by an admin operator either (I1) — because there is no
+ * ownership-transfer feature, so an ownerless trip is stranded for good.
+ *
+ * Drops only the TripMember row — authored Journal entries, notes and
+ * attachments keep their authorId FKs, so nothing orphans (ADR: content
+ * survives the author leaving).
+ *
+ * Also deletes any still-pending Invite for the removed Traveller's email on
+ * this trip. Without this, a stale Invite would silently re-admit them the
+ * next time they sign in with that email (this matters more once a pending
+ * Invite is sufficient to create an account on the deployment — Task 13).
+ * An already-accepted Invite (the historical record of how they joined) is
+ * left alone, same as cancelInvite's convention.
+ */
+export async function removeTripMember(
+  tripId: string,
+  userId: string,
+): Promise<RemoveTripMemberResult> {
+  const { user, membership } = await requireTripAccess(tripId);
+
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
+    return { success: false, error: "Only the trip owner can remove a Traveller." };
+  }
+
+  if (userId === user.id && membership.role === "owner") {
+    return {
+      success: false,
+      error: "You can't remove yourself as the owner — the Owner role can't be transferred to another Traveller yet.",
+    };
+  }
+
+  // The TARGET's role, not the caller's (final fix wave, I1). The gate above
+  // admits an ADMIN_EMAILS operator, and the self-check just above protects
+  // only the caller — so an admin who is not the owner could remove the
+  // Trip's owner and strand the Trip permanently: with members but no owner,
+  // nothing can ever delete it, duplicate it, invite to it, delete a Stop or
+  // promote a fork again, and there is no ownership transfer to recover with.
+  // The settings UI hides the control, but this repo's own principle
+  // (server/actions/access-requests.ts) is that hiding a control is not
+  // access control. Uncached, direct lookup for the same reason as the
+  // email lookup below — see the CAVEAT above.
+  const targetMembership = await db.tripMember.findUnique({
+    where: { tripId_userId: { tripId, userId } },
+    select: { role: true },
+  });
+
+  if (targetMembership?.role === "owner") {
+    return {
+      success: false,
+      error:
+        "You can't remove the trip's owner — a trip with no owner could never be deleted, duplicated or invited to again.",
+    };
+  }
+
+  // Uncached, direct lookup — deliberately not routed back through
+  // requireTripAccess (see the CAVEAT above).
+  const target = await db.user.findUnique({ where: { id: userId }, select: { email: true } });
+
+  await db.tripMember.deleteMany({ where: { tripId, userId } });
+
+  if (target?.email) {
+    await db.invite.deleteMany({
+      where: { tripId, email: target.email.toLowerCase(), acceptedAt: null },
+    });
+  }
+
+  revalidatePath(`/trips/${tripId}/settings`);
+  revalidatePath(`/trips/${tripId}`);
+
+  return { success: true };
+}
+
+export type LeaveTripResult =
+  | { success: true }
+  | { success: false; error: string };
+
+/**
+ * Leave a trip the current user is a member of. The owner cannot leave at
+ * all: the Owner role does not transfer (CONTEXT.md), so a trip they left
+ * would have no owner and no way back. Any other Traveller can leave freely.
+ *
+ * Deletes only the caller's own TripMember row (their authored content stays,
+ * same as removeTripMember) and any still-pending Invite for their own email
+ * on this trip, for the same re-admission reason removeTripMember does.
+ *
+ * Does NOT redirect server-side — it returns a typed result like the rest of
+ * this file's non-redirecting actions, so the caller (client UI) can navigate
+ * after a successful leave.
+ */
+export async function leaveTrip(tripId: string): Promise<LeaveTripResult> {
+  const { user, membership } = await requireTripAccess(tripId);
+
+  if (membership.role === "owner") {
+    return {
+      success: false,
+      error: "As the owner, you can't leave this trip — the Owner role can't be transferred to another Traveller yet.",
+    };
+  }
+
+  await db.tripMember.deleteMany({ where: { tripId, userId: user.id } });
+
+  if (user.email) {
+    await db.invite.deleteMany({
+      where: { tripId, email: user.email.toLowerCase(), acceptedAt: null },
+    });
+  }
+
+  revalidatePath(`/trips/${tripId}/settings`);
+  revalidatePath(`/trips/${tripId}`);
+  revalidatePath("/trips");
+
+  return { success: true };
+}
+
+/**
+ * True for a Prisma unique-constraint violation (P2002). Checked structurally
+ * (by `code`) rather than via `instanceof` so it stays driver-adapter-agnostic
+ * and trivially mockable in tests.
+ *
+ * NOTE: this helper is intentionally inlined here (and in lib/invites.ts,
+ * lib/globe-invites.ts, server/actions/globe.ts) — consolidation into a
+ * shared util is tracked separately.
+ */
+function isUniqueConstraintError(err: unknown): boolean {
+  return (
+    typeof err === "object" &&
+    err !== null &&
+    "code" in err &&
+    (err as { code?: unknown }).code === "P2002"
+  );
 }

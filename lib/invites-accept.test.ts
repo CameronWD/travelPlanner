@@ -114,6 +114,21 @@ describe("acceptPendingInvitesForUser", () => {
     );
   });
 
+  it("filters pending invites to exclude expired ones (expiresAt: null stays valid)", async () => {
+    inviteFindManyMock.mockResolvedValue([]);
+
+    await acceptPendingInvitesForUser(USER_ID, EMAIL);
+
+    expect(inviteFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          acceptedAt: null,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: expect.any(Date) } }],
+        }),
+      }),
+    );
+  });
+
   it("isolates failures across invites — a failed create does not block a successful one", async () => {
     inviteFindManyMock.mockResolvedValue([
       { id: "inv-1", tripId: "trip-1", email: EMAIL },

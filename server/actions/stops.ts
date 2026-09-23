@@ -3,7 +3,7 @@
 import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { requireTripAccess } from "@/lib/guards";
+import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
 import { stopSchema, type StopInput } from "@/lib/validations/stop";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { flowDates, computeProjectedEnd, planTripFirmUp, type FlowConflict } from "@/lib/firm-up";
@@ -16,7 +16,7 @@ import { insertionOrder, collisionPush } from "@/lib/reorder";
 import { compareScheduled, orderPlanStops } from "@/lib/plan-order";
 import { chapterSpan } from "@/lib/chapter-span";
 import { type ActionResult, validationResult } from "@/lib/action-result";
-import { cleanupTargetSideDataTx, deleteBlobsBestEffort } from "@/server/actions/target-cleanup";
+import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 import { recomputeChapterSpans, shiftStopPayloadTx, reflowSpanTx, lockPlanStopsTx } from "@/server/actions/stop-flow";
 
@@ -487,10 +487,22 @@ export async function updateStop(
 /**
  * Delete a stop.
  *
- * Verifies the stop belongs to a trip the user can access.
+ * Verifies the stop belongs to a trip the user can access, then that they
+ * own the trip (ARCH-DAT-1b): deleting a Stop is whole-branch destruction —
+ * irreversible, cascading to its Accommodation, Items and Costs — so it is
+ * owner-only even though everyday Stop editing stays open to every
+ * Traveller. requireStopAccess above only checked membership; the role check
+ * needs a second `requireTripAccess` call, which is free — it's `cache()`-
+ * memoised per `tripId` (see lib/guards.ts) — rather than a second uncached
+ * query, since requireStopAccess's return shape doesn't carry the role.
  */
 export async function deleteStop(stopId: string): Promise<StopActionResult> {
   const stop = await requireStopAccess(stopId);
+
+  const { user, membership } = await requireTripAccess(stop.tripId);
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
+    return { success: false, errors: { _: ["Only the trip owner can delete a Stop."] } };
+  }
 
   // Read names BEFORE the delete: the DB cascades Accommodation rows with the
   // Stop, and converted costs need the accommodation's name for their label.
@@ -500,7 +512,9 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
   });
   const doomed = await db.stop.findUnique({ where: { id: stopId }, select: { name: true } });
 
-  const storageKeys = await db.$transaction(async (tx) => {
+  // cleanupTargetSideDataTx schedules attachment blobs for retention inside
+  // this same transaction (ARCH-DAT-3) — no post-commit blob call needed.
+  await db.$transaction(async (tx) => {
     await tx.stop.delete({ where: { id: stopId } });
     await deleteOwnedCostsTx(
       tx,
@@ -511,18 +525,121 @@ export async function deleteStop(stopId: string): Promise<StopActionResult> {
         label: a.name ?? "Accommodation",
       })),
     );
-    const keys = await cleanupTargetSideDataTx(tx, stop.tripId, "STOP", stopId);
+    await cleanupTargetSideDataTx(tx, stop.tripId, "STOP", stopId);
     for (const acc of cascadedAccommodations) {
-      keys.push(...(await cleanupTargetSideDataTx(tx, stop.tripId, "ACCOMMODATION", acc.id)));
+      await cleanupTargetSideDataTx(tx, stop.tripId, "ACCOMMODATION", acc.id);
     }
-    return keys;
   });
-  await deleteBlobsBestEffort(storageKeys);
 
   await recordPlanActivity(stop.forkId, { tripId: stop.tripId, verb: "DELETED", entityType: "STOP", entityId: stopId, entityLabel: doomed?.name ?? "" });
 
   revalidatePath(`/trips/${stop.tripId}`);
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// previewStopDeletion
+// ---------------------------------------------------------------------------
+
+export interface StopDeletionPreviewAccommodation {
+  id: string;
+  name: string;
+  /** Whether this Accommodation holds a confirmation number — never the
+   *  value itself (ARCH-DAT-4 / ARCH-TEN-7: confirmation numbers leak too
+   *  easily; "holds a confirmation number" is exactly as motivating and
+   *  strictly safer than showing it). */
+  hasConfirmation: boolean;
+}
+
+export interface StopDeletionPreviewCost {
+  id: string;
+  label: string | null;
+  costMinor: number;
+  currency: string;
+}
+
+export interface StopDeletionPreview {
+  /** Accommodations that cascade-delete with the Stop. */
+  accommodations: StopDeletionPreviewAccommodation[];
+  /** Costs owned by those Accommodations that have never been paid — these
+   *  are destroyed outright (deleteOwnedCostsTx converts ever-paid costs to
+   *  a standalone OTHER cost instead, so they are not a loss and are not
+   *  reported here). */
+  unpaidCosts: StopDeletionPreviewCost[];
+  /** Attachments on the Stop itself plus its cascaded Accommodations. */
+  attachmentCount: number;
+  /** Notes on the Stop itself plus its cascaded Accommodations. */
+  noteCount: number;
+}
+
+export type StopDeletionPreviewResult = ActionResult<{ preview: StopDeletionPreview }>;
+
+/**
+ * Preview what deleting a Stop will destroy, so the confirm dialog can say
+ * so (ARCH-DAT-4) instead of just "This can't be undone." Read-only —
+ * mirrors deleteStop's own cascade (cascaded Accommodations, their unpaid
+ * Costs, and the Stop's + those Accommodations' Attachments/Notes) without
+ * performing it.
+ *
+ * Access-checked identically to deleteStop (ARCH-DAT-1b): owner-only, so a
+ * Traveller who cannot delete the Stop also cannot see what deleting it
+ * would destroy — the query below never runs for them.
+ */
+export async function previewStopDeletion(stopId: string): Promise<StopDeletionPreviewResult> {
+  const stop = await requireStopAccess(stopId);
+
+  const { user, membership } = await requireTripAccess(stop.tripId);
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
+    return { success: false, errors: { _: ["Only the trip owner can preview a Stop deletion."] } };
+  }
+
+  const accommodations = await db.accommodation.findMany({
+    where: { stopId },
+    select: { id: true, name: true, confirmation: true },
+  });
+  const accIds = accommodations.map((a) => a.id);
+
+  // Mirrors deleteOwnedCostsTx's own everPaid predicate: a cost that has ever
+  // been paid converts to an OTHER cost on delete rather than being
+  // destroyed, so only the never-paid ones are a loss.
+  const costs = accIds.length > 0
+    ? await db.cost.findMany({
+        where: { ownerType: "ACCOMMODATION", ownerId: { in: accIds } },
+        select: { id: true, label: true, costMinor: true, currency: true, paidMinor: true, paidAt: true },
+      })
+    : [];
+  const unpaidCosts: StopDeletionPreviewCost[] = costs
+    .filter((c) => c.paidMinor === null && c.paidAt === null)
+    .map((c) => ({ id: c.id, label: c.label, costMinor: c.costMinor, currency: c.currency }));
+
+  // Attachment/Note counts: the Stop's own side-data plus each cascaded
+  // Accommodation's — the same two target scopes cleanupTargetSideDataTx
+  // wipes inside deleteStop's transaction (Items merely lose their stopId,
+  // via schema onDelete: SetNull, so they and their side-data survive).
+  const [stopAttachments, accAttachments, stopNotes, accNotes] = await Promise.all([
+    db.attachment.count({ where: { targetType: "STOP", targetId: stopId } }),
+    accIds.length > 0
+      ? db.attachment.count({ where: { targetType: "ACCOMMODATION", targetId: { in: accIds } } })
+      : Promise.resolve(0),
+    db.note.count({ where: { targetType: "STOP", targetId: stopId } }),
+    accIds.length > 0
+      ? db.note.count({ where: { targetType: "ACCOMMODATION", targetId: { in: accIds } } })
+      : Promise.resolve(0),
+  ]);
+
+  return {
+    success: true,
+    preview: {
+      accommodations: accommodations.map((a) => ({
+        id: a.id,
+        name: a.name,
+        hasConfirmation: a.confirmation !== null,
+      })),
+      unpaidCosts,
+      attachmentCount: stopAttachments + accAttachments,
+      noteCount: stopNotes + accNotes,
+    },
+  };
 }
 
 /**
@@ -1301,6 +1418,54 @@ export async function restoreStops(
     return { success: false, errors: { id: ["Stops in a restore must all belong to the same plan."] } };
   }
   const restoreForkId: PlanId = forkId ?? rows[0].forkId ?? null;
+
+  // ARCH-TEN-1: the guard above authorised the Stops' Trip only — the payload
+  // names Items and Accommodations by id alone, so without this every
+  // authenticated Traveller could rewrite another tenancy's rows via Undo.
+  // Verify ownership BEFORE the transaction so a rejected call writes nothing.
+  // Id lists are de-duplicated via Set before counting: Prisma's `in` filter
+  // returns one row per DISTINCT id, so a payload that (harmlessly) names the
+  // same id twice must not fail the length check meant to catch a missing row.
+  const payloadItemIds = [...new Set((payload?.items ?? []).map((i) => i.id))];
+  if (payloadItemIds.length > 0) {
+    const owned = await db.item.findMany({
+      where: { id: { in: payloadItemIds } },
+      select: { id: true, tripId: true },
+    });
+    if (owned.length !== payloadItemIds.length || owned.some((i) => i.tripId !== tripId)) {
+      return { success: false, errors: { id: ["Restore payload names items from another trip."] } };
+    }
+  }
+
+  // ARCH-TEN-1 follow-up: an Item entry may also carry the Stop it is being
+  // re-filed onto (ADR 0055's re-file Undo). That `stopId` is caller-supplied
+  // too — validating only the Item's own tripId above would still let a
+  // Traveller re-file their own (validated) Item onto another tenancy's Stop.
+  const payloadStopIds = [
+    ...new Set((payload?.items ?? []).map((i) => i.stopId).filter((id): id is string => !!id)),
+  ];
+  if (payloadStopIds.length > 0) {
+    const owned = await db.stop.findMany({
+      where: { id: { in: payloadStopIds } },
+      select: { id: true, tripId: true },
+    });
+    if (owned.length !== payloadStopIds.length || owned.some((s) => s.tripId !== tripId)) {
+      return { success: false, errors: { id: ["Restore payload re-files an item onto a stop from another trip."] } };
+    }
+  }
+
+  const payloadAccIds = [...new Set((payload?.accommodations ?? []).map((a) => a.id))];
+  if (payloadAccIds.length > 0) {
+    // Accommodation carries tripId directly (prisma/schema.prisma) — no need
+    // to join through Stop.
+    const owned = await db.accommodation.findMany({
+      where: { id: { in: payloadAccIds } },
+      select: { id: true, tripId: true },
+    });
+    if (owned.length !== payloadAccIds.length || owned.some((a) => a.tripId !== tripId)) {
+      return { success: false, errors: { id: ["Restore payload names accommodations from another trip."] } };
+    }
+  }
 
   await db.$transaction(async (tx) => {
     // Lock the WHOLE plan's stops FOR UPDATE, in canonical id order, to

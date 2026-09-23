@@ -9,11 +9,12 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import { setStopNights, deleteStop } from "@/server/actions/stops";
+import { cn } from "@/lib/cn";
 import { formatLongDate } from "@/lib/dates";
 import { computeProjectedEnd } from "@/lib/firm-up";
 import { orderPlanStops } from "@/lib/plan-order";
@@ -26,12 +27,26 @@ import {
   isFlexible,
   type FitStop,
 } from "@/lib/make-it-fit";
+import {
+  useStopDeletionPreview,
+  hasStopDeletionLosses,
+  StopDeletionLossList,
+} from "./stop-deletion-preview";
 
 interface MakeItFitProps {
   tripId: string;
   stops: FitStop[];
   anchor: string | null;
   hardEndDate: string | null;
+  /**
+   * Whether the viewer may destroy a Stop (owner, or an ADMIN_EMAILS
+   * operator). Gates the "Or drop a stop" half only — trimming nights is open
+   * to any Traveller, so the dialog itself is not owner-only.
+   *
+   * Defaults to true, matching ItineraryManager and CompareTable. Both real
+   * call sites pass it explicitly.
+   */
+  isOwner?: boolean;
 }
 
 export function MakeItFit({
@@ -39,6 +54,7 @@ export function MakeItFit({
   stops,
   anchor,
   hardEndDate,
+  isOwner = true,
 }: MakeItFitProps) {
   const [open, setOpen] = React.useState(false);
   const projectedEnd = React.useMemo(
@@ -76,6 +92,7 @@ export function MakeItFit({
           stops={stops}
           anchor={anchor}
           hardEndDate={hardEndDate}
+          isOwner={isOwner}
           projectedEnd={projectedEnd}
           over={over}
           onClose={() => setOpen(false)}
@@ -89,6 +106,7 @@ function MakeItFitDialog({
   stops,
   anchor,
   hardEndDate,
+  isOwner = true,
   projectedEnd,
   over,
   onClose,
@@ -116,7 +134,11 @@ function MakeItFitDialog({
     },
   );
   const [pending, setPending] = React.useState(false);
-  const { confirm, dialog } = useConfirm();
+  // ARCH-DAT-4: the Stop dropped here is pending its loss-preview confirm
+  // (DropConfirmDialog below) — replaces the old plain useConfirm() prompt,
+  // which said only "This stop will be permanently removed" with no idea
+  // what else it would take with it.
+  const [dropTarget, setDropTarget] = React.useState<{ id: string; name: string } | null>(null);
 
   const liveTrims = flex
     .filter((f) => nightsById[f.id] !== currentNights(f))
@@ -154,14 +176,10 @@ function MakeItFitDialog({
     }
   }
 
-  async function drop(id: string, name: string) {
-    const confirmed = await confirm({
-      title: `Drop "${name}"?`,
-      description: "This stop will be permanently removed from your trip.",
-      confirmLabel: "Drop",
-      destructive: true,
-    });
-    if (!confirmed) return;
+  // Performs the actual drop once DropConfirmDialog's own confirm step has
+  // already closed (mirrors the old confirm-then-delete sequencing exactly —
+  // only what happens BEFORE the delete call changed, not this part).
+  async function performDrop(id: string) {
     setPending(true);
     try {
       const r = await deleteStop(id);
@@ -179,7 +197,6 @@ function MakeItFitDialog({
 
   return (
     <>
-    {dialog}
     <Dialog open onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
@@ -197,7 +214,15 @@ function MakeItFitDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-6 sm:grid-cols-2">
+        {/* I5 (final fix wave): the Drop half is owner-only, same as Delete in
+            ItineraryManager and Promote in CompareTable. Task 10 gated
+            deleteStop server-side and Task 19 added the loss preview here, but
+            nothing gated the affordance — so a non-owner got a confirm dialog
+            whose body was the raw server string "Only the trip owner can
+            preview a Stop deletion." with the Drop button still enabled, then
+            a toast. Trimming nights stays open to any Traveller, so only this
+            section is hidden, not the whole dialog. */}
+        <div className={cn("grid gap-6", isOwner && "sm:grid-cols-2")}>
           <section aria-label="Trim plan" className="flex flex-col gap-3">
             <h3 className="flex items-center gap-2 text-sm font-semibold">
               <Scissors className="size-4" aria-hidden="true" /> Trim nights
@@ -253,6 +278,7 @@ function MakeItFitDialog({
             </Button>
           </section>
 
+          {isOwner && (
           <section aria-label="Drop a stop" className="flex flex-col gap-3">
             <h3 className="flex items-center gap-2 text-sm font-semibold">
               <Trash2 className="size-4" aria-hidden="true" /> Or drop a stop
@@ -282,7 +308,7 @@ function MakeItFitDialog({
                     variant="ghost"
                     size="sm"
                     disabled={pending}
-                    onClick={() => drop(c.id, c.name)}
+                    onClick={() => setDropTarget({ id: c.id, name: c.name })}
                   >
                     Drop {c.name}
                   </Button>
@@ -290,9 +316,70 @@ function MakeItFitDialog({
               ))}
             </ul>
           </section>
+          )}
         </div>
       </DialogContent>
     </Dialog>
+    {dropTarget && (
+      <DropConfirmDialog
+        stopId={dropTarget.id}
+        stopName={dropTarget.name}
+        onCancel={() => setDropTarget(null)}
+        onConfirm={() => {
+          const { id } = dropTarget;
+          setDropTarget(null);
+          void performDrop(id);
+        }}
+      />
+    )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DropConfirmDialog — ARCH-DAT-4: itemises what dropping this Stop destroys,
+// using the SAME preview fetch + loss-list rendering as DeleteStopDialog
+// (stop-deletion-preview.tsx). Closes as soon as Drop is clicked, exactly
+// like the old useConfirm() prompt did — the actual delete (and Make it
+// fit's own pending/disable state) runs afterwards via performDrop, so this
+// is an addition to the confirm step, not a redesign of the surrounding flow.
+// ---------------------------------------------------------------------------
+
+interface DropConfirmDialogProps {
+  stopId: string;
+  stopName: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}
+
+function DropConfirmDialog({ stopId, stopName, onCancel, onConfirm }: DropConfirmDialogProps) {
+  const { preview, error } = useStopDeletionPreview(stopId);
+  const hasLosses = hasStopDeletionLosses(preview);
+  const ready = !!preview || !!error;
+
+  return (
+    <Dialog open onOpenChange={(o) => { if (!o) onCancel(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Drop &quot;{stopName}&quot;?</DialogTitle>
+          <DialogDescription>
+            This stop will be permanently removed from your trip.
+            {!ready && " Loading what else this would remove…"}
+          </DialogDescription>
+        </DialogHeader>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        {hasLosses && preview && (
+          <StopDeletionLossList preview={preview} heading="Dropping this stop will also destroy:" />
+        )}
+        <DialogFooter>
+          <Button variant="ghost" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button variant="destructive" disabled={!ready} onClick={onConfirm}>
+            Drop
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

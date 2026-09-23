@@ -50,6 +50,7 @@ npx web-push generate-vapid-keys   # VAPID public/private pair
    | `AUTH_GOOGLE_ID` | from step 3 |
    | `AUTH_GOOGLE_SECRET` | from step 3 |
    | `ALLOW_DEV_LOGIN` | `false` |
+   | `ALLOWED_EMAILS` | comma-separated sign-in allowlist, e.g. `you@gmail.com,partner@gmail.com` (ADR 0057 — see §4c) |
    | `STORAGE_DRIVER` | `r2` |
    | `CLOUDFLARE_ACCOUNT_ID` | from step 2 |
    | `R2_BUCKET_NAME` | from step 2 |
@@ -170,6 +171,84 @@ specific check's outcome was not recorded before the gate was overtaken; if
 it matters retrospectively it needs a fresh production read, not a re-run of
 the gate — `docs/open-follow-ups.md`, `RM-01`.)
 
+## 4c. Pre-deploy checklist — the rollout gate (`feat/rollout-gate`)
+
+The branch that closes the architecture sitrep's shortlist. It ships the
+sign-in gate (ADR 0057), per-Traveller Journal entries (ADR 0058) and the
+error sink (ADR 0059), plus one migration,
+`20260922000000_rollout_gate`. Work through this in order.
+
+1. **Set `ALLOWED_EMAILS` in Vercel (Production) before the deploy.**
+   Comma-separated, case-insensitive; your own address and any co-Traveller's.
+   This is **belt-and-braces, not load-bearing**: the migration backfills the
+   `AllowedEmail` table from every existing `User`, so everyone who already
+   holds an account is admitted at the moment the gate starts being enforced
+   even if this variable is empty. Set it anyway — it is the break-glass path
+   back in if the table is ever wiped or restored empty, and it is not a
+   `NEXT_PUBLIC_*` value so it takes effect without a rebuild.
+
+2. **Deploy at a quiet moment, and do not write a Journal entry while the
+   build runs.** The migration changes `JournalEntry`'s unique key from
+   `(tripId, date)` to `(tripId, date, authorId)`, which means dropping the
+   index the *currently deployed* build's `upsert` uses as its
+   `ON CONFLICT (tripId, date)` target — the second write-path shape §4b
+   describes. For the length of the build, the old build can still read
+   Journal entries but cannot save one. §4b prescribes two deploys for this
+   shape; **one is being taken deliberately** (ADR 0058), because this ships
+   before TEEPEE opens to more Travellers, so the only people who can be
+   mid-save are you and one co-Traveller. Watch the build to completion. An
+   empty Journal table would *not* have made this safe — the failure is a
+   missing `ON CONFLICT` target, not a row collision.
+
+   **If the migration aborts, every later deploy dies until you clear it.**
+   The database itself rolls back cleanly (each migration runs in one
+   transaction), but Prisma leaves a `_prisma_migrations` row with
+   `finished_at` NULL, and `prisma migrate deploy` then refuses to do anything
+   at all with **P3009 — migrate found failed migrations**. Every subsequent
+   build fails with the same error, including builds of code that has nothing
+   to do with the migration, which reads as "the deploy pipeline is broken"
+   rather than "one migration needs acknowledging". Clear it against
+   `DIRECT_URL` (not the pooled URL), then redeploy:
+
+   ```bash
+   DATABASE_URL="$DIRECT_URL" npx prisma migrate resolve --rolled-back 20260922000000_rollout_gate
+   ```
+
+   Only use `--rolled-back`. `--applied` tells Prisma the migration succeeded
+   and it will never be run again — on a migration that actually failed, that
+   permanently desynchronises the schema from the ledger.
+
+3. **The pending `whatsNewSeenAt` migration ships alongside this one.**
+   `20260921120000_user_whats_new_seen_at` has not been deployed yet either.
+   It is additive and nullable, so it opens no §4b window of its own; it just
+   needs to be known about rather than discovered in the build log.
+
+4. **After the deploy: publish the Google OAuth app.** This is Cloud Console
+   work, not code. ADR 0057 moves admission into TEEPEE's own allowlist, so
+   the Console's test-user list stops being a second, invisible door — but
+   the 100-test-user ceiling only disappears once the app is published. The
+   consent screen wants an app name, a support email, a developer contact, an
+   authorised domain, and privacy-policy and terms URLs; `/privacy` and
+   `/terms` now exist for exactly this and are linked from `/signin`. TEEPEE
+   requests only the non-sensitive `openid email profile` scopes, so
+   publishing needs no paid security assessment. **Verify Google's current
+   requirements at the time you do it** — this reflects the policy as
+   understood on 2026-09-22.
+
+5. **Consider enabling R2 bucket versioning — recommended, not required.**
+   What actually protects a deleted attachment is the app-level retention
+   this branch added: `scheduleBlobDeletion` records the key in `DeletedBlob`
+   instead of destroying the object, and `npm run sweep:blobs` destroys it
+   only once no live database backup can still reference it (35 days).
+   Bucket versioning is a second, independent net under that; it is not the
+   thing the restore story depends on.
+
+6. **Verify against the live database and a real browser.** Everything this
+   branch could not check without Postgres or a browser is listed, with exact
+   steps, in `docs/rollout-gate-manual-verify.md`. The lockout check (an
+   invited Traveller signing in **twice**, across the Invite-acceptance
+   boundary) is the one to do first.
+
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:
@@ -251,6 +330,69 @@ route-specific to configure beyond that. Until the first authorized cron hit
 lands against the deployed table — including on a brand-new deployment where
 no row has ever been written — the Account page reads it as "never run",
 which is correct and expected, not a bug to chase.
+
+## 5b. Database backups — who can download the dump
+
+`.github/workflows/db-backup.yml` runs a daily `pg_dump` of the production
+Neon database and uploads it as a **GitHub Actions artifact** with 30-day
+retention. Recorded here because the access model is not obvious from the
+workflow file: **who can download an Actions artifact is exactly who can read
+the repository.** There is no separate artifact permission.
+
+The repository was **public until 2026-09-23** and is now **private**.
+
+What a dump contains, so the exposure is stated rather than inferred:
+
+- **Bearer tokens** — `ShareLink.token`, `CalendarFeed.token`, `Invite.token`,
+  `GlobeInvite.token`, `Account.access_token` / `refresh_token` / `id_token`,
+  and `PushSubscription.p256dh` / `auth`. The two token columns this list
+  deliberately omits are `Session.sessionToken` and `VerificationToken.token`:
+  both tables exist in the schema for the Auth.js adapter but are **empty in
+  practice**, because sessions are JWTs (`strategy: "jwt"`) and there is no
+  email/magic-link provider. They were considered, not overlooked.
+- **All Traveller content** — every Trip, Stop, Accommodation, Cost, Note,
+  Journal entry, Attachment row, Feedback note (including the user agent it
+  records), Access request and error report.
+- **CI secrets are NOT in it.** `AUTH_SECRET` is a Vercel environment
+  variable and never reaches the database, so **session forgery from the dump
+  alone is not possible**, and there is nothing to rotate on that account.
+
+Two operational consequences of the repository being private:
+
+- Going private does not un-publish artifacts that were downloadable while it
+  was public. Existing `neon-backup-*` artifacts are their own item.
+- A private repository on the **Free plan** drops to **2,000 Actions minutes**
+  and **500 MB of artifact storage**. Thirty retained dumps could approach the
+  storage cap; R2 is already configured and is the obvious alternative
+  destination if it does.
+
+### Outstanding operator actions
+
+Recorded here because this is the only place they survive. Going private
+closed the door; it did not undo what was already reachable through it.
+
+1. **Delete the existing `neon-backup-*` artifacts.** GitHub → Actions → *DB
+   backup* → each run → delete the artifact. Going private does not
+   un-publish what was already downloadable while the repository was public.
+2. **Rotate the bearer tokens that were in those dumps.** These are
+   capability URLs — whoever holds one needs no account:
+   - `ShareLink.token` — revoke and re-create each Share link from the Trip's
+     Settings; the holders of the old URLs will need the new ones.
+   - `CalendarFeed.token` — same, from Settings → Calendar feed; anyone
+     subscribed re-subscribes to the new URL.
+   - `Invite.token` — currently unused by any flow (ADR 0017 notes it is
+     reserved for a future accept-by-link), so nothing depends on it, but it
+     is in the dump.
+   - `GlobeInvite.token` — same shape.
+3. **Force a Google re-auth** so the stored `Account.access_token`,
+   `refresh_token` and `id_token` are retired. TEEPEE never refreshes Google
+   tokens (`strategy: "jwt"`, no token refresh path), so these grant nothing
+   *in* TEEPEE — the exposure is against Google, not against this app.
+4. **Consider moving the dump target off Actions artifacts entirely.** R2 is
+   already configured and already holds attachments. This removes the whole
+   class rather than leaving it depending on a repository setting that is
+   invisible from the code — nobody reading this repository can tell whether
+   it is public.
 
 ## 6. First sign-in
 

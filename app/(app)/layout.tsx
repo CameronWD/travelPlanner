@@ -4,8 +4,11 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { acceptPendingInvitesForUser } from "@/lib/invites";
 import { acceptPendingGlobeInvitesForUser } from "@/lib/globe-invites";
+import { isAdminEmail } from "@/lib/admin";
+import { listAccessRequests } from "@/server/actions/access-requests";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,6 +65,21 @@ export default async function AppLayout({
   if (email) {
     await acceptPendingInvitesForUser(session.user.id, email);
     await acceptPendingGlobeInvitesForUser(session.user.id, email);
+  }
+
+  const isAdmin = isAdminEmail(email);
+  // The badge is load-bearing, not decorative: notifyAdmins' push only
+  // reaches the operator if they have a Device registered (ADR 0048), so
+  // this count is often the ONLY way an Admin learns an Access request is
+  // waiting. Failure here must never hide the /admin link itself — only the
+  // count on it — so a DB hiccup degrades to "no badge", not "no route".
+  let pendingAccessRequests = 0;
+  if (isAdmin) {
+    try {
+      pendingAccessRequests = (await listAccessRequests()).length;
+    } catch (err) {
+      console.error("[AppLayout] failed to load the pending Access request count:", err);
+    }
   }
 
   return (
@@ -150,6 +168,22 @@ export default async function AppLayout({
                 <DropdownMenuItem asChild>
                   <Link href="/account">Account</Link>
                 </DropdownMenuItem>
+
+                {isAdmin && (
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin" className="flex items-center justify-between gap-2">
+                      <span>Admin</span>
+                      {pendingAccessRequests > 0 && (
+                        <Badge
+                          variant="destructive"
+                          aria-label={`${pendingAccessRequests} pending access ${pendingAccessRequests === 1 ? "request" : "requests"}`}
+                        >
+                          {pendingAccessRequests > 9 ? "9+" : pendingAccessRequests}
+                        </Badge>
+                      )}
+                    </Link>
+                  </DropdownMenuItem>
+                )}
 
                 <DropdownMenuSeparator />
 

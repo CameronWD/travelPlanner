@@ -5,10 +5,12 @@ import { notFound } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireGlobeAccess } from "@/lib/globe";
+import { requireGlobeAccess, requireGlobeOwner } from "@/lib/globe";
+import { inviteeAlreadyHasGlobe } from "@/lib/globe-invites";
+import { INVITE_EXPIRY_MS } from "@/lib/invite-expiry";
 import { markerSchema, type MarkerInput } from "@/lib/validations/marker";
 import { searchPlacesWithStatus, reverseGeocode, type GeoCandidate, type PlaceSearchOutcome } from "@/lib/geocode";
-import { type ActionResult, validationResult } from "@/lib/action-result";
+import { type ActionResult, fail, validationResult } from "@/lib/action-result";
 import { cleanupGlobeAttachments } from "./target-cleanup";
 
 export type GlobeActionResult = ActionResult;
@@ -107,13 +109,40 @@ export async function deleteMarker(markerId: string): Promise<GlobeActionResult>
 const inviteEmailSchema = z.string().trim().toLowerCase().email("Enter a valid email address");
 
 export async function inviteToGlobe(email: string): Promise<GlobeActionResult> {
-  const { globe } = await requireGlobeAccess();
+  // ARCH-TEN-4: inviting is owner-only — a plain Globe member could
+  // otherwise mint standing access to the whole Globe (a Traveller's entire
+  // saved-places history) for anyone. Every other Globe action stays on
+  // requireGlobeAccess; see requireGlobeOwner's doc comment.
+  const access = await requireGlobeOwner();
+  if (!access) {
+    return fail({ _: ["Only the Globe owner can invite people."] });
+  }
+  const { globe } = access;
   const parsed = inviteEmailSchema.safeParse(email);
   if (!parsed.success) return validationResult(parsed.error);
 
+  // ARCH-ADR-3: a Traveller belongs to at most one Globe (ADR 0023), so an
+  // invite to someone who already has one can never be accepted. Report
+  // that now, at creation time, instead of silently dead-ending later in
+  // decideGlobeMembership while the inviter was told "Invited". An email
+  // with no matching User yet is unaffected — that invite is still created.
+  if (await inviteeAlreadyHasGlobe(parsed.data)) {
+    return fail({
+      _: [
+        "This Traveller already has a Globe of their own — a Traveller can only belong to one, so this invite could never be accepted.",
+      ],
+    });
+  }
+
   try {
     await db.globeInvite.create({
-      data: { globeId: globe.id, email: parsed.data, token: randomUUID(), role: "member" },
+      data: {
+        globeId: globe.id,
+        email: parsed.data,
+        token: randomUUID(),
+        role: "member",
+        expiresAt: new Date(Date.now() + INVITE_EXPIRY_MS),
+      },
     });
   } catch (err) {
     // Already invited (unique [globeId, email]) — treat as success (idempotent).

@@ -2,21 +2,42 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
   requireGlobeAccessMock,
+  requireGlobeOwnerMock,
   markerFindUniqueMock,
   attachmentFindManyMock,
   attachmentDeleteManyMock,
   storageDeleteMock,
+  scheduleBlobDeletionMock,
+  userFindUniqueMock,
+  globeMemberFindUniqueMock,
 } = vi.hoisted(() => ({
   requireGlobeAccessMock: vi.fn(async () => ({ user: { id: "u1" }, globe: { id: "g1" } })),
+  requireGlobeOwnerMock: vi.fn(
+    async (): Promise<{ user: { id: string }; globe: { id: string } } | null> => ({
+      user: { id: "u1" },
+      globe: { id: "g1" },
+    }),
+  ),
   markerFindUniqueMock: vi.fn(),
   attachmentFindManyMock: vi.fn(),
   attachmentDeleteManyMock: vi.fn(),
   storageDeleteMock: vi.fn(),
+  scheduleBlobDeletionMock: vi.fn().mockResolvedValue(undefined),
+  userFindUniqueMock: vi.fn(),
+  globeMemberFindUniqueMock: vi.fn(),
 }));
 
-vi.mock("@/lib/globe", () => ({
-  requireGlobeAccess: requireGlobeAccessMock,
-}));
+// Keep the real getUserGlobe/getOrCreateUserGlobe (used by
+// lib/globe-invites.ts's inviteeAlreadyHasGlobe) while still stubbing the
+// two gate functions this file's tests drive directly.
+vi.mock("@/lib/globe", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/globe")>();
+  return {
+    ...real,
+    requireGlobeAccess: requireGlobeAccessMock,
+    requireGlobeOwner: requireGlobeOwnerMock,
+  };
+});
 vi.mock("@/lib/guards", () => ({ requireUser: vi.fn(async () => ({ id: "u1" })) }));
 vi.mock("@/lib/geocode", () => ({
   searchPlaces: vi.fn(),
@@ -36,6 +57,8 @@ vi.mock("@/lib/db", () => ({
       deleteMany: attachmentDeleteManyMock,
     },
     globeInvite: { create: vi.fn() },
+    user: { findUnique: userFindUniqueMock },
+    globeMember: { findUnique: globeMemberFindUniqueMock },
   },
 }));
 vi.mock("@/lib/storage", async (importOriginal) => {
@@ -47,6 +70,11 @@ vi.mock("@/lib/storage", async (importOriginal) => {
     })),
   };
 });
+// ARCH-DAT-3: deleteMarker's cleanup no longer calls storage.delete directly
+// — it schedules retention via scheduleBlobDeletion for scripts/sweep-deleted-blobs.ts.
+vi.mock("@/lib/blob-retention", () => ({
+  scheduleBlobDeletion: scheduleBlobDeletionMock,
+}));
 
 import { db } from "@/lib/db";
 import { createMarker, updateMarker, deleteMarker, inviteToGlobe } from "./globe";
@@ -56,9 +84,12 @@ const dbm = db as any;
 beforeEach(() => {
   vi.clearAllMocks();
   requireGlobeAccessMock.mockResolvedValue({ user: { id: "u1" }, globe: { id: "g1" } });
+  requireGlobeOwnerMock.mockResolvedValue({ user: { id: "u1" }, globe: { id: "g1" } });
   attachmentFindManyMock.mockResolvedValue([]);
   attachmentDeleteManyMock.mockResolvedValue({ count: 0 });
   storageDeleteMock.mockResolvedValue(undefined);
+  userFindUniqueMock.mockResolvedValue(null);
+  globeMemberFindUniqueMock.mockResolvedValue(null);
 });
 
 describe("createMarker", () => {
@@ -113,12 +144,13 @@ describe("deleteMarker", () => {
     expect(dbm.marker.delete).toHaveBeenCalledWith({ where: { id: "m1" } });
   });
 
-  it("deletes a marker's attachments (rows + blobs) on delete", async () => {
+  it("deletes a marker's attachments (rows) and schedules their blobs for retention (ARCH-DAT-3) on delete", async () => {
     requireGlobeAccessMock.mockResolvedValue({ user: { id: "u1" }, globe: { id: "g1" } });
     markerFindUniqueMock.mockResolvedValue({ id: "m1", globeId: "g1" });
     attachmentFindManyMock.mockResolvedValue([{ id: "a1", storageKey: "globes/g1/a1-tickets.pdf" }]);
     await deleteMarker("m1");
-    expect(storageDeleteMock).toHaveBeenCalledWith("globes/g1/a1-tickets.pdf");
+    expect(storageDeleteMock).not.toHaveBeenCalled();
+    expect(scheduleBlobDeletionMock).toHaveBeenCalledWith(["globes/g1/a1-tickets.pdf"]);
     expect(attachmentDeleteManyMock).toHaveBeenCalledWith({ where: { globeId: "g1", targetType: "MARKER", targetId: "m1" } });
   });
 });
@@ -139,5 +171,45 @@ describe("inviteToGlobe", () => {
         data: expect.objectContaining({ globeId: "g1", email: "partner@example.com" }),
       }),
     );
+  });
+
+  it("sets expiresAt 30 days out on creation", async () => {
+    dbm.globeInvite.create.mockResolvedValue({ id: "i1" });
+    const before = Date.now();
+    await inviteToGlobe("partner@example.com");
+    const after = Date.now();
+    const call = dbm.globeInvite.create.mock.calls[0][0];
+    const expiresAt: Date = call.data.expiresAt;
+    expect(expiresAt).toBeInstanceOf(Date);
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + thirtyDaysMs);
+    expect(expiresAt.getTime()).toBeLessThanOrEqual(after + thirtyDaysMs);
+  });
+
+  it("ARCH-TEN-4: a plain Globe member cannot invite", async () => {
+    requireGlobeOwnerMock.mockResolvedValue(null);
+    const res = await inviteToGlobe("stranger@example.com");
+    expect(res.success).toBe(false);
+    expect(dbm.globeInvite.create).not.toHaveBeenCalled();
+  });
+
+  it("ARCH-TEN-4: the Globe owner can invite", async () => {
+    requireGlobeOwnerMock.mockResolvedValue({ user: { id: "u1" }, globe: { id: "g1" } });
+    dbm.globeInvite.create.mockResolvedValue({ id: "i1" });
+    const res = await inviteToGlobe("friend@example.com");
+    expect(res.success).toBe(true);
+  });
+
+  it("ARCH-ADR-3: reports the real outcome when the invitee already has a Globe", async () => {
+    dbm.user.findUnique.mockResolvedValue({ id: "u9", email: "taken@example.com" });
+    dbm.globeMember.findUnique.mockResolvedValue({ globeId: "g-other" });
+
+    const result = await inviteToGlobe("taken@example.com");
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errors["_"]?.join(" ")).toMatch(/already has a Globe/i);
+    }
+    expect(dbm.globeInvite.create).not.toHaveBeenCalled();
   });
 });

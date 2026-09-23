@@ -209,6 +209,11 @@ describe("CompareTable — Promote affordance", () => {
     expect(screen.queryByRole("button", { name: /promote/i })).not.toBeInTheDocument();
   });
 
+  it("ARCH-DAT-1: hides the Promote button for a non-owner", () => {
+    render(<CompareTable trip={trip} plans={[realPlan, forkA]} isOwner={false} />);
+    expect(screen.queryByRole("button", { name: /promote/i })).not.toBeInTheDocument();
+  });
+
   it("opens the PromoteForkDialog when Promote is clicked", async () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
     // Click the first available promote button (mobile card)

@@ -27,7 +27,7 @@ import { zoneLabel } from "@/lib/time-display";
 import type { TransportMode } from "@/lib/enums";
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 import { ChapterChip } from "@/components/trip/chapter-chip";
-import { WISHLIST_IDEA_WHERE, THINGS_TO_DO_WHERE } from "@/lib/plan-scope";
+import { WISHLIST_IDEA_WHERE, THINGS_TO_DO_WHERE, REAL_PLAN } from "@/lib/plan-scope";
 import { buildCostLabelMap } from "@/lib/cost-labels";
 import { buildUpcomingPayments } from "@/lib/upcoming-payments";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
@@ -64,8 +64,9 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
     db.stop.findMany({
       // Rough (date-less) stops don't appear on a dated "today" view.
       // Dated views follow the real plan — CONTEXT.md; consistent with
-      // calendar/day/print/summary.
-      where: { tripId, forkId: null, arriveDate: { not: null } },
+      // calendar/day/print/summary. Policy (not a BND-2 spelling exemption):
+      // deliberately ignores `?plan=` — never wire in a variable plan here.
+      where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -81,7 +82,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       },
     }),
     db.item.findMany({
-      where: { tripId, forkId: null, date: { not: null } },
+      where: { tripId, ...REAL_PLAN, date: { not: null } },
       orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
       select: {
         id: true,
@@ -101,7 +102,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       },
     }),
     db.transport.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...REAL_PLAN },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -121,7 +122,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       },
     }),
     db.accommodation.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...REAL_PLAN },
       orderBy: { checkIn: "asc" },
       select: {
         id: true,
@@ -139,7 +140,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       },
     }),
     db.cost.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...REAL_PLAN },
       select: {
         id: true,
         costMinor: true,
@@ -158,7 +159,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
     // query entirely rather than fetch-then-discard.
     trip.chaptersEnabled
       ? db.chapter.findMany({
-          where: { tripId, forkId: null },
+          where: { tripId, ...REAL_PLAN },
           orderBy: { startDate: "asc" },
           select: {
             id: true,
@@ -194,7 +195,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
 
   // Trip's reference-timezone "today" (things-to-fix P0-2) — the fetched
   // stops already carry timezone/arriveDate/departDate, in sortOrder order.
-  // Every plan-entity query above is scoped to the real plan (forkId: null)
+  // Every plan-entity query above is scoped to the real plan (REAL_PLAN)
   // — dated views follow the real plan (CONTEXT.md; consistent with
   // calendar/day/print/summary) — so `stops` is already fork-free here.
   const today = todayISOInZone(currentTripTimezone(stops));
@@ -409,7 +410,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
   const thingsToDo =
     freeForm && dayStop
       ? await db.item.findMany({
-          where: { tripId, forkId: null, ...THINGS_TO_DO_WHERE, stopId: dayStop.id },
+          where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE, stopId: dayStop.id },
           orderBy: { sortOrder: "asc" },
           select: { id: true, title: true, category: true, startTime: true, endTime: true },
         })

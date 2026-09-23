@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { getStorage, generateKey, validateUpload } from "@/lib/storage";
+import { scheduleBlobDeletion } from "@/lib/blob-retention";
+import { reportError } from "@/lib/error-sink";
 
 export type CoverActionResult =
   | { success: true }
@@ -49,13 +51,17 @@ export async function setTripCover(formData: FormData): Promise<CoverActionResul
   } catch (err) {
     // Blob-first order: nothing has been written to the Trip row yet, so a
     // failed write needs no cleanup — just report it honestly.
-    console.error("setTripCover: storage write failed", err);
+    await reportError(err, {
+      route: "server/actions/cover.ts#setTripCover",
+      source: "server",
+    });
     return { success: false, error: "Upload failed — nothing was saved. Please try again." };
   }
 
-  // Best-effort cleanup of the previous cover blob.
+  // Schedule the previous cover blob for retention/sweep (ARCH-DAT-3) rather
+  // than destroying it synchronously.
   if (trip.coverImageKey && trip.coverImageKey !== key) {
-    await storage.delete(trip.coverImageKey).catch(() => {});
+    await scheduleBlobDeletion([trip.coverImageKey]);
   }
 
   await db.trip.update({ where: { id: tripId }, data: { coverImageKey: key } });
@@ -77,7 +83,8 @@ export async function removeTripCover(tripId: string): Promise<CoverActionResult
   if (!trip) return { success: false, error: "Trip not found." };
 
   if (trip.coverImageKey) {
-    await getStorage().delete(trip.coverImageKey).catch(() => {});
+    // Schedule for retention/sweep (ARCH-DAT-3) rather than destroying now.
+    await scheduleBlobDeletion([trip.coverImageKey]);
     await db.trip.update({ where: { id: tripId }, data: { coverImageKey: null } });
   }
 

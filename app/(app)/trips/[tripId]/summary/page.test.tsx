@@ -25,7 +25,21 @@ const mockDb = vi.hoisted(() => ({
 
 vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
 vi.mock("@/lib/db", () => ({ db: mockDb }));
-vi.mock("@/lib/guards", () => ({ requireTripAccess: vi.fn() }));
+// requireTripAccess now returns { user, membership } here too (I5): the page
+// keeps them to compute isOwner for Make it fit's owner-only Drop half.
+// isTripOwnerOrAdmin is the REAL predicate — it lives in lib/access.ts, which
+// is framework- and db-free, so importing it here keeps the gate honest
+// instead of hand-reimplementing it (same pattern as server/actions/trips.test.ts).
+vi.mock("@/lib/guards", async () => {
+  const { isTripOwnerOrAdmin } = await import("@/lib/access");
+  return {
+    requireTripAccess: vi.fn().mockResolvedValue({
+      user: { id: "u1", email: "you@example.com" },
+      membership: { role: "owner" },
+    }),
+    isTripOwnerOrAdmin,
+  };
+});
 vi.mock("@/lib/money", () => ({ formatMoney: vi.fn((minor: number, currency: string) => `${minor}${currency}`) }));
 vi.mock("@/lib/budget", () => ({
   buildBudget: vi.fn(() => ({

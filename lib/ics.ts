@@ -32,8 +32,6 @@ export interface IcsItem {
   stopId?: string | null;
   address?: string | null;
   link?: string | null;
-  booking?: string | null;
-  notes?: string | null;
 }
 export interface IcsTransport {
   id: string;
@@ -42,7 +40,6 @@ export interface IcsTransport {
   arrPlace?: string | null;
   depAt?: Date | string | null;
   arrAt?: Date | string | null;
-  reference?: string | null;
 }
 export interface IcsAccommodation {
   id: string;
@@ -50,8 +47,6 @@ export interface IcsAccommodation {
   checkIn: string;
   checkOut: string;
   address?: string | null;
-  confirmation?: string | null;
-  notes?: string | null;
   checkOutTime?: string | null;
   stopId?: string | null;
 }
@@ -178,7 +173,9 @@ export function buildICS(input: IcsInput): string {
   // Items
   for (const it of items) {
     if (!it.date) continue;
-    const desc = buildDescription([it.notes, it.link, it.booking ? `Booking: ${it.booking}` : null]);
+    // ARCH-TEN-7: notes/booking are never fed in from the route's select
+    // (dropped upstream) — link is the only text left to describe an item.
+    const desc = buildDescription([it.link]);
     if (it.startTime) {
       const tz = (it.stopId && tzById.get(it.stopId)) || "UTC";
       const start = zonedWallTimeToInstant(it.date, it.startTime, tz);
@@ -205,7 +202,11 @@ export function buildICS(input: IcsInput): string {
     if (!dep) continue;
     const arr = toDate(t.arrAt) ?? new Date(dep.getTime() + 60 * 60 * 1000);
     const route = [t.depPlace, t.arrPlace].filter(Boolean).join(" → ") || "Transport";
-    const summary = `✈ ${route}${t.reference ? ` ${t.reference}` : ""}`;
+    // ARCH-TEN-7: no ticket/booking reference here — it used to be appended
+    // to SUMMARY, which is worse than DESCRIPTION: a booking ref in the
+    // event *title* propagates into calendar previews, notifications and
+    // lock screens. Dropped upstream by the route's select.
+    const summary = `✈ ${route}`;
     const alarm =
       input.alarms?.transport === true
         ? alarmBlock(
@@ -222,7 +223,11 @@ export function buildICS(input: IcsInput): string {
 
   // Accommodation (multi-day all-day block)
   for (const a of accommodations) {
-    const desc = buildDescription([a.notes, a.confirmation ? `Confirmation: ${a.confirmation}` : null]);
+    // ARCH-TEN-7: notes/confirmation are never fed in from the route's
+    // select (dropped upstream) — an Accommodation VEVENT has no
+    // DESCRIPTION left to build. The confirmation stays in the app, offline,
+    // behind the Traveller's account.
+    const desc: string | null = null;
     // A rough Stop (no arriveDate) has no stored timezone and is excluded
     // from `stops`/`tzById` by the route's query, even though its
     // Accommodation is still fetched and published below. Falling back to

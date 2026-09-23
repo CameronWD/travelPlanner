@@ -25,7 +25,8 @@ import { DayFeasibility } from "@/components/trip/day-feasibility";
 import { WeatherDaylightCard } from "@/components/trip/weather-daylight-card";
 import { AddItemButton } from "@/components/trip/item-form-dialog";
 import { JournalEditor } from "@/components/trip/journal-editor";
-import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
+import { JournalEntryView } from "@/components/trip/journal-entry-view";
+import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN } from "@/lib/plan-scope";
 import type { TransportMode } from "@/lib/enums";
 
 /** Reading-width wrapper applied to the timeline+editor stack. Exported for tests. */
@@ -41,7 +42,11 @@ export default async function DayPage({
   params: Promise<{ tripId: string; date: string }>;
 }) {
   const { tripId, date } = await params;
-  await requireTripAccess(tripId);
+  const { user } = await requireTripAccess(tripId);
+
+  // Policy (not a BND-2 spelling exemption): this dated view deliberately
+  // always shows the real plan and ignores `?plan=` — see
+  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
   // Validate date param format
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -72,11 +77,11 @@ export default async function DayPage({
         ? trip.endDate
         : date;
 
-  const [stops, items, transports, accommodations, journalEntry, journalPhotos, wishlist, allAttachments] =
+  const [stops, items, transports, accommodations, journalEntries, journalPhotos, wishlist, allAttachments] =
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops don't appear on a dated day view.
-        where: { tripId, forkId: null, arriveDate: { not: null } },
+        where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -92,7 +97,7 @@ export default async function DayPage({
         },
       }),
       db.item.findMany({
-        where: { tripId, forkId: null, date: { not: null } },
+        where: { tripId, ...REAL_PLAN, date: { not: null } },
         orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
         select: {
           id: true,
@@ -112,7 +117,7 @@ export default async function DayPage({
         },
       }),
       db.transport.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -132,7 +137,7 @@ export default async function DayPage({
         },
       }),
       db.accommodation.findMany({
-        where: { tripId, forkId: null, checkIn: { lte: effectiveDate }, checkOut: { gte: effectiveDate } },
+        where: { tripId, ...REAL_PLAN, checkIn: { lte: effectiveDate }, checkOut: { gte: effectiveDate } },
         orderBy: { checkIn: "asc" },
         select: {
           id: true,
@@ -149,12 +154,18 @@ export default async function DayPage({
           lng: true,
         },
       }),
-      db.journalEntry.findUnique({
-        where: { tripId_date: { tripId, date: effectiveDate } },
+      // Every Traveller's entry for this date (ARCH-DAT-6: per-Traveller
+      // entries, not one shared row) — split into "mine" (editable) and
+      // "theirs" (read-only) below.
+      db.journalEntry.findMany({
+        where: { tripId, date: effectiveDate },
+        orderBy: { createdAt: "asc" },
         select: {
           id: true,
           body: true,
+          authorId: true,
           updatedAt: true,
+          author: { select: { name: true } },
         },
       }),
       db.attachment.findMany({
@@ -171,7 +182,7 @@ export default async function DayPage({
         },
       }),
       db.item.findMany({
-        where: { tripId, forkId: null, ...WISHLIST_IDEA_WHERE },
+        where: { tripId, ...REAL_PLAN, ...WISHLIST_IDEA_WHERE },
         select: { id: true, title: true, category: true, lat: true, lng: true, countryCode: true },
       }),
       db.attachment.findMany({
@@ -241,6 +252,11 @@ export default async function DayPage({
       notes: a.notes,
     })),
   });
+
+  // Split the date's journal entries into the current Traveller's own
+  // (editable) entry and everyone else's (read-only).
+  const myJournalEntry = journalEntries.find((e) => e.authorId === user.id) ?? null;
+  const otherJournalEntries = journalEntries.filter((e) => e.authorId !== user.id);
 
   const dayPlan = itinerary.find((d) => d.dateISO === effectiveDate);
   if (!dayPlan) {
@@ -357,7 +373,7 @@ export default async function DayPage({
   const thingsToDo =
     freeForm && phase === "travelling" && dayStop
       ? await db.item.findMany({
-          where: { tripId, forkId: null, ...THINGS_TO_DO_WHERE, stopId: dayStop.id },
+          where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE, stopId: dayStop.id },
           orderBy: { sortOrder: "asc" },
           select: { id: true, title: true, category: true, startTime: true, endTime: true },
         })
@@ -512,14 +528,25 @@ export default async function DayPage({
               Journal
             </h3>
           </div>
-          <div className="rounded-xl border border-border bg-card px-4 py-4">
-            <JournalEditor
-              tripId={tripId}
-              date={effectiveDate}
-              initialBody={journalEntry?.body ?? ""}
-              updatedAt={journalEntry?.updatedAt ?? null}
-              photos={journalPhotos}
-            />
+          <div className="flex flex-col gap-3">
+            {/* Other Travellers' entries for this day — read-only */}
+            {otherJournalEntries.map((entry) => (
+              <JournalEntryView
+                key={entry.id}
+                body={entry.body}
+                updatedAt={entry.updatedAt}
+                authorName={entry.author.name}
+              />
+            ))}
+            <div className="rounded-xl border border-border bg-card px-4 py-4">
+              <JournalEditor
+                tripId={tripId}
+                date={effectiveDate}
+                initialBody={myJournalEntry?.body ?? ""}
+                updatedAt={myJournalEntry?.updatedAt ?? null}
+                photos={journalPhotos}
+              />
+            </div>
           </div>
         </section>
       </div>

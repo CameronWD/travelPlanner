@@ -450,18 +450,23 @@ export function StopCard({
             </div>
           )}
 
-          {/* Delete */}
-          <Button
-            variant="ghost"
-            size="icon"
-            className="hidden sm:inline-flex size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
-            disabled={isPending}
-            onClick={() => onDelete?.(stop.id)}
-            aria-label={`Delete ${stop.name}`}
-            title="Delete Stop"
-          >
-            <Trash2 className="size-4" aria-hidden="true" />
-          </Button>
+          {/* Delete — owner-only (ARCH-DAT-1b); hidden whenever the caller
+              omits onDelete, same gate the mobile overflow item above
+              already used. Cosmetic only: the server action is the real
+              access control. */}
+          {onDelete && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hidden sm:inline-flex size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              disabled={isPending}
+              onClick={() => onDelete(stop.id)}
+              aria-label={`Delete ${stop.name}`}
+              title="Delete Stop"
+            >
+              <Trash2 className="size-4" aria-hidden="true" />
+            </Button>
+          )}
 
           {/* Overflow menu — mobile: all secondary actions. */}
           <div className="sm:hidden">

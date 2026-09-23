@@ -8,6 +8,27 @@
 import { db } from "@/lib/db";
 import { getUserGlobe } from "@/lib/globe";
 
+/**
+ * True if a `User` account already exists for this email and that user
+ * already belongs to a Globe (ADR 0023 — a Traveller belongs to at most
+ * one). Used at Globe-invite *creation* time (`inviteToGlobe`) so the
+ * inviter is told the real outcome instead of "Invited" for something that
+ * can never be accepted — `decideGlobeMembership` below makes the analogous
+ * refusal at *acceptance* time; this is a separate, earlier check and does
+ * not change that one. An email with no matching `User` yet cannot be
+ * checked, and that stays a legitimate, unchanged path: the Invite is still
+ * created pending.
+ */
+export async function inviteeAlreadyHasGlobe(email: string): Promise<boolean> {
+  const user = await db.user.findUnique({
+    where: { email },
+    select: { id: true },
+  });
+  if (!user) return false;
+  const globe = await getUserGlobe(user.id);
+  return globe !== null;
+}
+
 export interface PendingGlobeInviteLike {
   id: string;
   globeId: string;
@@ -40,7 +61,15 @@ export async function acceptPendingGlobeInvitesForUser(
   try {
     const normalEmail = email.toLowerCase();
     const pending = await db.globeInvite.findMany({
-      where: { email: normalEmail, acceptedAt: null },
+      where: {
+        email: normalEmail,
+        acceptedAt: null,
+        // Expiry kills acceptance, not just sign-in admission: a stale Invite
+        // must not silently grant Globe membership months later (ADR 0017,
+        // amended 2026-09-22). `expiresAt: null` is a pre-migration row and
+        // stays valid.
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
       select: { id: true, globeId: true, email: true },
     });
     if (pending.length === 0) return;

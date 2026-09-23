@@ -12,17 +12,23 @@ const {
   pushSubDeleteManyMock,
   pushSubFindUniqueMock,
   pushSubUpdateMock,
+  reportErrorMock,
 } = vi.hoisted(() => ({
   requireUserMock: vi.fn().mockResolvedValue({ id: "user-1" }),
   pushSubUpsertMock: vi.fn(),
   pushSubDeleteManyMock: vi.fn(),
   pushSubFindUniqueMock: vi.fn(),
   pushSubUpdateMock: vi.fn(),
+  reportErrorMock: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/lib/guards", () => ({
   requireUser: requireUserMock,
 }));
+
+// ARCH-OBS-1: these catches report to the error sink. Mocked entirely here
+// — reportError's own behaviour is lib/error-sink.test.ts's job.
+vi.mock("@/lib/error-sink", () => ({ reportError: reportErrorMock }));
 
 vi.mock("@/lib/db", () => ({
   db: {
@@ -143,15 +149,17 @@ describe("subscribeToPush", () => {
     // CD-09: three bare `catch {` blocks meant every failure in this file was
     // invisible — the caller got a generic message and the operator got
     // nothing at all.
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const boom = new Error("connection reset");
     pushSubUpsertMock.mockRejectedValue(boom);
 
     const result = await subscribeToPush(STUB_SUB);
 
     expect(result).toEqual({ ok: false, error: "Failed to save push subscription." });
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("[push]"), boom);
-    errorSpy.mockRestore();
+    // ARCH-OBS-1 (was: expect(errorSpy).toHaveBeenCalledWith(...))
+    expect(reportErrorMock).toHaveBeenCalledWith(boom, {
+      route: "server/actions/push.ts#subscribeToPush",
+      source: "server",
+    });
   });
 
   it("writes the same key material on the create and update arms", async () => {
@@ -240,15 +248,17 @@ describe("unsubscribeFromPush", () => {
   });
 
   it("logs the error rather than swallowing it when the db throws", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const boom = new Error("connection reset");
     pushSubDeleteManyMock.mockRejectedValue(boom);
 
     const result = await unsubscribeFromPush(STUB_SUB.endpoint);
 
     expect(result).toEqual({ ok: false, error: "Failed to remove push subscription." });
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("[push]"), boom);
-    errorSpy.mockRestore();
+    // ARCH-OBS-1 (was: expect(errorSpy).toHaveBeenCalledWith(...))
+    expect(reportErrorMock).toHaveBeenCalledWith(boom, {
+      route: "server/actions/push.ts#unsubscribeFromPush",
+      source: "server",
+    });
   });
 
   it("scopes deletion to current user (cannot delete another user's subscription)", async () => {
@@ -402,7 +412,6 @@ describe("healRotatedSubscription", () => {
   // an unexpected DB failure is TEEPEE's fault, not the caller's, and must
   // not be reported as a client error.
   it("returns reason: internal when the database throws", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const boom = new Error("DB error");
     pushSubUpsertMock.mockRejectedValue(boom);
 
@@ -416,8 +425,11 @@ describe("healRotatedSubscription", () => {
       error: "Failed to heal push subscription.",
       reason: "internal",
     });
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("[push]"), boom);
-    errorSpy.mockRestore();
+    // ARCH-OBS-1 (was: expect(errorSpy).toHaveBeenCalledWith(...))
+    expect(reportErrorMock).toHaveBeenCalledWith(boom, {
+      route: "server/actions/push.ts#healRotatedSubscription",
+      source: "server",
+    });
   });
 
   // The mirror of the case above: the refusal must not be so broad that it

@@ -3,12 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireTripAccess, requireForkAccess, assertForkingAllowed } from "@/lib/guards";
+import { requireTripAccess, requireForkAccess, assertForkingAllowed, isTripOwnerOrAdmin } from "@/lib/guards";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { buildForkPlan, MAX_FORKS } from "@/lib/fork-plan";
 import { recordActivity } from "@/server/actions/activity";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
-import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, type PlanId } from "@/lib/plan-scope";
+import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } from "@/lib/compare";
 
 // ---------------------------------------------------------------------------
@@ -67,7 +67,7 @@ export async function createFork(
       // the fork switcher is even shown — the two must agree on what "today"
       // is or the control renders while the action refuses (AB-03).
       stops: {
-        where: { forkId: null, arriveDate: { not: null } },
+        where: { ...REAL_PLAN, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
         select: { timezone: true, arriveDate: true, departDate: true },
       },
@@ -586,7 +586,7 @@ export async function getPromotionPreview(forkId: string): Promise<PromotionPrev
   const tripId = fork.tripId;
 
   // 2. Load the real plan's six entity collections (forkId: null)
-  const realWhere = { tripId, forkId: null };
+  const realWhere = { tripId, ...REAL_PLAN };
   const forkWhere = { tripId, forkId };
 
   const [
@@ -738,13 +738,25 @@ export type PromoteForkResult = { success: true } | { success: false; error: str
  */
 export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
   // 1. Auth + existence check
-  const { fork, trip } = await requireForkAccess(forkId);
+  const { user, fork, trip } = await requireForkAccess(forkId);
   const tripId = fork.tripId;
+
+  // ARCH-DAT-1b: promoting a Fork is whole-branch destruction — it discards
+  // the current real plan (and every other Fork), irreversibly — so it is
+  // owner-only even though editing a Fork stays open to every Traveller.
+  // requireForkAccess above only checked membership; a second
+  // `requireTripAccess` call gets the role — free, since it's `cache()`-
+  // memoised per `tripId` (see lib/guards.ts), rather than a second uncached
+  // query, since requireForkAccess's return shape doesn't carry the role.
+  const { membership } = await requireTripAccess(tripId);
+  if (!isTripOwnerOrAdmin(membership, user.email)) {
+    return { success: false, error: "Only the trip owner can promote a Fork." };
+  }
 
   // 2. Phase gate
   // Same clock the fork switcher uses (see createFork above, AB-03).
   const gateStops = await db.stop.findMany({
-    where: { tripId, forkId: null, arriveDate: { not: null } },
+    where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
     orderBy: { sortOrder: "asc" },
     select: { timezone: true, arriveDate: true, departDate: true },
   });
@@ -772,23 +784,23 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
     // part of any plan — they must survive promotion (C1b). So we delete only
     // real-plan PLACEMENTS (Stop OR date, which now includes dateless stop
     // things-to-do), and preserve ITEM costs owned by surviving ideas.
-    await tx.stop.deleteMany({ where: { tripId, forkId: null } });
-    await tx.chapter.deleteMany({ where: { tripId, forkId: null } });
-    await tx.transport.deleteMany({ where: { tripId, forkId: null } });
-    await tx.accommodation.deleteMany({ where: { tripId, forkId: null } });
-    await tx.item.deleteMany({ where: { tripId, forkId: null, ...PLAN_PLACEMENT_WHERE } });
+    await tx.stop.deleteMany({ where: { tripId, ...REAL_PLAN } });
+    await tx.chapter.deleteMany({ where: { tripId, ...REAL_PLAN } });
+    await tx.transport.deleteMany({ where: { tripId, ...REAL_PLAN } });
+    await tx.accommodation.deleteMany({ where: { tripId, ...REAL_PLAN } });
+    await tx.item.deleteMany({ where: { tripId, ...REAL_PLAN, ...PLAN_PLACEMENT_WHERE } });
 
     // Gather surviving wishlist idea ids so their ITEM costs are preserved.
     // Ideas are the both-null items only — a dateless stop placement is NOT an
     // idea (it was deleted above; its cost should be replaced, not preserved).
     const ideas = await tx.item.findMany({
-      where: { tripId, forkId: null, ...WISHLIST_IDEA_WHERE },
+      where: { tripId, ...REAL_PLAN, ...WISHLIST_IDEA_WHERE },
       select: { id: true },
     });
     await tx.cost.deleteMany({
       where: {
         tripId,
-        forkId: null,
+        ...REAL_PLAN,
         NOT: { ownerType: "ITEM", ownerId: { in: ideas.map((i) => i.id) } },
       },
     });

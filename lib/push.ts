@@ -68,6 +68,22 @@ export type SendPushResult =
   | { sent: true }
   | { sent: false; skipped?: true; gone?: true };
 
+export interface SendPushOptions {
+  /**
+   * Whether a non-404/410 failure is reported to the error sink
+   * (ARCH-OBS-1). Defaults to true. `lib/admin-notify.ts` passes `false`:
+   * notifyAdmins's own delivery path is itself built on this function, so
+   * without this a sendPush failure INSIDE notifyAdmins would call
+   * reportError, which (on a new signature) calls notifyAdmins again, which
+   * calls sendPush again — and because push errors embed resolved
+   * addresses/hostnames that vary per attempt (FCM round-robins DNS; admin
+   * devices span different push services), the dedup signature does not
+   * stay stable across attempts, so this does not self-limit. Ordinary
+   * push failures (Digest delivery, etc.) still report normally.
+   */
+  report?: boolean;
+}
+
 /**
  * Send the Digest push to a single subscription.
  *
@@ -81,6 +97,7 @@ export type SendPushResult =
 export async function sendPush(
   subscription: PushSubscriptionData,
   payload: string,
+  options: SendPushOptions = {},
 ): Promise<SendPushResult> {
   if (!isPushConfigured()) {
     return { sent: false, skipped: true };
@@ -115,7 +132,36 @@ export async function sendPush(
       return { sent: false, gone: true };
     }
 
+    // UNCONDITIONAL, and it must stay that way (final fix wave, I3). Task 16's
+    // `{ report: false }` fix REPLACED this line instead of sitting alongside
+    // it, which made exactly one path completely silent: notifyAdmins's own
+    // delivery (lib/admin-notify.ts) is the only caller that passes
+    // `report: false`, and a non-404/410 failure there produced no report and
+    // no log at all. Nothing downstream caught it either — sendPush always
+    // resolves with a result, so withTimeout's rejection arm is unreachable
+    // and notifyAdmins inspects only `gone`. lib/admin-notify.ts's own module
+    // comment says an error recorded with nobody told is the single hardest
+    // failure mode to notice in the whole system; this log is what stops it
+    // being invisible as well.
     console.error("[push] sendNotification failed:", err);
+
+    if (options.report !== false) {
+      // Both the import and the call are inside their own try/catch (I3):
+      // lib/error-sink.ts statically imports lib/db.ts, which throws at
+      // MODULE EVALUATION time when DATABASE_URL is unset (e.g. a preview
+      // deploy with VAPID configured but no database) — so `await
+      // import(...)` itself can reject here, not just reportError (which is
+      // documented never to throw, but the import reaching it can still
+      // fail). This module promises to be import-safe and never-throwing in
+      // any environment (see module doc); that must hold even when the sink
+      // it reports to is unreachable.
+      try {
+        const { reportError } = await import("@/lib/error-sink");
+        await reportError(err, { route: "lib/push.ts#sendPush", source: "server" });
+      } catch (sinkErr) {
+        console.error("[push] reporting to the error sink failed:", sinkErr);
+      }
+    }
     return { sent: false };
   }
 }

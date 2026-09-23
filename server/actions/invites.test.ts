@@ -31,7 +31,18 @@ const {
   inviteDeleteMock: vi.fn(),
 }));
 
-vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
+vi.mock("@/lib/guards", async () => {
+  // isTripOwnerOrAdmin (ARCH-BND-3) lives in lib/access.ts, which is
+  // framework/db-free, so it can be imported for real here — unlike
+  // lib/guards.ts itself, which also imports lib/auth (next-auth →
+  // next/server), a module graph this test file never otherwise loads. The
+  // real isTripOwnerOrAdmin still calls isAdminEmail internally, which
+  // resolves to the isAdminEmailMock below (vi.mock applies module-graph
+  // wide, not just to direct importers) — so "allows an admin who is not
+  // the owner" below still exercises isAdminEmailMock.
+  const { isTripOwnerOrAdmin } = await import("@/lib/access");
+  return { requireTripAccess: requireTripAccessMock, isTripOwnerOrAdmin };
+});
 vi.mock("@/lib/admin", () => ({ isAdminEmail: isAdminEmailMock }));
 vi.mock("next/cache", () => ({ revalidatePath: revalidatePathMock }));
 vi.mock("@/lib/db", () => ({
@@ -130,6 +141,22 @@ describe("inviteToTrip", () => {
         create: expect.objectContaining({ email: "partner@example.com" }),
       }),
     );
+  });
+
+  it("sets expiresAt 30 days out on creation", async () => {
+    tripMemberFindManyMock.mockResolvedValue([]);
+    inviteUpsertMock.mockResolvedValue({ id: "inv-1" });
+
+    const before = Date.now();
+    await inviteToTrip(TRIP_ID, "partner@example.com");
+    const after = Date.now();
+
+    const call = inviteUpsertMock.mock.calls[0][0];
+    const expiresAt: Date = call.create.expiresAt;
+    expect(expiresAt).toBeInstanceOf(Date);
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + thirtyDaysMs);
+    expect(expiresAt.getTime()).toBeLessThanOrEqual(after + thirtyDaysMs);
   });
 
   it("returns the upsert's resolved id on the no-duplicate path (idempotent)", async () => {

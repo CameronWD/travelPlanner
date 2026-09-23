@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
 import { isDispatcherUnhealthy } from "@/lib/cron-health";
+import { reportError } from "@/lib/error-sink";
 
 // Named ...Data so it does not collide with the DispatcherHealth *component*,
 // which app/(app)/account/page.tsx imports alongside it (CD-15).
@@ -40,7 +41,10 @@ export async function getDispatcherHealth(): Promise<DispatcherHealthData> {
       select: { lastRunAt: true, lastSuccessAt: true },
     });
   } catch (err) {
-    console.error("[cron-health] failed to read the dispatcher heartbeat:", err);
+    await reportError(err, {
+      route: "server/actions/cron-health.ts#getDispatcherHealth",
+      source: "server",
+    });
     return { lastRunAt: null, lastSuccessAt: null, stale: true };
   }
 

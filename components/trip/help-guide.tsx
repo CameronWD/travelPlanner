@@ -1176,6 +1176,8 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 ready to sketch again. Give it a{" "}
                 <strong className="font-semibold">Name for the duplicate</strong>{" "}
                 and you&rsquo;re done. The trip you copied isn&rsquo;t touched.
+                Your co-travellers aren&rsquo;t added automatically — each one
+                gets invited to the duplicate and joins once they accept.
               </li>
               <li>
                 <strong className="font-semibold">Delete trip</strong> removes

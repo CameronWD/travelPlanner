@@ -72,14 +72,20 @@ vi.mock("react", async (importOriginal) => {
 
 import {
   assertForkingAllowed,
+  requireAdmin,
   requireForkAccess,
   requireTripAccess,
+  requireTripOwner,
   requireUser,
 } from "@/lib/guards";
+
+const ORIGINAL_ADMIN_EMAILS = process.env.ADMIN_EMAILS;
 
 afterEach(() => {
   vi.clearAllMocks();
   cacheStore.clear();
+  if (ORIGINAL_ADMIN_EMAILS === undefined) delete process.env.ADMIN_EMAILS;
+  else process.env.ADMIN_EMAILS = ORIGINAL_ADMIN_EMAILS;
 });
 
 describe("requireTripAccess", () => {
@@ -258,6 +264,67 @@ describe("requireForkAccess", () => {
     forkFindUniqueMock.mockResolvedValue(forkRow);
 
     await expect(requireForkAccess("fork-1")).rejects.toThrow("NEXT_REDIRECT");
+    expect(redirectMock).toHaveBeenCalledOnce();
+  });
+});
+
+// ARCH-BND-3: one named owner/admin guard, replacing three hand-rolled
+// copies in server/actions/trips.ts and server/actions/invites.ts.
+describe("requireTripOwner", () => {
+  it("returns for the trip owner", async () => {
+    authMock.mockResolvedValue({ user: { id: "u1", email: "owner@example.com" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+
+    await expect(requireTripOwner("t1")).resolves.toMatchObject({
+      membership: { role: "owner" },
+    });
+  });
+
+  it("notFound()s for a plain member", async () => {
+    authMock.mockResolvedValue({ user: { id: "u2", email: "member@example.com" } });
+    findManyMock.mockResolvedValue([{ userId: "u2", role: "member" }]);
+
+    await expect(requireTripOwner("t1")).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(notFoundMock).toHaveBeenCalledOnce();
+  });
+
+  it("returns for an ADMIN_EMAILS operator who is a member but not owner", async () => {
+    process.env.ADMIN_EMAILS = "ops@example.com";
+    authMock.mockResolvedValue({ user: { id: "u3", email: "ops@example.com" } });
+    findManyMock.mockResolvedValue([{ userId: "u3", role: "member" }]);
+
+    await expect(requireTripOwner("t1")).resolves.toBeTruthy();
+  });
+
+  it("still notFound()s a non-member, admin or not (no bypass of requireTripAccess)", async () => {
+    process.env.ADMIN_EMAILS = "ops@example.com";
+    authMock.mockResolvedValue({ user: { id: "stranger", email: "ops@example.com" } });
+    findManyMock.mockResolvedValue([{ userId: "u1", role: "owner" }]);
+
+    await expect(requireTripOwner("t1")).rejects.toThrow("NEXT_NOT_FOUND");
+  });
+});
+
+describe("requireAdmin", () => {
+  it("returns the session user for an ADMIN_EMAILS operator", async () => {
+    process.env.ADMIN_EMAILS = "ops@example.com";
+    authMock.mockResolvedValue({ user: { id: "u1", email: "ops@example.com" } });
+
+    await expect(requireAdmin()).resolves.toEqual({ id: "u1", email: "ops@example.com" });
+  });
+
+  it("notFound()s a non-admin", async () => {
+    delete process.env.ADMIN_EMAILS;
+    authMock.mockResolvedValue({ user: { id: "u2", email: "someone@example.com" } });
+
+    await expect(requireAdmin()).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(notFoundMock).toHaveBeenCalledOnce();
+  });
+
+  it("redirects an unauthenticated user to sign-in", async () => {
+    authMock.mockResolvedValue(null);
+
+    await expect(requireAdmin()).rejects.toThrow("NEXT_REDIRECT");
     expect(redirectMock).toHaveBeenCalledOnce();
   });
 });

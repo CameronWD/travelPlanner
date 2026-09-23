@@ -14,7 +14,7 @@ const {
   itemFindManyMock,
   transportFindManyMock,
   accommodationFindManyMock,
-  journalEntryFindUniqueMock,
+  journalEntryFindManyMock,
   attachmentFindManyMock,
   buildItineraryMock,
   isFreeFormDayMock,
@@ -33,7 +33,7 @@ const {
   itemFindManyMock: vi.fn(),
   transportFindManyMock: vi.fn(),
   accommodationFindManyMock: vi.fn(),
-  journalEntryFindUniqueMock: vi.fn(),
+  journalEntryFindManyMock: vi.fn(),
   attachmentFindManyMock: vi.fn(),
   buildItineraryMock: vi.fn(),
   isFreeFormDayMock: vi.fn(),
@@ -54,7 +54,7 @@ vi.mock("@/lib/db", () => ({
     item: { findMany: itemFindManyMock },
     transport: { findMany: transportFindManyMock },
     accommodation: { findMany: accommodationFindManyMock },
-    journalEntry: { findUnique: journalEntryFindUniqueMock },
+    journalEntry: { findMany: journalEntryFindManyMock },
     attachment: { findMany: attachmentFindManyMock },
   },
 }));
@@ -106,6 +106,10 @@ const { DAY_READING_WIDTH_CLASS, DAY_HEADER_GRID_CLASS } = await import("./page"
 const DayPage = (await import("./page")).default;
 const { NearbyWishlist } = await import("@/components/trip/nearby-wishlist");
 const { DayIdeas } = await import("@/components/trip/day-ideas");
+const { JournalEditor } = await import("@/components/trip/journal-editor");
+// Not mocked — used by identity to find every place the day page renders a
+// read-only entry for another Traveller.
+const { JournalEntryView } = await import("@/components/trip/journal-entry-view");
 
 // Server components aren't run through a renderer here — walk the returned
 // React element tree by hand (mirrors phase-travelling.test.tsx).
@@ -122,6 +126,34 @@ function findElementByType(node: unknown, type: unknown): { props: Record<string
     return null;
   }
   return findElementByType(children, type);
+}
+
+// Same walk, but collects every match instead of stopping at the first —
+// needed to assert exactly one read-only JournalEntryView renders (the
+// other Traveller's), not the caller's own.
+function findAllElementsByType(
+  node: unknown,
+  type: unknown,
+  acc: { props: Record<string, unknown> }[] = [],
+): { props: Record<string, unknown> }[] {
+  if (node == null || typeof node !== "object") return acc;
+  // A raw array shows up when a child is itself the result of `.map()`
+  // (e.g. otherJournalEntries.map(...)) rather than a single element —
+  // descend into each entry directly rather than treating the array as one
+  // node (which has no .type/.props of its own).
+  if (Array.isArray(node)) {
+    for (const child of node) findAllElementsByType(child, type, acc);
+    return acc;
+  }
+  const el = node as { type?: unknown; props?: { children?: unknown } };
+  if (el.type === type) acc.push(node as { props: Record<string, unknown> });
+  const children = el.props?.children;
+  if (Array.isArray(children)) {
+    for (const child of children) findAllElementsByType(child, type, acc);
+  } else {
+    findAllElementsByType(children, type, acc);
+  }
+  return acc;
 }
 
 describe("Day page reading-width cap", () => {
@@ -178,7 +210,7 @@ describe("Day page — Day ideas mount and phase gating (Task 16)", () => {
     stopFindManyMock.mockResolvedValue([STOP]);
     transportFindManyMock.mockResolvedValue([]);
     accommodationFindManyMock.mockResolvedValue([]);
-    journalEntryFindUniqueMock.mockResolvedValue(null);
+    journalEntryFindManyMock.mockResolvedValue([]);
     // Both attachment.findMany calls (journal photos + all-attachments).
     attachmentFindManyMock.mockResolvedValue([]);
     buildDayMapModelMock.mockReturnValue({});
@@ -278,5 +310,109 @@ describe("Day page — Day ideas mount and phase gating (Task 16)", () => {
     expect(wishlistCall.where).not.toHaveProperty("lat");
     expect(wishlistCall.where).not.toHaveProperty("lng");
     expect(wishlistCall.select).toEqual(expect.objectContaining({ countryCode: true }));
+  });
+});
+
+// ARCH-DAT-6 fix round 1, Finding 2: pin the multi-entry read path so a
+// later "simplification" back to journalEntries[0] (single entry) can't
+// silently regress without a test failing.
+describe("Day page — Journal entries are per-Traveller (ARCH-DAT-6)", () => {
+  const STOP = {
+    id: "stop-1",
+    name: "Munich",
+    country: "Germany",
+    countryCode: "de",
+    timezone: "Europe/Berlin",
+    arriveDate: "2026-01-01",
+    departDate: "2026-01-10",
+    sortOrder: 0,
+    lat: null,
+    lng: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireTripAccessMock.mockResolvedValue({ user: { id: "me" }, membership: {} });
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-10" });
+    todayISOInZoneMock.mockReturnValue("2026-01-05");
+    isFreeFormDayMock.mockReturnValue(false);
+    stopFindManyMock.mockResolvedValue([STOP]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([
+      makeDayPlan({
+        dateISO: "2026-01-05",
+        stopId: "stop-1",
+        timedItems: [{ kind: "item", item: { id: "i1" } }],
+      }),
+    ]);
+    buildDayMapModelMock.mockReturnValue({});
+    buildItemDirectionsMock.mockReturnValue({});
+    nearbyWishlistItemsMock.mockReturnValue([]);
+    dayIdeasWishlistMock.mockReturnValue([]);
+    flagTightConnectionsMock.mockReturnValue([]);
+    daylightMock.mockReturnValue(null);
+    getDayWeatherMock.mockResolvedValue(null);
+  });
+
+  it("renders every Traveller's entry for the date — the caller's own editable, everyone else's read-only and attributed", async () => {
+    journalEntryFindManyMock.mockResolvedValue([
+      {
+        id: "entry-me",
+        body: "My account of the day",
+        authorId: "me",
+        updatedAt: new Date("2026-01-05T20:00:00Z"),
+        author: { name: "Cam" },
+      },
+      {
+        id: "entry-them",
+        body: "Their account of the day",
+        authorId: "them",
+        updatedAt: new Date("2026-01-05T21:00:00Z"),
+        author: { name: "Alex" },
+      },
+    ]);
+
+    const tree = await DayPage({
+      params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }),
+    });
+
+    // The caller's own entry is the editable one, fed to JournalEditor.
+    const editor = findElementByType(tree, JournalEditor);
+    expect(editor).not.toBeNull();
+    expect(editor!.props.initialBody).toBe("My account of the day");
+
+    // Exactly one read-only entry renders — the other Traveller's, not the
+    // caller's own (which must stay editor-only, not duplicated read-only).
+    const readOnlyEntries = findAllElementsByType(tree, JournalEntryView);
+    expect(readOnlyEntries).toHaveLength(1);
+    expect(readOnlyEntries[0].props.body).toBe("Their account of the day");
+    expect(readOnlyEntries[0].props.authorName).toBe("Alex");
+  });
+
+  it("passes an empty editable body and shows only the other Traveller's entry when the caller has none of their own", async () => {
+    journalEntryFindManyMock.mockResolvedValue([
+      {
+        id: "entry-them",
+        body: "Their account of the day",
+        authorId: "them",
+        updatedAt: new Date("2026-01-05T21:00:00Z"),
+        author: { name: "Alex" },
+      },
+    ]);
+
+    const tree = await DayPage({
+      params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }),
+    });
+
+    const editor = findElementByType(tree, JournalEditor);
+    expect(editor!.props.initialBody).toBe("");
+    expect(editor!.props.updatedAt).toBeNull();
+
+    const readOnlyEntries = findAllElementsByType(tree, JournalEntryView);
+    expect(readOnlyEntries).toHaveLength(1);
+    expect(readOnlyEntries[0].props.authorName).toBe("Alex");
   });
 });

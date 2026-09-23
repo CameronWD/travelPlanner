@@ -1,5 +1,6 @@
 import { db } from "@/lib/db";
 import { requireUser } from "@/lib/guards";
+import { isAdminEmail } from "@/lib/admin";
 
 /**
  * True for a Prisma unique-constraint violation (P2002). Checked structurally
@@ -65,5 +66,41 @@ export async function requireGlobeAccess(): Promise<{
 }> {
   const user = await requireUser();
   const globe = await getOrCreateUserGlobe(user.id);
+  return { user: { id: user.id }, globe };
+}
+
+/**
+ * Gate for Globe actions that must be owner-only (ARCH-TEN-4) — currently
+ * just creating an Invite. Mirrors `requireGlobeAccess` (same auth + lazy
+ * globe creation) but additionally requires the caller own the Globe, or be
+ * an `ADMIN_EMAILS` operator (same bypass Trip ownership checks use).
+ *
+ * Deliberately does NOT throw/notFound() on refusal — unlike
+ * `requireTripOwner` in `lib/guards.ts` — because the one caller
+ * (`inviteToGlobe`) reports the refusal as a typed `GlobeActionResult`
+ * failure with a friendly message, the same way `inviteToTrip` reports its
+ * owner-only refusal. Returns `null` so that caller can build its own typed
+ * result instead of an uncatchable thrown redirect.
+ *
+ * Scoped narrowly to invites on purpose: every other Globe action (markers,
+ * attachments, search/geocode proxies) stays on plain `requireGlobeAccess`
+ * so ordinary Globe members keep their existing access to the Globe itself —
+ * only minting new access to it is owner-gated.
+ */
+export async function requireGlobeOwner(): Promise<{
+  user: { id: string };
+  globe: { id: string };
+} | null> {
+  const user = await requireUser();
+  const globe = await getOrCreateUserGlobe(user.id);
+
+  const membership = await db.globeMember.findUnique({
+    where: { userId: user.id },
+    select: { role: true },
+  });
+  if (membership?.role !== "owner" && !isAdminEmail(user.email)) {
+    return null;
+  }
+
   return { user: { id: user.id }, globe };
 }

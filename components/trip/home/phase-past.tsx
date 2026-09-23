@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { NotebookPen, PlaneTakeoff } from "lucide-react";
 import { db } from "@/lib/db";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import { nightsBetween } from "@/lib/dates";
 import { formatMoney } from "@/lib/money";
 import {
@@ -93,8 +94,9 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   ] = await Promise.all([
     db.stop.findMany({
       // Dated views follow the real plan — CONTEXT.md; consistent with
-      // calendar/day/print/summary.
-      where: { tripId, forkId: null, arriveDate: { not: null } },
+      // calendar/day/print/summary. Policy (not a BND-2 spelling exemption):
+      // deliberately ignores `?plan=` — never wire in a variable plan here.
+      where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,
@@ -108,7 +110,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
       },
     }),
     db.transport.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...REAL_PLAN },
       select: {
         id: true,
         mode: true,
@@ -119,7 +121,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
       },
     }),
     db.accommodation.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...REAL_PLAN },
       select: {
         id: true,
         stopId: true,
@@ -129,7 +131,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
       },
     }),
     db.item.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...REAL_PLAN },
       select: {
         id: true,
         stopId: true,
@@ -140,7 +142,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
       },
     }),
     db.cost.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...REAL_PLAN },
       orderBy: { createdAt: "asc" },
       select: COST_SELECT,
     }),
@@ -152,7 +154,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
     // query entirely rather than fetch-then-discard.
     trip.chaptersEnabled
       ? db.chapter.findMany({
-          where: { tripId, forkId: null, startDate: { not: null } },
+          where: { tripId, ...REAL_PLAN, startDate: { not: null } },
           orderBy: { startDate: "asc" },
           select: {
             id: true,

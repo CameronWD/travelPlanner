@@ -10,13 +10,13 @@ import { resolveOwningStop, type ItineraryStop } from "@/lib/itinerary";
 import { geocodePlaceDetailed } from "@/lib/geocode";
 import { recordPlanActivity } from "@/lib/activity-guard";
 import { entityLabel, describeChanges } from "@/lib/activity";
-import { planScope, type PlanId } from "@/lib/plan-scope";
+import { planScope, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { getUserGlobe } from "@/lib/globe";
 import { markerToWishlistItemData } from "@/lib/marker-to-item";
 import type { MarkerView } from "@/components/globe/types";
 import { type ActionResult, validationResult } from "@/lib/action-result";
-import { cleanupTargetSideDataTx, deleteBlobsBestEffort } from "@/server/actions/target-cleanup";
+import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 
 // ---------------------------------------------------------------------------
@@ -243,7 +243,7 @@ export async function addMarkerToWishlist(
 
   // Idempotency: already pulled into this trip's wishlist?
   const existing = await db.item.findFirst({
-    where: { tripId, forkId: null, stopId: null, date: null, sourceMarkerId: markerId },
+    where: { tripId, ...REAL_PLAN, stopId: null, date: null, sourceMarkerId: markerId },
     select: { id: true },
   });
   if (existing) return { success: true };
@@ -432,14 +432,15 @@ export async function deleteItem(itemId: string): Promise<ItemActionResult> {
 
   const doomed = await db.item.findUnique({ where: { id: itemId }, select: { title: true } });
 
-  const storageKeys = await db.$transaction(async (tx) => {
+  // cleanupTargetSideDataTx schedules attachment blobs for retention inside
+  // this same transaction (ARCH-DAT-3) — no post-commit blob call needed.
+  await db.$transaction(async (tx) => {
     await tx.item.delete({ where: { id: itemId } });
     await deleteOwnedCostsTx(tx, item.tripId, [
       { type: "ITEM", id: itemId, label: doomed?.title ?? "Item" },
     ]);
-    return cleanupTargetSideDataTx(tx, item.tripId, "ITEM", itemId);
+    await cleanupTargetSideDataTx(tx, item.tripId, "ITEM", itemId);
   });
-  await deleteBlobsBestEffort(storageKeys);
 
   await recordPlanActivity(item.forkId, { tripId: item.tripId, verb: "DELETED", entityType: "ITEM", entityId: itemId, entityLabel: doomed?.title ?? "" });
 
@@ -636,14 +637,15 @@ export async function unscheduleItem(itemId: string): Promise<UnscheduleResult> 
 
   let mode: "placement-removed" | "unslotted";
   if (fullItem.sourceItemId !== null) {
-    const storageKeys = await db.$transaction(async (tx) => {
+    // cleanupTargetSideDataTx schedules attachment blobs for retention inside
+    // this same transaction (ARCH-DAT-3) — no post-commit blob call needed.
+    await db.$transaction(async (tx) => {
       await tx.item.delete({ where: { id: itemId } });
       await deleteOwnedCostsTx(tx, accessItem.tripId, [
         { type: "ITEM", id: itemId, label: fullItem.title ?? "Item" },
       ]);
-      return cleanupTargetSideDataTx(tx, accessItem.tripId, "ITEM", itemId);
+      await cleanupTargetSideDataTx(tx, accessItem.tripId, "ITEM", itemId);
     });
-    await deleteBlobsBestEffort(storageKeys);
     mode = "placement-removed";
   } else {
     await db.item.update({ where: { id: itemId }, data: { date: null } });

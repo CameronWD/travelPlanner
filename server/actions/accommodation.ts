@@ -14,7 +14,7 @@ import { entityLabel, describeChanges } from "@/lib/activity";
 import { type PlanId } from "@/lib/plan-scope";
 import { resolveRateForTrip, persistRate } from "@/lib/fx";
 import { type ActionResult, validationResult } from "@/lib/action-result";
-import { cleanupTargetSideDataTx, deleteBlobsBestEffort } from "@/server/actions/target-cleanup";
+import { cleanupTargetSideDataTx } from "@/server/actions/target-cleanup";
 import { deleteOwnedCostsTx } from "@/server/actions/owned-costs";
 
 // ---------------------------------------------------------------------------
@@ -288,14 +288,15 @@ export async function deleteAccommodation(
 
   const doomed = await db.accommodation.findUnique({ where: { id: accommodationId }, select: { name: true } });
 
-  const storageKeys = await db.$transaction(async (tx) => {
+  // cleanupTargetSideDataTx schedules attachment blobs for retention inside
+  // this same transaction (ARCH-DAT-3) — no post-commit blob call needed.
+  await db.$transaction(async (tx) => {
     await tx.accommodation.delete({ where: { id: accommodationId } });
     await deleteOwnedCostsTx(tx, acc.tripId, [
       { type: "ACCOMMODATION", id: accommodationId, label: doomed?.name ?? "Accommodation" },
     ]);
-    return cleanupTargetSideDataTx(tx, acc.tripId, "ACCOMMODATION", accommodationId);
+    await cleanupTargetSideDataTx(tx, acc.tripId, "ACCOMMODATION", accommodationId);
   });
-  await deleteBlobsBestEffort(storageKeys);
 
   await recordPlanActivity(acc.forkId, { tripId: acc.tripId, verb: "DELETED", entityType: "ACCOMMODATION", entityId: accommodationId, entityLabel: doomed?.name ?? "" });
 

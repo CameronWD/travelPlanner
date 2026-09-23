@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { firstSearchParam } from "@/lib/plan-scope";
+import { firstSearchParam, REAL_PLAN } from "@/lib/plan-scope";
 import { isAiConfigured } from "@/lib/ai";
 import { WishlistBoard } from "@/components/trip/wishlist-board";
 import { VariantBanner } from "@/components/trip/variant-banner";
@@ -53,7 +53,7 @@ export default async function WishlistPage({
         },
       },
       items: {
-        where: { forkId: null, date: null, stopId: null }, // Wishlist ideas only (ADR 0022)
+        where: { ...REAL_PLAN, date: null, stopId: null }, // Wishlist ideas only (ADR 0022)
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -113,7 +113,7 @@ export default async function WishlistPage({
     itemIds.length > 0
       ? db.cost.findMany({
           where: {
-            forkId: null,
+            ...REAL_PLAN,
             ownerType: "ITEM",
             ownerId: { in: itemIds },
           },

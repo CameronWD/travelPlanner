@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 // ── Module mocks (must be declared before any imports of the mocked modules) ──
@@ -11,7 +11,15 @@ vi.mock("@/lib/auth", () => ({
 // @/lib/db at module scope. lib/db.ts now throws at import time when
 // DATABASE_URL is unset (which it is under vitest) — mock it so this render
 // test doesn't need a real database, same as every other test in the suite.
-vi.mock("@/lib/db", () => ({ db: {} }));
+//
+// `accessRequest.findMany` is the one query listAccessRequests (called from
+// layout.tsx for the Admin nav badge) can reach — real for a non-admin
+// session (isAdminEmail short-circuits first, so it's never called at all),
+// but reachable when a test signs in as an ADMIN_EMAILS operator.
+const accessRequestFindManyMock = vi.hoisted(() => vi.fn().mockResolvedValue([]));
+vi.mock("@/lib/db", () => ({
+  db: { accessRequest: { findMany: accessRequestFindManyMock } },
+}));
 
 // The shell now mounts the Feedback launcher, a client component that reads the
 // current route — so this mock has to cover usePathname as well as redirect.
@@ -62,10 +70,19 @@ const SIGNED_IN_SESSION = {
   user: { id: "user-1", name: "Alice Test", email: "alice@example.com", image: null },
 };
 
+const ORIGINAL_ADMIN_EMAILS = process.env.ADMIN_EMAILS;
+
 beforeEach(() => {
   vi.clearAllMocks();
   // Default: signed-in user
   vi.mocked(auth).mockResolvedValue(SIGNED_IN_SESSION as never);
+  accessRequestFindManyMock.mockResolvedValue([]);
+  delete process.env.ADMIN_EMAILS;
+});
+
+afterEach(() => {
+  if (ORIGINAL_ADMIN_EMAILS === undefined) delete process.env.ADMIN_EMAILS;
+  else process.env.ADMIN_EMAILS = ORIGINAL_ADMIN_EMAILS;
 });
 
 // ── Tests ──
@@ -148,5 +165,63 @@ describe("AppLayout", () => {
     render(ui as React.ReactElement);
     const link = screen.getByRole("link", { name: /what's new/i });
     expect(link.getAttribute("href")).toBe("/whats-new");
+  });
+
+  // ARCH-TEN-3c: /admin exists now, and must be discoverable — but only for
+  // an ADMIN_EMAILS operator. Hiding it from everyone else is not access
+  // control (requireAdmin() on the route and every action still is); this is
+  // purely "can the operator find their own console."
+  describe("the Admin nav entry", () => {
+    it("is absent for an ordinary traveller", async () => {
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      expect(screen.queryByRole("link", { name: /^admin/i })).not.toBeInTheDocument();
+    });
+
+    it("appears for an ADMIN_EMAILS operator, linking to /admin", async () => {
+      process.env.ADMIN_EMAILS = "alice@example.com";
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      const link = screen.getByRole("link", { name: /^admin/i });
+      expect(link.getAttribute("href")).toBe("/admin");
+    });
+
+    // Load-bearing, not decorative: notifyAdmins' push only reaches the
+    // operator if they have a Device registered, so this count is often the
+    // ONLY way they learn a request is waiting.
+    it("shows a pending-count badge when Access requests are waiting", async () => {
+      process.env.ADMIN_EMAILS = "alice@example.com";
+      accessRequestFindManyMock.mockResolvedValue([
+        { id: "ar1", email: "a@example.com", name: null, image: null, createdAt: new Date(), lastAttemptAt: new Date(), attempts: 1 },
+        { id: "ar2", email: "b@example.com", name: null, image: null, createdAt: new Date(), lastAttemptAt: new Date(), attempts: 1 },
+      ]);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      expect(screen.getByText("2")).toBeInTheDocument();
+    });
+
+    it("shows no badge when there are no pending Access requests", async () => {
+      process.env.ADMIN_EMAILS = "alice@example.com";
+      accessRequestFindManyMock.mockResolvedValue([]);
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+      const link = screen.getByRole("link", { name: /^admin/i });
+      // Just "Admin" — no trailing count.
+      expect(link.textContent?.trim()).toBe("Admin");
+    });
+
+    // The route must stay discoverable even when the count itself can't be
+    // read — a DB hiccup on the badge must never take the whole link with it.
+    it("still renders the Admin link even if the pending-count query fails", async () => {
+      process.env.ADMIN_EMAILS = "alice@example.com";
+      accessRequestFindManyMock.mockRejectedValue(new Error("db down"));
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const ui = await AppLayout({ children: <div /> });
+      render(ui as React.ReactElement);
+
+      expect(screen.getByRole("link", { name: /^admin/i }).getAttribute("href")).toBe("/admin");
+      errorSpy.mockRestore();
+    });
   });
 });

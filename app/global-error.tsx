@@ -16,6 +16,31 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error("[global error boundary]", error);
+    // Best-effort report to the sink (ARCH-OBS-2), same as the other two
+    // boundaries — but this component replaces the ENTIRE document when it
+    // renders (the root layout, and everything it would otherwise provide,
+    // is gone), so nothing here can be allowed to throw: there is no error
+    // boundary above this one left to catch it. Hence the try/catch around
+    // the fetch call itself, on top of the .catch(() => {}) every boundary
+    // already carries for a failed report.
+    try {
+      fetch("/api/client-error", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          message: error.message,
+          stack: error.stack,
+          route: window.location.pathname,
+          // I2 (fix round 1): production React replaces a server-component
+          // error's message with one fixed generic string, so `digest` is
+          // the only thing left that can correlate this report back to the
+          // specific server-side failure in the runtime logs.
+          digest: error.digest,
+        }),
+      }).catch(() => {});
+    } catch {
+      // See above: this boundary must never itself throw.
+    }
   }, [error]);
 
   return (
