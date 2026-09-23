@@ -36,10 +36,13 @@
 >   "Touch targets are ≥ 44px." We continue to work around this in-repo with
 >   invisible 44px pseudo-element overlays (see D1 below). This needs fixing at
 >   source, not worked around indefinitely.
-> - **D2 toast variants: still unanswered.** `toast.tsx` is not part of the
->   second handoff either (only a `reference/components/feedback/Toast.jsx`
->   spec, same single look as before) — the single-appearance-vs-three-variants
->   problem below is untouched.
+> - **D2 toast variants: partially answered, narrower ask now.** `toast.tsx`
+>   itself is still not part of the second handoff, but its new
+>   `reference/components/feedback/Toast.d.ts` defines a `tone` prop (teal =
+>   done, coral = heads-up, default teal) — confirming tonal toasts are
+>   intended. What's still open: no explicit *error* tone is listed, and
+>   `--destructive` and `--coral` are different tokens in light mode. The ask
+>   is now: is an error toast `tone="coral"`, or does it need its own tone?
 > - **B9 restyle-by-hand components: still prose, not files.** None of
 >   `avatar`, `toast`, `sheet`, `select`, `textarea`, `money-input`, `tabs`,
 >   `popover`, `dropdown-menu` appear in the second handoff's `components/ui/`
@@ -191,10 +194,24 @@ components most likely to drift from the designer's intent.
 
 **Ask (nice to have):** ship them as real `.tsx` files like the other 21.
 
-> **2026-09-23:** still prose in the second handoff. None of `avatar`, `toast`,
-> `sheet`, `select`, `textarea`, `money-input`, `tabs`, `popover`,
-> `dropdown-menu` appear in `design_handoff/playground-2/components/ui/`. We
-> have already restyled all nine by hand. Still an open ask.
+> **2026-09-23:** still prose in the second handoff's `components/ui/` — none
+> of `avatar`, `toast`, `sheet`, `select`, `textarea`, `money-input`, `tabs`,
+> `popover`, `dropdown-menu` appear there as `.tsx` drop-ins. We have already
+> restyled all nine by hand.
+>
+> But the second handoff also added `reference/components/{core,feedback,
+> forms,navigation}/` — an entirely new directory; the first handoff had no
+> `reference/` at all. Four of the nine now have real specs there, each as a
+> `.jsx` + a typed `.d.ts` + a `.prompt.md` (usage and copy rules):
+> - **Avatar** — `reference/components/core/Avatar.{jsx,d.ts,prompt.md}`
+> - **Toast** — `reference/components/feedback/Toast.{jsx,d.ts,prompt.md}`
+> - **Sheet** — `reference/components/feedback/Sheet.{jsx,d.ts,prompt.md}`
+> - **Select** — `reference/components/forms/Select.{jsx,d.ts,prompt.md}`
+>
+> The remaining five — textarea, money-input, tabs, popover, dropdown-menu —
+> still have nothing beyond the original README prose bullet. Still an open
+> ask, narrowed to those five; the four above should be diffed against what we
+> restyled by hand rather than re-derived from scratch.
 
 ### B10. Screens with no design at all
 Not in the README's route table or its "also designed" list:
@@ -278,9 +295,20 @@ accent-filled component needs the same care. **Ask:** either an on-destructive
 variant of `island`, or a note in the README that `island` is teal/coral/sun/
 lilac only.
 
-> **2026-09-23:** still unanswered. `toast.tsx` is not part of the second
-> handoff's `components/ui/` — only `reference/components/feedback/Toast.jsx`,
-> which specifies the same single teal look. Still an open ask.
+> **2026-09-23: partially answered.** `toast.tsx` is still not part of the
+> second handoff's `components/ui/`, but `reference/components/feedback/
+> Toast.d.ts` now defines a `tone` prop — `'teal' | 'coral' | 'sun' | 'lilac' |
+> 'ink'`, default teal — with teal meaning "done" and coral meaning "heads-up".
+> So the designer does intend tonal toasts, consistent with what we already
+> ship for `default`/`success`.
+>
+> **What's still open, narrower than before:** there is no explicit *error*
+> tone — "heads-up" is not the same as "this failed". We render `destructive`
+> on `--destructive` (`#B8391D` light), a different token from `--coral`
+> (`#FF6B4A` light) — though the two converge in dark mode (`#E8866C` both).
+> The live ask is now specific: **is an error toast meant to be `tone="coral"`,
+> or does the system want a distinct destructive tone the `.d.ts` doesn't list
+> yet?**
 
 ### D3. `ErrorPanel` is named but not shipped
 The README's states row reads "Skeleton, ErrorPanel, OfflineBanner", but
