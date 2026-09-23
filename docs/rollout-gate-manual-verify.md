@@ -35,9 +35,20 @@ the schema in `prisma/schema.prisma` and `prisma/migrations/`, and it is the
 written (argument parsing, module resolution, exit behaviour); only their
 production side-effects are unverified.
 
-`scripts/sweep-deleted-blobs.ts` does **not** load `.env*` files — unlike
-`feedback-pull`, it has no `import "./load-env"`. Pass the connection string
-explicitly, as every `SHELL` step below does.
+`scripts/sweep-deleted-blobs.ts` **does** load `.env*` files, via
+`import "./load-env"`, the same as `feedback-pull` and `feedback-resolve`
+(final fix wave, C1 — it did not before, which is what made the `--execute`
+bug below possible). Two consequences worth knowing before you type anything:
+
+- **`.env.production.local` wins over an inline variable.** `load-env` calls
+  dotenv with `override: true` for that file, so `DATABASE_URL=… npm run
+  sweep:blobs` does **not** override it when the file exists — the file's
+  value is used. On the operator's machine both point at production anyway,
+  so this is a naming hazard rather than a targeting one, but do not read an
+  inline `DATABASE_URL=` on a command line as proof of where a run went. (When
+  there is no `.env.production.local`, plain `config()` is used and it does
+  *not* override an already-set variable, so the inline value stands.)
+- **`STORAGE_DRIVER` now decides whether `--execute` runs at all** — see §3.1.
 
 **`BROWSER`** — do it by hand in a real browser. There is no headless browser
 in this repo's test setup, so nothing below marked `BROWSER` has any automated
@@ -292,10 +303,16 @@ DATABASE_URL='<production pooled URL>' npm run sweep:blobs -- --days=1
 
 **Expect:** npm echoes `tsx scripts/sweep-deleted-blobs.ts --days=1` — if the
 echoed line has no `--days=1` on it, the separator was lost and the run is
-meaningless. **Expect** a candidate count and a per-key listing, and **no
-deletions**: dry run is the default and it constructs no storage client at
-all, so it cannot destroy anything even with R2 credentials in the
-environment.
+meaningless. **Expect** a `Storage driver: …` line first, then a candidate
+count and a per-key listing, and **no deletions**: dry run is the default and
+it constructs no storage client at all, so it cannot destroy anything even
+with R2 credentials in the environment.
+
+**Read that `Storage driver:` line.** It is printed on every run, dry or not,
+so the dry run tells you what the real one would act through. If it says
+`local (default — STORAGE_DRIVER is not set)` while the blobs you care about
+live in R2, stop: a real run would have deleted nothing and said it deleted
+everything (see §3.1a).
 
 **A run that prints `Nothing to sweep.` and exits is also a pass.** On a
 fresh deployment there is nothing older than a day, so the candidate query
@@ -316,6 +333,32 @@ positive number.` If it instead runs a normal 35-day dry run, the `--` was
 dropped and every other sweep command you type is a no-op in the same way.
 
 **Do not run `--execute` as part of verification.** It destroys objects.
+
+### 3.1a `--execute` refuses to guess the storage driver
+
+**Why:** the failure this closes was silent in both directions. With only
+`DATABASE_URL` in the environment — exactly how the steps above are written —
+`getStorage()` fell through to its `"local"` default, whose `delete` is
+`fs.rm(path, { force: true })`: a no-op, not an error, for a key that is not
+on the local disk. So `--execute` printed `[DESTROY]` for every key and
+`destroyed N, failed 0`, **deleted every `DeletedBlob` row**, and left every
+R2 object alive with nothing pointing at it and no record that it had ever
+been scheduled — unfindable by any future sweep. The dry-run path builds no
+driver, so no amount of dry-run checking could have surfaced it.
+
+`SHELL` — this one is safe to run, because it is the refusal:
+
+```bash
+env -u STORAGE_DRIVER npm run sweep:blobs -- --execute
+```
+
+**Expect** a refusal naming `STORAGE_DRIVER`, **a non-zero exit code**
+(`echo $?` → `1`), and **no query at all** — the check runs before the
+candidate lookup. If it instead starts listing candidates, this fix is not in
+the deployed build and `--execute` must not be run.
+
+`STORAGE_DRIVER=local` is *accepted* for `--execute`: setting it is a choice,
+not a default. It is the unset case that refuses.
 
 ### 3.2 A deleted attachment's blob still exists
 

@@ -36,12 +36,30 @@
  * still reference it. Clearing the stale row on skip means a future real
  * deletion starts a fresh 35-day clock instead.
  *
+ * ENVIRONMENT (final fix wave, C1). This script loads `.env*` via
+ * `scripts/load-env.ts`, same as feedback-pull/feedback-resolve, and REFUSES
+ * `--execute` unless `STORAGE_DRIVER` is set explicitly. Before that, a run
+ * carrying only `DATABASE_URL` — which is how every documented invocation was
+ * written — fell through `getStorage()`'s `"local"` default onto a driver
+ * whose `delete` is `fs.rm(dest, { force: true })`: a silent no-op for a key
+ * that isn't on this machine's disk. The run then printed `[DESTROY]` per key
+ * and `destroyed N, failed 0`, deleted every `DeletedBlob` row, and left every
+ * R2 object alive and now PERMANENTLY orphaned — no live row points at them
+ * and no retention record survives, so no future sweep can ever find them.
+ * The dry-run path constructs no driver at all, so no amount of dry-run
+ * verification could have caught it. See lib/sweep-blobs-driver.ts.
+ *
+ * The resolved driver is printed on EVERY run, dry or not, so a dry run
+ * predicts what the real one will act through instead of leaving it implicit.
+ *
  *   npx tsx scripts/sweep-deleted-blobs.ts             # dry run (default)
  *   npx tsx scripts/sweep-deleted-blobs.ts --execute   # apply changes
  *   npx tsx scripts/sweep-deleted-blobs.ts --days=40   # override the retention window
  */
+import "./load-env";
 import { db } from "@/lib/db";
 import { getStorage } from "@/lib/storage";
+import { resolveSweepDriver } from "@/lib/sweep-blobs-driver";
 
 const DEFAULT_RETENTION_DAYS = 35;
 
@@ -70,6 +88,18 @@ async function main() {
   const execute = process.argv.includes("--execute");
   const days = parseDays(process.argv);
   const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  // Resolved and reported BEFORE any query runs, so the operator sees which
+  // driver this run is about to act through even when there is nothing to
+  // sweep — and so `--execute` with no explicit STORAGE_DRIVER exits non-zero
+  // without touching a single row (C1).
+  const resolved = resolveSweepDriver(execute, process.env.STORAGE_DRIVER);
+  if ("error" in resolved) {
+    console.error(resolved.error);
+    process.exitCode = 1;
+    return;
+  }
+  console.log(`Storage driver: ${resolved.label}${execute ? "" : " (dry run — nothing will be destroyed)"}`);
 
   const candidates = await db.deletedBlob.findMany({
     where: { deletedAt: { lt: cutoff } },
@@ -165,7 +195,10 @@ async function main() {
 }
 
 main()
-  .then(() => process.exit(0))
+  // Honour an exitCode main() already set (the C1 refusal) rather than
+  // forcing 0 over the top of it — a refusal that exits 0 is a refusal a
+  // shell script or CI step cannot see.
+  .then(() => process.exit(typeof process.exitCode === "number" ? process.exitCode : 0))
   .catch((e) => {
     console.error(e);
     process.exit(1);
