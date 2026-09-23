@@ -30,7 +30,8 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
   // mobile entry point (Wishlist, Journal, Checklists, Files, Activity,
   // Settings, Help, Summary) stay behind this one sheet.
   const sheetItems = [byLabel("Summary"), ...more];
-  const sheetActive = sheetItems.some((item) => isNavActive(item.href, pathname, base));
+  const sheetActiveItem = sheetItems.find((item) => isNavActive(item.href, pathname, base));
+  const sheetActive = sheetActiveItem !== undefined;
 
   const items: TabItem[] = [
     { href: byLabel("Home").href, label: "Home", match: (p) => isNavActive(byLabel("Home").href, p, base) },
@@ -47,7 +48,11 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
           onClick={() => setOpen(true)}
           aria-haspopup="dialog"
           aria-expanded={open}
-          aria-current={active ? "page" : undefined}
+          // Not aria-current="page" — this opens a sheet, it isn't a page,
+          // and the real current item inside the sheet already carries
+          // aria-current (below). The accessible name carries the same
+          // "a route behind this trigger is current" signal instead.
+          aria-label={sheetActiveItem ? `More trip sections, ${sheetActiveItem.label} selected` : undefined}
           className={cn(
             "relative grid h-11 min-w-0 flex-1 place-items-center truncate rounded-md text-xs transition-colors duration-[var(--dur-fast)]",
             active ? "font-extrabold text-on-accent" : "font-semibold text-muted-foreground",

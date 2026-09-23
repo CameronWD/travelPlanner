@@ -120,7 +120,7 @@ export function AiPackingSuggestions({
 
       {hasItems && (
         <div className="rounded-2xl border border-border bg-hue-lilac/25 p-3">
-          <p className="text-xs font-medium text-hue-lilac-text mb-2">
+          <p className="text-xs font-medium text-foreground mb-2">
             AI suggested packing items
           </p>
           <ul className="flex flex-col gap-1">

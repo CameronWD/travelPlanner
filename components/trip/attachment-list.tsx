@@ -182,7 +182,7 @@ export function AttachmentList({
                   className={cn(
                     "flex size-10 shrink-0 items-center justify-center rounded-xl",
                     att.mime.startsWith("image/")
-                      ? "bg-hue-sky/15 text-hue-sky-text"
+                      ? "bg-hue-sky/15 text-foreground"
                       : att.mime === "application/pdf"
                         ? "bg-red-500/15 text-red-600"
                         : "bg-muted text-muted-foreground",

@@ -113,7 +113,13 @@ means one of two things: extend the rail app-wide and retire the header
 everywhere, once `/trips`, `/globe`, `/account` and `/admin` have their own
 kit designs to render inside it — or accept the duplication as permanent
 and prune the rail's muted items back out. Phase 2 does neither; it records
-the tradeoff rather than let it read as a bug nobody noticed.
+the tradeoff rather than let it read as a bug nobody noticed. The
+duplication is not only visual: it is reachable under different accessible
+names for the same destination — `/account` under "Account" in the header
+and "You" in the rail, `/trips` under three different names across header
+and rail — so a screen-reader Traveller who bookmarks a name in memory
+("You") may not recognise the header's "Account" as the same destination,
+and vice versa.
 
 ## Two verification methods that do not work in this repo
 
@@ -137,28 +143,63 @@ real call sites and by checking Tailwind's `@theme` wiring against source,
 never by grepping compiled CSS for a class name's presence — presence proves
 the scanner saw the string somewhere, not that a component renders it.
 
-**Light-mode contrast failures are invisible to everything this repo has.**
-No test asserts colour contrast, dark mode reads correctly by construction in
-both cases below, and a sighted glance at a dark-themed screen (the default
-in most of this project's own screenshots) would never surface a light-mode
-defect. `--warning` measured as text on paper (`#FFFBF3`) at **1.40:1** —
-essentially invisible — and `--success` at **2.09:1**, both badly failing
-WCAG's 4.5:1 floor for body text. Dark mode measured **9.90:1** and **7.20:1**
-for the same tokens respectively, comfortably passing, because the dark
-values are light-on-dark and the light values are a pale fill never meant to
-carry text. The root cause predates this phase: phase 1 moved `--warning`
-from amber (dark enough to read as text) to sun (a pale fill meant for
-backgrounds), which made every pre-existing bare `text-warning` illegible in
-light mode at that point, silently. This phase's sweep then propagated the
-same pattern to 46 more call sites before a controller measured actual
-contrast ratios rather than trusting that "the token exists" meant "the token
-is safe to use as text." The fix was not a new token — `--sun-text` and
-`--teal-text` already existed for exactly this purpose (5.65:1 and 5.66:1
-respectively) — it was routing every bare `text-warning`/`text-success` site
-through the `-text` variant instead. The lesson: a passing type check, a
-passing lint, a full green test suite and a dark-mode glance can all be true
-while a real accessibility failure ships, if the check that would catch it
-was never run. Contrast has to be measured, not inferred from a token's name.
+**Light-mode contrast failures are invisible to everything this repo has —
+and the sweep that fixed the first instance of this did not close the
+pattern.** No test asserts colour contrast, dark mode reads correctly by
+construction in both cases below, and a sighted glance at a dark-themed
+screen (the default in most of this project's own screenshots) would never
+surface a light-mode defect. `--warning` measured as text on paper
+(`#FFFBF3`) at **1.40:1** — essentially invisible — and `--success` at
+**2.09:1**, both badly failing WCAG's 4.5:1 floor for body text. Dark mode
+measured **9.90:1** and **7.20:1** for the same tokens respectively,
+comfortably passing, because the dark values are light-on-dark and the light
+values are a pale fill never meant to carry text. The root cause predates
+this phase: phase 1 moved `--warning` from amber (dark enough to read as
+text) to sun (a pale fill meant for backgrounds), which made every
+pre-existing bare `text-warning` illegible in light mode at that point,
+silently. This phase's sweep then propagated the same pattern to 46 more call
+sites before a controller measured actual contrast ratios rather than
+trusting that "the token exists" meant "the token is safe to use as text."
+The fix was not a new token — `--sun-text` and `--teal-text` already existed
+for exactly this purpose (**5.70:1 on paper / 5.85:1 on card**, and
+**5.83:1 / 5.99:1** respectively — corrected here; this ADR previously
+recorded both as paper-only figures of 5.65:1 and 5.66:1, which do not
+reproduce against either surface in the theme) — it was routing every bare
+`text-warning`/`text-success` site through the `-text` variant instead.
+
+That sweep fixed the two tokens it was hunting. It did not close the pattern
+it was an instance of, and a later whole-branch review found the same root
+cause — a colour used as text without checking what it composites against —
+in four more places the sweep's grep for `text-warning`/`text-success` could
+not see, because none of them use those literal class names:
+
+- **The hue ramp's own `soft` + `text` composition** (`lib/hues.ts`,
+  `lib/stop-colours.ts`'s `stopPillClass`, and hand-written pairings in
+  `timeline.tsx`): every dark-mode `--hue-X-text` is defined identically to
+  `--hue-X` itself (correct for text on the dark *page*), so pairing it with
+  `soft` (a tint of that same hue) put a colour on top of itself — 3 of 6
+  hues failed in light mode, 5 of 6 in dark.
+- **`*-foreground` tokens used unpaired**, with no matching fill on the same
+  element (`day-feasibility.tsx`) — 1.21:1 in dark mode, invisible. A
+  `-foreground` token is only correct on its matching fill; grepping for the
+  token name found the three sites that *are* paired with a fill and could
+  not distinguish the one that wasn't.
+- **`text-accent` used as body text**, 2.2–2.8:1 in light mode
+  (`vote-control.tsx`, `globe-suggestions-strip.tsx`) — `--accent` is a fill
+  token, not a text token, and nothing named `warning` or `success` flagged it.
+- **Hue text at reduced opacity, compounding the first defect** — and, in
+  `accommodation-card.tsx`/`accommodation-row.tsx`/`phase-travelling.tsx`, a
+  regression this branch introduced: dark mode dropped from a passing
+  5.88:1 to a failing 4.30:1 full-opacity, and further at `/80`/`/70`/`/60`.
+
+The lesson holds, and generalises further than this ADR first stated: a
+passing type check, a passing lint, a full green test suite and a dark-mode
+glance can all be true while a real accessibility failure ships, if the
+check that would catch it was never run — and a grep for known-bad token
+names only catches the instances that use those names. **Contrast has to be
+measured, not inferred from a token's name — including the ramp's own
+tokens, unpaired `-foreground` tokens, fill tokens used as text, and any
+hue at reduced opacity on a tint of itself.**
 
 ## The trap worth recording: a newer handoff is not newer file-by-file
 
@@ -248,20 +289,23 @@ by this phase:
 
 ## Also outstanding, not the designer's to close
 
-- **`public/brand/*.svg` (four files) remain unreferenced by anything**, even
-  after Task 6 — the task most likely to consume them — found no natural
-  slot for them in `ErrorPanel` or the skeleton archetypes. They are staged
-  for phase 3's per-screen work rather than dead: nothing in this phase's
+- **`public/brand/*.svg` (four files) were removed as unreferenced.** Task 6
+  — the task most likely to consume them — found no natural slot for them in
+  `ErrorPanel` or the skeleton archetypes, and nothing else in this phase's
   scope (colour, foundations, per-route states, navigation) had a legitimate
-  place to put a brand mark beyond what `logo.tsx` already renders. If phase
-  3 similarly finds no use, they should be removed rather than carried
-  indefinitely as unreferenced assets.
+  place to put a brand mark beyond what `logo.tsx` already renders. A later
+  whole-branch review removed `lockup.svg`, `lockup-on-dark.svg`,
+  `wordmark.svg` and `wordmark-on-dark.svg` rather than carry them
+  indefinitely as dead weight; they remain in git history and a single
+  `git checkout` restores them if phase 3 finds a use.
 - **Stale "three error boundaries" claims** in `docs/adr/0059-*.md` and
-  `docs/architecture-sitrep-2026-09-22.md` predate this phase's navigation
-  and per-route error-boundary work and were left uncorrected as out of scope
-  for the task that found them (Task 6). Flagged here so they do not
-  disappear into a ledger nobody reads again; correcting them is a small,
-  independent fix that phase 2 did not do.
+  `docs/architecture-sitrep-2026-09-22.md` predated this phase's navigation
+  and per-route error-boundary work; Task 6 corrected the same sentence in
+  `app/api/client-error/route.ts` but left the ADR and sitrep copies stale,
+  out of scope for the task that found them. A later whole-branch review
+  corrected both to match `route.ts`'s "one per route, plus the root
+  boundary" phrasing rather than naming a count that drifts every time a
+  route is added.
 
 ## Consequences
 

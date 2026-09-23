@@ -468,13 +468,13 @@ function AccomCheckinRow({
       className={cn(
         "flex items-center gap-2",
         isDay
-          ? "rounded-2xl bg-hue-leaf/25 px-3 py-2.5 text-hue-leaf-text"
+          ? "rounded-2xl bg-hue-leaf/25 px-3 py-2.5 text-foreground"
           : "px-2 py-1 rounded-lg",
       )}
     >
       <TimeGutter time={a.checkInTime ?? null} isDay={isDay} />
       <LogIn
-        className="size-4 shrink-0 text-hue-leaf-text"
+        className="size-4 shrink-0 text-foreground"
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">
@@ -508,13 +508,13 @@ function AccomCheckoutRow({
       className={cn(
         "flex items-center gap-2",
         isDay
-          ? "rounded-2xl bg-hue-pink/25 px-3 py-2.5 text-hue-pink-text"
+          ? "rounded-2xl bg-hue-pink/25 px-3 py-2.5 text-foreground"
           : "px-2 py-1 rounded-lg",
       )}
     >
       <TimeGutter time={a.checkOutTime ?? null} isDay={isDay} />
       <LogOut
-        className="size-4 shrink-0 text-hue-pink-text"
+        className="size-4 shrink-0 text-foreground"
         aria-hidden="true"
       />
       <div className="min-w-0 flex-1">

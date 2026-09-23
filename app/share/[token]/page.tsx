@@ -521,7 +521,7 @@ export default async function SharePage({
                                         </span>
                                       )}
                                       <LogIn
-                                        className="size-3.5 shrink-0 text-hue-leaf-text"
+                                        className="size-3.5 shrink-0 text-foreground"
                                         aria-hidden="true"
                                       />
                                       <span className="font-medium text-foreground">
@@ -543,7 +543,7 @@ export default async function SharePage({
                                         </span>
                                       )}
                                       <LogOut
-                                        className="size-3.5 shrink-0 text-hue-pink-text"
+                                        className="size-3.5 shrink-0 text-foreground"
                                         aria-hidden="true"
                                       />
                                       <span className="font-medium text-foreground">

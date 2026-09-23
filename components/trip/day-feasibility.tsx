@@ -13,7 +13,7 @@ export function DayFeasibility({ entries }: { entries: DayFeasibilityEntry[] }) 
       {entries.map((e, i) => (
         <p
           key={i}
-          className={`flex items-start gap-2 text-sm ${e.severity === "warning" ? "text-warning-foreground" : "text-muted-foreground"}`}
+          className={`flex items-start gap-2 text-sm ${e.severity === "warning" ? "text-sun-text" : "text-muted-foreground"}`}
         >
           {e.severity === "warning" ? (
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-sun-text" aria-hidden />

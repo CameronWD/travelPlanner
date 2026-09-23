@@ -574,11 +574,11 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
                 Tonight&apos;s stay
               </h3>
               <div className="flex items-start gap-3 rounded-2xl bg-hue-leaf/25 px-4 py-3">
-                <Bed className="mt-0.5 size-5 shrink-0 text-hue-leaf-text" aria-hidden="true" />
+                <Bed className="mt-0.5 size-5 shrink-0 text-foreground" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-hue-leaf-text">{tonightAccom.name}</p>
+                  <p className="font-medium text-foreground">{tonightAccom.name}</p>
                   {tonightAccom.address && (
-                    <div className="mt-0.5 flex items-center gap-1 text-xs text-hue-leaf-text/80">
+                    <div className="mt-0.5 flex items-center gap-1 text-xs text-foreground/80">
                       <span className="truncate">{tonightAccom.address}</span>
                       <MapLink
                         lat={tonightAccom.lat}
@@ -620,7 +620,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
           className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
         >
           <CalendarDays className="size-4 shrink-0" aria-hidden="true" />
-          Calendar
+          Days
           <ArrowRight className="size-3.5 shrink-0" aria-hidden="true" />
         </Link>
       </div>

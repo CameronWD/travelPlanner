@@ -8,9 +8,11 @@ Accepted (2026-09-23)
 `ARCH-OBS-1` and `ARCH-OBS-2` (`docs/architecture-sitrep-2026-09-22.md`)
 found that TEEPEE had **no error-reporting sink at all**. Every server-side
 failure terminated in a bare `console.*` that nobody was watching, and the
-app's three error boundaries are client components, so their `console.error`
-landed in the *Traveller's own* devtools — a place the operator can never
-look. The operator **was** the monitoring system: things got found because
+app's error boundaries — one per route under `app/(app)/` since Task 6 of
+the Playground reskin, plus the root `app/global-error.tsx` — are client
+components, so their `console.error` landed in the *Traveller's own*
+devtools — a place the operator can never look. The operator **was** the
+monitoring system: things got found because
 the operator was also the only user. That stops working the moment there are
 more Travellers than one household, and it stops working silently.
 

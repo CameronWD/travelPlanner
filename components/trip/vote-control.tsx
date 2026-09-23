@@ -165,7 +165,7 @@ export function VoteControl({
             // Theme-aware level chips — bumped to /20 tint; avatar lives inside the pill
             // MUST → warning (amber/orange family); KEEN → accent (teal); MEH → muted
             vote.level === "MUST" && "bg-warning/20 text-sun-text",
-            vote.level === "KEEN" && "bg-accent/20 text-accent",
+            vote.level === "KEEN" && "bg-accent/20 text-foreground",
             vote.level === "MEH" && "bg-muted text-muted-foreground",
           )}
           title={`${vote.user.name ?? "Traveller"}: ${LEVEL_LABEL[vote.level]}`}

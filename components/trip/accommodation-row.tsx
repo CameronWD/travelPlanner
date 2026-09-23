@@ -57,11 +57,11 @@ export function AccommodationRow(props: AccommodationRowProps) {
           isPending && "pointer-events-none opacity-60",
         )}
       >
-        <Home className="size-4 shrink-0 text-hue-leaf-text" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate font-medium text-hue-leaf-text">
+        <Home className="size-4 shrink-0 text-foreground" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate font-medium text-foreground">
           {a.name}
         </span>
-        <span className="shrink-0 text-xs text-hue-leaf-text/80">
+        <span className="shrink-0 text-xs text-foreground/80">
           {formatDateRange(a.checkIn, a.checkOut)}
         </span>
         {warnings.length > 0 && (
@@ -72,7 +72,7 @@ export function AccommodationRow(props: AccommodationRowProps) {
         )}
         <ChevronDown
           className={cn(
-            "size-3.5 shrink-0 text-hue-leaf-text/60 transition-transform",
+            "size-3.5 shrink-0 text-foreground/80 transition-transform",
             open && "rotate-180",
           )}
           aria-hidden="true"

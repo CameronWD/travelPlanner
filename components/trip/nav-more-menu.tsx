@@ -32,12 +32,17 @@ export function NavMoreMenu({
 }) {
   const pathname = usePathname();
   const base = `/trips/${tripId}`;
+  // The trigger itself isn't a page — aria-current="page" on it would clash
+  // with the real current item's aria-current inside the open menu (below).
+  // Its accessible name carries the same information instead, so a screen
+  // reader gets the same signal a sighted Traveller gets from the trigger's
+  // active styling, without claiming to *be* the current page.
+  const activeItem = items.find((item) => isNavActive(item.href, pathname, base));
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        aria-label="More trip sections"
-        aria-current={active ? "page" : undefined}
+        aria-label={activeItem ? `More trip sections, ${activeItem.label} selected` : "More trip sections"}
         className={cn(
           "grid h-11 w-16 place-items-center rounded-md border-2 text-[11px] font-bold",
           active

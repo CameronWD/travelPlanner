@@ -39,8 +39,12 @@ const SEVERITY_CONFIG = {
   },
   info: {
     containerClass: "bg-hue-sky/25 border-border",
-    iconClass: "text-hue-sky-text",
-    labelClass: "text-hue-sky-text",
+    // Not text-hue-sky-text: that token is tuned for text on paper/card, and
+    // on a tint of the same hue (containerClass, above) it fails contrast in
+    // dark mode — same root cause as the hue-ramp's soft+text composition
+    // (see lib/hues.ts's HueClasses.onSoft).
+    iconClass: "text-foreground",
+    labelClass: "text-foreground",
     icon: Info,
     label: "Info",
   },

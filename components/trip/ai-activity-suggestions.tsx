@@ -120,7 +120,7 @@ export function AiActivitySuggestions({
 
       {hasSuggestions && expanded && (
         <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-hue-lilac/25 p-3">
-          <p className="text-xs font-medium text-hue-lilac-text mb-1">
+          <p className="text-xs font-medium text-foreground mb-1">
             AI suggestions for {stopName}
           </p>
           <ul className="flex flex-col gap-2">

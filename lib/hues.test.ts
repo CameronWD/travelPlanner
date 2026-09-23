@@ -31,14 +31,25 @@ describe("stored colour values never change", () => {
     }
   });
 
-  it("gives every hue all five class variants", () => {
+  it("gives every hue all six class variants", () => {
     for (const h of HUES) {
       const c = HUE_CLASSES[h];
       expect(c.chip).toBeTruthy();
       expect(c.dot).toBeTruthy();
       expect(c.text).toBeTruthy();
       expect(c.soft).toBeTruthy();
+      expect(c.onSoft).toBeTruthy();
       expect(c.fill).toBeTruthy();
+    }
+  });
+
+  // Text on a `soft` tint must be the neutral foreground, never the hue's
+  // own `-text` token — dark mode defines `-text` identically to the hue
+  // itself, so pairing it with `soft` puts a colour on top of itself
+  // (measured 3.87-4.30:1 on card before this was a dedicated field).
+  it("pairs every hue's soft tint with the neutral foreground, not the hue's own text colour", () => {
+    for (const h of HUES) {
+      expect(HUE_CLASSES[h].onSoft).toBe("text-foreground");
     }
   });
 

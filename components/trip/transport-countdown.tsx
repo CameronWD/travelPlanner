@@ -51,7 +51,7 @@ export function TransportCountdown({ depAt, depTimeLabel, depZone, label }: Tran
         <p className="mt-0.5 font-display text-2xl font-bold text-foreground">
           {countdown}
         </p>
-        <p className="mt-0.5 text-xs text-sun-text/90">
+        <p className="mt-0.5 text-xs text-sun-text">
           {label}
           {depTimeLabel && (
             <span className="ml-1">at {depTimeLabel}{depZone ? ` ${depZone}` : ""}</span>

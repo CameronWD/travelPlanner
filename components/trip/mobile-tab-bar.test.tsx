@@ -47,7 +47,13 @@ describe("MobileTabBar", () => {
     );
     expect(moreButton).toBeTruthy();
     expect(moreButton?.className).toContain("text-on-accent");
-    expect(moreButton?.getAttribute("aria-current")).toBe("page");
+    // Not aria-current="page" — the trigger opens a sheet, it isn't a page,
+    // and the sheet's own current link already carries aria-current (see
+    // "reaches all eight More-only routes" below). The trigger's accessible
+    // name carries the "a route behind this trigger is current" signal
+    // instead, so it doesn't collide with the sheet link's aria-current.
+    expect(moreButton?.getAttribute("aria-current")).toBeNull();
+    expect(moreButton?.getAttribute("aria-label")).toBe("More trip sections, Settings selected");
   });
 
   it("publishes its height via --tp-tab-bar-h so the FAB and toasts can clear it", () => {

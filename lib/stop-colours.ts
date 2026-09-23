@@ -25,9 +25,12 @@ const BORDER: readonly string[] = [
   "border-l-hue-teal",  // teal
 ];
 const DOT: readonly string[] = STOP_HUES.map((hue) => HUE_CLASSES[hue].dot);
-// Soft tinted pill + hue-coloured text (no ink border) — a pastel pill, not
-// the heavier bordered chip.
-const PILL: readonly string[] = STOP_HUES.map((hue) => `${HUE_CLASSES[hue].soft} ${HUE_CLASSES[hue].text}`);
+// Soft tinted pill + neutral foreground text (no ink border) — a pastel
+// pill, not the heavier bordered chip. Text is deliberately the ramp's
+// `onSoft` (neutral foreground), not `text` (the hue's own -text token):
+// the latter is tuned for paper/card, and on a `soft` tint of the same hue
+// it fails contrast in dark mode (see HueClasses.onSoft's docblock).
+const PILL: readonly string[] = STOP_HUES.map((hue) => `${HUE_CLASSES[hue].soft} ${HUE_CLASSES[hue].onSoft}`);
 
 const idx = (i: number) => ((i % STOP_HUES.length) + STOP_HUES.length) % STOP_HUES.length;
 

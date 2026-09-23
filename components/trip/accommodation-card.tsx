@@ -97,11 +97,11 @@ export function AccommodationCard({
         />
         <div className="flex flex-1 items-start justify-between gap-3 min-w-0">
           <div className="min-w-0">
-            <h4 className="font-display text-base font-semibold leading-tight text-hue-leaf-text truncate">
+            <h4 className="font-display text-base font-semibold leading-tight text-foreground truncate">
               {a.name}
             </h4>
             {a.address && (
-              <div className="mt-0.5 flex items-center gap-1 text-xs text-hue-leaf-text/70">
+              <div className="mt-0.5 flex items-center gap-1 text-xs text-foreground/80">
                 {/* No decorative pin here: MapLink below renders the real one,
                     and help-legend.tsx teaches that glyph as "has a location"
                     (HG-02/HG-10). This MapLink call always has a real address
@@ -109,7 +109,7 @@ export function AccommodationCard({
                     fire via the label-only fallback — no coordinate guard
                     needed here, unlike stop-card.tsx's country line. */}
                 <span className="truncate">{a.address}</span>
-                <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} className="ml-0.5 text-hue-leaf-text/60" />
+                <MapLink lat={a.lat} lng={a.lng} address={a.address} label={a.name} className="ml-0.5 text-foreground/80" />
               </div>
             )}
           </div>
@@ -132,7 +132,7 @@ export function AccommodationCard({
       </div>
 
       {/* Dates + nights */}
-      <div className="flex flex-wrap items-center gap-3 text-xs text-hue-leaf-text/70">
+      <div className="flex flex-wrap items-center gap-3 text-xs text-foreground/80">
         <div className="flex items-center gap-1.5">
           <Calendar className="size-3.5 shrink-0" aria-hidden="true" />
           <span>{dateRange}</span>
@@ -144,16 +144,16 @@ export function AccommodationCard({
 
       {/* Confirmation */}
       {a.confirmation && (
-        <div className="flex items-center gap-1.5 text-xs text-hue-leaf-text/80">
+        <div className="flex items-center gap-1.5 text-xs text-foreground/80">
           <Hash className="size-3 shrink-0" aria-hidden="true" />
           <span className="font-mono">{a.confirmation}</span>
-          <span className="font-semibold text-hue-leaf-text">· Confirmed</span>
+          <span className="font-semibold text-foreground">· Confirmed</span>
         </div>
       )}
 
       {/* Notes */}
       {a.notes && (
-        <div className="flex items-start gap-1.5 text-xs text-hue-leaf-text/70">
+        <div className="flex items-start gap-1.5 text-xs text-foreground/80">
           <StickyNote className="size-3.5 mt-0.5 shrink-0" aria-hidden="true" />
           <p className="line-clamp-2">{a.notes}</p>
         </div>
