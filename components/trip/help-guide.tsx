@@ -332,7 +332,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <li>
                 <strong className="font-semibold">Category</strong> — what kind
                 of thing it is: sightseeing, food and drink, and so on. It sets
-                the colour it shows in and how it&rsquo;s grouped on the Budget.
+                the colour it shows in and how it&rsquo;s grouped on Money.
               </li>
               <li>
                 <strong className="font-semibold">Stop</strong> — which place it
@@ -491,7 +491,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               takes it off the board. Every route does the same thing —{" "}
               <strong className="font-semibold">Schedule this</strong> on an
               idea&rsquo;s card, the little calendar button on the Wishlist
-              column beside the Calendar, and dragging an idea straight onto a
+              column beside Days, and dragging an idea straight onto a
               day all put a <strong className="font-semibold">copy</strong> on
               the day you pick. The idea itself stays on the board, now with a
               tick and &ldquo;in this plan&rdquo; beside it. That&rsquo;s
@@ -507,7 +507,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <Go tripId={tripId} segment="plan">
                 Plan
               </Go>
-              , and both live on the Stop cards rather than the Calendar.
+              , and both live on the Stop cards rather than Days.
             </p>
             <p>
               <strong className="font-semibold">Accommodation</strong> is where
@@ -912,7 +912,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             <p>
               A leg that crosses from one Chapter into the next belongs to
               neither. You&rsquo;ll find it on the card of the place it leaves
-              from, and on the Budget it sits on its own{" "}
+              from, and on Money it sits on its own{" "}
               <strong className="font-semibold">Between legs</strong> line rather
               than being counted inside either band&rsquo;s total.
             </p>
@@ -1022,7 +1022,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               for this — open it and tap{" "}
               <strong className="font-semibold">New variant</strong> to get one
               of each to look at side by side instead of arguing in the
-              abstract. It stays with you across the Plan, the Budget and the
+              abstract. It stays with you across the Plan, Money and the
               Wishlist — the screens that follow the variant you&rsquo;re
               editing. Everywhere else,
               including every dated screen, keeps showing the real plan, and the

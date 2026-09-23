@@ -11,9 +11,9 @@ describe("pageLabelForRoute", () => {
     ["/trips/new", "New trip"],
     ["/trips/abc123", "Trip home"],
     ["/trips/abc123/plan", "Plan editor"],
-    ["/trips/abc123/budget", "Budget"],
+    ["/trips/abc123/budget", "Money"],
     ["/trips/abc123/summary", "Summary"],
-    ["/trips/abc123/calendar", "Calendar"],
+    ["/trips/abc123/calendar", "Days"],
     ["/trips/abc123/today", "Today"],
     ["/trips/abc123/wishlist", "Wishlist"],
     ["/trips/abc123/checklists", "Checklists"],
@@ -31,7 +31,7 @@ describe("pageLabelForRoute", () => {
   });
 
   it("ignores a query string", () => {
-    expect(pageLabelForRoute("/trips/abc123/budget?fork=f1")).toBe("Budget");
+    expect(pageLabelForRoute("/trips/abc123/budget?fork=f1")).toBe("Money");
   });
 
   it("ignores a trailing slash", () => {

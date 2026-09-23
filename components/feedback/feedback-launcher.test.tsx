@@ -257,7 +257,7 @@ describe("FeedbackLauncher", () => {
       rerender(<FeedbackLauncher />);
 
       expect(
-        await screen.findByText(/You're on Budget/),
+        await screen.findByText(/You're on Money/),
       ).toBeInTheDocument();
     });
 
@@ -274,12 +274,12 @@ describe("FeedbackLauncher", () => {
       rerender(<FeedbackLauncher />);
 
       // The note is frozen to Plan editor and will be filed there, so the
-      // panel must not say "You're on Budget" — that promises the opposite of
+      // panel must not say "You're on Money" — that promises the opposite of
       // what the freeze guarantees.
       expect(
         await screen.findByText(/You're on Plan editor/),
       ).toBeInTheDocument();
-      expect(screen.queryByText(/You're on Budget/)).toBeNull();
+      expect(screen.queryByText(/You're on Money/)).toBeNull();
     });
 
     it("lets the next draft pick up the route after a previous one was sent", async () => {
@@ -301,7 +301,7 @@ describe("FeedbackLauncher", () => {
       await waitFor(() => expect(createMock).toHaveBeenCalledTimes(2));
       const secondInput = createMock.mock.calls[1][0];
       expect(secondInput.route).toBe("/trips/t1/budget");
-      expect(secondInput.pageLabel).toBe("Budget");
+      expect(secondInput.pageLabel).toBe("Money");
     });
   });
 

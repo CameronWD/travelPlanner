@@ -235,8 +235,8 @@ export function HelpLegend() {
           {[
             { icon: <Home className="size-5" />, label: "Home" },
             { icon: <Map className="size-5" />, label: "Plan" },
-            { icon: <CalendarDays className="size-5" />, label: "Calendar" },
-            { icon: <Wallet className="size-5" />, label: "Budget" },
+            { icon: <CalendarDays className="size-5" />, label: "Days" },
+            { icon: <Wallet className="size-5" />, label: "Money" },
             { icon: <Menu className="size-5" />, label: "More" },
           ].map(({ icon, label }) => (
             <li key={label} className="flex items-center gap-2">
