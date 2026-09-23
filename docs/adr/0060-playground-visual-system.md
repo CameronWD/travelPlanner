@@ -233,12 +233,21 @@ meaning the design system is supposed to carry.
 
 ## Owed, not yet done
 
-- **Human light/dark visual pass on `/trips` and a trip page.** Never
-  performed — impossible from a sandbox with no display. Nobody has
-  actually looked at this work with human eyes yet. This is a precondition
-  for treating phase 1 as done, not an optional nice-to-have.
-- **Human PWA-install check.** Same reason: install flows need a real
-  device or a real browser chrome, neither available here.
+- **Human light/dark visual pass on `/trips` and a trip page.** Not
+  performed — but not because a sandbox can't render anything. A headless
+  Chromium is available and pages render, screenshot, and inspect fine:
+  `/signin`, `/privacy`, and `/terms` were checked in both themes and pass,
+  including a contrast audit against rendered elements (164 text nodes
+  across three routes, both themes, zero failures) and a focus ring measured
+  live at `3px` width, `3px` offset, matching spec. The actual blocker is
+  narrower: `/trips`, every trip route, and `/account` need a database this
+  container doesn't have — dev sign-in fails with `ECONNREFUSED` against
+  Postgres — so the screens this phase's restyle actually lands on remain
+  genuinely unseen. This is a precondition for treating phase 1 as done, not
+  an optional nice-to-have.
+- **Human PWA-install check.** A different, still-real blocker: install
+  flows need a real device or a real browser chrome, neither available
+  here.
 - **`CONTEXT.md` still says `TEEPEE` throughout.** Deliberate, per the
   naming decision above — it's a domain glossary, and renaming it buys
   nothing.

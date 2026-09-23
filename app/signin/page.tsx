@@ -6,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Logo } from "@/components/ui/logo";
 import { GoogleSignInButton, DevSignInButton } from "./signin-buttons";
 
 export const metadata = {
@@ -59,9 +60,7 @@ export default async function SignInPage({
 
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
-          <span className="text-3xl" aria-hidden="true">
-            🛖
-          </span>
+          <Logo variant="mark" size={36} />
           <CardTitle className="font-display text-2xl">
             Welcome to Teepee
           </CardTitle>

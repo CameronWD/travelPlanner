@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 
 // ── Module mocks (must be declared before any imports of the mocked modules) ──
 
@@ -107,7 +107,9 @@ describe("AppLayout", () => {
   it("renders the Teepee wordmark link when authenticated", async () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
-    expect(screen.getByText("Teepee")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Teepee — go to your trips" }),
+    ).toBeInTheDocument();
   });
 
   it("renders the avatar trigger button for the user menu", async () => {
@@ -117,11 +119,20 @@ describe("AppLayout", () => {
     expect(screen.getByRole("button", { name: /traveller menu/i })).toBeInTheDocument();
   });
 
-  it("renders the tent SVG wordmark", async () => {
+  it("renders the Logo lockup with a single accessible name for the link", async () => {
     const ui = await AppLayout({ children: <div /> });
-    const { container } = render(ui as React.ReactElement);
-    expect(container.querySelector("svg[data-testid='tent-icon']")).toBeInTheDocument();
-    expect(screen.getByText("Teepee")).toBeInTheDocument();
+    render(ui as React.ReactElement);
+    // The Link's own aria-label ("Teepee — go to your trips") wins over
+    // Logo's generic self-label ("Teepee") per the accessible-name spec, so
+    // there must be exactly one accessible name for the control — not two.
+    const link = screen.getByRole("link", { name: "Teepee — go to your trips" });
+    expect(screen.queryByRole("link", { name: "Teepee" })).not.toBeInTheDocument();
+    // The lockup itself is still present inside, self-labelled as "Teepee",
+    // with its inner mark + wordmark SVGs kept decorative.
+    const brandImg = within(link).getByRole("img", { name: "Teepee" });
+    const svgs = brandImg.querySelectorAll("svg");
+    expect(svgs.length).toBeGreaterThan(0);
+    svgs.forEach((svg) => expect(svg).toHaveAttribute("aria-hidden", "true"));
   });
 
   it("ramps the content width up on large screens", async () => {
