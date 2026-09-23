@@ -242,8 +242,7 @@ meaning the design system is supposed to carry.
   until the next time it's run, per the project's own feedback workflow.
 - **Minor deferrals recorded task-by-task in the working ledger**
   (`.superpowers/sdd/2026-09-23-playground-visual-system-phase-1/progress.md`):
-  two unreferenced copied-in icon files inherited from the handoff's own
-  `layout.tsx`; a footer/header hairline border not restored on the dialog
+  a footer/header hairline border not restored on the dialog
   (the opaque fill already covers what the hairline used to delineate — a
   deliberate style change, not an erasure); a WCAG-AA contrast comment lost
   from `badge.tsx`; `list-row.tsx`'s `as` prop being a second polymorphism
@@ -256,6 +255,18 @@ meaning the design system is supposed to carry.
   type namespace covers it); and `ListRow`'s `trailing` slot living inside
   an `aria-hidden` wrapper, which would silently swallow any future
   trailing content that has real meaning.
+- **`money-input.tsx`'s height mismatch — found by the final whole-branch
+  review, and fixed, not deferred.** Task 5's primitive restyle
+  (`4d1ca9fc`) raised `Input`'s default size to `h-12` and left
+  `SelectTrigger` at `h-11`; `MoneyInput`'s `flex items-stretch` row can't
+  equalise two controls that both carry explicit heights, so the amount
+  field rendered 4px taller than the currency picker on
+  `inline-cost-fields.tsx`, `cost-checklist.tsx`, and
+  `other-cost-editor.tsx`. This is a regression this branch introduced, not
+  an inherited quirk — an earlier pass on this ledger mis-attributed it as
+  pre-existing. Fixed by raising `SelectTrigger` to `h-12` (no call site
+  depends on 44px) and the equivalent hand-rolled currency badge in
+  `cost-checklist.tsx`.
 - **For the design ask (Claude Design):** the handoff's README contradicts
   itself twice, independent of anything this migration did — it promises
   "Touch targets are ≥ 44px" while shipping a 36px Stepper button and a
@@ -265,12 +276,21 @@ meaning the design system is supposed to carry.
 
 ## Consequences
 
-The app is mid-migration and looks it. The beta preview shows a Playground
-shell — tokens, fonts, primitives, PWA identity — wrapped around content
-that is still substantially old-palette, most visibly in the ~200 call
-sites still rendering category and chapter colour as raw Tailwind hues.
-That is expected, not a defect: those hues need a phase-2 colour ramp this
-phase was never going to produce without material that wasn't delivered.
+The app is mid-migration and looks it. The beta preview will show a
+Playground shell, once deployed — tokens, fonts, primitives, PWA identity —
+wrapped around content that is still substantially old-palette, most
+visibly in the ~200 call sites still rendering category and chapter colour
+as raw Tailwind hues. That is expected, not a defect: those hues need a
+phase-2 colour ramp this phase was never going to produce without material
+that wasn't delivered.
+
+Aliasing the legacy `--shadow-soft`/`--shadow-soft-lg` names onto the new
+hard offset shadows (see Decision, above) changed the rendered shadow on
+roughly 27 files outside `components/ui/` that nothing in this phase
+restyled — deliberate, and exactly the point of keeping token names
+unchanged, but it means those screens changed appearance without any
+commit touching them, which matters given no human has looked at this work
+yet.
 
 The deferral list above is the definition of done for phase 2. Nothing in
 it should be picked up ad hoc without the corresponding design material

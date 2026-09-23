@@ -1,5 +1,5 @@
 /**
- * Trip Planner Service Worker
+ * Teepee Service Worker
  *
  * Cache strategy source of truth: lib/offline.ts
  * This file mirrors that logic in plain JS — keep them in sync if rules change.
@@ -258,7 +258,7 @@ self.addEventListener('push', (event) => {
     const data = event.data ? event.data.json() : null;
     if (!data) return; // no payload — nothing to show
 
-    const title = data.title ?? 'Trip Planner';
+    const title = data.title ?? 'Teepee';
     const options = {
       body: data.body ?? '',
       data: { url: data.url ?? '/' },

@@ -218,7 +218,7 @@ function PaidConfirm({
             aria-label="You paid amount"
             className="min-w-0 flex-1"
           />
-          <span className="flex h-11 w-20 shrink-0 items-center justify-center rounded-md border border-input bg-muted text-sm text-muted-foreground sm:w-24">
+          <span className="flex h-12 w-20 shrink-0 items-center justify-center rounded-md border border-input bg-muted text-sm text-muted-foreground sm:w-24">
             {row.currency}
           </span>
         </div>

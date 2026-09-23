@@ -133,7 +133,7 @@ describe("public/sw.js — push", () => {
     dispatch("push", { data: { json: () => ({}) }, waitUntil });
 
     expect(showNotification).toHaveBeenCalledWith(
-      "Trip Planner",
+      "Teepee",
       expect.objectContaining({ body: "", data: { url: "/" } }),
     );
   });

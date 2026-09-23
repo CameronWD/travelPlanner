@@ -34,8 +34,15 @@ export const metadata: Metadata = {
   title: { default: "Teepee", template: "%s · Teepee" },
   description: "Plan it with your people.",
   icons: {
-    icon: [{ url: "/favicon.svg", type: "image/svg+xml" }, { url: "/favicon-32.png", sizes: "32x32" }],
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-16.png", sizes: "16x16" },
+      { url: "/favicon-32.png", sizes: "32x32" },
+    ],
     apple: "/apple-touch-icon.png",
+    // mask-icon (Safari pinned tab) requires a literal colour per spec — it
+    // cannot reference a CSS custom property/token. #FF6B4A is Playground coral.
+    other: { rel: "mask-icon", url: "/safari-pinned-tab.svg", color: "#FF6B4A" },
   },
   appleWebApp: { capable: true, title: "Teepee", statusBarStyle: "default" },
 };

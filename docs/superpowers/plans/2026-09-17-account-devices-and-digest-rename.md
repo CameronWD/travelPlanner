@@ -1823,6 +1823,19 @@ git commit -m "refactor(digest): rename the cron route and its docs from reminde
 
 - [ ] **Step 1: Fix the icon paths**
 
+> **Correction, 2026-09-23 (ADR 0060): do NOT follow Step 1 below as
+> written.** It was written on the premise that `public/icons/` does not
+> exist. `feat/playground-visual-system` created and populated
+> `public/icons/` (this is what the "generated `/icon` route was retired"
+> comment in current `public/sw.js` refers to) and deleted the `/icon` and
+> `/apple-icon` routes entirely. Setting `icon`/`badge` back to `/icon`
+> would point at a route that no longer exists and would re-introduce the
+> exact bug the final review of that branch found and fixed. If this task
+> is ever picked up, confirm current `public/sw.js` first — as of this
+> correction it already reads `icon: '/icons/icon-192.png'`, `badge:
+> '/icons/push-badge-96.png'`, which is correct and should be left alone.
+> See ADR 0060.
+
 In `public/sw.js`, in the `push` listener, change both `icon` and `badge` from `/icons/icon-192.png` to `/icon`. `public/icons/` does not exist; `app/manifest.ts` serves the app icon from `/icon`. Add a comment:
 
 ```js
