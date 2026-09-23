@@ -44,6 +44,23 @@ export function isUniqueConstraintError(err: unknown): boolean {
  * by clicking sign in again. Only a brand-new request notifies admins — a
  * repeat must not re-notify.
  *
+ * REOPENING (final fix wave, I2). There is one repeat that must not be a
+ * silent bump: someone who was approved and has since been **revoked**.
+ * `listAccessRequests` filters on `resolvedAt: null`, so their row — resolved
+ * at approval time — never comes back into `/admin`, which has no reopen
+ * control and no add-an-address control either. They were stranded and
+ * invisible: signing in again did nothing anyone could see, forever, with raw
+ * SQL as the only way back. So a repeat attempt reopens the row (clears
+ * `resolvedAt`) and notifies, but ONLY when all three hold:
+ *
+ *   1. the row is resolved (an open row is already in `/admin`, and
+ *      re-notifying on every retry would be a self-service push primitive);
+ *   2. `status !== "dismissed"` — dismiss must keep meaning dismissed, which
+ *      is the whole reason repeats don't touch `status`;
+ *   3. the address is not currently in `AllowedEmail` — the row was resolved
+ *      by an approval whose grant is gone, i.e. genuinely revoked, rather
+ *      than an approval that still stands.
+ *
  * Never throws: a failure here must not turn a clean refusal (the signIn
  * callback returning false) into a 500.
  */
@@ -61,6 +78,17 @@ export async function recordAccessRequest({
     });
 
     if (existing) {
+      // Revoked-and-invisible check — see REOPENING in the docblock (I2).
+      // The AllowedEmail lookup only runs for a resolved, non-dismissed row,
+      // so the ordinary repeat still costs exactly one write.
+      const reopen =
+        existing.resolvedAt != null &&
+        existing.status !== "dismissed" &&
+        (await db.allowedEmail.findUnique({
+          where: { email: needle },
+          select: { id: true },
+        })) === null;
+
       await db.accessRequest.update({
         where: { id: existing.id },
         data: {
@@ -70,8 +98,21 @@ export async function recordAccessRequest({
           // that read is stale the instant a concurrent attempt for the
           // same address lands between the read and this write.
           attempts: { increment: 1 },
+          // `status` is still never touched: reopening restores visibility,
+          // it does not rewrite the audit trail of what was decided.
+          ...(reopen ? { resolvedAt: null } : {}),
         },
       });
+
+      if (reopen) {
+        await notifyAdmins(
+          "Access request reopened",
+          name
+            ? `${name} (${needle}) tried to sign in again — their access is no longer on the allowlist.`
+            : `${needle} tried to sign in again — their access is no longer on the allowlist.`,
+          "/admin",
+        );
+      }
       return;
     }
 

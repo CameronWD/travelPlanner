@@ -35,10 +35,23 @@ export default async function SignInPage({
             <CardTitle className="font-display text-xl">
               TEEPEE is invite-only.
             </CardTitle>
+            {/*
+              This card is shown to everyone Auth.js refuses, and it has no
+              idea which of them is reading it: a brand-new stranger, someone
+              already waiting, someone who was dismissed, or someone whose
+              access was revoked. The previous copy promised "you'll be able
+              to sign in here once you're approved", which is false for the
+              last two and leaks nothing useful to the first two. It stays one
+              neutral message — telling a reader which bucket they are in
+              would turn this page into an oracle about the Admin's decisions
+              (final fix wave, I2).
+            */}
             <CardDescription>
-              We&apos;ve passed your request to the admin using your Google
-              account — nothing else to do. You&apos;ll be able to sign in
-              here once you&apos;re approved.
+              Your Google account isn&apos;t on the list. We&apos;ve recorded
+              the attempt for the admin — there&apos;s nothing else to do
+              here. This page can&apos;t tell you where a request stands, and
+              not every request is granted; if you&apos;re expecting access,
+              ask whoever invited you.
             </CardDescription>
           </CardHeader>
         </Card>

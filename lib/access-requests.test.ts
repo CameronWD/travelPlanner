@@ -14,11 +14,16 @@ const {
   accessRequestFindUniqueMock,
   accessRequestCreateMock,
   accessRequestUpdateMock,
+  allowedEmailFindUniqueMock,
   notifyAdminsMock,
 } = vi.hoisted(() => ({
   accessRequestFindUniqueMock: vi.fn(),
   accessRequestCreateMock: vi.fn(),
   accessRequestUpdateMock: vi.fn(),
+  // Defaults to "not allowlisted" — the reopen check (I2) only ever asks
+  // about a resolved, non-dismissed row, and the answer for those is what
+  // distinguishes a revoked Traveller from a standing approval.
+  allowedEmailFindUniqueMock: vi.fn().mockResolvedValue(null),
   notifyAdminsMock: vi.fn(),
 }));
 
@@ -28,6 +33,9 @@ vi.mock("@/lib/db", () => ({
       findUnique: accessRequestFindUniqueMock,
       create: accessRequestCreateMock,
       update: accessRequestUpdateMock,
+    },
+    allowedEmail: {
+      findUnique: allowedEmailFindUniqueMock,
     },
   },
 }));
@@ -81,6 +89,118 @@ describe("recordAccessRequest", () => {
     await recordAccessRequest({ email: "declined@example.com", name: null, image: null });
     const data = accessRequestUpdateMock.mock.calls[0][0].data;
     expect(data.status).toBeUndefined(); // still dismissed
+  });
+
+  // -------------------------------------------------------------------------
+  // Reopening a revoked Traveller (final fix wave, I2)
+  // -------------------------------------------------------------------------
+  //
+  // After revocation the row is still `resolvedAt`-stamped from its approval,
+  // so listAccessRequests (which filters on resolvedAt: null) never shows it
+  // again — and /admin has no reopen control and no add-an-address control.
+  // Without this the person is stranded and invisible, with raw SQL the only
+  // way back.
+  describe("reopening", () => {
+    it("clears resolvedAt and notifies when an approved address is no longer allowlisted", async () => {
+      accessRequestFindUniqueMock.mockResolvedValue({
+        id: "ar1",
+        status: "pending",
+        attempts: 2,
+        resolvedAt: new Date("2026-09-01T00:00:00Z"),
+      });
+      allowedEmailFindUniqueMock.mockResolvedValue(null);
+
+      await recordAccessRequest({ email: "revoked@example.com", name: "Revoked Person", image: null });
+
+      expect(accessRequestUpdateMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "ar1" },
+          data: expect.objectContaining({ resolvedAt: null, attempts: { increment: 1 } }),
+        }),
+      );
+      expect(notifyAdminsMock).toHaveBeenCalledTimes(1);
+      expect(notifyAdminsMock.mock.calls[0][2]).toBe("/admin");
+    });
+
+    it("looks the allowlist up by the same lowercased needle it stores", async () => {
+      accessRequestFindUniqueMock.mockResolvedValue({
+        id: "ar1",
+        status: "pending",
+        attempts: 2,
+        resolvedAt: new Date("2026-09-01T00:00:00Z"),
+      });
+
+      await recordAccessRequest({ email: "  ReVoked@Example.COM ", name: null, image: null });
+
+      expect(allowedEmailFindUniqueMock).toHaveBeenCalledWith({
+        where: { email: "revoked@example.com" },
+        select: { id: true },
+      });
+    });
+
+    it("does NOT reopen while the approval still stands — the address is allowlisted", async () => {
+      accessRequestFindUniqueMock.mockResolvedValue({
+        id: "ar1",
+        status: "pending",
+        attempts: 2,
+        resolvedAt: new Date("2026-09-01T00:00:00Z"),
+      });
+      allowedEmailFindUniqueMock.mockResolvedValue({ id: "ae1" });
+
+      await recordAccessRequest({ email: "approved@example.com", name: null, image: null });
+
+      const data = accessRequestUpdateMock.mock.calls[0][0].data;
+      expect(data.resolvedAt).toBeUndefined();
+      expect(notifyAdminsMock).not.toHaveBeenCalled();
+    });
+
+    it("does NOT reopen a DISMISSED request, even with no allowlist row — dismiss means dismissed", async () => {
+      accessRequestFindUniqueMock.mockResolvedValue({
+        id: "ar1",
+        status: "dismissed",
+        attempts: 5,
+        resolvedAt: new Date("2026-09-01T00:00:00Z"),
+      });
+      allowedEmailFindUniqueMock.mockResolvedValue(null);
+
+      await recordAccessRequest({ email: "declined@example.com", name: null, image: null });
+
+      const data = accessRequestUpdateMock.mock.calls[0][0].data;
+      expect(data.resolvedAt).toBeUndefined();
+      expect(data.status).toBeUndefined();
+      expect(notifyAdminsMock).not.toHaveBeenCalled();
+      // The allowlist is never even consulted for a dismissed row.
+      expect(allowedEmailFindUniqueMock).not.toHaveBeenCalled();
+    });
+
+    it("does NOT reopen (or re-notify) a request that is still open", async () => {
+      accessRequestFindUniqueMock.mockResolvedValue({
+        id: "ar1",
+        status: "pending",
+        attempts: 2,
+        resolvedAt: null,
+      });
+
+      await recordAccessRequest({ email: "waiting@example.com", name: null, image: null });
+
+      expect(notifyAdminsMock).not.toHaveBeenCalled();
+      expect(allowedEmailFindUniqueMock).not.toHaveBeenCalled();
+    });
+
+    it("still never throws when the reopen notification rejects", async () => {
+      accessRequestFindUniqueMock.mockResolvedValue({
+        id: "ar1",
+        status: "pending",
+        attempts: 2,
+        resolvedAt: new Date("2026-09-01T00:00:00Z"),
+      });
+      allowedEmailFindUniqueMock.mockResolvedValue(null);
+      notifyAdminsMock.mockRejectedValueOnce(new Error("push down"));
+
+      await expect(
+        recordAccessRequest({ email: "revoked@example.com", name: null, image: null }),
+      ).resolves.toBeUndefined();
+    });
   });
 
   it("stamps a fresh lastAttemptAt on a repeat", async () => {

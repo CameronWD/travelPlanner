@@ -13,7 +13,20 @@ describe("SignInPage", () => {
     const page = await SignInPage({ searchParams: Promise.resolve({ error: "AccessDenied" }) });
     render(page);
     expect(screen.getByText(/invite-only/i)).toBeInTheDocument();
-    expect(screen.getByText(/passed your request to the admin/i)).toBeInTheDocument();
+    expect(screen.getByText(/recorded the attempt for the admin/i)).toBeInTheDocument();
+  });
+
+  // I2 (final fix wave): the card is shown to a brand-new stranger, someone
+  // already waiting, someone dismissed and someone revoked alike. It promised
+  // "you'll be able to sign in here once you're approved", which is false for
+  // the last two — and app/privacy/page.tsx already said so, so two shipped
+  // surfaces contradicted each other.
+  it("promises nothing about approval, so the copy is true for a dismissed or revoked reader too", async () => {
+    const page = await SignInPage({ searchParams: Promise.resolve({ error: "AccessDenied" }) });
+    const { container } = render(page);
+    const text = container.textContent ?? "";
+    expect(text).not.toMatch(/once you(’|')?re approved/i);
+    expect(text).toMatch(/not every request is granted/i);
   });
 
   it("does not show the explanatory card for an ordinary visit", async () => {
