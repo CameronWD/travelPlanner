@@ -188,11 +188,11 @@
  * padding (app/(app)/trips/[tripId]/layout.tsx). Change it here and all four
  * move together.
  *
- * Playground's TabBar wants 4.75rem (10 + 44 + 22 px). Held at 4rem until that
- * component lands — see docs/adr/0060-playground-visual-system.md.
+ * 4.75rem = the Playground TabBar's 10 + 44 + 22 px (top padding + h-11 tab +
+ * bottom padding) — see docs/adr/0060-playground-visual-system.md.
  */
 :root {
-  --tp-tab-bar-h: 4rem;
+  --tp-tab-bar-h: 4.75rem;
 }
 
 @theme inline {

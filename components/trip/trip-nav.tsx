@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { cn } from "@/lib/cn";
+import { Dock, type DockItem } from "@/components/ui/dock";
 import { NavMoreMenu } from "@/components/trip/nav-more-menu";
 
 export interface NavItem {
@@ -54,50 +53,56 @@ interface TripNavProps {
 }
 
 /**
- * Horizontal navigation bar for a trip's sections (desktop only).
- * Primary tabs are always visible; overflow items live in the "More" dropdown.
- * Active tab is highlighted with a coral underline using design tokens.
+ * Left rail for a trip's sections (md+ — see components/ui/dock.tsx for the
+ * mobile-hidden breakpoint). Replaces the old horizontal TripNav bar.
+ *
+ * primaryNav/moreNav stay the source of truth for nav data and the ?plan=
+ * fork threading (ADR 0020); this component only reshapes their output into
+ * the kit's rail ordering (Today, Home, Plan, Days, Money, Wishlist, More,
+ * then the muted app-scoped Trips/Globe/You) and supplies each item's active
+ * check via isNavActive so Home's exact-match rule and query-string hrefs
+ * both work — Dock's own default (path.startsWith(href)) would over-match
+ * both of those.
  */
 export function TripNav({ tripId }: TripNavProps) {
   const pathname = usePathname();
   const planParam = useSearchParams().get("plan");
   const base = `/trips/${tripId}`;
-  const items = primaryNav(tripId, planParam);
 
-  return (
-    <nav
-      aria-label="Trip sections"
-      className="hidden border-b border-border md:flex"
-    >
-      <div className="flex overflow-x-auto scrollbar-none gap-0">
-        {items.map((item) => {
-          const active = isNavActive(item.href, pathname, base);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "relative shrink-0 px-4 py-3 text-sm font-medium transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                active
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground/80",
-              )}
-              aria-current={active ? "page" : undefined}
-            >
-              {item.label}
-              {/* Active indicator: coral underline */}
-              {active && (
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-primary"
-                />
-              )}
-            </Link>
-          );
-        })}
-        <NavMoreMenu tripId={tripId} />
-      </div>
-    </nav>
-  );
+  const nav = primaryNav(tripId, planParam); // Home, Plan, Calendar, Budget, Summary
+  const more = moreNav(tripId, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
+  const byLabel = (label: string) =>
+    [...nav, ...more].find((i) => i.label === label)!;
+
+  // Wishlist gets its own rail slot in the kit's ordering; the rest of
+  // moreNav (plus Summary, which the rail has no slot for) live under More.
+  const moreItems = [
+    byLabel("Summary"),
+    ...more.filter((item) => item.label !== "Wishlist"),
+  ];
+  const moreActive = moreItems.some((item) => isNavActive(item.href, pathname, base));
+
+  const todayHref = `${base}/today`;
+
+  const items: DockItem[] = [
+    { href: todayHref, label: "Today", match: (p) => isNavActive(todayHref, p, base) },
+    { href: byLabel("Home").href, label: "Home", match: (p) => isNavActive(byLabel("Home").href, p, base) },
+    { href: byLabel("Plan").href, label: "Plan", match: (p) => isNavActive(byLabel("Plan").href, p, base) },
+    { href: byLabel("Calendar").href, label: "Days", match: (p) => isNavActive(byLabel("Calendar").href, p, base) },
+    { href: byLabel("Budget").href, label: "Money", match: (p) => isNavActive(byLabel("Budget").href, p, base) },
+    { href: byLabel("Wishlist").href, label: "Wishlist", match: (p) => isNavActive(byLabel("Wishlist").href, p, base) },
+    {
+      href: `${base}/more`,
+      label: "More",
+      match: () => moreActive,
+      render: (active) => (
+        <NavMoreMenu tripId={tripId} items={moreItems} active={active} />
+      ),
+    },
+    { href: "/trips", label: "Trips", muted: true, match: (p) => p === "/trips" },
+    { href: "/globe", label: "Globe", muted: true },
+    { href: "/account", label: "You", muted: true },
+  ];
+
+  return <Dock items={items} aria-label="Trip sections" />;
 }

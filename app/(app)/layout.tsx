@@ -119,14 +119,15 @@ export default async function AppLayout({
           </Link>
 
           {/* Right-hand controls */}
+          {/*
+            Globe used to have its own text link here; it's now reachable via
+            the trip rail's muted "Globe" item (components/trip/trip-nav.tsx)
+            and the ⌘K palette's "Globe" command — see task-7 brief ("the app
+            header's nav" the rail replaces). The rest of this header (search,
+            theme, the traveller menu) isn't trip-scoped nav, so it stays.
+          */}
           <div className="flex items-center gap-1">
             <CommandPaletteTrigger />
-            <Link
-              href="/globe"
-              className="rounded-md px-2 py-1 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
-            >
-              Globe
-            </Link>
             <ThemeToggle />
 
             {/* Traveller avatar dropdown */}

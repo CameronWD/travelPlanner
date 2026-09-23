@@ -3,23 +3,15 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Home, Map, CalendarDays, Wallet, Menu } from "lucide-react";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetTitle,
-  SheetTrigger,
 } from "@/components/ui/sheet";
-import { moreNav, isNavActive } from "@/components/trip/trip-nav";
+import { TabBar, type TabItem } from "@/components/ui/tab-bar";
+import { primaryNav, moreNav, isNavActive } from "@/components/trip/trip-nav";
 import { cn } from "@/lib/cn";
-
-const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  Home,
-  Plan: Map,
-  Calendar: CalendarDays,
-  Budget: Wallet,
-};
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
 export function MobileTabBar({ tripId }: { tripId: string }) {
@@ -27,76 +19,62 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
   const planParam = useSearchParams().get("plan");
   const base = `/trips/${tripId}`;
   const [open, setOpen] = React.useState(false);
-  const plan = planParam ? `?plan=${encodeURIComponent(planParam)}` : "";
 
-  const primary = [
-    { label: "Home", href: base },
-    { label: "Plan", href: `${base}/plan${plan}` },
-    { label: "Calendar", href: `${base}/calendar` },
-    { label: "Budget", href: `${base}/budget${plan}` },
-  ];
+  const nav = primaryNav(tripId, planParam); // Home, Plan, Calendar, Budget, Summary
+  const more = moreNav(tripId, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
+  const byLabel = (label: string) => nav.find((i) => i.label === label)!;
 
-  // Summary lives under More on mobile.
-  const more = [
-    { label: "Summary", href: `${base}/summary` },
-    ...moreNav(tripId, planParam),
+  // Unlike the desktop rail (trip-nav.tsx), which promotes Wishlist to its
+  // own item, mobile keeps the primary row at four items (Home, Plan,
+  // Calendar, Budget) plus More as the fifth — so all eight routes that have
+  // no other mobile entry point (Wishlist, Journal, Checklists, Files,
+  // Activity, Settings, Help, Summary) stay behind this one sheet.
+  const sheetItems = [byLabel("Summary"), ...more];
+  const sheetActive = sheetItems.some((item) => isNavActive(item.href, pathname, base));
+
+  const items: TabItem[] = [
+    { href: byLabel("Home").href, label: "Home", match: (p) => isNavActive(byLabel("Home").href, p, base) },
+    { href: byLabel("Plan").href, label: "Plan", match: (p) => isNavActive(byLabel("Plan").href, p, base) },
+    { href: byLabel("Calendar").href, label: "Days", match: (p) => isNavActive(byLabel("Calendar").href, p, base) },
+    { href: byLabel("Budget").href, label: "Money", match: (p) => isNavActive(byLabel("Budget").href, p, base) },
+    {
+      href: `${base}/more`,
+      label: "More",
+      match: () => sheetActive,
+      render: (active) => (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          aria-current={active ? "page" : undefined}
+          className={cn(
+            "relative grid h-11 min-w-0 flex-1 place-items-center truncate rounded-md text-xs transition-colors duration-[var(--dur-fast)]",
+            active ? "font-extrabold text-on-accent" : "font-semibold text-muted-foreground",
+          )}
+        >
+          More
+        </button>
+      ),
+    },
   ];
 
   return (
-    <nav
-      className="fixed inset-x-0 bottom-0 z-40 flex h-[calc(var(--tp-tab-bar-h)+env(safe-area-inset-bottom))] border-t border-border bg-background/95 backdrop-blur pb-[env(safe-area-inset-bottom)] md:hidden"
-      aria-label="Trip sections"
-    >
-      {primary.map((item) => {
-        const Icon = ICONS[item.label] ?? Home;
-        const active = isNavActive(item.href, pathname, base);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              "flex flex-1 flex-col items-center justify-center gap-0.5 text-xs",
-              active ? "text-primary" : "text-muted-foreground",
-            )}
-            aria-current={active ? "page" : undefined}
-          >
-            <Icon className="size-5 shrink-0" aria-hidden="true" />
-            <span className="truncate">{item.label}</span>
-          </Link>
-        );
-      })}
+    <>
+      <TabBar items={items} aria-label="Trip sections" />
 
       <Sheet open={open} onOpenChange={setOpen}>
-        {/* asChild lets us apply className to the underlying button */}
-        <SheetTrigger asChild>
-          {(() => {
-            const moreActive = more.some((item) =>
-              isNavActive(item.href, pathname, base),
-            );
-            return (
-              <button
-                className={cn(
-                  "flex flex-1 flex-col items-center justify-center gap-0.5 text-xs",
-                  moreActive ? "text-primary" : "text-muted-foreground",
-                )}
-                aria-label="More navigation"
-              >
-                <Menu className="size-5 shrink-0" aria-hidden="true" />
-                <span className="truncate">More</span>
-              </button>
-            );
-          })()}
-        </SheetTrigger>
         <SheetContent side="bottom">
           {/* Visually-hidden title and description for a11y */}
           <SheetTitle className="sr-only">More navigation</SheetTitle>
           <SheetDescription className="sr-only">Jump to a trip section</SheetDescription>
           <div className="flex flex-col gap-1 p-2">
-            {more.map((item) => (
+            {sheetItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
+                aria-current={isNavActive(item.href, pathname, base) ? "page" : undefined}
                 className="rounded-xl px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/50"
               >
                 {item.label}
@@ -105,6 +83,6 @@ export function MobileTabBar({ tripId }: { tripId: string }) {
           </div>
         </SheetContent>
       </Sheet>
-    </nav>
+    </>
   );
 }

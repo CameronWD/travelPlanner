@@ -36,17 +36,20 @@ beforeEach(() => {
 });
 
 describe("TripNav", () => {
-  it("gives the active tab label text-primary (coral)", () => {
-    // Pathname matches the Home tab (/trips/t1)
+  // Playground's Dock marks the active rail item with a coral "sticker"
+  // (border + bg-coral + shadow), not the old horizontal bar's text-primary
+  // colour + underline span — see components/ui/dock.tsx.
+  it("gives the active rail item the coral sticker", () => {
+    // Pathname matches the Home item (/trips/t1)
     mockUsePathname.mockReturnValue("/trips/t1");
     const { container } = render(<TripNav tripId="t1" />);
     // The active link is the one with aria-current="page"
     const activeLink = container.querySelector('[aria-current="page"]');
     expect(activeLink).toBeTruthy();
-    expect(activeLink?.className).toContain("text-primary");
+    expect(activeLink?.className).toContain("bg-coral");
   });
 
-  it("does NOT give inactive tab labels text-primary", () => {
+  it("does NOT give inactive rail items the coral sticker", () => {
     mockUsePathname.mockReturnValue("/trips/t1");
     const { container } = render(<TripNav tripId="t1" />);
     const inactiveLinks = container.querySelectorAll(
@@ -55,17 +58,37 @@ describe("TripNav", () => {
     // There should be some inactive links
     expect(inactiveLinks.length).toBeGreaterThan(0);
     inactiveLinks.forEach((link) => {
-      expect(link.className).not.toContain("text-primary");
+      expect(link.className).not.toContain("bg-coral");
     });
   });
 
-  it("renders the coral underline span for the active tab", () => {
+  it("gives Home aria-current=page on the trip base path, and no other item", () => {
     mockUsePathname.mockReturnValue("/trips/t1");
-    const { container } = render(<TripNav tripId="t1" />);
-    const activeLink = container.querySelector('[aria-current="page"]');
-    const underline = activeLink?.querySelector('[aria-hidden="true"]');
-    expect(underline).toBeTruthy();
-    expect(underline?.className).toContain("bg-primary");
+    const { container, getByText } = render(<TripNav tripId="t1" />);
+    const current = container.querySelectorAll('[aria-current="page"]');
+    expect(current.length).toBe(1);
+    expect(getByText("Home").getAttribute("aria-current")).toBe("page");
+  });
+
+  it("gives Plan aria-current=page on the plan route, and not Home", () => {
+    // Home's base path (/trips/t1) is a prefix of every other trip route —
+    // isNavActive's exact-match rule is what keeps Home from also lighting up.
+    mockUsePathname.mockReturnValue("/trips/t1/plan");
+    const { getByText } = render(<TripNav tripId="t1" />);
+    expect(getByText("Plan").getAttribute("aria-current")).toBe("page");
+    expect(getByText("Home").getAttribute("aria-current")).toBeNull();
+  });
+
+  // Named for the reason, not the mechanism: losing this silently drops a
+  // Traveller working in a fork back to the real plan (ADR 0020) — the UI
+  // gives no other sign it happened.
+  it("keeps a fork's ?plan= alive across navigation, in the Plan and Budget hrefs but not Calendar", () => {
+    mockUsePathname.mockReturnValue("/trips/t1/plan");
+    mockUseSearchParams.mockReturnValue(new URLSearchParams("plan=abc"));
+    const { getByText } = render(<TripNav tripId="t1" />);
+    expect(getByText("Plan").getAttribute("href")).toBe("/trips/t1/plan?plan=abc");
+    expect(getByText("Money").getAttribute("href")).toBe("/trips/t1/budget?plan=abc");
+    expect(getByText("Days").getAttribute("href")).toBe("/trips/t1/calendar");
   });
 
   it("carries ?plan= on plan-scoped surfaces only", () => {
