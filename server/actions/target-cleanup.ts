@@ -63,9 +63,14 @@ export async function cleanupGlobeAttachments(
  * even to the sweep. Doing both inside one tx closes that window — either
  * both commit or neither does.
  *
- * Still returns the storage keys (now purely informational/for tests) since
- * scheduling failures are swallowed internally by scheduleBlobDeletion and
- * never roll back the row deletes.
+ * Still returns the storage keys, now purely informational/for tests.
+ *
+ * A scheduling failure here DOES abort the caller's transaction (final fix
+ * wave, C2). scheduleBlobDeletion swallows write failures only on the default
+ * client; on a transaction handle it re-throws, because Postgres has already
+ * aborted the transaction by then and swallowing merely hides it — the row
+ * deletes above would not have committed either, and the caller would have
+ * reported success for a delete that never happened.
  */
 export async function cleanupTargetSideDataTx(
   tx: Prisma.TransactionClient,

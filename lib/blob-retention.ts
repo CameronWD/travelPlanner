@@ -16,20 +16,34 @@ type BlobDeletionClient = Pick<typeof db, "deletedBlob"> | Prisma.TransactionCli
  * with a few days' margin. Sweep with `npm run sweep:blobs` (dry-run by
  * default, --execute to apply), following scripts/sweep-orphaned-costs.ts.
  *
- * Never throws: a retention-recording failure must not fail the caller's
- * delete. Worst case on a write failure here is the old ARCH-DAT-3 behaviour
- * for that one blob (it isn't swept, so it just lingers) — never a failed
- * user-facing delete.
- *
  * `client` defaults to the global `db` but accepts a Prisma transaction
  * handle instead (fix round 1, I3). Pass one when the row this blob's
  * deletion accompanies is being deleted inside the same `$transaction` — that
  * makes "row gone" and "blob recorded" commit together, so a process crash
  * between what would otherwise be two separate statements can never leave a
  * blob with no DeletedBlob record and no row pointing at it either (a leak
- * invisible even to the sweep). This still never throws: a client-level
- * failure is caught the same way regardless of which client was passed, so
- * it still can't roll back a transaction whose other statements succeeded.
+ * invisible even to the sweep).
+ *
+ * ERROR HANDLING DEPENDS ON WHICH CLIENT YOU PASS (final fix wave, C2).
+ *
+ * - **Default client: never throws.** A retention-recording failure must not
+ *   fail the caller's delete. Worst case is the old ARCH-DAT-3 behaviour for
+ *   that one blob (it isn't swept, so it just lingers) — never a failed
+ *   user-facing delete.
+ *
+ * - **Transaction client: the error propagates.** It used to be swallowed
+ *   here too, on the stated reasoning that swallowing "can't roll back a
+ *   transaction whose other statements succeeded". That reasoning was wrong,
+ *   and dangerously so: Postgres aborts the whole transaction the moment any
+ *   statement in it errors. Swallowing the error doesn't undo the abort — it
+ *   just hides it, and every later statement then fails with `25P02`
+ *   (current transaction is aborted) while the final `COMMIT` is executed as
+ *   a `ROLLBACK`. So `deleteStop` and its siblings could return
+ *   `{ success: true }`, write a `DELETED` Activity row and revalidate, with
+ *   nothing actually deleted. Letting it propagate makes the transaction fail
+ *   where it already failed, so the caller reports failure truthfully. The
+ *   suite's hand-rolled fake `tx` objects cannot model an aborted transaction,
+ *   which is why no test caught this.
  */
 export async function scheduleBlobDeletion(
   keys: (string | null | undefined)[],
@@ -38,12 +52,18 @@ export async function scheduleBlobDeletion(
   const storageKeys = keys.filter((k): k is string => !!k);
   if (storageKeys.length === 0) return;
 
+  // Identity, not a type test: the never-throw contract belongs to the
+  // default, non-transactional path only. Anything else is a transaction
+  // handle whose failure the caller MUST see (see the docblock, C2).
+  const isTransactional = client !== db;
+
   try {
     await client.deletedBlob.createMany({
       data: storageKeys.map((storageKey) => ({ storageKey })),
       skipDuplicates: true,
     });
   } catch (err) {
+    if (isTransactional) throw err;
     console.error(
       "scheduleBlobDeletion: failed to record blob(s) for retention — they will not be swept",
       err,

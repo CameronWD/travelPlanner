@@ -56,9 +56,33 @@ describe("scheduleBlobDeletion", () => {
     expect(dbMock.deletedBlob.createMany).not.toHaveBeenCalled();
   });
 
-  it("never throws — a retention failure must not fail the delete", async () => {
+  it("never throws on the DEFAULT client — a retention failure must not fail the delete", async () => {
     deletedBlobCreateManyMock.mockRejectedValue(new Error("db down"));
     await expect(scheduleBlobDeletion(["k"])).resolves.toBeUndefined();
+  });
+
+  it("never throws when the default client is passed explicitly", async () => {
+    deletedBlobCreateManyMock.mockRejectedValue(new Error("db down"));
+    const { db } = await import("@/lib/db");
+    await expect(
+      scheduleBlobDeletion(["k"], db as unknown as Parameters<typeof scheduleBlobDeletion>[1]),
+    ).resolves.toBeUndefined();
+  });
+
+  // C2 (final fix wave): the swallow used to apply to the transaction path
+  // too, on the reasoning that it "can't roll back a transaction whose other
+  // statements succeeded". Postgres disagrees — it aborts the whole
+  // transaction on the first error, so swallowing hides an abort rather than
+  // preventing one, and the caller's COMMIT silently becomes a ROLLBACK
+  // while the action returns { success: true }.
+  it("PROPAGATES on a transaction client — a swallowed error there makes the delete a silent no-op", async () => {
+    const boom = new Error("insert failed inside the transaction");
+    const txCreateManyMock = vi.fn().mockRejectedValue(boom);
+    const fakeTx = { deletedBlob: { createMany: txCreateManyMock } };
+
+    await expect(
+      scheduleBlobDeletion(["k1"], fakeTx as unknown as Parameters<typeof scheduleBlobDeletion>[1]),
+    ).rejects.toBe(boom);
   });
 
   // Fix round 1, I3: callers that already hold a transaction handle (e.g.

@@ -141,10 +141,11 @@ export async function uploadAttachment(
       // pointer to that partial blob: if the row-delete and the schedule ran
       // as two separate statements, a process crash between them would leave
       // the row gone and no record of the blob anywhere — a leak invisible
-      // even to the sweep. scheduleBlobDeletion never throws, so a write
-      // failure here still commits the row delete; it just doesn't roll back
-      // the transaction — the failure we report below is the original write,
-      // not this cleanup.
+      // even to the sweep. If the retention insert itself fails, the whole
+      // cleanup transaction rolls back (C2, final fix wave) — the placeholder
+      // row survives rather than vanishing with no record of its blob — and
+      // the `.catch` below logs it. Either way the failure reported to the
+      // Traveller is the original blob write, not this cleanup.
       await db
         .$transaction(async (tx) => {
           await tx.attachment.delete({ where: { id: attachment.id } });
