@@ -4,6 +4,7 @@ import { PlaneTakeoff } from "lucide-react";
 import { requireUser } from "@/lib/guards";
 import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
 import { db } from "@/lib/db";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TripCard } from "@/components/trip/trip-card";
@@ -20,9 +21,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function TripsPage() {
   const user = await requireUser();
 
-  // ARCH-BND-2 exception: a dated view — always reads the real plan
-  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
-  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+  // Policy (not a BND-2 spelling exemption): this dated view deliberately
+  // always shows the real plan and ignores `?plan=` — see
+  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
   // Fetch trips where the current user is a member, newest first.
   const memberships = await db.tripMember.findMany({
@@ -32,7 +33,7 @@ export default async function TripsPage() {
         include: {
           _count: { select: { stops: true } },
           stops: {
-            where: { forkId: null, arriveDate: { not: null } },
+            where: { ...REAL_PLAN, arriveDate: { not: null } },
             orderBy: { sortOrder: "asc" },
             select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
           },
@@ -48,7 +49,7 @@ export default async function TripsPage() {
 
   // Fetch located stops for route-render cover fallback.
   const coverStopsRaw = await db.stop.findMany({
-    where: { tripId: { in: tripIds }, forkId: null, lat: { not: null }, lng: { not: null } },
+    where: { tripId: { in: tripIds }, ...REAL_PLAN, lat: { not: null }, lng: { not: null } },
     orderBy: { sortOrder: "asc" },
     select: { id: true, tripId: true, sortOrder: true, arriveDate: true, departDate: true, lat: true, lng: true },
   });

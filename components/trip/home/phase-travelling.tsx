@@ -64,8 +64,11 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
     db.stop.findMany({
       // Rough (date-less) stops don't appear on a dated "today" view.
       // Dated views follow the real plan — CONTEXT.md; consistent with
-      // calendar/day/print/summary. ARCH-BND-2 exception: deliberately
-      // ignores `?plan=` — don't "finish the job" with planScope() here.
+      // calendar/day/print/summary. Policy (not a BND-2 spelling exemption):
+      // deliberately ignores `?plan=` — never wire in a variable plan here.
+      // Left as a literal, not REAL_PLAN: phase-travelling.test.tsx mocks
+      // "@/lib/plan-scope" with an explicit export list that doesn't include
+      // REAL_PLAN, so converting here breaks that test.
       where: { tripId, forkId: null, arriveDate: { not: null } },
       orderBy: { sortOrder: "asc" },
       select: {

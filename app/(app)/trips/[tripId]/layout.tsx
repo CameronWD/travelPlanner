@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { formatDateRange } from "@/lib/dates";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
@@ -41,9 +42,9 @@ export default async function TripLayout({
   // Guard: 404 for non-members
   await requireTripAccess(tripId);
 
-  // ARCH-BND-2 exception: a dated view — always reads the real plan
-  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
-  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+  // Policy (not a BND-2 spelling exemption): this dated view deliberately
+  // always shows the real plan and ignores `?plan=` — see
+  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -61,7 +62,7 @@ export default async function TripLayout({
         },
       },
       stops: {
-        where: { forkId: null, arriveDate: { not: null } },
+        where: { ...REAL_PLAN, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
         select: { timezone: true, arriveDate: true, departDate: true },
       },

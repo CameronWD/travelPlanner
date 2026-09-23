@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import { buildICS } from "@/lib/ics";
 
 export async function GET(
@@ -30,24 +31,24 @@ export async function GET(
   // money, notes, confirmations and booking refs are never emitted. The
   // confirmation lives in the app, offline, behind the Traveller's account.
   //
-  // ARCH-BND-2 exception: a dated view — always reads the real plan
-  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
-  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+  // Policy (not a BND-2 spelling exemption): this dated view deliberately
+  // always shows the real plan and ignores `?plan=` — see
+  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
   const [stops, items, transports, accommodations] = await Promise.all([
-    db.stop.findMany({ where: { tripId, forkId: null, arriveDate: { not: null } }, select: { id: true, name: true, timezone: true } }),
+    db.stop.findMany({ where: { tripId, ...REAL_PLAN, arriveDate: { not: null } }, select: { id: true, name: true, timezone: true } }),
     db.item.findMany({
-      where: { tripId, forkId: null, date: { not: null } },
+      where: { tripId, ...REAL_PLAN, date: { not: null } },
       select: {
         id: true, title: true, category: true, date: true, startTime: true, endTime: true,
         stopId: true, address: true, link: true,
       },
     }),
     db.transport.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...REAL_PLAN },
       select: { id: true, mode: true, depPlace: true, arrPlace: true, depAt: true, arrAt: true },
     }),
     db.accommodation.findMany({
-      where: { tripId, forkId: null },
+      where: { tripId, ...REAL_PLAN },
       select: {
         id: true,
         name: true,

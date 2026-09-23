@@ -9,6 +9,7 @@ import {
   LogOut,
 } from "lucide-react";
 import { db } from "@/lib/db";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import type { ShareScope } from "@/lib/share-view";
 import { tonightsStay } from "@/lib/share-view";
 import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
@@ -97,16 +98,16 @@ export default async function SharePage({
     includeDailyPlans: shareLink.includeDailyPlans,
   };
 
-  // ARCH-BND-2 exception: a dated view — always reads the real plan
-  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
-  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+  // Policy (not a BND-2 spelling exemption): this dated view deliberately
+  // always shows the real plan and ignores `?plan=` — see
+  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
   // Fetch itinerary data — NO costs, no notes, no confirmations. An off dial
   // means the corresponding query never runs: hidden data never leaves the
   // database, so no rendering bug can leak it.
   const rawStops = await db.stop.findMany({
     // Rough (date-less) stops aren't part of the dated public itinerary.
-    where: { tripId, forkId: null, arriveDate: { not: null } },
+    where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
     orderBy: { sortOrder: "asc" },
     select: {
       id: true,
@@ -124,7 +125,7 @@ export default async function SharePage({
 
   const transports = scope.includeTransport
     ? await db.transport.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -143,7 +144,7 @@ export default async function SharePage({
 
   const accommodations = scope.includeAccommodation
     ? await db.accommodation.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         orderBy: { checkIn: "asc" },
         select: {
           id: true,
@@ -162,7 +163,7 @@ export default async function SharePage({
 
   const items = scope.includeDailyPlans
     ? await db.item.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
         select: {
           id: true,

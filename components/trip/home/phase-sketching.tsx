@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { MapPin, Compass } from "lucide-react";
 import { db } from "@/lib/db";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ChapterChip } from "@/components/trip/chapter-chip";
@@ -18,9 +19,9 @@ export async function PhaseSketching({ tripId, tripName, chaptersEnabled = true 
   const [stops, chapters] = await Promise.all([
     db.stop.findMany({
       // Dated views follow the real plan — CONTEXT.md; consistent with
-      // calendar/day/print/summary. ARCH-BND-2 exception: deliberately
-      // ignores `?plan=` — don't "finish the job" with planScope() here.
-      where: { tripId, forkId: null },
+      // calendar/day/print/summary. Policy (not a BND-2 spelling exemption):
+      // deliberately ignores `?plan=` — never wire in a variable plan here.
+      where: { tripId, ...REAL_PLAN },
       orderBy: [{ chapterSortOrder: "asc" }, { sortOrder: "asc" }],
       select: { id: true, name: true, country: true, nights: true, chapterId: true, arriveDate: true },
     }),
@@ -28,7 +29,7 @@ export async function PhaseSketching({ tripId, tripName, chaptersEnabled = true 
     // entirely rather than fetch-then-discard.
     chaptersEnabled
       ? db.chapter.findMany({
-          where: { tripId, forkId: null },
+          where: { tripId, ...REAL_PLAN },
           orderBy: { name: "asc" },
           select: { id: true, name: true, colour: true },
         })

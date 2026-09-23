@@ -9,6 +9,7 @@ import {
   Clock,
 } from "lucide-react";
 import { db } from "@/lib/db";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { formatMoney } from "@/lib/money";
 import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
@@ -65,16 +66,16 @@ export default async function PrintPage({
 
   const { homeCurrency, startDate, endDate } = trip;
 
-  // ARCH-BND-2 exception: a dated view — always reads the real plan
-  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
-  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+  // Policy (not a BND-2 spelling exemption): this dated view deliberately
+  // always shows the real plan and ignores `?plan=` — see
+  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
   // Fetch all the trip data we need for the print view
   const [rawStops, transports, accommodations, items, costs, exchangeRates] =
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops are excluded from the dated print view.
-        where: { tripId, forkId: null, arriveDate: { not: null } },
+        where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -90,7 +91,7 @@ export default async function PrintPage({
         },
       }),
       db.transport.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -107,7 +108,7 @@ export default async function PrintPage({
         },
       }),
       db.accommodation.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         orderBy: { checkIn: "asc" },
         select: {
           id: true,
@@ -122,7 +123,7 @@ export default async function PrintPage({
         },
       }),
       db.item.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
         select: {
           id: true,
@@ -138,7 +139,7 @@ export default async function PrintPage({
         },
       }),
       db.cost.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         orderBy: { createdAt: "asc" },
         select: {
           id: true,

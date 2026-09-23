@@ -26,7 +26,7 @@ import { WeatherDaylightCard } from "@/components/trip/weather-daylight-card";
 import { AddItemButton } from "@/components/trip/item-form-dialog";
 import { JournalEditor } from "@/components/trip/journal-editor";
 import { JournalEntryView } from "@/components/trip/journal-entry-view";
-import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE } from "@/lib/plan-scope";
+import { THINGS_TO_DO_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN } from "@/lib/plan-scope";
 import type { TransportMode } from "@/lib/enums";
 
 /** Reading-width wrapper applied to the timeline+editor stack. Exported for tests. */
@@ -44,9 +44,9 @@ export default async function DayPage({
   const { tripId, date } = await params;
   const { user } = await requireTripAccess(tripId);
 
-  // ARCH-BND-2 exception: a dated view — always reads the real plan
-  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
-  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+  // Policy (not a BND-2 spelling exemption): this dated view deliberately
+  // always shows the real plan and ignores `?plan=` — see
+  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
   // Validate date param format
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -81,7 +81,7 @@ export default async function DayPage({
     await Promise.all([
       db.stop.findMany({
         // Rough (date-less) stops don't appear on a dated day view.
-        where: { tripId, forkId: null, arriveDate: { not: null } },
+        where: { tripId, ...REAL_PLAN, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -97,7 +97,7 @@ export default async function DayPage({
         },
       }),
       db.item.findMany({
-        where: { tripId, forkId: null, date: { not: null } },
+        where: { tripId, ...REAL_PLAN, date: { not: null } },
         orderBy: [{ date: "asc" }, { sortOrder: "asc" }],
         select: {
           id: true,
@@ -117,7 +117,7 @@ export default async function DayPage({
         },
       }),
       db.transport.findMany({
-        where: { tripId, forkId: null },
+        where: { tripId, ...REAL_PLAN },
         orderBy: { sortOrder: "asc" },
         select: {
           id: true,
@@ -137,7 +137,7 @@ export default async function DayPage({
         },
       }),
       db.accommodation.findMany({
-        where: { tripId, forkId: null, checkIn: { lte: effectiveDate }, checkOut: { gte: effectiveDate } },
+        where: { tripId, ...REAL_PLAN, checkIn: { lte: effectiveDate }, checkOut: { gte: effectiveDate } },
         orderBy: { checkIn: "asc" },
         select: {
           id: true,
@@ -182,7 +182,7 @@ export default async function DayPage({
         },
       }),
       db.item.findMany({
-        where: { tripId, forkId: null, ...WISHLIST_IDEA_WHERE },
+        where: { tripId, ...REAL_PLAN, ...WISHLIST_IDEA_WHERE },
         select: { id: true, title: true, category: true, lat: true, lng: true, countryCode: true },
       }),
       db.attachment.findMany({
@@ -373,7 +373,7 @@ export default async function DayPage({
   const thingsToDo =
     freeForm && phase === "travelling" && dayStop
       ? await db.item.findMany({
-          where: { tripId, forkId: null, ...THINGS_TO_DO_WHERE, stopId: dayStop.id },
+          where: { tripId, ...REAL_PLAN, ...THINGS_TO_DO_WHERE, stopId: dayStop.id },
           orderBy: { sortOrder: "asc" },
           select: { id: true, title: true, category: true, startTime: true, endTime: true },
         })

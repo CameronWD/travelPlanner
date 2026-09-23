@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { WhatsNewBanner } from "@/components/whats-new/whats-new-banner";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
@@ -28,9 +29,9 @@ export default async function TripHomePage({
   // is in the docblock on requireTripAccess in lib/guards.ts (RM-15).
   await requireTripAccess(tripId);
 
-  // ARCH-BND-2 exception: a dated view — always reads the real plan
-  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
-  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+  // Policy (not a BND-2 spelling exemption): this dated view deliberately
+  // always shows the real plan and ignores `?plan=` — see
+  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -50,7 +51,7 @@ export default async function TripHomePage({
       roundTrip: true,
       chaptersEnabled: true,
       stops: {
-        where: { forkId: null, arriveDate: { not: null } },
+        where: { ...REAL_PLAN, arriveDate: { not: null } },
         orderBy: { sortOrder: "asc" },
         select: { id: true, sortOrder: true, timezone: true, arriveDate: true, departDate: true },
       },
@@ -59,7 +60,7 @@ export default async function TripHomePage({
   if (!trip) notFound();
 
   const coverStopsRaw = await db.stop.findMany({
-    where: { tripId, forkId: null, lat: { not: null }, lng: { not: null } },
+    where: { tripId, ...REAL_PLAN, lat: { not: null }, lng: { not: null } },
     orderBy: { sortOrder: "asc" },
     select: { id: true, sortOrder: true, arriveDate: true, departDate: true, lat: true, lng: true },
   });

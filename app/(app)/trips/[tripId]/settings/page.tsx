@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
+import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { isAdminEmail } from "@/lib/admin";
 import { listShareLinks } from "@/server/actions/share";
@@ -35,9 +36,9 @@ export default async function SettingsPage({
   const isOwner = membership.role === "owner";
   const canManageTrip = isOwner || isAdminEmail(user.email);
 
-  // ARCH-BND-2 exception: a dated view — always reads the real plan
-  // (forkId: null) and deliberately ignores `?plan=`. Don't "finish the
-  // job" by wiring in lib/plan-scope.ts's variable planScope() here.
+  // Policy (not a BND-2 spelling exemption): this dated view deliberately
+  // always shows the real plan and ignores `?plan=` — see
+  // architecture-sitrep-2026-09-22.md. Never wire in a variable plan here.
 
   const trip = await db.trip.findUnique({
     where: { id: tripId },
@@ -82,7 +83,7 @@ export default async function SettingsPage({
     // query entirely rather than fetch-then-discard.
     trip.chaptersEnabled
       ? db.chapter.findMany({
-          where: { tripId, forkId: null },
+          where: { tripId, ...REAL_PLAN },
           orderBy: { startDate: "asc" },
           select: {
             id: true,
