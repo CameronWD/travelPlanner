@@ -326,6 +326,23 @@ phase 1. **Ask:** confirm the intended `mask-icon` colour — we used the
 Playground coral `#FF6B4A`, and a `mask-icon` requires a literal colour by spec,
 so it cannot follow a token.
 
+### D5. `--muted-foreground` does not meet its own README's contrast claim
+`design_handoff/playground-2/README.md` describes `--muted-foreground` as
+"5.5:1+". Measured from rendered RGB (not the rounded hex comments in
+`globals.css`, which disagree with the true conversion), the shipped dark value
+`38 11% 60%` (`#A59D8F`) measures **5.257:1** on `--card` — short of the
+README's own claim — and **4.499:1** on `--muted`, which fails WCAG AA (4.5:1)
+outright. This showed up as ~29 of 34 findings in the first full-app contrast
+audit: every `text-muted-foreground` on `bg-muted` badge pill, dark theme,
+across the plan, calendar and elsewhere, failing by a thousandth.
+
+**Worked around** by raising the token locally to `38 11% 62%` (`#A9A193`),
+which measures 4.780:1 on muted and 5.584:1 on card — clearing AA and making
+the README's "5.5:1+" claim true. Light mode was not touched; it already
+measures 4.707:1 and clears. **Ask:** fix the token at source so the shipped
+value matches the handoff's own documented contrast, rather than relying on
+this local override.
+
 ---
 
 ## E. What phase 1 learned, for whoever briefs phase 2
