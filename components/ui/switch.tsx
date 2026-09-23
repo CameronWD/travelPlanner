@@ -16,7 +16,14 @@ const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(({ checked, onCh
     role="switch"
     aria-checked={checked}
     onClick={() => onCheckedChange(!checked)}
-    className={cn("relative h-[30px] w-[52px] shrink-0 rounded-full border-2 border-input transition-colors duration-[var(--dur-base)]", checked ? "bg-teal" : "bg-card", className)}
+    // The visible track is a deliberately small 30px tall to match the design; the
+    // `before` pseudo-element is an invisible 44px-tall hit area so the tap target still
+    // meets the 44px minimum. Do not remove it to "simplify" the class list.
+    className={cn(
+      "relative h-[30px] w-[52px] shrink-0 rounded-full border-2 border-input transition-colors duration-[var(--dur-base)] before:absolute before:inset-x-0 before:top-1/2 before:h-11 before:-translate-y-1/2 before:content-['']",
+      checked ? "bg-teal" : "bg-card",
+      className,
+    )}
     {...props}
   >
     <span aria-hidden="true" className={cn("absolute top-0.5 size-[22px] rounded-full bg-primary transition-[left] duration-[var(--dur-base)] ease-bounce", checked ? "left-6" : "left-0.5")} />

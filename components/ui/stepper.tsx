@@ -15,7 +15,11 @@ export interface StepperProps {
 
 /** Client Component. − / value / + pill. Buttons disable at limits; value is announced. */
 function Stepper({ value, onChange, min = 0, max = 99, unit, label, className }: StepperProps) {
-  const btn = "grid size-9 place-items-center rounded-full border-2 border-input transition-transform duration-[var(--dur-fast)] active:scale-95 disabled:opacity-45";
+  // The visible button is a deliberately small 36px (size-9) to match the design; the
+  // `before` pseudo-element is an invisible 44px hit area centred on top of it so the
+  // tap target still meets the 44px minimum. Do not remove it to "simplify" the class list.
+  const btn =
+    "relative grid size-9 place-items-center rounded-full border-2 border-input transition-transform duration-[var(--dur-fast)] active:scale-95 disabled:opacity-45 before:absolute before:left-1/2 before:top-1/2 before:size-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-['']";
   return (
     <span role="group" aria-label={label} className={cn("inline-flex items-center gap-1 rounded-full border-2 border-input bg-background p-1", className)}>
       <button type="button" aria-label={"Decrease " + label} disabled={value <= min} onClick={() => onChange(Math.max(min, value - 1))} className={cn(btn, "bg-card text-foreground")}><Minus className="size-[18px]" strokeWidth={2.5} /></button>
