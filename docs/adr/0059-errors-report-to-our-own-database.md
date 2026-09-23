@@ -69,9 +69,13 @@ more Travellers than one household, and it stops working silently.
    signature per request and put arbitrary text on the Admin's lock screen.
    The realistic non-malicious trigger is identical — a Traveller on a flaky
    connection retrying a fetch whose URL carries a cache-busting timestamp
-   varies `message` on every attempt. `message` and `route` are additionally
-   length-capped in the route's schema as defence in depth, bounding what
-   reaches the database and the console regardless.
+   varies `message` on every attempt. `message`, `route` and `digest` are
+   additionally length-bounded in the route's schema as defence in depth,
+   bounding what reaches the database and the console regardless. That bound
+   **truncates rather than rejects**: rejecting dropped the whole report — no
+   row, no console line — for a legitimate client error that merely carried a
+   long message, and truncation bounds the entropy identically while keeping
+   the observation.
 
    The worst outcome being defended against is not cost or storage: it is the
    operator learning to ignore the notification channel. That channel also
@@ -121,3 +125,22 @@ more Travellers than one household, and it stops working silently.
   their own signatures — remains open, deliberately. A normaliser written
   without real production samples risks merging genuinely distinct failures,
   which is the one thing a dedup key must not do.
+- **Accepted limitation: every production server-component render failure
+  collapses onto one row.** `ErrorReport.digest` is recorded but is **not**
+  part of the signature, which hashes `[name, message, firstStackFrame]`
+  only. In production React replaces the message of every server-component
+  error with one fixed generic string before it reaches the client, so that
+  whole class shares a name, a message and a first frame — one row, a
+  climbing `count`, and (since only the first occurrence writes the row) one
+  arbitrary digest standing in for all of them. The digest still delivers the
+  *other* half of what it was added for: it correlates a report back to the
+  specific failure in the Vercel runtime logs. Only that half is true, and
+  `ReportErrorContext.digest`'s comment used to claim both.
+
+  **The trade is deliberate and the signature must not change.** Putting
+  `digest` or `route` — both client-supplied, on an unauthenticated route —
+  into the signature would hand any caller a fresh signature per request,
+  which is exactly the entropy hole decision 5 closed. The dedup key stays
+  server-shaped; the correlation handle stays a column. If this class ever
+  needs splitting, the way to do it is a server-side grouping key the client
+  cannot influence, not by widening the hash over client input.

@@ -25,11 +25,23 @@ production. If you would rather use `psql`, every query here also runs as:
 psql "$DIRECT_URL" -c '<the query>'
 ```
 
-The queries are single-quoted above and contain only double-quoted
-identifiers, so they paste into that form without re-quoting. `psql` is not
-installed in the build sandbox, so the **queries** below are written against
-the schema in `prisma/schema.prisma` and `prisma/migrations/`, and it is the
-`psql` *invocation* that is untested.
+**Most, not all, paste in unchanged.** The queries use double-quoted
+identifiers, which are safe inside those outer single quotes — but at least
+six of them also contain **single-quoted string literals** (`'<trip id>'`,
+`LOWER('<address>')`, `= '<key>'`, and so on). A single quote inside a
+single-quoted shell argument ends the argument; those queries will not paste
+into the form above as written. Either use the Neon SQL editor for them, or
+switch the *outer* quotes to double quotes and escape nothing else:
+
+```bash
+psql "$DIRECT_URL" -c "SELECT email FROM \"AllowedEmail\" WHERE email = 'you@example.com';"
+```
+
+This is the same class of hazard as the `npm run x -- --flag` separator that
+§3.1 handles: the instruction looks like it works and quietly does something
+else. `psql` is not installed in the build sandbox, so the **queries** below
+are written against the schema in `prisma/schema.prisma` and
+`prisma/migrations/`, and it is the `psql` *invocation* that is untested.
 
 **`SHELL`** — run from the repository root. These were each checked to run as
 written (argument parsing, module resolution, exit behaviour); only their
@@ -273,9 +285,15 @@ mocks the database, so no test has ever exercised the real unique key.
    WHERE "tripId" = '<trip id>' AND "date" = '<YYYY-MM-DD>';
    ```
    **Expect two rows.** One row means the old unique key survived.
-6. Have Traveller A blank their entry. **Expect** a confirmation dialog, not a
-   silent delete; cancel it and confirm the text is still there; then confirm
-   it and check B's entry is untouched.
+6. Have Traveller A blank their entry and blur. **Expect nothing to happen**:
+   an empty body is a pure no-op by design — it neither deletes the entry nor
+   writes an empty row (`server/actions/journal.ts`, ADR 0058 decision 4).
+   Reload and **expect A's original text to still be there**. The confirm
+   dialog belongs to **Remove entry**, which is the only way to delete one, so
+   use that instead and check B's entry is untouched afterwards. (An earlier
+   version of this step expected a confirm on blanking; there is none, and
+   recording its absence as a regression — or "fixing" the deliberate no-op —
+   is the failure this note exists to prevent.)
 
 ### 2.2 The §4b window closed
 
@@ -370,7 +388,7 @@ points at.
 
 1. Upload an attachment to a Trip. Note its storage key:
    ```sql
-   SELECT id, "storageKey", "fileName" FROM "Attachment" ORDER BY "createdAt" DESC LIMIT 1;
+   SELECT id, "storageKey", "filename" FROM "Attachment" ORDER BY "createdAt" DESC LIMIT 1;
    ```
 2. Delete that attachment in the app.
 3. `SQL` — the row is gone and a retention record exists:

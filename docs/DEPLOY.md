@@ -200,6 +200,24 @@ error sink (ADR 0059), plus one migration,
    empty Journal table would *not* have made this safe — the failure is a
    missing `ON CONFLICT` target, not a row collision.
 
+   **If the migration aborts, every later deploy dies until you clear it.**
+   The database itself rolls back cleanly (each migration runs in one
+   transaction), but Prisma leaves a `_prisma_migrations` row with
+   `finished_at` NULL, and `prisma migrate deploy` then refuses to do anything
+   at all with **P3009 — migrate found failed migrations**. Every subsequent
+   build fails with the same error, including builds of code that has nothing
+   to do with the migration, which reads as "the deploy pipeline is broken"
+   rather than "one migration needs acknowledging". Clear it against
+   `DIRECT_URL` (not the pooled URL), then redeploy:
+
+   ```bash
+   DATABASE_URL="$DIRECT_URL" npx prisma migrate resolve --rolled-back 20260922000000_rollout_gate
+   ```
+
+   Only use `--rolled-back`. `--applied` tells Prisma the migration succeeded
+   and it will never be run again — on a migration that actually failed, that
+   permanently desynchronises the schema from the ledger.
+
 3. **The pending `whatsNewSeenAt` migration ships alongside this one.**
    `20260921120000_user_whats_new_seen_at` has not been deployed yet either.
    It is additive and nullable, so it opens no §4b window of its own; it just

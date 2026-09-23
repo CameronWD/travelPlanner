@@ -41,13 +41,24 @@ export interface ReportErrorContext {
   userId?: string;
   /**
    * React's own error digest (Error & { digest?: string }), present on
-   * server-component render errors. In production React replaces the
-   * message of a server-component error with one fixed generic string
-   * before it ever reaches the client, so without this a batch of distinct
-   * server-render failures collapses into one ErrorReport row with a
-   * climbing count and no way to tell them apart. The digest is the only
-   * handle that still correlates a client report back to the specific
-   * server-side failure in the Vercel runtime logs.
+   * server-component render errors. Recorded on the row; deliberately NOT
+   * part of `computeSignature`.
+   *
+   * What that buys, precisely: in production React replaces the message of
+   * every server-component error with one fixed generic string before it
+   * reaches the client, and the digest is the only handle left that
+   * correlates a report back to the specific server-side failure in the
+   * Vercel runtime logs. Read the digest here, grep it there.
+   *
+   * What it does NOT buy, and an earlier version of this comment wrongly
+   * claimed it did: it does not stop distinct server-render failures
+   * collapsing into one row. They share a name, a message (that one fixed
+   * string) and a first frame, so they share a signature — the whole class
+   * lands on a single ErrorReport row with a climbing count and, since only
+   * the first occurrence writes the row, a single arbitrary digest. That is
+   * an accepted limitation, not an oversight: including a client-controlled
+   * `digest` (or `route`) in the signature would re-open the unauthenticated
+   * signature-minting hole ADR 0059 decision 5 closed. See ADR 0059.
    */
   digest?: string;
 }

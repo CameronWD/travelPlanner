@@ -209,10 +209,36 @@ same reasoning is applied to `GlobeInvite.expiresAt`.
   revocation is ever needed, that is a session-strategy change, not an
   allowlist change.
 - A refused sign-in is not a dead end: the callback records (or bumps) an
-  **Access request** from Google's verified profile and notifies the Admin,
-  and `/signin` renders an explanatory card rather than Auth.js's unbranded
-  error page. Both `pages.signIn` and `pages.error` point at `/signin`,
-  because `AccessDenied` resolves against `pages.error`.
+  **Access request** from Google's verified profile, and `/signin` renders an
+  explanatory card rather than Auth.js's unbranded error page. Both
+  `pages.signIn` and `pages.error` point at `/signin`, because `AccessDenied`
+  resolves against `pages.error`.
+- **A bump does not notify.** Only a brand-new request notifies the Admin, and
+  one other case below. A repeat attempt raises `lastAttemptAt` and `attempts`
+  and nothing else — otherwise anyone refused could put a notification on the
+  operator's lock screen on demand by clicking sign-in, and `status` is never
+  touched so a dismissed request stays dismissed. (An earlier version of this
+  ADR said a refusal "records (or bumps) … and notifies the Admin", which was
+  true only of the record half.)
+- **A revoked address reopens its request.** Approving stamps `resolvedAt`,
+  and `/admin` lists only rows with `resolvedAt IS NULL`, so revoking
+  someone's `AllowedEmail` row used to leave them stranded *and invisible*:
+  signing in again bumped a row nobody would ever see, with no reopen control
+  and no add-an-address control on `/admin`, and raw SQL as the only way back.
+  A repeat attempt now clears `resolvedAt` and notifies when all three hold:
+  the row is resolved, its `status` is not `"dismissed"`, and the address is
+  no longer in `AllowedEmail`. That is exactly the revoked case. Dismissal
+  still means dismissed (condition two), an already-open request still never
+  re-notifies (condition one), and a standing approval is untouched
+  (condition three).
+- **`/signin`'s refusal card promises nothing.** It is shown to a brand-new
+  stranger, someone already waiting, someone dismissed and someone revoked
+  alike, and it cannot tell which is reading it — so it says the attempt was
+  recorded and that not every request is granted, and stops there. It used to
+  say "you'll be able to sign in here once you're approved", which was false
+  for the last two and contradicted `/privacy`, which already said so.
+  Telling a reader which bucket they are in would turn the page into an
+  oracle about the Admin's decisions.
 - The Google Cloud Console test-user list stops being a second door. The
   OAuth app can be published (`docs/DEPLOY.md`), and the 100-test-user
   ceiling stops being TEEPEE's access-control policy.

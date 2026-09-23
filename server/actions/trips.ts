@@ -300,7 +300,7 @@ export type DuplicateTripResult =
  * as live membership bypassed the consent ADR 0017 requires. A source member
  * whose email can't be resolved is skipped outright: neither Invite nor
  * membership. (ADR 0018's "co-traveller memberships are copied as-is" claim
- * is now stale and needs amending — tracked separately.)
+ * was superseded by its 2026-09-23 amendment on this branch.)
  *
  * Accommodations, costs, FX rates and all history are dropped per ADR-0018.
  */

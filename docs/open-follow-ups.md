@@ -101,11 +101,24 @@ applied to production on 2026-09-21 at 09:53 UTC, verified against
 *Migration state* below. Both were additive on reads **and** on writes per
 `docs/DEPLOY.md` §4b — the new columns are nullable, so the still-running old
 build could not violate a NOT NULL constraint, and dropping a foreign key
-removed a restriction rather than adding one. **A third migration,
-`20260921120000_user_whats_new_seen_at` (ADR 0056), is now written and NOT
-applied.** It adds a nullable `whatsNewSeenAt` to `User`, deliberately not
-backfilled. Running it is the operator's call; nothing in this document should
-be read as claiming it has run.
+removed a restriction rather than adding one. **TWO migrations are now
+written and NOT applied** (updated 2026-09-23; this section previously named
+only the first):
+
+1. `20260921120000_user_whats_new_seen_at` (ADR 0056) adds a nullable
+   `whatsNewSeenAt` to `User`, deliberately not backfilled. Additive on reads
+   and writes, so it opens no §4b window.
+2. `20260922000000_rollout_gate` (`feat/rollout-gate`; ADRs 0057, 0058, 0059)
+   — the bigger of the two and **the only one that opens a `docs/DEPLOY.md`
+   §4b window**. It changes `JournalEntry`'s unique key from `(tripId, date)`
+   to `(tripId, date, authorId)`, which drops the index the currently
+   deployed build's `upsert` uses as its `ON CONFLICT` target, so the old
+   build can read Journal entries but not save one for the length of the
+   build. One deploy is being taken deliberately — see `docs/DEPLOY.md` §4c,
+   which is the authority on both and carries the ordered checklist.
+
+Running either is the operator's call; nothing in this document should be read
+as claiming either has run.
 
 **Updated 2026-09-21.** The sweep on branch `chore/follow-ups-triage-and-sweep`
 closed **39** of the 42 items that were open on 2026-09-20 and moved them to the
@@ -530,9 +543,12 @@ running app makes possible.**
 > believed unrun are in fact applied in production, and that part is history.
 > **The two migrations written on 2026-09-21 (`CD-06`, `FN-05`) are now
 > applied too** — see *Two migrations written on 2026-09-21* below for the
-> record. **A third, `20260921120000_user_whats_new_seen_at` (ADR 0056), is
-> now written and NOT applied**, so there *is* still something pending on the
-> database side of the next deploy. The rest is a short list of checks that
+> record. **Two others are written and NOT applied**:
+> `20260921120000_user_whats_new_seen_at` (ADR 0056) and
+> `20260922000000_rollout_gate` (`feat/rollout-gate`), the second of which is
+> the only one opening a `docs/DEPLOY.md` §4b window. So there *is* still
+> something pending on the database side of the next deploy, and it is larger
+> than this section used to say. The rest is a short list of checks that
 > need a person with a running app, a phone, a calendar client, or a browser.
 > **Nothing in this section was verified on 2026-09-21**, and nothing here may
 > be reported as such.
@@ -559,11 +575,23 @@ that reads their columns, and were **not** applied by the agent that wrote
 them — that branch had no database access. The descriptions below stand as
 written.
 
-> **A third migration is now written and not applied:**
-> `20260921120000_user_whats_new_seen_at` (ADR 0056) adds a **nullable**
-> `whatsNewSeenAt` to `User`, deliberately un-backfilled because `NULL`
-> carries meaning there. Additive on reads and writes per `docs/DEPLOY.md`
-> §4b. Applying it is the operator's call.
+> **Two further migrations are written and not applied** (corrected
+> 2026-09-23 — this note named only the first, while `docs/DEPLOY.md` §4c
+> already knew about both):
+>
+> - `20260921120000_user_whats_new_seen_at` (ADR 0056) adds a **nullable**
+>   `whatsNewSeenAt` to `User`, deliberately un-backfilled because `NULL`
+>   carries meaning there. Additive on reads and writes per `docs/DEPLOY.md`
+>   §4b, so it opens no window of its own.
+> - `20260922000000_rollout_gate` (`feat/rollout-gate`) re-keys
+>   `JournalEntry` to `(tripId, date, authorId)` and is **the one that does**
+>   open a §4b window: dropping the old unique index removes the `ON CONFLICT`
+>   target the deployed build's Journal `upsert` relies on, so that build can
+>   read but not save a Journal entry while the new one builds. One deploy is
+>   being taken deliberately (ADR 0058).
+>
+> Applying either is the operator's call; `docs/DEPLOY.md` §4c is the
+> authority, including what to do if the migration aborts (P3009).
 
 - **`20260921000000_cron_heartbeat_last_success`** (`CD-06`, `11fb9ba`,
   `5b62455`). Adds a **nullable** `lastSuccessAt` to `CronHeartbeat`, then
