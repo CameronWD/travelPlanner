@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 // next/font/google runs a Node loader that isn't available in vitest's jsdom
 // environment. Mock it minimally so the layout module can be imported.
 vi.mock("next/font/google", () => ({
-  Space_Grotesk: () => ({ variable: "--font-display-google", className: "" }),
+  Bricolage_Grotesque: () => ({ variable: "--font-display-google", className: "" }),
   Plus_Jakarta_Sans: () => ({ variable: "--font-sans-google", className: "" }),
 }));
 
@@ -18,6 +18,6 @@ describe("root layout PWA metadata", () => {
     expect(viewport.viewportFit).toBe("cover");
   });
   it("declares the app as an Apple web app", () => {
-    expect(metadata.appleWebApp).toMatchObject({ capable: true, title: "TEEPEE" });
+    expect(metadata.appleWebApp).toMatchObject({ capable: true, title: "Teepee" });
   });
 });

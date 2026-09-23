@@ -6,7 +6,7 @@ import type { MarkerView, GlobeMemberView } from "@/components/globe/types";
 import type { AttachmentView } from "@/components/trip/attachment-list";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: "Globe · TEEPEE" };
+  return { title: "Globe" };
 }
 
 export default async function GlobePage() {

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ToastProvider } from "@radix-ui/react-toast";
-import { Toast, ToastTitle, ToastViewport, ToastClose } from "./toast";
+import { Toast, ToastTitle, ToastViewport, ToastClose, ToastAction } from "./toast";
 
 describe("ToastViewport", () => {
   it("has mobile bottom offset to clear the Feedback trigger and md:bottom override", () => {
@@ -129,6 +129,95 @@ describe("ToastViewport", () => {
     expect(card.className).toContain(
       "motion-safe:data-[swipe=end]:tp-slide-out-right",
     );
+  });
+});
+
+describe("Toast variant", () => {
+  // A Traveller must be able to tell a failure from a confirmation at a
+  // glance. If `destructive` ever collapses back onto the same fill as
+  // `default`/`success` (e.g. because a base class silently wins a
+  // tailwind-merge conflict again), every "Couldn't save/update/delete..."
+  // toast across the app reads as a success. This protects that distinction.
+  it("gives destructive a different fill than default and success, so an error toast doesn't read as a confirmation", () => {
+    render(
+      <ToastProvider>
+        <Toast open data-testid="toast-default">
+          <ToastTitle>Saved</ToastTitle>
+        </Toast>
+        <Toast open variant="success" data-testid="toast-success">
+          <ToastTitle>Added</ToastTitle>
+        </Toast>
+        <Toast open variant="destructive" data-testid="toast-destructive">
+          <ToastTitle>Couldn&apos;t save</ToastTitle>
+        </Toast>
+        <ToastViewport />
+      </ToastProvider>,
+    );
+
+    const defaultCard = screen.getByTestId("toast-default");
+    const successCard = screen.getByTestId("toast-success");
+    const destructiveCard = screen.getByTestId("toast-destructive");
+
+    // default and success intentionally share the one designed look.
+    expect(defaultCard.className).toContain("bg-teal");
+    expect(defaultCard.className).toContain("island");
+    expect(successCard.className).toContain("bg-teal");
+    expect(successCard.className).toContain("island");
+
+    // destructive must carry its own fill, not the teal one.
+    expect(destructiveCard.className).toContain("bg-destructive");
+    expect(destructiveCard.className).toContain("text-destructive-foreground");
+    expect(destructiveCard.className).not.toContain("bg-teal");
+    expect(destructiveCard.className.split(/\s+/)).not.toContain("island");
+  });
+
+  it("rescopes --foreground, --muted-foreground and --border on destructive instead of using island, so Description/Action/Close stay legible on the red fill instead of the teal-tuned ink", () => {
+    render(
+      <ToastProvider>
+        <Toast open variant="destructive" data-testid="toast-destructive-vars">
+          <ToastTitle>Couldn&apos;t save</ToastTitle>
+        </Toast>
+        <ToastViewport />
+      </ToastProvider>,
+    );
+    const card = screen.getByTestId("toast-destructive-vars");
+    expect(card.className).toContain("[--foreground:var(--destructive-foreground)]");
+    expect(card.className).toContain(
+      "[--muted-foreground:var(--destructive-foreground)]",
+    );
+    expect(card.className).toContain("[--border:var(--destructive-foreground)]");
+  });
+
+  // --muted is never rescoped (not by island, not by the destructive
+  // overrides above), but the hover text colour on ToastAction/ToastClose
+  // IS rescoped (it comes from --foreground). A hover background sourced
+  // from --muted would therefore come from a different colour system than
+  // the label sitting on top of it, and the two could fail contrast against
+  // each other independently of the toast's own fill. Deriving the hover
+  // background from --foreground instead means the pair can never drift
+  // apart, on this variant or any future one.
+  it("derives the hover background from --foreground, the same variable the hover text comes from, so the pair can't drift out of contrast on an accent-filled toast", () => {
+    render(
+      <ToastProvider>
+        <Toast open variant="destructive">
+          <ToastTitle>Couldn&apos;t save</ToastTitle>
+          <ToastAction altText="Retry" data-testid="toast-action">
+            Retry
+          </ToastAction>
+          <ToastClose data-testid="toast-close" />
+        </Toast>
+        <ToastViewport />
+      </ToastProvider>,
+    );
+
+    const action = screen.getByTestId("toast-action");
+    const close = screen.getByTestId("toast-close");
+
+    expect(action.className).toContain("hover:bg-foreground/10");
+    expect(action.className).not.toContain("hover:bg-muted");
+
+    expect(close.className).toContain("hover:bg-foreground/10");
+    expect(close.className).not.toContain("hover:bg-muted");
   });
 });
 

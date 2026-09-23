@@ -28,7 +28,7 @@ describe("trip-scoped help page", () => {
     render(ui);
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
     expect(screen.getByRole("heading", { level: 2 }).textContent).toBe(
-      "How to use TEEPEE",
+      "How to use Teepee",
     );
   });
 

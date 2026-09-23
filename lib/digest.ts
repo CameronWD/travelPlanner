@@ -243,7 +243,7 @@ export function asTestDigest(
 ): DigestPayload {
   if (!digest) {
     return {
-      title: "Test · TEEPEE",
+      title: "Test · Teepee",
       body: "Push is working. Your digest arrives in the evening when there's something to say.",
       // The settings page, because that is where the button was pressed and
       // where the explanation of a silent day already lives.

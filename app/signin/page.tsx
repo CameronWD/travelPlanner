@@ -9,7 +9,7 @@ import {
 import { GoogleSignInButton, DevSignInButton } from "./signin-buttons";
 
 export const metadata = {
-  title: "Sign in · TEEPEE",
+  title: "Sign in",
 };
 
 export default async function SignInPage({
@@ -33,7 +33,7 @@ export default async function SignInPage({
         <Card className="w-full max-w-sm">
           <CardHeader className="items-center text-center">
             <CardTitle className="font-display text-xl">
-              TEEPEE is invite-only.
+              Teepee is invite-only.
             </CardTitle>
             {/*
               This card is shown to everyone Auth.js refuses, and it has no
@@ -63,7 +63,7 @@ export default async function SignInPage({
             🛖
           </span>
           <CardTitle className="font-display text-2xl">
-            Welcome to TEEPEE
+            Welcome to Teepee
           </CardTitle>
           <CardDescription>
             A place to house your travel. Sign in to see your trips.

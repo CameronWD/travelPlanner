@@ -1,5 +1,5 @@
 /**
- * Trip Planner Service Worker
+ * Teepee Service Worker
  *
  * Cache strategy source of truth: lib/offline.ts
  * This file mirrors that logic in plain JS — keep them in sync if rules change.
@@ -258,15 +258,14 @@ self.addEventListener('push', (event) => {
     const data = event.data ? event.data.json() : null;
     if (!data) return; // no payload — nothing to show
 
-    const title = data.title ?? 'Trip Planner';
+    const title = data.title ?? 'Teepee';
     const options = {
       body: data.body ?? '',
       data: { url: data.url ?? '/' },
-      // `/icon` — served by app/manifest.ts. NOT `/icons/icon-192.png`, which
-      // nothing has ever served: this path had never been exercised because no
-      // push had ever been delivered (follow-up item 5).
-      icon: '/icon',
-      badge: '/icon',
+      // Static files under public/icons/, added when the generated `/icon`
+      // route was retired.
+      icon: '/icons/icon-192.png',
+      badge: '/icons/push-badge-96.png',
     };
 
     event.waitUntil(self.registration.showNotification(title, options));

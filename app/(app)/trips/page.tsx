@@ -15,7 +15,7 @@ import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { orderPlanStops } from "@/lib/plan-order";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: "Your trips · TEEPEE" };
+  return { title: "Your trips" };
 }
 
 export default async function TripsPage() {
@@ -130,7 +130,7 @@ export default async function TripsPage() {
                 <Link href="/trips/new">New trip</Link>
               </Button>
               <Button asChild variant="ghost" size="sm">
-                <Link href="/help">New here? How to use TEEPEE</Link>
+                <Link href="/help">New here? How to use Teepee</Link>
               </Button>
             </div>
           }

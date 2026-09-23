@@ -110,8 +110,19 @@ describe("Dialog", () => {
     await screen.findByRole("dialog");
 
     const header = screen.getByText("Invite traveller").closest("div");
-    expect(header?.className).toContain("pb-4");
-    expect(header?.className).toContain("sm:pb-3"); // desktop unchanged
+    // Breathing room is now a margin on the sticky header itself, not bottom
+    // padding, and applies uniformly rather than differing by breakpoint.
+    expect(header?.className).toContain("mb-1");
+  });
+
+  it("covers the header's negative-margin gap during iOS elastic overscroll", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+
+    const header = screen.getByText("Invite traveller").closest("div");
+    expect(header?.className).toContain("before:bg-background");
   });
 
   it("pads the scroll body for the mobile safe-area inset", async () => {
@@ -171,12 +182,25 @@ describe("DialogFooter", () => {
     expect(footer.className).toContain("sticky");
     expect(footer.className).toContain("bottom-0");
     // Opaque, separated surface — content scrolling underneath must not show through.
-    expect(footer.className).toContain("bg-card");
-    expect(footer.className).toContain("border-t");
+    expect(footer.className).toContain("bg-background");
     // Cancels the scroll body's own bottom padding so the stuck footer sits flush.
-    expect(footer.className).toContain("-mb-[calc(1.5rem+env(safe-area-inset-bottom))]");
-    // Pseudo-element covers the gap revealed during elastic/rubber-band overscroll at the bottom.
-    expect(footer.className).toContain("after:top-full");
-    expect(footer.className).toContain("after:bg-card");
+    expect(footer.className).toContain("-mb-[calc(1.375rem+env(safe-area-inset-bottom))]");
+  });
+
+  it("covers the footer's negative-margin gap during iOS elastic overscroll", () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Test</DialogTitle>
+          <DialogFooter>
+            <button>Cancel</button>
+            <button>Save</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>,
+    );
+
+    const footer = screen.getByRole("button", { name: "Cancel" }).closest("div")!;
+    expect(footer.className).toContain("after:bg-background");
   });
 });
