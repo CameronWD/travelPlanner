@@ -1,5 +1,9 @@
 # Playground Visual System — Phase 1 (tokens, fonts, PWA identity, primitives)
 
+> **Phase 2 closed the colour gap this ADR defers below** (category, chapter
+> and stop colour, ~200 call sites) and merged navigation into a single rail.
+> See ADR 0061.
+
 ## Status
 
 Accepted — phase 1 of an intentionally multi-phase migration. Lives on
