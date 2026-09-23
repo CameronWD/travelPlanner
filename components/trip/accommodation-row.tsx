@@ -66,7 +66,7 @@ export function AccommodationRow(props: AccommodationRowProps) {
         </span>
         {warnings.length > 0 && (
           <AlertTriangle
-            className="size-3.5 shrink-0 text-warning"
+            className="size-3.5 shrink-0 text-sun-text"
             aria-label="Dates fall outside the stop"
           />
         )}

@@ -341,7 +341,7 @@ export function WishlistBoard({
                           {placedSet.has(item.id) && (
                             <span
                               data-testid={`placed-marker-${item.id}`}
-                              className="inline-flex w-fit items-center gap-1 rounded-full border border-success/40 bg-success/15 px-2 py-0.5 text-xs font-medium text-success"
+                              className="inline-flex w-fit items-center gap-1 rounded-full border border-success/40 bg-success/15 px-2 py-0.5 text-xs font-medium text-teal-text"
                             >
                               <Check className="size-3" aria-hidden="true" />
                               in this plan
@@ -385,7 +385,7 @@ export function WishlistBoard({
                       {placedSet.has(item.id) && (
                         <span
                           data-testid={`placed-marker-${item.id}`}
-                          className="inline-flex w-fit items-center gap-1 rounded-full border border-success/40 bg-success/15 px-2 py-0.5 text-xs font-medium text-success"
+                          className="inline-flex w-fit items-center gap-1 rounded-full border border-success/40 bg-success/15 px-2 py-0.5 text-xs font-medium text-teal-text"
                         >
                           <Check className="size-3" aria-hidden="true" />
                           in this plan

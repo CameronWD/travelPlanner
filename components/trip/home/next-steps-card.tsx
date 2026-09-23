@@ -25,7 +25,7 @@ export function NextStepsCard({ steps, seeAllHref }: NextStepsCardProps) {
       </div>
       {steps.length === 0 ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <CheckCircle2 className="size-4 text-success" aria-hidden="true" />
+          <CheckCircle2 className="size-4 text-teal-text" aria-hidden="true" />
           You&apos;re all set — nothing needs attention right now.
         </div>
       ) : (

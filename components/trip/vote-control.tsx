@@ -164,7 +164,7 @@ export function VoteControl({
             "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
             // Theme-aware level chips — bumped to /20 tint; avatar lives inside the pill
             // MUST → warning (amber/orange family); KEEN → accent (teal); MEH → muted
-            vote.level === "MUST" && "bg-warning/20 text-warning",
+            vote.level === "MUST" && "bg-warning/20 text-sun-text",
             vote.level === "KEEN" && "bg-accent/20 text-accent",
             vote.level === "MEH" && "bg-muted text-muted-foreground",
           )}

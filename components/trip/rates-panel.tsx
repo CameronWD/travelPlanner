@@ -67,7 +67,7 @@ export function SourceBadge({ source }: { source: RateEntry["source"]; stale?: b
   }
   if (source === "fetched") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-success">
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-teal-text">
         <CheckCircle2 className="size-3" aria-hidden="true" />
         Live
       </span>
@@ -78,7 +78,7 @@ export function SourceBadge({ source }: { source: RateEntry["source"]; stale?: b
   // being labelled stale if there is any prop mismatch.
   if (source === "stale") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-warning">
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-sun-text">
         <Clock className="size-3" aria-hidden="true" />
         Stale
       </span>

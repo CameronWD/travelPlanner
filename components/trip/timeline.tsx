@@ -293,7 +293,7 @@ function TransportRow({
 
         {/* Multi-day notice */}
         {isDep && depEntry && !depEntry.arrivesSameDay && depEntry.arrivalDateISO && (
-          <p className="mt-0.5 text-xs sm:text-[11px] text-warning">
+          <p className="mt-0.5 text-xs sm:text-[11px] text-sun-text">
             Arrives {depEntry.arrivalDateISO}
           </p>
         )}

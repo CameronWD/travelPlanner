@@ -20,7 +20,7 @@ const HARD_END_TONE: Record<HardEndState, string> = {
   dormant: "text-muted-foreground",
   // 'ok' shows spare nights but stays muted — reassurance, not an alert.
   ok: "text-muted-foreground",
-  approaching: "text-warning",
+  approaching: "text-sun-text",
   over: "text-destructive",
 };
 

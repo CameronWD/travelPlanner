@@ -44,7 +44,7 @@ describe("UpcomingPaymentsCard", () => {
     render(<UpcomingPaymentsCard payments={[payment({ costId: "a", daysUntil: -4 })]} tripId="trip-1" />);
     const phrase = screen.getByText("was due 4 day(s) ago");
     expect(phrase).toBeInTheDocument();
-    expect(phrase.className).toMatch(/text-warning/);
+    expect(phrase.className).toMatch(/text-sun-text/);
   });
 
   it("links each row through to the trip's budget page", () => {

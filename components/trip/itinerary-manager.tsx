@@ -1705,8 +1705,8 @@ export function ItineraryManager({
       {/* ── Prominent firm-up toolbar: visible at the top whenever rough stops exist ── */}
       {hasContent && stops.some((s) => s.arriveDate === null) && (
         <div className="flex items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-2.5">
-          <CalendarClock className="size-4 shrink-0 text-warning" aria-hidden="true" />
-          <p className="flex-1 text-sm text-warning">
+          <CalendarClock className="size-4 shrink-0 text-sun-text" aria-hidden="true" />
+          <p className="flex-1 text-sm text-sun-text">
             Some stops don&apos;t have dates yet.
           </p>
           <Button

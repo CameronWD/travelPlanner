@@ -590,7 +590,7 @@ export default async function PrintPage({
             )}
 
             {budget.hasMissingRates && (
-              <p className="mt-3 text-xs text-warning">
+              <p className="mt-3 text-xs text-sun-text">
                 Note: Some costs in {budget.missingRates.join(", ")} are excluded (no FX rate available).
               </p>
             )}

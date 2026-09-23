@@ -100,7 +100,7 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
   },
   {
     group: "marker",
-    specimen: <Check className="size-4 text-success" />,
+    specimen: <Check className="size-4 text-teal-text" />,
     meaning: "Done, or already in this plan",
   },
   {
@@ -122,7 +122,7 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
   },
   {
     group: "marker",
-    specimen: <AlertTriangle className="size-4 text-warning" />,
+    specimen: <AlertTriangle className="size-4 text-sun-text" />,
     meaning: "Something needs your attention",
   },
   {

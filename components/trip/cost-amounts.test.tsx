@@ -20,7 +20,7 @@ describe("CostAmounts", () => {
     render(<CostAmounts costTotalMinor={12300} paidTotalMinor={9900} currency="AUD" />);
     const paid = screen.getByLabelText(/paid/i);
     expect(paid).toHaveTextContent("$99.00");
-    expect(paid.className).toContain("text-success");
+    expect(paid.className).toContain("text-teal-text");
   });
 
   it("does not show the paid amount text when there is no paid amount (just a placeholder)", () => {
@@ -37,7 +37,7 @@ describe("CostAmounts", () => {
     render(<CostAmounts costTotalMinor={12300} paidTotalMinor={0} currency="AUD" />);
     const paid = screen.getByLabelText(/paid/i);
     expect(paid).toHaveTextContent("$0.00");
-    expect(paid.className).toContain("text-success");
+    expect(paid.className).toContain("text-teal-text");
   });
 
   it("shows the placeholder only when there is no paid amount at all", () => {

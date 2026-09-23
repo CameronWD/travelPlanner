@@ -25,8 +25,8 @@ const BORDER: readonly string[] = [
   "border-l-hue-teal",  // teal
 ];
 const DOT: readonly string[] = STOP_HUES.map((hue) => HUE_CLASSES[hue].dot);
-// Soft tinted pill + hue-coloured text (no ink border) to match the original
-// "bg-sky-100 text-sky-700 dark:…" pastel pill, not the heavier bordered chip.
+// Soft tinted pill + hue-coloured text (no ink border) — a pastel pill, not
+// the heavier bordered chip.
 const PILL: readonly string[] = STOP_HUES.map((hue) => `${HUE_CLASSES[hue].soft} ${HUE_CLASSES[hue].text}`);
 
 const idx = (i: number) => ((i % STOP_HUES.length) + STOP_HUES.length) % STOP_HUES.length;

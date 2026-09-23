@@ -32,8 +32,8 @@ export interface FlagListProps {
 const SEVERITY_CONFIG = {
   warning: {
     containerClass: "bg-warning/10 border-warning/40",
-    iconClass: "text-warning",
-    labelClass: "text-warning",
+    iconClass: "text-sun-text",
+    labelClass: "text-sun-text",
     icon: AlertTriangle,
     label: "Warning",
   },

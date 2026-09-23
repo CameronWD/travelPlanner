@@ -43,15 +43,15 @@ export function TransportCountdown({ depAt, depTimeLabel, depZone, label }: Tran
 
   return (
     <div className="flex items-start gap-3 rounded-2xl border border-warning/40 bg-warning/10 px-4 py-3">
-      <Timer className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden="true" />
+      <Timer className="mt-0.5 size-5 shrink-0 text-sun-text" aria-hidden="true" />
       <div className="flex-1 min-w-0">
-        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-warning">
+        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-sun-text">
           Next departure
         </span>
         <p className="mt-0.5 font-display text-2xl font-bold text-foreground">
           {countdown}
         </p>
-        <p className="mt-0.5 text-xs text-warning/90">
+        <p className="mt-0.5 text-xs text-sun-text/90">
           {label}
           {depTimeLabel && (
             <span className="ml-1">at {depTimeLabel}{depZone ? ` ${depZone}` : ""}</span>

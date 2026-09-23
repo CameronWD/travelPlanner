@@ -126,7 +126,7 @@ export function CostChecklist({ rows }: CostChecklistProps) {
 
             {isPaid && (
               <CheckCircle2
-                className="size-4 shrink-0 text-success"
+                className="size-4 shrink-0 text-teal-text"
                 aria-hidden="true"
               />
             )}
