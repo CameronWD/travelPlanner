@@ -86,7 +86,12 @@ export async function wipeDemo(): Promise<void> {
   // --- 1. Trips ------------------------------------------------------------
   const trips = await db.trip.findMany({
     where: { name: { in: DEMO_TRIP_NAMES } },
-    select: { id: true },
+    // coverImageKey, not just id (final fix wave, I7): the persist path below
+    // writes a real cover blob, so enumerating attachments alone orphaned one
+    // more cover object on every `db:seed:demo` re-run — permanently, since
+    // nothing records it and no sweep can find it. deleteTrip
+    // (server/actions/trips.ts) has always scheduled both.
+    select: { id: true, coverImageKey: true },
   });
 
   for (const t of trips) {
@@ -94,7 +99,7 @@ export async function wipeDemo(): Promise<void> {
       where: { tripId: t.id, storageKey: { not: null } },
       select: { storageKey: true },
     });
-    await scheduleBlobDeletion(atts.map((a) => a.storageKey));
+    await scheduleBlobDeletion([t.coverImageKey, ...atts.map((a) => a.storageKey)]);
     await db.trip.delete({ where: { id: t.id } });
   }
 

@@ -121,13 +121,21 @@ export async function addExistingUserAsMember(
 export async function wipeRealTrip(): Promise<void> {
   const db = await loadDb();
   const { scheduleBlobDeletion } = await import("@/lib/blob-retention");
-  const trips = await db.trip.findMany({ where: { name: REAL_TRIP_NAME }, select: { id: true } });
+  // coverImageKey, not just id (final fix wave, I7): persistRealTrip writes a
+  // real cover blob, so enumerating attachments alone left one more cover
+  // object orphaned on every wipe — with no DeletedBlob record, so no sweep
+  // could ever find it. deleteTrip (server/actions/trips.ts) has always
+  // scheduled both.
+  const trips = await db.trip.findMany({
+    where: { name: REAL_TRIP_NAME },
+    select: { id: true, coverImageKey: true },
+  });
   for (const t of trips) {
     const atts = await db.attachment.findMany({
       where: { tripId: t.id, storageKey: { not: null } },
       select: { storageKey: true },
     });
-    await scheduleBlobDeletion(atts.map((a) => a.storageKey));
+    await scheduleBlobDeletion([t.coverImageKey, ...atts.map((a) => a.storageKey)]);
     await db.trip.delete({ where: { id: t.id } });
   }
 }

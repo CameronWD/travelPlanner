@@ -521,8 +521,10 @@ describe("wipeRealTrip", () => {
     vi.clearAllMocks();
   });
 
-  it("schedules attachment blobs for retention instead of destroying them, then deletes the trip row", async () => {
-    findManyMock.mockResolvedValueOnce([{ id: "trip_real" }]);
+  it("schedules attachment AND cover blobs for retention instead of destroying them, then deletes the trip row", async () => {
+    findManyMock.mockResolvedValueOnce([
+      { id: "trip_real", coverImageKey: "trips/trip_real/cover.jpg" },
+    ]);
     attachmentFindManyMock.mockResolvedValueOnce([
       { storageKey: "trips/trip_real/a.pdf" },
       { storageKey: "trips/trip_real/b.png" },
@@ -531,12 +533,16 @@ describe("wipeRealTrip", () => {
 
     await wipeRealTrip();
 
+    // I7 (final fix wave): the lookup used to be `select: { id: true }`, so
+    // the cover blob persistRealTrip writes was never scheduled — every wipe
+    // orphaned one more cover object with no DeletedBlob record behind it.
     expect(findManyMock).toHaveBeenCalledWith({
       where: { name: REAL_TRIP_NAME },
-      select: { id: true },
+      select: { id: true, coverImageKey: true },
     });
     expect(storageDeleteMock).not.toHaveBeenCalled();
     expect(scheduleBlobDeletionMock).toHaveBeenCalledWith([
+      "trips/trip_real/cover.jpg",
       "trips/trip_real/a.pdf",
       "trips/trip_real/b.png",
     ]);
