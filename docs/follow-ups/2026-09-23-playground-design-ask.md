@@ -1,0 +1,240 @@
+# Ask for Claude Design — Playground handoff, missing pieces
+
+> **Status, 2026-09-23.** Phase 1 shipped against this handoff — tokens, fonts,
+> PWA identity, the brand rename and the whole `components/ui/*` primitive set.
+> See `docs/adr/0060-playground-visual-system.md`. Everything below is still
+> outstanding and still blocks phase 2 (the per-screen work). Section D is new:
+> defects found by actually building against the handoff, which the designer
+> cannot see from their side.
+
+Context: the handoff (now at `design_handoff/playground/`) landed with
+`README.md`, `app/globals.css`,
+`app/layout.tsx`, `app/manifest.ts`, `components/ui/*` (21 files), `public/`,
+`emails/*.html` and `tokens.json`. That's enough to do tokens, fonts, PWA,
+primitives and navigation. It is **not** enough to restyle the screens, because
+everything the README points screen work at is missing, and because the repo has
+colour systems Playground doesn't define.
+
+---
+
+## A. Referenced by the README but not delivered
+
+The README's "Live references in the design system project" and "Also designed"
+sections name these. None are in the folder.
+
+**Screen kits**
+- `ui_kits/teepee-mobile/index.html`
+- `ui_kits/teepee-tablet/index.html`
+- `ui_kits/teepee-desktop/index.html`
+- `ui_kits/shared/onthego.jsx` — Today, Summary, Files, Journal
+- `ui_kits/shared/together.jsx` — Activity, People/Invite, Compare
+- `ui_kits/shared/admin.jsx` — Trip settings, Account, Help, What's new, Sign in,
+  Feedback panel
+- `ui_kits/shared/planedit.jsx` — home base bookends, chapter bands, dated vs
+  rough stops + drag, missing connections, set-dates-for-all, projected-end
+  warning + "Make it fit", transport form (time zones, +1 day, drive estimates),
+  cost fields (cost → paid, FX snapshot)
+
+**Specs**
+- `specs/index.html` — every component and state
+- `specs/motion.html`
+- `specs/notifications.html` — **blocks step 7.** The prompt says "the copy rules
+  are in `specs/notifications`". Without it the four emails can be ported as
+  markup but the subject/preheader/push-copy/batching rules can't be applied.
+- `guidelines/*.card.html` — foundations
+
+---
+
+## B. Gaps found in the code that Playground doesn't cover
+
+These are the ones that will force invention. Playground ships four hues —
+coral, sun, teal, lilac. The repo needs more than four, in places where the hue
+carries meaning rather than decoration.
+
+### B1. Category colours — 7 needed, 4 available
+`lib/categories.ts` defines seven item categories, each with a hue that appears
+on pills, month-grid dots, budget grouping and map pins:
+
+| Category | current hue |
+|---|---|
+| SIGHTSEEING | sky |
+| FOOD | amber |
+| ACTIVITY | emerald |
+| NIGHTLIFE | violet |
+| SHOPPING | rose |
+| GETTING_AROUND | indigo |
+| OTHER | stone |
+
+Today these render as raw Tailwind palette classes (`bg-sky-500`,
+`text-emerald-700`, …) — ~200 usages across the app. Against the Playground
+paper/ink palette they will look like a different product.
+
+**Ask:** a 7-step categorical ramp in the Playground language, each with
+(a) a fill token, (b) a `-text` token that clears 4.5:1 on `--background` and
+`--card`, (c) light and dark values, (d) a literal hex for Leaflet.
+
+### B2. Chapter band colours — 8 needed, user-selectable
+`lib/chapter-colours.ts` gives travellers a palette to colour chapter bands:
+sky, amber, emerald, violet, rose, teal, orange, indigo. Each carries a
+`chipClass` (border+bg+text, light and dark) and a `swatch` hex for map
+polylines. They must stay mutually distinguishable — that's the whole point.
+
+**Ask:** 8 distinguishable band hues, same four outputs as B1. If Playground
+would rather chapters reuse the category ramp, say so and I'll collapse the two.
+
+### B3. Map palette (Leaflet can't use Tailwind)
+`lib/map-pins.ts`, `components/trip/day-map.tsx`, `route-map.tsx`,
+`components/globe/globe-map.tsx`, `wishlist-map.tsx` all need literal colour
+strings — Leaflet `divIcon` markers are inline-styled HTML and polylines take a
+hex. "No new hex values" cannot hold here.
+
+**Ask:** an explicit map palette — marker fill/stroke, route polyline, selected
+state, cluster — as named tokens with hex, for light and dark tiles. (Repo uses
+Carto tiles, ADR 0033.)
+
+### B4. `ErrorPanel` — named, not shipped
+The README's states row reads "Skeleton, ErrorPanel, OfflineBanner", but
+`components/ui/` has no `error-panel.tsx`. Step 6 needs it for every
+`error.tsx`.
+
+**Ask:** the ErrorPanel component, with its retry affordance and its tone.
+
+### B5. Per-route skeleton compositions
+`ui/skeleton.tsx` ships as a primitive, but not what each route's loading state
+is built from. Repo has 5 `loading.tsx` today; step 6 wants one per route (~40).
+
+**Ask:** skeleton layouts for at least the main shapes — list page, detail page,
+calendar grid, map page, form page. I can compose the rest from those.
+
+### B6. Open Graph image for `/share/[token]`
+Step 6 asks for one; no design exists.
+
+**Ask:** a 1200×630 OG design — what's on it, and whether it's static or
+renders trip name/dates.
+
+### B7. Wordmark as paths
+The README lists this as a known gap: the wordmark is live text in Bricolage.
+Needed for `ui/logo.tsx`, the OG image and `safari-pinned-tab.svg`.
+
+**Ask:** the outlined SVG lockups.
+
+### B8. `app/global-error.tsx` must use inline styles
+It replaces the whole document when the root layout fails, so `globals.css`
+never loads. "No inline style objects" is impossible there.
+
+**Ask:** either a blessed inline-styled design for it, or explicit permission to
+hand-inline Playground values in that one file.
+
+### B9. "Restyle by hand" components
+The README covers avatar, toast, sheet, select, textarea, money-input, tabs,
+popover and dropdown-menu with one prose bullet each. Workable, but they're the
+components most likely to drift from the designer's intent.
+
+**Ask (nice to have):** ship them as real `.tsx` files like the other 21.
+
+### B10. Screens with no design at all
+Not in the README's route table or its "also designed" list:
+- `/admin` — plus three panels: access requests, allowed emails, error reports
+- `/privacy`, `/terms`
+- `not-found` ×2 (`app/(app)/not-found.tsx`, `trips/[tripId]/not-found.tsx`)
+- `app/global-error.tsx` (see B8)
+- `trips/[tripId]/help` (distinct from `/help`)
+- the feedback launcher FAB — it's pinned off `--tp-tab-bar-h`, which moves
+  4rem → 4.75rem with the new TabBar
+- the notification bell / unread count
+
+**Ask:** confirm these inherit tokens with no bespoke design, or send designs.
+
+---
+
+## C. Two things to confirm rather than draw
+
+1. **Discreet mode.** The README says it's intentionally not redesigned and the
+   prompt says restyle it with tokens only. Confirming that's still true.
+2. **OfflineBanner.** The handoff's `ui/offline-banner.tsx` reimplements the
+   online listener inline and takes a `queued` prop for a sync queue the app
+   doesn't have — offline is read-only (ADR 0016) and only feedback notes queue
+   (ADR 0041). The repo's existing banner is correct and already mounted, so
+   phase 1 restyled it and did not adopt the handoff file. Flagging in case the
+   designer intended a real queued state — if so, the sync queue would have to
+   be built first, and that is a feature, not a restyle.
+
+---
+
+## Priority, if the list is too long
+
+1. **B1 + B2 + B3** (colour systems) — without these I invent hues, and the
+   invention shows up on ~200 call sites.
+2. **`ui_kits/*`** — the screens themselves.
+3. **`specs/notifications.html`** — step 7 is blocked without it.
+4. **B4 ErrorPanel**, **B5 skeletons** — step 6.
+5. Everything else can be derived.
+
+---
+
+## D. Defects in the handoff itself, found by building against it
+
+These are not missing material — they are places where the delivered handoff is
+internally inconsistent, or where it specifies a component in isolation that the
+repo uses in more states than the designer saw. Each one was worked around
+in-repo during phase 1; each will recur on every phase-2 screen unless fixed at
+source.
+
+### D1. The README promises 44px touch targets; two components ship smaller
+`README.md` states "Touch targets are ≥ 44px; clickable chips are ≥ 28px with
+8px spacing." But `components/ui/stepper.tsx` ships 36px (`size-9`) buttons and
+`components/ui/switch.tsx` ships a 30px-tall track. `Chip` at 28px is fine — the
+rule exempts it — and `Checkbox`/`ListRow` correctly use 44px.
+
+**Worked around** by adding invisible 44px pseudo-element hit areas while keeping
+the drawn controls at their designed size. **Ask:** either raise the drawn sizes,
+or state explicitly in the README that these two controls carry an oversized
+tappable region, so the next implementer does not "fix" the overlay away.
+
+### D2. One toast appearance specified for a component with three variants
+The README prescribes a single toast look: `rounded-md border-2 border-border
+shadow-hard-2 bg-teal island`. The repo's toast has `default`, `success` and
+`destructive` variants, and ~59 call sites pass one — many `destructive`
+("Couldn't update that cost.", "Couldn't mark that paid."). Applying the single
+look literally made every error toast render as a success.
+
+**Worked around** by keeping teal for `default`/`success` and giving
+`destructive` the `--destructive` fill. **Ask:** a specified destructive toast,
+and confirmation that collapsing `default` and `success` into one appearance is
+intended.
+
+Related: `island` re-scopes `--foreground`/`--muted-foreground`/`--border` to
+on-accent ink, which is correct on teal and wrong on any other fill. Any future
+accent-filled component needs the same care. **Ask:** either an on-destructive
+variant of `island`, or a note in the README that `island` is teal/coral/sun/
+lilac only.
+
+### D3. `ErrorPanel` is named but not shipped
+The README's states row reads "Skeleton, ErrorPanel, OfflineBanner", but
+`components/ui/` contains no `error-panel.tsx`. This blocks the per-route
+`error.tsx` work. Already listed in section B4 — repeated here because it is a
+delivery gap rather than a scope decision.
+
+### D4. Two shipped assets are referenced by nothing
+`public/favicon-16.png` and `public/safari-pinned-tab.svg` are in the handoff,
+but the handoff's own `app/layout.tsx` never references either. Wired up in
+phase 1. **Ask:** confirm the intended `mask-icon` colour — we used the
+Playground coral `#FF6B4A`, and a `mask-icon` requires a literal colour by spec,
+so it cannot follow a token.
+
+---
+
+## E. What phase 1 learned, for whoever briefs phase 2
+
+Six things broke quietly while adopting this handoff. None was caught by the
+test suite; each was found by diffing the old file against the new and asking
+what a removed line was *for*.
+
+The general shape: **a design system describes a surface in isolation; a
+codebase has that surface in states, variants and accumulated bug fixes the
+designer never saw.** The fixes are usually invisible — a pseudo-element
+covering a gap during iOS elastic overscroll, a hover background that has to
+derive from the same variable as its text, an icon path pointing at a generated
+route. They look decorative and they are load-bearing.
+
+Full list and detail in `docs/adr/0060-playground-visual-system.md`.
