@@ -28,6 +28,7 @@ import { cartoTiles } from "@/lib/map-tiles";
 import { escapeHtml } from "@/lib/escape-html";
 import { applyLeafletIconDefaults } from "@/lib/map-icons";
 import { pinHtml, pinSize } from "@/lib/map-pins";
+import { hueHex } from "@/lib/map-palette";
 
 // Leaflet CSS imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
@@ -38,25 +39,28 @@ export type { DayMapModel };
 // Marker style helpers
 // ---------------------------------------------------------------------------
 
+// Converted to `pinHtml` (variant "stop"): the hand-rolled version put white
+// text on a #2563eb fill with a soft blur shadow -- a different pin language
+// from the converted accommodation "H" pin below. This is a visual-
+// consistency change, not an accessibility fix: the old pin already passed
+// contrast at 5.169:1. `pinHtml`'s "stop"/"category" fill always pairs with
+// near-black ink text (never white), and #2563eb is too dark for that --
+// ink-on-#2563eb measures 3.267-3.359:1, which would be a real regression.
+// So the fill moves to the existing "sky" hue token (10.47/8.79:1 with ink
+// text) instead of keeping the exact blue. Flagging rather than absorbing the
+// loss: this is a lighter, different blue, not the original brand colour.
 function itemIcon(
   L: typeof import("leaflet"),
   order: number,
+  dark: boolean,
 ): import("leaflet").DivIcon {
+  const size = pinSize("stop");
   return L.divIcon({
-    html: `<div style="
-      width:28px;height:28px;
-      border-radius:50%;
-      background:#2563eb;
-      color:#fff;
-      display:flex;align-items:center;justify-content:center;
-      font-size:12px;font-weight:700;font-family:sans-serif;
-      border:2px solid #fff;
-      box-shadow:0 2px 6px rgba(0,0,0,0.3);
-    ">${order}</div>`,
+    html: pinHtml({ variant: "stop", fill: hueHex("sky", dark), label: String(order), dark }),
     className: "",
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -16],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -(size / 2 + 2)],
   });
 }
 
@@ -65,6 +69,10 @@ function itemIcon(
 // -- one of the map-pin contrast failures the full-app audit found. `pinHtml`'s
 // "home" variant keeps the distinct rounded-square shape (vs. the circular
 // item pins) but swaps to an ink/paper pair that clears AA in both themes.
+// It's also deliberately the larger 32px size (pinSize("home") vs 28px for
+// "stop") -- Playground's own sizing already reserves the bigger size for
+// home/now anchor pins, so accommodation reading as more prominent than a
+// numbered stop is by design, not an accident of conversion.
 function accommodationIcon(L: typeof import("leaflet"), dark: boolean): import("leaflet").DivIcon {
   const size = pinSize("home");
   return L.divIcon({
@@ -76,22 +84,19 @@ function accommodationIcon(L: typeof import("leaflet"), dark: boolean): import("
   });
 }
 
-function transportIcon(L: typeof import("leaflet")): import("leaflet").DivIcon {
+// Converted to `pinHtml` (variant "stop"), same rationale as itemIcon above.
+// #7c3aed also fails with ink text (2.963-3.047:1), so the fill moves to the
+// existing "lilac" hue token (8.07/7.52:1 with ink text) -- it keeps
+// transport in the same purple family as the original violet, but it is a
+// different, lighter purple, not the same hex. Flagged, not absorbed.
+function transportIcon(L: typeof import("leaflet"), dark: boolean): import("leaflet").DivIcon {
+  const size = pinSize("stop");
   return L.divIcon({
-    html: `<div style="
-      width:28px;height:28px;
-      border-radius:4px;
-      background:#7c3aed;
-      color:#fff;
-      display:flex;align-items:center;justify-content:center;
-      font-size:13px;font-weight:700;font-family:sans-serif;
-      border:2px solid #fff;
-      box-shadow:0 2px 6px rgba(0,0,0,0.3);
-    ">T</div>`,
+    html: pinHtml({ variant: "stop", fill: hueHex("lilac", dark), label: "T", dark }),
     className: "",
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -16],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -(size / 2 + 2)],
   });
 }
 
@@ -199,11 +204,11 @@ export function DayMap({
       for (const point of points) {
         let icon: import("leaflet").DivIcon;
         if (point.kind === "item") {
-          icon = itemIcon(lf, point.order ?? 1);
+          icon = itemIcon(lf, point.order ?? 1, isDark);
         } else if (point.kind === "accommodation") {
           icon = accommodationIcon(lf, isDark);
         } else {
-          icon = transportIcon(lf);
+          icon = transportIcon(lf, isDark);
         }
 
         const prev = point.kind === "item" ? perItemPrev[point.id] : undefined;
@@ -256,25 +261,30 @@ export function DayMap({
     tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
   }, [isDark]);
 
-  // Recolour the accommodation marker in place when the theme flips. Uses
-  // `setIcon` rather than remove-and-recreate, so a currently-open popup and
-  // the viewport (pan/zoom) are both left alone. `itemIcon`/`transportIcon`
-  // aren't theme-aware (they measured/computed as passing contrast either
-  // way, so weren't converted -- see the task report), so only the
-  // accommodation point needs a live update here.
+  // Recolour every marker in place when the theme flips. Uses `setIcon`
+  // rather than remove-and-recreate, so a currently-open popup and the
+  // viewport (pan/zoom) are both left alone. All three pin kinds are now
+  // `pinHtml`-based (see the task report for why item/transport were
+  // converted alongside accommodation), so all three need a live update here.
   useEffect(() => {
     const map = leafletMapRef.current;
     if (!map) return;
     import("leaflet").then((leaflet) => {
       const L = leaflet.default ?? leaflet;
       for (const point of points) {
-        if (point.kind !== "accommodation") continue;
         const instance = markerInstancesRef.current.get(`${point.kind}:${point.id}`);
-        instance?.setIcon(accommodationIcon(L, isDark));
+        if (!instance) continue;
+        if (point.kind === "item") {
+          instance.setIcon(itemIcon(L, point.order ?? 1, isDark));
+        } else if (point.kind === "accommodation") {
+          instance.setIcon(accommodationIcon(L, isDark));
+        } else {
+          instance.setIcon(transportIcon(L, isDark));
+        }
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isDark, points.map((p) => `${p.kind}:${p.id}`).join("|")]);
+  }, [isDark, points.map((p) => `${p.kind}:${p.id}:${p.order ?? ""}`).join("|")]);
 
   if (points.length === 0) return null;
 

@@ -15,16 +15,21 @@ vi.mock("@/components/ui/theme-provider", () => ({
 
 import { GlobeMap } from "./globe-map";
 
+/** The mock's `divIcon` returns its options verbatim, untyped; narrow just the `html` we assert on. */
+function iconHtml(marker: { options: Record<string, unknown> }): string {
+  return (marker.options.icon as { html: string }).html;
+}
+
 const MARKERS = [
   { id: "m1", title: "Tokyo Tower", category: "SIGHTSEEING", lat: 35.65, lng: 139.74 },
   { id: "m2", title: "Ramen", category: "FOOD", lat: 35.69, lng: 139.7 },
 ] as unknown as MarkerView[];
 
-function globeElement() {
+function globeElement(selectedId: string | null = null) {
   return (
     <GlobeMap
       markers={MARKERS}
-      selectedId={null}
+      selectedId={selectedId}
       onSelect={vi.fn()}
       onEdit={vi.fn()}
       onDelete={vi.fn()}
@@ -84,5 +89,48 @@ describe("GlobeMap theme handling", () => {
   it("still plots its pins after init (the ready-flag path)", async () => {
     render(globeElement());
     await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+  });
+
+  it("recolours markers in place (setIcon) when the theme flips, preserving the selected marker's lift+ring", async () => {
+    const { rerender } = render(globeElement("m1"));
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    const mapInstance = hoisted.leaflet!.maps[0];
+    const [selectedMarker, plainMarker] = hoisted.leaflet!.markers;
+
+    // Light-mode fills baked in at creation time (sky/sun hues), and m1's
+    // selected lift+ring (pinHtml's `selected: true` styling).
+    expect(iconHtml(selectedMarker)).toContain("#8AD6F5");
+    expect(iconHtml(selectedMarker)).toContain("scale(1.15)");
+    expect(iconHtml(plainMarker)).toContain("#FFD166");
+    expect(iconHtml(plainMarker)).not.toContain("scale(1.15)");
+
+    hoisted.theme = "dark";
+    rerender(globeElement("m1"));
+
+    await waitFor(() => expect(selectedMarker.setIcon).toHaveBeenCalled());
+    await waitFor(() => expect(plainMarker.setIcon).toHaveBeenCalled());
+
+    // Dark-mode fills, and the selected marker's lift+ring survives the
+    // recolour -- a naive setIcon could drop it back to the plain icon.
+    expect(selectedMarker.setIcon).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        html: expect.stringContaining("#8CC0D6"),
+      }),
+    );
+    expect(selectedMarker.setIcon).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        html: expect.stringContaining("scale(1.15)"),
+      }),
+    );
+    expect(plainMarker.setIcon).toHaveBeenLastCalledWith(
+      expect.objectContaining({ html: expect.stringContaining("#E6C57A") }),
+    );
+
+    // Recoloured in place: no map rebuild, no new markers created, no popup
+    // silently closed by a remove-and-recreate.
+    expect(mapInstance.remove).not.toHaveBeenCalled();
+    expect(hoisted.leaflet!.markers).toHaveLength(2);
+    expect(selectedMarker.remove).not.toHaveBeenCalled();
+    expect(plainMarker.remove).not.toHaveBeenCalled();
   });
 });

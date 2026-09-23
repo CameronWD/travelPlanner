@@ -24,6 +24,7 @@ const MODEL: DayMapModel = {
   points: [
     { kind: "item", id: "i1", lat: 35.65, lng: 139.74, label: "Tokyo Tower", order: 1 },
     { kind: "accommodation", id: "a1", lat: 35.69, lng: 139.7, label: "Hotel" },
+    { kind: "transport-dep", id: "t1", lat: 35.55, lng: 139.6, label: "Station" },
   ],
   routePoints: [
     { kind: "accommodation", id: "a1", lat: 35.69, lng: 139.7, label: "Hotel" },
@@ -77,36 +78,45 @@ describe("DayMap theme handling", () => {
     expect(hoisted.leaflet!.maps).toHaveLength(1);
   });
 
-  it("recolours the accommodation marker in place (setIcon) when the theme flips, without touching the item marker", async () => {
+  it("recolours item, accommodation, and transport markers in place (setIcon) when the theme flips", async () => {
     const { rerender } = render(<DayMap tripId="t1" model={MODEL} />);
-    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(3));
     const mapInstance = hoisted.leaflet!.maps[0];
-    // MODEL.points is [item, accommodation], and the component places markers
-    // in that same order.
-    const [itemMarker, accommodationMarker] = hoisted.leaflet!.markers;
+    // MODEL.points is [item, accommodation, transport-dep], and the component
+    // places markers in that same order.
+    const [itemMarker, accommodationMarker, transportMarker] = hoisted.leaflet!.markers;
 
-    // Light-mode ink/paper swap baked in at creation time (variant "home").
+    // Light-mode fills baked in at creation time: "stop" variant (sky/lilac
+    // hues) for item/transport, ink/paper swap for the "home" accommodation.
+    expect(iconHtml(itemMarker)).toContain("#8AD6F5");
     expect(iconHtml(accommodationMarker)).toContain("#1D1D1B");
     expect(iconHtml(accommodationMarker)).toContain("#FFFBF3");
+    expect(iconHtml(transportMarker)).toContain("#C7A2FF");
 
     hoisted.theme = "dark";
     rerender(<DayMap tripId="t1" model={MODEL} />);
 
+    await waitFor(() => expect(itemMarker.setIcon).toHaveBeenCalled());
     await waitFor(() => expect(accommodationMarker.setIcon).toHaveBeenCalled());
+    await waitFor(() => expect(transportMarker.setIcon).toHaveBeenCalled());
 
-    // The new icon passed to setIcon carries the dark-mode ink/paper swap.
+    // The new icons passed to setIcon carry the dark-mode fills.
+    expect(itemMarker.setIcon).toHaveBeenLastCalledWith(
+      expect.objectContaining({ html: expect.stringContaining("#8CC0D6") }),
+    );
     expect(accommodationMarker.setIcon).toHaveBeenLastCalledWith(
       expect.objectContaining({ html: expect.stringContaining("#EDE6D8") }),
     );
-
-    // itemIcon isn't theme-aware (measured/computed as passing contrast
-    // either way -- see the task report), so it should never be recoloured.
-    expect(itemMarker.setIcon).not.toHaveBeenCalled();
+    expect(transportMarker.setIcon).toHaveBeenLastCalledWith(
+      expect.objectContaining({ html: expect.stringContaining("#B5A0E2") }),
+    );
 
     // Recoloured in place: no map rebuild, no new markers created.
     expect(mapInstance.remove).not.toHaveBeenCalled();
-    expect(hoisted.leaflet!.markers).toHaveLength(2);
+    expect(hoisted.leaflet!.markers).toHaveLength(3);
+    expect(itemMarker.remove).not.toHaveBeenCalled();
     expect(accommodationMarker.remove).not.toHaveBeenCalled();
+    expect(transportMarker.remove).not.toHaveBeenCalled();
   });
 
   it("still rebuilds when the plotted points actually change", async () => {

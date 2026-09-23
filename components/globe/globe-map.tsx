@@ -141,7 +141,11 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
     tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
   }, [isDark]);
 
-  // Re-render markers whenever the located set changes.
+  // Re-render markers whenever the located set changes. `isDark` is
+  // deliberately NOT a dependency here: this effect clears and recreates every
+  // marker (and its popup binding), so depending on the theme would close any
+  // currently-open popup on every toggle. The separate recolour effect below
+  // uses `setIcon` in place instead, matching wishlist-map.tsx/day-map.tsx.
   useEffect(() => {
     const map = leafletMapRef.current;
     if (!map || !ready) return;
@@ -194,7 +198,28 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, isDark, located.map((m) => `${m.id}:${m.lat},${m.lng}:${m.category}`).join("|"), JSON.stringify(attachmentsByMarkerId ? Object.fromEntries(Object.entries(attachmentsByMarkerId).map(([k, v]) => [k, v.length])) : null)]);
+  }, [ready, located.map((m) => `${m.id}:${m.lat},${m.lng}:${m.category}`).join("|"), JSON.stringify(attachmentsByMarkerId ? Object.fromEntries(Object.entries(attachmentsByMarkerId).map(([k, v]) => [k, v.length])) : null)]);
+
+  // Recolour existing markers in place when the theme flips. Uses `setIcon`
+  // rather than remove-and-recreate (unlike the effect above, which only
+  // rebuilds when the marker *set* changes), so a currently-open popup and
+  // the viewport (pan/zoom) are both left alone. Reads `selectedId` so the
+  // selected marker keeps its `selectedIcon` (lift + ring) rather than
+  // dropping back to the plain `categoryIcon` on a toggle.
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+    import("leaflet").then((leaflet) => {
+      const L = leaflet.default ?? leaflet;
+      for (const mk of located) {
+        const instance = markerInstancesRef.current.get(mk.id);
+        if (!instance) continue;
+        const isSelected = mk.id === selectedId;
+        instance.setIcon(isSelected ? selectedIcon(L, mk.category, isDark) : categoryIcon(L, mk.category, isDark));
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDark, located.map((m) => `${m.id}:${m.category}`).join("|")]);
 
   // Fly to + highlight the selected marker whenever selectedId changes.
   useEffect(() => {
