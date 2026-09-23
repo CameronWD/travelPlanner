@@ -6,14 +6,14 @@ import { Button } from "@/components/ui/button";
 import { ErrorPanel } from "@/components/ui/error-panel";
 
 /**
- * Error boundary for the trip segment (trip home and any nested page without its own boundary).
+ * Error boundary for the trips list.
  *
  * Catches unexpected errors thrown while rendering this route so the
  * Traveller sees a friendly recovery UI instead of the framework's default
  * error screen. The raw error is logged but never rendered, so internal
  * details / stack traces are not leaked.
  */
-export default function TripError({
+export default function TripsError({
   error,
   reset,
 }: {
@@ -21,7 +21,7 @@ export default function TripError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[trip error boundary]", error);
+    console.error("[trips error boundary]", error);
     // Best-effort report to the sink (ARCH-OBS-2) alongside the console log
     // above — .catch(() => {}) so a failed report can never surface a
     // second failure on top of the one this screen is already recovering
