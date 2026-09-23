@@ -1102,7 +1102,7 @@ reasoning has expired, and three are vocabulary slips.
 
 ---
 
-# The door — specified, not built
+# The door — specified 2026-09-22, built 2026-09-23 (ADR 0057)
 
 > **BUILT 2026-09-23** on `feat/rollout-gate`. Everything below is the
 > specification as agreed on 2026-09-22 and is kept unedited, because it is
@@ -1157,9 +1157,17 @@ second, invisible, hand-maintained door. Every future login provider inherits th
 which is the reason for doing it this way rather than keeping two doors.
 
 Shape it exactly like `isAdminEmail` (`lib/admin.ts:13-24`): a server-only `lib/` predicate,
-env-var backed so it is revocable without a deploy, comma-separated, case-insensitive,
+env-var backed so it is ~~revocable without a deploy~~, comma-separated, case-insensitive,
 normalising with `trim().toLowerCase()`. Roughly one new predicate and four lines in
 `authConfig.callbacks`.
+
+> **STRUCK 2026-09-23 — this one clause is backwards, not merely superseded.**
+> An env var is the *less* revocable source: dropping an address from
+> `ALLOWED_EMAILS` needs a dashboard edit **and a redeploy**, where deleting an
+> `AllowedEmail` row is a button in `/admin`. That is precisely why the env var
+> is the break-glass source and the table is the product one (ADR 0057,
+> decision 3). Neither takes effect until the person's next sign-in, because
+> revocation is JWT-bounded. Do not quote this sentence.
 
 Two things the callback must handle, because Auth.js runs it for **every** provider:
 

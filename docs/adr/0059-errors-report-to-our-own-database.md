@@ -105,8 +105,10 @@ more Travellers than one household, and it stops working silently.
   `pg_dump`, the retention story, `/privacy`'s inventory — and inside every
   exposure too. `/privacy` names them explicitly, including that they are
   also logged to Vercel and pushed to Admin devices.
-- `/admin` needs a bulk clear, not only per-row, because the surface fails
+- `/admin` needed a bulk clear, not only per-row, because the surface fails
   exactly when it is most needed — a bad day is when there are most rows.
+  `clearAllErrorReports` (`server/actions/error-reports.ts`) shipped with the
+  panel for that reason.
 - The signature design means a real push outage in the Digest path mints one
   row and one notification **per failing subscription** rather than one per
   bug, because the rejection message varies per endpoint. It terminates and

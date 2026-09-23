@@ -83,8 +83,8 @@ my map", not "come and live here". Wiring it to account creation would make
 every Globe owner an admissions officer for the deployment as a side effect
 of sharing pins. `lib/allowlist.ts` has a test that seeds a matching Globe
 Invite and asserts both the refusal *and* that `globeInvite.findFirst` is
-never called, so restoring the coupling fails the suite rather than passing
-silently.
+never called (`lib/auth.test.ts`, *"does NOT admit on a Globe Invite"*), so
+restoring the coupling fails the suite rather than passing silently.
 
 **Rejected: honouring any pending Invite of either kind.** Simpler predicate,
 one query instead of two — and it converts the weakest invite-creation gate

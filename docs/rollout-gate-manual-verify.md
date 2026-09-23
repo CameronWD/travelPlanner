@@ -4,8 +4,9 @@ Everything on `feat/rollout-gate` that the build sandbox **could not** verify,
 because it has no Postgres and no browser. Each item says what is being
 checked, why it matters, and the exact steps.
 
-Work through §1 before letting anyone else near the deployment. §1.4 (the
-lockout check) is the one that would have gone wrong silently.
+Work through §1 before letting anyone else near the deployment. **§1.5** (the
+lockout check — an invited Traveller signing in *twice*) is the one that would
+have gone wrong silently.
 
 Run this **after the deploy**, against production — most of it is about the
 migration having actually landed. `docs/DEPLOY.md` §4c is the pre-deploy half.
@@ -295,6 +296,14 @@ meaningless. **Expect** a candidate count and a per-key listing, and **no
 deletions**: dry run is the default and it constructs no storage client at
 all, so it cannot destroy anything even with R2 credentials in the
 environment.
+
+**A run that prints `Nothing to sweep.` and exits is also a pass.** On a
+fresh deployment there is nothing older than a day, so the candidate query
+returns empty and the script stops there. The rest of this section is about
+distrusting a quiet run for the *wrong* reason (a swallowed flag); a
+legitimately quiet run looks like this, and the `--days=0` step below is how
+you tell the two apart. To see the listing path exercised, run it after §3.2
+has put a real row in `DeletedBlob`.
 
 Sanity-check that the argument is genuinely reaching the script:
 

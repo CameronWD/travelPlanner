@@ -327,13 +327,17 @@ What a dump contains, so the exposure is stated rather than inferred:
 
 - **Bearer tokens** — `ShareLink.token`, `CalendarFeed.token`, `Invite.token`,
   `GlobeInvite.token`, `Account.access_token` / `refresh_token` / `id_token`,
-  and `PushSubscription.p256dh` / `auth`.
+  and `PushSubscription.p256dh` / `auth`. The two token columns this list
+  deliberately omits are `Session.sessionToken` and `VerificationToken.token`:
+  both tables exist in the schema for the Auth.js adapter but are **empty in
+  practice**, because sessions are JWTs (`strategy: "jwt"`) and there is no
+  email/magic-link provider. They were considered, not overlooked.
 - **All Traveller content** — every Trip, Stop, Accommodation, Cost, Note,
   Journal entry, Attachment row, Feedback note (including the user agent it
   records), Access request and error report.
 - **CI secrets are NOT in it.** `AUTH_SECRET` is a Vercel environment
   variable and never reaches the database, so **session forgery from the dump
-  alone is not possible.**
+  alone is not possible**, and there is nothing to rotate on that account.
 
 Two operational consequences of the repository being private:
 
@@ -343,6 +347,34 @@ Two operational consequences of the repository being private:
   and **500 MB of artifact storage**. Thirty retained dumps could approach the
   storage cap; R2 is already configured and is the obvious alternative
   destination if it does.
+
+### Outstanding operator actions
+
+Recorded here because this is the only place they survive. Going private
+closed the door; it did not undo what was already reachable through it.
+
+1. **Delete the existing `neon-backup-*` artifacts.** GitHub → Actions → *DB
+   backup* → each run → delete the artifact. Going private does not
+   un-publish what was already downloadable while the repository was public.
+2. **Rotate the bearer tokens that were in those dumps.** These are
+   capability URLs — whoever holds one needs no account:
+   - `ShareLink.token` — revoke and re-create each Share link from the Trip's
+     Settings; the holders of the old URLs will need the new ones.
+   - `CalendarFeed.token` — same, from Settings → Calendar feed; anyone
+     subscribed re-subscribes to the new URL.
+   - `Invite.token` — currently unused by any flow (ADR 0017 notes it is
+     reserved for a future accept-by-link), so nothing depends on it, but it
+     is in the dump.
+   - `GlobeInvite.token` — same shape.
+3. **Force a Google re-auth** so the stored `Account.access_token`,
+   `refresh_token` and `id_token` are retired. TEEPEE never refreshes Google
+   tokens (`strategy: "jwt"`, no token refresh path), so these grant nothing
+   *in* TEEPEE — the exposure is against Google, not against this app.
+4. **Consider moving the dump target off Actions artifacts entirely.** R2 is
+   already configured and already holds attachments. This removes the whole
+   class rather than leaving it depending on a repository setting that is
+   invisible from the code — nobody reading this repository can tell whether
+   it is public.
 
 ## 6. First sign-in
 
