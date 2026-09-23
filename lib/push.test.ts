@@ -234,6 +234,67 @@ describe("sendPush", () => {
     vi.unstubAllEnvs();
   });
 
+  // Final fix wave, I3: Task 16's { report: false } fix REPLACED the
+  // unconditional console.error instead of sitting alongside it, so the one
+  // path that passes report:false — notifyAdmins's own delivery — produced no
+  // report AND no log. Nothing downstream caught it: sendPush always resolves
+  // with a result, so withTimeout's rejection arm is unreachable and
+  // notifyAdmins inspects only `gone`.
+  it("ALWAYS logs a delivery failure, including with { report: false } (I3)", async () => {
+    vi.stubEnv("VAPID_PUBLIC_KEY", "pub-key");
+    vi.stubEnv("VAPID_PRIVATE_KEY", "priv-key");
+    vi.stubEnv("VAPID_SUBJECT", "mailto:test@example.com");
+
+    const err = new Error("connect ETIMEDOUT 142.250.1.1:443");
+    sendNotificationMock.mockRejectedValue(err);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { sendPush } = await import("@/lib/push");
+    await sendPush(STUB_SUB, STUB_PAYLOAD, { report: false });
+
+    expect(reportErrorMock).not.toHaveBeenCalled();
+    expect(consoleSpy).toHaveBeenCalledWith("[push] sendNotification failed:", err);
+
+    consoleSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  it("also logs a delivery failure on the default (reporting) path", async () => {
+    vi.stubEnv("VAPID_PUBLIC_KEY", "pub-key");
+    vi.stubEnv("VAPID_PRIVATE_KEY", "priv-key");
+    vi.stubEnv("VAPID_SUBJECT", "mailto:test@example.com");
+
+    const err = new Error("Network error");
+    sendNotificationMock.mockRejectedValue(err);
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { sendPush } = await import("@/lib/push");
+    await sendPush(STUB_SUB, STUB_PAYLOAD);
+
+    expect(consoleSpy).toHaveBeenCalledWith("[push] sendNotification failed:", err);
+
+    consoleSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
+  it("does NOT log a 404/410 as a failure — a gone subscription is an ordinary outcome", async () => {
+    vi.stubEnv("VAPID_PUBLIC_KEY", "pub-key");
+    vi.stubEnv("VAPID_PRIVATE_KEY", "priv-key");
+    vi.stubEnv("VAPID_SUBJECT", "mailto:test@example.com");
+
+    sendNotificationMock.mockRejectedValue({ statusCode: 410 });
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { sendPush } = await import("@/lib/push");
+    const result = await sendPush(STUB_SUB, STUB_PAYLOAD);
+
+    expect(result).toEqual({ sent: false, gone: true });
+    expect(consoleSpy).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+    vi.unstubAllEnvs();
+  });
+
   it("still returns { sent: false } and does not throw when the error sink itself rejects (I3)", async () => {
     // lib/error-sink.ts statically imports lib/db.ts, which throws at
     // module-evaluation time when DATABASE_URL is unset — e.g. a preview

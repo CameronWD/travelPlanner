@@ -132,6 +132,19 @@ export async function sendPush(
       return { sent: false, gone: true };
     }
 
+    // UNCONDITIONAL, and it must stay that way (final fix wave, I3). Task 16's
+    // `{ report: false }` fix REPLACED this line instead of sitting alongside
+    // it, which made exactly one path completely silent: notifyAdmins's own
+    // delivery (lib/admin-notify.ts) is the only caller that passes
+    // `report: false`, and a non-404/410 failure there produced no report and
+    // no log at all. Nothing downstream caught it either — sendPush always
+    // resolves with a result, so withTimeout's rejection arm is unreachable
+    // and notifyAdmins inspects only `gone`. lib/admin-notify.ts's own module
+    // comment says an error recorded with nobody told is the single hardest
+    // failure mode to notice in the whole system; this log is what stops it
+    // being invisible as well.
+    console.error("[push] sendNotification failed:", err);
+
     if (options.report !== false) {
       // Both the import and the call are inside their own try/catch (I3):
       // lib/error-sink.ts statically imports lib/db.ts, which throws at
@@ -141,9 +154,7 @@ export async function sendPush(
       // documented never to throw, but the import reaching it can still
       // fail). This module promises to be import-safe and never-throwing in
       // any environment (see module doc); that must hold even when the sink
-      // it reports to is unreachable. reportError itself console.errors
-      // this failure (lib/error-sink.ts), so nothing is lost by not calling
-      // console.error directly here.
+      // it reports to is unreachable.
       try {
         const { reportError } = await import("@/lib/error-sink");
         await reportError(err, { route: "lib/push.ts#sendPush", source: "server" });
