@@ -172,4 +172,31 @@ describe("PrivacyPage", () => {
       screen.getByText(/still appears,\s*unredacted, in an Error report/i),
     ).toBeInTheDocument();
   });
+
+  // Fix round 3, N1: the activity-suggestion payload was incomplete —
+  // server/actions/ai.ts:51-55 loads every existing Item title on the Stop
+  // and lib/ai.ts:97-100 inlines them into the prompt as "Avoid
+  // suggesting: …". That's Traveller-authored content and belongs in the
+  // colon-introduced exhaustive list of what leaves the system.
+  it("discloses that existing Item titles are sent with an activity suggestion", async () => {
+    render(await PrivacyPage());
+    expect(
+      screen.getByText(/titles of the Items already on that Stop/i),
+    ).toBeInTheDocument();
+  });
+
+  // Fix round 3, second item: silence on who can read a GitHub Actions
+  // artifact reads as an implicit "it's protected" in a section headed
+  // "who it is shared with". This is a mechanism claim (stable under
+  // either repo-visibility setting), not a visibility claim — same shape
+  // as the Anthropic on/off wording.
+  it("states the GitHub artifact's visibility mechanism without asserting a setting", async () => {
+    render(await PrivacyPage());
+    expect(
+      screen.getByText(/exactly who can read the repository it/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/the Admin can tell you what it is today/i),
+    ).toBeInTheDocument();
+  });
 });

@@ -48,6 +48,21 @@ export const metadata: Metadata = {
  * Admin's pull happens after the 30 days rather than during them; Globe
  * Markers were listed as Trip content when CONTEXT.md defines the Globe as
  * explicitly account-level, not Trip-owned.
+ *
+ * Fix round 3 corrected: the activity-suggestion payload was incomplete —
+ * server/actions/ai.ts:51-55 loads every existing Item title on the Stop
+ * and passes it as `existingTitles`, which lib/ai.ts:97-100 inlines
+ * verbatim into the prompt ("Avoid suggesting: …") — Traveller-authored
+ * content missing from a colon-introduced exhaustive list. The other two
+ * AI paths were re-checked against server/actions/ai.ts line-by-line and
+ * confirmed already accurate: aiDraftPackingList (:74-105) sends only
+ * trip.name, trip.stops (name, country) and start/end date; aiParseBooking
+ * (:117-134) sends only the pasted text itself, length-capped. Also added a
+ * mechanism sentence on the GitHub artifact: who can download it is a repo
+ * *visibility* setting on GitHub, invisible from this code (same shape as
+ * the ANTHROPIC_API_KEY flip) — so the sentence states the mechanism
+ * ("exactly who can read the repository") and points to the Admin, rather
+ * than asserting private or public.
  */
 export default function PrivacyPage() {
   return (
@@ -244,11 +259,13 @@ export default function PrivacyPage() {
                 only runs if the Admin has configured an API key for it —
                 turning it on is a deployment setting, not a code change, so
                 whether this is live can change without this page changing.
-                When it is on, TEEPEE sends: a Stop&apos;s name and country (for
-                a suggestion), the Trip name with its Stops and dates (for a
-                packing list), or, for parsing, the entire text you paste
-                in — which can include names, addresses and booking or
-                confirmation numbers, since it is whatever you pasted.
+                When it is on, TEEPEE sends: a Stop&apos;s name and country, plus
+                the titles of the Items already on that Stop (so it does not
+                repeat them), for a suggestion; the Trip name with its Stops
+                and dates, for a packing list; or, for parsing, the entire
+                text you paste in — which can include names, addresses and
+                booking or confirmation numbers, since it is whatever you
+                pasted.
               </li>
               <li>
                 <span className="font-medium text-foreground">
@@ -271,7 +288,10 @@ export default function PrivacyPage() {
                 kept&quot; below is uploaded to GitHub as a GitHub Actions build
                 artifact and stored there for up to 30 days: a complete copy
                 of the database — every Trip, Note, email address, Access
-                request and Error report in it.
+                request and Error report in it. Who can download a GitHub
+                Actions artifact is exactly who can read the repository it
+                belongs to. That setting lives on GitHub, not in TEEPEE, and
+                the Admin can tell you what it is today.
               </li>
             </ul>
           </section>
