@@ -5,6 +5,7 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 
+/* Restyle only: same exports and props as before. Mobile = bottom sheet, sm+ = centred dialog. */
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
 const DialogPortal = DialogPrimitive.Portal;
@@ -16,11 +17,7 @@ const DialogOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      "fixed inset-0 z-50 bg-foreground/40 backdrop-blur-sm",
-      "data-[state=open]:tp-fade-in data-[state=closed]:tp-fade-out",
-      className,
-    )}
+    className={cn("fixed inset-0 z-50 bg-[hsl(30_4%_11%/0.35)]", "data-[state=open]:tp-fade-in-sheet data-[state=closed]:tp-fade-out", className)}
     {...props}
   />
 ));
@@ -28,30 +25,17 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    /** Hide the built-in close button. */
-    hideClose?: boolean;
-    /**
-     * Skip the padded inner wrapper and mobile grab handle entirely.
-     * Use this for custom-layout dialogs (e.g. command palette) that manage
-     * their own padding, sticky headers, and scroll containers.
-     * When false (default) the behaviour is byte-identical to before.
-     */
-    bare?: boolean;
-  }
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { hideClose?: boolean; bare?: boolean }
 >(({ className, children, hideClose, bare, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        // Frame: column layout, height-capped, NOT itself the scroll container.
-        "fixed z-50 flex flex-col overflow-hidden border-border bg-card text-card-foreground shadow-soft-lg",
-        // Mobile (default): bottom sheet anchored to the bottom edge.
-        "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-t",
+        "fixed z-50 flex flex-col overflow-hidden border-2 border-border bg-background text-foreground",
+        "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-b-0",
         "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
-        // Desktop (sm+): centered modal.
-        "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-w-lg sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border",
+        "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-w-[480px] sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border-b-2 sm:shadow-hard-5",
         "sm:data-[state=open]:tp-pop-in sm:data-[state=closed]:tp-pop-out",
         className,
       )}
@@ -61,25 +45,13 @@ const DialogContent = React.forwardRef<
         children
       ) : (
         <>
-          {/* Mobile grab handle (decorative) */}
-          <div
-            aria-hidden="true"
-            className="mx-auto mt-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30 sm:hidden"
-          />
-          {/* Scrollable body — the frame above never scrolls, so the ✕ stays put. */}
-          <div className="flex flex-col gap-4 overflow-y-auto px-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-4 sm:pt-6">
-            {children}
-          </div>
+          <div aria-hidden="true" className="mx-auto mt-3.5 h-[5px] w-11 shrink-0 rounded-full bg-border sm:hidden" />
+          <div className="flex flex-col gap-3.5 overflow-y-auto px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3.5 sm:px-6 sm:pt-6">{children}</div>
         </>
       )}
       {!hideClose ? (
-        <DialogPrimitive.Close
-          className={cn(
-            "absolute right-4 top-4 z-20 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-          )}
-        >
-          <X className="size-4" aria-hidden="true" />
+        <DialogPrimitive.Close className="absolute right-4 top-4 z-20 grid size-11 place-items-center rounded-sm border-2 border-border bg-card text-foreground sm:right-5 sm:top-5">
+          <X className="size-5" strokeWidth={2.5} aria-hidden="true" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
       ) : null}
@@ -88,39 +60,16 @@ const DialogContent = React.forwardRef<
 ));
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
-function DialogHeader({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn(
-        "sticky top-0 z-10 -mx-6 -mt-4 mb-2 flex flex-col gap-1.5 border-b border-border/60 bg-card px-6 pr-10 pb-4 pt-4 text-left sm:-mt-6 sm:pt-6 sm:pb-3 before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-card sm:before:h-6",
-        className,
-      )}
-      {...props}
-    />
-  );
+function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("sticky top-0 z-10 -mx-[18px] -mt-3.5 mb-1 flex min-h-[72px] flex-col justify-center gap-1 bg-background px-[18px] pr-16 pt-3.5 text-left sm:-mx-6 sm:-mt-6 sm:px-6 sm:pt-6", className)} {...props} />;
 }
 DialogHeader.displayName = "DialogHeader";
 
-function DialogFooter({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        // Pinned to the bottom of the scroll body (mirror of DialogHeader's sticky
-        // top): the negative bottom margin cancels the body's own bottom padding so
-        // the stuck footer sits flush with the scrollport edge, and the opaque
-        // bg-card + border-t cover content scrolling beneath it. The after pseudo-element
-        // covers the gap revealed during elastic/rubber-band overscroll at the bottom.
-        "sticky bottom-0 z-10 -mx-6 -mb-[calc(1.5rem+env(safe-area-inset-bottom))] mt-2 border-t border-border/60 bg-card px-6 pt-3 pb-[calc(1rem+env(safe-area-inset-bottom))] after:content-[''] after:absolute after:inset-x-0 after:top-full after:h-[calc(1.5rem+env(safe-area-inset-bottom))] after:bg-card",
-        // Buttons sit side-by-side (DOM order Cancel → primary, so the primary
-        // is on the right and focus order is natural).
-        // Mobile (bottom sheet): split the width equally (flex-1) for large,
-        // balanced tap targets. Desktop (sm+): natural width, right-aligned.
+        "sticky bottom-0 z-10 -mx-[18px] -mb-[calc(1.375rem+env(safe-area-inset-bottom))] mt-2 bg-background px-[18px] pb-[calc(1.375rem+env(safe-area-inset-bottom))] pt-3 sm:-mx-6 sm:px-6",
         "flex flex-row gap-2 [&>*]:flex-1 sm:justify-end sm:[&>*]:flex-initial",
         className,
       )}
@@ -134,14 +83,7 @@ const DialogTitle = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Title
-    ref={ref}
-    className={cn(
-      "font-display text-xl font-semibold leading-tight tracking-tight",
-      className,
-    )}
-    {...props}
-  />
+  <DialogPrimitive.Title ref={ref} className={cn("font-display text-2xl font-extrabold leading-tight tracking-[-0.03em]", className)} {...props} />
 ));
 DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
@@ -149,23 +91,8 @@ const DialogDescription = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
 >(({ className, ...props }, ref) => (
-  <DialogPrimitive.Description
-    ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
-    {...props}
-  />
+  <DialogPrimitive.Description ref={ref} className={cn("text-[13px] font-medium text-muted-foreground", className)} {...props} />
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
-export {
-  Dialog,
-  DialogPortal,
-  DialogOverlay,
-  DialogTrigger,
-  DialogClose,
-  DialogContent,
-  DialogHeader,
-  DialogFooter,
-  DialogTitle,
-  DialogDescription,
-};
+export { Dialog, DialogPortal, DialogOverlay, DialogTrigger, DialogClose, DialogContent, DialogHeader, DialogFooter, DialogTitle, DialogDescription };
