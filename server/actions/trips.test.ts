@@ -22,6 +22,7 @@ const {
   tripFindUniqueMock,
   memberCreateMock,
   memberDeleteManyMock,
+  memberFindUniqueMock,
   userFindUniqueMock,
   userFindManyMock,
   inviteDeleteManyMock,
@@ -47,6 +48,9 @@ const {
   const tripFindUniqueMock = vi.fn();
   const memberCreateMock = vi.fn();
   const memberDeleteManyMock = vi.fn().mockResolvedValue({ count: 1 });
+  // The REMOVAL TARGET's membership row (I1). Defaults to a non-owner, which
+  // is what every pre-existing removeTripMember test means by "a Traveller".
+  const memberFindUniqueMock = vi.fn().mockResolvedValue({ role: "member" });
   const userFindUniqueMock = vi.fn().mockResolvedValue(null);
   const userFindManyMock = vi.fn().mockResolvedValue([]);
   const inviteDeleteManyMock = vi.fn().mockResolvedValue({ count: 0 });
@@ -97,6 +101,7 @@ const {
     tripFindUniqueMock,
     memberCreateMock,
     memberDeleteManyMock,
+    memberFindUniqueMock,
     userFindUniqueMock,
     userFindManyMock,
     inviteDeleteManyMock,
@@ -148,6 +153,7 @@ vi.mock("@/lib/db", () => ({
     },
     tripMember: {
       deleteMany: memberDeleteManyMock,
+      findUnique: memberFindUniqueMock,
     },
     user: {
       findUnique: userFindUniqueMock,
@@ -1145,6 +1151,63 @@ describe("removeTripMember", () => {
     expect(result.success).toBe(true);
     expect(memberDeleteManyMock).toHaveBeenCalledWith({ where: { tripId: "t1", userId: "u2" } });
     delete process.env.ADMIN_EMAILS;
+  });
+
+  // I1 (final fix wave). The gate admits an ADMIN_EMAILS operator and the
+  // self-check only ever protected the CALLER, so nothing stopped an admin
+  // who is not the owner from removing the Trip's owner — leaving a Trip with
+  // Travellers on it and no owner, which can never again be deleted,
+  // duplicated, invited to, have a Stop deleted or a fork promoted, with no
+  // ownership transfer to recover with.
+  it("refuses to remove the trip's OWNER, even for an ADMIN_EMAILS operator", async () => {
+    process.env.ADMIN_EMAILS = "admin@example.com";
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u-admin", email: "admin@example.com" },
+      membership: { role: "member" },
+    });
+    memberFindUniqueMock.mockResolvedValueOnce({ role: "owner" });
+
+    const result = await removeTripMember("t1", "u-owner");
+
+    expect(result).toEqual({
+      success: false,
+      error:
+        "You can't remove the trip's owner — a trip with no owner could never be deleted, duplicated or invited to again.",
+    });
+    expect(memberDeleteManyMock).not.toHaveBeenCalled();
+    expect(inviteDeleteManyMock).not.toHaveBeenCalled();
+    delete process.env.ADMIN_EMAILS;
+  });
+
+  it("refuses to remove the trip's OWNER when another owner-role caller tries it", async () => {
+    // Belt-and-braces: the self-check only fires when the target IS the
+    // caller, so a second owner-role row (or a future transfer bug) must be
+    // caught by the target's role, not by identity.
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    memberFindUniqueMock.mockResolvedValueOnce({ role: "owner" });
+
+    const result = await removeTripMember("t1", "u-other-owner");
+
+    expect(result.success).toBe(false);
+    expect(memberDeleteManyMock).not.toHaveBeenCalled();
+  });
+
+  it("looks the target's role up by the (tripId, userId) membership key", async () => {
+    requireTripAccessMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "owner@example.com" },
+      membership: { role: "owner" },
+    });
+    userFindUniqueMock.mockResolvedValueOnce(null);
+
+    await removeTripMember("t1", "u2");
+
+    expect(memberFindUniqueMock).toHaveBeenCalledWith({
+      where: { tripId_userId: { tripId: "t1", userId: "u2" } },
+      select: { role: true },
+    });
   });
 });
 

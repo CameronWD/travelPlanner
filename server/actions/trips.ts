@@ -516,8 +516,9 @@ export type RemoveTripMemberResult =
 /**
  * Remove a Traveller from a trip. Owner-only (plus an ADMIN_EMAILS operator
  * who is already a member, ADR 0045) — same predicate as deleteTrip/
- * duplicateTrip/inviteToTrip. The owner cannot remove themselves; there is no
- * ownership-transfer feature yet, so that would strand the trip with no owner.
+ * duplicateTrip/inviteToTrip. The trip's owner can never be removed — not by
+ * themselves, and not by an admin operator either (I1) — because there is no
+ * ownership-transfer feature, so an ownerless trip is stranded for good.
  *
  * Drops only the TripMember row — authored Journal entries, notes and
  * attachments keep their authorId FKs, so nothing orphans (ADR: content
@@ -543,7 +544,30 @@ export async function removeTripMember(
   if (userId === user.id && membership.role === "owner") {
     return {
       success: false,
-      error: "You can't remove yourself as the owner — transfer ownership to another Traveller first.",
+      error: "You can't remove yourself as the owner — the Owner role can't be transferred to another Traveller yet.",
+    };
+  }
+
+  // The TARGET's role, not the caller's (final fix wave, I1). The gate above
+  // admits an ADMIN_EMAILS operator, and the self-check just above protects
+  // only the caller — so an admin who is not the owner could remove the
+  // Trip's owner and strand the Trip permanently: with members but no owner,
+  // nothing can ever delete it, duplicate it, invite to it, delete a Stop or
+  // promote a fork again, and there is no ownership transfer to recover with.
+  // The settings UI hides the control, but this repo's own principle
+  // (server/actions/access-requests.ts) is that hiding a control is not
+  // access control. Uncached, direct lookup for the same reason as the
+  // email lookup below — see the CAVEAT above.
+  const targetMembership = await db.tripMember.findUnique({
+    where: { tripId_userId: { tripId, userId } },
+    select: { role: true },
+  });
+
+  if (targetMembership?.role === "owner") {
+    return {
+      success: false,
+      error:
+        "You can't remove the trip's owner — a trip with no owner could never be deleted, duplicated or invited to again.",
     };
   }
 
