@@ -169,3 +169,61 @@ describe("GlobeMap kit chrome", () => {
     expect(options?.className).toBe("tp-map-popup");
   });
 });
+
+describe("GlobeMap selection popup", () => {
+  /** Turn the mock map's on/off into a tiny emitter so moveend can be fired by hand. */
+  function wireEmitter(map: { on: ReturnType<typeof vi.fn>; off: ReturnType<typeof vi.fn> }) {
+    const handlers = new Map<string, Set<() => void>>();
+    map.on.mockImplementation((type: string, fn: () => void) => {
+      (handlers.get(type) ?? handlers.set(type, new Set()).get(type)!).add(fn);
+      return map;
+    });
+    map.off.mockImplementation((type: string, fn?: () => void) => {
+      if (fn) handlers.get(type)?.delete(fn);
+      else handlers.delete(type);
+      return map;
+    });
+    return {
+      fire: (type: string) => [...(handlers.get(type) ?? [])].forEach((fn) => fn()),
+      count: (type: string) => handlers.get(type)?.size ?? 0,
+    };
+  }
+
+  it("opens the selected marker's popup only after the fly-to lands (moveend)", async () => {
+    const { rerender } = render(globeElement());
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    const map = hoisted.leaflet!.maps[0];
+    const bus = wireEmitter(map);
+    const [m1] = hoisted.leaflet!.markers;
+
+    rerender(globeElement("m1"));
+    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(1));
+    expect(m1.openPopup).not.toHaveBeenCalled();
+
+    bus.fire("moveend");
+    expect(m1.openPopup).toHaveBeenCalledTimes(1);
+    expect(bus.count("moveend")).toBe(0); // the listener removes itself
+
+    bus.fire("moveend"); // a later pan must not reopen it
+    expect(m1.openPopup).toHaveBeenCalledTimes(1);
+  });
+
+  it("re-selecting mid-flight drops the first marker's pending open", async () => {
+    const { rerender } = render(globeElement());
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    const map = hoisted.leaflet!.maps[0];
+    const bus = wireEmitter(map);
+    const [m1, m2] = hoisted.leaflet!.markers;
+
+    rerender(globeElement("m1"));
+    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(1));
+    rerender(globeElement("m2")); // before the first fly lands
+    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(2));
+    expect(bus.count("moveend")).toBe(1);
+    expect(map.closePopup).toHaveBeenCalled();
+
+    bus.fire("moveend");
+    expect(m1.openPopup).not.toHaveBeenCalled();
+    expect(m2.openPopup).toHaveBeenCalledTimes(1);
+  });
+});

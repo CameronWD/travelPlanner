@@ -73,6 +73,9 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
     onDeleteRef.current = onDelete;
   });
 
+  // The not-yet-fired "open the selected popup after the fly-to" moveend listener, if any.
+  const pendingOpenRef = useRef<(() => void) | null>(null);
+
   // Ref map: markerId → Leaflet Marker instance, for fly-to / highlight / popup.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markerInstancesRef = useRef<Map<string, any>>(new Map());
@@ -245,8 +248,21 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       if (!mk) return;
       const instance = markerInstancesRef.current.get(selectedId);
       if (!instance) return;
+      // Open the popup only once the fly-to has landed: opening it mid-flight lets the
+      // fly's final centring undo Leaflet's pan-to-fit, clipping the popup's top on the
+      // 260px phone map. Any still-pending open from an earlier selection is dropped
+      // first, and whatever popup is open closes, so a mid-flight re-select can't leave
+      // the first marker's popup open.
+      if (pendingOpenRef.current) map.off("moveend", pendingOpenRef.current);
+      map.closePopup();
+      const openWhenLanded = () => {
+        map.off("moveend", openWhenLanded);
+        if (pendingOpenRef.current === openWhenLanded) pendingOpenRef.current = null;
+        instance.openPopup();
+      };
+      pendingOpenRef.current = openWhenLanded;
+      map.on("moveend", openWhenLanded);
       map.flyTo([mk.lat, mk.lng], Math.max(map.getZoom(), 9), { duration: 0.6 });
-      instance.openPopup();
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
