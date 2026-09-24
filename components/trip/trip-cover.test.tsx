@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { TripCover } from "./trip-cover";
+import { TripCover, TripCoverCard } from "./trip-cover";
 
 describe("TripCover", () => {
   it("renders an img with the cover API src when hasCover is true", () => {
@@ -97,5 +97,32 @@ describe("TripCover", () => {
     render(<TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} />);
     const img = screen.getByAltText("Trip cover") as HTMLImageElement;
     expect(img.getAttribute("src")).toBe("/api/trips/t1/cover");
+  });
+});
+
+describe("TripCoverCard", () => {
+  // Trip Home wraps its cover in this frame so the cover reads as its own
+  // surface (kit shape: 2px border, hard shadow) rather than a bare image —
+  // trip-card.tsx (trips list) deliberately does NOT use this: there,
+  // TripCover already sits inside that card's own top section, and wrapping
+  // it again here would double the border/shadow.
+  it("gives the cover the kit Card shape — 2px border, hard shadow", () => {
+    const { container } = render(
+      <TripCoverCard>
+        <TripCover tripId="t1" name="Trip" hasCover={false} stops={[]} />
+      </TripCoverCard>,
+    );
+    const card = container.firstElementChild as HTMLElement;
+    expect(card.className).toMatch(/\bborder-2\b/);
+    expect(card.className).toMatch(/\bshadow-hard-\d\b/);
+  });
+
+  it("renders its children", () => {
+    render(
+      <TripCoverCard>
+        <TripCover tripId="t1" name="adventure" hasCover={false} stops={[]} />
+      </TripCoverCard>,
+    );
+    expect(screen.getByText("A")).toBeInTheDocument();
   });
 });

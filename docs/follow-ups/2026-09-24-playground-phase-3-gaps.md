@@ -60,6 +60,21 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   full page at `/trips/new` (route unchanged) with inline "Cancel" + "Create trip"
   actions, since there is no sheet to dismiss on a page. Not built because: product
   decision (controller: keep this a page, not a sheet/dialog).
+- **`DHome.jsx` — "Beds" card.** Kit shows: an accommodation-completeness stat ("3 of
+  4", "Hakone still needs one"). We have: accommodation records per stop, but no
+  trip-wide "stops with vs. without a booking" rollup surfaced anywhere on Home. Not
+  built because: new feature (no existing aggregation computes this).
+- **`DHome.jsx` — "Busiest day" card.** Kit shows: the single day with the most
+  scheduled items, isolated on Home ("Sat 18 · 6 things · travel day"). We have:
+  per-day item counts are queryable (e.g. the itinerary builder), but nothing rolls
+  them up trip-wide into a "busiest day" figure. Not built because: new feature (needs
+  a trip-wide aggregation that isn't computed today).
+- **`DHome.jsx` — "What's been happening" activity feed, inline on Home.** Kit shows:
+  the 3 most recent activity events rendered directly on Home. We have: the same data
+  on a full Activity page (`/trips/[tripId]/activity`), not embedded on Home. Not
+  built because: new feature/placement decision — out of Task 10's file scope
+  (`page.tsx`, `trip-cover.tsx`, `reminders-card.tsx`), since embedding it is a change
+  to the Phase content, not the 3 files this task restyles.
 
 ## p3/together
 
