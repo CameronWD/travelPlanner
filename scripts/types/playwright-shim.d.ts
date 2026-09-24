@@ -40,7 +40,16 @@ declare module "playwright" {
     exact?: boolean;
   }
 
+  export interface GetByRoleOptions {
+    name?: string | RegExp;
+    exact?: boolean;
+  }
+
   export interface ClickOptions {
+    timeout?: number;
+  }
+
+  export interface FillOptions {
     timeout?: number;
   }
 
@@ -66,6 +75,9 @@ declare module "playwright" {
     count(): Promise<number>;
     first(): Locator;
     click(options?: ClickOptions): Promise<void>;
+    // Added for trips.ts's ensureEmptyTrip (Task 5) — fills the /trips/new
+    // name field via the app's own form, never the database directly.
+    fill(value: string, options?: FillOptions): Promise<void>;
   }
 
   export interface Page {
@@ -83,6 +95,9 @@ declare module "playwright" {
     ): Promise<void>;
     locator(selector: string): Locator;
     getByText(text: string, options?: GetByTextOptions): Locator;
+    // Added for trips.ts's ensureEmptyTrip (Task 5) — locates the /trips/new
+    // form's "Create trip" submit button by its accessible role/name.
+    getByRole(role: string, options?: GetByRoleOptions): Locator;
     // Overloads for the evaluate() shapes contrast-audit.ts uses: a zero-arg
     // page function, one that takes a single serialisable arg, and a plain
     // source-string expression (used for the contrast probe itself — see

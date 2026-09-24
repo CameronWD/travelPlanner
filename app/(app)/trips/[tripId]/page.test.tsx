@@ -133,4 +133,13 @@ describe("Trip Home, composed with its layout", () => {
     expect(card.className).toMatch(/\bborder-2\b/);
     expect(card.className).toMatch(/\bshadow-hard-\d\b/);
   });
+
+  it("exposes the derived Phase as a hidden data-trip-phase marker (for the layout audit)", async () => {
+    await renderTripHome();
+    const marker = document.querySelector("[data-trip-phase]");
+    expect(marker).not.toBeNull();
+    expect(marker).toHaveAttribute("hidden");
+    // BASE_TRIP is Jan 2026 and "today" is real time, so the phase is past — assert it's a known phase, not a specific one.
+    expect(["sketching", "planning", "final-prep", "travelling", "past"]).toContain(marker!.getAttribute("data-trip-phase"));
+  });
 });

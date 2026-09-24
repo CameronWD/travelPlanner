@@ -110,6 +110,7 @@ export default async function TripHomePage({
 
   return (
     <>
+      <span hidden data-trip-phase={phase} />
       <WhatsNewBanner />
       {cover}
       {phaseEl}
