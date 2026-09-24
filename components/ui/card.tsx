@@ -5,6 +5,7 @@ import { cn } from "@/lib/cn";
 /**
  * Server Component. Outlined card with a hard shadow.
  * `tone` fills it with an accent and turns it into an "island" (text/borders stay legible in both themes).
+ * `hue-*` tones fill with the categorical ramp (lib/hues.ts); text is `on-accent`, as on chips — not `onSoft`, which is for the 25% tint.
  * `interactive` adds hover-lift + press for clickable cards. Wrap in <Link> or pass asChild-style via className.
  */
 const cardVariants = cva("relative rounded-lg border-2 border-border text-card-foreground", {
@@ -17,6 +18,15 @@ const cardVariants = cva("relative rounded-lg border-2 border-border text-card-f
       teal: "island bg-teal",
       lilac: "island bg-lilac",
       ink: "bg-primary text-primary-foreground",
+      "hue-sky": "island bg-hue-sky text-on-accent",
+      "hue-sun": "island bg-hue-sun text-on-accent",
+      "hue-leaf": "island bg-hue-leaf text-on-accent",
+      "hue-lilac": "island bg-hue-lilac text-on-accent",
+      "hue-pink": "island bg-hue-pink text-on-accent",
+      "hue-teal": "island bg-hue-teal text-on-accent",
+      "hue-coral": "island bg-hue-coral text-on-accent",
+      "hue-indigo": "island bg-hue-indigo text-on-accent",
+      "hue-stone": "island bg-hue-stone text-on-accent",
     },
     shadow: { 0: "", 1: "shadow-hard-1", 2: "shadow-hard-2", 3: "shadow-hard-3", 4: "shadow-hard-4", 5: "shadow-hard-5" },
     radius: { md: "rounded-md", lg: "rounded-lg", xl: "rounded-xl", "2xl": "rounded-2xl" },
