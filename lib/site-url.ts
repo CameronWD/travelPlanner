@@ -2,11 +2,19 @@
  * The app's own canonical URL, for resolving absolute URLs (og:image, etc.) from metadata that
  * Next.js otherwise falls back to "http://localhost:3000" for at build time.
  *
- * Order: `APP_URL` (the same repo variable the GitHub Actions cron already reads — see
- * docs/DEPLOY.md §5) → `https://${VERCEL_PROJECT_PRODUCTION_URL}` (Vercel's own System
- * Environment Variable, only present at runtime if "Automatically expose System Environment
- * Variables" is enabled on the project — nothing in this repo enables that today, so this branch
- * is a fallback, not the primary path) → "http://localhost:3000".
+ * Order: `APP_URL` → `https://${VERCEL_PROJECT_PRODUCTION_URL}` → "http://localhost:3000".
+ *
+ * - `APP_URL` is for a custom / canonical domain (the same value as the GitHub Actions cron
+ *   variable — see docs/DEPLOY.md §4–§5). Set it in Vercel when the site is served from a domain
+ *   other than the project's own production host.
+ * - `VERCEL_PROJECT_PRODUCTION_URL` is Vercel's System Environment Variable for the project's
+ *   production host. The project exposes System Environment Variables (the pulled Vercel env
+ *   carries VERCEL_URL / VERCEL_ENV / VERCEL_GIT_*), so this is the expected production fallback
+ *   when `APP_URL` is unset.
+ * - On preview deployments (VERCEL_ENV=preview) Next.js resolves relative / file-convention
+ *   og:image URLs against the deployment's own VERCEL_BRANCH_URL / VERCEL_URL instead of
+ *   metadataBase (next/dist/lib/metadata/resolvers/resolve-url.js), so neither value decides
+ *   previews' og host.
  *
  * This runs unguarded at root-layout module scope (`metadataBase: new URL(siteUrl())`), so a
  * malformed candidate must never throw — it is skipped, with a warning naming which variable was
