@@ -185,6 +185,20 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   (field changes, note excerpt). Not built because: product decision (`headline()` stays one
   string; per-verb detail lines would need new activity payloads).
 
+- **`shared/together.jsx` `Journal` — "Write today" button in the header.** Kit shows: a primary
+  pencil button beside the entry count. We have: entries written from each Day page's journal
+  editor; the Journal page is read-only (each day card's date links to its Day page). Not built
+  because: new feature (a Journal-page entry point that picks today's date).
+- **`shared/together.jsx` `Journal` — stop name eyebrow ("TOKYO") over each card's date.** Kit
+  shows: the day's stop as an uppercase label above the date. We have: the date heading only; the
+  Journal page fetches entries and photos, not stops. Not built because: new feature (a stop
+  lookup per journal date on this page).
+- **`shared/together.jsx` `Journal` — one card per entry.** Kit shows: each card is one person's
+  entry, their avatar top-right, with that entry's photos. We have: one card per date holding
+  every Traveller's entry (ARCH-DAT-6) and the date's shared photos, the writers' avatars
+  top-right and a name line under each entry. Not built because: needs a data model (journal
+  photos belong to a date, not to an entry).
+
 ## p3/admin-kit
 
 ## p3/og-default
