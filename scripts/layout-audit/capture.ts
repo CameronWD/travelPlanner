@@ -73,13 +73,13 @@ function fileNameFor(baseName: string, index: number, total: number): string {
  * multiple slices are `${baseName}-part1.png`, `-part2`, … in top-to-bottom
  * order. Returns the absolute file paths written, in that same order.
  *
- * Each slice is captured with `fullPage: true` alongside an explicit `clip`
- * — Playwright still requires `fullPage: true` for a clip whose top is
- * below the first viewport to actually capture that region (with it
- * omitted, `clip` is only honoured against the already-rendered viewport,
- * so a below-the-fold clip comes back blank); `fullPage: true` makes
- * Playwright scroll/stitch the full document first and then crop to `clip`.
- * Confirmed against a live page in the Task 4 live check (see the report).
+ * Each slice is captured with `fullPage: true` alongside an explicit `clip`,
+ * per the brief: `fullPage: true` has Playwright render/stitch the whole
+ * document first and then crop to `clip`, which is what makes a clip below
+ * the first viewport actually capture that region. Confirmed live against
+ * /trips in the Task 4 live check (see the report): a second and third
+ * slice, entirely below the first viewport, both came back with real,
+ * distinct page content rather than a blank image.
  */
 export async function captureSlices(
   page: Page,
