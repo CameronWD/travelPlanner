@@ -291,3 +291,117 @@ describe("PhasePast chapter gating (Task 13)", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Playground kit restyle (Task 10b) — kit shared/onthego.jsx "Summary"
+// ---------------------------------------------------------------------------
+
+describe("PhasePast Playground kit restyle (Task 10b)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    chaptersEnabled: false,
+  };
+  const STOPS = [
+    { id: "rome", name: "Rome", lat: 41.9, lng: 12.5, timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-10", sortOrder: 0 },
+  ];
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue(STOPS);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    journalEntryCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 100000, paidTotalMinor: 60000 } });
+    buildSpendSoFarMock.mockReturnValue({
+      costTotalMinor: 100000,
+      paidSoFarMinor: 60000,
+      paidCostMinor: 65000,
+      varianceMinor: -5000,
+      costRemainingMinor: 40000,
+      tripElapsedPct: 100,
+    });
+    const dates = await import("@/lib/dates");
+    vi.mocked(dates.nightsBetween).mockReturnValue(9);
+    const money = await import("@/lib/money");
+    vi.mocked(money.formatMoney).mockImplementation((m: number) => `£${(m / 100).toFixed(2)}`);
+  });
+
+  const render = () => PhasePast({ tripId: "trip-1", trip: baseTrip });
+  async function dom() {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup((await render()) as Parameters<typeof renderToStaticMarkup>[0]);
+    return div;
+  }
+
+  it("leads with the 'That's a wrap' heading and the kit Summary stat row (teal nights · sun cost · lilac paid)", async () => {
+    const div = await dom();
+    expect(div.querySelector("h2")?.textContent).toBe("That's a wrap");
+    const statCard = (label: string) =>
+      [...div.querySelectorAll(".text-label")].find((el) => el.textContent === label)!.parentElement!;
+    expect(statCard("Nights").className).toMatch(/\bbg-teal\b/);
+    expect(statCard("Nights").textContent).toContain("9");
+    expect(statCard("Trip cost").className).toMatch(/\bbg-sun\b/);
+    expect(statCard("Trip cost").textContent).toContain("£1000.00");
+    expect(statCard("Paid so far").className).toMatch(/\bbg-lilac\b/);
+    expect(statCard("Paid so far").textContent).toContain("£600.00");
+    for (const l of ["Nights", "Trip cost", "Paid so far"]) {
+      expect(statCard(l).className).toMatch(/\bborder-2\b/);
+      expect(statCard(l).className).toMatch(/\bshadow-hard-\d\b/);
+    }
+    expect(div.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("60");
+  });
+
+  it("shows under/over as a status chip, not an accent", async () => {
+    let div = await dom();
+    const under = [...div.querySelectorAll("span")].filter((s) => /under$/.test(s.textContent ?? "")).pop()!;
+    expect(under.className).toMatch(/\bbg-success\b|\bbg-teal\b/);
+    buildSpendSoFarMock.mockReturnValue({
+      costTotalMinor: 100000, paidSoFarMinor: 60000, paidCostMinor: 50000, varianceMinor: 10000, costRemainingMinor: 40000, tripElapsedPct: 100,
+    });
+    div = await dom();
+    const over = [...div.querySelectorAll("span")].filter((s) => /over$/.test(s.textContent ?? "")).pop()!;
+    expect(over.className).toMatch(/\bbg-destructive\b/);
+  });
+
+  it("frames the route map in a kit Card and keeps money a shared pot", async () => {
+    const { Card } = await import("@/components/ui/card");
+    const parent = findParent(await render(), RouteMapLoader);
+    expect(parent?.type).toBe(Card);
+    const div = await dom();
+    expect(div.textContent).toContain("shared pot");
+    expect(div.textContent).not.toMatch(/per person|each owes|split/i);
+    expect(div.innerHTML).not.toMatch(/rounded-2xl border border-border|shadow-soft|hsl\(/);
+  });
+
+  it("renders the kit empty treatment in place of the route map when no stop has dates", async () => {
+    stopFindManyMock.mockResolvedValue([]);
+    const { EmptyState } = await import("@/components/ui/empty-state");
+    const empty = findElementByType(await render(), EmptyState);
+    expect(empty).not.toBeNull();
+    expect(empty!.props.title).toBe("No stops yet");
+  });
+});
+
+function findParent(node: unknown, type: unknown): { type?: unknown } | null {
+  if (node == null || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const f = findParent(n, type);
+      if (f) return f;
+    }
+    return null;
+  }
+  const el = node as { type?: unknown; props?: { children?: unknown } };
+  const kids = ([] as unknown[]).concat(el.props?.children ?? []);
+  if (kids.some((k) => k && typeof k === "object" && (k as { type?: unknown }).type === type)) return el;
+  return findParent(el.props?.children, type);
+}

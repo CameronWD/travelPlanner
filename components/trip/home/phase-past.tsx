@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { NotebookPen, PlaneTakeoff } from "lucide-react";
+import { NotebookPen, PlaneTakeoff, Route } from "lucide-react";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { nightsBetween } from "@/lib/dates";
@@ -15,8 +15,11 @@ import {
 import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
 import { chapterForStop } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
-import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { StatCard } from "@/components/ui/stat-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import { orderPlanStops } from "@/lib/plan-order";
@@ -60,15 +63,15 @@ interface PhasePastProps {
 
 /** Exported for className assertion in tests — must match the JSX below. */
 export const PAST_DESKTOP_GRID_CLASS =
-  "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
+  "grid grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
 
 /**
  * Exported for className assertion in tests — must match the JSX below.
  * Stacked below `sm` so the two CTA buttons' full label text (e.g. "Plan
  * another trip") never gets clipped at 320–374px viewports; side by side
- * from `sm` up, matching the original desktop layout exactly.
+ * from `sm` up; stacked again at `lg`, where they sit in the 340px rail.
  */
-export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row";
+export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row lg:flex-col";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -222,7 +225,6 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   // ---------------------------------------------------------------------------
   const totalNights = nightsBetween(startDate, endDate);
   const { grandTotal } = budget;
-  const hasActual = grandTotal.paidTotalMinor > 0;
 
   // Spend retro: use trip end as "today" so tripElapsedPct reads 100 %
   const spend = buildSpendSoFar({
@@ -251,7 +253,6 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   // Final spend derived values
   // ---------------------------------------------------------------------------
   const stopCount = datedStops.length;
-  const spentMinor = hasActual ? grandTotal.paidTotalMinor : grandTotal.costTotalMinor;
   const paidSoFarMinor = spend.paidSoFarMinor;
   const costTotalMinor = spend.costTotalMinor;
   const varianceMinor = spend.varianceMinor;
@@ -259,47 +260,66 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   const pct = costTotalMinor > 0 ? Math.min(100, Math.round((paidSoFarMinor / costTotalMinor) * 100)) : 0;
 
   // ---------------------------------------------------------------------------
-  // Compose cards
+  // Compose cards — kit shared/onthego.jsx "Summary": a title, then the
+  // StatCard row (teal nights · sun trip cost · lilac paid so far).
   // ---------------------------------------------------------------------------
-  const recapHero = (
-    <section className="relative overflow-hidden rounded-3xl bg-[hsl(24_14%_15%)] p-6 text-white">
-      <div className="pointer-events-none absolute -right-8 -top-8 size-[150px] rounded-full bg-white/[0.06]" aria-hidden="true" />
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/60">That&apos;s a wrap</p>
-      <p className="mt-2 font-display text-2xl font-bold">{trip.name}</p>
-      <div className="mt-4 flex gap-5">
-        <div><div className="font-display text-2xl font-bold">{stopCount}</div><div className="text-[11px] text-white/60">stops</div></div>
-        <div><div className="font-display text-2xl font-bold">{totalNights}</div><div className="text-[11px] text-white/60">nights</div></div>
-        <div><div className="font-display text-2xl font-bold">{formatMoney(spentMinor, trip.homeCurrency)}</div><div className="text-[11px] text-white/60">{hasActual ? "paid" : "cost"}</div></div>
+  const recap = (
+    <div className="flex flex-col gap-3">
+      <h2 className="font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground lg:text-4xl">
+        That&apos;s a wrap
+      </h2>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        <StatCard
+          tone="teal"
+          label="Nights"
+          value={totalNights}
+          sub={`${stopCount} ${stopCount === 1 ? "stop" : "stops"}`}
+        />
+        <StatCard
+          tone="sun"
+          label="Trip cost"
+          value={formatMoney(grandTotal.costTotalMinor, trip.homeCurrency)}
+          sub="shared pot"
+        />
+        <StatCard
+          tone="lilac"
+          label="Paid so far"
+          value={formatMoney(paidSoFarMinor, trip.homeCurrency)}
+          progress={pct}
+          className="col-span-2 lg:col-span-1"
+          sub={
+            <span className="flex flex-wrap items-center gap-1.5">
+              <span>
+                {pct}% of {formatMoney(costTotalMinor, trip.homeCurrency)} cost
+              </span>
+              {/* Under/over is a state: status tokens, not an accent hue. */}
+              <Badge variant={underBudget ? "success" : "destructive"}>
+                {formatMoney(Math.abs(varianceMinor), trip.homeCurrency)} {underBudget ? "under" : "over"}
+              </Badge>
+            </span>
+          }
+        />
       </div>
-    </section>
-  );
-
-  const finalSpend = (
-    <section className="rounded-2xl border border-border bg-card p-5 shadow-soft">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Final spend</span>
-        <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", underBudget ? "bg-success/15 text-teal-text" : "bg-over/10 text-over")}>
-          {formatMoney(Math.abs(varianceMinor), trip.homeCurrency)} {underBudget ? "under" : "over"}
-        </span>
-      </div>
-      <p className="font-display text-2xl font-bold text-foreground">
-        {formatMoney(paidSoFarMinor, trip.homeCurrency)} <span className="text-sm font-medium text-muted-foreground">of {formatMoney(costTotalMinor, trip.homeCurrency)} cost</span>
-      </p>
-      <span className="mt-3 block h-2 overflow-hidden rounded-full bg-muted">
-        <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
-      </span>
-    </section>
+    </div>
   );
 
   const routeMap = mapStops.length > 0 ? (
-    <section className="overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-soft">
+    <Card className="overflow-hidden p-0">
       <RouteMap stops={mapStops} height={200} />
-    </section>
-  ) : null;
+    </Card>
+  ) : (
+    // Kit shared/states.jsx "Plan" empty — the route has nothing to draw.
+    <EmptyState
+      icon={Route}
+      tone="teal"
+      title="No stops yet"
+      description="Give the places you went dates and we'll draw the route."
+    />
+  );
 
   const ctas = (
     <div className={PAST_CTAS_ROW_CLASS}>
-      <Button asChild variant="primary" className="flex-1">
+      <Button asChild variant="primary" className="sm:flex-1 lg:flex-none">
         <Link href={`${base}/journal`}>
           <NotebookPen className="size-4" aria-hidden="true" />
           {journalCount === 0
@@ -307,7 +327,7 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
             : "Finish your journal"}
         </Link>
       </Button>
-      <Button asChild variant="outline" className="flex-1 border-2 border-foreground">
+      <Button asChild variant="secondary" className="sm:flex-1 lg:flex-none">
         <Link href="/trips/new">
           <PlaneTakeoff className="size-4" aria-hidden="true" />
           Plan another trip
@@ -317,21 +337,20 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   );
 
   // ---------------------------------------------------------------------------
-  // Render — Bold Modular desktop (E2): full-width recap hero, then a main
-  // column (route map) beside a right rail (final spend + CTAs). On mobile the
-  // grid collapses to one column: hero → route map → final spend → CTAs.
+  // Render — full-width recap (title + stat row), then a main column (route
+  // map) beside a right rail (CTAs). On mobile the grid collapses to one
+  // column: recap → route map → CTAs.
   // ---------------------------------------------------------------------------
   return (
-    <div className="flex flex-col gap-6">
-      {recapHero}
+    <div className="flex flex-col gap-3.5 lg:gap-[18px]">
+      {recap}
       <div className={PAST_DESKTOP_GRID_CLASS} data-testid="past-grid">
         {/* Main: route map */}
-        <div className="flex flex-col gap-6 lg:order-1">
+        <div className="flex flex-col gap-3.5 lg:order-1">
           {routeMap}
         </div>
-        {/* Rail: final spend + CTAs */}
-        <div className="flex flex-col gap-6 lg:order-2">
-          {finalSpend}
+        {/* Rail: CTAs */}
+        <div className="flex flex-col gap-3.5 lg:order-2">
           {ctas}
         </div>
       </div>

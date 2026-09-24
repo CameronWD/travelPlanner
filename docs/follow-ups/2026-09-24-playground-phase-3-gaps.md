@@ -110,6 +110,15 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   outbound flight from home under the countdown. We have: the home base and outbound leg
   are known to Next steps (as nudges), but the hero is not given the outbound transport.
   Not built because: new feature (the hero has no outbound-leg data today).
+- **`shared/onthego.jsx` Summary — "Flags" StatCard + "Worth a look" list (Past
+  phase).** Kit shows: a coral flag-count stat and the urgency-sorted flag list with fix
+  buttons. We have: flags on the Summary page and (for Planning) Next steps; the Past
+  phase Home shows no flags, since there is nothing left to fix on a finished trip. Not
+  built because: product decision (flags are forward-looking; Past Home is a recap).
+- **`shared/onthego.jsx` Summary — per-stop table (Stop · Dates · Nights · Bed · Cost ·
+  Per day) and the map caption.** Kit shows: the stop table under the map. We have: the
+  same table on the Summary page, not on Past Home. Not built because: new feature
+  (embedding the Summary table on Home).
 
 ## p3/together
 
