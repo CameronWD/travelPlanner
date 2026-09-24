@@ -484,6 +484,15 @@ describe("Timeline — kit day rows (Task 12a)", () => {
     render(<Timeline day={emptyDay} variant="agenda" />);
     expect(screen.getByText("Nothing planned.")).toBeInTheDocument();
   });
+
+  it("the agenda variant uses the same kit Days rows as the day variant (calendar, Task 12b)", () => {
+    const { container } = render(<Timeline day={dayPlan} variant="agenda" />);
+    const rows = container.querySelectorAll("[data-timeline-row]");
+    // dayPlan: one timed + one untimed item.
+    expect(rows).toHaveLength(2);
+    expect(screen.getAllByTestId("timeline-tile")).toHaveLength(2);
+    expect(container.innerHTML).not.toMatch(/px-2 py-1|bg-muted-foreground\/30/);
+  });
 });
 
 describe("dayHasEntries (shared with phase-travelling)", () => {
