@@ -14,3 +14,16 @@ describe("Card hue tones", () => {
     expect((container.firstChild as HTMLElement).className).toContain("island bg-sun");
   });
 });
+
+describe("island utility (app/globals.css)", () => {
+  it("re-scopes --primary-foreground to the light-theme ink-button text, so a primary Button inside a toned Card reads light-on-ink in both themes", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const css = fs.readFileSync(path.resolve(__dirname, "../../app/globals.css"), "utf-8");
+    const island = css.match(/@utility island \{([\s\S]*?)\n\}/)![1];
+    const lightRoot = css.match(/:root \{([\s\S]*?)\n\}/)![1];
+    const lightPrimaryFg = lightRoot.match(/--primary-foreground:\s*([^;]+);/)![1].trim();
+    expect(island).toMatch(/--primary:\s*var\(--on-accent\);/);
+    expect(island.match(/--primary-foreground:\s*([^;]+);/)?.[1].trim()).toBe(lightPrimaryFg);
+  });
+});

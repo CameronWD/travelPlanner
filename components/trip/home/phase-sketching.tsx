@@ -72,10 +72,7 @@ export async function PhaseSketching({ tripId, tripName, chaptersEnabled = true 
             {stops.length} place{stops.length === 1 ? "" : "s"} · ~{totalNights} night{totalNights === 1 ? "" : "s"} sketched
           </p>
           <div className="mt-4">
-            {/* secondary, not primary: the island re-scopes --primary but not
-                --primary-foreground, so an ink button here goes dark-on-dark
-                in dark mode. */}
-            <Button asChild variant="secondary">
+            <Button asChild>
               <Link href={`/trips/${tripId}/plan`}>Firm up →</Link>
             </Button>
           </div>

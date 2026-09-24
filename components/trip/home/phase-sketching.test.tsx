@@ -133,6 +133,14 @@ describe("PhaseSketching Playground kit restyle (Task 10b)", () => {
     expect(div.textContent).not.toMatch(/per person|each owes|split/i);
   });
 
+  it("keeps 'Firm up →' the hero's primary (ink) button — the island re-scopes --primary-foreground", async () => {
+    const { Button } = await import("@/components/ui/button");
+    const tree = await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip" });
+    const btn = findEl(tree, Button)!;
+    expect((btn.props.children as { props: { children: string } }).props.children).toBe("Firm up →");
+    expect(btn.props.variant ?? "primary").toBe("primary");
+  });
+
   it("renders the kit 'Plan' empty treatment when there are no stops", async () => {
     stopFindManyMock.mockResolvedValue([]);
     const tree = await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip" });
