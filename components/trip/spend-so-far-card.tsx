@@ -30,10 +30,22 @@ export function SpendSoFarCard({ spend, homeCurrency, compact = false }: SpendSo
     const est = formatMoney(costTotalMinor, homeCurrency);
     const abs = varianceMinor !== 0 ? formatMoney(Math.abs(varianceMinor), homeCurrency) : null;
     const direction = varianceMinor > 0 ? "over" : "under";
+    // Kit shared/onthego.jsx "Spent today" glance: label + "shared pot", big
+    // figure. Ours reads the trip's paid-so-far against its cost (accurate to
+    // what we compute), never a per-person share.
     return (
-      <p className="text-sm text-muted-foreground">
-        Paid {paid} of {est} cost{abs ? ` · ${abs} ${direction}` : ""}
-      </p>
+      <Card className="p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-label text-muted-foreground">Paid so far</h3>
+          <span className="text-xs font-semibold text-muted-foreground">shared pot</span>
+        </div>
+        <p className="mt-1 font-display text-[26px] font-extrabold leading-[1.1] tracking-[-0.03em] tabular-nums text-foreground">
+          {paid}
+        </p>
+        <p className="mt-0.5 text-xs font-semibold text-muted-foreground">
+          of {est} cost{abs ? ` · ${abs} ${direction}` : ""}
+        </p>
+      </Card>
     );
   }
 

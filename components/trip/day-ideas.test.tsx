@@ -134,3 +134,24 @@ describe("DayIdeas", () => {
     expect(text).not.toMatch(/\bPOI\b/i);
   });
 });
+
+describe("DayIdeas Playground kit restyle (Task 10b)", () => {
+  it("sits in a kit Card with a heading; rows use the 2px outline and named ≥44px add buttons", () => {
+    const { container } = render(
+      <DayIdeas
+        tripId="t1"
+        date="2026-12-09"
+        thingsToDo={[{ id: "th1", title: "Residenz", category: "SIGHTSEEING", startTime: null, endTime: null }]}
+        wishlistIdeas={[]}
+      />,
+    );
+    const card = container.firstChild as HTMLElement;
+    expect(card.className).toMatch(/\bborder-2\b/);
+    expect(card.className).toMatch(/\bshadow-hard-\d\b/);
+    expect(screen.getByRole("heading", { name: "Day ideas" })).toBeInTheDocument();
+    const add = screen.getByRole("button", { name: "Add Residenz to today" });
+    expect(add.className).toMatch(/\bh-11\b/);
+    expect(add.closest("li")!.className).toMatch(/\bborder-2\b/);
+    expect(container.innerHTML).not.toMatch(/rounded-lg border border-border/);
+  });
+});

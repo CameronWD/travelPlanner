@@ -75,6 +75,33 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   built because: new feature/placement decision — out of Task 10's file scope
   (`page.tsx`, `trip-cover.tsx`, `reminders-card.tsx`), since embedding it is a change
   to the Phase content, not the 3 files this task restyles.
+- **`shared/onthego.jsx` Today — header chips ("JST · home +2h", "☼ 18°").** Kit shows:
+  a time-zone-offset-from-home chip and a weather chip beside the day header. We have:
+  zone labels computed per transport time only, and weather data on other surfaces, not
+  on Home's Travelling phase. Not built because: new feature (neither is surfaced on the
+  trip home today).
+- **`shared/onthego.jsx` Today — "Up next" card: arrival column + "Open ticket" /
+  "Directions" buttons.** Kit shows: Leaves → Arrives times with places, plus a ticket
+  and a directions action. We have: the next departure's label, leave time and zone
+  (restyled into the kit's coral card); arrival time and ticket/directions actions are not
+  passed to the countdown. Not built because: new feature (new actions, and the
+  countdown's props carry no arrival).
+- **`shared/onthego.jsx` Today — "1 of 5 done" + per-row checkboxes on Today's plan.**
+  Kit shows: tick-off state per plan row and a done count. We have: no done state on
+  items. Not built because: needs a data model.
+- **`shared/onthego.jsx` Today — "Tomorrow · Sat 18" card.** Kit shows: tomorrow's
+  transport and bed as ListRows in the rail. We have: the itinerary for every day, but
+  Home only surfaces today. Not built because: new feature.
+- **`shared/onthego.jsx` Today — "Hakone needs a bed / ! no bed yet" Tonight card.** Kit
+  shows: when tonight has no booking, a lilac card flagging it with "Add a booking" /
+  "Search nearby". We have: the Tonight's stay card only when a booking exists (restyled
+  to the kit's lilac card); nothing renders for a bed-less night. Not built because: new
+  feature (the no-bed flag lives on Summary/Next steps, not on Travelling Home).
+- **`shared/onthego.jsx` Today — "Spent today" + "+ Log a cost".** Kit shows: today's
+  spend and a dashed log-a-cost button. We have: paid-so-far against the trip's cost
+  (shared pot), restyled into the kit card; no per-day spend figure and no inline add on
+  Home. Not built because: new feature (per-day spend isn't computed for Home; adding a
+  cost lives on the Money tab).
 
 ## p3/together
 

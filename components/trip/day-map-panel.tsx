@@ -9,7 +9,7 @@
 
 import { useState } from "react";
 import { Map } from "lucide-react";
-import { cn } from "@/lib/cn";
+import { Card } from "@/components/ui/card";
 import type { DayMapModel } from "@/lib/day-map";
 import { DayMap } from "./day-map";
 
@@ -25,13 +25,13 @@ export function DayMapPanel({
   if (model.points.length === 0) return null;
 
   return (
-    <div className={cn("rounded-2xl border border-border bg-card shadow-sm")}>
-      <div className="px-4 py-3">
+    <Card>
+      <div className="px-4 py-1.5">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
-          className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
+          className="flex min-h-11 items-center gap-2 rounded-md text-[13px] font-extrabold text-foreground transition-colors hover:text-muted-foreground"
         >
           <Map className="size-4 shrink-0" aria-hidden="true" />
           {open ? "Hide day map" : "Show day map"}
@@ -42,6 +42,6 @@ export function DayMapPanel({
           <DayMap tripId={tripId} model={model} />
         </div>
       )}
-    </div>
+    </Card>
   );
 }
