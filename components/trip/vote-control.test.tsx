@@ -83,6 +83,8 @@ describe("VoteControl", () => {
     expect(chip.className).not.toMatch(/text-sun-text/);
   });
 
+  // The hit area now lives in SegmentedItem (Ruling 13); this still pins that
+  // the vote picker's levels keep it (e.g. no className override drops it).
   it("gives each vote level a ≥44px touch target on coarse pointers", () => {
     render(<VoteControl {...baseProps} />);
     expect(screen.getByRole("radio", { name: "Keen" }).className).toMatch(/pointer-coarse:after:-inset-y-1\.5/);

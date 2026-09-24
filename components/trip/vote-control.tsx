@@ -128,12 +128,8 @@ export function VoteControl({
                 ? "Click again to clear your vote"
                 : undefined
             }
-            className={cn(
-              "relative rounded-full px-2.5 text-xs",
-              // 32px pill, 44px hit area on touch (vertical only — neighbours sit 4px apart).
-              "pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-1.5 pointer-coarse:after:content-['']",
-              ACTIVE_CLASS[level],
-            )}
+            // The ≥44px touch hit area comes from SegmentedItem itself.
+            className={cn("rounded-full px-2.5 text-xs", ACTIVE_CLASS[level])}
             onClick={() => {
               // Handle clicking the currently-active item (Radix won't fire onValueChange
               // when the same value is selected, so we handle clear here)
