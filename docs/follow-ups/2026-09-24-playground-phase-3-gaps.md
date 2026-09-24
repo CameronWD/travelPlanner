@@ -13,18 +13,30 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
 - **`app/share/[token]/opengraph-image.tsx` + `share.jsx` `ShareOG`/`Unfurl` — per-trip unfurl
   card.** Kit shows: trip name, dates, stops as a link preview. We have: the share page is
   `robots: noindex`. Not built because: product decision (does a private share link unfurl?).
-- **`teepee-desktop/DLanding.jsx`, `teepee-mobile/Landing.jsx` — marketing landing.** We have: `/`
-  redirects. Not built because: new feature.
-- **`teepee-mobile/Onboarding.jsx` / desktop onboarding.** We have: none. New feature.
-- **`teepee-mobile/Invite.jsx` — invite flow with access levels.** We have: auto-accept on sign-in
-  (ADR 0017). New feature / product decision.
-- **`DShared.jsx`, `Shared.jsx` — "Your people" with a join link.** We have: none. New feature.
-- **`shared/admin.jsx` `More` — mobile "More" hub.** We have: the phase 2 dock. New feature.
-- **`teepee-tablet/`** — tablet layout. We have: responsive breakpoints only. Product decision.
-- **`docs/notifications.md` — batching, email channels, "Mark paid" and "Time to leave" pushes.**
-  We have: the digest push only. New feature.
-- **Wide-screen layout** — kit is drawn at 1280×800 (incl. a 340px aside column). We cap content
-  at `max-w-7xl`. Using extra width is a design decision the kit doesn't make.
+- **`teepee-desktop/DLanding.jsx`, `teepee-mobile/Landing.jsx` — marketing landing.** Kit shows: a
+  marketing landing page (hero, sign-in CTA) shown before sign-in. We have: `/` redirects straight
+  to sign-in or trips. Not built because: new feature.
+- **`teepee-mobile/Onboarding.jsx`, `teepee-desktop/DExtra.jsx` `DOnboarding` — first-run
+  onboarding.** Kit shows: a 3-step "Who / Where / When" wizard shown before the first trip. We
+  have: no onboarding flow — a new sign-in lands straight on trips. Not built because: new feature.
+- **`teepee-mobile/Invite.jsx` — invite flow with access levels.** Kit shows: an add-people, then
+  pick-access ("Can edit" etc.), then confirmation wizard. We have: auto-accept on sign-in with no
+  access-level picker (ADR 0017). Not built because: product decision.
+- **`teepee-desktop/DShared.jsx`, `teepee-mobile/Shared.jsx` — "Your people" screen with a
+  shareable join link.** Kit shows: a trip link with an open/invite-only toggle, the people list,
+  and forks, as a standalone screen. We have: none of this as a standalone screen. Not built
+  because: new feature.
+- **`shared/admin.jsx` `More` — mobile "More" hub.** Kit shows: a two-group list ("This trip" /
+  "You") fanning out to every screen beyond the four tabs. We have: the phase 2 dock, structured
+  differently. Not built because: new feature.
+- **`teepee-tablet/` — tablet layout.** Kit shows: a dedicated tablet layout. We have: responsive
+  breakpoints only, no tablet-specific layout. Not built because: product decision.
+- **`docs/notifications.md` — notification batching, email channels, "Mark paid" and "Time to
+  leave" pushes.** Kit shows: batched notifications, email as a delivery channel, and two
+  additional push types. We have: the digest push only. Not built because: new feature.
+- **`teepee-desktop/*.jsx` — 1280×800 canvas (incl. a 340px aside column).** Kit shows: every
+  desktop screen drawn at a fixed 1280×800. We have: content capped at `max-w-7xl`, with no use of
+  the extra width on 1440/1920. Not built because: product decision.
 
 ## p3/boundaries
 
