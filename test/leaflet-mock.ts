@@ -45,6 +45,13 @@ export interface FakeMarker {
   remove: ReturnType<typeof vi.fn>;
 }
 
+export interface FakePolyline {
+  latlngs: unknown;
+  options: Record<string, unknown>;
+  addTo: ReturnType<typeof vi.fn>;
+  setStyle: ReturnType<typeof vi.fn>;
+}
+
 export interface FakeMap {
   remove: ReturnType<typeof vi.fn>;
   fitBounds: ReturnType<typeof vi.fn>;
@@ -103,7 +110,16 @@ export function createLeafletMock() {
     return instance;
   });
 
-  const polyline = vi.fn(() => ({ addTo: vi.fn() }));
+  const polylines: FakePolyline[] = [];
+  const polyline = vi.fn((latlngs: unknown, options: Record<string, unknown>) => {
+    const instance = {} as FakePolyline;
+    instance.latlngs = latlngs;
+    instance.options = options;
+    instance.addTo = vi.fn(() => instance);
+    instance.setStyle = vi.fn();
+    polylines.push(instance);
+    return instance;
+  });
   const divIcon = vi.fn((opts: unknown) => opts);
   const latLngBounds = vi.fn((coords: unknown) => coords);
 
@@ -117,5 +133,5 @@ export function createLeafletMock() {
     Icon: { Default: { prototype: { _getIconUrl: () => "" }, mergeOptions: vi.fn() } },
   };
 
-  return { module: { default: L }, L, maps, tileLayers, markers };
+  return { module: { default: L }, L, maps, tileLayers, markers, polylines };
 }
