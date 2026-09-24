@@ -318,5 +318,17 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
 - **`shared/admin.jsx` `Help` — mobile back-arrow page header.** Kit shows: "‹ Help" top bar on
   phone. We have: the app header and a display h1. Not built because: product decision (app-wide
   header pattern, not per screen).
+- **`shared/admin.jsx` `WhatsNew` — per-entry "NEW" chip.** Kit shows: a NEW chip on entries the
+  Traveller hasn't seen. We have: the page is deliberately read-only and renders no read state (the
+  dismissable What's new card owns unread). Not built because: new feature (page reading
+  `whatsNewSeenAt`).
+- **`shared/admin.jsx` `WhatsNew` — a title and body per entry, one colour per entry.** Kit shows:
+  each update as a headline ("A whole new look") plus one sentence, NEW chips tinted by
+  hue. We have: a **Release note** is one line of text, grouped by the day it shipped; one Card per
+  day, newest coral, the rest white. Not built because: needs a data model (Release notes have no
+  title field, ADR 0056).
+- **`shared/admin.jsx` `WhatsNew` — short "22 SEP" date label.** Kit shows: day and month. We
+  have: "21 September 2026" in the kit label style, keeping the year. Not built because:
+  product decision.
 
 ## p3/og-default
