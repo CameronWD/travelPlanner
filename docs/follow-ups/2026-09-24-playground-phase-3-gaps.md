@@ -352,3 +352,11 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   link is read-only and joining is by invite (ADR 0017). Not built because: new feature.
 
 ## p3/og-default
+
+- **`playground-2/lib/og-card.tsx` (`ShareOgCard`/`OgTrip`) and
+  `playground-2/app/share/[token]/opengraph-image.tsx` — dynamic per-trip share card.** Kit shows:
+  a share-link OG image carrying the trip name, date range, nights, stop chips coloured by
+  chapter, and trip phase ("Day 4 of 12"). We have: `/share/<token>` inherits the site-wide
+  default card from root `app/opengraph-image.tsx` (wordmark + "Plan the trip together.") like
+  every other route — no trip data in the unfurled image. Not built because: product decision
+  (Task 20 scoped to the default card only; the per-trip card is deferred).
