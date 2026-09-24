@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTripLinks, matchTrips, verifyPhases, TRIP_NAMES } from "./trips";
+import { parseTripLinks, matchTrips, verifyPhases, missingToGaps, TRIP_NAMES } from "./trips";
 
 describe("parseTripLinks", () => {
   it("keeps /trips/<id> links, drops /trips/new and sub-routes, dedupes by id", () => {
@@ -26,6 +26,17 @@ describe("matchTrips", () => {
     expect(missing).toContain("empty");
   });
   it("uses the literal names from the spec", () => expect(TRIP_NAMES.deep).toBe("EU Christmas 2026"));
+});
+
+describe("missingToGaps", () => {
+  it("excludes a not-yet-created 'empty' trip from gaps (expected bootstrap state, not a coverage gap)", () => {
+    const gaps = missingToGaps(["past", "empty"]);
+    expect(gaps.map((g) => g.key)).toEqual(["past"]);
+    expect(gaps[0].reason).toMatch(/no trip named "Spirit of Tassie" on \/trips/);
+  });
+  it("returns no gaps when only 'empty' is missing", () => {
+    expect(missingToGaps(["empty"])).toEqual([]);
+  });
 });
 
 describe("verifyPhases", () => {

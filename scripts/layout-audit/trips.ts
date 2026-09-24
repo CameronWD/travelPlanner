@@ -135,6 +135,21 @@ export function verifyPhases(checks: PhaseCheck[]): { ok: TripKey[]; gaps: { key
   return { ok, gaps };
 }
 
+/**
+ * Turns `matchTrips`' `missing` list into gaps — except `"empty"`, which by
+ * design is missing on every run until `ensureEmptyTrip` creates it: a
+ * not-yet-created empty trip is expected bootstrap state, not a coverage
+ * gap (the brief: "missing (non-empty) keys become gaps"). `ids.empty`
+ * stays undefined in that case; the caller passes it straight to
+ * `ensureEmptyTrip`. Pure, and exported so this exact rule is unit-tested
+ * directly rather than only exercised inside the live-only `resolveTrips`.
+ */
+export function missingToGaps(missing: Exclude<TripKey, "none">[]): { key: TripKey; reason: string }[] {
+  return missing
+    .filter((key) => key !== "empty")
+    .map((key) => ({ key, reason: `no trip named "${TRIP_NAMES[key]}" on /trips` }));
+}
+
 // --------------------------------------------------------------------------
 // Browser-driving (live only — see the Task 5 report for the live check)
 // --------------------------------------------------------------------------
@@ -175,10 +190,7 @@ export async function resolveTrips(
   const links = parseTripLinks(anchors);
   const { found, missing } = matchTrips(links);
 
-  const gaps: { key: TripKey; reason: string }[] = missing.map((key) => ({
-    key,
-    reason: `no trip named "${TRIP_NAMES[key]}" on /trips`,
-  }));
+  const gaps: { key: TripKey; reason: string }[] = missingToGaps(missing);
 
   const phaseChecks: PhaseCheck[] = [];
   for (const [key, expected] of Object.entries(EXPECTED_PHASE) as [Exclude<TripKey, "none">, PhaseName][]) {
