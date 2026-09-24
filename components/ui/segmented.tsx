@@ -38,8 +38,11 @@ const SegmentedItem = React.forwardRef<
     <ToggleGroupPrimitive.Item
       ref={ref}
       className={cn(
-        "inline-flex h-8 min-w-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border-2 border-transparent px-3.5 text-[13px] font-extrabold text-muted-foreground transition-colors duration-[var(--dur-fast)]",
+        "relative inline-flex h-8 min-w-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-full border-2 border-transparent px-3.5 text-[13px] font-extrabold text-muted-foreground transition-colors duration-[var(--dur-fast)]",
         "hover:text-foreground disabled:pointer-events-none disabled:opacity-45",
+        // 32px pill, 44px hit area on touch: invisible vertical expansion only
+        // (neighbours sit 4px apart, so no horizontal overlap). The root must not clip.
+        "pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-1.5 pointer-coarse:after:content-['']",
         "data-[state=on]:border-border",
         ON[tone],
         "[&_svg]:size-4 [&_svg]:shrink-0",

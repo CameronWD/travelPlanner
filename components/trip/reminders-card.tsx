@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Bell, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { daysBetween, formatDayLabel } from "@/lib/dates";
 import {
@@ -208,7 +209,7 @@ function ReminderRow({
       <Button
         variant="ghost"
         size="icon"
-        className="size-8 shrink-0 text-destructive hover:bg-destructive/10"
+        className="shrink-0 text-destructive hover:bg-destructive/10"
         aria-label={`Delete reminder: ${reminder.title}`}
         onClick={handleDelete}
         loading={isPending}
@@ -240,9 +241,9 @@ export function RemindersCard({ tripId, reminders, today }: RemindersCardProps) 
   const upcoming = [...reminders].sort((a, b) => a.date.localeCompare(b.date));
 
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-4">
+    <Card radius="xl" className="flex flex-col gap-3 p-4">
       {/* Header */}
-      <div className="mb-3 flex items-center gap-2">
+      <div className="flex items-center gap-2">
         <Bell className="size-5 shrink-0 text-primary" aria-hidden="true" />
         <h3 className="font-display font-semibold text-foreground">
           Reminders
@@ -257,15 +258,13 @@ export function RemindersCard({ tripId, reminders, today }: RemindersCardProps) 
           ))}
         </ul>
       ) : (
-        <p className="mb-2 text-sm text-muted-foreground italic">
+        <p className="text-sm text-muted-foreground italic">
           No upcoming reminders.
         </p>
       )}
 
       {/* Add form */}
-      <div className="mt-3">
-        <AddReminderForm tripId={tripId} onAdded={() => {}} />
-      </div>
-    </div>
+      <AddReminderForm tripId={tripId} onAdded={() => {}} />
+    </Card>
   );
 }

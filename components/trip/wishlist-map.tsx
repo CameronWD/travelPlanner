@@ -188,7 +188,7 @@ export function WishlistMap({ items, onSelect }: WishlistMapProps) {
   return (
     <div
       ref={mapRef}
-      className="w-full h-52 sm:h-[360px] rounded-2xl overflow-hidden border border-border shadow-sm"
+      className="h-52 w-full overflow-hidden rounded-lg border-2 border-border shadow-hard-2 sm:h-[360px]"
       aria-label="Wishlist map"
     />
   );

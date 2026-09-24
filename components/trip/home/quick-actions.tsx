@@ -45,7 +45,7 @@ export function QuickActions({ tripId, phase }: QuickActionsProps) {
   return (
     <div className="flex flex-wrap gap-2">
       {actions.map((a, i) => (
-        <Button key={a.label} asChild variant={i === 0 ? "primary" : "outline"} shape="pill" size="sm">
+        <Button key={a.label} asChild variant={i === 0 ? "primary" : "secondary"} shape="pill" size="md">
           <Link href={a.href}>
             <a.icon className="size-4" aria-hidden="true" />
             {a.label}

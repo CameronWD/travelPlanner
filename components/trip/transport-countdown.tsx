@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { Timer } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface TransportCountdownProps {
   depAt: string; // ISO string of the departure instant
@@ -41,23 +43,26 @@ export function TransportCountdown({ depAt, depTimeLabel, depZone, label }: Tran
     countdown = `${minutes}m`;
   }
 
+  // Kit shared/onthego.jsx "Up next": coral island Card, chip + big title +
+  // "Leaves" time. Coral is the kit's primary accent here, not a status.
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-warning/40 bg-warning/10 px-4 py-3">
-      <Timer className="mt-0.5 size-5 shrink-0 text-sun-text" aria-hidden="true" />
-      <div className="flex-1 min-w-0">
-        <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-sun-text">
-          Next departure
-        </span>
-        <p className="mt-0.5 font-display text-2xl font-bold text-foreground">
-          {countdown}
-        </p>
-        <p className="mt-0.5 text-xs text-sun-text">
-          {label}
-          {depTimeLabel && (
-            <span className="ml-1">at {depTimeLabel}{depZone ? ` ${depZone}` : ""}</span>
-          )}
-        </p>
-      </div>
-    </div>
+    <Card tone="coral" shadow={4} radius="xl" className="p-[18px] lg:p-6">
+      <Badge caps className="self-start">
+        <Timer aria-hidden="true" />
+        Next departure · in {countdown}
+      </Badge>
+      <p className="mt-3.5 font-display text-[28px] font-extrabold leading-[1.05] tracking-[-0.04em] text-balance lg:text-4xl">
+        {label}
+      </p>
+      {depTimeLabel && (
+        <div className="mt-3">
+          <div className="text-label">Leaves</div>
+          <div className="font-display text-3xl font-extrabold leading-none tracking-[-0.04em] tabular-nums">
+            {depTimeLabel}
+          </div>
+          {depZone && <div className="mt-1 text-xs font-semibold">{depZone}</div>}
+        </div>
+      )}
+    </Card>
   );
 }

@@ -42,7 +42,7 @@ export function WeatherDaylightCard({ weather, daylight, compact = false }: Prop
           from|via|to, so this card's gradient stops slipped the migration
           entirely). Four changes, each closing one specific gap:
 
-          1. `bg-hue-sky` (solid), not `from-sky-500 to-teal-500` (gradient).
+          1. `tone="hue-sky"` (solid), not `from-sky-500 to-teal-500` (gradient).
              `--hue-sky` is weather's *identity* colour (a category, same as
              a chapter colour), not app *state* — it does not belong on
              `bg-teal`, which shares its exact HSL values with `--success`
@@ -62,15 +62,16 @@ export function WeatherDaylightCard({ weather, daylight, compact = false }: Prop
           3. `island` re-scopes --foreground/--muted-foreground/--border to
              the on-accent ink pair (globals.css) so text on the fill stays
              >= 4.5:1 in both themes — the same mechanism Card's
-             tone="coral|sun|teal|lilac" already uses for text on an accent
+             tone="coral|sun|teal|lilac|hue-*" already uses for text on an accent
              fill (`text-white` is not a Playground token at all).
           4. `shadow-hard-4`, not `shadow-soft-lg` — same underlying value
              (globals.css maps shadow-soft-lg to --shadow-4 for legacy call
              sites), but shadow-hard-* is the current, canonical name. */}
       <Card
+        tone="hue-sky"
         radius="2xl"
         shadow={4}
-        className={cn("island flex gap-3 bg-hue-sky p-4", compact && "p-3 text-sm")}
+        className={cn("flex gap-3 p-4", compact && "p-3 text-sm")}
       >
         {/* Left block: weather (only when weather is present) */}
         {weather && (

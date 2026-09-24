@@ -6,6 +6,8 @@ import { addMarkerToWishlist } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
 import type { MarkerView } from "@/components/globe/types";
 import { cn } from "@/lib/cn";
+import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
 import { categoryAccent } from "./category-pill";
 import type { Category } from "@/lib/categories";
 
@@ -55,11 +57,14 @@ export function GlobeSuggestionsStrip({
     }
   }
 
+  // Chips are the kit's 28px pills; on touch the hit area grows to 44px.
+  const touch = "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']";
+
   return (
-    <section className="rounded-2xl bg-accent/10 p-3">
+    <Card aria-label="From your Globe" role="region" className="p-3.5">
       <div className="flex items-center gap-2">
-        <Globe2 className="size-4 text-accent" aria-hidden="true" />
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-coral-text">
+        <Globe2 className="size-4 text-coral-text" strokeWidth={2.5} aria-hidden="true" />
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-coral-text">
           <span
             data-testid="globe-eyebrow-dot"
             aria-hidden="true"
@@ -68,36 +73,32 @@ export function GlobeSuggestionsStrip({
           From your Globe
         </span>
       </div>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
         {shown.map((marker) => {
           const dot = marker.category
             ? categoryAccent(marker.category as Category).dot
-            : "bg-muted-foreground";
+            : "border-2 border-border bg-muted";
           return (
-            <button
+            <Chip
               key={marker.id}
-              type="button"
+              size="l"
               onClick={() => handleAdd(marker)}
               disabled={pending === marker.id}
               aria-label={`Add ${marker.title}`}
-              className="inline-flex items-center gap-1.5 rounded-full bg-background px-3 py-1.5 text-xs font-semibold text-foreground shadow-soft transition-colors hover:bg-background/70 disabled:opacity-50"
+              className={touch}
             >
-              <span className={cn("size-1.5 rounded-full", dot)} aria-hidden="true" />
+              <span className={cn("size-2.5 shrink-0 rounded-full", dot)} aria-hidden="true" />
               {marker.title}
-              <Plus className="size-3" aria-hidden="true" />
-            </button>
+              <Plus aria-hidden="true" />
+            </Chip>
           );
         })}
         {overflow > 0 && (
-          <button
-            type="button"
-            onClick={onSeeMore}
-            className="px-1 text-xs font-semibold text-coral-text hover:underline"
-          >
+          <Chip size="l" dashed onClick={onSeeMore} className={touch}>
             +{overflow} more
-          </button>
+          </Chip>
         )}
       </div>
-    </section>
+    </Card>
   );
 }

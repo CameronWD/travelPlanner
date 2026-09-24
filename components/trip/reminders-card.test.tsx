@@ -186,6 +186,29 @@ describe("RemindersCard add form", () => {
   });
 });
 
+describe("RemindersCard kit shape", () => {
+  it("renders inside the kit Card shape — 2px border, hard shadow", () => {
+    const { container } = render(
+      <RemindersCard tripId="trip-1" today={TODAY} reminders={[]} />,
+    );
+    const card = container.firstElementChild as HTMLElement;
+    expect(card.className).toMatch(/\bborder-2\b/);
+    expect(card.className).toMatch(/\bshadow-hard-\d\b/);
+  });
+
+  it("gives the delete button a 44px touch target", () => {
+    render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[{ id: "r1", title: "Pack", date: "2026-11-29" }]}
+      />,
+    );
+    const del = screen.getByRole("button", { name: "Delete reminder: Pack" });
+    expect(del.className).toMatch(/\bsize-11\b/);
+  });
+});
+
 describe("RemindersCard Digest opt-in", () => {
   // The Digest opt-in lives on the Trip's Settings page, not on this card.
   it("does not render an enable-notifications control", () => {

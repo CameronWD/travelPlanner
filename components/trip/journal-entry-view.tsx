@@ -1,4 +1,5 @@
 import { relativeTime } from "@/lib/relative-time";
+import { Card } from "@/components/ui/card";
 
 // ---------------------------------------------------------------------------
 // Read-only rendering of one Traveller's journal entry — attribution +
@@ -14,7 +15,7 @@ export interface JournalEntryViewProps {
 
 export function JournalEntryView({ body, updatedAt, authorName }: JournalEntryViewProps) {
   return (
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+    <Card className="p-4">
       <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{body}</p>
       <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
         {authorName ? (
@@ -30,6 +31,6 @@ export function JournalEntryView({ body, updatedAt, authorName }: JournalEntryVi
           <time dateTime={updatedAt.toISOString()}>{relativeTime(updatedAt)}</time>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

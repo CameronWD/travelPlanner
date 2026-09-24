@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ChapterChip } from "./chapter-chip";
+import { HUE_CLASSES } from "@/lib/hues";
 
 describe("ChapterChip", () => {
   it("renders the chapter name and a colour class", () => {
@@ -27,5 +28,19 @@ describe("ChapterChip", () => {
     expect(dot.getAttribute("aria-hidden")).toBe("true");
     expect(dot.className).toContain("rounded-full");
     expect(dot.className).toContain("hue-pink");
+  });
+
+  it("renders the kit chip shape: a 2px ink outline from HUE_CLASSES, never a 1px border", () => {
+    const { container } = render(<ChapterChip name="Italy" colour="rose" />);
+    const chip = container.firstChild as HTMLElement;
+    const classes = chip.className.split(/\s+/);
+    for (const c of HUE_CLASSES.pink.chip.split(" ")) expect(classes).toContain(c);
+    expect(classes).not.toContain("border");
+    expect(classes).toContain("font-extrabold");
+    expect(classes).toContain("rounded-full");
+  });
+  it("keeps the chapter name as its accessible text", () => {
+    render(<ChapterChip name="Italy" colour="emerald" />);
+    expect(screen.getByText("Italy").textContent).toBe("Italy");
   });
 });

@@ -22,4 +22,19 @@ describe("DayFeasibility", () => {
     const { container } = render(<DayFeasibility entries={[]} />);
     expect(container.firstChild).toBeNull();
   });
+
+  it("renders as the kit sun 'heads up' card (DDays.jsx), not the old 1px card", () => {
+    const { container } = render(
+      <DayFeasibility entries={[{ severity: "warning", message: "Only 5 min but 27 min to walk." }]} />,
+    );
+    const card = container.firstChild as HTMLElement;
+    const cls = card.className.split(/\s+/);
+    expect(cls).toContain("bg-sun");
+    expect(cls).toContain("island");
+    expect(cls).toContain("border-2");
+    expect(cls).not.toContain("rounded-2xl");
+    // A sun fill under sun-text would collapse — text on the island is plain ink.
+    expect(container.innerHTML).not.toMatch(/text-sun-text/);
+    expect(screen.getByRole("heading", { name: "Getting around" })).toBeInTheDocument();
+  });
 });

@@ -22,6 +22,9 @@ import { tripHomeBase, hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
 import { getTripProjection } from "@/server/actions/stops";
 import { chapterForStop } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
+import { Route } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { CountdownHero } from "@/components/trip/home/countdown-hero";
 import { NextStepsCard } from "@/components/trip/home/next-steps-card";
 import { BudgetGlance } from "@/components/trip/home/budget-glance";
@@ -70,7 +73,7 @@ interface PhasePlanningProps {
 
 /** Exported for className assertion in tests — must match the JSX below. */
 export const PLANNING_DESKTOP_GRID_CLASS =
-  "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
+  "grid grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
 
 export async function PhasePlanning({
   tripId,
@@ -371,31 +374,39 @@ export async function PhasePlanning({
 
   const route =
     mapStops.length > 0 ? (
-      <section
-        key="route"
-        className="overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-soft"
-      >
+      <Card key="route" className="overflow-hidden p-0">
         <RouteMap stops={mapStops} height={280} />
-      </section>
-    ) : null;
+      </Card>
+    ) : (
+      // Kit shared/states.jsx "Plan" empty: the route has nothing to draw yet.
+      <EmptyState
+        key="route"
+        icon={Route}
+        tone="teal"
+        title="No stops yet"
+        description={
+          allStopsRaw.length === 0
+            ? "Add the first place. We'll draw the route as you go."
+            : "Give your stops dates and we'll draw the route."
+        }
+      />
+    );
 
-  // Bold Modular desktop (D2): full-width hero, then a main column (route +
-  // next-steps) beside a right rail (budget + quick-actions). On mobile the
-  // grid collapses to one column, preserving the order hero → route →
-  // next-steps → budget → quick-actions.
+  // Kit DHome.jsx grid: the coral countdown hero leads the main column
+  // (route + next steps below it) beside a rail led by the "Spent" card
+  // (budget + upcoming payments + quick actions). On mobile the grid
+  // collapses to one column: hero → route → next steps → budget → actions.
   return (
-    <div className="flex flex-col gap-6">
-      {hero}
-      <div className={PLANNING_DESKTOP_GRID_CLASS} data-testid="planning-desktop-grid">
-        <div className="flex flex-col gap-6">
-          {route}
-          {nextSteps}
-        </div>
-        <div className="flex flex-col gap-6">
-          {money}
-          {upcomingEl}
-          {actions}
-        </div>
+    <div className={PLANNING_DESKTOP_GRID_CLASS} data-testid="planning-desktop-grid">
+      <div className="flex flex-col gap-3.5">
+        {hero}
+        {route}
+        {nextSteps}
+      </div>
+      <div className="flex flex-col gap-3.5">
+        {money}
+        {upcomingEl}
+        {actions}
       </div>
     </div>
   );

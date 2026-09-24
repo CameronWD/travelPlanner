@@ -101,13 +101,14 @@ export function NewTripForm() {
 
       {/* Home currency */}
       <Field
+        id="homeCurrency"
         label="Home currency"
         required
         error={fieldError("homeCurrency")}
         description="Trip totals will be shown in this currency."
       >
         <Select name="homeCurrency" defaultValue={DEFAULT_HOME_CURRENCY}>
-          <SelectTrigger disabled={isPending}>
+          <SelectTrigger id="homeCurrency" disabled={isPending}>
             <SelectValue placeholder="Select currency" />
           </SelectTrigger>
           <SelectContent>

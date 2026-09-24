@@ -55,12 +55,18 @@ vi.mock("@/lib/dates", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/dates")>();
   return { ...actual, todayISO: vi.fn(), formatLongDate: vi.fn(), dayNumberInTrip: vi.fn() };
 });
-vi.mock("@/lib/itinerary", () => ({
-  buildItinerary: buildItineraryMock,
-  effectiveTodayISO: vi.fn(),
-  pickDayPlan: pickDayPlanMock,
-  isFreeFormDay: isFreeFormDayMock,
-}));
+vi.mock("@/lib/itinerary", async (importOriginal) => {
+  // Keep the real dayHasEntries — the one "anything to show?" check shared
+  // with Timeline, so the empty branch here can't drift from Timeline's.
+  const actual = await importOriginal<typeof import("@/lib/itinerary")>();
+  return {
+    buildItinerary: buildItineraryMock,
+    effectiveTodayISO: vi.fn(),
+    pickDayPlan: pickDayPlanMock,
+    isFreeFormDay: isFreeFormDayMock,
+    dayHasEntries: actual.dayHasEntries,
+  };
+});
 vi.mock("@/lib/day-map", () => ({ buildDayMapModel: vi.fn(), buildItemDirections: vi.fn() }));
 vi.mock("@/lib/nearby", () => ({ nearbyWishlistItems: vi.fn(), dayIdeasWishlist: dayIdeasWishlistMock }));
 vi.mock("@/lib/chapters", () => ({ chapterForDate: vi.fn() }));
@@ -83,6 +89,10 @@ vi.mock("@/components/trip/chapter-chip", () => ({ ChapterChip: () => null }));
 vi.mock("@/components/trip/upcoming-payments-card", () => ({ UpcomingPaymentsCard: () => null }));
 // React import needed for JSX in mocks above
 import React from "react";
+
+// A DayPlan's entry arrays, empty — spread into fixtures so the component sees
+// the real DayPlan shape (lib/itinerary.ts) rather than a bare `{ stop }`.
+const EMPTY_DAY = { timedItems: [], untimedItems: [], transportEntries: [], accommodationEntries: [] };
 
 const { TRAVELLING_DESKTOP_GRID_CLASS, PhaseTravelling } = await import("./phase-travelling");
 const { UpcomingPaymentsCard } = await import("@/components/trip/upcoming-payments-card");
@@ -242,7 +252,7 @@ describe("PhaseTravelling Day ideas mount (Task 16)", () => {
 
   it("mounts NearbyWishlist (not DayIdeas) on a planned day", async () => {
     isFreeFormDayMock.mockReturnValue(false);
-    pickDayPlanMock.mockReturnValue({ stop: { id: "stop-1" } });
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1" } });
 
     const tree = await PhaseTravelling({ tripId: "trip-1" });
 
@@ -252,7 +262,7 @@ describe("PhaseTravelling Day ideas mount (Task 16)", () => {
 
   it("mounts DayIdeas (not NearbyWishlist) on a free-form day and fetches the stop's things-to-do", async () => {
     isFreeFormDayMock.mockReturnValue(true);
-    pickDayPlanMock.mockReturnValue({ stop: { id: "stop-1" } });
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1" } });
     itemFindManyMock.mockResolvedValue([
       { id: "th1", title: "Residenz", category: "SIGHTSEEING", startTime: null, endTime: null },
     ]);
@@ -270,7 +280,7 @@ describe("PhaseTravelling Day ideas mount (Task 16)", () => {
 
   it("skips the things-to-do query on a free-form day with no current stop", async () => {
     isFreeFormDayMock.mockReturnValue(true);
-    pickDayPlanMock.mockReturnValue({ stop: null });
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: null });
 
     await PhaseTravelling({ tripId: "trip-1" });
 
@@ -393,7 +403,7 @@ describe("PhaseTravelling 'Where you are' map link gating (SW-02)", () => {
     isFreeFormDayMock.mockReturnValue(false);
     dayIdeasWishlistMock.mockReturnValue([]);
     pickDayPlanMock.mockReturnValue({
-      stop: { id: "stop-1", name: "Munich", country: "Germany" },
+      ...EMPTY_DAY, stop: { id: "stop-1", name: "Munich", country: "Germany" },
     });
   });
 
@@ -418,5 +428,130 @@ describe("PhaseTravelling 'Where you are' map link gating (SW-02)", () => {
     expect(el).not.toBeNull();
     expect(el!.props.lat).toBe(48.1);
     expect(el!.props.lng).toBe(11.6);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Playground kit restyle (Task 10b) — kit `shared/onthego.jsx` "Today"
+// ---------------------------------------------------------------------------
+
+const { renderToStaticMarkup } = await import("react-dom/server");
+const { EmptyState } = await import("@/components/ui/empty-state");
+const datesMod = await import("@/lib/dates");
+const itineraryMod = await import("@/lib/itinerary");
+
+function toDom(tree: unknown): HTMLElement {
+  const div = document.createElement("div");
+  div.innerHTML = renderToStaticMarkup(tree as React.ReactElement);
+  return div;
+}
+
+/** The nearest ancestor (or self) that is a kit Card: 2px outline + hard shadow. */
+function closestKitCard(el: Element | null): HTMLElement | null {
+  let node = el as HTMLElement | null;
+  while (node) {
+    const cls = node.getAttribute?.("class") ?? "";
+    if (/\bborder-2\b/.test(cls) && /\bshadow-hard-\d\b/.test(cls)) return node;
+    node = node.parentElement;
+  }
+  return null;
+}
+
+function findAllByType(node: unknown, type: unknown, out: { props: Record<string, unknown> }[] = []) {
+  if (node == null || typeof node !== "object") return out;
+  if (Array.isArray(node)) {
+    for (const n of node) findAllByType(n, type, out);
+    return out;
+  }
+  const el = node as { type?: unknown; props?: { children?: unknown } };
+  if (el.type === type) out.push(node as { props: Record<string, unknown> });
+  findAllByType(el.props?.children, type, out);
+  return out;
+}
+
+describe("PhaseTravelling Playground kit restyle (Task 10b)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+      homeCurrency: "GBP",
+      chaptersEnabled: true,
+    });
+    stopFindManyMock.mockResolvedValue([
+      { id: "stop-1", name: "Munich", country: "Germany", countryCode: "de", lat: 48.1, lng: 11.6, timezone: "Europe/Berlin", arriveDate: "2026-01-01", departDate: "2026-01-10", sortOrder: 0 },
+    ]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([
+      { id: "acc-1", stopId: "stop-1", name: "Hotel Bayern", address: "1 Main St", checkIn: "2026-01-01", checkOut: "2026-01-10", checkInTime: null, checkOutTime: null, confirmation: null, notes: null, lat: 48.1, lng: 11.6 },
+    ]);
+    costFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([]);
+    isFreeFormDayMock.mockReturnValue(false);
+    dayIdeasWishlistMock.mockReturnValue([]);
+    vi.mocked(itineraryMod.effectiveTodayISO).mockReturnValue("2026-01-05");
+    vi.mocked(datesMod.formatLongDate).mockReturnValue("Mon 5 Jan 2026");
+    vi.mocked(datesMod.dayNumberInTrip).mockImplementation((d: string) => (d === "2026-01-10" ? 10 : 5));
+    pickDayPlanMock.mockReturnValue(null);
+  });
+
+  it("renders the kit day header: 'Day n of N' label above the date as the h2", async () => {
+    // Within the trip window regardless of the real clock: widen the trip.
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2000-01-01", endDate: "2999-01-10", homeCurrency: "GBP", chaptersEnabled: false });
+    vi.mocked(datesMod.dayNumberInTrip).mockImplementation((d: string) => (d === "2999-01-10" ? 12 : 6));
+    const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
+    expect(dom.querySelector("h2")?.textContent).toContain("Mon 5 Jan 2026");
+    expect(dom.textContent).toContain("Day 6 of 12");
+  });
+
+  it("puts every module in a kit Card, headings in order, with tonight's stay on the lilac (stay) fill", async () => {
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1", name: "Munich", country: "Germany" } });
+    const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
+
+    const headings = [...dom.querySelectorAll("h2, h3")].map((h) => h.textContent?.trim());
+    expect(headings).toEqual(["Today, Mon 5 Jan 2026", "Today's plan", "Tonight's stay", "Where you are"]);
+
+    for (const text of ["Today's plan", "Where you are", "Tonight's stay"]) {
+      const h = [...dom.querySelectorAll("h3")].find((el) => el.textContent?.trim() === text)!;
+      expect(closestKitCard(h), `${text} sits in a kit Card`).not.toBeNull();
+    }
+    const tonight = [...dom.querySelectorAll("h3")].find((el) => el.textContent === "Tonight's stay")!;
+    expect(closestKitCard(tonight)!.className).toContain("bg-lilac");
+
+    // No old-shape containers survive.
+    expect(dom.innerHTML).not.toMatch(/rounded-2xl border border-border|shadow-soft|bg-hue-leaf\/25/);
+  });
+
+  it("renders the kit empty treatment when nothing is planned today", async () => {
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+    const empty = findElementByType(tree, EmptyState);
+    expect(empty).not.toBeNull();
+    expect(empty!.props.title).toBe("Nothing planned");
+  });
+
+  it("also uses the kit empty treatment for a day that exists but has nothing on it", async () => {
+    pickDayPlanMock.mockReturnValue({
+      ...EMPTY_DAY, stop: { id: "stop-1", name: "Munich", country: "Germany" },
+      timedItems: [], untimedItems: [], transportEntries: [], accommodationEntries: [],
+    });
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+    expect(findElementByType(tree, EmptyState)?.props.title).toBe("Nothing planned");
+  });
+
+  it("never frames money per person — shared pot only", async () => {
+    pickDayPlanMock.mockReturnValue({ ...EMPTY_DAY, stop: { id: "stop-1", name: "Munich", country: "Germany" } });
+    const dom = toDom(await PhaseTravelling({ tripId: "trip-1" }));
+    expect(dom.textContent).not.toMatch(/per person|each owes|split/i);
+  });
+
+  it("renders the quick links as kit Buttons onto the day view and Days", async () => {
+    const { Button } = await import("@/components/ui/button");
+    const tree = await PhaseTravelling({ tripId: "trip-1" });
+    const buttons = findAllByType(tree, Button);
+    const hrefs = buttons.map((b) => (b.props.children as { props: { href: string } }).props.href);
+    expect(hrefs).toEqual(expect.arrayContaining(["/trips/trip-1/day/2026-01-05", "/trips/trip-1/calendar"]));
   });
 });

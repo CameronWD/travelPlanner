@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { FormError } from "@/components/ui/form-error";
 import { Textarea } from "@/components/ui/textarea";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -92,7 +93,7 @@ function PhotoStrip({
                 <img
                   src={photo.url}
                   alt={photo.filename}
-                  className="h-24 w-full rounded-xl object-cover transition-opacity group-hover:opacity-80"
+                  className="h-24 w-full rounded-md border-2 border-border object-cover transition-opacity group-hover:opacity-80"
                 />
               </AttachmentLink>
               <button
@@ -101,7 +102,7 @@ function PhotoStrip({
                 disabled={isPending && deletingId === photo.id}
                 onClick={() => handleDelete(photo.id)}
                 className={cn(
-                  "absolute right-1 top-1 flex size-6 items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover:opacity-100",
+                  "absolute right-1 top-1 flex size-7 items-center justify-center rounded-full border-2 border-border bg-card text-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']",
                   isPending && deletingId === photo.id && "opacity-100",
                 )}
               >
@@ -135,15 +136,16 @@ function PhotoStrip({
         <label
           htmlFor={`journal-photo-${tripId}-${date}`}
           className={cn(
-            "inline-flex size-14 cursor-pointer items-center justify-center rounded-xl border-[1.5px] border-dashed border-border transition-colors hover:border-primary hover:text-primary",
+            "inline-flex size-14 cursor-pointer items-center justify-center rounded-md border-2 border-dashed border-border-soft text-muted-foreground transition-colors hover:border-border hover:text-foreground",
             isPending && !deletingId && "pointer-events-none opacity-50",
           )}
         >
           {isPending && !deletingId ? (
             <Loader2 className="size-4 animate-spin" />
           ) : (
-            <Plus className="size-4" />
+            <Plus className="size-4" aria-hidden="true" />
           )}
+          <span className="sr-only">Add a photo</span>
         </label>
       </div>
     </div>
@@ -309,11 +311,11 @@ export function JournalEditor({
   return (
     <>
       {dialog}
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
+      <Card className="p-4">
         <div className="space-y-3">
           {/* Header row: date label + combined save status / char count */}
           <div className="flex items-center justify-between">
-            <span className="font-display text-sm font-bold text-foreground">
+            <span className="font-display text-base font-extrabold tracking-[-0.02em] text-foreground">
               {dateLabel}
             </span>
             {/* role="status" aria-live="polite" — always mounted, stable position */}
@@ -342,7 +344,7 @@ export function JournalEditor({
             placeholder="How was today? Jot a memory…"
             rows={6}
             maxLength={5000}
-            className="rounded-xl resize-none"
+            className="resize-none"
             aria-label="Journal entry"
             disabled={isSaving}
           />
@@ -394,11 +396,11 @@ export function JournalEditor({
 
           {/* Photo strip */}
           <div className="space-y-2">
-            <h4 className="text-sm font-medium text-foreground">Photos</h4>
+            <h4 className="text-label text-muted-foreground">Photos</h4>
             <PhotoStrip tripId={tripId} date={date} photos={photos} />
           </div>
         </div>
-      </div>
+      </Card>
     </>
   );
 }

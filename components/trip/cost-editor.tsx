@@ -348,7 +348,7 @@ export function CostEditor({
             <AnimatedItem
               key={cost.id}
               className={cn(
-                "flex items-center justify-between gap-2 rounded-lg px-3 py-2 bg-muted/40 border border-border/50",
+                "flex items-center justify-between gap-2 rounded-md border-2 border-border bg-background px-3 py-2",
                 pendingDeleteId === cost.id && "opacity-50 pointer-events-none",
               )}
             >

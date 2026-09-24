@@ -1,6 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Timeline } from "./timeline";
+import { Timeline, dayHasEntries } from "./timeline";
+import { HUE_CLASSES } from "@/lib/hues";
+import { dayHasEntries as itineraryDayHasEntries } from "@/lib/itinerary";
 import type { DayPlan } from "@/lib/itinerary";
 
 // Timeline renders UnscheduleItemButton (a client island) on day-variant item
@@ -65,6 +67,14 @@ const dayPlan: DayPlan = {
 };
 
 const GOOGLE_URL = "https://maps.google.com/?q=Tokyo+Tower";
+
+const emptyDay: DayPlan = {
+  ...dayPlan,
+  timedItems: [],
+  untimedItems: [],
+  transportEntries: [],
+  accommodationEntries: [],
+};
 
 // ---------------------------------------------------------------------------
 // Fixtures for truncation tests
@@ -326,26 +336,32 @@ describe("Timeline — mobile-hardening structural assertions (Task 3)", () => {
     expect(cls.match(/\btruncate\b/) || cls.match(/\bbreak-words\b/)).toBeTruthy();
   });
 
-  it("TimeGutter span carries w-9 class for mobile-width shrinkage", () => {
+  // Playground reskin (Task 12a): the gutter is the kit Days time column
+  // (Days.jsx: a 44px `--type-label` column), in tabular figures.
+  // Was `w-9` (36px) + font-mono before the reskin.
+  it("TimeGutter is the kit 44px time column (w-11) in tabular figures", () => {
     const { container } = render(
       <Timeline day={dayPlanWithLongTimedTitle} variant="day" />,
     );
-    // TimeGutter renders as a shrink-0 span with font-mono and w-9
-    const gutterSpan = container.querySelector("span.w-9");
+    const gutterSpan = container.querySelector("span.w-11");
     expect(gutterSpan).not.toBeNull();
-    expect(gutterSpan!.className).toMatch(/\bw-9\b/);
+    expect(gutterSpan!.className).toMatch(/\bshrink-0\b/);
+    expect(gutterSpan!.className).toMatch(/\btabular-nums\b/);
+    expect(gutterSpan!.textContent).toBe("09:00");
   });
 
-  it("timed item card carries min-w-0 so the flex-1 card can shrink below its content's intrinsic width (Task 8 sweep fix)", () => {
+  it("timed item row body carries min-w-0 so the flex-1 card can shrink below its content's intrinsic width (Task 8 sweep fix)", () => {
     // Without min-w-0 on this flex-item card, the title/badge/Unschedule row
     // refuses to shrink below its content width, overflowing the 320px
     // viewport even though the title span itself truncates.
     const { container } = render(
       <Timeline day={dayPlanWithLongTimedTitle} variant="day" showUnschedule />,
     );
-    const card = container.querySelector(".border-l-4.bg-card");
-    expect(card).not.toBeNull();
-    expect(card!.className).toMatch(/\bmin-w-0\b/);
+    // Reskin: the row body (title + actions) is the flex-1 track now, not a
+    // left-bordered card — same min-w-0 guarantee.
+    const body = container.querySelector("[data-timeline-row] .flex-1.min-w-0");
+    expect(body).not.toBeNull();
+    expect(body!.className).toMatch(/\bmin-w-0\b/);
   });
 });
 
@@ -407,15 +423,90 @@ const dayPlanWithUntimedItem: DayPlan = {
   accommodationEntries: [],
 };
 
-describe("Timeline — Task 8 Bold-Modular day row class-string regressions", () => {
-  it("day timed rows get a category-hued left border card", () => {
+// Playground reskin (Task 12a) replaced the Task 8 shapes these used to pin
+// (a 4px category-hued left border card for timed rows, a dashed card for
+// untimed rows) with the kit timeline row: time · 28px hue tile · title/sub,
+// rows split by a 2px dotted rule (Days.jsx / onthego.jsx Today).
+describe("Timeline — kit day rows (Task 12a)", () => {
+  it("day timed rows carry the category as a 2px-outlined hue tile (identity via lib/hues.ts)", () => {
     const { container } = render(<Timeline day={dayPlanWithTimedFood} variant="day" />);
-    expect(container.querySelector(".border-l-4.border-l-hue-sun")).toBeTruthy();
+    const tile = container.querySelector("[data-timeline-row] [data-testid='timeline-tile']");
+    expect(tile).not.toBeNull();
+    const cls = tile!.className.split(/\s+/);
+    // FOOD → sun hue
+    expect(cls).toContain(HUE_CLASSES.sun.fill);
+    expect(cls).toContain("text-on-accent");
+    expect(cls).toContain("border-2");
+    expect(cls).toContain("border-border");
+    expect(tile!.getAttribute("aria-hidden")).toBe("true");
   });
 
-  it("day untimed rows use a dashed border", () => {
+  it("day untimed rows use the same kit row (dotted divider), not a dashed card", () => {
     const { container } = render(<Timeline day={dayPlanWithUntimedItem} variant="day" />);
-    expect(container.querySelector(".border-dashed")).toBeTruthy();
+    const row = container.querySelector("[data-timeline-row]");
+    expect(row).not.toBeNull();
+    expect(row!.className).toMatch(/\bborder-dotted\b/);
+    expect(container.querySelector(".border-dashed")).toBeNull();
+  });
+
+  it("day variant has none of the pre-reskin shapes", () => {
+    for (const day of [dayPlan, dayPlanWithCheckin, dayPlanWithCheckout, dayPlanWithTransport, dayPlanWithTimedFood]) {
+      const { container, unmount } = render(<Timeline day={day} variant="day" showUnschedule />);
+      expect(container.innerHTML).not.toMatch(/shadow-soft|rounded-2xl|border-l-4|bg-hue-(leaf|pink)\/25|bg-primary\/5|font-mono/);
+      unmount();
+    }
+  });
+
+  it("the category name stays readable as text next to the hue tile", () => {
+    render(<Timeline day={dayPlanWithTimedFood} variant="day" />);
+    expect(screen.getByText("Food & Drink")).toBeInTheDocument();
+  });
+
+  it("the directions link keeps its accessible name and gets a ≥44px coarse-pointer hit area", () => {
+    render(
+      <Timeline
+        day={dayPlan}
+        variant="day"
+        itemDirections={{ [ITEM_ID]: { google: GOOGLE_URL, apple: null } }}
+      />,
+    );
+    const link = screen.getByRole("link", { name: `Directions to ${ITEM_TITLE}` });
+    expect(link.className).toMatch(/pointer-coarse:after:absolute/);
+    expect(link.className).toMatch(/pointer-coarse:after:-inset-2\.5/);
+  });
+
+  it("an empty day renders the kit empty treatment in the day variant", () => {
+    render(<Timeline day={emptyDay} variant="day" />);
+    expect(screen.getByRole("heading", { name: "Nothing planned" })).toBeInTheDocument();
+  });
+
+  it("an empty day keeps the one-line fallback in the agenda variant (calendar, Task 12b)", () => {
+    render(<Timeline day={emptyDay} variant="agenda" />);
+    expect(screen.getByText("Nothing planned.")).toBeInTheDocument();
+  });
+
+  it("the agenda variant uses the same kit Days rows as the day variant (calendar, Task 12b)", () => {
+    const { container } = render(<Timeline day={dayPlan} variant="agenda" />);
+    const rows = container.querySelectorAll("[data-timeline-row]");
+    // dayPlan: one timed + one untimed item.
+    expect(rows).toHaveLength(2);
+    expect(screen.getAllByTestId("timeline-tile")).toHaveLength(2);
+    expect(container.innerHTML).not.toMatch(/px-2 py-1|bg-muted-foreground\/30/);
+  });
+});
+
+describe("dayHasEntries (shared with phase-travelling)", () => {
+  it("is the same helper phase-travelling imports from lib/itinerary (one check, both call sites)", () => {
+    expect(dayHasEntries).toBe(itineraryDayHasEntries);
+  });
+  it("is false for a day with nothing on it", () => {
+    expect(dayHasEntries(emptyDay)).toBe(false);
+  });
+  it("is true for items, transport or accommodation alone", () => {
+    expect(dayHasEntries(dayPlan)).toBe(true);
+    expect(dayHasEntries(dayPlanWithTransport)).toBe(true);
+    expect(dayHasEntries(dayPlanWithCheckin)).toBe(true);
+    expect(dayHasEntries(dayPlanWithUntimedItem)).toBe(true);
   });
 });
 

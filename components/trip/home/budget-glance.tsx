@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { formatMoneyCompact } from "@/lib/money";
+import { StatCard } from "@/components/ui/stat-card";
 
 interface BudgetGlanceProps {
   costTotalMinor: number;
@@ -8,21 +9,26 @@ interface BudgetGlanceProps {
   href: string;
 }
 
-/** Quiet "paid so far" strip: label + thin success bar + paid/cost. */
+/**
+ * Kit DHome.jsx / Home.jsx "Spent" StatCard: paid so far over the trip's cost,
+ * with a bar. The money is one shared pot, so the sub-line says so.
+ */
 export function BudgetGlance({ costTotalMinor, paidTotalMinor, homeCurrency, href }: BudgetGlanceProps) {
   const pct = costTotalMinor > 0 ? Math.min(100, Math.round((paidTotalMinor / costTotalMinor) * 100)) : 0;
   return (
-    <Link href={href} className="flex items-center gap-3 rounded-full px-1 py-2 transition-colors hover:bg-muted/40">
-      <span className="shrink-0 text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground">
-        Paid so far
-      </span>
-      <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-        <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
-      </span>
-      <span className="shrink-0 text-xs font-semibold tabular-nums text-foreground">
-        {formatMoneyCompact(paidTotalMinor, homeCurrency)}{" "}
-        <span className="font-medium text-muted-foreground">/ {formatMoneyCompact(costTotalMinor, homeCurrency)} cost</span>
-      </span>
+    <Link href={href} className="block rounded-lg">
+      <StatCard
+        tone="sun"
+        label="Paid so far"
+        value={formatMoneyCompact(paidTotalMinor, homeCurrency)}
+        progress={pct}
+        sub={
+          <>
+            of {formatMoneyCompact(costTotalMinor, homeCurrency)} cost · shared pot
+          </>
+        }
+        className="pressable hover:shadow-hard-3"
+      />
     </Link>
   );
 }

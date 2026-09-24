@@ -282,7 +282,11 @@
 
 /* Accent "island": anything on a coral/sun/teal/lilac fill re-scopes its text,
    borders and inner surfaces so they stay ≥ 4.5:1 in both themes.
-   Usage: <Card tone="sun"> applies this; or className="island bg-sun". */
+   Usage: <Card tone="sun"> applies this; or className="island bg-sun".
+   --primary-foreground: --primary becomes on-accent (always dark ink), so its
+   foreground is pinned to the light-theme --primary-foreground (cream) — a
+   primary Button inside an island stays the kit's ink button with light text
+   in both themes (in dark the global value is dark, which went ink-on-ink). */
 @utility island {
   --foreground: var(--on-accent);
   --card-foreground: var(--on-accent);
@@ -291,6 +295,7 @@
   --input: var(--on-accent);
   --ring: var(--on-accent);
   --primary: var(--on-accent);
+  --primary-foreground: 40 100% 98%;
   --card: 40 100% 99% / 0.38;
   --background: 40 100% 99% / 0.38;
   color: hsl(var(--on-accent));

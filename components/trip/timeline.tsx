@@ -1,16 +1,27 @@
 import * as React from "react";
 import {
-  Clock,
   ArrowRight,
   LogIn,
   LogOut,
   Hash,
   Navigation,
+  CalendarDays,
+  Landmark,
+  Utensils,
+  Footprints,
+  MoonStar,
+  ShoppingBag,
+  TramFront,
+  CircleDot,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { CategoryPill, categoryAccent } from "./category-pill";
+import { CategoryPill } from "./category-pill";
+import { categoryClasses } from "@/lib/categories";
+import { EmptyState } from "@/components/ui/empty-state";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import {
+  dayHasEntries,
   orderDayEntries,
   type DayPlan,
   type TransportDepartureEntry,
@@ -19,7 +30,9 @@ import {
   type AccommodationCheckoutEntry,
   type ItemEntry,
 } from "@/lib/itinerary";
-import type { Category } from "@/lib/categories";
+import { CATEGORIES, type Category } from "@/lib/categories";
+
+const CATEGORIES_BY_VALUE = new Map<string, (typeof CATEGORIES)[number]>(CATEGORIES.map((c) => [c.value, c]));
 import type { TransportMode } from "@/lib/enums";
 import { AttachmentLinks } from "@/components/trip/attachment-links";
 import type { AttachmentView } from "@/components/trip/attachment-list";
@@ -37,8 +50,11 @@ export interface ItemDirections {
 export interface TimelineProps {
   day: DayPlan;
   /**
-   * "agenda" — compact one-liner rows suitable for the calendar overview.
-   * "day"    — detailed rows with more whitespace and metadata.
+   * Both variants render the kit Days rows (time · 28px tile · body).
+   * "agenda" — the calendar overview: read-only (no Unschedule), and an
+   *            empty day is a one-line "Nothing planned."
+   * "day"    — the Day page: Unschedule when `showUnschedule`, and an empty
+   *            day is the kit EmptyState.
    */
   variant?: "agenda" | "day";
   /**
@@ -66,27 +82,36 @@ export interface TimelineProps {
 // Timeline component
 // ---------------------------------------------------------------------------
 
+/** Timeline's "anything to show?" check — lives in lib/itinerary.ts so pure callers can share it. */
+export { dayHasEntries };
+
 export function Timeline({ day, variant = "agenda", itemDirections, attachmentsByTarget, showUnschedule }: TimelineProps) {
   const isDay = variant === "day";
 
-  const hasAnything =
-    day.timedItems.length > 0 ||
-    day.untimedItems.length > 0 ||
-    day.transportEntries.length > 0 ||
-    day.accommodationEntries.length > 0;
-
-  if (!hasAnything) {
-    return (
-      <p className="py-2 text-sm text-muted-foreground italic">
-        Nothing planned.
-      </p>
+  if (!dayHasEntries(day)) {
+    // Day variant: the kit empty treatment. Agenda (one card per day on the
+    // calendar) keeps a quiet one-liner — a full EmptyState per day is too loud.
+    return isDay ? (
+      <EmptyState
+        icon={CalendarDays}
+        tone="sun"
+        title="Nothing planned"
+        description="Nothing is scheduled for this day yet."
+        className="py-5"
+      />
+    ) : (
+      <p className="text-[13px] font-medium text-muted-foreground">Nothing planned.</p>
     );
   }
 
   const { entries, anytime } = orderDayEntries(day);
+  // The agenda variant is a read-only overview: same kit rows, no Unschedule.
+  const unschedule = isDay && showUnschedule;
 
   return (
-    <div className={cn("flex flex-col", isDay ? "gap-3" : "gap-1.5")}>
+    // Kit Days timeline (both variants) — rows split by a 2px dotted rule
+    // (Days.jsx / DDays.jsx day panel), no gap between rows.
+    <div className="flex flex-col">
       {entries.map((entry) => {
         switch (entry.kind) {
           case "accommodation-checkout":
@@ -94,7 +119,6 @@ export function Timeline({ day, variant = "agenda", itemDirections, attachmentsB
               <AccomCheckoutRow
                 key={`co-${entry.accommodation.id}`}
                 entry={entry}
-                isDay={isDay}
                 attachments={attachmentsByTarget?.[entry.accommodation.id] ?? []}
               />
             );
@@ -103,7 +127,6 @@ export function Timeline({ day, variant = "agenda", itemDirections, attachmentsB
               <AccomCheckinRow
                 key={`ci-${entry.accommodation.id}`}
                 entry={entry}
-                isDay={isDay}
                 attachments={attachmentsByTarget?.[entry.accommodation.id] ?? []}
               />
             );
@@ -113,7 +136,6 @@ export function Timeline({ day, variant = "agenda", itemDirections, attachmentsB
               <TransportRow
                 key={`tr-${entry.transport.id}-${entry.kind}`}
                 entry={entry}
-                isDay={isDay}
                 attachments={attachmentsByTarget?.[entry.transport.id] ?? []}
               />
             );
@@ -122,10 +144,9 @@ export function Timeline({ day, variant = "agenda", itemDirections, attachmentsB
               <TimedItemRow
                 key={`ti-${entry.item.id}`}
                 entry={entry}
-                isDay={isDay}
                 directions={itemDirections?.[entry.item.id]}
                 attachments={attachmentsByTarget?.[entry.item.id] ?? []}
-                showUnschedule={showUnschedule}
+                showUnschedule={unschedule}
               />
             );
           default:
@@ -135,18 +156,15 @@ export function Timeline({ day, variant = "agenda", itemDirections, attachmentsB
 
       {/* Untimed items */}
       {anytime.length > 0 && (
-        <div className={cn("flex flex-col", isDay ? "gap-2 mt-1" : "gap-1")}>
-          <p className="text-xs sm:text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70 mt-1">
-            Anytime
-          </p>
+        <div className="flex flex-col border-t-2 border-dotted border-border-soft pt-2.5 first:border-t-0 first:pt-0">
+          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Anytime</p>
           {anytime.map((e) => (
             <UntimedItemRow
               key={`ui-${e.item.id}`}
               entry={e}
-              isDay={isDay}
               directions={itemDirections?.[e.item.id]}
               attachments={attachmentsByTarget?.[e.item.id] ?? []}
-              showUnschedule={showUnschedule}
+              showUnschedule={unschedule}
             />
           ))}
         </div>
@@ -176,7 +194,7 @@ function DirectionsLink({
       target="_blank"
       rel="noopener noreferrer"
       aria-label={`Directions to ${label}`}
-      className="inline-flex items-center gap-1 text-primary/70 hover:text-primary transition-colors"
+      className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground pointer-coarse:after:absolute pointer-coarse:after:-inset-2.5 pointer-coarse:after:content-['']"
     >
       <Navigation className="size-3.5 shrink-0" aria-hidden="true" />
     </a>
@@ -187,28 +205,77 @@ function DirectionsLink({
 // Row sub-components
 // ---------------------------------------------------------------------------
 
-function TimeGutter({
-  time,
-  isDay,
-}: {
-  time?: string | null;
-  isDay: boolean;
-}) {
-  if (!isDay) return null;
+function TimeGutter({ time }: { time?: string | null }) {
+  // Kit Days.jsx: a 44px `--type-label` column in muted ink.
   return (
-    <span className="w-9 sm:w-11 shrink-0 text-right text-xs sm:text-[11px] font-mono text-foreground/80 leading-tight pt-0.5">
+    <span className="w-11 shrink-0 text-[11px] leading-7 font-bold tabular-nums text-muted-foreground">
       {time ?? ""}
     </span>
   );
 }
 
+/** Kit day-timeline row: time · 28px tile · body. Rows are split by a 2px dotted rule. */
+function DayRow({
+  time,
+  tile,
+  children,
+}: {
+  time?: string | null;
+  tile: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      data-timeline-row=""
+      className="flex items-start gap-2.5 border-t-2 border-dotted border-border-soft py-2.5 first:border-t-0 first:pt-0 last:pb-0"
+    >
+      <TimeGutter time={time} />
+      {tile}
+      {/* min-w-0 lets the body shrink in its flex track so titles truncate instead of overflowing at narrow widths. */}
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * 28px outlined tile (onthego.jsx Today timeline). `className` sets its fill:
+ * an item's category hue (identity, from lib/hues.ts) or neutral paper.
+ */
+function Tile({ icon: I, className }: { icon: LucideIcon | undefined; className: string }) {
+  return (
+    <span
+      data-testid="timeline-tile"
+      aria-hidden="true"
+      className={cn("grid size-7 shrink-0 place-items-center rounded-sm border-2 border-border", className)}
+    >
+      {I ? <I className="size-[15px]" strokeWidth={2.5} /> : null}
+    </span>
+  );
+}
+
+const NEUTRAL_TILE = "bg-background text-foreground";
+
+/** lucide component per category icon name (lib/categories.ts `icon`). */
+const CATEGORY_ICON: Record<string, LucideIcon> = {
+  landmark: Landmark,
+  utensils: Utensils,
+  footprints: Footprints,
+  "moon-star": MoonStar,
+  "shopping-bag": ShoppingBag,
+  "tram-front": TramFront,
+  "circle-dot": CircleDot,
+};
+
+function ItemTile({ category }: { category: Category }) {
+  const meta = CATEGORIES_BY_VALUE.get(category) ?? CATEGORIES_BY_VALUE.get("OTHER")!;
+  return <Tile icon={CATEGORY_ICON[meta.icon]} className={cn(categoryClasses(category).fill, "text-on-accent")} />;
+}
+
 function TransportRow({
   entry,
-  isDay,
   attachments,
 }: {
   entry: TransportDepartureEntry | TransportArrivalEntry;
-  isDay: boolean;
   attachments: AttachmentView[];
 }) {
   const t = entry.transport;
@@ -234,84 +301,44 @@ function TransportRow({
       : null;
 
   return (
-    <div
-      className={cn(
-        "flex items-start gap-2 px-2 py-1.5",
-        isDay
-          ? "rounded-2xl bg-primary/5 border border-primary/10"
-          : "rounded-lg bg-transparent",
-      )}
-    >
-      <TimeGutter time={gutterTime} isDay={isDay} />
-
-      {/* Mode icon */}
-      <div className="mt-0.5 flex size-5 shrink-0 items-center justify-center">
-        {Icon && (
-          <Icon
-            className={cn(
-              "size-4",
-              isDep ? "text-primary" : "text-muted-foreground",
-            )}
-            aria-hidden="true"
-          />
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1 text-sm leading-tight">
-          <span
-            className={cn(
-              "font-medium",
-              isDep ? "text-foreground" : "text-muted-foreground",
-            )}
-          >
-            {isDep ? "Departs" : "Arrives"} — {meta?.label ?? t.mode}
+    <DayRow time={gutterTime} tile={<Tile icon={Icon} className={NEUTRAL_TILE} />}>
+      <div className="flex min-h-7 min-w-0 flex-wrap items-center gap-1.5 text-sm leading-tight">
+        <span className="font-semibold text-foreground">
+          {isDep ? "Departs" : "Arrives"} — {meta?.label ?? t.mode}
+        </span>
+        {t.reference && (
+          <span className="rounded-full border-2 border-border bg-card px-1.5 text-[10px] font-extrabold leading-4 text-foreground">
+            {t.reference}
           </span>
-          {t.reference && (
-            <span className="rounded bg-muted px-1 py-0 text-xs sm:text-[11px] font-mono text-muted-foreground">
-              {t.reference}
-            </span>
-          )}
-          {/* Same-day time summary: "08:24 → 11:47" */}
-          {sameDayLabels && (
-            <span className="text-xs sm:text-[11px] font-mono text-muted-foreground">
-              {sameDayLabels.dep} → {sameDayLabels.arr}
-            </span>
-          )}
-        </div>
-
-        {/* From → To */}
-        {(fromLabel || toLabel) && (
-          <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-            {fromLabel && <span className="min-w-0 truncate" title={fromLabel}>{fromLabel}</span>}
-            {fromLabel && toLabel && (
-              <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
-            )}
-            {toLabel && <span className="min-w-0 truncate" title={toLabel}>{toLabel}</span>}
-          </div>
         )}
-
-        {/* Multi-day notice */}
-        {isDep && depEntry && !depEntry.arrivesSameDay && depEntry.arrivalDateISO && (
-          <p className="mt-0.5 text-xs sm:text-[11px] text-sun-text">
-            Arrives {depEntry.arrivalDateISO}
-          </p>
+        {sameDayLabels && (
+          <span className="text-xs font-medium tabular-nums text-muted-foreground">
+            {sameDayLabels.dep} → {sameDayLabels.arr}
+          </span>
         )}
-        <AttachmentLinks attachments={attachments} />
       </div>
-    </div>
+      {(fromLabel || toLabel) && (
+        <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs font-medium text-muted-foreground">
+          {fromLabel && <span className="min-w-0 truncate" title={fromLabel}>{fromLabel}</span>}
+          {fromLabel && toLabel && <ArrowRight className="size-3 shrink-0" aria-hidden="true" />}
+          {toLabel && <span className="min-w-0 truncate" title={toLabel}>{toLabel}</span>}
+        </div>
+      )}
+      {isDep && depEntry && !depEntry.arrivesSameDay && depEntry.arrivalDateISO && (
+        <p className="mt-0.5 text-xs font-medium text-sun-text">Arrives {depEntry.arrivalDateISO}</p>
+      )}
+      <AttachmentLinks attachments={attachments} />
+    </DayRow>
   );
 }
 
 function TimedItemRow({
   entry,
-  isDay,
   directions,
   attachments,
   showUnschedule,
 }: {
   entry: ItemEntry;
-  isDay: boolean;
   directions?: ItemDirections;
   attachments: AttachmentView[];
   showUnschedule?: boolean;
@@ -321,208 +348,128 @@ function TimedItemRow({
     ? `${item.startTime} – ${item.endTime}`
     : item.startTime;
 
-  if (isDay) {
-    const accent = categoryAccent(item.category as Category);
-    return (
-      <div className="flex items-start gap-2">
-        <TimeGutter time={item.startTime} isDay={isDay} />
-        {/* min-w-0 lets the card shrink in its flex track so titles truncate instead of overflowing at narrow widths. Not breakpoint-gated: it has no effect unless the row is width-constrained. */}
-        <div className={cn("flex-1 min-w-0 rounded-2xl border-l-4 bg-card px-3 py-2.5 shadow-soft", accent.borderL)}>
-          <div className="flex min-w-0 items-center gap-2">
-            <span
-              className="truncate text-sm font-bold leading-tight text-foreground min-w-0"
-              title={item.title}
-            >
-              {item.title}
-            </span>
-            <CategoryPill category={item.category as Category} size="sm" />
-            <DirectionsLink directions={directions} label={item.title} />
-            {showUnschedule && item.date && (
-              <UnscheduleItemButton
-                itemId={item.id}
-                itemTitle={item.title}
-                date={item.date}
-                startTime={item.startTime ?? null}
-                endTime={item.endTime ?? null}
-                hadStop={item.stopId != null}
-              />
-            )}
-          </div>
-          {(timeLabel || item.address) && (
-            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              {timeLabel && <span>{timeLabel}</span>}
-              {item.address && <span>{item.address}</span>}
-            </div>
-          )}
-          <AttachmentLinks attachments={attachments} />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex items-start gap-2 px-2 py-1">
-      <TimeGutter time={item.startTime} isDay={isDay} />
-
-      <Clock
-        className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/50"
-        aria-hidden="true"
+    <DayRow time={item.startTime} tile={<ItemTile category={item.category as Category} />}>
+      <DayItemBody
+        item={item}
+        timeLabel={item.endTime ? timeLabel : null}
+        directions={directions}
+        attachments={attachments}
+        showUnschedule={showUnschedule}
       />
-
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span className="truncate text-sm font-medium leading-tight text-foreground min-w-0">
-            {item.title}
-          </span>
-          {timeLabel && (
-            <span className="text-xs sm:text-[11px] text-muted-foreground">{timeLabel}</span>
-          )}
-          <DirectionsLink directions={directions} label={item.title} />
-        </div>
-        <CategoryPill category={item.category as Category} size="sm" />
-        <AttachmentLinks attachments={attachments} />
-      </div>
-    </div>
+    </DayRow>
   );
 }
 
 function UntimedItemRow({
   entry,
-  isDay,
   directions,
   attachments,
   showUnschedule,
 }: {
   entry: ItemEntry;
-  isDay: boolean;
   directions?: ItemDirections;
   attachments: AttachmentView[];
   showUnschedule?: boolean;
 }) {
   const { item } = entry;
 
-  if (isDay) {
-    const accent = categoryAccent(item.category as Category);
-    return (
-      <div className="flex items-start gap-2">
-        <TimeGutter time={null} isDay={isDay} />
-        <div className="flex-1 flex items-center gap-2 rounded-2xl border border-dashed border-border/70 px-3 py-2.5">
-          <span
-            className={cn("size-2 shrink-0 rounded-full", accent.dot)}
-            aria-hidden="true"
-          />
-          <span
-            className="truncate text-sm text-foreground/90 min-w-0"
-            title={item.title}
-          >
-            {item.title}
-          </span>
-          {item.address && (
-            <span className="truncate text-xs text-muted-foreground">{item.address}</span>
-          )}
-          <DirectionsLink directions={directions} label={item.title} />
-          {showUnschedule && item.date && (
-            <UnscheduleItemButton
-              itemId={item.id}
-              itemTitle={item.title}
-              date={item.date}
-              startTime={item.startTime ?? null}
-              endTime={item.endTime ?? null}
-              hadStop={item.stopId != null}
-            />
-          )}
-          <AttachmentLinks attachments={attachments} />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex items-start gap-2 px-2 py-0.5">
-      <TimeGutter time={null} isDay={isDay} />
-      <div className="h-1.5 w-1.5 mt-2 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden="true" />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm text-foreground/80">{item.title}</span>
-          <CategoryPill category={item.category as Category} size="sm" />
-          <DirectionsLink directions={directions} label={item.title} />
-        </div>
-        <AttachmentLinks attachments={attachments} />
-      </div>
-    </div>
+    <DayRow time={null} tile={<ItemTile category={item.category as Category} />}>
+      <DayItemBody
+        item={item}
+        timeLabel={null}
+        directions={directions}
+        attachments={attachments}
+        showUnschedule={showUnschedule}
+      />
+    </DayRow>
   );
 }
 
 function AccomCheckinRow({
   entry,
-  isDay,
   attachments,
 }: {
   entry: AccommodationCheckinEntry;
-  isDay: boolean;
   attachments: AttachmentView[];
 }) {
   const { accommodation: a } = entry;
   return (
-    <div
-      className={cn(
-        "flex items-center gap-2",
-        isDay
-          ? "rounded-2xl bg-hue-leaf/25 px-3 py-2.5 text-foreground"
-          : "px-2 py-1 rounded-lg",
+    <DayRow time={a.checkInTime ?? null} tile={<Tile icon={LogIn} className={NEUTRAL_TILE} />}>
+      <span className="block truncate text-sm font-semibold leading-7 text-foreground" title={`Check-in — ${a.name}`}>
+        Check-in — {a.name}
+      </span>
+      {a.confirmation && (
+        <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-muted-foreground">
+          <Hash className="size-3 shrink-0" aria-hidden="true" />
+          {a.confirmation}
+        </p>
       )}
-    >
-      <TimeGutter time={a.checkInTime ?? null} isDay={isDay} />
-      <LogIn
-        className="size-4 shrink-0 text-foreground"
-        aria-hidden="true"
-      />
-      <div className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-foreground" title={`Check-in — ${a.name}`}>
-          Check-in — {a.name}
-        </span>
-        {isDay && a.confirmation && (
-          <p className="mt-0.5 flex items-center gap-1 text-xs text-foreground/80">
-            <Hash className="size-3 shrink-0" aria-hidden="true" />
-            {a.confirmation}
-          </p>
-        )}
-        <AttachmentLinks attachments={attachments} />
-      </div>
-    </div>
+      <AttachmentLinks attachments={attachments} />
+    </DayRow>
   );
 }
 
 function AccomCheckoutRow({
   entry,
-  isDay,
   attachments,
 }: {
   entry: AccommodationCheckoutEntry;
-  isDay: boolean;
   attachments: AttachmentView[];
 }) {
   const { accommodation: a } = entry;
   return (
-    <div
-      className={cn(
-        "flex items-center gap-2",
-        isDay
-          ? "rounded-2xl bg-hue-pink/25 px-3 py-2.5 text-foreground"
-          : "px-2 py-1 rounded-lg",
-      )}
-    >
-      <TimeGutter time={a.checkOutTime ?? null} isDay={isDay} />
-      <LogOut
-        className="size-4 shrink-0 text-foreground"
-        aria-hidden="true"
-      />
-      <div className="min-w-0 flex-1">
-        <span className="block truncate text-sm font-medium text-foreground" title={`Check-out — ${a.name}`}>
-          Check-out — {a.name}
+    <DayRow time={a.checkOutTime ?? null} tile={<Tile icon={LogOut} className={NEUTRAL_TILE} />}>
+      <span className="block truncate text-sm font-semibold leading-7 text-foreground" title={`Check-out — ${a.name}`}>
+        Check-out — {a.name}
+      </span>
+      <AttachmentLinks attachments={attachments} />
+    </DayRow>
+  );
+}
+
+/** Title + actions, then category · time range · address — shared by timed and untimed day rows. */
+function DayItemBody({
+  item,
+  timeLabel,
+  directions,
+  attachments,
+  showUnschedule,
+}: {
+  item: ItemEntry["item"];
+  timeLabel: string | null | undefined;
+  directions?: ItemDirections;
+  attachments: AttachmentView[];
+  showUnschedule?: boolean;
+}) {
+  return (
+    <>
+      <div className="flex min-h-7 min-w-0 items-center gap-1.5">
+        <span
+          className="min-w-0 flex-1 truncate text-sm font-semibold leading-tight text-foreground"
+          title={item.title}
+        >
+          {item.title}
         </span>
-        <AttachmentLinks attachments={attachments} />
+        <DirectionsLink directions={directions} label={item.title} />
+        {showUnschedule && item.date && (
+          <UnscheduleItemButton
+            itemId={item.id}
+            itemTitle={item.title}
+            date={item.date}
+            startTime={item.startTime ?? null}
+            endTime={item.endTime ?? null}
+            hadStop={item.stopId != null}
+          />
+        )}
       </div>
-    </div>
+      <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-muted-foreground">
+        <CategoryPill category={item.category as Category} size="sm" />
+        {timeLabel && <span className="tabular-nums">{timeLabel}</span>}
+        {item.address && <span className="min-w-0 truncate">{item.address}</span>}
+      </div>
+      <AttachmentLinks attachments={attachments} />
+    </>
   );
 }

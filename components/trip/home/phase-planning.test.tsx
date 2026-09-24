@@ -407,3 +407,112 @@ describe("PhasePlanning upcoming payments mount", () => {
     expect(el!.props.payments).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Playground kit restyle (Task 10b) — kit DHome.jsx / Home.jsx "Planning"
+// ---------------------------------------------------------------------------
+
+describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    drivingWindingFactor: 1.3,
+    drivingAvgSpeedKph: 80,
+    homeName: null,
+    homeLat: null,
+    homeLng: null,
+    homeCountryCode: null,
+    roundTrip: false,
+    chaptersEnabled: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    stopCountMock.mockResolvedValue(0);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCountMock.mockResolvedValue(0);
+    checklistItemCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
+  });
+
+  const render = () =>
+    PhasePlanning({ tripId: "trip-1", trip: baseTrip, today: "2025-12-01", phase: "planning" });
+
+  const DATED = [
+    { id: "a", name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0 },
+  ];
+
+  it("puts the countdown hero at the head of the main column, beside the money rail (kit DHome grid)", async () => {
+    const { CountdownHero } = await import("@/components/trip/home/countdown-hero");
+    const { BudgetGlance } = await import("@/components/trip/home/budget-glance");
+    const tree = await render();
+    const g = findByTestId(tree, "planning-desktop-grid")!;
+    const [main, rail] = g.props.children as { props: { children: unknown } }[];
+    const mainKids = ([] as unknown[]).concat(main.props.children).filter(Boolean) as { type: unknown }[];
+    expect(mainKids[0].type).toBe(CountdownHero);
+    expect(findElementByType(rail, BudgetGlance)).not.toBeNull();
+  });
+
+  it("frames the route map in a kit Card", async () => {
+    stopFindManyMock.mockImplementation((args: { select?: { lat?: boolean } }) =>
+      Promise.resolve(args.select?.lat ? DATED : [{ id: "a", name: "Rome", sortOrder: 0 }]),
+    );
+    const { Card } = await import("@/components/ui/card");
+    const card = findParentOf(await render(), RouteMapLoader);
+    expect(card?.type).toBe(Card);
+  });
+
+  it("renders the kit empty treatment in place of the route map when no stop has dates", async () => {
+    const { EmptyState } = await import("@/components/ui/empty-state");
+    const empty = findElementByType(await render(), EmptyState);
+    expect(empty).not.toBeNull();
+    expect(empty!.props.title).toBe("No stops yet");
+    expect(findElementByType(await render(), RouteMapLoader)).toBeNull();
+  });
+
+  it("never frames money per person — shared pot only", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const html = renderToStaticMarkup((await render()) as Parameters<typeof renderToStaticMarkup>[0]);
+    expect(html).not.toMatch(/per person|each owes|split/i);
+  });
+});
+
+function findByTestId(node: unknown, id: string): { props: Record<string, unknown> } | null {
+  if (node == null || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const f = findByTestId(n, id);
+      if (f) return f;
+    }
+    return null;
+  }
+  const el = node as { props?: Record<string, unknown> };
+  if (el.props?.["data-testid"] === id) return el as { props: Record<string, unknown> };
+  return findByTestId(el.props?.children, id);
+}
+
+/** The nearest element whose direct children include an element of `type`. */
+function findParentOf(node: unknown, type: unknown): { type?: unknown } | null {
+  if (node == null || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const f = findParentOf(n, type);
+      if (f) return f;
+    }
+    return null;
+  }
+  const el = node as { type?: unknown; props?: { children?: unknown } };
+  const kids = ([] as unknown[]).concat(el.props?.children ?? []);
+  if (kids.some((k) => k && typeof k === "object" && (k as { type?: unknown }).type === type)) return el;
+  return findParentOf(el.props?.children, type);
+}

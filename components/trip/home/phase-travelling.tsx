@@ -9,12 +9,15 @@ import {
   effectiveTodayISO,
   pickDayPlan,
   isFreeFormDay,
+  dayHasEntries,
 } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
 import { nearbyWishlistItems, dayIdeasWishlist } from "@/lib/nearby";
 import { chapterForDate } from "@/lib/chapters";
 import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Timeline } from "@/components/trip/timeline";
 import { DayMapPanel } from "@/components/trip/day-map-panel";
 import { NearbyWishlist } from "@/components/trip/nearby-wishlist";
@@ -48,6 +51,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
     return (
       <EmptyState
         icon={CalendarDays}
+        tone="sun"
         title="No dates yet."
         description="Set your trip's start date to see a day-by-day view of today."
       />
@@ -422,23 +426,21 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
       })
     : [];
 
-  return (
-    <div className="flex flex-col gap-6">
-      {/* ── Header (full-width above the grid) ── */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-baseline gap-2">
-          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
-            Today
-          </h2>
-          <span className="text-sm text-muted-foreground">
-            {formatLongDate(effectiveDate)}
-          </span>
-        </div>
+  const totalDays = dayNumberInTrip(endDate, startDate);
+  // Timeline's own "anything to show?" check (one helper, shared), so an
+  // empty day gets this card's empty treatment.
+  const hasEntries = dayPlan != null && dayHasEntries(dayPlan);
+  const stopLocated = effectiveStop ? stops.find((s) => s.id === effectiveStop.id) : undefined;
 
-        {/* Day / chapter context label */}
+  return (
+    <div className="flex flex-col gap-3 lg:gap-[18px]">
+      {/* ── Header (kit Today: "Day 6 of 12" label over the date) ── */}
+      <div className="flex flex-col gap-1 pt-2">
         {isWithinTrip && (
-          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-            <span>Day {dayNum}</span>
+          <p className="flex flex-wrap items-center gap-1.5 text-label text-muted-foreground">
+            <span>
+              Day {dayNum} of {totalDays}
+            </span>
             {currentChapter && (
               <>
                 <span aria-hidden="true">·</span>
@@ -447,42 +449,63 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
             )}
           </p>
         )}
+        <h2 className="font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground lg:text-4xl">
+          <span className="sr-only">Today, </span>
+          {formatLongDate(effectiveDate)}
+        </h2>
 
         {/* Out-of-trip notice */}
         {isBeforeTrip && (
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm font-medium text-muted-foreground">
             Your trip starts on {formatLongDate(startDate)} — here&apos;s day one.
           </p>
         )}
         {isAfterTrip && (
-          <p className="mt-1 text-sm text-muted-foreground italic">
+          <p className="mt-1 text-sm font-medium text-muted-foreground">
             Your trip has ended. Looking back at the last day.
           </p>
         )}
       </div>
 
-      {/* ── Two-column desktop grid (E1 Travelling: 1fr + 340px rail) ── */}
-      {/* Mobile: single column; cards stack in natural order (plan first, rail below).  */}
-      {/* Desktop (lg+): main column left, rail right. lg:order-* controls column assignment. */}
+      {/* ── Two-column desktop grid (kit Today: main column + side rail) ── */}
+      {/* Mobile: single column; cards stack in natural order (up next + plan first, rail below). */}
       <div className={TRAVELLING_DESKTOP_GRID_CLASS} data-testid="today-grid">
-        {/* ── Main column: today's plan + day-map ── */}
-        <section className="flex flex-col gap-2 lg:order-1">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-            Today&apos;s plan
-          </h3>
+        {/* ── Main column: up next · today's plan · day-map · ideas ── */}
+        <div className="flex flex-col gap-3 lg:order-1 lg:gap-[18px]">
+          {/* Next transport countdown (kit "Up next" card) */}
+          {nextTransportDep && nextTransportDep.transport.depAt && (
+            <TransportCountdown
+              depAt={new Date(nextTransportDep.transport.depAt).toISOString()}
+              depTimeLabel={nextTransportDep.depTimeLabel}
+              depZone={zoneLabel(
+                stops.find((s) => s.id === nextTransportDep.transport.fromStopId)?.timezone,
+                effectiveDate,
+              )}
+              label={buildTransportLabel(nextTransportDep.transport)}
+            />
+          )}
+
+          <Card className="p-3.5 lg:p-5">
+            <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
+              Today&apos;s plan
+            </h3>
+            <div className="mt-2.5">
+              {dayPlan && hasEntries ? (
+                <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} />
+              ) : (
+                <EmptyState
+                  icon={CalendarDays}
+                  tone="sun"
+                  title="Nothing planned"
+                  description="Nothing is scheduled for this day yet."
+                  className="py-5"
+                />
+              )}
+            </div>
+          </Card>
 
           {/* Day map (collapsed toggle) */}
           <DayMapPanel tripId={tripId} model={dayMapModel} />
-
-          <div className="rounded-2xl border border-border bg-card p-5">
-            {dayPlan ? (
-              <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} />
-            ) : (
-              <p className="py-2 text-sm text-muted-foreground italic">
-                Nothing planned for this day.
-              </p>
-            )}
-          </div>
 
           {/* Day ideas on free-form days; Nearby Wishlist on planned days */}
           {freeForm ? (
@@ -495,97 +518,29 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
           ) : (
             <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
           )}
-        </section>
+        </div>
 
-        {/* ── Right rail: where-you-are · next-departure · spend · tonight ── */}
-        <div className="flex flex-col gap-6 lg:order-2">
-          {/* Where you are */}
-          {effectiveStop && (
-            <section className="flex flex-col gap-1">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-                Where you are
-              </h3>
-              <div className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-soft">
-                {/* No decorative pin here: MapLink below renders the real one,
-                    and help-legend.tsx teaches that glyph as "has a location"
-                    (HG-02/HG-10, missed instance found as SW-02). */}
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <span className="font-display text-base font-bold text-foreground">
-                    {effectiveStop.name}
-                  </span>
-                  {effectiveStop.country && (
-                    <span className="text-sm text-muted-foreground">
-                      {effectiveStop.country}
-                    </span>
-                  )}
-                </div>
-                {(() => {
-                  const located = stops.find((s) => s.id === effectiveStop.id);
-                  // Gate on real coordinates explicitly: MapLink's own fallback
-                  // (address || label) would otherwise treat the name/country
-                  // label as a searchable "location" for every stop, firing the
-                  // pin even where no location is on record.
-                  if (located?.lat == null || located?.lng == null) return null;
-                  return (
-                    <MapLink
-                      lat={located.lat}
-                      lng={located.lng}
-                      label={
-                        effectiveStop.country
-                          ? `${effectiveStop.name}, ${effectiveStop.country}`
-                          : effectiveStop.name
-                      }
-                      className="text-muted-foreground/70 hover:text-primary"
-                    />
-                  );
-                })()}
-              </div>
-            </section>
-          )}
-
-          {/* Next transport countdown */}
-          {nextTransportDep && nextTransportDep.transport.depAt && (
-            <section className="flex flex-col gap-1">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-                Next departure
-              </h3>
-              <TransportCountdown
-                depAt={new Date(nextTransportDep.transport.depAt).toISOString()}
-                depTimeLabel={nextTransportDep.depTimeLabel}
-                depZone={zoneLabel(
-                  stops.find((s) => s.id === nextTransportDep.transport.fromStopId)?.timezone,
-                  effectiveDate,
-                )}
-                label={buildTransportLabel(nextTransportDep.transport)}
-              />
-            </section>
-          )}
-
-          {/* Spend so far (compact glance) */}
-          <SpendSoFarCard compact spend={spend} homeCurrency={homeCurrency} />
-
-          {/* Upcoming payments */}
-          <UpcomingPaymentsCard payments={upcomingPayments} tripId={tripId} />
-
-          {/* Tonight's accommodation */}
+        {/* ── Right rail: tonight · where-you-are · spend · payments ── */}
+        <div className="flex flex-col gap-3 lg:order-2 lg:gap-[18px]">
+          {/* Tonight's accommodation (kit "Tonight" card on the stay fill) */}
           {tonightAccom && (
-            <section className="flex flex-col gap-1">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70">
-                Tonight&apos;s stay
-              </h3>
-              <div className="flex items-start gap-3 rounded-2xl bg-hue-leaf/25 px-4 py-3">
-                <Bed className="mt-0.5 size-5 shrink-0 text-foreground" aria-hidden="true" />
+            <Card tone="lilac" className="p-4 lg:p-5">
+              <h3 className="text-label">Tonight&apos;s stay</h3>
+              <div className="mt-1.5 flex items-start gap-2.5">
+                <Bed className="mt-1 size-5 shrink-0" aria-hidden="true" />
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-foreground">{tonightAccom.name}</p>
+                  <p className="font-display text-xl font-extrabold leading-tight tracking-[-0.03em]">
+                    {tonightAccom.name}
+                  </p>
                   {tonightAccom.address && (
-                    <div className="mt-0.5 flex items-center gap-1 text-xs text-foreground/80">
+                    <div className="mt-1 flex items-center gap-1 text-[13px] font-semibold">
                       <span className="truncate">{tonightAccom.address}</span>
                       <MapLink
                         lat={tonightAccom.lat}
                         lng={tonightAccom.lng}
                         address={tonightAccom.address}
                         label={tonightAccom.name}
-                        className="shrink-0 text-foreground/80 hover:text-primary"
+                        className="shrink-0 text-foreground"
                       />
                     </div>
                   )}
@@ -594,35 +549,77 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
                       lat={tonightAccom.lat}
                       lng={tonightAccom.lng}
                       label={tonightAccom.name}
-                      className="mt-0.5 text-xs text-foreground/80 hover:text-primary"
+                      className="mt-1 text-[13px] font-semibold text-foreground"
                     />
                   )}
                   <AttachmentLinks attachments={attachmentsByTarget[tonightAccom.id] ?? []} />
                 </div>
               </div>
-            </section>
+            </Card>
           )}
+
+          {/* Where you are */}
+          {effectiveStop && (
+            <Card className="p-4">
+              <h3 className="text-label text-muted-foreground">Where you are</h3>
+              <div className="mt-1.5 flex items-center gap-2">
+                {/* No decorative pin here: MapLink below renders the real one,
+                    and help-legend.tsx teaches that glyph as "has a location"
+                    (HG-02/HG-10, missed instance found as SW-02). */}
+                <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+                  <span className="font-display text-xl font-extrabold tracking-[-0.03em] text-foreground">
+                    {effectiveStop.name}
+                  </span>
+                  {effectiveStop.country && (
+                    <span className="text-[13px] font-semibold text-muted-foreground">
+                      {effectiveStop.country}
+                    </span>
+                  )}
+                </div>
+                {/* Gate on real coordinates explicitly: MapLink's own fallback
+                    (address || label) would otherwise treat the name/country
+                    label as a searchable "location" for every stop, firing the
+                    pin even where no location is on record. */}
+                {stopLocated?.lat != null && stopLocated?.lng != null && (
+                  <MapLink
+                    lat={stopLocated.lat}
+                    lng={stopLocated.lng}
+                    label={
+                      effectiveStop.country
+                        ? `${effectiveStop.name}, ${effectiveStop.country}`
+                        : effectiveStop.name
+                    }
+                    className="text-muted-foreground hover:text-foreground"
+                  />
+                )}
+              </div>
+            </Card>
+          )}
+
+          {/* Spend so far (compact glance) */}
+          <SpendSoFarCard compact spend={spend} homeCurrency={homeCurrency} />
+
+          {/* Upcoming payments */}
+          <UpcomingPaymentsCard payments={upcomingPayments} tripId={tripId} />
         </div>
       </div>
 
       {/* ── Quick links ── */}
-      <div className="flex flex-wrap gap-3 text-sm">
-        <Link
-          href={`/trips/${tripId}/day/${effectiveDate}`}
-          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <CalendarDays className="size-4 shrink-0" aria-hidden="true" />
-          Full day view
-          <ArrowRight className="size-3.5 shrink-0" aria-hidden="true" />
-        </Link>
-        <Link
-          href={`/trips/${tripId}/calendar`}
-          className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <CalendarDays className="size-4 shrink-0" aria-hidden="true" />
-          Days
-          <ArrowRight className="size-3.5 shrink-0" aria-hidden="true" />
-        </Link>
+      <div className="flex flex-wrap gap-2">
+        <Button asChild variant="secondary" size="md">
+          <Link href={`/trips/${tripId}/day/${effectiveDate}`}>
+            <CalendarDays aria-hidden="true" />
+            Full day view
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        </Button>
+        <Button asChild variant="secondary" size="md">
+          <Link href={`/trips/${tripId}/calendar`}>
+            <CalendarDays aria-hidden="true" />
+            Days
+            <ArrowRight aria-hidden="true" />
+          </Link>
+        </Button>
       </div>
     </div>
   );
