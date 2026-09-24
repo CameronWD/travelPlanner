@@ -40,6 +40,11 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
 
 ## p3/boundaries
 
+- **`components/legal/legal-page.tsx` — `updated` label.** Kit shows: an "Updated {date}" label
+  above the title, sourced from the drop-in's `updated` prop. We have: no last-modified date for
+  either legal page's copy. Not built because: needs a data model (no source of truth for when the
+  Terms/Privacy text last changed).
+
 ## p3/core
 
 ## p3/together
