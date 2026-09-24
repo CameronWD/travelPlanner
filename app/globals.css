@@ -28,6 +28,57 @@
   isolation: isolate;
 }
 
+/* Kit popup shell for maps that opt in via bindPopup(html, { className: "tp-map-popup" })
+   (the Globe). Leaflet's default is a white card with a soft grey shadow in both themes;
+   this gives it the card surface, 2px ink outline and hard shadow, so it follows dark mode. */
+.tp-map-popup .leaflet-popup-content-wrapper,
+.tp-map-popup .leaflet-popup-tip {
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border: 2px solid hsl(var(--border));
+  box-shadow: var(--shadow-1);
+}
+.tp-map-popup .leaflet-popup-content-wrapper {
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+}
+.tp-map-popup .leaflet-popup-content {
+  margin: 12px 24px 12px 16px; /* 24px right clears the close × */
+  font-size: 13px;
+}
+/* .leaflet-container prefix: leaflet.css (loaded later, with the map chunk) styles the close
+   button at the same specificity, so ours must be one class stronger to win. */
+.leaflet-container .tp-map-popup a.leaflet-popup-close-button {
+  color: hsl(var(--muted-foreground));
+}
+.leaflet-container .tp-map-popup a.leaflet-popup-close-button:hover,
+.leaflet-container .tp-map-popup a.leaflet-popup-close-button:focus {
+  color: hsl(var(--foreground));
+}
+
+/* Kit zoom control for maps whose frame carries .tp-map (the Globe): Leaflet's default is a
+   white box with a grey outline in both themes. 44px buttons, 2px ink outline, hard shadow. */
+.tp-map.leaflet-container .leaflet-bar {
+  border: 2px solid hsl(var(--border));
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+.tp-map.leaflet-container .leaflet-bar a,
+.tp-map.leaflet-container .leaflet-bar a:hover {
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border-bottom: 2px solid hsl(var(--border));
+  font-weight: 800;
+}
+.tp-map.leaflet-container .leaflet-bar a:hover { background: hsl(var(--muted)); }
+.tp-map.leaflet-container .leaflet-bar a:last-child { border-bottom: none; }
+.tp-map.leaflet-container .leaflet-bar a.leaflet-disabled { color: hsl(var(--muted-foreground)); background: hsl(var(--card)); }
+.tp-map.leaflet-container .leaflet-bar a:focus-visible { outline: 3px solid hsl(var(--ring)); outline-offset: -3px; }
+
 /* ---------------------------------------------------------------------------
    Design tokens. HSL channels (same convention as before) so bg-coral/20 etc. work.
    Names kept from shadcn so existing components re-skin with no API change.
@@ -282,7 +333,11 @@
 
 /* Accent "island": anything on a coral/sun/teal/lilac fill re-scopes its text,
    borders and inner surfaces so they stay ≥ 4.5:1 in both themes.
-   Usage: <Card tone="sun"> applies this; or className="island bg-sun". */
+   Usage: <Card tone="sun"> applies this; or className="island bg-sun".
+   --primary-foreground: --primary becomes on-accent (always dark ink), so its
+   foreground is pinned to the light-theme --primary-foreground (cream) — a
+   primary Button inside an island stays the kit's ink button with light text
+   in both themes (in dark the global value is dark, which went ink-on-ink). */
 @utility island {
   --foreground: var(--on-accent);
   --card-foreground: var(--on-accent);
@@ -291,6 +346,7 @@
   --input: var(--on-accent);
   --ring: var(--on-accent);
   --primary: var(--on-accent);
+  --primary-foreground: 40 100% 98%;
   --card: 40 100% 99% / 0.38;
   --background: 40 100% 99% / 0.38;
   color: hsl(var(--on-accent));

@@ -2,6 +2,8 @@ import { describe, expect, it, beforeEach, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { createLeafletMock } from "@/test/leaflet-mock";
 import { cartoTiles } from "@/lib/map-tiles";
+import { pinHtml } from "@/lib/map-pins";
+import { chapterColourSwatch } from "@/lib/chapter-colours";
 
 const hoisted = vi.hoisted(() => ({
   leaflet: null as ReturnType<typeof import("@/test/leaflet-mock").createLeafletMock> | null,
@@ -95,5 +97,114 @@ describe("RouteMap theme handling", () => {
     );
 
     await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(2));
+  });
+});
+
+describe("RouteMap kit frame", () => {
+  it("draws its own kit frame (2px outline, hard shadow) — callers must not wrap it in a Card", async () => {
+    render(<RouteMap stops={STOPS} />);
+    // Let the async map build finish inside this test, so its pending
+    // import("leaflet") can't resolve against the next test's fresh mock.
+    await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(1));
+    const frame = screen.getByLabelText("Trip route map");
+    expect(frame.className).toMatch(/\bborder-2\b/);
+    expect(frame.className).toMatch(/\bshadow-hard-2\b/);
+    expect(frame.className).not.toMatch(/\bshadow-soft\b/);
+    expect(frame.className.split(/\s+/)).not.toContain("border");
+    // .tp-map opts into the kit zoom control (globals.css), as the Globe does.
+    expect(frame.className.split(/\s+/)).toContain("tp-map");
+  });
+
+  it("the no-coordinates fallback is a dashed kit frame", () => {
+    const { container } = render(<RouteMap stops={[{ ...STOPS[0], lat: null, lng: null }]} />);
+    const frame = container.firstElementChild as HTMLElement;
+    expect(frame.className).toMatch(/\bborder-2\b/);
+    expect(frame.className).toMatch(/\bborder-dashed\b/);
+    expect(frame.className.split(/\s+/)).not.toContain("border");
+  });
+});
+
+describe("RouteMap kit pins and popups", () => {
+  const HEX = /#[0-9a-f]{3,8}\b/i;
+  const EMOJI = /\p{Extended_Pictographic}/u;
+  const iconHtml = (m: { options: Record<string, unknown> }) =>
+    (m.options.icon as { html: string }).html;
+  const popup = (m: { bindPopup: ReturnType<typeof vi.fn> }) =>
+    m.bindPopup.mock.calls[0] as [string, { className?: string } | undefined];
+
+  const CHAPTERED = [
+    { ...STOPS[0], chapterColour: chapterColourSwatch("amber"), chapterName: "Japan" },
+    STOPS[1],
+  ];
+  const HOME = { name: "Sydney", lat: -33.87, lng: 151.21 };
+
+  it("uses the shared pinHtml stop pin, numbered, in the chapter colour", async () => {
+    render(<RouteMap stops={CHAPTERED} />);
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    const [first, second] = hoisted.leaflet!.markers;
+    expect(iconHtml(first)).toBe(
+      pinHtml({ variant: "stop", fill: chapterColourSwatch("amber"), label: "1", dark: false }),
+    );
+    // An unassigned stop gets the neutral pin, never the old blue default.
+    expect(iconHtml(second)).toBe(pinHtml({ variant: "stop", label: "2", dark: false }));
+    expect(iconHtml(second)).not.toMatch(/221,\s*83%/);
+  });
+
+  it("uses the dark chapter swatch in dark mode", async () => {
+    hoisted.theme = "dark";
+    render(<RouteMap stops={CHAPTERED} />);
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    expect(iconHtml(hoisted.leaflet!.markers[0])).toBe(
+      pinHtml({ variant: "stop", fill: chapterColourSwatch("amber", true), label: "1", dark: true }),
+    );
+  });
+
+  it("the home pin is the pinHtml home variant — no emoji", async () => {
+    render(<RouteMap stops={STOPS} home={HOME} />);
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(3));
+    const home = hoisted.leaflet!.markers[2];
+    expect(iconHtml(home)).toBe(pinHtml({ variant: "home", label: "H", dark: false }));
+    for (const m of hoisted.leaflet!.markers) expect(iconHtml(m)).not.toMatch(EMOJI);
+  });
+
+  it("recolours pins in place when the theme flips", async () => {
+    const { rerender } = render(<RouteMap stops={CHAPTERED} home={HOME} />);
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(3));
+    hoisted.theme = "dark";
+    rerender(<RouteMap stops={CHAPTERED} home={HOME} />);
+    const [first, , home] = hoisted.leaflet!.markers;
+    await waitFor(() =>
+      expect(first.setIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          html: pinHtml({ variant: "stop", fill: chapterColourSwatch("amber", true), label: "1", dark: true }),
+        }),
+      ),
+    );
+    expect(home.setIcon).toHaveBeenCalledWith(
+      expect.objectContaining({ html: pinHtml({ variant: "home", label: "H", dark: true }) }),
+    );
+    expect(hoisted.leaflet!.maps).toHaveLength(1);
+  });
+
+  it("binds every popup to the kit shell with token classes, no hex", async () => {
+    render(<RouteMap stops={CHAPTERED} home={HOME} />);
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(3));
+    for (const m of hoisted.leaflet!.markers) {
+      const [html, opts] = popup(m);
+      expect(opts).toEqual({ className: "tp-map-popup" });
+      expect(html).not.toMatch(HEX);
+      expect(html).not.toMatch(/style=/);
+      expect(html).not.toMatch(EMOJI);
+    }
+    expect(popup(hoisted.leaflet!.markers[0])[0]).toMatch(/text-muted-foreground/);
+    expect(popup(hoisted.leaflet!.markers[2])[0]).toContain("Home base");
+  });
+
+  it("route lines carry no raw hex or old blue default", async () => {
+    render(<RouteMap stops={CHAPTERED} home={HOME} showReturn />);
+    await waitFor(() => expect(hoisted.leaflet!.polylines.length).toBeGreaterThan(0));
+    for (const pl of hoisted.leaflet!.polylines) {
+      expect(String(pl.options.color)).not.toMatch(/374151|221,\s*83%/);
+    }
   });
 });

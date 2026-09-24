@@ -84,13 +84,13 @@ describe("WeatherDaylightCard", () => {
     );
     const card = container.querySelector(".bg-hue-sky");
     expect(card).toBeTruthy();
-    expect(card?.className).toMatch(/island/);
+    expect(card).toHaveClass("island");
     // Card's own base classes — the 2px ink border and hard offset shadow
     // are the Playground signature (see components/ui/card.tsx).
     expect(card?.className).toMatch(/border-2/);
     expect(card?.className).toMatch(/border-border/);
     expect(card?.className).toMatch(/shadow-hard-4/);
-    expect(card?.className).toMatch(/text-card-foreground/);
+    expect(card?.className).toMatch(/text-on-accent/);
     // Not the pre-Playground look: no gradient, no raw white text, no
     // legacy soft-shadow name. background-image is also structurally
     // unmeasurable by the contrast audit script (see

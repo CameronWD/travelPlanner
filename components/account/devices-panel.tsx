@@ -2,7 +2,10 @@
 
 import * as React from "react";
 import { Bell, BellOff, Smartphone, TriangleAlert } from "lucide-react";
+import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ListRow } from "@/components/ui/list-row";
 import { formatLastSeen } from "@/lib/devices";
 import {
   readLocalDeviceState,
@@ -23,6 +26,14 @@ export interface DevicesPanelProps {
 }
 
 type EnableStatus = "idle" | "loading" | "error";
+
+/**
+ * `Button size="sm"` is 36px tall to match the kit's small button; on a coarse
+ * pointer this invisible overlay grows the hit area to 44px (same technique as
+ * Segmented / RowActions / Switch — design-ask D1). Keep it with the class list.
+ */
+const SM_HIT =
+  "relative pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-1 pointer-coarse:after:content-['']";
 
 /**
  * Every **Device** this Traveller has, plus the one control that could not
@@ -190,77 +201,85 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
   const someoneIsThisDevice = devices.some((d) => d.isThisDevice);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-3">
         {devices.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            No device is set up yet.
-          </p>
+          <EmptyState
+            icon={Smartphone}
+            tone="teal"
+            title="No devices yet"
+            description="No device is set up yet."
+          />
         )}
-        {devices.map((device) => (
-          <div
-            key={device.id}
-            className="flex flex-col gap-1.5 rounded-md border border-border p-3"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <p className="flex min-w-0 items-center gap-2 text-sm text-foreground">
-                <Smartphone
-                  className="size-4 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
+        {devices.map((device) => {
+          const name = device.label ?? "A device";
+          return (
+            <div key={device.id} className="flex flex-col gap-1.5">
+              <div className="flex items-center gap-2.5">
+                {/* Remove sits beside the row, not in ListRow's `trailing`
+                    slot: that slot is aria-hidden (decorative chevron). */}
+                <ListRow
+                  className="min-w-0 flex-1"
+                  tile={<Smartphone className="size-4" strokeWidth={2.5} />}
+                  tileTone="teal"
+                  title={<span className="block truncate">{name}</span>}
+                  sub={
+                    <span className="block truncate">
+                      {device.timezone ?? "Timezone unknown"}
+                      {localResolved && device.isThisDevice
+                        ? " · this device"
+                        : ""}
+                      {" · "}
+                      {formatLastSeen(device.lastSeenAt, now)}
+                    </span>
+                  }
                 />
-                <span className="truncate">
-                  {device.label ?? "A device"} ·{" "}
-                  {device.timezone ?? "Timezone unknown"}
-                  {localResolved && device.isThisDevice
-                    ? " · this device"
-                    : ""}
-                  {" · "}
-                  {formatLastSeen(device.lastSeenAt, now)}
-                </span>
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                loading={removingId === device.id}
-                onClick={() => handleRemove(device)}
-              >
-                Remove
-              </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  aria-label={`Remove ${name}`}
+                  className={SM_HIT}
+                  loading={removingId === device.id}
+                  onClick={() => handleRemove(device)}
+                >
+                  Remove
+                </Button>
+              </div>
+              {device.stale && (
+                <p className="flex items-start gap-2 pl-11 text-xs font-medium text-destructive">
+                  <TriangleAlert
+                    className="mt-0.5 size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    Nothing has been heard from this device in a while — it may
+                    have lost permission without telling anyone. Removing it is
+                    not automatic: only you can tell whether it is still yours.
+                  </span>
+                </p>
+              )}
+              {device.timezone === null && (
+                <p className="flex items-start gap-2 pl-11 text-xs font-medium text-destructive">
+                  <TriangleAlert
+                    className="mt-0.5 size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    This device recorded no timezone, so there is no local 8pm
+                    to send at and it is skipped every run — no digest will ever
+                    reach it. Open Teepee on that device and press Enable again
+                    to record one.
+                  </span>
+                </p>
+              )}
             </div>
-            {device.stale && (
-              <p className="flex items-start gap-2 text-xs text-destructive">
-                <TriangleAlert
-                  className="mt-0.5 size-3.5 shrink-0"
-                  aria-hidden="true"
-                />
-                <span>
-                  Nothing has been heard from this device in a while — it may
-                  have lost permission without telling anyone. Removing it is
-                  not automatic: only you can tell whether it is still yours.
-                </span>
-              </p>
-            )}
-            {device.timezone === null && (
-              <p className="flex items-start gap-2 text-xs text-destructive">
-                <TriangleAlert
-                  className="mt-0.5 size-3.5 shrink-0"
-                  aria-hidden="true"
-                />
-                <span>
-                  This device recorded no timezone, so there is no local 8pm
-                  to send at and it is skipped every run — no digest will ever
-                  reach it. Open Teepee on that device and press Enable again
-                  to record one.
-                </span>
-              </p>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {message && (
-        <p role="status" aria-live="polite" className="text-xs text-foreground">
+        <p role="status" aria-live="polite" className="text-xs font-medium text-foreground">
           {message}
         </p>
       )}
@@ -270,10 +289,10 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
           {local.needsInstall ? (
             <div className="flex flex-col gap-1">
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 disabled
-                className="gap-2 self-start"
+                className={cn("gap-2 self-start", SM_HIT)}
               >
                 <BellOff className="size-4" aria-hidden="true" />
                 Add to Home Screen first
@@ -289,19 +308,19 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
                 the span's is just "Home" — neither contains "home screen"
                 contiguously. Renders identically; not one word changed.
               */}
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs font-medium text-muted-foreground">
                 iPhone only sends a digest to an installed app. Tap Share,
                 then &ldquo;Add to <span>Home</span> Screen&rdquo;, open
                 Teepee from there, and this will work.
               </p>
             </div>
           ) : local.permission === "denied" ? (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               This device has blocked digests. Allow them for Teepee in your
               browser or phone settings, then come back.
             </p>
           ) : local.permission === "unsupported" ? (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs font-medium text-muted-foreground">
               This browser can&rsquo;t receive a digest.
             </p>
           ) : (
@@ -314,15 +333,15 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
               // browser's own permission state).
               <div className="flex flex-col gap-1">
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   disabled
-                  className="gap-2 self-start"
+                  className={cn("gap-2 self-start", SM_HIT)}
                 >
                   <BellOff className="size-4" aria-hidden="true" />
                   Digests unavailable
                 </Button>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-xs font-medium text-muted-foreground">
                   Digests need setup — ask the admin to configure the VAPID
                   keys.
                 </p>
@@ -331,9 +350,9 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
               <div className="flex flex-col gap-1">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
-                  className="gap-2 self-start"
+                  className={cn("gap-2 self-start", SM_HIT)}
                   loading={enableStatus === "loading"}
                   onClick={handleEnable}
                 >
@@ -341,7 +360,7 @@ export function DevicesPanel({ initial, now }: DevicesPanelProps) {
                   Enable on this device
                 </Button>
                 {enableStatus === "error" && (
-                  <p className="text-xs text-destructive">
+                  <p className="text-xs font-medium text-destructive">
                     Couldn&rsquo;t enable digests on this device. Please try
                     again.
                   </p>

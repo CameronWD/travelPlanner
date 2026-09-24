@@ -455,3 +455,128 @@ describe("drift guard: <Go> link text matches the real nav label", () => {
     }
   });
 });
+
+// ── Playground kit restyle (phase 3, Task 18) ──
+// Kit: design_handoff/playground-2/reference/ui_kits/shared/admin.jsx `Help`.
+describe("HelpGuide — Playground kit shape", () => {
+  /** Every heading in document order as [level, text]. */
+  function outline(container: HTMLElement): Array<[number, string]> {
+    return Array.from(container.querySelectorAll("h1, h2, h3, h4, h5, h6")).map(
+      (h) => [Number(h.tagName[1]), (h.textContent ?? "").trim()],
+    );
+  }
+
+  it("titles every section with a real heading inside its summary, in order", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const titles = Array.from(container.querySelectorAll("details > summary h3")).map(
+      (h) => h.textContent,
+    );
+    expect(titles).toEqual(HELP_SECTIONS.map((s) => s.title));
+  });
+
+  it("never skips a heading level under the page's h1", () => {
+    const { container } = render(<HelpGuide />);
+    let previous = 1;
+    for (const [level, text] of outline(container)) {
+      expect(level, `"${text}" jumps from h${previous} to h${level}`).toBeLessThanOrEqual(
+        previous + 1,
+      );
+      previous = level;
+    }
+  });
+
+  it("shifts the whole outline down one level when the page already owns an h2", () => {
+    // The trip route: layout h1 (trip name) → page h2 → guide h3/h4.
+    const { container } = render(<HelpGuide tripId="t1" level={3} />);
+    expect(container.querySelector("h2")).toBeNull();
+    expect(
+      container.querySelector("section[aria-labelledby='help-everyday-heading'] > h3")
+        ?.textContent,
+    ).toBe("Using it day to day");
+    const titles = Array.from(container.querySelectorAll("details > summary h4")).map(
+      (h) => h.textContent,
+    );
+    expect(titles).toEqual(HELP_SECTIONS.map((s) => s.title));
+    let previous = 2;
+    for (const [level, text] of outline(container)) {
+      expect(level, `"${text}" jumps from h${previous} to h${level}`).toBeLessThanOrEqual(
+        previous + 1,
+      );
+      previous = level;
+    }
+  });
+
+  it("draws each section as a kit Card: 2px outline and a hard shadow", () => {
+    const { container } = render(<HelpGuide />);
+    for (const d of Array.from(container.querySelectorAll("details"))) {
+      expect(d.className, d.id).toMatch(/\bborder-2\b/);
+      expect(d.className, d.id).toMatch(/\bshadow-hard-2\b/);
+      expect(d.className, d.id).not.toMatch(/\brounded-xl border border-border\b/);
+    }
+  });
+
+  it("gives every section summary the kit's accent icon tile, hidden from readers", () => {
+    const { container } = render(<HelpGuide />);
+    for (const s of HELP_SECTIONS) {
+      const tile = container.querySelector(`details#${s.id} > summary [data-slot='help-tile']`);
+      expect(tile, `no tile on ${s.id}`).toBeTruthy();
+      expect(tile?.getAttribute("aria-hidden")).toBe("true");
+      expect(tile?.className).toMatch(/\bborder-2\b/);
+      expect(tile?.querySelector("svg")).toBeTruthy();
+    }
+  });
+
+  it("lays collapsed sections out as the kit's three-up grid, an open one spanning the row", () => {
+    const { container } = render(<HelpGuide />);
+    const grid = container.querySelector(
+      "section[aria-labelledby='help-everyday-heading'] > div",
+    );
+    expect(grid?.className).toMatch(/\blg:grid-cols-3\b/);
+    for (const d of Array.from(container.querySelectorAll("details"))) {
+      expect(d.className).toMatch(/\bopen:col-span-full\b/);
+    }
+  });
+
+  it("prints every section full width in one column, since print opens bodies without [open]", () => {
+    // HELP_PRINT_STYLE forces closed bodies visible in print, so open:col-span-full
+    // never matches there; without these, bodies print in half-width columns.
+    const { container } = render(<HelpGuide />);
+    for (const id of ["help-everyday-heading", "help-advanced-heading", "help-reference-heading"]) {
+      const grid = container.querySelector(`section[aria-labelledby='${id}'] > div`);
+      expect(grid?.className, id).toMatch(/\bprint:grid-cols-1\b/);
+    }
+    for (const d of Array.from(container.querySelectorAll("details"))) {
+      expect(d.className, d.id).toMatch(/\bprint:col-span-full\b/);
+    }
+  });
+
+  it("spaces wrapped contents rows so the chips' 44px hit areas never overlap", () => {
+    // Chips are 28px (min-h-7) with a 44px ::after, i.e. 8px spill above and
+    // below: rows need at least 16px between them.
+    const { container } = render(<HelpGuide />);
+    const list = container.querySelector('nav[aria-label="Contents"] ol');
+    expect(list?.className).toMatch(/\bgap-y-4\b/);
+    expect(list?.className).not.toMatch(/(^|\s)gap-2(\s|$)/);
+    const chip = list?.querySelector("a");
+    expect(chip?.className).toMatch(/\bmin-h-7\b/);
+    expect(chip?.className).toMatch(/\bafter:h-11\b/);
+  });
+
+  it("keeps an open section's body at a readable measure on wide screens", () => {
+    const { container } = render(<HelpGuide />);
+    // The separator spans the card; the text inside it keeps to ~65ch.
+    const body = container.querySelector("details#sixty-seconds > summary + div > div");
+    expect(body?.className).toMatch(/\bmax-w-prose\b/);
+  });
+
+  it("puts the contents list and the key in kit Cards", () => {
+    const { container } = render(<HelpGuide />);
+    const nav = container.querySelector('nav[aria-label="Contents"]');
+    expect(nav?.className).toMatch(/\bborder-2\b/);
+    expect(nav?.className).toMatch(/\bshadow-hard-2\b/);
+    const legend = container.querySelector(
+      "section[aria-labelledby='help-legend-heading'] [data-slot='help-legend']",
+    );
+    expect(legend?.closest("[class*='shadow-hard-2']")).toBeTruthy();
+  });
+});

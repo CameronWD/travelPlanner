@@ -94,4 +94,24 @@ describe("ShareTodayCard", () => {
     );
     expect(screen.getByText(/Snow/)).toBeInTheDocument();
   });
+
+  it("is a kit Card (2px outline, hard shadow) with the countdown as a coral-text label", async () => {
+    const { container } = render(
+      await ShareTodayCard({
+        ...baseProps,
+        day: emptyDay("2026-12-10"),
+        stay: { name: "Hôtel Gutenberg", address: null },
+      }),
+    );
+    const card = screen.getByRole("region", { name: /Strasbourg/ });
+    expect(card.className).toMatch(/\bborder-2\b/);
+    expect(card.className).toMatch(/\bshadow-hard-3\b/);
+    expect(screen.getByText("Day 5 of 14").className).toMatch(/\btext-coral-text\b/);
+    // No pre-reskin 1px borders or translucent primary tints.
+    const old = Array.from(container.querySelectorAll("[class]")).filter((el) => {
+      const cls = (el.getAttribute("class") ?? "").split(/\s+/);
+      return cls.includes("border") || cls.some((c) => /^(bg|border)-primary\//.test(c));
+    });
+    expect(old).toEqual([]);
+  });
 });

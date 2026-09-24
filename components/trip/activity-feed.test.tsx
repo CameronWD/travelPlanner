@@ -63,12 +63,13 @@ describe("ActivityFeed", () => {
     expect(screen.getByText(/updated the Colosseum Tour item/i)).toBeInTheDocument();
     // change line contains label and arrow
     expect(screen.getByText("Title:")).toBeInTheDocument();
-    // The change li contains "Tour → Colosseum Tour" (inner change list item)
-    const changeLis = screen.getAllByText((_, el) =>
-      el?.tagName === "LI" && /Tour\s*→\s*Colosseum Tour/.test(el.textContent ?? ""),
-    );
-    // At least one matching element should exist (may include parent li)
-    expect(changeLis.length).toBeGreaterThan(0);
+    // The change line (a block span in the ListRow sub — Task 13) reads
+    // "Title: Tour → Colosseum Tour"; the arrow is aria-hidden and an sr-only
+    // "to" carries the direction for screen readers.
+    const changeLine = screen.getByText("Title:").parentElement!;
+    expect(changeLine.textContent).toMatch(/^Title:\s*Tour\s*→\s*to\s*Colosseum Tour$/);
+    expect(changeLine.querySelector("[aria-hidden='true']")?.textContent).toBe("→");
+    expect(changeLine.querySelector(".sr-only")?.textContent).toBe("to");
   });
 
   it("renders both activities when multiple are provided", () => {
@@ -115,5 +116,47 @@ describe("ActivityFeed", () => {
     );
     expect(screen.getByText(/firmed up 4 stops/)).toBeInTheDocument();
     expect(screen.queryByText(/updated the/)).not.toBeInTheDocument();
+  });
+});
+
+describe("ActivityFeed — Playground kit shape (Task 13)", () => {
+  it("renders each event as a ListRow inside one kit Card, with the actor avatar leading", () => {
+    const { container } = render(
+      <ActivityFeed activities={[CREATED_ACTIVITY, UPDATED_ACTIVITY]} />,
+    );
+    // One outlined kit Card wraps the feed (2px border + hard shadow).
+    const card = container.querySelector("[data-slot='activity-card']");
+    expect(card).toBeTruthy();
+    expect(card?.className).toMatch(/border-2/);
+    expect(card?.className).toMatch(/shadow-hard-2/);
+    // Every row is a ListRow (the primitive's root carries min-h-11).
+    const rows = container.querySelectorAll("li > [data-slot='list-row']");
+    expect(rows).toHaveLength(2);
+    // Actor avatar leads the row — initials fallback, no square tile wrapper.
+    const first = rows[0]!;
+    expect(first.firstElementChild?.className).toMatch(/rounded-full/);
+    expect(first.textContent).toContain("A");
+  });
+
+  it("keeps headline() copy unchanged, actor bold first (bell copy rules: names first)", () => {
+    render(<ActivityFeed activities={[CREATED_ACTIVITY]} />);
+    const actor = screen.getByText("Alice");
+    expect(actor.tagName).toBe("B");
+    expect(actor.parentElement?.textContent).toMatch(/^Alice added the Rome stop/);
+  });
+
+  it("puts the timestamp in the trailing column and keeps it available to screen readers", () => {
+    render(<ActivityFeed activities={[CREATED_ACTIVITY]} />);
+    const timeEl = document.querySelector("time")!;
+    expect(timeEl.textContent).toBe("1 Jun 2026");
+    // ListRow's trailing slot is aria-hidden, so the time is repeated sr-only.
+    const srTime = document.querySelector(".sr-only");
+    expect(srTime?.textContent).toContain("1 Jun 2026");
+  });
+
+  it("renders the empty feed as a bare kit EmptyState, not inside the Card", () => {
+    const { container } = render(<ActivityFeed activities={[]} />);
+    expect(screen.getByRole("heading", { name: "No activity yet" })).toBeInTheDocument();
+    expect(container.querySelector("[data-slot='activity-card']")).toBeNull();
   });
 });

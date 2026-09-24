@@ -40,11 +40,19 @@ describe("UpcomingPaymentsCard", () => {
     expect(screen.getByText("comes out today")).toBeInTheDocument();
   });
 
-  it("shows 'was due N day(s) ago' and a warning treatment for overdue rows", () => {
+  it("shows 'was due N day(s) ago' with a status (destructive) chip for overdue rows — not an accent hue", () => {
     render(<UpcomingPaymentsCard payments={[payment({ costId: "a", daysUntil: -4 })]} tripId="trip-1" />);
     const phrase = screen.getByText("was due 4 day(s) ago");
     expect(phrase).toBeInTheDocument();
-    expect(phrase.className).toMatch(/text-sun-text/);
+    expect(phrase.className).toMatch(/\bbg-destructive\b/);
+    expect(phrase.className).not.toMatch(/sun-text/);
+  });
+
+  it("sits in a kit Card (2px outline + hard shadow)", () => {
+    render(<UpcomingPaymentsCard payments={[payment({ costId: "a" })]} tripId="trip-1" />);
+    const card = screen.getByRole("region", { name: "Upcoming payments" });
+    expect(card.className).toMatch(/\bborder-2\b/);
+    expect(card.className).toMatch(/\bshadow-hard-\d\b/);
   });
 
   it("links each row through to the trip's budget page", () => {

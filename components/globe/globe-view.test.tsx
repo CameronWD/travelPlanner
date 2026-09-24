@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // Stub the heavy dynamically-imported globe map — the marker-form flow under
@@ -66,5 +66,73 @@ describe("GlobeView — reopening Add Marker", () => {
     await user.click(screen.getByRole("button", { name: /^search$/i }));
     await user.click(await screen.findByRole("button", { name: /osaka, japan/i }));
     expect(screen.getByPlaceholderText(/tokyo tower/i)).toHaveValue("Osaka");
+  });
+});
+
+const mk = (id: string, title: string, country: string | null, category = "SIGHTSEEING") => ({
+  id,
+  title,
+  category,
+  note: null,
+  link: null,
+  timing: null,
+  lat: null,
+  lng: null,
+  city: null,
+  country,
+  countryCode: null,
+});
+
+describe("GlobeView — Playground kit shape", () => {
+  const markers = [
+    mk("1", "Eiffel Tower", "France"),
+    mk("2", "Louvre", "France", "ACTIVITY"),
+    mk("3", "Fushimi Inari", "Japan"),
+  ];
+
+  it("uses the kit heading and keeps named header actions", () => {
+    render(<GlobeView markers={markers} members={[]} />);
+    expect(screen.getByRole("heading", { level: 1, name: "Your globe" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Share" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add marker/i })).toBeInTheDocument();
+  });
+
+  it("shows kit stat chips counted from the markers", () => {
+    render(<GlobeView markers={markers} members={[]} />);
+    expect(screen.getByText("2 countries")).toBeInTheDocument();
+    expect(screen.getByText("3 markers")).toBeInTheDocument();
+  });
+
+  it("singularises the stat chips", () => {
+    render(<GlobeView markers={[mk("1", "Eiffel Tower", "France")]} members={[]} />);
+    expect(screen.getByText("1 country")).toBeInTheDocument();
+    expect(screen.getByText("1 marker")).toBeInTheDocument();
+  });
+
+  it("puts search, filters and the list in one kit Card", () => {
+    render(<GlobeView markers={markers} members={[]} />);
+    const panel = screen.getByTestId("globe-panel");
+    expect(panel).toHaveClass("border-2", "border-border", "shadow-hard-2");
+    expect(within(panel).getByRole("textbox", { name: "Search the globe" })).toBeInTheDocument();
+    expect(within(panel).getByRole("combobox", { name: "Country" })).toBeInTheDocument();
+    expect(within(panel).getByText("Fushimi Inari")).toBeInTheDocument();
+  });
+
+  it("carries the kit's map hint caption", () => {
+    render(<GlobeView markers={markers} members={[]} />);
+    expect(screen.getByText("Tap the map to drop a marker")).toBeInTheDocument();
+  });
+
+  it("shows the kit EmptyState when the Globe has no markers", () => {
+    render(<GlobeView markers={[]} members={[]} />);
+    expect(screen.getByRole("heading", { name: "No markers yet" })).toBeInTheDocument();
+  });
+
+  it("says nothing matches (not 'no markers yet') when filters hide every marker", async () => {
+    const user = userEvent.setup();
+    render(<GlobeView markers={markers} members={[]} />);
+    await user.type(screen.getByRole("textbox", { name: "Search the globe" }), "zzz");
+    expect(screen.getByRole("heading", { name: "Nothing matches" })).toBeInTheDocument();
+    expect(screen.queryByText(/no markers yet/i)).not.toBeInTheDocument();
   });
 });

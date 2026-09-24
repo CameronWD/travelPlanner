@@ -351,6 +351,21 @@ measures 4.707:1 and clears. **Ask:** fix the token at source so the shipped
 value matches the handoff's own documented contrast, rather than relying on
 this local override.
 
+### D-phase-3 (added 2026-09-24)
+
+Handoff defects found while building phase 3 are appended here, one bullet each:
+`- **<file>** — <what's wrong> — <what we did instead>.`
+
+- **`reference/components/navigation/ListRow.jsx` + `shared/admin.jsx` `TripSettings`** — ListRow
+  wraps `trailing` in `aria-hidden="true"` (right for the default chevron), yet TripSettings passes
+  an interactive `Toggle` there ("Read-only link"), which hides the switch from assistive tech —
+  on Account we render the `Switch` / Remove button as a sibling of the row, not in `trailing`.
+- **`app/global-error.tsx`** — the badge, `<h1>` and `.tp-btn` use `font: "800 30px/1 inherit"`
+  (and `800 15px/1 inherit`); `inherit` is CSS-wide and can't sit inside the `font` shorthand, so
+  browsers drop the whole declaration and the heading/badge fall back to UA sizes — we spell the
+  family out (`800 30px/1 ui-sans-serif, system-ui, …`, the `<body>` stack), keeping the intended
+  sizes and weights; a test forbids `inherit` inside a `font` shorthand.
+
 ---
 
 ## E. What phase 1 learned, for whoever briefs phase 2

@@ -65,3 +65,24 @@ describe("HelpLegend", () => {
     expect(container.querySelector("[data-testid='chapter-chip-dot']")).toBeTruthy();
   });
 });
+
+describe("HelpLegend — Playground kit shape", () => {
+  it("titles each block with an h3 by default and an h4 when asked", () => {
+    const { container, unmount } = render(<HelpLegend />);
+    expect(container.querySelectorAll("h3")).toHaveLength(4);
+    unmount();
+    const second = render(<HelpLegend headingLevel={4} />);
+    expect(second.container.querySelectorAll("h3")).toHaveLength(0);
+    expect(second.container.querySelectorAll("h4")).toHaveLength(4);
+  });
+
+  it("sizes the specimen column to fit the widest specimen, so Add never overlaps its caption", () => {
+    // It used to be a fixed w-11: the "+ Add" button is wider than 44px and
+    // spilled over "Add something new".
+    const { container } = render(<HelpLegend />);
+    for (const s of Array.from(container.querySelectorAll("[data-testid='legend-specimen']"))) {
+      expect(s.className).not.toMatch(/(^|\s)w-11(\s|$)/);
+      expect(s.className).toMatch(/\bw-24\b/);
+    }
+  });
+});

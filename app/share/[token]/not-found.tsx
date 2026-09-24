@@ -1,28 +1,32 @@
 import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { ErrorPanel } from "@/components/ui/error-panel";
+import { Logo } from "@/components/ui/logo";
 
 /**
- * Shown when a share token is invalid, revoked, or not found.
- * Lives in app/share/[token]/ — outside the (app) auth group.
+ * Shown when a share token is invalid, revoked, or not found — and for a live
+ * link to a trip with no dates yet. Share links never expire, so the copy stays
+ * neutral about why. Lives in
+ * app/share/[token]/ — outside the (app) auth group, so the page has no
+ * session; its action goes to /trips rather than a sign-in-gated page.
  */
 export default function ShareNotFound() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center px-4 text-center">
-      <div className="mb-6 text-6xl" aria-hidden="true">
-        🔗
-      </div>
-      <h1 className="font-display text-3xl font-bold text-foreground mb-3">
-        Link not found
-      </h1>
-      <p className="text-base text-muted-foreground max-w-sm">
-        This share link has been revoked or no longer exists. Ask the trip
-        organiser for an updated link.
-      </p>
-      <Link
-        href="/trips"
-        className="mt-8 rounded-lg border border-border bg-card px-5 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
-      >
-        Go to my trips
-      </Link>
+    <div className="flex min-h-screen flex-col bg-background">
+      <header className="mx-auto flex h-16 w-full max-w-4xl items-center px-5">
+        <Logo size={22} />
+      </header>
+      <ErrorPanel
+        kind="not-found"
+        className="flex-1"
+        title="This link isn't working"
+        description="It may have been turned off or replaced. Ask the trip organiser for a fresh one."
+        actions={
+          <Button asChild variant="secondary">
+            <Link href="/trips">Go to my trips</Link>
+          </Button>
+        }
+      />
     </div>
   );
 }

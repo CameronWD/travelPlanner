@@ -3,6 +3,7 @@ import { MapPin } from "lucide-react";
 import { formatLongDate } from "@/lib/dates";
 import type { DayPlan } from "@/lib/itinerary";
 import { Badge } from "@/components/ui/badge";
+import { cardVariants } from "@/components/ui/card";
 import { Timeline } from "@/components/trip/timeline";
 import { cn } from "@/lib/cn";
 
@@ -13,51 +14,60 @@ export interface AgendaViewProps {
   todayISO: string;
 }
 
+/**
+ * The calendar's list view: one kit day card per day (Days.jsx day card —
+ * sticker chips over the top edge, h4 date, the kit Days rows), at the Day
+ * page's reading width (left-aligned under the toolbar). Today's card is lifted.
+ */
 export function AgendaView({ tripId, days, todayISO: today }: AgendaViewProps) {
   return (
-    <div className="flex flex-col gap-0 divide-y divide-border/50">
+    <div className="flex w-full max-w-3xl flex-col gap-6 pt-2">
       {days.map((day) => {
         const isTravelDay = day.transportEntries.length > 0;
         const isToday = day.dateISO === today;
         const dayHref = `/trips/${tripId}/day/${day.dateISO}`;
+        const hasSticker = isToday || isTravelDay;
 
         return (
           <section
             key={day.dateISO}
-            className={cn("py-5 first:pt-0", isToday && "bg-primary/5 -mx-4 px-4 rounded-lg")}
             aria-current={isToday ? "date" : undefined}
+            className={cn(
+              cardVariants({ shadow: isToday ? 3 : 2 }),
+              "p-4",
+              hasSticker && "pt-5",
+              isToday && "-translate-x-0.5 -translate-y-0.5",
+            )}
           >
-            <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
-              <div className="flex flex-col gap-0.5">
-                <Link
-                  href={dayHref}
-                  className="group flex items-center gap-2 font-display text-base font-semibold text-foreground hover:text-primary transition-colors"
-                >
-                  {formatLongDate(day.dateISO)}
-                  {isToday && (
-                    <Badge variant="default" className="text-xs sm:text-[10px] px-1.5 py-0 font-medium">
-                      Today
-                    </Badge>
-                  )}
-                  <span className="hidden sm:inline text-xs text-muted-foreground group-hover:text-primary/70 transition-colors">
-                    →
-                  </span>
-                </Link>
-                {day.stop && (
-                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <MapPin className="size-3 shrink-0" aria-hidden="true" />
-                    {day.stop.name}
-                    {day.stop.country ? `, ${day.stop.country}` : ""}
-                  </p>
+            {hasSticker && (
+              <span className="absolute -top-3 left-3.5 flex gap-1.5">
+                {isToday && (
+                  <Badge variant="ink" caps>
+                    Today
+                  </Badge>
                 )}
-              </div>
-              {isTravelDay && (
-                <Badge variant="accent" className="text-xs shrink-0">
-                  Travel day
-                </Badge>
-              )}
-            </div>
-            <div className="pl-1">
+                {isTravelDay && (
+                  <Badge variant="coral" caps>
+                    Travel day
+                  </Badge>
+                )}
+              </span>
+            )}
+
+            <h2 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em]">
+              <Link href={dayHref} className="rounded-sm text-foreground transition-colors hover:text-coral-text">
+                {formatLongDate(day.dateISO)}
+              </Link>
+            </h2>
+            {day.stop && (
+              <p className="mt-0.5 flex items-center gap-1 text-[13px] font-medium text-muted-foreground">
+                <MapPin className="size-3.5 shrink-0" aria-hidden="true" />
+                {day.stop.name}
+                {day.stop.country ? `, ${day.stop.country}` : ""}
+              </p>
+            )}
+
+            <div className="mt-3">
               <Timeline day={day} variant="agenda" />
             </div>
           </section>

@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import { stopBandBorderClass, stopPillClass } from "@/lib/stop-colours";
+import { PACKED_DAY_THRESHOLD } from "@/lib/flags";
 import { MonthGrid } from "./month-grid";
 import type { DayPlan } from "@/lib/itinerary";
 
@@ -51,8 +53,11 @@ describe("MonthGrid — location hero", () => {
   });
 });
 
-describe("MonthGrid — mobile containment (Step 1)", () => {
-  it("day-grid element has min-w-[560px] class", () => {
+describe("MonthGrid — mobile containment (Step 1; kit tiles, Task 12b)", () => {
+  // Pre-reskin the grid was a 560px-min table inside a horizontal scroller.
+  // The kit (Days.jsx) fits all seven 50px tiles into a phone width instead,
+  // so the containment guarantee is now "tiles may shrink", not "scroll".
+  it("day grid fits the viewport: no min-width floor, tiles may shrink (min-w-0)", () => {
     const { container } = render(
       <MonthGrid
         tripId="t1"
@@ -66,10 +71,13 @@ describe("MonthGrid — mobile containment (Step 1)", () => {
     const grids = container.querySelectorAll(".grid-cols-7");
     const dayGrid = grids[1];
     expect(dayGrid).toBeTruthy();
-    expect(dayGrid.classList.contains("min-w-[560px]")).toBe(true);
+    expect(dayGrid.className).not.toMatch(/min-w-\[/);
+    for (const cell of Array.from(dayGrid.children)) {
+      expect(cell.classList.contains("min-w-0")).toBe(true);
+    }
   });
 
-  it("scroll wrapper has overflow-x-auto class", () => {
+  it("has no horizontal scroll wrapper", () => {
     const { container } = render(
       <MonthGrid
         tripId="t1"
@@ -79,7 +87,80 @@ describe("MonthGrid — mobile containment (Step 1)", () => {
         tripEnd="2026-07-31"
       />,
     );
-    const wrapper = container.querySelector(".overflow-x-auto");
-    expect(wrapper).toBeTruthy();
+    expect(container.querySelector(".overflow-x-auto")).toBeNull();
+  });
+});
+
+describe("MonthGrid — kit Days tiles (Task 12b)", () => {
+  const JULY = { tripId: "t1", monthAnchorISO: "2026-07-01", tripStart: "2026-07-14", tripEnd: "2026-07-15" };
+
+  it("marks today's tile with aria-current=\"date\" and lifts it (kit selected tile)", () => {
+    render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", 0), dayPlan("2026-07-15", 0)]} todayISO="2026-07-15" />);
+    const today = screen.getByRole("link", { name: /Wed 15 Jul 2026/ });
+    expect(today).toHaveAttribute("aria-current", "date");
+    expect(today.className).toMatch(/shadow-hard-/);
+    expect(screen.getByRole("link", { name: /Tue 14 Jul 2026/ })).not.toHaveAttribute("aria-current");
+  });
+
+  it("in-window days are links to the Day page named with the full date", () => {
+    render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", 2)]} />);
+    const link = screen.getByRole("link", { name: /Tue 14 Jul 2026/ });
+    expect(link).toHaveAttribute("href", "/trips/t1/day/2026-07-14");
+    expect(link).toHaveAccessibleName(/Paris/);
+    expect(link).toHaveAccessibleName(/2 things/);
+  });
+
+  it("names the stop's country in the tile label, and omits it when absent", () => {
+    const noCountry = { ...dayPlan("2026-07-15", 0), stop: { ...dayPlan("2026-07-15", 0).stop!, country: null } };
+    render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", 0), noCountry as DayPlan]} />);
+    expect(screen.getByRole("link", { name: /Tue 14 Jul 2026/ })).toHaveAccessibleName(/Paris, France/);
+    const bare = screen.getByRole("link", { name: /Wed 15 Jul 2026/ });
+    expect(bare).toHaveAccessibleName(/Paris/);
+    expect(bare).not.toHaveAccessibleName(/France|null|undefined|, ,/);
+  });
+
+  it("the stop band and tile tint come from lib/stop-colours.ts", () => {
+    render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", 0)]} />);
+    const link = screen.getByRole("link", { name: /Tue 14 Jul 2026/ });
+    // sortOrder 0 → first stop hue.
+    for (const cls of stopBandBorderClass(0).split(" ")) expect(link.classList.contains(cls)).toBe(true);
+    for (const cls of stopPillClass(0).split(" ")) expect(link.classList.contains(cls)).toBe(true);
+  });
+
+  it("tiles are the kit shape: 2px outline, rounded, no pre-reskin table rules", () => {
+    const { container } = render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", 0)]} />);
+    const link = screen.getByRole("link", { name: /Tue 14 Jul 2026/ });
+    expect(link.className).toMatch(/\bborder-2\b/);
+    expect(link.className).toMatch(/\brounded-(sm|md)\b/);
+    expect(container.innerHTML).not.toMatch(/\bborder-r\b|\bborder-b\b|rounded-xl border border-border|bg-muted\/(20|40)/);
+  });
+
+  it("days outside the month are hidden placeholders, not dim table cells", () => {
+    const { container } = render(<MonthGrid {...JULY} days={[]} />);
+    // July 2026 starts on a Wednesday → Mon 29 + Tue 30 June pad the first week.
+    const padding = container.querySelectorAll("[data-month-pad]");
+    expect(padding.length).toBeGreaterThan(0);
+    for (const cell of Array.from(padding)) {
+      expect(cell).toHaveAttribute("aria-hidden", "true");
+      expect(cell.className).toMatch(/\binvisible\b/);
+    }
+  });
+
+  it("the things count is a kit chip; a packed day turns it coral", () => {
+    render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", PACKED_DAY_THRESHOLD + 1), dayPlan("2026-07-15", 1)]} />);
+    const packed = screen.getByText(`${PACKED_DAY_THRESHOLD + 1} things`);
+    expect(packed.className).toMatch(/\bbg-coral\b/);
+    expect(packed.className).toMatch(/\bborder-2\b/);
+    const calm = screen.getByText("1 thing");
+    expect(calm.className).not.toMatch(/\bbg-coral\b/);
+  });
+
+  it("shows a stop legend under the grid (kit legend chips), one chip per stop", () => {
+    const berlin = { ...dayPlan("2026-07-15", 0), stop: { ...dayPlan("2026-07-15", 0).stop!, id: "s2", name: "Berlin", sortOrder: 1 } };
+    render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", 0), berlin]} />);
+    const legend = screen.getByRole("list", { name: "Stops" });
+    const chips = within(legend).getAllByRole("listitem");
+    expect(chips.map((c) => c.textContent)).toEqual(["Paris", "Berlin"]);
+    for (const cls of stopPillClass(1).split(" ")) expect(chips[1].classList.contains(cls)).toBe(true);
   });
 });

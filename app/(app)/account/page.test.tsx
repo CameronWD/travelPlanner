@@ -58,13 +58,40 @@ describe("AccountPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("titles the page with a kit display h1", async () => {
+    const jsx = await AccountPage();
+    render(jsx);
+    const h1 = screen.getByRole("heading", { level: 1, name: "Account" });
+    expect(h1.className).toMatch(/font-display/);
+    expect(h1.className).toMatch(/font-extrabold/);
+  });
+
+  it("puts each panel in its own kit Card, named by its heading", async () => {
+    const jsx = await AccountPage();
+    render(jsx);
+    for (const name of ["Devices", "Which trips send you a digest"]) {
+      const region = screen.getByRole("region", { name });
+      // Card's kit shape: 2px outline + hard shadow — not the old 1px border.
+      expect(region.className).toMatch(/\bborder-2\b/);
+      expect(region.className).toMatch(/\bshadow-hard-2\b/);
+      expect(screen.getByRole("heading", { name }).tagName).toBe("H3");
+    }
+  });
+
+  it("lays the two panels out as the kit's two columns on desktop", async () => {
+    const jsx = await AccountPage();
+    render(jsx);
+    const grid = screen.getByRole("region", { name: "Devices" }).parentElement!;
+    expect(grid.className).toMatch(/lg:grid-cols-2/);
+  });
+
   it("renders the Devices panel", async () => {
     const jsx = await AccountPage();
     render(jsx);
     expect(screen.getByTestId("devices-panel")).toBeInTheDocument();
   });
 
-  it("renders an unchecked box for a trip with the digest turned off", async () => {
+  it("renders an unchecked switch for a trip with the digest turned off", async () => {
     tripFindManyMock.mockResolvedValue([
       {
         id: "trip-1",
@@ -76,7 +103,9 @@ describe("AccountPage", () => {
     const jsx = await AccountPage();
     render(jsx);
 
-    expect(screen.getByLabelText("Europe Christmas 2026")).not.toBeChecked();
+    expect(
+      screen.getByRole("switch", { name: "Europe Christmas 2026" }),
+    ).not.toBeChecked();
   });
 
   it("requires a signed-in user before rendering either section", async () => {

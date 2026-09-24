@@ -78,4 +78,11 @@ describe("TripLayout", () => {
     expect(screen.getByText("Test Trip")).toBeInTheDocument();
     expect(screen.queryByTestId("push-timezone-sync")).not.toBeInTheDocument();
   });
+
+  it("marks the trip header block with data-trip-header (hook for the print route's hide list)", async () => {
+    await renderLayout();
+    const header = document.querySelector("[data-trip-header]");
+    expect(header).toBeInTheDocument();
+    expect(header).toContainElement(screen.getByText("Test Trip"));
+  });
 });

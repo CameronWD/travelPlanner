@@ -35,7 +35,7 @@ interface AiActivitySuggestionsProps {
 /**
  * Per-stop AI activity suggestions panel.
  *
- * - Shows a "✨ Suggest activities" button.
+ * - Shows a "Suggest activities" AiSuggestButton.
  * - On click calls the server action; displays the suggestions.
  * - Each suggestion has an "Add to wishlist" button that calls createItem.
  */
@@ -91,6 +91,7 @@ export function AiActivitySuggestions({
           aiConfigured={aiConfigured}
           loading={fetchPending}
           label={suggestions ? "Refresh suggestions" : "Suggest activities"}
+          size="md"
           onClick={handleFetch}
           disabled={fetchPending || addPending}
         />
@@ -98,7 +99,7 @@ export function AiActivitySuggestions({
           <button
             type="button"
             onClick={() => setExpanded((v) => !v)}
-            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+            className="flex min-h-11 items-center gap-1 text-xs font-extrabold text-muted-foreground hover:text-foreground"
             aria-label={expanded ? "Collapse suggestions" : "Expand suggestions"}
           >
             {expanded ? (
@@ -112,15 +113,15 @@ export function AiActivitySuggestions({
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+        <div className="flex items-center gap-2 rounded-md border-2 border-destructive bg-destructive/10 px-3 py-2 text-[13px] font-semibold text-foreground">
           <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
           {error}
         </div>
       )}
 
       {hasSuggestions && expanded && (
-        <div className="flex flex-col gap-1.5 rounded-xl border border-border bg-hue-lilac/25 p-3">
-          <p className="text-xs font-medium text-foreground mb-1">
+        <div className="flex flex-col gap-1.5 rounded-lg border-2 border-border bg-hue-lilac/25 p-3 shadow-hard-2">
+          <p className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-foreground">
             AI suggestions for {stopName}
           </p>
           <ul className="flex flex-col gap-2">
@@ -130,13 +131,13 @@ export function AiActivitySuggestions({
                 <li
                   key={s.title}
                   className={cn(
-                    "flex items-start justify-between gap-3 rounded-lg bg-white/70 dark:bg-black/20 px-3 py-2.5 text-sm",
+                    "flex items-start justify-between gap-3 rounded-md border-2 border-border bg-card px-3 py-2.5 text-sm",
                     added && "opacity-60",
                   )}
                 >
                   <div className="flex flex-col gap-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium leading-snug">{s.title}</span>
+                      <span className="text-[13px] font-extrabold leading-snug">{s.title}</span>
                       <CategoryPill category={s.category} size="sm" />
                     </div>
                     {s.note && (
@@ -147,9 +148,9 @@ export function AiActivitySuggestions({
                   </div>
                   <Button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0 h-7 px-2 text-xs"
+                    variant="secondary"
+                    size="md"
+                    className="shrink-0"
                     disabled={added || addPending}
                     onClick={() => handleAdd(s)}
                     title={added ? "Already added" : `Add "${s.title}" to wishlist`}

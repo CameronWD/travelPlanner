@@ -73,10 +73,15 @@ vi.mock("@/lib/tz", () => ({
   todayISOInZone: todayISOInZoneMock,
   currentTripTimezone: vi.fn().mockReturnValue("UTC"),
 }));
-vi.mock("@/lib/itinerary", () => ({
-  buildItinerary: buildItineraryMock,
-  isFreeFormDay: isFreeFormDayMock,
-}));
+vi.mock("@/lib/itinerary", async (importOriginal) => {
+  // dayHasEntries stays real — it decides Timeline vs the kit empty state.
+  const actual = await importOriginal<typeof import("@/lib/itinerary")>();
+  return {
+    buildItinerary: buildItineraryMock,
+    isFreeFormDay: isFreeFormDayMock,
+    dayHasEntries: actual.dayHasEntries,
+  };
+});
 vi.mock("@/lib/day-map", () => ({
   buildDayMapModel: buildDayMapModelMock,
   buildItemDirections: buildItemDirectionsMock,
@@ -110,6 +115,12 @@ const { JournalEditor } = await import("@/components/trip/journal-editor");
 // Not mocked — used by identity to find every place the day page renders a
 // read-only entry for another Traveller.
 const { JournalEntryView } = await import("@/components/trip/journal-entry-view");
+const { EmptyState } = await import("@/components/ui/empty-state");
+const { Timeline } = await import("@/components/trip/timeline");
+const { AddItemButton } = await import("@/components/trip/item-form-dialog");
+const { DayFeasibility } = await import("@/components/trip/day-feasibility");
+// Not mocked — the kit surface the timeline sits in.
+const { Card } = await import("@/components/ui/card");
 
 // Server components aren't run through a renderer here — walk the returned
 // React element tree by hand (mirrors phase-travelling.test.tsx).
@@ -414,5 +425,94 @@ describe("Day page — Journal entries are per-Traveller (ARCH-DAT-6)", () => {
     const readOnlyEntries = findAllElementsByType(tree, JournalEntryView);
     expect(readOnlyEntries).toHaveLength(1);
     expect(readOnlyEntries[0].props.authorName).toBe("Alex");
+  });
+});
+
+describe("Day page — Playground kit (Task 12a)", () => {
+  const STOP = {
+    id: "stop-1",
+    name: "Munich",
+    country: "Germany",
+    countryCode: "de",
+    timezone: "Europe/Berlin",
+    arriveDate: "2026-01-01",
+    departDate: "2026-01-20",
+    sortOrder: 0,
+    lat: null,
+    lng: null,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireTripAccessMock.mockResolvedValue({ user: { id: "me" }, membership: {} });
+    tripFindUniqueMock.mockResolvedValue({ startDate: "2026-01-01", endDate: "2026-01-20" });
+    todayISOInZoneMock.mockReturnValue("2026-01-05");
+    stopFindManyMock.mockResolvedValue([STOP]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    buildDayMapModelMock.mockReturnValue({});
+    buildItemDirectionsMock.mockReturnValue({});
+    nearbyWishlistItemsMock.mockReturnValue([]);
+    dayIdeasWishlistMock.mockReturnValue([]);
+    flagTightConnectionsMock.mockReturnValue([]);
+    daylightMock.mockReturnValue(null);
+    getDayWeatherMock.mockResolvedValue(null);
+  });
+
+  async function renderPlannedDay() {
+    isFreeFormDayMock.mockReturnValue(false);
+    buildItineraryMock.mockReturnValue([
+      makeDayPlan({ dateISO: "2026-01-05", stopId: "stop-1", timedItems: [{ kind: "item", item: { id: "i1" } }] }),
+    ]);
+    return DayPage({ params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }) });
+  }
+
+  it("puts the day's timeline inside a kit Card", async () => {
+    const tree = await renderPlannedDay();
+    const card = findAllElementsByType(tree, Card).find((c) => findElementByType(c, Timeline));
+    expect(card).toBeDefined();
+    expect(findElementByType(tree, EmptyState)).toBeNull();
+  });
+
+  it("renders the kit empty treatment (EmptyState) instead of the Timeline on an empty day", async () => {
+    isFreeFormDayMock.mockReturnValue(true);
+    buildItineraryMock.mockReturnValue([makeDayPlan({ dateISO: "2026-01-05", stopId: "stop-1" })]);
+    const tree = await DayPage({ params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }) });
+    const empty = findElementByType(tree, EmptyState);
+    expect(empty).not.toBeNull();
+    expect(empty!.props.title).toBe("Nothing planned");
+    expect(findElementByType(tree, Timeline)).toBeNull();
+  });
+
+  it("folds the 'browse your wishlist' nudge into the empty state before departure, so it isn't said twice", async () => {
+    todayISOInZoneMock.mockReturnValue("2025-12-20");
+    isFreeFormDayMock.mockReturnValue(true);
+    buildItineraryMock.mockReturnValue([makeDayPlan({ dateISO: "2026-01-05", stopId: "stop-1" })]);
+    const tree = await DayPage({ params: Promise.resolve({ tripId: "trip-1", date: "2026-01-05" }) });
+    const empty = findElementByType(tree, EmptyState);
+    expect(JSON.stringify(empty!.props.description)).toContain("browse your wishlist");
+    expect(JSON.stringify(tree).match(/browse your wishlist/g)).toHaveLength(1);
+  });
+
+  it("offers the kit '+ Add to this day' block secondary button", async () => {
+    const tree = await renderPlannedDay();
+    const add = findElementByType(tree, AddItemButton);
+    expect(add!.props.label).toBe("Add to this day");
+    expect(add!.props.variant).toBe("secondary");
+    expect(String(add!.props.className)).toMatch(/\bw-full\b/);
+  });
+
+  it("keeps the feasibility advisory", async () => {
+    const tree = await renderPlannedDay();
+    expect(findElementByType(tree, DayFeasibility)).not.toBeNull();
+  });
+
+  it("has none of the pre-reskin page shapes and no per-person money language", async () => {
+    const text = JSON.stringify(await renderPlannedDay());
+    expect(text).not.toMatch(/rounded-xl border border-border|shadow-soft/);
+    expect(text).not.toMatch(/per person|each owes|split/i);
   });
 });

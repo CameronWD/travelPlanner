@@ -12,7 +12,8 @@ export function ChapterChip({ name, colour, className, ...props }: ChapterChipPr
   return (
     <span
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        // Kit Chip, size m: the 2px ink outline + hue fill come from HUE_CLASSES[hue].chip.
+        "inline-flex min-h-6 max-w-full items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-extrabold leading-tight",
         meta.chipClass,
         className,
       )}

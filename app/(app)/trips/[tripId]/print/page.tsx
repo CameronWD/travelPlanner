@@ -16,6 +16,7 @@ import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
 import { zoneLabel } from "@/lib/time-display";
 import { buildItinerary, orderDayEntries } from "@/lib/itinerary";
 import { buildBudget, applyFxRatesToCosts } from "@/lib/budget";
+import { cn } from "@/lib/cn";
 import { PrintButton } from "./print-button";
 import type { BudgetStop, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
 import type { TransportMode } from "@/lib/enums";
@@ -36,6 +37,16 @@ const MODE_LABELS: Record<string, string> = {
 function modeLabel(mode: string) {
   return MODE_LABELS[mode] ?? mode;
 }
+
+// ---------------------------------------------------------------------------
+// Shared classes — kit type and 2px outlines on screen; on paper, hairlines,
+// square corners and no shadows (Task 15: print is a light, tokens-only pass).
+// ---------------------------------------------------------------------------
+
+const PRINT_H2_CLASS = "mb-4 font-display text-2xl font-extrabold tracking-[-0.03em]";
+
+const PRINT_BLOCK_CLASS =
+  "break-inside-avoid rounded-lg border-2 border-border bg-card p-4 print:rounded-none print:border print:border-border-soft print:bg-transparent";
 
 // ---------------------------------------------------------------------------
 // Page
@@ -254,39 +265,58 @@ export default async function PrintPage({
   return (
     <>
       {/*
-        Print-specific global styles injected via a style tag.
-        Tailwind's print: utilities handle most things, but some chrome
+        Print-specific global styles injected via a style tag (this route
+        only). Tailwind's print: utilities handle most things, but some chrome
         elements are outside our control (the (app) layout header/nav).
-        We target those via CSS class names that Next.js applies.
+
+        Paper is always light: when the app is in dark mode, print re-declares
+        the tokens this page uses with the light theme's values from
+        app/globals.css :root (a test pins them equal), so ink stays dark on
+        white whatever theme the Traveller browses in.
       */}
       <style>{`
         @media print {
+          html.dark {
+            color-scheme: light;
+            --background: 40 100% 98%;
+            --foreground: 60 4% 11%;
+            --card: 0 0% 100%;
+            --card-foreground: 60 4% 11%;
+            --muted: 37 33% 91%;
+            --muted-foreground: 33 5% 40%;
+            --border: 60 4% 11%;
+            --border-soft: 40 12% 76%;
+            --sun-text: 43 79% 28%;
+            --hue-leaf-text: 82 78% 27%;
+            --hue-pink-text: 335 37% 50%;
+          }
           /* Hide the app chrome that lives outside the page content */
           header,
           nav,
           [data-trip-nav],
+          [data-trip-header],
           .print-hide {
             display: none !important;
           }
           body {
-            background: white !important;
-            color: black !important;
+            background: hsl(var(--card)) !important;
+            color: hsl(var(--foreground)) !important;
           }
           .print-page-break {
-            page-break-before: always;
+            break-before: page;
           }
           a {
             text-decoration: none;
-            color: black;
+            color: inherit;
           }
         }
       `}</style>
 
-      <div className="flex flex-col gap-8 max-w-3xl mx-auto py-8 px-4 print:py-0 print:px-0 print:max-w-none">
+      <div data-print-root className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8 text-foreground print:max-w-none print:gap-6 print:px-0 print:py-0">
 
         {/* ── Print control bar (hidden in print) ── */}
-        <div className="print:hidden flex items-center justify-between border-b border-border pb-4">
-          <p className="text-sm text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-border-soft pb-4 print:hidden">
+          <p className="text-[13px] font-semibold text-muted-foreground">
             Print or save this itinerary as a PDF.
           </p>
           <PrintButton />
@@ -294,10 +324,10 @@ export default async function PrintPage({
 
         {/* ── Trip header ── */}
         <div className="border-b-2 border-foreground pb-4">
-          <h1 className="font-display text-4xl font-bold text-foreground leading-tight">
+          <h1 className="font-display text-4xl font-extrabold leading-tight tracking-[-0.03em] text-foreground">
             {trip.name}
           </h1>
-          <div className="mt-2 flex flex-wrap items-center gap-4 text-base text-muted-foreground">
+          <div className="mt-2 flex flex-wrap items-center gap-4 text-base font-medium text-muted-foreground">
             <span>{formatDateRange(startDate, endDate)}</span>
             <span className="flex items-center gap-1">
               <Moon className="size-4" aria-hidden="true" />
@@ -313,7 +343,7 @@ export default async function PrintPage({
         {/* ── Route (stops list) ── */}
         {stops.length > 0 && (
           <section>
-            <h2 className="font-display text-2xl font-semibold mb-4">Route</h2>
+            <h2 className={PRINT_H2_CLASS}>Route</h2>
             <div className="flex flex-col gap-3">
               {stops.map((stop, idx) => {
                 const nights = nightsBetween(stop.arriveDate, stop.departDate);
@@ -322,14 +352,14 @@ export default async function PrintPage({
                 const isLast = idx === stops.length - 1;
 
                 return (
-                  <div key={stop.id} className="border border-border rounded-2xl p-4 print:border-gray-300 print:rounded-none">
+                  <div key={stop.id} className={PRINT_BLOCK_CLASS}>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex items-start gap-3">
                         <span className="flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-foreground font-mono text-sm font-bold">
                           {idx + 1}
                         </span>
                         <div>
-                          <h3 className="font-display text-lg font-semibold">
+                          <h3 className="font-display text-lg font-extrabold tracking-[-0.02em]">
                             {stop.name}
                             {stop.country && (
                               <span className="ml-1.5 font-sans text-sm font-normal text-muted-foreground">
@@ -355,7 +385,7 @@ export default async function PrintPage({
                     )}
 
                     {transport && !isLast && (
-                      <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground print:bg-gray-50">
+                      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border-2 border-border-soft bg-muted/40 px-3 py-2 text-sm text-muted-foreground print:border print:bg-transparent">
                         <span className="font-medium">{modeLabel(transport.mode)}</span>
                         {transport.depPlace && (
                           <>
@@ -384,7 +414,7 @@ export default async function PrintPage({
 
         {/* ── Day-by-day itinerary ── */}
         <section>
-          <h2 className="font-display text-2xl font-semibold mb-4">Day-by-Day</h2>
+          <h2 className={PRINT_H2_CLASS}>Day-by-Day</h2>
           <div className="flex flex-col gap-6">
             {itinerary.map((day) => {
               const hasAnything =
@@ -394,10 +424,10 @@ export default async function PrintPage({
                 day.accommodationEntries.length > 0;
 
               return (
-                <div key={day.dateISO} className="border-t border-border pt-4 print:border-gray-200">
+                <div key={day.dateISO} className="break-inside-avoid border-t-2 border-border-soft pt-4 print:border-t">
                   {/* Day header */}
-                  <div className="flex items-baseline justify-between mb-3">
-                    <h3 className="font-display text-lg font-semibold">
+                  <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3">
+                    <h3 className="font-display text-lg font-extrabold tracking-[-0.02em]">
                       {formatLongDate(day.dateISO)}
                     </h3>
                     {day.stop && (
@@ -523,7 +553,7 @@ export default async function PrintPage({
                                 key={entry.item.id}
                                 className="mb-1 flex items-start gap-2 text-sm"
                               >
-                                <Clock className="size-3.5 mt-0.5 shrink-0 text-muted-foreground/40" aria-hidden="true" />
+                                <Clock className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
                                 <span>{entry.item.title}</span>
                               </div>
                             ))}
@@ -540,12 +570,12 @@ export default async function PrintPage({
 
         {/* ── Budget summary ── */}
         <section className="print-page-break">
-          <h2 className="font-display text-2xl font-semibold mb-4">Budget Summary</h2>
-          <div className="border border-border rounded-2xl p-5 print:border-gray-300 print:rounded-none">
+          <h2 className={PRINT_H2_CLASS}>Budget Summary</h2>
+          <div className={cn(PRINT_BLOCK_CLASS, "p-5")}>
             {/* Grand total */}
-            <div className="flex flex-wrap gap-6 mb-4 pb-4 border-b border-border print:border-gray-200">
+            <div className="mb-4 flex flex-wrap gap-6 border-b-2 border-border-soft pb-4 print:border-b">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">
+                <p className="mb-0.5 text-label text-muted-foreground">
                   {hasActual ? "Paid so far" : "Cost budget"}
                 </p>
                 <p className="font-mono text-2xl font-bold">
@@ -557,7 +587,7 @@ export default async function PrintPage({
               </div>
               {hasActual && grandTotal.costTotalMinor > 0 && (
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">
+                  <p className="mb-0.5 text-label text-muted-foreground">
                     Original cost
                   </p>
                   <p className="font-mono text-2xl font-bold text-muted-foreground">
@@ -570,7 +600,7 @@ export default async function PrintPage({
             {/* By category */}
             {budget.byCategory.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                <p className="mb-2 text-label text-muted-foreground">
                   By category
                 </p>
                 <div className="flex flex-col gap-1.5">
@@ -598,7 +628,7 @@ export default async function PrintPage({
         </section>
 
         {/* ── Print footer ── */}
-        <div className="hidden print:block mt-8 pt-4 border-t border-gray-200 text-xs text-gray-400 text-center">
+        <div className="mt-8 hidden border-t border-border-soft pt-4 text-center text-xs text-muted-foreground print:block">
           Printed from Teepee — {new Date().toLocaleDateString("en-AU", { dateStyle: "long" })}
         </div>
       </div>

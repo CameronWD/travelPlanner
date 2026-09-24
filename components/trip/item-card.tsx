@@ -8,10 +8,12 @@ import {
   Hash,
   StickyNote,
   Clock,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { safeWebHref } from "@/lib/url";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { CategoryPill } from "./category-pill";
 import type { Category } from "@/lib/categories";
 import { CostEditor } from "./cost-editor";
@@ -67,6 +69,17 @@ export interface ItemCardProps {
   attachments?: AttachmentView[];
   /** The Plan this item's costs belong to — `null`/absent is the real plan */
   forkId?: string | null;
+  /**
+   * Kit card fill (DWishlist.jsx alternates white/sun). Decorative only —
+   * identity is the CategoryPill's hue, state is `placed`.
+   */
+  tone?: "white" | "sun";
+  /**
+   * Wishlist idea already has a scheduled copy in the active plan. Renders the
+   * kit's "in plan ✓" card: a --success fill (status token) plus a status chip.
+   * Wins over `tone`.
+   */
+  placed?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +101,8 @@ export function ItemCard({
   currentUserId,
   attachments,
   forkId,
+  tone = "white",
+  placed = false,
 }: ItemCardProps) {
   const hasTime = Boolean(item.startTime);
   const timeLabel = hasTime
@@ -96,37 +111,56 @@ export function ItemCard({
       : item.startTime!
     : null;
 
+  const wishlist = mode === "wishlist";
+
   return (
-    <div
+    <Card
+      data-testid={`item-card-${item.id}`}
+      tone={placed || !wishlist ? "white" : tone}
       className={cn(
-        "group flex flex-col gap-2.5 rounded-3xl bg-card p-3.5 shadow-soft transition-shadow hover:shadow-soft-lg",
+        "group flex min-w-0 flex-col gap-2.5 p-3.5 sm:p-[18px]",
+        wishlist && "h-full sm:min-h-[170px]",
+        // Status, not identity: the kit's teal "in plan" card, on --success.
+        placed && "island bg-success",
+        // On a fill, the red delete glyph drops under 4.5:1 (dark sun) — the
+        // kit keeps every glyph on an island in on-accent ink.
+        wishlist && (placed || tone !== "white") && "[&_.text-destructive]:text-foreground",
         isPending && "pointer-events-none opacity-60",
       )}
     >
-      {/* Top row: title + controls */}
+      {/* Top row (wishlist): category chip left, actions right — the kit's
+          avatar/heart row. Scheduled mode keeps title + actions. */}
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <h4 className="truncate font-display text-[15px] font-semibold leading-tight text-foreground">
-            {item.title}
-          </h4>
-
-          {/* Stop name (when linked) */}
-          {item.stopName && (
-            <p className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-              {/* No decorative pin here: the address row below (if any) carries
-                  MapLink, the real one, and help-legend.tsx teaches that glyph
-                  as "has a location" (HG-02/HG-10). A stop name alone isn't a
-                  location link — nothing happens if you tap it. */}
-              <span className="truncate">{item.stopName}</span>
-            </p>
-          )}
-        </div>
+        {wishlist ? (
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5 pt-1.5">
+            <CategoryPill category={item.category as Category} size="sm" />
+            {placed && (
+              <span
+                data-testid={`placed-marker-${item.id}`}
+                className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border-2 border-border bg-card px-2 py-0.5 text-[10px] font-extrabold leading-tight text-foreground"
+              >
+                <Check className="size-3 shrink-0" strokeWidth={3} aria-hidden="true" />
+                in this plan
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="min-w-0 flex-1">
+            <h4 className="truncate font-display text-[15px] font-extrabold leading-tight text-foreground">
+              {item.title}
+            </h4>
+            {item.stopName && (
+              <p className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-muted-foreground">
+                <span className="truncate">{item.stopName}</span>
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Action buttons (top-right cluster) */}
         <div className="flex shrink-0 items-center gap-1">
           {mode === "wishlist" ? (
             <>
-              <CategoryPill category={item.category as Category} size="sm" />
               <CardActionCluster
                 tripId={tripId}
                 targetType="ITEM"
@@ -175,6 +209,23 @@ export function ItemCard({
         </div>
       </div>
 
+      {/* Title + where (wishlist) — the kit's H3 and muted place line */}
+      {wishlist && (
+        <div className="min-w-0">
+          <h4 className="break-words font-display text-[17px] font-extrabold leading-[1.15] tracking-[-0.03em] text-foreground sm:text-[22px]">
+            {item.title}
+          </h4>
+          {/* No decorative pin beside the stop name: the address row below (if
+              any) carries MapLink, the real one, and help-legend.tsx teaches
+              that glyph as "has a location" (HG-02/HG-10). */}
+          {item.stopName && (
+            <p className="mt-1 truncate text-[13px] font-semibold text-muted-foreground">
+              {item.stopName}
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Category pill + time row (scheduled mode only) */}
       {mode === "scheduled" && (
         <div className="flex flex-wrap items-center gap-2">
@@ -191,11 +242,11 @@ export function ItemCard({
 
       {/* Address / link / booking affordances */}
       {(item.address || item.link || item.booking) && (
-        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-muted-foreground">
           {item.address && (
             <span className="flex items-center gap-1">
               <span className="truncate max-w-[18ch]">{item.address}</span>
-              <MapLink lat={item.lat} lng={item.lng} address={item.address} label={item.title} className="text-muted-foreground/60" />
+              <MapLink lat={item.lat} lng={item.lng} address={item.address} label={item.title} className="text-muted-foreground" />
             </span>
           )}
           {safeWebHref(item.link) && (
@@ -221,7 +272,7 @@ export function ItemCard({
 
       {/* Notes snippet */}
       {item.notes && (
-        <div className="flex items-start gap-1.5 text-xs text-muted-foreground">
+        <div className="flex items-start gap-1.5 text-xs font-medium text-muted-foreground">
           <StickyNote
             className="mt-0.5 size-3.5 shrink-0"
             aria-hidden="true"
@@ -242,7 +293,7 @@ export function ItemCard({
 
       {/* Costs */}
       {costs !== undefined && tripId && (
-        <div className="border-t border-border/40 pt-2">
+        <div className="border-t-2 border-border-soft pt-2">
           <CostEditor
             tripId={tripId}
             ownerType="ITEM"
@@ -255,17 +306,20 @@ export function ItemCard({
         </div>
       )}
 
-      {/* Full-width coral Schedule button (wishlist mode only) */}
+      {/* Schedule — the kit's secondary "Add to a stop" pill, pushed to the
+          card foot. Copy stays ours: the dialog schedules to a date. */}
       {mode === "wishlist" && onSchedule && (
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="md"
           onClick={() => onSchedule(item)}
           aria-label={`Schedule ${item.title}`}
-          className="mt-1 w-full rounded-xl bg-primary py-2.5 text-[13px] font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+          className="mt-auto self-start"
         >
           Schedule this
-        </button>
+        </Button>
       )}
-    </div>
+    </Card>
   );
 }

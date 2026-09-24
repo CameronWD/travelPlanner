@@ -9,7 +9,7 @@ import { PhaseSketching } from "@/components/trip/home/phase-sketching";
 import { PhasePlanning } from "@/components/trip/home/phase-planning";
 import { PhaseTravelling } from "@/components/trip/home/phase-travelling";
 import { PhasePast } from "@/components/trip/home/phase-past";
-import { TripCover } from "@/components/trip/trip-cover";
+import { TripCover, TripCoverCard } from "@/components/trip/trip-cover";
 import { RemindersCard } from "@/components/trip/reminders-card";
 import { listRemindersForTrip } from "@/server/actions/reminders";
 import { orderPlanStops } from "@/lib/plan-order";
@@ -77,7 +77,7 @@ export default async function TripHomePage({
   // content width, so on a wide screen extra height makes an enormous band,
   // while on a phone it is the only way a portrait cover gets real room.
   const cover = (
-    <div className="relative -mt-2 mb-2 h-56 w-full overflow-hidden rounded-2xl border border-border shadow-soft sm:h-48">
+    <TripCoverCard className="-mt-2 mb-2 h-56 w-full sm:h-48">
       <TripCover
         tripId={tripId}
         name={trip.name}
@@ -87,7 +87,7 @@ export default async function TripHomePage({
         roundTrip={trip.roundTrip ?? false}
         coverVersion={trip.coverImageKey}
       />
-    </div>
+    </TripCoverCard>
   );
 
   // Reminders are a Trip's dated notes and belong on Home in *every* Phase —

@@ -179,10 +179,19 @@ catches, because tests assert behaviour, not reasoning.
   computed size prop; Tailwind has no utility for an arbitrary numeric input.
 - `components/ui/progress-bar.tsx` — inline `style={{ width }}`, a computed
   percentage Tailwind cannot express as a class.
-- `app/global-error.tsx` — stays fully inline-styled and was **not
-  restyled** in this phase. It replaces the entire document when the root
-  layout itself fails, so `globals.css` never loads for it; every style has
-  to travel with the markup.
+- `app/global-error.tsx` — inline styles are allowed. It replaces the entire document when the
+  root layout itself fails, so `globals.css` never loads for it; every style has to travel with the
+  markup. **No raw hex:** colours come from CSS variables the file declares locally, whose HSL
+  triples are copied exactly from `globals.css` (light and dark). Restyled in phase 3 (2026-09-24).
+- `lib/og-card.tsx` — inline style objects and hex. Satori (next/og) cannot read CSS variables or
+  Tailwind classes. Every hex must equal the `globals.css` light token **computed from its HSL
+  triple**, and `lib/og-card.test.ts` pins that equality so the two cannot drift. Fonts are static
+  `.ttf` files in `app/fonts/` (Satori does not read `.woff2`). Added in phase 3 (2026-09-24);
+  only the site-wide default card ships — the per-trip share card is a logged gap.
+- `app/(app)/trips/[tripId]/print/page.tsx` — an inline `<style>` that re-declares a dozen
+  light-theme HSL tokens under `@media print { html.dark { … } }`. Paper is always light, so a
+  print from dark mode must get light-theme ink; tokens can't be scoped to print any other way.
+  The triples are copied from `globals.css` `:root`, and `print/page.test.tsx` pins them equal.
 
 ## Deferred, and why
 

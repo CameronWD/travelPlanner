@@ -243,4 +243,19 @@ describe("JournalEditor", () => {
       expect(document.body.innerHTML).not.toMatch(/aria-label="[^"]*member[^"]*"/i);
     });
   });
+
+  describe("Playground kit shell (Task 12a)", () => {
+    it("sits in a kit Card (2px outline, hard shadow), not the old soft-shadow card", () => {
+      const { container } = render(<JournalEditor {...BASE_PROPS} />);
+      const shell = container.querySelector(".shadow-hard-2") as HTMLElement;
+      expect(shell).not.toBeNull();
+      expect(shell.className).toMatch(/\bborder-2\b/);
+      expect(container.innerHTML).not.toMatch(/shadow-soft|rounded-2xl/);
+    });
+
+    it("names the icon-only add-photo control", () => {
+      render(<JournalEditor {...BASE_PROPS} />);
+      expect(screen.getByLabelText("Add a photo")).toBeInTheDocument();
+    });
+  });
 });

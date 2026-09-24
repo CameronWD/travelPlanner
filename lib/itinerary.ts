@@ -507,6 +507,21 @@ export function orderDayEntries(day: DayPlan): OrderedDay {
   };
 }
 
+/**
+ * Does this day have anything for the Timeline to show (items, transport or
+ * accommodation)? The one check shared by Timeline's empty branch and the
+ * travelling-phase home "Today's plan" card. Re-exported from
+ * components/trip/timeline.tsx.
+ */
+export function dayHasEntries(day: DayPlan): boolean {
+  return (
+    day.timedItems.length > 0 ||
+    day.untimedItems.length > 0 ||
+    day.transportEntries.length > 0 ||
+    day.accommodationEntries.length > 0
+  );
+}
+
 /** No scheduled Items on this day — the Day ideas trigger (CONTEXT.md "free-form"). */
 export function isFreeFormDay(day: DayPlan): boolean {
   return day.timedItems.length === 0 && day.untimedItems.length === 0;

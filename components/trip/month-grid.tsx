@@ -5,13 +5,13 @@ import Link from "next/link";
 import { LogIn, LogOut, Navigation } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { buildMonthGrid, MONTH_GRID_WEEKDAYS } from "@/lib/month-grid";
-import { parseISODate } from "@/lib/dates";
+import { formatLongDate, monthKey, parseISODate } from "@/lib/dates";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import type { TransportMode } from "@/lib/enums";
 import type { DayPlan } from "@/lib/itinerary";
 import { PACKED_DAY_THRESHOLD } from "@/lib/flags";
-import { stopBandBorderClass } from "@/lib/stop-colours";
-
+import { stopBandBorderClass, stopPillClass } from "@/lib/stop-colours";
+import { Badge, badgeVariants } from "@/components/ui/badge";
 
 export interface MonthGridProps {
   tripId: string;
@@ -19,16 +19,25 @@ export interface MonthGridProps {
   days: DayPlan[];
   tripStart: string;
   tripEnd: string;
+  /** Trip-reference-timezone "today" (YYYY-MM-DD); its tile gets `aria-current="date"`. */
+  todayISO?: string;
   /** When provided, day cells accept dropped items (the drag source is the wishlist rail, not the cell). */
   onDropItem?: (itemId: string, dateISO: string) => void;
 }
 
+/**
+ * Kit Days month grid (Days.jsx / DDays.jsx): seven outlined day tiles per
+ * week — 50px on a phone, 96px from `sm` — with a stop legend underneath.
+ * A stop's days wear its colour from lib/stop-colours.ts (the soft pill tint
+ * plus the left band); today is the lifted, hard-shadowed tile.
+ */
 export function MonthGrid({
   tripId,
   monthAnchorISO,
   days,
   tripStart,
   tripEnd,
+  todayISO,
   onDropItem,
 }: MonthGridProps) {
   const weeks = React.useMemo(() => buildMonthGrid(monthAnchorISO), [monthAnchorISO]);
@@ -40,152 +49,154 @@ export function MonthGrid({
 
   const inWindow = (dateISO: string) => dateISO >= tripStart && dateISO <= tripEnd;
 
+  // Legend: each stop seen on this month's in-window days, in date order.
+  const legend = React.useMemo(() => {
+    const month = monthKey(monthAnchorISO);
+    const seen = new Map<string, NonNullable<DayPlan["stop"]>>();
+    for (const d of days) {
+      const shown = monthKey(d.dateISO) === month && d.dateISO >= tripStart && d.dateISO <= tripEnd;
+      if (d.stop && shown && !seen.has(d.stop.id)) {
+        seen.set(d.stop.id, d.stop);
+      }
+    }
+    return [...seen.values()];
+  }, [days, monthAnchorISO, tripStart, tripEnd]);
+
   return (
-    <div className="overflow-hidden rounded-xl border border-border">
-      <div className="overflow-x-auto sm:overflow-visible">
-        {/* Weekday header */}
-        <div className="grid grid-cols-7 min-w-[560px] sm:min-w-0 border-b border-border bg-muted/40 text-center text-xs font-medium text-muted-foreground">
-          {MONTH_GRID_WEEKDAYS.map((wd) => (
-            <div key={wd} className="px-1 py-2">
-              {wd}
-            </div>
-          ))}
-        </div>
+    <div className="flex flex-col gap-2.5">
+      {/* Weekday header — kit micro/label type; the tiles carry the full date for assistive tech. */}
+      <div
+        aria-hidden="true"
+        className="grid grid-cols-7 gap-1 px-0.5 text-center text-[10px] font-extrabold uppercase tracking-[0.08em] text-muted-foreground sm:gap-2 sm:text-left sm:text-[11px]"
+      >
+        {MONTH_GRID_WEEKDAYS.map((wd) => (
+          <span key={wd}>
+            <span className="sm:hidden">{wd[0]}</span>
+            <span className="hidden sm:inline">{wd}</span>
+          </span>
+        ))}
+      </div>
 
-        {/* Weeks */}
-        <div className="grid grid-cols-7 min-w-[560px] sm:min-w-0">
+      {/* Weeks */}
+      <div className="grid grid-cols-7 gap-1 sm:gap-2">
         {weeks.flat().map((cell) => {
-          const active = cell.inMonth && inWindow(cell.dateISO);
-          // Only surface itinerary content on active (in-month, in-window) cells —
-          // padding/out-of-window cells stay dimmed and empty but for the day number.
-          const day = active ? byDate.get(cell.dateISO) : undefined;
-          const dayNum = parseISODate(cell.dateISO).getUTCDate();
-          const bandClass =
-            active && day?.stop
-              ? stopBandBorderClass(day.stop.sortOrder)
-              : "border-l-transparent";
+          const tile = "flex h-[50px] min-w-0 flex-col overflow-hidden rounded-sm border-2 p-1 sm:h-24 sm:rounded-md sm:p-2.5";
 
-          const timed = day?.timedItems ?? [];
-          const untimed = day?.untimedItems ?? [];
-          const allItems = [...timed, ...untimed];
-          const packed = timed.length > PACKED_DAY_THRESHOLD;
-
-          const itemCount = allItems.length;
-
-          const cellInner = (
-            <div className="flex h-full flex-col">
-              <div className="flex items-center justify-between">
-                <span
-                  className={cn(
-                    "text-xs font-semibold",
-                    active ? "text-foreground" : "text-muted-foreground/40",
-                  )}
-                >
-                  {dayNum}
-                </span>
-                <span className="flex items-center gap-0.5">
-                  {day?.transportEntries.map((t) => {
-                    const Icon = TRANSPORT_MODE_META[t.transport.mode as TransportMode]?.icon ?? Navigation;
-                    return (
-                      <Icon
-                        key={`${t.kind}-${t.transport.id}`}
-                        className="size-3 shrink-0 text-muted-foreground"
-                        aria-hidden="true"
-                      />
-                    );
-                  })}
-                  {day?.accommodationEntries.map((a) =>
-                    a.kind === "accommodation-checkin" ? (
-                      <LogIn key={`in-${a.accommodation.id}`} className="size-3 shrink-0 text-hue-leaf-text" aria-hidden="true" />
-                    ) : (
-                      <LogOut key={`out-${a.accommodation.id}`} className="size-3 shrink-0 text-hue-pink-text" aria-hidden="true" />
-                    ),
-                  )}
-                  {packed && (
-                    <span
-                      className="size-1.5 rounded-full bg-warning"
-                      title="Busy day"
-                      aria-label="Busy day"
-                    />
-                  )}
-                </span>
-              </div>
-
-              {day?.stop ? (
-                <div className="flex flex-1 flex-col items-center justify-center px-0.5 text-center">
-                  <span className="line-clamp-2 min-w-0 text-[13px] font-semibold leading-tight text-foreground">
-                    {day.stop.name}
-                  </span>
-                  {day.stop.country && (
-                    <span className="truncate text-[11px] leading-tight text-muted-foreground">
-                      {day.stop.country}
-                    </span>
-                  )}
-                  {itemCount > 0 && (
-                    <span className="mt-0.5 inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                      +{itemCount} {itemCount === 1 ? "thing" : "things"}
-                    </span>
-                  )}
-                </div>
-              ) : itemCount > 0 ? (
-                <div className="flex flex-1 items-center justify-center">
-                  <span className="inline-flex items-center rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-                    +{itemCount} {itemCount === 1 ? "thing" : "things"}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex-1" />
-              )}
-            </div>
-          );
-
-          const cellClasses = cn(
-            "min-h-28 border-b border-r border-border border-l-2 p-1.5 transition-colors md:min-h-20",
-            bandClass,
-            !active && "bg-muted/20",
-            active && onDropItem && dragOver === cell.dateISO && "bg-primary/10 ring-1 ring-inset ring-primary",
-          );
-
-          // Drop handlers (only when interactive AND the day is in-window)
-          const dropProps =
-            onDropItem && active
-              ? {
-                  onDragOver: (e: React.DragEvent) => {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = "move";
-                    setDragOver(cell.dateISO);
-                  },
-                  onDragLeave: () => setDragOver((d) => (d === cell.dateISO ? null : d)),
-                  onDrop: (e: React.DragEvent) => {
-                    e.preventDefault();
-                    setDragOver(null);
-                    const id = e.dataTransfer.getData("text/item-id");
-                    if (id) onDropItem(id, cell.dateISO);
-                  },
-                }
-              : {};
-
-          if (active) {
+          if (!cell.inMonth) {
+            // Kit: the month's leading/trailing slots are empty space, not dim days.
             return (
-              <div key={cell.dateISO} className={cellClasses} {...dropProps}>
-                <Link
-                  href={`/trips/${tripId}/day/${cell.dateISO}`}
-                  className="block h-full focus:outline-none focus-visible:ring-1 focus-visible:ring-primary rounded"
-                >
-                  {cellInner}
-                </Link>
+              <div key={cell.dateISO} data-month-pad="" aria-hidden="true" className={cn(tile, "invisible border-transparent")} />
+            );
+          }
+
+          const dayNum = parseISODate(cell.dateISO).getUTCDate();
+          const numberClass = "font-display text-xs font-extrabold leading-none sm:text-lg";
+
+          if (!inWindow(cell.dateISO)) {
+            // In the month, outside the trip: the kit's soft-outlined, muted tile.
+            return (
+              <div key={cell.dateISO} role="presentation" className={cn(tile, "border-border-soft text-muted-foreground")}>
+                <span className={numberClass}>{dayNum}</span>
               </div>
             );
           }
 
+          const day = byDate.get(cell.dateISO);
+          const timed = day?.timedItems ?? [];
+          const itemCount = timed.length + (day?.untimedItems.length ?? 0);
+          const packed = timed.length > PACKED_DAY_THRESHOLD;
+          const thingsLabel = `${itemCount} ${itemCount === 1 ? "thing" : "things"}`;
+          const isToday = cell.dateISO === todayISO;
+
+          const label = [
+            formatLongDate(cell.dateISO),
+            day?.stop?.name,
+            day?.stop?.country,
+            itemCount > 0 ? thingsLabel : null,
+            packed ? "busy day" : null,
+            isToday ? "today" : null,
+          ]
+            .filter(Boolean)
+            .join(", ");
+
+          const dropProps = onDropItem
+            ? {
+                onDragOver: (e: React.DragEvent) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  setDragOver(cell.dateISO);
+                },
+                onDragLeave: () => setDragOver((d) => (d === cell.dateISO ? null : d)),
+                onDrop: (e: React.DragEvent) => {
+                  e.preventDefault();
+                  setDragOver(null);
+                  const id = e.dataTransfer.getData("text/item-id");
+                  if (id) onDropItem(id, cell.dateISO);
+                },
+              }
+            : {};
+
           return (
-            <div key={cell.dateISO} className={cellClasses} role="presentation">
-              {cellInner}
-            </div>
+            <Link
+              key={cell.dateISO}
+              href={`/trips/${tripId}/day/${cell.dateISO}`}
+              aria-label={label}
+              aria-current={isToday ? "date" : undefined}
+              {...dropProps}
+              className={cn(
+                tile,
+                "border-border transition-[transform,box-shadow] duration-[var(--dur-fast)] ease-pop hover:shadow-hard-1",
+                day?.stop
+                  ? cn(stopPillClass(day.stop.sortOrder), stopBandBorderClass(day.stop.sortOrder), "border-l-4 sm:border-l-8")
+                  : "bg-card text-foreground",
+                isToday && "-translate-x-px -translate-y-px shadow-hard-1 sm:-translate-x-0.5 sm:-translate-y-0.5 sm:shadow-hard-2",
+                onDropItem && dragOver === cell.dateISO && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+              )}
+            >
+              <span className="flex items-start justify-between gap-1">
+                <span className={numberClass}>{dayNum}</span>
+                <span className="hidden items-center gap-0.5 sm:flex">
+                  {day?.transportEntries.map((t) => {
+                    const Icon = TRANSPORT_MODE_META[t.transport.mode as TransportMode]?.icon ?? Navigation;
+                    return <Icon key={`${t.kind}-${t.transport.id}`} className="size-3.5 shrink-0" aria-hidden="true" />;
+                  })}
+                  {day?.accommodationEntries.map((a) =>
+                    a.kind === "accommodation-checkin" ? (
+                      <LogIn key={`in-${a.accommodation.id}`} className="size-3.5 shrink-0" aria-hidden="true" />
+                    ) : (
+                      <LogOut key={`out-${a.accommodation.id}`} className="size-3.5 shrink-0" aria-hidden="true" />
+                    ),
+                  )}
+                </span>
+              </span>
+
+              {day?.stop && (
+                <span className="mt-1 truncate text-[7px] font-extrabold uppercase leading-tight sm:mt-2 sm:line-clamp-2 sm:whitespace-normal sm:text-[10px] sm:tracking-[0.08em]">
+                  {day.stop.name}
+                </span>
+              )}
+              {day?.stop?.country && (
+                <span className="hidden truncate text-[11px] font-medium leading-tight sm:block">{day.stop.country}</span>
+              )}
+              {itemCount > 0 && (
+                <Badge variant={packed ? "coral" : "default"} className="mt-auto hidden self-start sm:inline-flex">
+                  {thingsLabel}
+                </Badge>
+              )}
+            </Link>
           );
         })}
-        </div>
       </div>
+
+      {legend.length > 0 && (
+        <ul aria-label="Stops" className="flex flex-wrap gap-1.5">
+          {legend.map((stop) => (
+            <li key={stop.id} className={cn(badgeVariants(), stopPillClass(stop.sortOrder))}>
+              {stop.name}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

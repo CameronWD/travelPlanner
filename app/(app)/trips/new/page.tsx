@@ -10,10 +10,10 @@ export default async function NewTripPage() {
   await requireUser();
 
   return (
-    <div className="mx-auto max-w-lg space-y-8">
+    <div className="mx-auto max-w-xl space-y-8">
       {/* Page header */}
       <div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">
+        <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em]">
           New trip
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">

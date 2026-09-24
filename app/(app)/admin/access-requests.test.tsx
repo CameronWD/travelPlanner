@@ -134,6 +134,23 @@ describe("AccessRequestsPanel", () => {
     );
   });
 
+  // S2: kit restyle — each request row is a Card (root class border-2), not
+  // the old plain rounded-md/border-border div.
+  it("renders each request inside a Card (border-2 root)", () => {
+    render(<AccessRequestsPanel initial={requests} now={NOW} />);
+    const row = screen.getByText("Friend Person").closest(".border-2");
+    expect(row).toBeInTheDocument();
+  });
+
+  // S2: preserved/strengthened behaviour — the accessible name for each
+  // action must identify WHICH requester it acts on, not just "Approve" /
+  // "Dismiss" in the abstract (matters once more than one row is pending).
+  it("Approve and Dismiss buttons' accessible names include the requester", () => {
+    render(<AccessRequestsPanel initial={requests} now={NOW} />);
+    expect(screen.getByRole("button", { name: "Approve Friend Person" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dismiss Friend Person" })).toBeInTheDocument();
+  });
+
   it("falls back to the email when there is no name", () => {
     render(
       <AccessRequestsPanel

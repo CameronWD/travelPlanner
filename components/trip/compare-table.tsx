@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Info, TriangleAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { formatMoney } from "@/lib/money";
 import { formatLongDate } from "@/lib/dates";
@@ -11,10 +11,15 @@ import { moveFork } from "@/server/actions/forks";
 import { PromoteForkDialog } from "@/components/trip/promote-fork-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { HUE_CLASSES } from "@/lib/hues";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
 
-/** Column accent-dot colours by fork index (the real plan uses bg-primary). */
-const FORK_DOT_COLORS = ["bg-accent", HUE_CLASSES.lilac.fill, HUE_CLASSES.sky.fill];
+/**
+ * Fork card tones by fork index. The kit (shared/together.jsx Compare) draws
+ * the real plan white and the fork lilac; further forks cycle through the
+ * other kit accents so neighbouring cards stay distinguishable.
+ */
+const FORK_TONES = ["lilac", "teal", "sun"] as const;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -122,10 +127,11 @@ function hardEndLabel(state: ComparisonPlan["metrics"]["hardEndState"]): string 
   }
 }
 
-function hardEndBadgeVariant(state: ComparisonPlan["metrics"]["hardEndState"]): "outline" | "destructive" | "secondary" {
-  if (state === "over") return "destructive";
-  if (state === "approaching") return "secondary";
-  return "outline";
+/** Status = state: over → destructive, approaching → warning, on time → plain chip. */
+function hardEndBadgeClass(state: ComparisonPlan["metrics"]["hardEndState"]): string | undefined {
+  if (state === "over") return "bg-destructive text-destructive-foreground";
+  if (state === "approaching") return "bg-warning text-warning-foreground";
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -141,136 +147,127 @@ function formatMinutes(minutes: number): string {
   return `${h}h ${m}m`;
 }
 
-// ---------------------------------------------------------------------------
-// Route summary
-// ---------------------------------------------------------------------------
-
-function RouteCell({ plan }: { plan: ComparisonPlan }) {
-  const { route, countries } = plan.metrics;
-  return (
-    <div className="flex flex-col gap-1 min-w-[180px]">
-      {route.map((stop, i) => (
-        <div key={i} className="flex items-baseline gap-1 min-w-0 text-sm">
-          <span className="font-medium text-foreground truncate min-w-0">{stop.name}</span>
-          {stop.country && (
-            <span className="text-xs text-muted-foreground">{stop.country}</span>
-          )}
-          {stop.nights !== null && stop.nights > 0 && (
-            <span className="ml-auto text-xs text-muted-foreground font-mono">
-              {stop.nights}n
-            </span>
-          )}
-        </div>
-      ))}
-      {countries.length > 0 && (
-        <p className="text-xs text-muted-foreground mt-1 truncate">
-          {countries.join(" · ")}
-        </p>
-      )}
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
-// Route diff cell (fork columns)
+// Route rows (kit: one row per stop; a changed stop gets a bordered row)
 // ---------------------------------------------------------------------------
 
 function nightsLabel(n: number | null): string | null {
   return n !== null && n > 0 ? `${n}n` : null;
 }
 
-function DiffStopRow({ stop }: { stop: RouteDiffStop }) {
-  const base = "flex items-baseline gap-1 min-w-0 text-sm";
-  if (stop.kind === "dropped") {
-    return (
-      <div className={base}>
-        <span className="truncate min-w-0 text-over line-through">{stop.name}</span>
-        {nightsLabel(stop.nights) && (
-          <span className="ml-auto text-xs text-over line-through font-mono">{nightsLabel(stop.nights)}</span>
-        )}
-      </div>
-    );
-  }
-  const tone =
-    stop.kind === "added"
-      ? "text-teal-text"
-      : stop.kind === "renighted"
-        ? "text-sun-text"
-        : "text-foreground";
+const CHANGE_PREFIX: Record<RouteDiffStop["kind"], string> = {
+  same: "",
+  added: "+ ",
+  dropped: "− ",
+  moved: "↕ ",
+  renighted: "",
+};
+
+const CHANGE_SR: Record<RouteDiffStop["kind"], string | null> = {
+  same: null,
+  added: "added",
+  dropped: "dropped",
+  moved: "moved",
+  renighted: "nights changed",
+};
+
+function RouteRow({ stop }: { stop: RouteDiffStop }) {
+  const changed = stop.kind !== "same";
+  const nights =
+    stop.kind === "renighted"
+      ? `${stop.baseNights ?? "?"}→${stop.nights ?? "?"}n`
+      : nightsLabel(stop.nights);
+  const sr = CHANGE_SR[stop.kind];
   return (
-    <div className={base}>
-      {stop.kind === "added" && <span className="shrink-0 text-teal-text" aria-hidden="true">+</span>}
-      {stop.kind === "moved" && <span className="shrink-0 text-muted-foreground" aria-hidden="true">↕</span>}
-      <span className={`truncate min-w-0 font-medium ${tone}`}>{stop.name}</span>
-      {stop.country && <span className="text-xs text-muted-foreground">{stop.country}</span>}
-      {stop.kind === "renighted" ? (
-        <span className="ml-auto text-xs text-sun-text font-mono">{stop.baseNights ?? "?"}→{stop.nights ?? "?"}n</span>
-      ) : (
-        nightsLabel(stop.nights) && <span className="ml-auto text-xs text-muted-foreground font-mono">{nightsLabel(stop.nights)}</span>
+    <li
+      data-testid="route-row"
+      data-change={stop.kind}
+      className={cn(
+        "flex items-baseline justify-between gap-2 rounded-[10px] border-2 px-2.5 py-2 text-[13px]",
+        changed ? "border-border bg-card" : "border-transparent",
+        stop.kind === "dropped" && "line-through",
       )}
-    </div>
+    >
+      <span className="min-w-0 truncate">
+        <b className="font-extrabold">
+          {CHANGE_PREFIX[stop.kind] && <span aria-hidden="true">{CHANGE_PREFIX[stop.kind]}</span>}
+          {stop.name}
+        </b>
+        {stop.country && <span className="ml-1.5 text-xs font-semibold text-muted-foreground">{stop.country}</span>}
+        {sr && <span className="sr-only"> ({sr})</span>}
+      </span>
+      {nights && <span className="shrink-0 font-semibold">{nights}</span>}
+    </li>
   );
 }
 
-function RouteDiffCell({ realPlan, plan }: { realPlan: ComparisonPlan; plan: ComparisonPlan }) {
-  const diff = diffRoute(realPlan.metrics, plan.metrics);
+function RouteSection({ realPlan, plan }: { realPlan: ComparisonPlan; plan: ComparisonPlan }) {
+  const isReal = plan.forkId === null;
+  const diff = isReal ? null : diffRoute(realPlan.metrics, plan.metrics);
+  const stops: RouteDiffStop[] = diff
+    ? diff.stops
+    : plan.metrics.route.map((s) => ({ ...s, baseNights: null, kind: "same" as const }));
   return (
-    <div className="flex flex-col gap-1 min-w-[180px]">
-      <p className="text-xs font-medium text-muted-foreground">{diff.summary}</p>
-      {diff.stops.map((s, i) => (
-        <DiffStopRow key={i} stop={s} />
-      ))}
-      {diff.legChanges.map((l, i) => (
-        <p key={`leg-${i}`} className="text-xs text-sun-text truncate">
+    <section className="mt-3">
+      <h4 className="sr-only">Route</h4>
+      {stops.length > 0 ? (
+        <ul className="flex flex-col gap-1.5">
+          {stops.map((s, i) => (
+            <RouteRow key={i} stop={s} />
+          ))}
+        </ul>
+      ) : (
+        <p className="px-2.5 text-[13px] font-semibold text-muted-foreground">No stops yet</p>
+      )}
+      {diff?.legChanges.map((l, i) => (
+        <p key={`leg-${i}`} className="mt-1.5 truncate px-2.5 text-xs font-semibold text-muted-foreground">
           {l.fromName}→{l.toName}: {l.fromMode.toLowerCase()} → {l.toMode.toLowerCase()}
         </p>
       ))}
-    </div>
+      {isReal && plan.metrics.countries.length > 0 && (
+        <p className="mt-1.5 truncate px-2.5 text-xs font-semibold text-muted-foreground">
+          {plan.metrics.countries.join(" · ")}
+        </p>
+      )}
+    </section>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Delta badge
+// Delta chip — the sign carries the direction; a plain kit chip stays legible
+// on the white card and on the accent islands alike.
 // ---------------------------------------------------------------------------
 
 function DeltaBadge({ text }: { text: string }) {
-  const isNegative = text.startsWith("-");
-  return (
-    <span
-      className={[
-        "inline-flex items-center rounded-[5px] px-2 py-0.5 text-xs font-medium",
-        isNegative
-          ? "bg-over/10 text-over"
-          : "bg-success/10 text-teal-text",
-      ].join(" ")}
-    >
-      {text}
-    </span>
-  );
+  return <Badge>{text}</Badge>;
 }
 
 // ---------------------------------------------------------------------------
-// Reorder arrows
+// Reorder arrows (44px targets, 3px focus ring)
 // ---------------------------------------------------------------------------
+
+const ARROW_CLASS =
+  "-my-2 inline-grid size-11 place-items-center rounded-full text-muted-foreground outline-none hover:text-foreground disabled:opacity-30 focus-visible:ring-[3px] focus-visible:ring-ring";
 
 function ReorderArrows({
   planName, isFirst, isLast, onMove, pending,
 }: { planName: string; isFirst: boolean; isLast: boolean; onMove: (d: "left" | "right") => void; pending: boolean }) {
   return (
-    <span className="flex items-center gap-0.5">
+    <span className="flex items-center">
       <button
         type="button" aria-label={`Move ${planName} left`} disabled={isFirst || pending}
         onClick={() => onMove("left")}
-        className="rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className={ARROW_CLASS}
       >
-        <ChevronLeft className="size-3.5" aria-hidden="true" />
+        <ChevronLeft className="size-4" strokeWidth={2.5} aria-hidden="true" />
       </button>
       <button
         type="button" aria-label={`Move ${planName} right`} disabled={isLast || pending}
         onClick={() => onMove("right")}
-        className="rounded p-1 text-muted-foreground hover:text-foreground disabled:opacity-30 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className={ARROW_CLASS}
       >
-        <ChevronRight className="size-3.5" aria-hidden="true" />
+        <ChevronRight className="size-4" strokeWidth={2.5} aria-hidden="true" />
       </button>
     </span>
   );
@@ -279,6 +276,34 @@ function ReorderArrows({
 // ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
+
+type MetricRowId =
+  | "nights"
+  | "budget"
+  | "stops"
+  | "transit"
+  | "driving"
+  | "flights"
+  | "flags"
+  | "projected-end";
+
+/**
+ * Stat grid order: the kit's Nights · Cost · Legs lead, then the rest of ours.
+ * Money is one shared pot, so the cost stat is "Trip cost" (as on the trip
+ * home), never a per-person figure.
+ */
+const METRIC_ROWS: { id: MetricRowId; label: string; wide?: boolean }[] = [
+  { id: "nights", label: "Nights" },
+  { id: "budget", label: "Trip cost" },
+  { id: "stops", label: "Stops" },
+  { id: "transit", label: "Transit time" },
+  { id: "driving", label: "Driving" },
+  { id: "flights", label: "Flights" },
+  { id: "flags", label: "Flags" },
+  { id: "projected-end", label: "Projected end", wide: true },
+];
+
+const VALUE_CLASS = "font-display text-lg font-extrabold leading-tight tracking-[-0.02em]";
 
 export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps) {
   const [promoteOpenFor, setPromoteOpenFor] = React.useState<string | null>(null);
@@ -295,98 +320,63 @@ export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps)
   const realPlan = plans[0];
   const forkPlans = plans.slice(1);
 
-  // Metric rows definition
-  type MetricRowId =
-    | "route"
-    | "projected-end"
-    | "budget"
-    | "flags"
-    | "stops"
-    | "nights"
-    | "transit"
-    | "driving"
-    | "flights";
-
-  const METRIC_ROWS: { id: MetricRowId; label: string }[] = [
-    { id: "route", label: "Route" },
-    { id: "projected-end", label: "Projected end" },
-    { id: "budget", label: "Budget" },
-    { id: "flags", label: "Flags" },
-    { id: "stops", label: "Stops" },
-    { id: "nights", label: "Nights" },
-    { id: "transit", label: "Transit time" },
-    { id: "driving", label: "Driving" },
-    { id: "flights", label: "Flights" },
-  ];
-
-  function renderCell(plan: ComparisonPlan, rowId: MetricRowId): React.ReactNode {
+  function renderValue(plan: ComparisonPlan, rowId: MetricRowId): React.ReactNode {
     const m = plan.metrics;
     switch (rowId) {
-      case "route":
-        return plan.forkId === null
-          ? <RouteCell plan={plan} />
-          : <RouteDiffCell realPlan={realPlan} plan={plan} />;
       case "projected-end":
         return (
-          <div className="flex flex-col gap-1">
-            <span className="font-mono text-sm text-foreground">
-              {m.projectedEnd ? formatLongDate(m.projectedEnd) : "—"}
-            </span>
-            <Badge variant={hardEndBadgeVariant(m.hardEndState)} className="w-fit text-xs">
-              {hardEndLabel(m.hardEndState)}
-            </Badge>
-          </div>
+          <>
+            <span className={VALUE_CLASS}>{m.projectedEnd ? formatLongDate(m.projectedEnd) : "—"}</span>
+            {m.hardEndState !== "none" && (
+              <Badge className={cn("w-fit", hardEndBadgeClass(m.hardEndState))}>{hardEndLabel(m.hardEndState)}</Badge>
+            )}
+          </>
         );
       case "budget":
         return (
-          <span className="font-mono text-sm text-foreground text-right block">
-            {m.budgetHomeMinor !== null
-              ? formatMoney(m.budgetHomeMinor, trip.homeCurrency)
-              : "—"}
-          </span>
+          <>
+            <span className={VALUE_CLASS}>
+              {m.budgetHomeMinor !== null ? formatMoney(m.budgetHomeMinor, trip.homeCurrency) : "—"}
+            </span>
+            <span className="text-xs font-semibold text-muted-foreground">shared pot</span>
+          </>
         );
       case "flags":
         return (
-          <div className="flex flex-col gap-0.5 text-sm">
+          <span className={cn(VALUE_CLASS, "flex flex-wrap items-center gap-x-2.5")}>
             {m.flagCounts.warning > 0 && (
-              <span className="text-sun-text">⚠ {m.flagCounts.warning}</span>
+              <span className="inline-flex items-center gap-1">
+                <TriangleAlert className="size-4" strokeWidth={2.5} aria-hidden="true" />
+                {m.flagCounts.warning}
+                <span className="sr-only">{m.flagCounts.warning === 1 ? " warning" : " warnings"}</span>
+              </span>
             )}
             {m.flagCounts.info > 0 && (
-              <span className="text-muted-foreground">ℹ {m.flagCounts.info}</span>
+              <span className="inline-flex items-center gap-1">
+                <Info className="size-4" strokeWidth={2.5} aria-hidden="true" />
+                {m.flagCounts.info}
+                <span className="sr-only">{m.flagCounts.info === 1 ? " info flag" : " info flags"}</span>
+              </span>
             )}
-            {m.flagCounts.warning === 0 && m.flagCounts.info === 0 && (
-              <span className="text-muted-foreground">None</span>
-            )}
-          </div>
+            {m.flagCounts.warning === 0 && m.flagCounts.info === 0 && "None"}
+          </span>
         );
       case "stops":
-        return <span className="font-mono text-sm text-foreground text-right block">{m.stopCount}</span>;
+        return <span className={VALUE_CLASS}>{m.stopCount}</span>;
       case "nights":
-        return <span className="font-mono text-sm text-foreground text-right block">{m.nightTotal}</span>;
+        return <span className={VALUE_CLASS}>{m.nightTotal}</span>;
       case "transit":
-        return (
-          <span className="font-mono text-sm text-foreground text-right block">
-            {formatMinutes(m.transitMinutes)}
-          </span>
-        );
+        return <span className={VALUE_CLASS}>{formatMinutes(m.transitMinutes)}</span>;
       case "driving":
-        return (
-          <span className="font-mono text-sm text-foreground text-right block">
-            {formatMinutes(m.drivingMinutes)}
-          </span>
-        );
+        return <span className={VALUE_CLASS}>{formatMinutes(m.drivingMinutes)}</span>;
       case "flights":
-        return <span className="font-mono text-sm text-foreground text-right block">{m.flightCount}</span>;
+        return <span className={VALUE_CLASS}>{m.flightCount}</span>;
     }
   }
 
-  function renderDelta(
-    plan: ComparisonPlan,
-    rowId: MetricRowId,
-  ): React.ReactNode {
+  function renderDelta(plan: ComparisonPlan, rowId: MetricRowId): React.ReactNode {
     const deltas = diffMetrics(realPlan.metrics, plan.metrics);
     let text: string | null = null;
-
     switch (rowId) {
       case "nights":
         text = formatNightsDelta(deltas.nightTotal);
@@ -412,162 +402,71 @@ export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps)
       case "projected-end":
         text = formatProjectedEndDelta(deltas.projectedEndDays);
         break;
-      case "route":
-        // No single delta for route — display nothing extra
-        text = null;
-        break;
     }
-
-    if (!text) return null;
-    return <DeltaBadge text={text} />;
+    return text ? <DeltaBadge text={text} /> : null;
   }
 
   return (
     <>
-      {/* Mobile: stacked cards (real plan + one card per fork). Desktop keeps the table. */}
-      <div className="flex flex-col gap-4 sm:hidden">
+      {/* One tree at every width: stacked cards on phones, the kit's two columns from md. */}
+      <div data-slot="compare-grid" className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 md:gap-[18px]">
         {plans.map((plan, planIndex) => {
           const isReal = planIndex === 0;
+          const forkIndex = planIndex - 1;
+          const diffSummary = isReal ? null : diffRoute(realPlan.metrics, plan.metrics).summary;
           return (
-            <div
+            <Card
               key={plan.forkId ?? "real"}
-              className="rounded-3xl border border-border bg-card shadow-soft"
+              data-testid="plan-card"
+              tone={isReal ? "white" : FORK_TONES[forkIndex % FORK_TONES.length]}
+              shadow={isReal ? 2 : 4}
+              className="min-w-0 p-3.5 md:p-5"
             >
-              <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
-                <span className="min-w-0 truncate text-sm font-semibold text-foreground">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="min-w-0 break-words font-display text-[22px] font-extrabold leading-tight tracking-[-0.03em]">
                   {plan.name}
-                </span>
-                {!isReal && (
-                  <div className="flex items-center gap-1 shrink-0">
+                </h3>
+                <div className="flex h-7 shrink-0 items-center gap-1">
+                  {!isReal && (
                     <ReorderArrows
                       planName={plan.name}
-                      isFirst={planIndex - 1 === 0}
+                      isFirst={forkIndex === 0}
                       isLast={planIndex === plans.length - 1}
                       onMove={(d) => handleMove(plan.forkId!, d)}
                       pending={reorderPending}
                     />
-                    {isOwner && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        shape="pill"
-                        className="border-[1.5px] text-[11px] font-bold shrink-0"
-                        onClick={() => setPromoteOpenFor(plan.forkId)}
-                        aria-label={`Promote ${plan.name}`}
-                      >
-                        Promote
-                      </Button>
-                    )}
-                  </div>
-                )}
+                  )}
+                  <Badge caps>{isReal ? "Real plan" : "Fork"}</Badge>
+                </div>
               </div>
-              <dl className="divide-y divide-border">
+
+              <RouteSection realPlan={realPlan} plan={plan} />
+
+              <dl className="mt-3.5 grid grid-cols-2 gap-x-2 gap-y-3 sm:grid-cols-3">
                 {METRIC_ROWS.map((row) => (
-                  <div key={row.id} className="flex items-start justify-between gap-3 px-4 py-2">
-                    <dt className="shrink-0 text-xs font-bold uppercase tracking-wide text-muted-foreground">
-                      {row.label}
-                    </dt>
-                    <dd className="flex min-w-0 flex-col items-end gap-1 text-right">
-                      {renderCell(plan, row.id)}
+                  <div key={row.id} className={cn("min-w-0", row.wide && "col-span-2")}>
+                    <dt className="text-label">{row.label}</dt>
+                    <dd className="mt-0.5 flex flex-col items-start gap-1">
+                      {renderValue(plan, row.id)}
                       {!isReal && renderDelta(plan, row.id)}
                     </dd>
                   </div>
                 ))}
               </dl>
-            </div>
+
+              {!isReal && (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5">
+                  <p className="min-w-0 text-xs font-semibold text-muted-foreground">{diffSummary}</p>
+                  {isOwner && (
+                    <Button onClick={() => setPromoteOpenFor(plan.forkId)} aria-label={`Promote ${plan.name}`}>
+                      Promote
+                    </Button>
+                  )}
+                </div>
+              )}
+            </Card>
           );
         })}
-      </div>
-
-      {/* Horizontal-scroll container — wide content stays inside; page never scrolls sideways */}
-      <div className="hidden sm:block overflow-x-auto rounded-3xl border border-border bg-card shadow-soft">
-        <table className="min-w-full border-collapse">
-          <thead>
-            <tr className="border-b border-border bg-muted/50">
-              {/* Row-label column header (empty) */}
-              <th
-                scope="col"
-                className="sticky left-0 z-10 bg-muted/50 px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground min-w-[120px]"
-              />
-              {/* Real plan column */}
-              <th
-                scope="col"
-                className="px-4 py-3 text-left text-sm min-w-[200px]"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="inline-block size-2 rounded-full bg-primary shrink-0" aria-hidden="true" />
-                  <span className="font-display font-bold text-foreground">{realPlan.name}</span>
-                </div>
-              </th>
-              {/* Fork columns */}
-              {(() => {
-                return forkPlans.map((plan, forkIndex) => {
-                  const dotColor = FORK_DOT_COLORS[Math.min(forkIndex, FORK_DOT_COLORS.length - 1)];
-                  return (
-                    <th
-                      key={plan.forkId}
-                      scope="col"
-                      className="px-4 py-3 text-left min-w-[200px]"
-                    >
-                      <div className="flex flex-col gap-2 min-w-0">
-                        <div className="flex items-center justify-between gap-1 min-w-0">
-                          <div className="flex items-center gap-2 min-w-0 truncate">
-                            <span className={`inline-block size-2 rounded-full ${dotColor} shrink-0`} aria-hidden="true" />
-                            <span className="font-display font-bold text-foreground min-w-0 truncate">{plan.name}</span>
-                          </div>
-                          <ReorderArrows
-                            planName={plan.name}
-                            isFirst={forkIndex === 0}
-                            isLast={forkIndex === forkPlans.length - 1}
-                            onMove={(d) => handleMove(plan.forkId!, d)}
-                            pending={reorderPending}
-                          />
-                        </div>
-                        {isOwner && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            shape="pill"
-                            className="w-fit border-[1.5px] text-[11px] font-bold"
-                            onClick={() => setPromoteOpenFor(plan.forkId)}
-                            aria-label={`Promote ${plan.name}`}
-                          >
-                            Promote
-                          </Button>
-                        )}
-                      </div>
-                    </th>
-                  );
-                });
-              })()}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/60">
-            {METRIC_ROWS.map((row) => (
-              <tr
-                key={row.id}
-              >
-                {/* Row label — sticky on left for wide tables */}
-                <td className="sticky left-0 z-10 border-r border-border bg-inherit px-4 py-3 text-xs font-bold uppercase tracking-wide text-muted-foreground whitespace-nowrap">
-                  {row.label}
-                </td>
-                {/* Real plan cell */}
-                <td className="px-4 py-3 align-top">
-                  {renderCell(realPlan, row.id)}
-                </td>
-                {/* Fork cells */}
-                {forkPlans.map((plan) => (
-                  <td key={plan.forkId} className="px-4 py-3 align-top">
-                    <div className="flex flex-col gap-1.5">
-                      {renderCell(plan, row.id)}
-                      {renderDelta(plan, row.id)}
-                    </div>
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
 
       {/* Promote dialogs — one per fork */}

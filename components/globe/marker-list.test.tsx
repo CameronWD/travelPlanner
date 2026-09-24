@@ -71,6 +71,19 @@ describe("MarkerList", () => {
     expect(screen.getByText(/no markers yet/i)).toBeInTheDocument();
   });
 
+  it("the empty state is the kit EmptyState (heading + drop-a-marker hint)", () => {
+    render(<MarkerList markers={[]} {...defaultListProps} />);
+    expect(screen.getByRole("heading", { name: "No markers yet" })).toBeInTheDocument();
+    expect(screen.getByText(/tap the map to drop one/i)).toBeInTheDocument();
+  });
+
+  it("rows are kit list rows with named edit/delete actions", () => {
+    render(<MarkerList markers={markers} {...defaultListProps} />);
+    expect(screen.getByTestId("marker-row-1")).toHaveAttribute("data-slot", "list-row");
+    expect(screen.getByRole("button", { name: "Edit Eiffel Tower" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete Eiffel Tower" })).toBeInTheDocument();
+  });
+
   it("selects on row click, and edit/delete are separate buttons", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn(), onEdit = vi.fn(), onDelete = vi.fn();

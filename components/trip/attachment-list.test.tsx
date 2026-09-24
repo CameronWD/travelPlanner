@@ -119,7 +119,8 @@ describe("AttachmentList", () => {
       <AttachmentList tripId="t" targetType="TRIP" attachments={[{ id: "a", filename: "x.pdf", mime: "application/pdf", size: 1000, url: "/x", uploadedById: "u1", createdAt: new Date() }]} />,
     );
     expect(container.querySelector(".border-dashed")).toBeTruthy();
-    expect(screen.getByText(/browse/i)).toBeInTheDocument();
+    // Kit copy (was "Drop files or browse"); nothing handles a drop, so "tap to add".
+    expect(screen.getByText(/tap to add a file/i)).toBeInTheDocument();
   });
 
   it("hides the upload trigger when showUpload={false} but still lists files", () => {
@@ -131,7 +132,7 @@ describe("AttachmentList", () => {
         showUpload={false}
       />,
     );
-    expect(screen.queryByText(/browse/i)).toBeNull();
+    expect(screen.queryByText(/tap to add a file/i)).toBeNull();
     expect(screen.getByText("boarding-pass.pdf")).toBeInTheDocument();
   });
 
@@ -233,5 +234,52 @@ describe("AttachmentList", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/~4 MB/);
     expect(uploadAttachment).not.toHaveBeenCalled();
+  });
+
+  // ── Playground kit restyle (Task 14) ──────────────────────────────────────
+
+  it("non-compact files are kit Cards in a grid, the upload tile first", () => {
+    const { container } = render(
+      <AttachmentList tripId="trip-1" targetType="TRIP" attachments={sampleAttachments} />,
+    );
+    const grid = container.querySelector('[data-slot="file-grid"]');
+    expect(grid).not.toBeNull();
+    expect(grid).toHaveClass("grid", "lg:grid-cols-3");
+    const cards = grid!.querySelectorAll('[data-slot="file-card"]');
+    expect(cards).toHaveLength(2);
+    for (const card of cards) expect(card).toHaveClass("border-2", "shadow-hard-2");
+    // The dashed upload tile is the grid's first cell.
+    expect(grid!.firstElementChild!.querySelector('input[type="file"]')).not.toBeNull();
+    expect(grid!.firstElementChild!.querySelector("label")).toHaveClass("border-dashed");
+  });
+
+  it("each file card has a type tile (PDF / IMG) toned by what the file belongs to", () => {
+    render(
+      <AttachmentList tripId="trip-1" targetType="TRANSPORT" attachments={sampleAttachments} showUpload={false} />,
+    );
+    const pdf = screen.getByText("PDF", { selector: '[data-slot="file-tile"]' });
+    const img = screen.getByText("IMG", { selector: '[data-slot="file-tile"]' });
+    expect(pdf).toHaveClass("bg-coral", "text-on-accent");
+    expect(img).toHaveClass("bg-coral");
+    expect(pdf).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("file links and delete buttons are named with the file name and have 44px targets", () => {
+    render(
+      <AttachmentList tripId="trip-1" targetType="TRIP" attachments={sampleAttachments} />,
+    );
+    const link = screen.getByRole("link", { name: "View boarding-pass.pdf" });
+    expect(link).toHaveAttribute("href", "https://example.com/boarding-pass.pdf");
+    expect(link).toHaveClass("size-11");
+    const del = screen.getByRole("button", { name: "Delete hotel-voucher.jpg" });
+    expect(del).toHaveClass("size-11");
+  });
+
+  it("compact mode keeps its dense list (no kit file cards)", () => {
+    const { container } = render(
+      <AttachmentList tripId="trip-1" targetType="TRIP" compact attachments={sampleAttachments} />,
+    );
+    expect(container.querySelector('[data-slot="file-card"]')).toBeNull();
+    expect(screen.getByRole("link", { name: "View boarding-pass.pdf" })).toBeInTheDocument();
   });
 });

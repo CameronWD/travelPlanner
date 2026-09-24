@@ -12,10 +12,11 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { MapPin, ChevronDown, ChevronRight } from "lucide-react";
-import { cn } from "@/lib/cn";
 import type { NearbyResult } from "@/lib/nearby";
 import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 export function NearbyWishlist({
   tripId,
@@ -33,21 +34,21 @@ export function NearbyWishlist({
   if (items.length === 0) return null;
 
   return (
-    <div className={cn("rounded-2xl border border-border bg-card shadow-sm")}>
-      <div className="px-4 py-3">
+    <Card>
+      <div className="px-4 py-1.5">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-label={open ? "Collapse nearby wishlist items" : "Expand nearby wishlist items"}
-          className="flex items-center gap-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
+          className="flex min-h-11 items-center gap-2 rounded-md text-[13px] font-extrabold text-foreground transition-colors hover:text-muted-foreground"
         >
           {open ? (
             <ChevronDown className="size-4 shrink-0" aria-hidden="true" />
           ) : (
             <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
           )}
-          <MapPin className="size-4 shrink-0 text-primary" aria-hidden="true" />
+          <MapPin className="size-4 shrink-0" aria-hidden="true" />
           Nearby from your Wishlist ({items.length})
         </button>
       </div>
@@ -64,25 +65,27 @@ export function NearbyWishlist({
               return (
                 <li
                   key={item.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2"
+                  className="flex items-center justify-between gap-3 rounded-md border-2 border-border bg-background py-1.5 pl-3 pr-1.5"
                 >
                   <Link
                     href={`/trips/${tripId}/wishlist`}
-                    className="min-w-0 flex-1 hover:text-primary transition-colors"
+                    className="min-w-0 flex-1 transition-colors hover:text-muted-foreground"
                   >
-                    <span className="block truncate text-sm font-medium text-foreground">
+                    <span className="block truncate text-[13px] font-extrabold text-foreground">
                       {item.title}
                     </span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-xs font-semibold text-muted-foreground">
                       {distanceLabel}
                     </span>
                   </Link>
 
-                  <button
+                  <Button
                     type="button"
+                    variant="secondary"
+                    size="md"
                     aria-label={`Add ${item.title} to today`}
                     disabled={pendingId === item.id}
-                    className="shrink-0 rounded-md border border-border bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    className="shrink-0"
                     onClick={() => {
                       setPendingId(item.id);
                       startTransition(async () => {
@@ -108,22 +111,22 @@ export function NearbyWishlist({
                     }}
                   >
                     Add to today
-                  </button>
+                  </Button>
                 </li>
               );
             })}
           </ul>
 
-          <div className="mt-3 border-t border-border pt-3">
+          <div className="mt-3 border-t-2 border-border-soft pt-3">
             <Link
               href={`/trips/${tripId}/wishlist`}
-              className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              className="inline-flex min-h-11 items-center text-xs font-extrabold text-muted-foreground transition-colors hover:text-foreground"
             >
               See full wishlist
             </Link>
           </div>
         </div>
       )}
-    </div>
+    </Card>
   );
 }

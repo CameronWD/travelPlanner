@@ -1,21 +1,19 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import {
-  MapPin,
-  Moon,
-  Home,
-  ArrowRight,
-  LogIn,
-  LogOut,
-} from "lucide-react";
+import { Home, Route as RouteIcon } from "lucide-react";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import type { ShareScope } from "@/lib/share-view";
 import { tonightsStay } from "@/lib/share-view";
-import { formatDateRange, formatLongDate, nightsBetween } from "@/lib/dates";
-import { buildItinerary, orderDayEntries } from "@/lib/itinerary";
+import { formatDateRange, formatDayLabel, formatLongDate, nightsBetween } from "@/lib/dates";
+import { buildItinerary } from "@/lib/itinerary";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import { Logo } from "@/components/ui/logo";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Timeline } from "@/components/trip/timeline";
+import { cn } from "@/lib/cn";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { TransportMode } from "@/lib/enums";
 import { homeMapPoint } from "@/lib/route-map";
@@ -288,46 +286,38 @@ export default async function SharePage({
     departDate: s.departDate,
   }));
 
+  const stayingNights = (n: number) => (n === 0 ? "same day" : `${n}n`);
+
   return (
     <div className="min-h-screen bg-background">
-      {/* ── Minimal header ── */}
-      <header className="border-b border-border bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-6">
-          <span className="flex items-center">
-            <Logo variant="lockup" />
-          </span>
-          <span className="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            Shared itinerary — read only
-          </span>
-        </div>
-      </header>
+      <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-3.5 px-4 pb-5 pt-4 sm:px-6 lg:gap-5 lg:px-12 lg:pt-7">
+        {/* ── Header: kit SharePage top row (Logo 22 / 28) ── */}
+        <header className="flex items-center justify-between">
+          <Logo size={22} className="lg:hidden" />
+          <Logo size={28} className="hidden lg:inline-flex" />
+        </header>
 
-      <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        <div className="flex flex-col gap-8">
-
-          {/* ── Trip header ── */}
-          <div className="border-b border-border pb-6">
-            <h1 className="font-display text-3xl font-bold text-foreground leading-tight mb-2">
+        <main className="flex flex-col gap-3.5 lg:gap-5">
+          {/* ── Hero: kit coral Card, shadow 4, radius xl ── */}
+          <Card
+            data-slot="share-hero"
+            tone="coral"
+            shadow={4}
+            radius="xl"
+            className="p-5 lg:p-8"
+          >
+            <Badge caps>Shared trip · view only</Badge>
+            <h1 className="mt-[18px] break-words font-display text-[40px] font-extrabold leading-[0.95] tracking-[-0.05em] lg:mt-7 lg:text-[72px]">
               {trip.name}
             </h1>
-            <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-              <span>{formatDateRange(trip.startDate, trip.endDate)}</span>
-              <span className="flex items-center gap-1">
-                <Moon className="size-4" aria-hidden="true" />
-                {totalNights} night{totalNights !== 1 ? "s" : ""}
-              </span>
-              <span className="flex items-center gap-1">
-                <MapPin className="size-4" aria-hidden="true" />
-                {stops.length} stop{stops.length !== 1 ? "s" : ""}
-              </span>
-              {(phase === "planning" || phase === "final-prep") && (
-                <span className="font-medium text-primary">{phaseDesc.countdown}</span>
-              )}
-              {phase === "past" && (
-                <span>{phaseDesc.countdown}</span>
-              )}
-            </div>
-          </div>
+            <p className="mt-2.5 text-base font-medium lg:text-lg">
+              {formatDateRange(trip.startDate, trip.endDate)} · {totalNights} night
+              {totalNights !== 1 ? "s" : ""} · {stops.length} stop{stops.length !== 1 ? "s" : ""}
+            </p>
+            {phase !== "travelling" && (
+              <p className="mt-3.5 text-sm font-bold">{phaseDesc.countdown}</p>
+            )}
+          </Card>
 
           {/* ── Today card ── */}
           {phase === "travelling" && (
@@ -346,322 +336,140 @@ export default async function SharePage({
             />
           )}
 
-          {/* ── Route Map ── */}
-          {mapStops.length > 0 && (
-            <section aria-labelledby="map-heading">
-              <h2
-                id="map-heading"
-                className="font-display text-xl font-semibold text-foreground mb-4 flex items-center gap-2"
-              >
-                <MapPin className="size-4 text-primary" aria-hidden="true" />
-                Route
+          <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[1.3fr_1fr] lg:gap-5">
+            {/* ── The route: kit stop list (dot · connector · name · dates · outbound chip) ── */}
+            <Card data-slot="share-route" className="min-w-0 p-4 lg:p-[22px]">
+              <h2 id="route-heading" className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em]">
+                The route
               </h2>
-              <RouteMap stops={mapStops} height={340} home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} />
-            </section>
-          )}
+              {stops.length === 0 ? (
+                <EmptyState
+                  icon={RouteIcon}
+                  tone="teal"
+                  title="No stops yet"
+                  description="The route shows here once the trip has dated stops."
+                  className="mt-3"
+                />
+              ) : (
+                <ol className="mt-3 flex flex-col">
+                  {stops.map((stop, idx) => {
+                    const nights = nightsBetween(stop.arriveDate, stop.departDate);
+                    const accom = accomByStopId.get(stop.id);
+                    const transport = transportFromStop.get(stop.id);
+                    const isLast = idx === stops.length - 1;
+                    const places = [transport?.depPlace, transport?.arrPlace].filter(Boolean).join(" → ");
 
-          {/* ── Stops overview ── */}
-          {stops.length > 0 && (
-            <section aria-labelledby="stops-heading">
-              <h2
-                id="stops-heading"
-                className="font-display text-xl font-semibold text-foreground mb-4"
-              >
-                Itinerary at a glance
-              </h2>
-              <div className="flex flex-col gap-3">
-                {stops.map((stop, idx) => {
-                  const nights = nightsBetween(stop.arriveDate, stop.departDate);
-                  const accom = accomByStopId.get(stop.id);
-                  const transport = transportFromStop.get(stop.id);
-                  const isLast = idx === stops.length - 1;
-
-                  return (
-                    <div
-                      key={stop.id}
-                      className="rounded-2xl border border-border bg-card p-5 shadow-soft"
-                    >
-                      <div className="flex items-start gap-3">
-                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-xs font-semibold text-primary">
-                          {idx + 1}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-display text-lg font-semibold text-foreground">
+                    return (
+                      <li key={stop.id} className="grid grid-cols-[28px_minmax(0,1fr)] gap-3">
+                        <div className="flex flex-col items-center" aria-hidden="true">
+                          <span className="size-[22px] shrink-0 rounded-full border-2 border-border bg-teal" />
+                          {!isLast && <span className="min-h-7 w-0.5 flex-1 bg-border" />}
+                        </div>
+                        <div className="min-w-0 pb-3.5">
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-3">
+                            <h3 className="min-w-0 break-words font-display text-base font-extrabold leading-snug tracking-[-0.02em]">
                               {stop.name}
                             </h3>
-                            {stop.country && (
-                              <span className="text-sm text-muted-foreground">
-                                {stop.country}
+                            <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+                              {formatDayLabel(stop.arriveDate)} · {stayingNights(nights)}
+                            </span>
+                          </div>
+                          {stop.country && (
+                            <p className="text-xs font-medium text-muted-foreground">{stop.country}</p>
+                          )}
+                          {/* Accommodation name (no confirmation ref — that's private) */}
+                          {accom && (
+                            <div className="mt-1 flex min-w-0 items-start gap-1.5 text-xs font-medium text-muted-foreground">
+                              <Home className="mt-px size-3.5 shrink-0" aria-hidden="true" />
+                              <div className="min-w-0">
+                                <p className="truncate font-bold text-foreground">{accom.name}</p>
+                                {accom.address && <p className="truncate">{accom.address}</p>}
+                              </div>
+                            </div>
+                          )}
+                          {/* Outbound transport */}
+                          {transport && !isLast && (
+                            <Badge variant="sun" className="mt-1.5 max-w-full">
+                              <span className="truncate">
+                                → {modeLabel(transport.mode)}
+                                {places ? ` · ${places}` : ""}
                               </span>
-                            )}
-                          </div>
-                          <p className="mt-0.5 text-sm text-muted-foreground">
-                            {formatDateRange(stop.arriveDate, stop.departDate)}
-                            {" · "}
-                            {nights === 0
-                              ? "Same-day"
-                              : `${nights} night${nights !== 1 ? "s" : ""}`}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Accommodation name (no confirmation ref — that's private) */}
-                      {accom && (
-                        <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-                          <Home className="size-3.5 shrink-0" aria-hidden="true" />
-                          <div className="min-w-0 flex-1">
-                            <span className="block truncate font-medium text-foreground">{accom.name}</span>
-                            {accom.address && (
-                              <span className="block truncate text-xs">{accom.address}</span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Outbound transport */}
-                      {transport && !isLast && (
-                        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-border/60 bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-                          <span className="shrink-0 font-medium text-foreground">
-                            {modeLabel(transport.mode)}
-                          </span>
-                          {transport.depPlace && (
-                            <div className="min-w-0 flex items-center gap-1">
-                              <span className="min-w-0 truncate">from {transport.depPlace}</span>
-                            </div>
-                          )}
-                          {transport.depPlace && transport.arrPlace && (
-                            <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
-                          )}
-                          {transport.arrPlace && (
-                            <div className="min-w-0 flex items-center gap-1">
-                              <span className="min-w-0 truncate">{transport.arrPlace}</span>
-                            </div>
+                            </Badge>
                           )}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </Card>
 
-          {/* ── Day-by-day timeline ── */}
+            <div className="flex min-w-0 flex-col gap-3.5 lg:gap-5">
+              {/* ── Route map (ours; the kit has no map on this page) ── */}
+              {mapStops.length > 0 && (
+                <section aria-label="Route map">
+                  <RouteMap stops={mapStops} height={340} home={homeMapPoint(trip)} showReturn={trip.roundTrip ?? false} />
+                </section>
+              )}
+
+              {/* ── Money: kit lilac Card — the public page never shows costs ── */}
+              <Card data-slot="share-money" tone="lilac" className="p-4 lg:p-[22px]">
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em]">Money</p>
+                <p className="mt-1.5 text-[13px] font-medium">
+                  Hidden on shared links. Only people on the trip see costs and notes.
+                </p>
+              </Card>
+            </div>
+          </div>
+
+          {/* ── Day by day: kit Days rows (Timeline, read-only agenda variant) ── */}
           {(scope.includeAccommodation ||
             scope.includeTransport ||
             scope.includeDailyPlans) && (
-          <section aria-labelledby="timeline-heading">
-            <h2
-              id="timeline-heading"
-              className="font-display text-xl font-semibold text-foreground mb-4"
-            >
-              Day-by-Day
-            </h2>
-            <div className="flex flex-col gap-1">
-              {itinerary.map((day) => {
-                const hasAnything =
-                  day.timedItems.length > 0 ||
-                  day.untimedItems.length > 0 ||
-                  day.transportEntries.length > 0 ||
-                  day.accommodationEntries.length > 0;
-
-                const isToday = phase === "travelling" && day.dateISO === todayISO;
-
-                return (
-                  <div
-                    key={day.dateISO}
-                    className={
-                      isToday
-                        ? "rounded-2xl border border-primary bg-card ring-1 ring-primary/40"
-                        : "rounded-2xl border border-border bg-card"
-                    }
-                  >
-                    {/* Day header */}
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-border/60">
-                      <h3 className="font-display text-base font-semibold text-foreground flex items-center gap-2">
-                        {formatLongDate(day.dateISO)}
-                        {isToday && (
-                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                            Today
-                          </span>
-                        )}
-                      </h3>
-                      {day.stop && (
-                        <span className="text-xs text-muted-foreground">
-                          {day.stop.name}
-                          {day.stop.country ? `, ${day.stop.country}` : ""}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="px-4 py-3 flex flex-col gap-1.5">
-                      {!hasAnything && (
-                        <p className="text-sm text-muted-foreground italic">
-                          Nothing planned.
-                        </p>
-                      )}
-
-                      {(() => {
-                        const { entries, anytime } = orderDayEntries(day);
-                        return (
-                          <>
-                            {entries.map((entry) => {
-                              switch (entry.kind) {
-                                case "accommodation-checkin": {
-                                  const a = entry.accommodation;
-                                  return (
-                                    <div
-                                      key={`ci-${a.id}`}
-                                      className="flex items-center gap-2 text-sm rounded-lg bg-hue-leaf/25 border border-hue-leaf/40 px-3 py-1.5"
-                                    >
-                                      {a.checkInTime && (
-                                        <span className="font-mono text-xs text-foreground/80 shrink-0 w-8 sm:w-10 text-right">
-                                          {a.checkInTime}
-                                        </span>
-                                      )}
-                                      <LogIn
-                                        className="size-3.5 shrink-0 text-foreground"
-                                        aria-hidden="true"
-                                      />
-                                      <span className="font-medium text-foreground">
-                                        Check-in — {a.name}
-                                      </span>
-                                    </div>
-                                  );
-                                }
-                                case "accommodation-checkout": {
-                                  const a = entry.accommodation;
-                                  return (
-                                    <div
-                                      key={`co-${a.id}`}
-                                      className="flex items-center gap-2 text-sm rounded-lg bg-hue-pink/25 border border-hue-pink/40 px-3 py-1.5"
-                                    >
-                                      {a.checkOutTime && (
-                                        <span className="font-mono text-xs text-foreground/80 shrink-0 w-8 sm:w-10 text-right">
-                                          {a.checkOutTime}
-                                        </span>
-                                      )}
-                                      <LogOut
-                                        className="size-3.5 shrink-0 text-foreground"
-                                        aria-hidden="true"
-                                      />
-                                      <span className="font-medium text-foreground">
-                                        Check-out — {a.name}
-                                      </span>
-                                    </div>
-                                  );
-                                }
-                                case "transport-departure":
-                                case "transport-arrival": {
-                                  const t = entry.transport;
-                                  const isDep = entry.kind === "transport-departure";
-                                  const depEntry = isDep ? entry : null;
-                                  const arrEntry = !isDep ? entry : null;
-                                  const gutterTime = isDep
-                                    ? (depEntry?.depTimeLabel ?? null)
-                                    : (arrEntry?.arrTimeLabel ?? null);
-
-                                  return (
-                                    <div
-                                      key={`${entry.kind}-${t.id}`}
-                                      className="flex items-start gap-2 text-sm rounded-lg bg-primary/5 border border-primary/10 px-3 py-1.5"
-                                    >
-                                      {gutterTime && (
-                                        <span className="font-mono text-xs text-muted-foreground shrink-0 pt-0.5 w-8 sm:w-10 text-right">
-                                          {gutterTime}
-                                        </span>
-                                      )}
-                                      <div className="min-w-0 flex-1">
-                                        <span className="font-medium text-foreground">
-                                          {isDep ? "Departs" : "Arrives"} — {modeLabel(t.mode)}
-                                        </span>
-                                        {(t.depPlace || t.arrPlace) && (
-                                          <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                                            {t.depPlace && <span className="min-w-0 truncate">{t.depPlace}</span>}
-                                            {t.depPlace && t.arrPlace && (
-                                              <ArrowRight className="size-3 shrink-0" aria-hidden="true" />
-                                            )}
-                                            {t.arrPlace && <span className="min-w-0 truncate">{t.arrPlace}</span>}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                }
-                                case "item": {
-                                  const { item } = entry;
-                                  const timeLabel = item.endTime
-                                    ? `${item.startTime} – ${item.endTime}`
-                                    : item.startTime;
-                                  return (
-                                    <div
-                                      key={item.id}
-                                      className="flex items-start gap-2 text-sm px-2 py-0.5"
-                                    >
-                                      <span className="font-mono text-xs text-muted-foreground shrink-0 pt-0.5 w-8 sm:w-10 text-right">
-                                        {item.startTime}
-                                      </span>
-                                      <div className="min-w-0 flex-1">
-                                        <span className="font-medium text-foreground">
-                                          {item.title}
-                                        </span>
-                                        {timeLabel && item.endTime && (
-                                          <span className="ml-1 text-xs text-muted-foreground">
-                                            ({timeLabel})
-                                          </span>
-                                        )}
-                                        {item.address && (
-                                          <div className="text-xs text-muted-foreground">
-                                            {item.address}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  );
-                                }
-                                default:
-                                  return null;
-                              }
-                            })}
-
-                            {/* Untimed items */}
-                            {anytime.length > 0 && (
-                              <div className="mt-0.5">
-                                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground/70 mb-1">
-                                  Anytime
-                                </p>
-                                {anytime.map((entry) => (
-                                  <div
-                                    key={entry.item.id}
-                                    className="flex items-start gap-2 text-sm px-2 py-0.5"
-                                  >
-                                    <div className="h-1.5 w-1.5 mt-2 shrink-0 rounded-full bg-muted-foreground/30" aria-hidden="true" />
-                                    <span className="text-foreground/80">
-                                      {entry.item.title}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
+            <section aria-labelledby="timeline-heading" className="flex flex-col gap-3">
+              <h2
+                id="timeline-heading"
+                className="font-display text-xl font-extrabold leading-tight tracking-[-0.03em]"
+              >
+                Day by day
+              </h2>
+              <ol className="flex flex-col gap-3">
+                {itinerary.map((day) => {
+                  const isToday = phase === "travelling" && day.dateISO === todayISO;
+                  return (
+                    <li key={day.dateISO}>
+                      <Card
+                        shadow={isToday ? 4 : 2}
+                        className={cn("p-4", isToday && "ring-[3px] ring-coral")}
+                        aria-current={isToday ? "date" : undefined}
+                      >
+                        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                          <h3 className="flex items-center gap-2 font-display text-base font-extrabold tracking-[-0.02em]">
+                            {formatLongDate(day.dateISO)}
+                            {isToday && <Badge variant="coral" caps>Today</Badge>}
+                          </h3>
+                          {day.stop && (
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {day.stop.name}
+                              {day.stop.country ? `, ${day.stop.country}` : ""}
+                            </span>
+                          )}
+                        </div>
+                        <Timeline day={day} variant="agenda" />
+                      </Card>
+                    </li>
+                  );
+                })}
+              </ol>
+            </section>
           )}
+        </main>
 
-          {/* ── Footer ── */}
-          <footer className="border-t border-border pt-4 text-center text-xs text-muted-foreground">
-            Shared via Teepee · Budget and notes are not included in shared views.
-          </footer>
-
-        </div>
-      </main>
+        {/* ── Footer: kit closing line ── */}
+        <footer className="py-2 text-center text-xs font-medium text-muted-foreground">
+          Made with Teepee · plan it with your people
+        </footer>
+      </div>
     </div>
   );
 }

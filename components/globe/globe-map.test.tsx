@@ -134,3 +134,142 @@ describe("GlobeMap theme handling", () => {
     expect(plainMarker.remove).not.toHaveBeenCalled();
   });
 });
+
+describe("GlobeMap kit chrome", () => {
+  it("frames the map with the kit 2px outline, not the old 1px/rounded-2xl shape", () => {
+    const { getByLabelText } = render(globeElement());
+    const frame = getByLabelText("Globe map");
+    expect(frame).toHaveClass("border-2", "border-border", "rounded-lg");
+    expect(frame).not.toHaveClass("rounded-2xl");
+  });
+
+  it("builds popups from token classes (no raw hex, no emoji) in a themed popup shell", async () => {
+    render(
+      <GlobeMap
+        markers={MARKERS}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onMapClick={vi.fn()}
+        attachmentsByMarkerId={{ m1: [{ id: "a1" }, { id: "a2" }] }}
+      />,
+    );
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    const [first] = hoisted.leaflet!.markers;
+    const [html, options] = first.bindPopup.mock.calls[0] as [string, { className?: string }];
+    expect(html).not.toMatch(/#[0-9a-f]{3,6}\b/i);
+    expect(html).not.toContain("📎");
+    expect(html).toContain("2 files");
+    // No <p>: leaflet.css's unlayered `.leaflet-popup-content p` margin would beat the utilities.
+    expect(html).not.toMatch(/<p[\s>]/);
+    expect(html).toContain("border-2");
+    expect(html).toMatch(/data-edit="m1"[^>]*>Edit</);
+    expect(html).toMatch(/data-delete="m1"[^>]*>Delete</);
+    expect(options?.className).toBe("tp-map-popup");
+  });
+});
+
+describe("GlobeMap selection popup", () => {
+  /** Turn the mock map's on/off into a tiny emitter so moveend can be fired by hand. */
+  function wireEmitter(map: { on: ReturnType<typeof vi.fn>; off: ReturnType<typeof vi.fn> }) {
+    const handlers = new Map<string, Set<() => void>>();
+    map.on.mockImplementation((type: string, fn: () => void) => {
+      (handlers.get(type) ?? handlers.set(type, new Set()).get(type)!).add(fn);
+      return map;
+    });
+    map.off.mockImplementation((type: string, fn?: () => void) => {
+      if (fn) handlers.get(type)?.delete(fn);
+      else handlers.delete(type);
+      return map;
+    });
+    return {
+      fire: (type: string) => [...(handlers.get(type) ?? [])].forEach((fn) => fn()),
+      count: (type: string) => handlers.get(type)?.size ?? 0,
+    };
+  }
+
+  it("opens the selected marker's popup only after the fly-to lands (moveend)", async () => {
+    const { rerender } = render(globeElement());
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    const map = hoisted.leaflet!.maps[0];
+    const bus = wireEmitter(map);
+    const [m1] = hoisted.leaflet!.markers;
+
+    rerender(globeElement("m1"));
+    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(1));
+    expect(m1.openPopup).not.toHaveBeenCalled();
+
+    bus.fire("moveend");
+    expect(m1.openPopup).toHaveBeenCalledTimes(1);
+    expect(bus.count("moveend")).toBe(0); // the listener removes itself
+
+    bus.fire("moveend"); // a later pan must not reopen it
+    expect(m1.openPopup).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the marker instance that exists when the fly lands, after a mid-flight replot", async () => {
+    const el = (selectedId: string | null, attachmentsByMarkerId?: Record<string, { id: string }[]>) => (
+      <GlobeMap
+        markers={MARKERS}
+        selectedId={selectedId}
+        onSelect={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onMapClick={vi.fn()}
+        attachmentsByMarkerId={attachmentsByMarkerId}
+      />
+    );
+    const { rerender } = render(el(null));
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    const map = hoisted.leaflet!.maps[0];
+    const bus = wireEmitter(map);
+    const [oldM1] = hoisted.leaflet!.markers;
+
+    rerender(el("m1"));
+    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(1));
+
+    // An attachment count change replots every marker (new instances) mid-flight.
+    rerender(el("m1", { m1: [{ id: "a1" }] }));
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(4));
+    const newM1 = hoisted.leaflet!.markers[2];
+    expect(newM1.latlng).toEqual(oldM1.latlng);
+
+    bus.fire("moveend");
+    expect(newM1.openPopup).toHaveBeenCalledTimes(1);
+    expect(oldM1.openPopup).not.toHaveBeenCalled();
+  });
+
+  it("removes a pending moveend listener on unmount", async () => {
+    const { rerender, unmount } = render(globeElement());
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    const map = hoisted.leaflet!.maps[0];
+    const bus = wireEmitter(map);
+
+    rerender(globeElement("m1"));
+    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(1));
+    expect(bus.count("moveend")).toBe(1);
+
+    unmount();
+    expect(bus.count("moveend")).toBe(0);
+  });
+
+  it("re-selecting mid-flight drops the first marker's pending open", async () => {
+    const { rerender } = render(globeElement());
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    const map = hoisted.leaflet!.maps[0];
+    const bus = wireEmitter(map);
+    const [m1, m2] = hoisted.leaflet!.markers;
+
+    rerender(globeElement("m1"));
+    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(1));
+    rerender(globeElement("m2")); // before the first fly lands
+    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(2));
+    expect(bus.count("moveend")).toBe(1);
+    expect(map.closePopup).toHaveBeenCalled();
+
+    bus.fire("moveend");
+    expect(m1.openPopup).not.toHaveBeenCalled();
+    expect(m2.openPopup).toHaveBeenCalledTimes(1);
+  });
+});

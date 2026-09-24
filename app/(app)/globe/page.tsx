@@ -57,16 +57,11 @@ export default async function GlobePage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="font-display text-3xl font-bold tracking-tight">Globe</h1>
-      </div>
-      <GlobeView
-        markers={markers}
-        members={members}
-        globeId={globe.id}
-        attachmentsByMarkerId={attachmentsByMarkerId}
-      />
-    </div>
+    <GlobeView
+      markers={markers}
+      members={members}
+      globeId={globe.id}
+      attachmentsByMarkerId={attachmentsByMarkerId}
+    />
   );
 }
