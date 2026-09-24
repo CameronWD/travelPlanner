@@ -101,3 +101,21 @@ describe("classify — beyond the brief", () => {
     expect(checkChrome(raw({ chrome: { ...chrome, lastContent: { sel: "p", rect: R(16, 1900, 200, 40) } } }))).toEqual([]);
   });
 });
+
+describe("fix round 1", () => {
+  const box = (sel: string, rect: ReturnType<typeof R>, layer?: string) =>
+    ({ sel, rect, kind: "interactive" as const, ancestorIdx: [], stackOk: false, inLeaflet: false, layer });
+  it("compares fixed chrome against fixed chrome", () =>
+    expect(checkOverlap(raw({ boxes: [box("nav a", R(0, 736, 60, 64), "fixed"), box("button.fab", R(20, 720, 44, 44), "fixed")] }))).toHaveLength(1));
+  it("never compares across layers", () => {
+    expect(checkOverlap(raw({ boxes: [box("nav a", R(0, 736, 60, 64), "fixed"), box("p", R(0, 740, 300, 40), "flow")] }))).toEqual([]);
+    expect(checkOverlap(raw({ boxes: [box("dialog button", R(0, 0, 50, 50), "overlay:0"), box("menu item", R(10, 10, 50, 50), "overlay:1")] }))).toEqual([]);
+  });
+  it("reports text cut off by a clipping ancestor, unless labelled", () => {
+    const el = { sel: "p.desc", rect: R(0, 30, 200, 60), scrollW: 200, clientW: 200, scrollH: 58, clientH: 48, hasLabel: false, containerSel: "div.h-12" };
+    const f = checkClipped(raw({ clipped: [el] }));
+    expect(f).toHaveLength(1);
+    expect(f[0].detail).toContain("10px past div.h-12");
+    expect(checkClipped(raw({ clipped: [{ ...el, hasLabel: true }] }))).toEqual([]);
+  });
+});

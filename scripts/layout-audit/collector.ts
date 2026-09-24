@@ -37,9 +37,32 @@ export interface RawCollect {
   /** Up to 5 elements with the largest right edge beyond viewport.w. */
   widest: RawEl[];
   spills: (RawEl & { containerSel: string; containerRect: Rect; inHScroller: boolean; inLeaflet: boolean })[];
-  clipped: (RawEl & { scrollW: number; clientW: number; scrollH: number; clientH: number; hasLabel: boolean })[];
-  /** ancestorIdx = indexes into boxes[] of its ancestors. */
-  boxes: (RawEl & { kind: "interactive" | "text"; ancestorIdx: number[]; stackOk: boolean; inLeaflet: boolean })[];
+  /** Text clipped with no way to read it. Two sources:
+   * - own box: an element with text whose own overflow / ellipsis /
+   *   line-clamp cuts it (scroll* and client* are its own);
+   * - clipping ancestor (containerSel set): a text block running more than 2px
+   *   above or below its nearest `overflow-y: hidden|clip` ancestor
+   *   (clientH = the container's height, scrollH = clientH + the overrun;
+   *   scrollW = clientW, since this entry is only about the vertical cut). */
+  clipped: (RawEl & {
+    scrollW: number;
+    clientW: number;
+    scrollH: number;
+    clientH: number;
+    hasLabel: boolean;
+    containerSel?: string;
+  })[];
+  /** ancestorIdx = indexes into boxes[] of its ancestors. layer: boxes in
+   * different layers are never compared — "flow" (the page), "fixed" (all
+   * fixed chrome together, so the tab bar vs a floating button still counts)
+   * or "overlay:<n>" (the nth open overlay). Absent = one shared layer. */
+  boxes: (RawEl & {
+    kind: "interactive" | "text";
+    ancestorIdx: number[];
+    stackOk: boolean;
+    inLeaflet: boolean;
+    layer?: string;
+  })[];
   /** Only filled when viewport.w <= 430. */
   targets: (RawEl & { ancestorTargetOk: boolean })[];
   /** Measured after scrolling to the end of the document. */
@@ -47,6 +70,34 @@ export interface RawCollect {
   /** p, li, dd, blockquote, figcaption with ≥ 2 rendered lines. */
   lines: (RawEl & { chars: number; avgGlyph: number })[];
 }
+
+/** In-page predicate (plain JS source, spliced into COLLECTOR_SCRIPT and
+ * exported so it can be unit-tested on its own): does this computed style
+ * paint a background? Anything it can't positively read as fully transparent
+ * counts as painting — Chromium serialises Tailwind v4's `bg-x/95`
+ * (color-mix) as `oklab(… / 0.95)` and keeps `oklch(…)` as is, and a parser
+ * that only knew rgb()/rgba() read both as "no background", which emptied
+ * fixedBottom and let the hidden-behind-chrome check report clean. */
+export const PAINTS_BACKGROUND_JS = `(cs) => {
+  if (cs.backgroundImage && cs.backgroundImage !== "none") return true;
+  const c = String(cs.backgroundColor || "").trim().toLowerCase();
+  if (!c || c === "transparent") return false;
+  const open = c.indexOf("(");
+  const close = c.lastIndexOf(")");
+  if (open < 0 || close < open) return true;
+  const inner = c.slice(open + 1, close);
+  if (inner.indexOf("(") >= 0) return true;
+  let a;
+  const slash = inner.lastIndexOf("/");
+  if (slash >= 0) a = inner.slice(slash + 1).trim();
+  else {
+    const parts = inner.split(",");
+    if (parts.length === 4) a = parts[3].trim();
+  }
+  if (a === undefined) return true;
+  const n = a.slice(-1) === "%" ? parseFloat(a) / 100 : parseFloat(a);
+  return n !== 0;
+}`;
 
 // IMPORTANT: this is a plain JS *string*, not a TypeScript function, for the
 // same reason as PROBE_SCRIPT in scripts/contrast-audit.ts (read the comment
@@ -61,7 +112,8 @@ export interface RawCollect {
 //     "\s". Double-escaping still parses, silently matches nothing, and the
 //     affected check reports clean.
 //   - No template literals or "${" inside it — this whole string is itself a
-//     template literal. Use string concatenation.
+//     template literal. Use string concatenation. The one deliberate "${" is
+//     the PAINTS_BACKGROUND_JS splice, which is itself plain JS source.
 export const COLLECTOR_SCRIPT = `
 (() => {
   const html = document.documentElement;
@@ -214,29 +266,30 @@ export const COLLECTOR_SCRIPT = `
     return s;
   };
 
-  // The nearest ancestor that actually clips el horizontally, or null for the
-  // viewport. Containing-block aware: an absolutely positioned box is not
+  // The nearest ancestor that actually clips el on an axis ("x" or "y"), or
+  // null for the viewport. Containing-block aware: an absolutely positioned box is not
   // clipped by an overflow ancestor that sits between it and its containing
   // block, and nothing but the viewport clips a fixed box — reporting those
   // as spills would flag every intentionally-escaping popover and badge.
   const makesContainingBlock = (cs) =>
     cs.position !== "static" || cs.transform !== "none" || cs.filter !== "none" ||
     /paint|layout|strict|content/.test(cs.contain || "");
-  const clipMemo = [new Map(), new Map()];
-  const clipFrom = (node, needCB) => {
+  const clipMemo = { x0: new Map(), x1: new Map(), y0: new Map(), y1: new Map() };
+  const clipFrom = (node, needCB, axis) => {
     if (!node || node === body || node === html) return null;
-    const memo = clipMemo[needCB ? 1 : 0];
+    const memo = clipMemo[axis + (needCB ? "1" : "0")];
     if (memo.has(node)) return memo.get(node);
     const cs = style(node);
     let c;
-    if (needCB && !makesContainingBlock(cs)) c = clipFrom(node.parentElement, true);
-    else if (cs.overflowX !== "visible") c = node;
+    if (needCB && !makesContainingBlock(cs)) c = clipFrom(node.parentElement, true, axis);
+    else if ((axis === "x" ? cs.overflowX : cs.overflowY) !== "visible") c = node;
     else if (cs.position === "fixed") c = null;
-    else c = clipFrom(node.parentElement, cs.position === "absolute");
+    else c = clipFrom(node.parentElement, cs.position === "absolute", axis);
     memo.set(node, c);
     return c;
   };
-  const clipContainerOf = (el, cs) => (cs.position === "fixed" ? null : clipFrom(el.parentElement, cs.position === "absolute"));
+  const clipContainerOf = (el, cs, axis) =>
+    cs.position === "fixed" ? null : clipFrom(el.parentElement, cs.position === "absolute", axis);
 
   const depthOf = (el) => { let d = 0; for (let n = el; n; n = n.parentElement) d++; return d; };
   const ownText = (el) => {
@@ -262,7 +315,7 @@ export const COLLECTOR_SCRIPT = `
   const spilledFor = new Map();
   for (const v of vis) {
     const el = v.el;
-    const container = clipContainerOf(el, v.cs);
+    const container = clipContainerOf(el, v.cs, "x");
     const cRect = container ? docRect(container.getBoundingClientRect()) : fixedRoot(el) ? fixedViewportRect : viewportRect;
     const rightEdge = v.rect.x + v.rect.w;
     if (!container && !fixedRoot(el) && rightEdge > vw + 0.5) widestAll.push({ v: v, right: rightEdge, depth: depthOf(el) });
@@ -297,6 +350,7 @@ export const COLLECTOR_SCRIPT = `
     return false;
   };
   const clipped = [];
+  const clippedEls = new Set();
   for (const v of vis) {
     if (clipped.length >= LIST_CAP) break;
     const el = v.el;
@@ -310,18 +364,53 @@ export const COLLECTOR_SCRIPT = `
     // <p class="truncate"><span>…</span></p> clips the span's text just the same.
     if (!ownText(el) && !((ellipsis || clamp) && (el.textContent || "").trim())) continue;
     if (el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight) continue;
+    clippedEls.add(el);
     clipped.push(Object.assign(rawEl(el, v.rect), {
       scrollW: el.scrollWidth, clientW: el.clientWidth, scrollH: el.scrollHeight, clientH: el.clientHeight,
       hasLabel: labelled(el),
     }));
   }
+  // Text cut off by an ancestor rather than its own box:
+  // <div class="h-12 overflow-hidden"><p>…</p></div> — the <p> fits itself and
+  // the div has no text of its own, so the own-box pass above never sees it.
+  // The nearest ancestor with a non-visible overflow-y decides: hidden / clip
+  // cuts the text off; auto / scroll means it scrolls, so it is reachable.
+  // One entry per clipping container (its first overrunning text block), and
+  // nothing for a container the own-box pass already reported. Skipped:
+  // containers under 8px tall (collapsed disclosures, height animations) and
+  // Leaflet (markers panned out of the map pane are clipped by design; the
+  // spec excludes Leaflet panes for the same reason in the spill check).
+  const vClipDone = new Set();
+  for (const v of vis) {
+    if (clipped.length >= LIST_CAP) break;
+    const el = v.el;
+    if (clippedEls.has(el) || !ownText(el)) continue;
+    const container = clipContainerOf(el, v.cs, "y");
+    if (!container || vClipDone.has(container) || clippedEls.has(container)) continue;
+    const oy = style(container).overflowY;
+    if (oy !== "hidden" && oy !== "clip") continue;
+    const cr = container.getBoundingClientRect();
+    if (cr.height < 8) continue;
+    if (el.closest(".leaflet-container")) continue;
+    const cRect = docRect(cr);
+    const over = Math.max(v.rect.y + v.rect.h - (cRect.y + cRect.h), cRect.y - v.rect.y);
+    if (over <= 2) continue;
+    vClipDone.add(container);
+    clippedEls.add(el);
+    clipped.push(Object.assign(rawEl(el, v.rect), {
+      scrollW: cRect.w, clientW: cRect.w, scrollH: round(cRect.h + over), clientH: cRect.h,
+      hasLabel: labelled(el),
+      containerSel: selOf(container),
+    }));
+  }
 
   // ---- boxes (overlap candidates) -----------------------------------------------
-  // Overlap is only meaningful within one layer. If an overlay is open, the
-  // boxes are that overlay's (the last one in DOM order — Radix portals append
-  // to body, so that is the most recently opened); otherwise they are the page
-  // flow, leaving out fixed chrome (tab bar, floating buttons, toasts), which
-  // by design sits over whatever content scrolls beneath it — at the top of a
+  // Overlap is only meaningful within one layer, so every box carries a layer
+  // key and checkOverlap compares same-layer pairs only: each open overlay is
+  // its own layer ("overlay:<n>"); all fixed chrome shares "fixed" (tab bar,
+  // floating buttons, toasts — so they are still checked against each other);
+  // the rest is "flow". Fixed-vs-flow is deliberately not compared: fixed
+  // chrome sits over whatever scrolls beneath it by design — at the top of a
   // phone page the tab bar covers the first screen's bottom edge.
   // Only an *opened* overlay switches layers (Radix data-state="open",
   // aria-modal, or a mounted popper) — a persistent fixed element that merely
@@ -333,11 +422,14 @@ export const COLLECTOR_SCRIPT = `
     if (!fixedRoot(el)) return false;
     return el.getAttribute("data-state") === "open" || el.getAttribute("aria-modal") === "true";
   };
-  let overlayRoot = null;
+  const overlayRoots = [];
   for (const v of vis) {
-    if (isOpenOverlay(v.el) && (!overlayRoot || !overlayRoot.contains(v.el))) overlayRoot = v.el;
+    if (isOpenOverlay(v.el) && !overlayRoots.some((r) => r.contains(v.el))) overlayRoots.push(v.el);
   }
-  const inActiveLayer = (el) => (overlayRoot ? overlayRoot.contains(el) : !fixedRoot(el));
+  const layerOf = (el) => {
+    for (let i = 0; i < overlayRoots.length; i++) if (overlayRoots[i].contains(el)) return "overlay:" + i;
+    return fixedRoot(el) ? "fixed" : "flow";
+  };
   const STACK = /(^|\\s)-space-[xy]-/;
   const boxes = [];
   const boxIdx = new Map();
@@ -346,7 +438,6 @@ export const COLLECTOR_SCRIPT = `
     const el = v.el;
     const interactive = el.matches(INTERACTIVE);
     if (!interactive && !(el.matches(TEXT) && (el.textContent || "").trim())) continue;
-    if (!inActiveLayer(el)) continue;
     // An inline element that wraps has a bounding box spanning both lines,
     // which "overlaps" every other inline on those lines. Skip fragments.
     if (el.getClientRects().length > 1) continue;
@@ -361,6 +452,7 @@ export const COLLECTOR_SCRIPT = `
       ancestorIdx: ancestorIdx,
       stackOk: stackOk,
       inLeaflet: !!el.closest(".leaflet-container"),
+      layer: layerOf(el),
     }));
   }
 
@@ -430,13 +522,7 @@ export const COLLECTOR_SCRIPT = `
   // Only pinned boxes that paint something count as chrome: a transparent
   // positioning layer (the toast viewport is an empty, pointer-events:none
   // fixed <ol> 160px tall at the bottom of every page) covers nothing.
-  const paints = (cs) => {
-    if (cs.backgroundImage && cs.backgroundImage !== "none") return true;
-    const m = (cs.backgroundColor || "").match(/rgba?\\(([^)]+)\\)/);
-    if (!m) return false;
-    const parts = m[1].split(/[\\s,\\/]+/).filter(Boolean);
-    return parts.length < 4 || parseFloat(parts[3]) > 0;
-  };
+  const paints = ${PAINTS_BACKGROUND_JS};
   const fixedBottom = [];
   for (const v of vis) {
     const pos = v.cs.position;

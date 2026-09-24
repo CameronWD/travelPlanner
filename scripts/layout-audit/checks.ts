@@ -116,15 +116,10 @@ export function checkClipped(raw: RawCollect): Hit[] {
     const overX = c.scrollW > c.clientW + ROUNDING_PX;
     const overY = c.scrollH > c.clientH + ROUNDING_PX;
     if (!(overX || overY) || c.hasLabel) continue;
-    out.push(
-      hit(
-        "clipped-text",
-        c.sel,
-        c.text,
-        c.rect,
-        `content ${c.scrollW}×${c.scrollH} clipped to ${c.clientW}×${c.clientH}; no title, aria-label or aria-describedby`,
-      ),
-    );
+    const what = c.containerSel
+      ? `text runs ${r1(c.scrollH - c.clientH)}px past ${c.containerSel} (overflow hidden, ${r1(c.clientH)}px tall)`
+      : `content ${c.scrollW}×${c.scrollH} clipped to ${c.clientW}×${c.clientH}`;
+    out.push(hit("clipped-text", c.sel, c.text, c.rect, `${what}; no title, aria-label or aria-describedby`));
   }
   return out;
 }
@@ -142,6 +137,7 @@ export function checkOverlap(raw: RawCollect): Hit[] {
     for (let j = i + 1; j < boxes.length; j++) {
       const b = boxes[j];
       if (b.stackOk || b.inLeaflet) continue;
+      if (a.layer !== b.layer) continue; // fixed chrome over scrolling flow is by design
       if (a.ancestorIdx.includes(j) || b.ancestorIdx.includes(i)) continue;
       const ox = spanOverlap(a.rect.x, right(a.rect), b.rect.x, right(b.rect));
       if (ox <= OVERLAP_PX) continue;
