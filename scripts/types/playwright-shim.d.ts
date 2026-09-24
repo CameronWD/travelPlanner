@@ -48,6 +48,20 @@ declare module "playwright" {
     timeout?: number;
   }
 
+  export interface ScreenshotOptions {
+    path?: string;
+    fullPage?: boolean;
+    clip?: { x: number; y: number; width: number; height: number };
+    animations?: "disabled" | "allow";
+    type?: "png" | "jpeg";
+    quality?: number;
+  }
+
+  export interface EmulateMediaOptions {
+    media?: "screen" | "print" | null;
+    colorScheme?: "light" | "dark" | null;
+  }
+
   export interface Locator {
     count(): Promise<number>;
     first(): Locator;
@@ -79,6 +93,10 @@ declare module "playwright" {
       arg: Arg,
     ): Promise<R>;
     evaluate<R>(pageFunction: string): Promise<R>;
+    // Added for capture.ts's sliced full-page screenshots (Task 4).
+    screenshot(options?: ScreenshotOptions): Promise<Buffer>;
+    setViewportSize(size: ViewportSize): Promise<void>;
+    emulateMedia(options: EmulateMediaOptions): Promise<void>;
   }
 
   export interface BrowserContext {
