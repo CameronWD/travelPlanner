@@ -237,6 +237,23 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   picker takes one file at a time. Not built because: new feature (drag-and-drop, multi-file
   upload).
 
+- **`shared/together.jsx` `Compare` — plan picker row ("Real plan" vs "Plan B · Naoshima" chips
+  and a dashed "+ New fork" chip).** Kit shows: one fork chosen at a time against the real plan,
+  and a chip that starts a new fork. We have: every fork shown at once as its own card, in the
+  saved fork order (the reorder arrows move it); forks are created from the Plan page's fork
+  switcher. Not built because: new feature (a fork picker on this page, and fork creation here).
+- **`shared/together.jsx` `Compare` — summary Card under the columns ("Plan B adds a night and
+  ¥26k", a sentence of what changed, "Discard Plan B" / "Make Plan B real").** Kit shows: one
+  written-out verdict with a discard and a promote button. We have: each fork card ends with our
+  route-diff summary line ("+Zermatt · +Interlaken · Rome ?→6n") and the owner-only Promote
+  button (opens the existing promote dialog); per-stat delta chips carry the numbers. Not built
+  because: new feature (a generated plain-language verdict, and discarding a fork from this page).
+- **`shared/together.jsx` `Compare` — stats as three compact values ("¥312k", "Legs 5").** Kit
+  shows: Nights · Cost · Legs only, cost rounded to thousands. We have: eight stats (nights, trip
+  cost with "shared pot", stops, transit, driving, flights, flags, projected end with its hard-end
+  status) at full precision, since the page is for comparing them. Not built because: product
+  decision (dropping stats we compute would lose comparison information).
+
 ## p3/admin-kit
 
 ## p3/og-default
