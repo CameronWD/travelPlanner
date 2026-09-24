@@ -3,6 +3,21 @@
 Written 2026-09-24, at the end of the session that merged the contrast audit.
 For a fresh session with no memory of any of this.
 
+## First moves
+
+1. `npm run feedback:pull`, read `docs/feedback/inbox.md`, and lead with what's
+   open in it. Commit the regenerated inbox on your working branch **only if it
+   changed**. Main session only — never a subagent, and never `feedback:resolve`.
+2. Read this file's "The rules" and "Traps" sections. They are where the time
+   went.
+3. Cut a branch from `beta`. Confirm `git rev-parse main` is still `3002531`.
+4. Run `grill-with-docs` to interview Cam and produce the phase 3 spec. **Write
+   no code until he says "go for it."**
+5. Baseline the audit before you change anything: start the dev server and run
+   `npm run audit:contrast`. It passed clean at `878df27`, so anything it
+   reports on a fresh checkout is either environmental or a regression — and
+   you want to know which before you touch colour, not after.
+
 ## The rules, before anything else
 
 These are not negotiable and they override any plan you write:
@@ -20,8 +35,9 @@ These are not negotiable and they override any plan you write:
 
 ## Where things stand
 
-`beta` is at the merge of `feat/contrast-audit-script`. Four branches have
-landed on it, in order:
+`beta` is at the merge of `feat/contrast-audit-script`, pushed to
+`origin/beta` on 2026-09-24. `main` is at `3002531` and has not moved through
+the entire reskin. Five branches have landed on `beta`, in order:
 
 1. **Phase 1** — tokens, fonts, primitives.
 2. **Phase 2** — the nine-hue colour ramp, foundations, navigation.
@@ -31,10 +47,13 @@ landed on it, in order:
 5. **The contrast audit** — `scripts/contrast-audit.ts`, plus the weather card
    restyle it surfaced.
 
-At the time of writing, `beta` is **7 commits ahead of `origin/beta`** and has
-not been pushed. If the deploy looks stale, check that first — a push that
-never happened cost this project several hours once already, spent debugging a
-Vercel deploy that was faithfully serving the last commit it had been given.
+**If the preview deploy looks stale, check `git rev-list --count origin/beta..beta`
+before you check anything else.** A push that never happened cost this project
+several hours once already, spent debugging a Vercel deploy that was faithfully
+serving the last commit it had been given. Note that `git fetch` fails from
+inside the container — there is no SSH config for the `github-personal` host
+alias — so the local `origin/beta` ref only moves when a push runs against this
+same working copy. Cam pushes; you never do.
 
 ADRs `0060` (the visual system) and `0061` (the hue ramp and rail shell) record
 the decisions. Read both before changing anything about colour.
