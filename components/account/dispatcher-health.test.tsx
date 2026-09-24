@@ -118,4 +118,22 @@ describe("DispatcherHealth", () => {
     // The component's own clock now says 2027; the prop says 2026-12-10 12:00.
     expect(screen.getByText(/last ran 2 hours ago/)).toBeInTheDocument();
   });
+  it("marks healthy with the success status dot and unhealthy with the destructive one", () => {
+    const { rerender } = render(
+      <DispatcherHealth
+        now={NOW}
+        lastRunAt={new Date("2026-12-10T10:00:00.000Z")}
+        lastSuccessAt={new Date("2026-12-10T10:00:00.000Z")}
+        stale={false}
+      />,
+    );
+    const dot = () => screen.getByTestId("dispatcher-status-dot");
+    expect(dot().className).toMatch(/\bbg-success\b/);
+    expect(dot()).toHaveAttribute("aria-hidden", "true");
+
+    rerender(<DispatcherHealth now={NOW} lastRunAt={null} lastSuccessAt={null} stale />);
+    expect(dot().className).toMatch(/\bbg-destructive\b/);
+    // Status, not identity: no categorical hue on the health line.
+    expect(dot().className).not.toMatch(/\bbg-(teal|coral|sun|lilac|hue-)/);
+  });
 });

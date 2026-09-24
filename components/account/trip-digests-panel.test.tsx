@@ -27,13 +27,29 @@ describe("TripDigestsPanel", () => {
 
     expect(screen.getByText("Europe Christmas 2026")).toBeInTheDocument();
     expect(screen.getByText("Japan 2027")).toBeInTheDocument();
-    expect(screen.getByLabelText("Europe Christmas 2026")).not.toBeChecked();
-    expect(screen.getByLabelText("Japan 2027")).toBeChecked();
+    // Kit Switch (role="switch"), labelled by the trip name — not a bare checkbox.
+    expect(screen.getByRole("switch", { name: "Europe Christmas 2026" })).not.toBeChecked();
+    expect(screen.getByRole("switch", { name: "Japan 2027" })).toBeChecked();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("keeps each switch at the 44px touch-target floor", () => {
+    render(
+      <TripDigestsPanel
+        initial={[{ tripId: "trip-1", tripName: "Europe Christmas 2026", enabled: true }]}
+      />,
+    );
+    const toggle = screen.getByRole("switch", { name: "Europe Christmas 2026" });
+    // Switch's 30px track carries an invisible 44px-tall hit area (design-ask D1).
+    expect(toggle.className).toMatch(/before:h-11/);
+    expect(toggle.closest('[data-slot="digest-row"]')?.className).toMatch(/min-h-11/);
   });
 
   it("shows the empty state for a traveller on no trips", () => {
     render(<TripDigestsPanel initial={[]} />);
+    expect(screen.getByRole("heading", { name: "No trips yet" })).toBeInTheDocument();
     expect(screen.getByText(/you.re not on any trips yet\./i)).toBeInTheDocument();
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 
   it("saves the toggled value for the right trip", async () => {
@@ -47,7 +63,7 @@ describe("TripDigestsPanel", () => {
       />,
     );
 
-    await user.click(screen.getByLabelText("Japan 2027"));
+    await user.click(screen.getByRole("switch", { name: "Japan 2027" }));
 
     expect(setDigestEnabled).toHaveBeenCalledWith("trip-2", false);
     expect(setDigestEnabled).not.toHaveBeenCalledWith("trip-1", expect.anything());
@@ -62,11 +78,11 @@ describe("TripDigestsPanel", () => {
       />,
     );
 
-    const toggle = screen.getByLabelText("Europe Christmas 2026");
+    const toggle = screen.getByRole("switch", { name: "Europe Christmas 2026" });
     await user.click(toggle);
 
     expect(await screen.findByText(/couldn't save that/i)).toBeInTheDocument();
-    // Rolled back: the checkbox must not claim a state the server refused.
+    // Rolled back: the switch must not claim a state the server refused.
     expect(toggle).toBeChecked();
   });
 
@@ -82,9 +98,9 @@ describe("TripDigestsPanel", () => {
       />,
     );
 
-    await user.click(screen.getByLabelText("Europe Christmas 2026"));
+    await user.click(screen.getByRole("switch", { name: "Europe Christmas 2026" }));
 
     await screen.findByText(/couldn't save that/i);
-    expect(screen.getByLabelText("Japan 2027")).toBeChecked();
+    expect(screen.getByRole("switch", { name: "Japan 2027" })).toBeChecked();
   });
 });
