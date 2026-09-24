@@ -162,8 +162,10 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
         const isSelected = mk.id === selectedId;
         const icon = isSelected ? selectedIcon(L, mk.category, isDark) : categoryIcon(L, mk.category, isDark);
         const attachCount = attachmentsByMarkerId?.[mk.id]?.length ?? 0;
+        // A <span>, not a <p>: leaflet.css's unlayered `.leaflet-popup-content p { margin: 1.3em 0 }`
+        // beats Tailwind's layered margin utilities.
         const attachLine = attachCount > 0
-          ? `<p class="m-0 mb-1 text-xs font-semibold text-muted-foreground">${attachCount} ${attachCount === 1 ? "file" : "files"}</p>`
+          ? `<span class="mb-1 block text-xs font-semibold text-muted-foreground">${attachCount} ${attachCount === 1 ? "file" : "files"}</span>`
           : "";
         // Token classes only (Tailwind scans this file), so the popup follows the theme;
         // the shell (.tp-map-popup in globals.css) gives it the kit outline + hard shadow.

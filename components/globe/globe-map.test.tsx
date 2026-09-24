@@ -161,6 +161,8 @@ describe("GlobeMap kit chrome", () => {
     expect(html).not.toMatch(/#[0-9a-f]{3,6}\b/i);
     expect(html).not.toContain("📎");
     expect(html).toContain("2 files");
+    // No <p>: leaflet.css's unlayered `.leaflet-popup-content p` margin would beat the utilities.
+    expect(html).not.toMatch(/<p[\s>]/);
     expect(html).toContain("border-2");
     expect(html).toMatch(/data-edit="m1"[^>]*>Edit</);
     expect(html).toMatch(/data-delete="m1"[^>]*>Delete</);
