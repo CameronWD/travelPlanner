@@ -63,7 +63,7 @@ describe("CountdownHero", () => {
     expect(screen.getByText("1 stop")).toBeInTheDocument();
   });
 
-  it("applies lg:text-7xl to the countdown number on desktop", () => {
+  it("sizes the countdown number to the kit's display-xl (120px on desktop)", () => {
     render(
       <CountdownHero
         description={planning}
@@ -75,6 +75,24 @@ describe("CountdownHero", () => {
       />,
     );
     const numberElement = screen.getByLabelText("26 days to go").querySelector("span");
-    expect(numberElement?.className).toContain("lg:text-7xl");
+    expect(numberElement?.className).toContain("lg:text-[120px]");
+  });
+
+  it("is the kit's coral hero Card (island fill, 2px outline, hard shadow, xl radius) — no soft glow", () => {
+    render(
+      <CountdownHero
+        description={planning}
+        startDate="2026-07-20"
+        endDate="2026-07-30"
+        nights={11}
+        stopCount={3}
+        homeCurrency="JPY"
+      />,
+    );
+    const hero = screen.getByRole("region", { name: "Trip countdown" });
+    for (const cls of ["island", "bg-coral", "border-2", "shadow-hard-3", "rounded-xl"]) {
+      expect(hero.className.split(/\s+/)).toContain(cls);
+    }
+    expect(hero.className).not.toMatch(/shadow-\[|hsl\(|rounded-3xl/);
   });
 });

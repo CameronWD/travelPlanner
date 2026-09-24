@@ -102,6 +102,14 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   (shared pot), restyled into the kit card; no per-day spend figure and no inline add on
   Home. Not built because: new feature (per-day spend isn't computed for Home; adding a
   cost lives on the Money tab).
+- **`DHome.jsx` / `Home.jsx` — "Route · 12 nights" teal card.** Kit shows: a teal card
+  listing each stop with its nights ("Tokyo 4n"). We have: the same stops drawn on the
+  route map card (Leaflet) in the Planning phase, plus the stop list on Plan. Not built
+  because: new feature (a second, list-form route summary on Home).
+- **`DHome.jsx` — hero footer "Sydney 21:35 · JQ19 → HND 06:15".** Kit shows: the
+  outbound flight from home under the countdown. We have: the home base and outbound leg
+  are known to Next steps (as nudges), but the hero is not given the outbound transport.
+  Not built because: new feature (the hero has no outbound-leg data today).
 
 ## p3/together
 
