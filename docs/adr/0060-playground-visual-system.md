@@ -179,10 +179,10 @@ catches, because tests assert behaviour, not reasoning.
   computed size prop; Tailwind has no utility for an arbitrary numeric input.
 - `components/ui/progress-bar.tsx` — inline `style={{ width }}`, a computed
   percentage Tailwind cannot express as a class.
-- `app/global-error.tsx` — stays fully inline-styled and was **not
-  restyled** in this phase. It replaces the entire document when the root
-  layout itself fails, so `globals.css` never loads for it; every style has
-  to travel with the markup.
+- `app/global-error.tsx` — inline styles are allowed. It replaces the entire document when the
+  root layout itself fails, so `globals.css` never loads for it; every style has to travel with the
+  markup. **No raw hex:** colours come from CSS variables the file declares locally, whose HSL
+  triples are copied exactly from `globals.css` (light and dark). Restyled in phase 3 (2026-09-24).
 
 ## Deferred, and why
 
