@@ -294,6 +294,7 @@ export default async function PrintPage({
           header,
           nav,
           [data-trip-nav],
+          [data-trip-header],
           .print-hide {
             display: none !important;
           }

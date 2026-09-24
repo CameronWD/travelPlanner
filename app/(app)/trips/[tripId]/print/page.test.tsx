@@ -48,6 +48,13 @@ describe("Print view — tokens only (Task 15)", () => {
     }
   });
 
+  it("hides the trip layout's header block in print, so the trip name prints once", () => {
+    const style = page.slice(page.indexOf("@media print"), page.indexOf("`}</style>"));
+    const hide = style.slice(0, style.indexOf("display: none"));
+    expect(hide).toContain("[data-trip-nav]");
+    expect(hide).toContain("[data-trip-header]");
+  });
+
   it("print button is the kit Button with the kit copy", () => {
     expect(button).toContain('from "@/components/ui/button"');
     expect(button).toContain("Print or save PDF");

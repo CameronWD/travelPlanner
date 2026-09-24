@@ -191,7 +191,7 @@ function RouteRow({ stop }: { stop: RouteDiffStop }) {
     >
       <span className="min-w-0 truncate">
         <b className="font-extrabold">
-          {CHANGE_PREFIX[stop.kind]}
+          {CHANGE_PREFIX[stop.kind] && <span aria-hidden="true">{CHANGE_PREFIX[stop.kind]}</span>}
           {stop.name}
         </b>
         {stop.country && <span className="ml-1.5 text-xs font-semibold text-muted-foreground">{stop.country}</span>}
@@ -355,7 +355,7 @@ export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps)
               <span className="inline-flex items-center gap-1">
                 <Info className="size-4" strokeWidth={2.5} aria-hidden="true" />
                 {m.flagCounts.info}
-                <span className="sr-only">{m.flagCounts.info === 1 ? " info" : " infos"}</span>
+                <span className="sr-only">{m.flagCounts.info === 1 ? " info flag" : " info flags"}</span>
               </span>
             )}
             {m.flagCounts.warning === 0 && m.flagCounts.info === 0 && "None"}

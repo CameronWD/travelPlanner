@@ -240,6 +240,15 @@ describe("CompareTable — real plan only (no forks)", () => {
 });
 
 describe("CompareTable — kit layout (together.jsx Compare)", () => {
+  it("announces flag counts as warnings / info flags", () => {
+    render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
+    const card = screen.getAllByTestId("plan-card")[0];
+    const sr = [...card.querySelectorAll(".sr-only")].map((e) => e.textContent?.trim());
+    expect(sr).toContain("warning");
+    expect(sr).toContain("info flags");
+    expect(sr).not.toContain("infos");
+  });
+
   it("renders one kit card grid at every width: stacked on phones, two columns from md", () => {
     const { container } = render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
     const grid = container.querySelector('[data-slot="compare-grid"]');
@@ -305,6 +314,12 @@ describe("CompareTable — route diff in fork columns", () => {
     expect(lucerne.dataset.change).toBe("added");
     const rome = rows.find((r) => r.textContent?.includes("Rome"))!;
     expect(rome.dataset.change).toBe("renighted");
+    // The visible prefix is decorative; only the sr-only word is announced.
+    for (const [row, glyph, word] of [[venice, "−", "dropped"], [lucerne, "+", "added"]] as const) {
+      const hidden = [...row.querySelectorAll('[aria-hidden="true"]')].map((e) => e.textContent?.trim());
+      expect(hidden).toContain(glyph);
+      expect(row.querySelector(".sr-only")?.textContent).toContain(word);
+    }
   });
 });
 
