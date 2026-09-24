@@ -391,12 +391,14 @@ export function WishlistBoard({
               {renderIdeaGrid(anywhereItems, true)}
             </section>
           )}
-
-          {/* Mobile: the kit's block "+ Add an idea" under the grid */}
-          {!isEmpty && (
-            <AddItemButton {...addProps} variant="secondary" size="md" className="w-full sm:hidden" />
-          )}
         </div>
+      )}
+
+      {/* Mobile: the kit's block "+ Add an idea" under the grid. Outside the
+          stops guard so a phone always has an add in list view (it replaces
+          the header add, which is max-sm:hidden there). */}
+      {view === "list" && !isEmpty && (
+        <AddItemButton {...addProps} variant="secondary" size="md" className="w-full sm:hidden" />
       )}
 
       {/* ─── Dialogs ─── */}

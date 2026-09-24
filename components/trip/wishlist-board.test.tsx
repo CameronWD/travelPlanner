@@ -81,8 +81,8 @@ vi.mock("./item-form-dialog", () => ({
     return null;
   },
   // Renders its label + variant so the kit's "Add an idea" affordances are visible to tests.
-  AddItemButton: ({ label, variant }: { label?: string; variant?: string }) => (
-    <button data-variant={variant ?? "primary"}>{label ?? "Add Item"}</button>
+  AddItemButton: ({ label, variant, className }: { label?: string; variant?: string; className?: string }) => (
+    <button data-variant={variant ?? "primary"} className={className}>{label ?? "Add Item"}</button>
   ),
 }));
 
@@ -494,5 +494,13 @@ describe("WishlistBoard — Playground kit", () => {
     const chip = screen.getByRole("button", { name: "Add Senso-ji Temple" });
     expect(chip.className).toMatch(/\bborder-2\b/);
     expect(chip.className).not.toMatch(/shadow-soft/);
+  });
+
+  // Fix round 1: with ideas but no stops (Globe adds land with stopId null),
+  // a phone in list view must still have an add that isn't hidden on mobile.
+  it("keeps a mobile-visible 'Add an idea' when there are ideas but no stops", () => {
+    render(<WishlistBoard tripId={TRIP_ID} stops={[]} items={[makeItem({ stopId: null, stopName: null })]} />);
+    const adds = screen.getAllByRole("button", { name: "Add an idea" });
+    expect(adds.some((b) => !/max-sm:hidden/.test(b.getAttribute("class") ?? ""))).toBe(true);
   });
 });
