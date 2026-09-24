@@ -37,6 +37,15 @@ vi.mock("@/lib/weather", () => ({ getDayWeather: vi.fn(async () => null) }));
 
 import SharePage, { metadata } from "./page";
 
+/** Private values that must never reach the public page. */
+const PRIVATE = {
+  transport: { reference: "PNR-ABC123", notes: "secret transport note" },
+  accommodation: { confirmation: "CONF-999", notes: "secret stay note" },
+  item: { costMinor: 12345, currency: "EUR", notes: "secret item note", link: "https://private.example/booking", booking: "BOOK-777" },
+  trip: { homeCurrency: "EUR" },
+};
+const PRIVATE_STRINGS = ["PNR-ABC123", "CONF-999", "BOOK-777", "secret", "private.example", "12345", "123.45", "EUR"];
+
 const TRIP = {
   id: "t1",
   name: "EU Christmas",
@@ -59,7 +68,7 @@ function share(overrides: Partial<typeof TRIP> = {}) {
     includeAccommodation: true,
     includeTransport: true,
     includeDailyPlans: true,
-    trip: { ...TRIP, ...overrides },
+    trip: { ...TRIP, ...PRIVATE.trip, ...overrides },
   };
 }
 
@@ -71,14 +80,18 @@ beforeEach(() => {
   vi.clearAllMocks();
   shareFindUniqueMock.mockResolvedValue(share());
   stopFindManyMock.mockResolvedValue(STOPS);
+  // Every row carries the private fields the real `select`s must never
+  // return. The db is mocked, so these rows reach the page as-is: the only
+  // thing standing between them and the rendered page is the page's own
+  // projection into buildItinerary. The tests below prove it holds.
   transportFindManyMock.mockResolvedValue([
-    { id: "tr1", mode: "FLIGHT", fromStopId: "s1", toStopId: "s2", depPlace: "Munich (MUC)", arrPlace: "London (LHR)", depAt: "2020-12-08T09:00:00.000Z", arrAt: "2020-12-08T10:30:00.000Z", sortOrder: 0 },
+    { id: "tr1", mode: "FLIGHT", fromStopId: "s1", toStopId: "s2", depPlace: "Munich (MUC)", arrPlace: "London (LHR)", depAt: "2020-12-08T09:00:00.000Z", arrAt: "2020-12-08T10:30:00.000Z", sortOrder: 0, ...PRIVATE.transport },
   ]);
   accommodationFindManyMock.mockResolvedValue([
-    { id: "a1", stopId: "s1", name: "Platzl Hotel", address: "Sparkassenstraße 10", checkIn: "2020-12-06", checkOut: "2020-12-08", checkInTime: "15:00", checkOutTime: "11:00" },
+    { id: "a1", stopId: "s1", name: "Platzl Hotel", address: "Sparkassenstraße 10", checkIn: "2020-12-06", checkOut: "2020-12-08", checkInTime: "15:00", checkOutTime: "11:00", ...PRIVATE.accommodation },
   ]);
   itemFindManyMock.mockResolvedValue([
-    { id: "i1", title: "Christmas market", category: "FOOD", date: "2020-12-07", startTime: "18:00", endTime: null, stopId: "s1", address: null },
+    { id: "i1", title: "Christmas market", category: "FOOD", date: "2020-12-07", startTime: "18:00", endTime: null, stopId: "s1", address: null, ...PRIVATE.item },
   ]);
 });
 
@@ -94,11 +107,32 @@ describe("SharePage — public guarantees", () => {
     expect(h1s[0]).toHaveTextContent("EU Christmas");
   });
 
-  it("shows no costs anywhere on the page", async () => {
+  it("shows no costs, booking refs, confirmations, links or notes — even when the rows carry them", async () => {
     const { container } = await renderPage();
-    expect(container.textContent).not.toMatch(/[$€£¥]\s?\d/);
+    const text = container.textContent ?? "";
+    const html = container.innerHTML;
+    for (const secret of PRIVATE_STRINGS) {
+      expect(text).not.toContain(secret);
+      expect(html).not.toContain(secret);
+    }
+    expect(text).not.toMatch(/[$€£¥]\s?\d/);
+    expect(text).not.toMatch(/€\s?\d/);
     // Money is a shared pot, and never shown here — no splitting language either.
-    expect(container.textContent).not.toMatch(/per person|each owes|split/i);
+    expect(text).not.toMatch(/per person|each owes|split/i);
+  });
+
+  it("never selects private fields from the database", async () => {
+    await renderPage();
+    const selectOf = (mock: ReturnType<typeof vi.fn>) => Object.keys(mock.mock.calls[0][0].select);
+    const FORBIDDEN = ["reference", "confirmation", "notes", "link", "booking", "costMinor", "currency", "amountMinor", "costs"];
+    for (const mock of [transportFindManyMock, accommodationFindManyMock, itemFindManyMock, stopFindManyMock]) {
+      expect(mock).toHaveBeenCalledTimes(1);
+      const keys = selectOf(mock);
+      for (const k of FORBIDDEN) expect(keys).not.toContain(k);
+    }
+    const tripSelect = Object.keys(shareFindUniqueMock.mock.calls[0][0].select.trip.select);
+    expect(tripSelect).not.toContain("homeCurrency");
+    for (const k of FORBIDDEN) expect(tripSelect).not.toContain(k);
   });
 });
 
