@@ -150,6 +150,21 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   right panel). We have: a dedicated Day route (prev/next, map, ideas, journal) linked from
   the calendar page (Task 12b), with its plan in the kit's day card. Not built because:
   product decision (the Day route carries far more than the kit panel).
+- **`DDays.jsx` / `Days.jsx` — month tiles filled solid with the stop's hue.** Kit shows: each
+  stop's days as fully hue-filled tiles (teal Tokyo, lilac Kyoto). We have: the kit tile shape
+  wearing the stop's soft tint plus a hue band down its left edge, both from
+  `lib/stop-colours.ts` (Task 12b). Not built because: product decision (the stop-colour
+  derivation is shared with the plan editor and is fixed for this phase; it has no solid-fill
+  class).
+- **`DDays.jsx` / `Days.jsx` — travel days as ink tiles ("FLY SYD", "FLY HOME") with a
+  "Flights" legend chip.** Kit shows: flight days drawn as solid ink tiles with a flight label,
+  and an ink "Flights" chip in the legend. We have: every day coloured by its Stop, with the
+  transport mode and check-in/out icons on the tile (desktop) and a "Travel day" chip in the
+  agenda. Not built because: product decision (a travel day still belongs to a Stop; recolouring
+  it hides where you sleep).
+- **`DDays.jsx` / `Days.jsx` — Month / Week switch.** Kit shows: a Week view beside Month. We
+  have: Month / Agenda (every trip day as a kit day card). Not built because: new feature (a
+  week view).
 
 ## p3/together
 

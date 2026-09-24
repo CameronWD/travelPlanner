@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 
 // Mock heavy server/client imports that resolveView() doesn't need but that
@@ -17,10 +17,8 @@ vi.mock("@/components/trip/month-grid", () => ({
     return null;
   },
 }));
-vi.mock("@/components/ui/segmented", () => ({
-  Segmented: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-  SegmentedItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
-}));
+// Segmented is the real primitive (Task 12b): the view switch's accessible
+// names are pinned below, so it is not mocked away.
 vi.mock("@/components/ui/button", () => ({
   Button: ({ children, onClick, disabled, type, ...rest }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) => (
     <button type={type ?? "button"} onClick={onClick} disabled={disabled} {...rest}>{children}</button>
@@ -139,5 +137,46 @@ describe("resolveView", () => {
     // mobile viewport, but user explicitly chose "month"
     mockEnv(false, "month");
     expect(resolveView()).toBe("month");
+  });
+});
+
+describe("CalendarViews — kit toolbar and rail (Task 12b)", () => {
+  it("the view switch is the kit Segmented (sun) with its accessible names", () => {
+    mockEnv(true, "month");
+    render(<CalendarViews {...baseProps} wishlistItems={[]} />);
+    const group = screen.getByRole("radiogroup", { name: "Calendar view" });
+    expect(screen.getByRole("radio", { name: "Month" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: "Agenda" })).toHaveAttribute("aria-checked", "false");
+    expect(group.innerHTML).toMatch(/\bbg-sun\b/);
+  });
+
+  it("month view titles the grid with the month as a display heading (kit 'October')", () => {
+    mockEnv(true, "month");
+    render(<CalendarViews {...baseProps} wishlistItems={[]} />);
+    const h = screen.getByRole("heading", { level: 2, name: "August 2026" });
+    expect(h.className).toMatch(/\bfont-display\b/);
+    expect(h.className).toMatch(/\bfont-extrabold\b/);
+    expect(screen.getByRole("button", { name: "Previous month" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next month" })).toBeInTheDocument();
+  });
+
+  it("agenda view has no month heading", () => {
+    mockEnv(true, "agenda");
+    render(<CalendarViews {...baseProps} wishlistItems={[]} />);
+    expect(screen.queryByRole("heading", { name: "August 2026" })).not.toBeInTheDocument();
+  });
+
+  it("the wishlist rail is a kit Card with a labelled, stateful toggle and kit rows", () => {
+    mockEnv(true, "month");
+    const { container } = render(<CalendarViews {...baseProps} wishlistItems={wishlistItems} />);
+    const toggle = screen.getByRole("button", { name: /Wishlist \(1\)/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(toggle.textContent).not.toMatch(/[▾▸]/);
+    const aside = container.querySelector("aside")!;
+    expect(aside.className).toMatch(/\bborder-2\b/);
+    const row = container.querySelector("aside li")!;
+    expect(row.className).toMatch(/\bborder-2\b/);
+    expect(row.className).not.toMatch(/(^|\s)border(\s|$)/);
+    expect(screen.getByRole("button", { name: "Schedule Eiffel Tower" })).toBeInTheDocument();
   });
 });

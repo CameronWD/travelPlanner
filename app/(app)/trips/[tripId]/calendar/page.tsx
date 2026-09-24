@@ -6,6 +6,7 @@ import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { buildItinerary } from "@/lib/itinerary";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
 import { CalendarViews } from "@/components/trip/calendar-views";
 import type { TransportMode } from "@/lib/enums";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
@@ -101,21 +102,22 @@ export default async function CalendarPage({
   ]);
 
   // Graceful empty state — no stops, or a date-less trip, means there is no
-  // dated calendar to project.
+  // dated calendar to project. Kit copy: states.jsx `Days`; the action keeps
+  // our Plan route (dated Stops are what lay the calendar out).
   if (!trip.startDate || !trip.endDate) {
     return (
       <EmptyState
         icon={CalendarDays}
+        tone="sun"
         title="No dates yet"
-        description="Set your trip's start and end dates to see a day-by-day calendar."
+        description="Pick when you leave and we’ll lay your stops across the calendar."
         action={
-          <Link
-            href={`/trips/${tripId}/plan`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <MapPin className="size-4" aria-hidden="true" />
-            Go to Plan
-          </Link>
+          <Button asChild>
+            <Link href={`/trips/${tripId}/plan`}>
+              <MapPin aria-hidden="true" />
+              Go to Plan
+            </Link>
+          </Button>
         }
       />
     );
@@ -123,17 +125,17 @@ export default async function CalendarPage({
   if (stops.length === 0) {
     return (
       <EmptyState
-        icon={CalendarDays}
+        icon={MapPin}
+        tone="teal"
         title="No Stops yet"
         description="Add Stops on the Plan page to start building your day-by-day calendar."
         action={
-          <Link
-            href={`/trips/${tripId}/plan`}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            <MapPin className="size-4" aria-hidden="true" />
-            Go to Plan
-          </Link>
+          <Button asChild>
+            <Link href={`/trips/${tripId}/plan`}>
+              <MapPin aria-hidden="true" />
+              Go to Plan
+            </Link>
+          </Button>
         }
       />
     );
