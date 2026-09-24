@@ -82,3 +82,63 @@ describe("PhaseSketching chapter gating (Task 13)", () => {
     expect(chapterFindManyMock).toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Playground kit restyle (Task 10b) — kit DHome.jsx / Home.jsx hero + Route card
+// ---------------------------------------------------------------------------
+
+const { renderToStaticMarkup } = await import("react-dom/server");
+const { EmptyState } = await import("@/components/ui/empty-state");
+
+function findEl(node: unknown, type: unknown): { props: Record<string, unknown> } | null {
+  if (node == null || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const f = findEl(n, type);
+      if (f) return f;
+    }
+    return null;
+  }
+  const el = node as { type?: unknown; props?: { children?: unknown } };
+  if (el.type === type) return el as { props: Record<string, unknown> };
+  return findEl(el.props?.children, type);
+}
+
+describe("PhaseSketching Playground kit restyle (Task 10b)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", name: "Rome", country: "Italy", nights: 3, chapterId: null, arriveDate: null },
+      { id: "s2", name: "Florence", country: "Italy", nights: 2, chapterId: null, arriveDate: null },
+    ]);
+    chapterFindManyMock.mockResolvedValue([]);
+  });
+
+  it("renders the coral hero Card and a Route Card, headings in order", async () => {
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(
+      (await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip" })) as Parameters<typeof renderToStaticMarkup>[0],
+    );
+    expect([...div.querySelectorAll("h2, h3")].map((h) => h.textContent)).toEqual(["Test Trip", "Route"]);
+    const hero = div.querySelector("h2")!.closest("div.border-2")!;
+    expect(hero.className).toMatch(/\bbg-coral\b/);
+    expect(hero.className).toMatch(/\bshadow-hard-3\b/);
+    expect(hero.textContent).toContain("Sketching");
+    expect(hero.textContent).toContain("2 places · ~5 nights sketched");
+    const route = div.querySelectorAll("h3")[0].closest("div.border-2")!;
+    expect(route.className).toMatch(/\bshadow-hard-\d\b/);
+    expect(route.textContent).toContain("Rome");
+    expect(route.textContent).toContain("~3n");
+    expect(div.innerHTML).not.toMatch(/rounded-2xl border border-border|shadow-soft/);
+    expect(div.textContent).not.toMatch(/per person|each owes|split/i);
+  });
+
+  it("renders the kit 'Plan' empty treatment when there are no stops", async () => {
+    stopFindManyMock.mockResolvedValue([]);
+    const tree = await PhaseSketching({ tripId: "trip-1", tripName: "Test Trip" });
+    const empty = findEl(tree, EmptyState);
+    expect(empty).not.toBeNull();
+    expect(empty!.props.title).toBe("No stops yet");
+    expect(empty!.props.tone).toBe("teal");
+  });
+});
