@@ -20,10 +20,10 @@ vi.mock("next/link", () => ({
 }));
 
 describe("ShareNotFound", () => {
-  it("renders the 'Link not found' heading", () => {
+  it("renders the 'This link has expired' heading", () => {
     render(<ShareNotFound />);
     expect(
-      screen.getByRole("heading", { name: /link not found/i }),
+      screen.getByRole("heading", { name: /this link has expired/i }),
     ).toBeInTheDocument();
   });
 

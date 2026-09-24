@@ -11,6 +11,15 @@ describe("TermsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses the Playground legal layout", async () => {
+    const { container } = render(await TermsPage());
+    expect(container.querySelector("[data-legal-page]")).not.toBeNull();
+    expect(screen.getByRole("link", { name: /teepee/i })).toHaveAttribute(
+      "href",
+      "/signin",
+    );
+  });
+
   it("states TEEPEE is provided without warranty", async () => {
     render(await TermsPage());
     expect(screen.getByText(/without warranty/i)).toBeInTheDocument();

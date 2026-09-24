@@ -15,6 +15,15 @@ describe("PrivacyPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses the Playground legal layout", async () => {
+    const { container } = render(await PrivacyPage());
+    expect(container.querySelector("[data-legal-page]")).not.toBeNull();
+    expect(screen.getByRole("link", { name: /teepee/i })).toHaveAttribute(
+      "href",
+      "/signin",
+    );
+  });
+
   it("names the third parties data is shared with", async () => {
     render(await PrivacyPage());
     expect(screen.getAllByText(/Google/).length).toBeGreaterThan(0);

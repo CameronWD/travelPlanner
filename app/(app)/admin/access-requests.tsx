@@ -5,6 +5,7 @@ import { Check, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { relativeTime } from "@/lib/relative-time";
 import {
   approveAccessRequest,
@@ -93,9 +94,11 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
         const approveBusy = pending?.id === request.id && pending.action === "approve";
         const rowBusy = dismissBusy || approveBusy;
         return (
-          <div
+          <Card
             key={request.id}
-            className="flex flex-col gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
+            radius="md"
+            shadow={1}
+            className="flex flex-col gap-3 p-3.5 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="flex min-w-0 items-center gap-3">
               <Avatar className="size-9 shrink-0">
@@ -126,11 +129,12 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
+                size="md"
                 className="gap-1.5"
                 loading={dismissBusy}
                 disabled={rowBusy}
                 onClick={() => handleDismiss(request)}
+                aria-label={`Dismiss ${label}`}
               >
                 <X className="size-4" aria-hidden="true" />
                 Dismiss
@@ -138,17 +142,18 @@ export function AccessRequestsPanel({ initial, now }: AccessRequestsPanelProps) 
               <Button
                 type="button"
                 variant="primary"
-                size="sm"
+                size="md"
                 className="gap-1.5"
                 loading={approveBusy}
                 disabled={rowBusy}
                 onClick={() => handleApprove(request)}
+                aria-label={`Approve ${label}`}
               >
                 <Check className="size-4" aria-hidden="true" />
                 Approve
               </Button>
             </div>
-          </div>
+          </Card>
         );
       })}
 
