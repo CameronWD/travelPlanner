@@ -188,6 +188,10 @@ catches, because tests assert behaviour, not reasoning.
   triple**, and `lib/og-card.test.ts` pins that equality so the two cannot drift. Fonts are static
   `.ttf` files in `app/fonts/` (Satori does not read `.woff2`). Added in phase 3 (2026-09-24);
   only the site-wide default card ships — the per-trip share card is a logged gap.
+- `app/(app)/trips/[tripId]/print/page.tsx` — an inline `<style>` that re-declares a dozen
+  light-theme HSL tokens under `@media print { html.dark { … } }`. Paper is always light, so a
+  print from dark mode must get light-theme ink; tokens can't be scoped to print any other way.
+  The triples are copied from `globals.css` `:root`, and `print/page.test.tsx` pins them equal.
 
 ## Deferred, and why
 
