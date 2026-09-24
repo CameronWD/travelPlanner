@@ -294,7 +294,10 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
                 {pct}% of {formatMoney(costTotalMinor, trip.homeCurrency)} cost
               </span>
               {/* Under/over is a state: status tokens, not an accent hue. */}
-              <Badge variant={underBudget ? "success" : "destructive"}>
+              <Badge
+                variant={underBudget ? undefined : "destructive"}
+                className={underBudget ? "bg-success text-success-foreground" : undefined}
+              >
                 {formatMoney(Math.abs(varianceMinor), trip.homeCurrency)} {underBudget ? "under" : "over"}
               </Badge>
             </span>
