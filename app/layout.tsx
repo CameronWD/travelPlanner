@@ -6,6 +6,7 @@ import { MotionProvider } from "@/components/ui/motion-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { PwaRegister } from "@/components/pwa-register";
 import { VercelAnalytics } from "@/components/analytics";
+import { siteUrl } from "@/lib/site-url";
 
 // Display: Bricolage Grotesque (OFL, variable wght 200–800 + opsz). Headings use 800, h5 700.
 const bricolage = Bricolage_Grotesque({
@@ -31,6 +32,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl()),
   title: { default: "Teepee", template: "%s · Teepee" },
   description: "Plan it with your people.",
   icons: {
