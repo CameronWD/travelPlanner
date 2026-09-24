@@ -183,6 +183,11 @@ catches, because tests assert behaviour, not reasoning.
   root layout itself fails, so `globals.css` never loads for it; every style has to travel with the
   markup. **No raw hex:** colours come from CSS variables the file declares locally, whose HSL
   triples are copied exactly from `globals.css` (light and dark). Restyled in phase 3 (2026-09-24).
+- `lib/og-card.tsx` — inline style objects and hex. Satori (next/og) cannot read CSS variables or
+  Tailwind classes. Every hex must equal the `globals.css` light token **computed from its HSL
+  triple**, and `lib/og-card.test.ts` pins that equality so the two cannot drift. Fonts are static
+  `.ttf` files in `app/fonts/` (Satori does not read `.woff2`). Added in phase 3 (2026-09-24);
+  only the site-wide default card ships — the per-trip share card is a logged gap.
 
 ## Deferred, and why
 
