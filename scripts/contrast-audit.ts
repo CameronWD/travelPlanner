@@ -53,7 +53,7 @@
  *   shim.d.ts gives `tsc --noEmit` just enough type surface to still
  *   typecheck this file without the real package installed.
  *
- * TWO TRAPS THIS PROJECT HAS ALREADY FALLEN INTO
+ * THREE TRAPS THIS PROJECT HAS ALREADY FALLEN INTO
  * -----------------
  *   1. Leaflet renders after `networkidle`. Every map on this site
  *      (globe, wishlist, route/summary, day) mounts via
@@ -80,6 +80,32 @@
  *      failure. It exits non-zero either way. A silent pass is worse than no
  *      audit at all.
  *
+ *   3. A gradient reads as "no background" — and can flip a real failure
+ *      into a false PASS, not just a wrong number. `effectiveBackground()`
+ *      originally read only `getComputedStyle(node).backgroundColor`; a
+ *      background-image (which is how every `bg-gradient-to-*` utility here
+ *      actually paints — Tailwind's gradient classes set background-image,
+ *      never background-color) reports `rgba(0,0,0,0)` there, so the walk
+ *      treated it as transparent and kept going, landing on whatever opaque
+ *      colour happened to sit further up the tree. Caught in review on
+ *      `weather-daylight-card.tsx`'s fixed (non-theme-varying) gradient:
+ *      white text on it is ~2.5:1 in BOTH themes, but the old walk measured
+ *      light mode against the page background behind the card (reporting
+ *      the right verdict for the wrong reason: 1.025:1 against a colour
+ *      that isn't actually there) and measured dark mode against the dark
+ *      page background *two levels up*, landing on ~16:1 — a clean pass for
+ *      text that was still actually failing. A false pass is strictly worse
+ *      than a wrong ratio: it drops a real failure from the count instead of
+ *      just mis-describing it. There is no cheap way to know the *true*
+ *      rendered colour of a gradient without sampling actual pixels (e.g.
+ *      drawing the element to a canvas), which this script does not attempt
+ *      — so `effectiveBackground()` instead stops dead the instant it meets
+ *      a background-image and reports that row as `unmeasurable`, and
+ *      `unmeasurable` rows are always `pass: false` and are reported (and
+ *      counted toward a non-zero exit) as their own category, never folded
+ *      into "clean". An unmeasurable background must never resolve to a
+ *      pass — same principle as the zero-node check, at the row level.
+ *
  * ERROR BOUNDARIES (Step 3 judgement call)
  * -----------------
  *   There are 23 `error.tsx` files plus app/global-error.tsx. None of them
@@ -102,11 +128,62 @@
  *   markup. They're covered anyway, for real, by navigation: see the
  *   "not-found" entries in ROUTES below.
  *
+ * KNOWN GAP: TripCover's gradient fallback is dormant in this sweep
+ * -----------------
+ *   `components/trip/trip-cover.tsx`'s `MonogramCover` renders
+ *   `bg-gradient-to-br from-secondary to-muted` with `text-primary/70` —
+ *   another background-image site, same as trap 3 above, and now correctly
+ *   caught as `unmeasurable` if this script ever renders it. But it never
+ *   does in this sweep: every trip belonging to TRIP_ID (a fixed, seeded
+ *   demo id) has a rasterised cover image, so `TripCover` always takes the
+ *   photo branch, never the monogram-gradient fallback. A real Traveller
+ *   reaches `MonogramCover` on any brand-new, coverless trip — this script
+ *   just can't exercise that state without creating one (out of scope for a
+ *   fixed-trip-id sweep). The fix is generic (any background-image anywhere
+ *   in the walk is caught, not just the one this review found), so if a
+ *   future route list ever does reach it, it'll report `unmeasurable`
+ *   rather than a false pass — but right now it's simply unaudited, and
+ *   this note is that being said plainly rather than silently.
+ *
+ * ON THE NODE-COUNT BASELINE
+ * -----------------
+ *   Zero nodes on a route is treated as broken (trap 2). A route that
+ *   quietly regresses from, say, 400 nodes to 3 — still not literally zero
+ *   — would sail past that check, and this sweep's per-route sanity-check
+ *   was a human reading the numbers once, which doesn't re-run itself.
+ *
+ *   An EXACT pinned baseline (assert /help renders precisely 399 nodes,
+ *   forever) was considered and rejected as too brittle for this app
+ *   specifically: the day route's weather widget pulls live data from
+ *   Open-Meteo, so its node count can legitimately shift with the forecast,
+ *   and the seeded demo data is expected to evolve over time. An exact
+ *   match would need hand-maintenance on every unrelated content change,
+ *   which is exactly the kind of noisy gate that trains people to ignore
+ *   failures.
+ *
+ *   Instead: docs/audits/contrast-node-counts.json records this run's node
+ *   count per route+theme, and each run flags any route that MORE THAN
+ *   HALVED versus that committed file (and was non-trivial to begin with —
+ *   see NODE_COUNT_REGRESSION_FLOOR) as a "NODE-COUNT REGRESSION", then
+ *   overwrites the file with this run's counts regardless (self-updating,
+ *   like a snapshot test — a deliberate content shrink just needs one
+ *   accepted, reviewed run to become the new normal). This catches the
+ *   "collapsed to a handful of nodes" failure mode this note opened with
+ *   while tolerating ordinary content drift. The tradeoff worth knowing:
+ *   it only catches a regression on the run where it FIRST happens — if
+ *   that run's output isn't looked at, the collapsed count becomes the next
+ *   baseline and won't be flagged again. That's the same "someone has to
+ *   look at the result" assumption the rest of this script's gate already
+ *   rests on (a red exit code still needs a human to read it), not a new
+ *   one — but it's not a fully automatic backstop, and shouldn't be
+ *   mistaken for one.
+ *
  * Run:
  *   NODE_PATH=/usr/local/lib/node_modules npm run audit:contrast
  */
 
 import * as path from "node:path";
+import * as fs from "node:fs";
 import { execFileSync } from "node:child_process";
 
 import * as React from "react";
@@ -315,13 +392,27 @@ interface ProbeRow {
   text: string;
   tag: string;
   cls: string;
+  /** The resolved, COMPOSITED foreground actually used for the ratio — not
+   * the raw `color` CSS value, which can be translucent (e.g. `text-primary/70`)
+   * and therefore diverge from what was measured. Null when `unmeasurable`. */
   color: string;
+  /** Composited effective background, or an explanatory string when
+   * `unmeasurable` is true (there is then no meaningful rgb() to report). */
   bg: string;
   px: number;
   bold: boolean;
-  ratio: number;
+  /** Null when `unmeasurable` — there is nothing to compute a ratio from. */
+  ratio: number | null;
   need: number;
+  /** Always false when `unmeasurable` — an unmeasurable background must
+   * never be reported as a pass (see effectiveBackground() below). */
   pass: boolean;
+  /** True when an ancestor's background-image made the effective background
+   * impossible to determine from computed style alone (gradients, images —
+   * Tailwind's bg-gradient-* utilities only ever set background-image, never
+   * background-color, so the old walk read them as fully transparent and
+   * silently composited against whatever was further up instead). */
+  unmeasurable: boolean;
 }
 
 // IMPORTANT: this is a plain JS *string*, not a TypeScript function, and it
@@ -379,11 +470,34 @@ const PROBE_SCRIPT = `
   // whatever a single element's own background-color declares -- a card
   // with a translucent tint sitting over another surface only shows its
   // true rendered colour once you've composited both.
+  //
+  // Trap 3 (found via review, not by the original prototype): a
+  // background-image -- which is how every one of this app's
+  // bg-gradient-to-* utilities paints, since Tailwind's gradient classes set
+  // only background-image and leave background-color untouched -- is NOT
+  // the same as "no background". The old version of this walk read
+  // getComputedStyle(node).backgroundColor, saw rgba(0,0,0,0), and treated
+  // the node as fully transparent, walking straight past a gradient to
+  // whatever opaque colour sat further up. That produced a false PASS: white
+  // text on a two-stop gradient (~2.5:1 in both themes) measured as ~16:1 in
+  // dark mode, because the walk landed on the dark page background instead
+  // of the gradient actually behind the text, and silently dropped a real
+  // failure from the count. Measuring the true rendered colour of a
+  // gradient would need sampling actual pixels (e.g. drawing the element to
+  // a canvas), which this script does not do -- so instead: the walk stops
+  // dead the moment it meets a background-image, and the caller reports
+  // that row as unmeasurable rather than guessing. An unmeasurable
+  // background must never resolve to a pass -- same principle as the
+  // zero-node check, just for a single row instead of a whole route.
   const effectiveBackground = (el) => {
     let acc = null;
     let node = el;
     while (node && node !== document.documentElement.parentElement) {
-      const bg = parseColor(getComputedStyle(node).backgroundColor);
+      const style = getComputedStyle(node);
+      if (style.backgroundImage && style.backgroundImage !== "none") {
+        return { unmeasurable: true };
+      }
+      const bg = parseColor(style.backgroundColor);
       if (bg && bg.a > 0) acc = acc ? over(acc, bg) : bg;
       if (acc && acc.a >= 0.999) return acc;
       node = node.parentElement;
@@ -417,28 +531,54 @@ const PROBE_SCRIPT = `
 
     const fg = parseColor(cs.color);
     if (!fg) continue;
-    const bg = effectiveBackground(el);
-    const composed = fg.a < 1 ? over(fg, bg) : fg;
-    const ratio = contrastRatio(composed, bg);
 
     const px = parseFloat(cs.fontSize);
     const bold = parseInt(cs.fontWeight, 10) >= 700;
     // WCAG large-text threshold: >=24px, or >=18.66px bold.
     const large = px >= 24 || (bold && px >= 18.66);
     const need = large ? 3 : 4.5;
-
-    out.push({
+    const baseRow = {
       text: ownText.slice(0, 80),
       tag: el.tagName.toLowerCase(),
       cls: classNameOf(el).slice(0, 140),
-      color: cs.color,
-      bg: "rgb(" + Math.round(bg.r) + ", " + Math.round(bg.g) + ", " + Math.round(bg.b) + ")",
       px: Math.round(px * 10) / 10,
       bold: bold,
-      ratio: Math.round(ratio * 1000) / 1000,
       need: need,
-      pass: ratio >= need,
-    });
+    };
+
+    const bg = effectiveBackground(el);
+    if (bg.unmeasurable) {
+      // Report the raw (possibly translucent) colour here -- there is no
+      // effective background to composite it against, so "composited fg"
+      // isn't a meaningful thing to compute.
+      out.push(
+        Object.assign({}, baseRow, {
+          color: cs.color,
+          bg: "unmeasurable (an ancestor has a background-image -- gradient or image -- that this probe cannot safely composite against; see effectiveBackground())",
+          ratio: null,
+          pass: false,
+          unmeasurable: true,
+        }),
+      );
+      continue;
+    }
+
+    const composed = fg.a < 1 ? over(fg, bg) : fg;
+    const ratio = contrastRatio(composed, bg);
+
+    out.push(
+      Object.assign({}, baseRow, {
+        // The COMPOSITED foreground, not the raw cs.color -- for opaque text
+        // they're identical, but for translucent foregrounds (e.g.
+        // text-primary/70) the raw value would diverge from what the ratio
+        // was actually computed from.
+        color: "rgb(" + Math.round(composed.r) + ", " + Math.round(composed.g) + ", " + Math.round(composed.b) + ")",
+        bg: "rgb(" + Math.round(bg.r) + ", " + Math.round(bg.g) + ", " + Math.round(bg.b) + ")",
+        ratio: Math.round(ratio * 1000) / 1000,
+        pass: ratio >= need,
+        unmeasurable: false,
+      }),
+    );
   }
   return out;
 })()
@@ -517,6 +657,21 @@ interface RouteResult {
   nodeCount: number;
   markerCount?: number;
   failures: FailureRecord[];
+  /** Rows where the background couldn't be determined (background-image on
+   * an ancestor — see effectiveBackground()). Reported and counted as *not
+   * clean*, same as a zero-node route — never silently dropped. */
+  unmeasured: FailureRecord[];
+}
+
+function splitRows(rows: ProbeRow[], route: string, theme: Theme): { failures: FailureRecord[]; unmeasured: FailureRecord[] } {
+  const failures: FailureRecord[] = [];
+  const unmeasured: FailureRecord[] = [];
+  for (const r of rows) {
+    const record: FailureRecord = { ...r, route, theme };
+    if (r.unmeasurable) unmeasured.push(record);
+    else if (!r.pass) failures.push(record);
+  }
+  return { failures, unmeasured };
 }
 
 async function auditRoute(page: Page, spec: RouteSpec, theme: Theme): Promise<RouteResult> {
@@ -533,9 +688,7 @@ async function auditRoute(page: Page, spec: RouteSpec, theme: Theme): Promise<Ro
   }
 
   const rows = await page.evaluate<ProbeRow[]>(PROBE_SCRIPT);
-  const failures: FailureRecord[] = rows
-    .filter((r) => !r.pass)
-    .map((r) => ({ ...r, route: spec.path, theme }));
+  const { failures, unmeasured } = splitRows(rows, spec.path, theme);
 
   return {
     route: spec.path,
@@ -544,6 +697,7 @@ async function auditRoute(page: Page, spec: RouteSpec, theme: Theme): Promise<Ro
     nodeCount: rows.length,
     markerCount: markers,
     failures,
+    unmeasured,
   };
 }
 
@@ -618,9 +772,7 @@ async function auditErrorPanelHarness(page: Page, theme: Theme): Promise<RouteRe
 
       const rows = await page.evaluate<ProbeRow[]>(PROBE_SCRIPT);
       const route = `error-panel(kind=${kind},layout=${layout})`;
-      const failures: FailureRecord[] = rows
-        .filter((r) => !r.pass)
-        .map((r) => ({ ...r, route, theme }));
+      const { failures, unmeasured } = splitRows(rows, route, theme);
 
       results.push({
         route,
@@ -628,6 +780,7 @@ async function auditErrorPanelHarness(page: Page, theme: Theme): Promise<RouteRe
         theme,
         nodeCount: rows.length,
         failures,
+        unmeasured,
       });
     }
   }
@@ -644,6 +797,42 @@ function printFailure(f: FailureRecord): void {
   console.log(`    text: ${JSON.stringify(f.text)}`);
   console.log(`    fg ${f.color} on bg ${f.bg}`);
   console.log(`    class: "${f.cls}"`);
+}
+
+function printUnmeasured(f: FailureRecord): void {
+  console.log(`\n  [${f.theme.toUpperCase()}] ${f.route}`);
+  console.log(`    ${f.bg}`);
+  console.log(`    text: ${JSON.stringify(f.text)} — ${f.px}px${f.bold ? " bold" : ""}`);
+  console.log(`    fg (raw, not composited — no background to composite against): ${f.color}`);
+  console.log(`    class: "${f.cls}"`);
+}
+
+// --------------------------------------------------------------------------
+// Node-count baseline (informational regression check — see the docblock's
+// "ON THE NODE-COUNT BASELINE" note for why this is a relative, self-
+// updating check rather than an exact pinned count.)
+// --------------------------------------------------------------------------
+
+const NODE_COUNT_BASELINE_PATH = path.join(process.cwd(), "docs", "audits", "contrast-node-counts.json");
+// A route has to regress by more than half, AND have been non-trivial to
+// begin with (guards against noise on routes that were already tiny, e.g.
+// an empty-state page going from 7 nodes to 5), to be flagged. This is
+// deliberately coarse: it exists to catch "the page stopped rendering and
+// collapsed to a handful of nodes", not to police normal content edits.
+const NODE_COUNT_REGRESSION_FACTOR = 0.5;
+const NODE_COUNT_REGRESSION_FLOOR = 10;
+
+function loadNodeCountBaseline(): Record<string, number> {
+  try {
+    return JSON.parse(fs.readFileSync(NODE_COUNT_BASELINE_PATH, "utf8")) as Record<string, number>;
+  } catch {
+    return {};
+  }
+}
+
+function saveNodeCountBaseline(counts: Record<string, number>): void {
+  fs.mkdirSync(path.dirname(NODE_COUNT_BASELINE_PATH), { recursive: true });
+  fs.writeFileSync(NODE_COUNT_BASELINE_PATH, JSON.stringify(counts, null, 2) + "\n");
 }
 
 async function main(): Promise<void> {
@@ -685,6 +874,7 @@ async function main(): Promise<void> {
 
   const allResults: RouteResult[] = [];
   const allFailures: FailureRecord[] = [];
+  const allUnmeasured: FailureRecord[] = [];
   const zeroNodeRoutes: string[] = [];
 
   for (const theme of ["light", "dark"] as const) {
@@ -700,10 +890,12 @@ async function main(): Promise<void> {
       const result = await auditRoute(page, spec, theme);
       allResults.push(result);
       allFailures.push(...result.failures);
+      allUnmeasured.push(...result.unmeasured);
       if (result.nodeCount === 0) zeroNodeRoutes.push(`[${theme}] ${result.route}`);
       const markerNote = result.markerCount !== undefined ? `, markers=${result.markerCount}` : "";
+      const unmeasuredNote = result.unmeasured.length > 0 ? `, unmeasured=${result.unmeasured.length}` : "";
       console.log(
-        `[${theme}] ${result.route} — nodes=${result.nodeCount}${markerNote}, failures=${result.failures.length}`,
+        `[${theme}] ${result.route} — nodes=${result.nodeCount}${markerNote}, failures=${result.failures.length}${unmeasuredNote}`,
       );
     }
 
@@ -711,9 +903,11 @@ async function main(): Promise<void> {
     for (const result of errorPanelResults) {
       allResults.push(result);
       allFailures.push(...result.failures);
+      allUnmeasured.push(...result.unmeasured);
       if (result.nodeCount === 0) zeroNodeRoutes.push(`[${theme}] ${result.route}`);
+      const unmeasuredNote = result.unmeasured.length > 0 ? `, unmeasured=${result.unmeasured.length}` : "";
       console.log(
-        `[${theme}] ${result.route} — nodes=${result.nodeCount}, failures=${result.failures.length}`,
+        `[${theme}] ${result.route} — nodes=${result.nodeCount}, failures=${result.failures.length}${unmeasuredNote}`,
       );
     }
 
@@ -725,12 +919,37 @@ async function main(): Promise<void> {
 
   const totalNodes = allResults.reduce((sum, r) => sum + r.nodeCount, 0);
 
+  // Node-count regression check (informational backstop, not the primary
+  // gate — see the docblock's "ON THE NODE-COUNT BASELINE" note). Compares
+  // this run's per-route-per-theme node counts against the last committed
+  // run, flags any route that collapsed by more than half, then rewrites
+  // the baseline to this run's counts either way (self-updating, like a
+  // snapshot test — a deliberate content shrink just needs one accepted run
+  // to move the baseline forward).
+  const previousCounts = loadNodeCountBaseline();
+  const currentCounts: Record<string, number> = {};
+  const nodeCountRegressions: string[] = [];
+  for (const r of allResults) {
+    const key = `${r.theme}:${r.route}`;
+    currentCounts[key] = r.nodeCount;
+    const previous = previousCounts[key];
+    if (
+      typeof previous === "number" &&
+      previous >= NODE_COUNT_REGRESSION_FLOOR &&
+      r.nodeCount < previous * NODE_COUNT_REGRESSION_FACTOR
+    ) {
+      nodeCountRegressions.push(`${key}: ${previous} -> ${r.nodeCount}`);
+    }
+  }
+  saveNodeCountBaseline(currentCounts);
+
   console.log("\n" + "=".repeat(72));
   console.log(
     `Routes measured: ${new Set(allResults.map((r) => r.route)).size}  ` +
       `Total (route x theme) passes: ${allResults.length}  ` +
       `Total text nodes: ${totalNodes}  ` +
-      `Failures: ${allFailures.length}`,
+      `Failures: ${allFailures.length}  ` +
+      `Unmeasured: ${allUnmeasured.length}`,
   );
 
   if (zeroNodeRoutes.length > 0) {
@@ -740,6 +959,18 @@ async function main(): Promise<void> {
     for (const r of zeroNodeRoutes) console.log(`  ${r}`);
   }
 
+  if (nodeCountRegressions.length > 0) {
+    console.log(
+      `\nNODE-COUNT REGRESSIONS (more than halved vs. the committed baseline — informational, investigate before trusting this run):`,
+    );
+    for (const r of nodeCountRegressions) console.log(`  ${r}`);
+  }
+
+  if (allUnmeasured.length > 0) {
+    console.log(`\nUNMEASURED (${allUnmeasured.length}) — background could not be determined, NOT counted as a pass:`);
+    for (const u of allUnmeasured) printUnmeasured(u);
+  }
+
   if (allFailures.length > 0) {
     console.log(`\nFAILURES (${allFailures.length}):`);
     for (const f of allFailures) printFailure(f);
@@ -747,13 +978,14 @@ async function main(): Promise<void> {
 
   console.log("\n" + "=".repeat(72));
 
-  if (allFailures.length > 0 || zeroNodeRoutes.length > 0) {
+  if (allFailures.length > 0 || zeroNodeRoutes.length > 0 || allUnmeasured.length > 0) {
     console.log(
-      `RESULT: FAIL — ${allFailures.length} contrast failure(s), ${zeroNodeRoutes.length} zero-node route(s).`,
+      `RESULT: FAIL — ${allFailures.length} contrast failure(s), ${allUnmeasured.length} unmeasured row(s), ` +
+        `${zeroNodeRoutes.length} zero-node route(s).`,
     );
     process.exitCode = 1;
   } else {
-    console.log("RESULT: PASS — no contrast failures, no zero-node routes.");
+    console.log("RESULT: PASS — no contrast failures, no unmeasured rows, no zero-node routes.");
   }
 }
 
