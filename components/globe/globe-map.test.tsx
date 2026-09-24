@@ -134,3 +134,36 @@ describe("GlobeMap theme handling", () => {
     expect(plainMarker.remove).not.toHaveBeenCalled();
   });
 });
+
+describe("GlobeMap kit chrome", () => {
+  it("frames the map with the kit 2px outline, not the old 1px/rounded-2xl shape", () => {
+    const { getByLabelText } = render(globeElement());
+    const frame = getByLabelText("Globe map");
+    expect(frame).toHaveClass("border-2", "border-border", "rounded-lg");
+    expect(frame).not.toHaveClass("rounded-2xl");
+  });
+
+  it("builds popups from token classes (no raw hex, no emoji) in a themed popup shell", async () => {
+    render(
+      <GlobeMap
+        markers={MARKERS}
+        selectedId={null}
+        onSelect={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onMapClick={vi.fn()}
+        attachmentsByMarkerId={{ m1: [{ id: "a1" }, { id: "a2" }] }}
+      />,
+    );
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    const [first] = hoisted.leaflet!.markers;
+    const [html, options] = first.bindPopup.mock.calls[0] as [string, { className?: string }];
+    expect(html).not.toMatch(/#[0-9a-f]{3,6}\b/i);
+    expect(html).not.toContain("📎");
+    expect(html).toContain("2 files");
+    expect(html).toContain("border-2");
+    expect(html).toMatch(/data-edit="m1"[^>]*>Edit</);
+    expect(html).toMatch(/data-delete="m1"[^>]*>Delete</);
+    expect(options?.className).toBe("tp-map-popup");
+  });
+});

@@ -163,20 +163,22 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
         const icon = isSelected ? selectedIcon(L, mk.category, isDark) : categoryIcon(L, mk.category, isDark);
         const attachCount = attachmentsByMarkerId?.[mk.id]?.length ?? 0;
         const attachLine = attachCount > 0
-          ? `<p style="font-size:12px;color:#6b7280;margin:0 0 4px">📎 ${attachCount}</p>`
+          ? `<p class="m-0 mb-1 text-xs font-semibold text-muted-foreground">${attachCount} ${attachCount === 1 ? "file" : "files"}</p>`
           : "";
+        // Token classes only (Tailwind scans this file), so the popup follows the theme;
+        // the shell (.tp-map-popup in globals.css) gives it the kit outline + hard shadow.
         const popupHtml = `
-          <div style="min-width:min(140px,80vw);max-width:min(240px,90vw);line-height:1.5">
-            <strong style="font-size:13px;display:block;margin-bottom:6px">${escapeHtml(mk.title)}</strong>
+          <div class="min-w-[min(140px,80vw)] max-w-[min(240px,90vw)] leading-normal">
+            <strong class="mb-1.5 block font-display text-sm font-extrabold">${escapeHtml(mk.title)}</strong>
             ${attachLine}
-            <div style="display:flex;gap:6px;margin-top:4px">
-              <button data-edit="${escapeHtml(mk.id)}" style="font-size:12px;padding:2px 8px;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;background:#fff">Edit</button>
-              <button data-delete="${escapeHtml(mk.id)}" style="font-size:12px;padding:2px 8px;border:1px solid #fca5a5;border-radius:4px;cursor:pointer;background:#fff;color:#dc2626">Delete</button>
+            <div class="mt-1 flex gap-1.5">
+              <button type="button" data-edit="${escapeHtml(mk.id)}" class="h-11 cursor-pointer rounded-full border-2 border-border bg-card px-4 text-xs font-extrabold text-foreground shadow-hard-1">Edit</button>
+              <button type="button" data-delete="${escapeHtml(mk.id)}" class="h-11 cursor-pointer rounded-full border-2 border-border bg-destructive px-4 text-xs font-extrabold text-destructive-foreground shadow-hard-1">Delete</button>
             </div>
           </div>`;
         const marker = L.marker([mk.lat, mk.lng], { icon })
           .addTo(map)
-          .bindPopup(popupHtml);
+          .bindPopup(popupHtml, { className: "tp-map-popup" });
         if (isSelected) marker.setZIndexOffset(1000);
         marker.on("click", () => onSelectRef.current(mk.id));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -250,7 +252,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
   return (
     <div
       ref={mapRef}
-      className="w-full h-56 sm:h-[440px] rounded-2xl overflow-hidden border border-border shadow-sm"
+      className="tp-map h-[260px] w-full overflow-hidden rounded-lg border-2 border-border lg:h-[460px]"
       aria-label="Globe map"
     />
   );
