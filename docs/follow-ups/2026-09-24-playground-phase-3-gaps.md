@@ -217,6 +217,26 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   bar (apply one of your saved templates from a menu, or save this list as one) restyled as a
   dashed Card, plus the AI "Draft packing list" button. Not built because: new feature (built-in
   starter templates).
+- **`shared/together.jsx` `Files` — filter chips ("All" / "Tickets" / "Stays" / "Trip").** Kit
+  shows: ink/white chips filtering the grid. We have: files grouped under a label per kind
+  (trip-level first, then "Transport", "Accommodation", …). Not built because: new feature
+  (client-side filtering).
+- **`shared/together.jsx` `Files` — "offline" / "online only" chip on every file and "4 of 6
+  saved for offline · 3.2 MB".** Kit shows: per-file offline-cache status and a total. We have:
+  size and added date on each card; attachments are cached by the service worker when opened
+  (ADR 0043) but the page doesn't read the cache. Not built because: new feature (reading
+  per-file Cache Storage state into the page).
+- **`shared/together.jsx` `Files` — scope sub-line naming the thing ("Transport · Fri 17",
+  "Stay · Kyoto").** Kit shows: the file's parent booking/stop and its day. We have: the kind as
+  the group label and the file's tile tone (coral transport, lilac stay, teal trip/stop, sun
+  activity); the sub-line is size and added date. Not built because: needs a data model (the
+  page fetches attachments only; naming each target needs a lookup per target type).
+- **`shared/together.jsx` `Files` — "+ Add files" header button and a drag-and-drop dropzone.**
+  Kit shows: a primary header button and "Drop files or tap to add". We have: the tap-to-pick
+  tile (first cell of the grid), copy "Tap to add a file" because nothing handles a drop and the
+  picker takes one file at a time. Not built because: new feature (drag-and-drop, multi-file
+  upload).
+
 ## p3/admin-kit
 
 ## p3/og-default
