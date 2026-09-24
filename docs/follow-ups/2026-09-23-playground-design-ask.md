@@ -351,6 +351,11 @@ measures 4.707:1 and clears. **Ask:** fix the token at source so the shipped
 value matches the handoff's own documented contrast, rather than relying on
 this local override.
 
+### D-phase-3 (added 2026-09-24)
+
+Handoff defects found while building phase 3 are appended here, one bullet each:
+`- **<file>** — <what's wrong> — <what we did instead>.`
+
 ---
 
 ## E. What phase 1 learned, for whoever briefs phase 2
