@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { motion, useReducedMotion } from "motion/react";
+import { Flame, ThumbsUp, Meh, type LucideIcon } from "lucide-react";
+import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/cn";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -39,10 +41,11 @@ const LEVEL_LABEL: Record<VoteLevel, string> = {
   MEH: "Meh",
 };
 
-const LEVEL_EMOJI: Record<VoteLevel, string> = {
-  MUST: "🔥",
-  KEEN: "👍",
-  MEH: "🤷",
+/** Level glyphs — lucide per the kit's icon treatment (was emoji-as-illustration). */
+const LEVEL_ICON: Record<VoteLevel, LucideIcon> = {
+  MUST: Flame,
+  KEEN: ThumbsUp,
+  MEH: Meh,
 };
 
 /** Per-level active-state class overrides (twMerge wins over the base data-[state=on]:bg-card). */
@@ -126,7 +129,9 @@ export function VoteControl({
                 : undefined
             }
             className={cn(
-              "rounded-full px-2.5 py-1 text-xs",
+              "relative rounded-full px-2.5 text-xs",
+              // 32px pill, 44px hit area on touch (vertical only — neighbours sit 4px apart).
+              "pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-1.5 pointer-coarse:after:content-['']",
               ACTIVE_CLASS[level],
             )}
             onClick={() => {
@@ -137,19 +142,22 @@ export function VoteControl({
               }
             }}
           >
-            {/* Pop only the chosen level: the active emoji mounts fresh and
+            {/* Pop only the chosen level: the active icon mounts fresh and
                 springs in; inactive levels are plain spans (no mount pop). */}
             {myVote?.level === level ? (
               <motion.span
                 aria-hidden="true"
+                className="inline-flex"
                 initial={reduce ? false : { scale: 0.6 }}
                 animate={{ scale: 1 }}
                 transition={reduce ? { duration: 0 } : SPRING_POP}
               >
-                {LEVEL_EMOJI[level]}
+                <Icon icon={LEVEL_ICON[level]} size={14} strokeWidth={3} />
               </motion.span>
             ) : (
-              <span aria-hidden="true">{LEVEL_EMOJI[level]}</span>
+              <span aria-hidden="true" className="inline-flex">
+                <Icon icon={LEVEL_ICON[level]} size={14} strokeWidth={3} />
+              </span>
             )}
             {LEVEL_LABEL[level]}
           </SegmentedItem>
@@ -160,14 +168,9 @@ export function VoteControl({
       {otherVotes.map((vote) => (
         <span
           key={vote.userId}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
-            // Theme-aware level chips — bumped to /20 tint; avatar lives inside the pill
-            // MUST → warning (amber/orange family); KEEN → accent (teal); MEH → muted
-            vote.level === "MUST" && "bg-warning/20 text-sun-text",
-            vote.level === "KEEN" && "bg-accent/20 text-foreground",
-            vote.level === "MEH" && "bg-muted text-muted-foreground",
-          )}
+          // Kit chip (2px ink outline, 800 weight). Neutral ink so it reads on
+          // white, sun and success cards alike; the level is carried by the word.
+          className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-full border-2 border-border bg-card py-0.5 pl-0.5 pr-2 text-[11px] font-extrabold leading-tight text-foreground"
           title={`${vote.user.name ?? "Traveller"}: ${LEVEL_LABEL[vote.level]}`}
         >
           <Avatar className="size-4 shrink-0">
