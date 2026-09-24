@@ -464,6 +464,13 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 **Kit:** `teepee-desktop/DHome.jsx`, `teepee-mobile/Home.jsx`; chip `Home`. Route `/trips/cmueo582d00b0q1lo9lf5taru`.
 - [ ] **S2:** assert the trip name is the page `h1`, dates render, and the cover uses a `Card`. Budget/money figures shown on home (if any) must use shared-pot wording — assert no text matches `/per person|each owes|split/i`.
 
+### Task 10b: Trip home phase components **[screen]** (added by Ruling 8)
+
+**Files:** Modify `components/trip/home/phase-sketching.tsx`, `phase-planning.tsx`, `phase-travelling.tsx`, `phase-past.tsx` (and any child component they render that still has the old shape: `rounded-2xl border border-border shadow-soft`, 1px borders, raw palette). Tests: extend the existing `components/trip/home/phase-*.test.tsx`.
+**Kit:** `teepee-desktop/DHome.jsx`, `teepee-mobile/Home.jsx` (chip `Home`) for sketching/planning; `shared/onthego.jsx` (chips `Today`, `Summary`) for travelling/past. Read the kit JSX to find which state each phase corresponds to. Route `/trips/cmueo582d00b0q1lo9lf5taru` (the fixture renders `PhaseTravelling`). For the other phases, rely on component tests plus a static render (renderToStaticMarkup of the component with the test's fixture props, wrapped in a minimal page that loads the app's compiled CSS — or, simpler, screenshot the storybook-free way used in Task 3) — say in the report which phases got live shots and which didn't.
+- [ ] **S2:** for each phase component: the module containers are `Card`s (`border-2`, hard shadow) or `Card tone="hue-*"` where the kit fills a hue; headings present in order; any money reads as a shared-pot total — assert no text matches `/per person|each owes|split/i`; icon-only buttons have accessible names; empty sub-states (e.g. no stops, no bookings) render the kit's empty treatment. Existing behaviour assertions in the phase tests must still pass (copy strings may change to kit copy visibly).
+- Anything the kit's Home/Today/Summary shows that our phases don't have → gaps log under `## p3/core`.
+
 ### Task 11: Wishlist **[screen]**
 
 **Files:** Modify `components/.../wishlist-board.tsx` (`grep -rl wishlist-board components`) and its page. Test: extend the existing wishlist test or create one beside the board.
