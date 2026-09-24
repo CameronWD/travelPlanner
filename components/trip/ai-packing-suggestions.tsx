@@ -26,7 +26,7 @@ interface AiPackingSuggestionsProps {
 /**
  * AI-powered packing list draft panel.
  *
- * - Shows a "✨ Draft packing list" button.
+ * - Shows a "Draft packing list" AiSuggestButton.
  * - On click calls the server action; shows the returned items.
  * - "Add all" and per-item "Add" buttons call addChecklistItem (kind PACKING).
  */

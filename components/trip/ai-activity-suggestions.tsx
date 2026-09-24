@@ -35,7 +35,7 @@ interface AiActivitySuggestionsProps {
 /**
  * Per-stop AI activity suggestions panel.
  *
- * - Shows a "✨ Suggest activities" button.
+ * - Shows a "Suggest activities" AiSuggestButton.
  * - On click calls the server action; displays the suggestions.
  * - Each suggestion has an "Add to wishlist" button that calls createItem.
  */
