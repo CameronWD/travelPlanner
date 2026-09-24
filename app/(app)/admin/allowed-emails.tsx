@@ -4,6 +4,7 @@ import * as React from "react";
 import { ShieldOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { relativeTime } from "@/lib/relative-time";
 import {
@@ -74,9 +75,11 @@ export function AllowedEmailsPanel({ initial, now, viewerEmail }: AllowedEmailsP
         // that function's doc comment for why that assumption isn't trusted.
         const isSelf = viewerEmail !== null && entry.email.trim().toLowerCase() === viewerEmail;
         return (
-          <div
+          <Card
             key={entry.id}
-            className="flex flex-col gap-2 rounded-md border border-border p-3 sm:flex-row sm:items-center sm:justify-between"
+            radius="md"
+            shadow={1}
+            className="flex flex-col gap-2 p-3.5 sm:flex-row sm:items-center sm:justify-between"
           >
             <div className="flex min-w-0 flex-col">
               <span className="truncate text-sm font-medium text-foreground">
@@ -101,8 +104,8 @@ export function AllowedEmailsPanel({ initial, now, viewerEmail }: AllowedEmailsP
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
-                  className="gap-1.5 border-destructive text-destructive hover:bg-destructive/5"
+                  size="md"
+                  className="gap-1.5 border-destructive text-destructive hover:bg-destructive/10"
                   loading={busy}
                   onClick={() => handleRevoke(entry)}
                   aria-label={`Revoke ${entry.email}`}
@@ -112,7 +115,7 @@ export function AllowedEmailsPanel({ initial, now, viewerEmail }: AllowedEmailsP
                 </Button>
               )}
             </div>
-          </div>
+          </Card>
         );
       })}
 

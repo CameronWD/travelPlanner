@@ -4,6 +4,7 @@ import * as React from "react";
 import { Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { relativeTime } from "@/lib/relative-time";
 import {
@@ -97,8 +98,8 @@ export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
           <Button
             type="button"
             variant="outline"
-            size="sm"
-            className="gap-1.5 border-destructive text-destructive hover:bg-destructive/5"
+            size="md"
+            className="gap-1.5 border-destructive text-destructive hover:bg-destructive/10"
             loading={clearingAll}
             onClick={handleClearAll}
           >
@@ -115,9 +116,11 @@ export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
       {reports.map((report) => {
         const busy = pendingId === report.id;
         return (
-          <div
+          <Card
             key={report.id}
-            className="flex flex-col gap-2 rounded-md border border-border p-3 sm:flex-row sm:items-start sm:justify-between"
+            radius="md"
+            shadow={1}
+            className="flex flex-col gap-2 p-3.5 sm:flex-row sm:items-start sm:justify-between"
           >
             <div className="flex min-w-0 flex-col gap-1">
               <div className="flex flex-wrap items-center gap-1.5">
@@ -150,8 +153,8 @@ export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
-                className="gap-1.5 border-destructive text-destructive hover:bg-destructive/5"
+                size="md"
+                className="gap-1.5 border-destructive text-destructive hover:bg-destructive/10"
                 loading={busy}
                 onClick={() => handleClear(report)}
                 aria-label={`Clear ${report.message}`}
@@ -160,7 +163,7 @@ export function ErrorReportsPanel({ initial, now }: ErrorReportsPanelProps) {
                 Clear
               </Button>
             </div>
-          </div>
+          </Card>
         );
       })}
 
