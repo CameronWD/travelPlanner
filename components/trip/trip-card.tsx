@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { MapPin, MoreVertical, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { CardTitle, cardVariants } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -49,6 +50,8 @@ export interface TripCardProps {
   home?: LatLng | null;
   roundTrip?: boolean;
   coverVersion?: string | null;
+  /** The single "up next" card in the grid — kit's `NEXT UP` treatment: spans 2 columns, bigger heading. */
+  featured?: boolean;
 }
 
 /** Dot colour class per trip phase, matching the design tokens. */
@@ -79,6 +82,7 @@ export function TripCard({
   home,
   roundTrip,
   coverVersion,
+  featured,
 }: TripCardProps) {
   const dateRange =
     startDate && endDate ? formatDateRange(startDate, endDate) : "No dates yet";
@@ -93,38 +97,38 @@ export function TripCard({
       <Link
         href={`/trips/${id}`}
         className={cn(
-          "relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-soft",
-          "transition-all duration-200 hover:shadow-soft-lg hover:-translate-y-0.5 motion-safe:active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          cardVariants({ tone: "white", radius: "xl", shadow: featured ? 3 : 2, interactive: true }),
+          "flex flex-col overflow-hidden",
         )}
       >
-        {/* Cover */}
-        <div className="relative h-36 w-full overflow-hidden">
+        {/* Cover — kit shows a flat accent fill here; our real photo/route-render/monogram
+            cover (components/trip/trip-cover.tsx) already carries per-trip visual variety,
+            so the card body stays a neutral `white` tone rather than layering a decorative
+            tone fill behind it. */}
+        <div className={cn("relative w-full overflow-hidden", featured ? "h-48" : "h-36")}>
           <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} home={home} roundTrip={roundTrip} coverVersion={coverVersion} />
           {phase && (
-            <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-soft">
+            <Badge caps className="absolute left-3 top-3 gap-1.5">
               <span
                 data-testid="phase-dot"
                 aria-hidden="true"
                 className={cn("size-2 shrink-0 rounded-full", PHASE_DOT_CLASS[phase.phase])}
               />
               {phase.phase === "travelling" || phase.phase === "past" ? phase.countdown : `${phase.label} · ${phase.countdown}`}
-            </span>
+            </Badge>
           )}
           {unreadCount != null && unreadCount > 0 && (
-            <span
-              aria-label={`${unreadCount} new`}
-              className="absolute right-3 top-3 rounded-full bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground shadow-soft"
-            >
+            <Badge variant="accent" aria-label={`${unreadCount} new`} className="absolute right-3 top-3">
               {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
+            </Badge>
           )}
         </div>
 
         {/* Card body */}
         <div className="flex flex-col gap-2 p-5 pt-4">
-          <h3 className="font-display text-xl font-semibold leading-tight tracking-tight">
+          <CardTitle className={featured ? "text-2xl sm:text-3xl" : "text-xl"}>
             {name}
-          </h3>
+          </CardTitle>
 
           <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
             <span>{dateRange}</span>
@@ -138,15 +142,17 @@ export function TripCard({
       </Link>
 
       {/* ⋯ menu — absolutely positioned as a sibling of the Link, so clicks here
-          never trigger card navigation. z-10 to sit above the card hover states. */}
+          never trigger card navigation. z-10 to sit above the card hover states.
+          size-11 (44px) meets the touch-target minimum; opaque bg-card + 2px
+          border match the kit's solid chip surfaces (no translucency/blur). */}
       <div className="absolute right-2 top-2 z-10">
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label="Trip actions"
             onClick={(e) => e.stopPropagation()}
             className={cn(
-              "flex size-7 items-center justify-center rounded-full bg-background/80 text-foreground shadow-soft backdrop-blur-sm",
-              "hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+              "flex size-11 items-center justify-center rounded-full border-2 border-border bg-card text-foreground shadow-hard-1",
+              "hover:bg-muted",
               "transition-opacity opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
             )}
           >

@@ -7,12 +7,14 @@ import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { cardVariants } from "@/components/ui/card";
 import { TripCard } from "@/components/trip/trip-card";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { describePhase, compareForTripList } from "@/lib/trip-phase";
 import { todayISO } from "@/lib/dates";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { orderPlanStops } from "@/lib/plan-order";
+import { cn } from "@/lib/cn";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: "Your trips" };
@@ -108,7 +110,7 @@ export default async function TripsPage() {
     <div className="space-y-8">
       {/* Page header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">
+        <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em]">
           Your trips
         </h1>
         <Button asChild>
@@ -136,9 +138,9 @@ export default async function TripsPage() {
           }
         />
       ) : (
-        <AnimatedList className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3" staggerOnMount>
+        <AnimatedList className="grid grid-cols-2 gap-4 lg:grid-cols-3 lg:gap-5" staggerOnMount>
           {sorted.map((trip, idx) => (
-            <AnimatedItem key={trip.id} index={idx}>
+            <AnimatedItem key={trip.id} index={idx} className={idx === 0 ? "col-span-2" : undefined}>
               <TripCard
                 id={trip.id}
                 name={trip.name}
@@ -152,9 +154,22 @@ export default async function TripsPage() {
                 coverStops={coverStopsByTrip.get(trip.id) ?? []}
                 home={trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null}
                 roundTrip={trip.roundTrip ?? false}
+                featured={idx === 0}
               />
             </AnimatedItem>
           ))}
+          {/* Kit's dashed "+ Start a new trip" grid tile (DTrips.jsx / Trips.jsx) — the
+              header button above already covers this action, so this is a second,
+              faithful-to-kit affordance rather than a new one. */}
+          <Link
+            href="/trips/new"
+            className={cn(
+              cardVariants({ radius: "xl", dashed: true, interactive: true }),
+              "flex min-h-36 items-center justify-center p-5 text-center text-sm font-extrabold text-muted-foreground hover:text-foreground",
+            )}
+          >
+            + Start a new trip
+          </Link>
         </AnimatedList>
       )}
     </div>

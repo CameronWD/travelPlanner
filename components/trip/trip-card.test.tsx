@@ -154,6 +154,27 @@ describe("TripCard", () => {
     expect(dot.className).toContain("bg-hue-sun");
   });
 
+  it("renders as a single Card-styled link to the trip, named after it", () => {
+    render(<TripCard {...defaultProps} id="trip-1" name="Europe" />);
+
+    const links = screen.getAllByRole("link");
+    expect(links).toHaveLength(1);
+
+    const link = links[0];
+    expect(link).toHaveAttribute("href", "/trips/trip-1");
+    expect(link).toHaveAccessibleName(/europe/i);
+    // Kit shape: 2px outlined card (components/ui/card.tsx cardVariants).
+    expect(link.className).toMatch(/\bborder-2\b/);
+
+    expect(screen.getByRole("heading", { name: "Europe" })).toBeInTheDocument();
+  });
+
+  it("does not drop a very long trip name", () => {
+    const longName = "A".repeat(60);
+    render(<TripCard {...defaultProps} name={longName} />);
+    expect(screen.getByText(longName)).toBeInTheDocument();
+  });
+
   it("renders a leading hue dot inside the phase badge for past phase", () => {
     const { container } = render(
       <TripCard

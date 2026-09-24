@@ -47,6 +47,13 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
 
 ## p3/core
 
+- **`DTrips.jsx` / `Trips.jsx` — summary strap ("3 planned · 1 done · 12 countries so
+  far").** Kit shows: an aggregate line above the trips grid combining planned/done trip
+  counts with a lifetime country count. We have: phase-derived counts we could aggregate
+  from the trips already fetched, but no per-trip country field to total "countries so
+  far". Not built because: needs a data model (no country data recorded per trip/stop to
+  aggregate).
+
 ## p3/together
 
 ## p3/admin-kit
