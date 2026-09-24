@@ -10,13 +10,16 @@ global-error font shorthand, month-tile country label, OFL licence, etc.) are no
 
 ## Needs your decision
 
+(none currently)
+
+## Already closed
+
 - **Wishlist List view is blank for a trip with ideas but no stops.**
-  `components/trip/wishlist-board.tsx:368` guards the whole list on `stops.length > 0`,
-  so in Sketching (ideas, no itinerary yet) the List view shows only the Add button —
-  even the "Anywhere" group, which needs no stops, is hidden. Map view is unaffected.
-  Fix sketch: drop `&& stops.length > 0` from that guard (the stop sections already
-  map over `stopsToShow`, and "Anywhere" has its own `anywhereItems.length > 0` check).
-  **Cam to decide whether it ships in this merge.**
+  `components/trip/wishlist-board.tsx:368` guarded the whole list on `stops.length > 0`,
+  so in Sketching (ideas, no itinerary yet) the List view showed only the Add button —
+  even the "Anywhere" group, which needs no stops, was hidden. Map view was unaffected.
+  Fixed on `fix/wishlist-stopless-and-deploy-doc`: the guard now also passes when there
+  are stop-less ideas (`stops.length > 0 || anywhereItems.length > 0`).
 
 ## Production
 

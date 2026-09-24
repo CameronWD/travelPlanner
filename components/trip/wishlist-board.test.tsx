@@ -503,4 +503,24 @@ describe("WishlistBoard — Playground kit", () => {
     const adds = screen.getAllByRole("button", { name: "Add an idea" });
     expect(adds.some((b) => !/max-sm:hidden/.test(b.getAttribute("class") ?? ""))).toBe(true);
   });
+
+  // Bug: with a trip that has no stops at all, the List view's stop-grouped
+  // section was gated on `stops.length > 0`, so a stop-less idea (stopId
+  // null) never rendered even though it belongs in the "Anywhere" group.
+  it("renders a stop-less idea in the 'Anywhere' group when the trip has no stops", () => {
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[]}
+        items={[makeItem({ id: "item-60", stopId: null, stopName: null, title: "Wander the old town" })]}
+      />,
+    );
+    expect(screen.getByText("Wander the old town")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Anywhere" })).toBeInTheDocument();
+  });
+
+  it("still renders the empty state exactly once with no ideas and no stops", () => {
+    render(<WishlistBoard tripId={TRIP_ID} stops={[]} items={[]} />);
+    expect(screen.getAllByText("No ideas yet")).toHaveLength(1);
+  });
 });
