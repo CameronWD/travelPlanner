@@ -164,19 +164,25 @@
  *   Instead: docs/audits/contrast-node-counts.json records this run's node
  *   count per route+theme, and each run flags any route that MORE THAN
  *   HALVED versus that committed file (and was non-trivial to begin with —
- *   see NODE_COUNT_REGRESSION_FLOOR) as a "NODE-COUNT REGRESSION", then
- *   overwrites the file with this run's counts regardless (self-updating,
- *   like a snapshot test — a deliberate content shrink just needs one
- *   accepted, reviewed run to become the new normal). This catches the
- *   "collapsed to a handful of nodes" failure mode this note opened with
- *   while tolerating ordinary content drift. The tradeoff worth knowing:
- *   it only catches a regression on the run where it FIRST happens — if
- *   that run's output isn't looked at, the collapsed count becomes the next
- *   baseline and won't be flagged again. That's the same "someone has to
- *   look at the result" assumption the rest of this script's gate already
- *   rests on (a red exit code still needs a human to read it), not a new
- *   one — but it's not a fully automatic backstop, and shouldn't be
- *   mistaken for one.
+ *   see NODE_COUNT_REGRESSION_FLOOR) as a "NODE-COUNT REGRESSION". This is a
+ *   real gate, not just a printed note: a regression contributes to the
+ *   non-zero exit code exactly like a contrast failure, an unmeasurable row
+ *   or a zero-node route (an earlier draft of this check computed and
+ *   printed regressions but never wired them into the exit condition —
+ *   caught in review as trap 2 reintroduced through a fourth channel: a
+ *   check that can print "REGRESSION" and still exit 0 is a silent pass by
+ *   definition).
+ *
+ *   The baseline file only advances for routes that did NOT regress — a
+ *   regressed route's PREVIOUS (higher) value is held in the saved file,
+ *   not overwritten, unless the run is invoked with
+ *   `ACCEPT_NODE_COUNT_BASELINE=1` (or `--accept-baseline`). So a bare
+ *   re-run can never be how a collapse launders itself into the new normal:
+ *   the same regression keeps failing every subsequent run until someone
+ *   either fixes the page or deliberately re-runs with that flag to accept
+ *   the lower count as intentional. Content that legitimately GROWS is
+ *   never affected by any of this — only `current < previous * 0.5` trips
+ *   the check, so a rise always just updates the baseline normally.
  *
  * Run:
  *   NODE_PATH=/usr/local/lib/node_modules npm run audit:contrast
@@ -818,9 +824,20 @@ const NODE_COUNT_BASELINE_PATH = path.join(process.cwd(), "docs", "audits", "con
 // begin with (guards against noise on routes that were already tiny, e.g.
 // an empty-state page going from 7 nodes to 5), to be flagged. This is
 // deliberately coarse: it exists to catch "the page stopped rendering and
-// collapsed to a handful of nodes", not to police normal content edits.
+// collapsed to a handful of nodes", not to police normal content edits. A
+// RISE never trips this — only `current < previous * FACTOR` is checked, so
+// content legitimately growing (more nodes) is never flagged.
 const NODE_COUNT_REGRESSION_FACTOR = 0.5;
 const NODE_COUNT_REGRESSION_FLOOR = 10;
+
+// A regression is a gate failure like any other (see main()'s exit-code
+// check) — the baseline file is NOT overwritten with a regressed count by
+// default, precisely so that re-running the tool can't be how a collapse
+// quietly becomes the new normal. Adopting a lower count on purpose (a
+// deliberate content shrink someone actually looked at) requires this flag,
+// so it's a decision, not a side effect of running the tool again.
+const ACCEPT_NODE_COUNT_BASELINE =
+  process.env.ACCEPT_NODE_COUNT_BASELINE === "1" || process.argv.includes("--accept-baseline");
 
 function loadNodeCountBaseline(): Record<string, number> {
   try {
@@ -919,29 +936,43 @@ async function main(): Promise<void> {
 
   const totalNodes = allResults.reduce((sum, r) => sum + r.nodeCount, 0);
 
-  // Node-count regression check (informational backstop, not the primary
-  // gate — see the docblock's "ON THE NODE-COUNT BASELINE" note). Compares
+  // Node-count regression check — a gate, not just a printed note (see the
+  // docblock's "ON THE NODE-COUNT BASELINE" note for the rationale). Compares
   // this run's per-route-per-theme node counts against the last committed
-  // run, flags any route that collapsed by more than half, then rewrites
-  // the baseline to this run's counts either way (self-updating, like a
-  // snapshot test — a deliberate content shrink just needs one accepted run
-  // to move the baseline forward).
+  // baseline, flags any route that collapsed by more than half, and feeds
+  // that into the same exit-code/RESULT decision as failures/unmeasured/
+  // zero-node below — a regression that's only printed and never gates
+  // anything is exactly the "reports success silently" failure mode this
+  // whole script exists to catch.
+  //
+  // The baseline file itself only advances for routes that did NOT regress.
+  // A regressed route holds its PREVIOUS (higher) value in the saved file
+  // unless ACCEPT_NODE_COUNT_BASELINE is set — so simply re-running the tool
+  // can never be how a collapse launders itself into the new normal; the
+  // same regression re-triggers on every subsequent run until someone
+  // either fixes the page or deliberately accepts the new, lower count.
   const previousCounts = loadNodeCountBaseline();
-  const currentCounts: Record<string, number> = {};
+  const nextBaseline: Record<string, number> = { ...previousCounts };
   const nodeCountRegressions: string[] = [];
   for (const r of allResults) {
     const key = `${r.theme}:${r.route}`;
-    currentCounts[key] = r.nodeCount;
     const previous = previousCounts[key];
-    if (
+    const isRegression =
       typeof previous === "number" &&
       previous >= NODE_COUNT_REGRESSION_FLOOR &&
-      r.nodeCount < previous * NODE_COUNT_REGRESSION_FACTOR
-    ) {
+      r.nodeCount < previous * NODE_COUNT_REGRESSION_FACTOR;
+
+    if (isRegression) {
       nodeCountRegressions.push(`${key}: ${previous} -> ${r.nodeCount}`);
+      // Hold at the previous value unless explicitly accepted — a rise
+      // never lands here (isRegression requires a drop), so growth always
+      // takes the normal branch below regardless of this flag.
+      nextBaseline[key] = ACCEPT_NODE_COUNT_BASELINE ? r.nodeCount : previous;
+    } else {
+      nextBaseline[key] = r.nodeCount;
     }
   }
-  saveNodeCountBaseline(currentCounts);
+  saveNodeCountBaseline(nextBaseline);
 
   console.log("\n" + "=".repeat(72));
   console.log(
@@ -949,7 +980,8 @@ async function main(): Promise<void> {
       `Total (route x theme) passes: ${allResults.length}  ` +
       `Total text nodes: ${totalNodes}  ` +
       `Failures: ${allFailures.length}  ` +
-      `Unmeasured: ${allUnmeasured.length}`,
+      `Unmeasured: ${allUnmeasured.length}  ` +
+      `Node-count regressions: ${nodeCountRegressions.length}`,
   );
 
   if (zeroNodeRoutes.length > 0) {
@@ -961,9 +993,15 @@ async function main(): Promise<void> {
 
   if (nodeCountRegressions.length > 0) {
     console.log(
-      `\nNODE-COUNT REGRESSIONS (more than halved vs. the committed baseline — informational, investigate before trusting this run):`,
+      `\nNODE-COUNT REGRESSIONS (more than halved vs. the committed baseline — this is a gate failure, not just a note):`,
     );
     for (const r of nodeCountRegressions) console.log(`  ${r}`);
+    if (!ACCEPT_NODE_COUNT_BASELINE) {
+      console.log(
+        "  (baseline file left unchanged for these routes; re-running will flag the same regressions again. " +
+          "If this drop is real and intended, re-run with ACCEPT_NODE_COUNT_BASELINE=1 to adopt it.)",
+      );
+    }
   }
 
   if (allUnmeasured.length > 0) {
@@ -978,14 +1016,14 @@ async function main(): Promise<void> {
 
   console.log("\n" + "=".repeat(72));
 
-  if (allFailures.length > 0 || zeroNodeRoutes.length > 0 || allUnmeasured.length > 0) {
+  if (allFailures.length > 0 || zeroNodeRoutes.length > 0 || allUnmeasured.length > 0 || nodeCountRegressions.length > 0) {
     console.log(
       `RESULT: FAIL — ${allFailures.length} contrast failure(s), ${allUnmeasured.length} unmeasured row(s), ` +
-        `${zeroNodeRoutes.length} zero-node route(s).`,
+        `${zeroNodeRoutes.length} zero-node route(s), ${nodeCountRegressions.length} node-count regression(s).`,
     );
     process.exitCode = 1;
   } else {
-    console.log("RESULT: PASS — no contrast failures, no unmeasured rows, no zero-node routes.");
+    console.log("RESULT: PASS — no contrast failures, no unmeasured rows, no zero-node routes, no node-count regressions.");
   }
 }
 
