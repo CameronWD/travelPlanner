@@ -283,4 +283,72 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
 
 ## p3/admin-kit
 
+- **`shared/admin.jsx` `Account` — teal profile card (avatar, name, "email · Google").** Kit
+  shows: the signed-in Traveller's avatar, name, email and sign-in provider as the first card. We
+  have: name and email only inside the header avatar menu; the page does not read the session, and
+  no sign-in provider is surfaced anywhere. Not built because: new feature.
+- **`shared/admin.jsx` `Account` — "Look" card (Light / Dark / System Segmented).** Kit shows: a
+  three-way theme picker on Account. We have: the header's light/dark toggle
+  (`components/ui/theme-toggle.tsx`), with no "System" option on screen. Not built because: new
+  feature (a second theme control, plus a System choice).
+- **`shared/admin.jsx` `Account` — "Notifications" card ("Per event and channel. Quiet hours…",
+  "Notification settings" row).** Kit shows: per-event, per-channel notification settings with
+  quiet hours. We have: per-trip Digest switches and the Devices list; CONTEXT.md reserves
+  "notification" for the Activity bell, and account tests forbid the word here, so our "Devices" /
+  "Which trips send you a digest" headings stay. Not built because: new feature (channels, events
+  and quiet hours don't exist).
+- **`shared/admin.jsx` `Account` — "Help and more" card (How Teepee works / What's new / Send
+  feedback rows, "3 updates since you last looked").** Kit shows: three ListRows linking out, one
+  with an unseen-updates count. We have: "How to use Teepee" and "What's new" in the header avatar
+  menu, and Feedback from its own floating button; no unseen-updates count. Not built because:
+  product decision (placement — these live in the avatar menu today).
+- **`shared/admin.jsx` `Account` — "Sign out" secondary button.** Kit shows: sign out as a button
+  on Account. We have: "Sign out" in the header avatar menu (`components/ui/sign-out-button.tsx`).
+  Not built because: product decision (placement).
+- **`shared/admin.jsx` `Help` — "Search the guide" input.** Kit shows: a search field above the
+  topic cards. We have: the "What's in here" contents list (now kit Chip-shaped anchor links) plus
+  Expand all / Collapse all; browser find-in-page reaches collapsed text. Not built because: new
+  feature (in-guide search).
+- **`shared/admin.jsx` `Help` — six short topic cards (Rough stops vs dated stops, Chapters, Plan
+  B, Hard end date, Costs and paying, Offline).** Kit shows: six one-paragraph cards, tap to open.
+  We have: nineteen disclosure sections in three groups (everyday / going deeper / word list) plus
+  the button key, drawn in the kit's topic-card shape; content text unchanged, since the guide is a
+  glossary source whose claims are pinned by tests. Not built because: product decision (the kit's
+  copy is a shorter guide, not the same content in the kit's voice).
+- **`shared/admin.jsx` `Help` — mobile back-arrow page header.** Kit shows: "‹ Help" top bar on
+  phone. We have: the app header and a display h1. Not built because: product decision (app-wide
+  header pattern, not per screen).
+- **`shared/admin.jsx` `WhatsNew` — per-entry "NEW" chip.** Kit shows: a NEW chip on entries the
+  Traveller hasn't seen. We have: the page is deliberately read-only and renders no read state (the
+  dismissable What's new card owns unread). Not built because: new feature (page reading
+  `whatsNewSeenAt`).
+- **`shared/admin.jsx` `WhatsNew` — a title and body per entry, one colour per entry.** Kit shows:
+  each update as a headline ("A whole new look") plus one sentence, NEW chips tinted by
+  hue. We have: a **Release note** is one line of text, grouped by the day it shipped; one Card per
+  day, newest coral, the rest white. Not built because: needs a data model (Release notes have no
+  title field, ADR 0056).
+- **`shared/admin.jsx` `WhatsNew` — short "22 SEP" date label.** Kit shows: day and month. We
+  have: "21 September 2026" in the kit label style, keeping the year. Not built because:
+  product decision.
+- **`shared/share.jsx` `SharePage` — header "What's Teepee?" / "Sign in" buttons.** Kit shows: a
+  ghost "What's Teepee?" and a secondary "Sign in" beside the logo. We have: the logo only; there
+  is no marketing page to link to, and the share page reads no session. Not built because:
+  product decision (whether a public trip page should funnel to sign-in).
+- **`shared/share.jsx` `SharePage` — hero AvatarStack and "Cameron, Jess + Alex".** Kit shows: the
+  Travellers' avatars and first names on the public page. We have: no people on the share page
+  (the fetch deliberately selects trip fields only). Not built because: product decision (it
+  would disclose who is on the trip to anyone holding the link).
+- **`shared/share.jsx` `SharePage` — stop dots coloured by chapter; per-stop to-do line.** Kit
+  shows: route dots in the stop's chapter colour and up to three of the stop's plans under its
+  name. We have: every dot in teal, with the country and the stay (name, address) under the name;
+  plans appear in "Day by day" below. Not built because: product decision (chapters and a
+  per-stop plan summary are not in the public projection today; exposing them widens what a link
+  shares).
+- **`shared/share.jsx` `SharePage` — "Busiest day" sun card.** Kit shows: the day with the most
+  plans, as a date and a one-line summary. We have: the full day-by-day list. Not built because:
+  new feature.
+- **`shared/share.jsx` `SharePage` — "Going too?" ink card ("Ask to join", "Copy this trip").**
+  Kit shows: a join request and a copy-this-trip action for viewers. We have: neither — a share
+  link is read-only and joining is by invite (ADR 0017). Not built because: new feature.
+
 ## p3/og-default

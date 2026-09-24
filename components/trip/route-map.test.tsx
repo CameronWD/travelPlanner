@@ -97,3 +97,22 @@ describe("RouteMap theme handling", () => {
     await waitFor(() => expect(hoisted.leaflet!.maps).toHaveLength(2));
   });
 });
+
+describe("RouteMap kit frame", () => {
+  it("draws its own kit frame (2px outline, hard shadow) — callers must not wrap it in a Card", () => {
+    render(<RouteMap stops={STOPS} />);
+    const frame = screen.getByLabelText("Trip route map");
+    expect(frame.className).toMatch(/\bborder-2\b/);
+    expect(frame.className).toMatch(/\bshadow-hard-2\b/);
+    expect(frame.className).not.toMatch(/\bshadow-soft\b/);
+    expect(frame.className.split(/\s+/)).not.toContain("border");
+  });
+
+  it("the no-coordinates fallback is a dashed kit frame", () => {
+    const { container } = render(<RouteMap stops={[{ ...STOPS[0], lat: null, lng: null }]} />);
+    const frame = container.firstElementChild as HTMLElement;
+    expect(frame.className).toMatch(/\bborder-2\b/);
+    expect(frame.className).toMatch(/\bborder-dashed\b/);
+    expect(frame.className.split(/\s+/)).not.toContain("border");
+  });
+});

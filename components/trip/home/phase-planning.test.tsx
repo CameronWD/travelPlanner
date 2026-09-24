@@ -463,13 +463,15 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     expect(findElementByType(rail, BudgetGlance)).not.toBeNull();
   });
 
-  it("frames the route map in a kit Card", async () => {
+  it("renders the route map bare — it draws its own kit frame, so no Card doubles the outline", async () => {
     stopFindManyMock.mockImplementation((args: { select?: { lat?: boolean } }) =>
       Promise.resolve(args.select?.lat ? DATED : [{ id: "a", name: "Rome", sortOrder: 0 }]),
     );
     const { Card } = await import("@/components/ui/card");
-    const card = findParentOf(await render(), RouteMapLoader);
-    expect(card?.type).toBe(Card);
+    const tree = await render();
+    expect(findElementByType(tree, RouteMapLoader)).not.toBeNull();
+    const parent = findParentOf(tree, RouteMapLoader);
+    expect(parent?.type).not.toBe(Card);
   });
 
   it("renders the kit empty treatment in place of the route map when no stop has dates", async () => {

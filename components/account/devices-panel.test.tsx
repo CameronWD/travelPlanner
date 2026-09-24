@@ -352,4 +352,51 @@ describe("DevicesPanel", () => {
     // the browser's faked system clock.
     expect(await screen.findByText(/2 hours ago/i)).toBeInTheDocument();
   });
+  describe("kit shape", () => {
+    it("draws each device as a kit ListRow with a device tile", async () => {
+      const initial = [device()];
+      listDevicesMock.mockResolvedValue(initial);
+      render(<DevicesPanel now={NOW} initial={initial} />);
+      const title = await screen.findByText("iPhone");
+      const row = title.closest('[data-slot="list-row"]');
+      expect(row).not.toBeNull();
+      // Timezone + last-seen move to the row's sub line.
+      expect(row!.textContent).toMatch(/Australia\/Brisbane/);
+      expect(row!.textContent).toMatch(/seen 1 hour ago/);
+      // Old shape was a 1px `rounded-md border border-border` box per device.
+      expect(row!.closest(".border.border-border")).toBeNull();
+    });
+
+    it("keeps Remove a real, named button with a 44px coarse-pointer hit area", async () => {
+      const initial = [device({ isThisDevice: false })];
+      listDevicesMock.mockResolvedValue(initial);
+      render(<DevicesPanel now={NOW} initial={initial} />);
+      const remove = await screen.findByRole("button", { name: "Remove iPhone" });
+      // Not swallowed by ListRow's aria-hidden trailing slot.
+      expect(remove.closest('[aria-hidden="true"]')).toBeNull();
+      expect(remove.className).toMatch(/pointer-coarse:after:-inset-y-1\b/);
+      expect(remove.className).toMatch(/pointer-coarse:after:content-\[''\]/);
+    });
+
+    it("shows the kit empty state when no device is set up", async () => {
+      readLocalDeviceStateMock.mockResolvedValue({
+        permission: "default",
+        endpoint: null,
+        keys: null,
+        needsInstall: false,
+      });
+      render(<DevicesPanel now={NOW} initial={[]} />);
+      expect(screen.getByRole("heading", { name: "No devices yet" })).toBeInTheDocument();
+      expect(screen.getByText(/no device is set up yet\./i)).toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: /enable on this device/i })).toBeInTheDocument();
+    });
+
+    it("flags a stale device with the destructive status token", async () => {
+      const initial = [device({ isThisDevice: false, stale: true })];
+      listDevicesMock.mockResolvedValue(initial);
+      render(<DevicesPanel now={NOW} initial={initial} />);
+      const warning = await screen.findByText(/nothing has been heard from this device/i);
+      expect(warning.closest("p")!.className).toMatch(/\btext-destructive\b/);
+    });
+  });
 });

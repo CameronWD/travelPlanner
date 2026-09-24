@@ -356,6 +356,11 @@ this local override.
 Handoff defects found while building phase 3 are appended here, one bullet each:
 `- **<file>** — <what's wrong> — <what we did instead>.`
 
+- **`reference/components/navigation/ListRow.jsx` + `shared/admin.jsx` `TripSettings`** — ListRow
+  wraps `trailing` in `aria-hidden="true"` (right for the default chevron), yet TripSettings passes
+  an interactive `Toggle` there ("Read-only link"), which hides the switch from assistive tech —
+  on Account we render the `Switch` / Remove button as a sibling of the row, not in `trailing`.
+
 ---
 
 ## E. What phase 1 learned, for whoever briefs phase 2

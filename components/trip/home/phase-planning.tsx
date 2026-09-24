@@ -23,7 +23,6 @@ import { getTripProjection } from "@/server/actions/stops";
 import { chapterForStop } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import { Route } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CountdownHero } from "@/components/trip/home/countdown-hero";
 import { NextStepsCard } from "@/components/trip/home/next-steps-card";
@@ -374,9 +373,8 @@ export async function PhasePlanning({
 
   const route =
     mapStops.length > 0 ? (
-      <Card key="route" className="overflow-hidden p-0">
-        <RouteMap stops={mapStops} height={280} />
-      </Card>
+      // The map draws its own kit frame (2px outline, hard shadow) — no Card around it.
+      <RouteMap key="route" stops={mapStops} height={280} />
     ) : (
       // Kit shared/states.jsx "Plan" empty: the route has nothing to draw yet.
       <EmptyState

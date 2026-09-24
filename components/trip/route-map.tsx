@@ -70,8 +70,8 @@ function stopsWithCoords(
 
 function MapFallback({ stops }: { stops: RouteMapStop[] }) {
   return (
-    <div className="flex flex-col gap-4 rounded-2xl border border-dashed border-border bg-muted/30 px-6 py-8">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+    <div className="flex flex-col gap-4 rounded-lg border-2 border-dashed border-border-soft px-5 py-6">
+      <div className="flex items-center gap-2 text-[13px] font-medium text-muted-foreground">
         <MapPin className="size-4 shrink-0" aria-hidden="true" />
         <span>
           Add coordinates to your stops to see the route map.
@@ -81,11 +81,11 @@ function MapFallback({ stops }: { stops: RouteMapStop[] }) {
         <ol className="flex flex-col gap-2">
           {stops.map((stop, i) => (
             <li key={stop.id} className="flex items-baseline gap-2 text-sm">
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-primary/10 font-mono text-xs font-semibold text-primary">
+              <span className="flex size-5 shrink-0 items-center justify-center rounded-full border-2 border-border bg-card text-[10px] font-extrabold tabular-nums text-foreground">
                 {i + 1}
               </span>
-              <span className="font-medium">{stop.name}</span>
-              <span className="text-muted-foreground">
+              <span className="font-bold">{stop.name}</span>
+              <span className="text-xs font-medium text-muted-foreground">
                 {formatDateRange(stop.arriveDate, stop.departDate)}
               </span>
             </li>
@@ -298,7 +298,7 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
     <div
       ref={mapRef}
       style={{ height }}
-      className="w-full rounded-2xl overflow-hidden border border-border shadow-soft"
+      className="w-full overflow-hidden rounded-lg border-2 border-border shadow-hard-2"
       aria-label="Trip route map"
     />
   );

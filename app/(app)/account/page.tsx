@@ -2,12 +2,7 @@ import type { Metadata } from "next";
 import { listDevices } from "@/server/actions/devices";
 import { listDigestSettingsForUser } from "@/server/actions/digest";
 import { getDispatcherHealth } from "@/server/actions/cron-health";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardTitle } from "@/components/ui/card";
 import { DevicesPanel } from "@/components/account/devices-panel";
 import { TripDigestsPanel } from "@/components/account/trip-digests-panel";
 import { DispatcherHealth } from "@/components/account/dispatcher-health";
@@ -36,41 +31,36 @@ export default async function AccountPage() {
   const now = new Date();
 
   return (
-    <div className="mx-auto max-w-2xl flex flex-col gap-3.5">
-      <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">
+    <div className="flex flex-col gap-3 lg:gap-[18px]">
+      <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-foreground lg:text-4xl">
         Account
-      </h2>
+      </h1>
 
-      {/* ── Devices ── */}
-      <Card>
-        <CardHeader className="p-5 pb-0">
-          <CardTitle className="font-display text-base font-bold tracking-tight">
-            Devices
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-5 pt-3 flex flex-col gap-4">
-          <DevicesPanel initial={devices} now={now} />
-          <DispatcherHealth
-            lastRunAt={dispatcherHealth.lastRunAt}
-            lastSuccessAt={dispatcherHealth.lastSuccessAt}
-            stale={dispatcherHealth.stale}
-            now={now}
-          />
-        </CardContent>
-      </Card>
+      {/* The kit's two-column Account grid on desktop, one column on phone. */}
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2 lg:gap-[18px]">
+        {/* ── Devices ── */}
+        <Card role="region" aria-labelledby="account-devices" className="p-[18px]">
+          <CardTitle id="account-devices">Devices</CardTitle>
+          <div className="mt-3.5 flex flex-col gap-3">
+            <DevicesPanel initial={devices} now={now} />
+            <DispatcherHealth
+              lastRunAt={dispatcherHealth.lastRunAt}
+              lastSuccessAt={dispatcherHealth.lastSuccessAt}
+              stale={dispatcherHealth.stale}
+              now={now}
+            />
+          </div>
+        </Card>
 
-      {/* ── Per-trip digest switches — no account-wide mute; each trip's own
-          switch is the only control. ── */}
-      <Card>
-        <CardHeader className="p-5 pb-0">
-          <CardTitle className="font-display text-base font-bold tracking-tight">
-            Which trips send you a digest
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-5 pt-3">
-          <TripDigestsPanel initial={trips} />
-        </CardContent>
-      </Card>
+        {/* ── Per-trip digest switches — no account-wide mute; each trip's own
+            switch is the only control. ── */}
+        <Card role="region" aria-labelledby="account-digests" className="p-[18px]">
+          <CardTitle id="account-digests">Which trips send you a digest</CardTitle>
+          <div className="mt-3.5">
+            <TripDigestsPanel initial={trips} />
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }
