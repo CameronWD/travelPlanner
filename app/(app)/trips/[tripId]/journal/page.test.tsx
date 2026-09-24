@@ -23,7 +23,14 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/guards", () => ({ requireTripAccess: requireTripAccessMock }));
 vi.mock("@/lib/dates", () => ({ formatLongDate: (d: string) => d }));
 vi.mock("@/lib/relative-time", () => ({ relativeTime: () => "just now" }));
-vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));
+vi.mock("@/components/ui/empty-state", () => ({
+  EmptyState: ({ title, description }: { title: string; description: string }) => (
+    <div data-testid="empty-state">
+      <h3>{title}</h3>
+      <p>{description}</p>
+    </div>
+  ),
+}));
 // next/link renders a plain <a> in jsdom
 vi.mock("next/link", () => ({
   default: ({
@@ -112,5 +119,66 @@ describe("Journal page — every Traveller's entry per date (ARCH-DAT-6)", () =>
     expect(screen.getByText("Day one notes")).toBeInTheDocument();
     expect(screen.getByText("Day two notes")).toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: /2026-01-0[56]/ })).toHaveLength(2);
+  });
+});
+
+describe("Journal page — Playground kit shape (Task 13)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    requireTripAccessMock.mockResolvedValue({ user: { id: "me" }, membership: {} });
+  });
+
+  it("renders each date as a kit Card whose title is a heading linking to the day", async () => {
+    journalEntryFindManyMock.mockResolvedValue([
+      {
+        id: "entry-1",
+        date: "2026-01-05",
+        body: "Day one notes",
+        updatedAt: new Date("2026-01-05T20:00:00Z"),
+        author: { id: "me", name: "Cam", image: null },
+      },
+    ]);
+    attachmentFindManyMock.mockResolvedValue([]);
+
+    const { container } = render(
+      await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }),
+    );
+
+    const heading = screen.getByRole("heading", { level: 3, name: "2026-01-05" });
+    expect(heading.querySelector("a")?.getAttribute("href")).toBe("/trips/trip-1/day/2026-01-05");
+    const card = heading.closest("[data-slot='journal-day']");
+    expect(card).toBeTruthy();
+    expect(card?.className).toMatch(/border-2/);
+    expect(card?.className).toMatch(/shadow-hard-\d/);
+    // The entry inside the day card is not a second nested Card.
+    expect(card?.querySelectorAll(".shadow-hard-2, .shadow-hard-3")).toHaveLength(0);
+    // Kit grid: one column on phones, two from md.
+    expect(container.querySelector(".md\\:grid-cols-2")).toBeTruthy();
+  });
+
+  it("gives every photo alt text and counts photos in the kit summary line", async () => {
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([
+      { id: "p1", targetId: "2026-01-05", filename: "igloo.jpg", mime: "image/jpeg", size: 1, url: "/api/attachments/p1" },
+      { id: "p2", targetId: "2026-01-05", filename: "aurora.jpg", mime: "image/jpeg", size: 1, url: "/api/attachments/p2" },
+    ]);
+
+    render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    expect(screen.getByAltText("igloo.jpg")).toBeInTheDocument();
+    expect(screen.getByAltText("aurora.jpg")).toBeInTheDocument();
+    expect(screen.getByText("0 entries · 2 photos")).toBeInTheDocument();
+    // A photos-only date still gets its heading.
+    expect(screen.getByRole("heading", { level: 3, name: "2026-01-05" })).toBeInTheDocument();
+  });
+
+  it("renders the kit EmptyState when there are no entries and no photos", async () => {
+    journalEntryFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+
+    render(await JournalPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
+
+    expect(screen.getByTestId("empty-state")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "No journal entries yet" })).toBeInTheDocument();
   });
 });

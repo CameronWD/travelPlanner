@@ -168,6 +168,119 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
 
 ## p3/together
 
+- **`shared/together.jsx` `Activity` — day groups ("Today" / "Yesterday" / "Mon 29 Sep") with a
+  clock time on each row.** Kit shows: rows grouped under uppercase day labels, each row's time as
+  "10:42". We have: one flat, newest-first list in the kit Card with our relative time
+  ("9h ago", "16 Jul 2026") in the trailing column. Not built because: product decision (the page
+  renders on the server, which has no Traveller time zone to cut "today" at; wrong-day labels for
+  an AU Traveller would be worse than none).
+- **`shared/together.jsx` `Activity` — per-person avatar tones (lilac Alex, sun Jess, teal
+  you).** Kit shows: each Traveller's avatar in their own accent. We have: the coral initials
+  fallback for everyone, as in the bell. Not built because: needs a data model (no per-Traveller
+  colour is stored or derived anywhere).
+- **`shared/together.jsx` `Activity` — entity name in bold ("moved **Arashiyama**") and a
+  one-line detail under every row ("to Mon 20 Oct", "saved offline").** Kit shows: bold actor
+  and bold entity, plus a detail line for every event. We have: bold actor, then `headline()`'s
+  one string unchanged (shared with the bell and pushes); a detail line only where we record one
+  (field changes, note excerpt). Not built because: product decision (`headline()` stays one
+  string; per-verb detail lines would need new activity payloads).
+
+- **`shared/together.jsx` `Journal` — "Write today" button in the header.** Kit shows: a primary
+  pencil button beside the entry count. We have: entries written from each Day page's journal
+  editor; the Journal page is read-only (each day card's date links to its Day page). Not built
+  because: new feature (a Journal-page entry point that picks today's date).
+- **`shared/together.jsx` `Journal` — stop name eyebrow ("TOKYO") over each card's date.** Kit
+  shows: the day's stop as an uppercase label above the date. We have: the date heading only; the
+  Journal page fetches entries and photos, not stops. Not built because: new feature (a stop
+  lookup per journal date on this page).
+- **`shared/together.jsx` `Journal` — one card per entry.** Kit shows: each card is one person's
+  entry, their avatar top-right, with that entry's photos. We have: one card per date holding
+  every Traveller's entry (ARCH-DAT-6) and the date's shared photos, the writers' avatars
+  top-right and a name line under each entry. Not built because: needs a data model (journal
+  photos belong to a date, not to an entry).
+
+- **`shared/together.jsx` `Checklists` — items grouped into titled cards ("Documents", "Money",
+  "Bookings"), each with its own "2/3" count and "+ Add item".** Kit shows: a 3-column grid of
+  group Cards per tab. We have: one kit Card per tab holding every item (sorted as before), one
+  "N of M done" count and one add form below. Not built because: needs a data model (checklist
+  items have no group/section field).
+- **`shared/together.jsx` `Checklists` — "N of M done" on the same row as the Pre-trip / Packing
+  switch.** Kit shows: the count right-aligned beside the Segmented. We have: the count
+  right-aligned above the progress bar, one line lower. Not built because: product decision (the
+  count is per tab and the tabs live in the Server Component page; lifting it would mean a new
+  client wrapper around the tabs for one label).
+- **`shared/together.jsx` `Checklists` — per-person avatar tones (teal CW, sun JM).** Kit shows:
+  each assignee's avatar in their own accent. We have: the coral initials fallback (24px, as in
+  the kit) for everyone. Not built because: needs a data model (no per-Traveller colour).
+- **`shared/together.jsx` `Checklists` — Packing "Start from a template" chips ("+ City break",
+  "+ Beach", …).** Kit shows: a dashed Card of one-tap starter templates. We have: the Templates
+  bar (apply one of your saved templates from a menu, or save this list as one) restyled as a
+  dashed Card, plus the AI "Draft packing list" button. Not built because: new feature (built-in
+  starter templates).
+- **`shared/together.jsx` `Files` — filter chips ("All" / "Tickets" / "Stays" / "Trip").** Kit
+  shows: ink/white chips filtering the grid. We have: files grouped under a label per kind
+  (trip-level first, then "Transport", "Accommodation", …). Not built because: new feature
+  (client-side filtering).
+- **`shared/together.jsx` `Files` — "offline" / "online only" chip on every file and "4 of 6
+  saved for offline · 3.2 MB".** Kit shows: per-file offline-cache status and a total. We have:
+  size and added date on each card; attachments are cached by the service worker when opened
+  (ADR 0043) but the page doesn't read the cache. Not built because: new feature (reading
+  per-file Cache Storage state into the page).
+- **`shared/together.jsx` `Files` — scope sub-line naming the thing ("Transport · Fri 17",
+  "Stay · Kyoto").** Kit shows: the file's parent booking/stop and its day. We have: the kind as
+  the group label and the file's tile tone (coral transport, lilac stay, teal trip/stop, sun
+  activity); the sub-line is size and added date. Not built because: needs a data model (the
+  page fetches attachments only; naming each target needs a lookup per target type).
+- **`shared/together.jsx` `Files` — "+ Add files" header button and a drag-and-drop dropzone.**
+  Kit shows: a primary header button and "Drop files or tap to add". We have: the tap-to-pick
+  tile (first cell of the grid), copy "Tap to add a file" because nothing handles a drop and the
+  picker takes one file at a time. Not built because: new feature (drag-and-drop, multi-file
+  upload).
+
+- **`shared/together.jsx` `Compare` — plan picker row ("Real plan" vs "Plan B · Naoshima" chips
+  and a dashed "+ New fork" chip).** Kit shows: one fork chosen at a time against the real plan,
+  and a chip that starts a new fork. We have: every fork shown at once as its own card, in the
+  saved fork order (the reorder arrows move it); forks are created from the Plan page's fork
+  switcher. Not built because: new feature (a fork picker on this page, and fork creation here).
+- **`shared/together.jsx` `Compare` — summary Card under the columns ("Plan B adds a night and
+  ¥26k", a sentence of what changed, "Discard Plan B" / "Make Plan B real").** Kit shows: one
+  written-out verdict with a discard and a promote button. We have: each fork card ends with our
+  route-diff summary line ("+Zermatt · +Interlaken · Rome ?→6n") and the owner-only Promote
+  button (opens the existing promote dialog); per-stat delta chips carry the numbers. Not built
+  because: new feature (a generated plain-language verdict, and discarding a fork from this page).
+- **`shared/together.jsx` `Compare` — stats as three compact values ("¥312k", "Legs 5").** Kit
+  shows: Nights · Cost · Legs only, cost rounded to thousands. We have: eight stats (nights, trip
+  cost with "shared pot", stops, transit, driving, flights, flags, projected end with its hard-end
+  status) at full precision, since the page is for comparing them. Not built because: product
+  decision (dropping stats we compute would lose comparison information).
+
+- **`shared/onthego.jsx` `Globe` — All / Been / Want switch, the "been" chip on rows and the
+  been / want-to-go legend.** Kit shows: an ink Segmented filtering places you've been from places
+  you want to go, lilac "been" chips, and a two-dot legend under the map. We have: every Marker is
+  a place you want to go; the list filters by search, country and category (kit Chips), and pins
+  are coloured by category. Not built because: needs a data model (a Marker has no been/want
+  state).
+- **`shared/onthego.jsx` `Globe` — "23 someday" and "3 trips" stat chips.** Kit shows: lilac
+  countries, coral someday and white trips counts. We have: lilac "N countries" and coral
+  "N markers", both counted from the Globe's Markers. Not built because: new feature (the Globe
+  page fetches no trips, and "someday" needs the been/want split above).
+- **`shared/onthego.jsx` `Globe` — "+ To a trip" on each row, and the trip name as the row's
+  sub-line ("Japan in Autumn").** Kit shows: a secondary button that adds the place to a trip's
+  wishlist, and the trip a been-place came from. We have: a Marker is pulled into a Trip from that
+  Trip's Wishlist board (Add from Globe / suggestions); the sub-line is city · category · when.
+  Not built because: new feature (a trip picker on the Globe) and needs a data model (a Marker
+  records no trip).
+- **`shared/onthego.jsx` `Globe` — place-name labels beside every map pin.** Kit shows: each pin
+  with a pill label ("Kyoto", "Lisbon"). We have: category-coloured pins (lib/map-pins.ts, owned by
+  the audit-findings work) whose name shows in the popup on tap. Not built because: product
+  decision (always-on labels overlap on a real, zoomable tile map; pins are out of this task's
+  scope).
+- **`shared/onthego.jsx` `Globe` — "+ Drop a pin" header button.** Kit shows: that copy. We
+  have: "+ Add marker", because the button opens place search rather than dropping a pin, and
+  CONTEXT.md reserves "pin" language (Markers are added or dropped; "Pinned" is a Stop). The map
+  caption uses the kit line with our noun: "Tap the map to drop a marker". Not built because:
+  product decision (copy accuracy).
+
 ## p3/admin-kit
 
 ## p3/og-default

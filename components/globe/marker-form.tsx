@@ -206,7 +206,8 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved, globe
               />
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
+                className="h-12"
                 onClick={runSearch}
                 loading={searchPending}
                 disabled={busy}
@@ -217,12 +218,12 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved, globe
 
             {/* Candidate list */}
             {candidates.length > 0 && (
-              <ul className="flex flex-col gap-1 rounded-lg border border-border bg-card p-1 max-h-48 overflow-y-auto">
+              <ul className="flex max-h-48 flex-col gap-0.5 overflow-y-auto rounded-md border-2 border-border bg-card p-1 shadow-hard-1">
                 {candidates.map((c, i) => (
                   <li key={i}>
                     <button
                       type="button"
-                      className="w-full rounded px-3 py-2 text-left text-sm hover:bg-muted"
+                      className="min-h-11 w-full rounded-sm px-3 py-2 text-left text-sm font-semibold hover:bg-muted focus-visible:outline-[3px] focus-visible:outline-offset-[-3px] focus-visible:outline-ring"
                       onClick={() => chooseCandidate(c)}
                     >
                       {c.name}
@@ -233,7 +234,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved, globe
             )}
 
             {searchFailed && (
-              <p className="text-xs text-destructive">
+              <p className="text-xs font-semibold text-destructive">
                 Place search is temporarily unavailable. Please try again in a moment.
               </p>
             )}
@@ -349,7 +350,7 @@ export function MarkerForm({ open, onOpenChange, marker, prefill, onSaved, globe
               </Button>
             )}
             <DialogClose asChild>
-              <Button type="button" variant="outline" disabled={busy}>
+              <Button type="button" variant="secondary" disabled={busy}>
                 Cancel
               </Button>
             </DialogClose>

@@ -109,8 +109,8 @@ export default async function TripLayout({
       <TripNav tripId={tripId} />
 
       <div className="flex min-w-0 flex-1 flex-col gap-0 md:pl-6">
-        {/* ── Trip header ── */}
-        <div className="pb-4 pt-2">
+        {/* ── Trip header ── (data-trip-header: hook the print route hides) */}
+        <div data-trip-header className="pb-4 pt-2">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex flex-col gap-1">
               <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">

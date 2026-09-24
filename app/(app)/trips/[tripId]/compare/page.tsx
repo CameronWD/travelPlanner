@@ -1,8 +1,12 @@
-import { GitCompare } from "lucide-react";
+import { Copy } from "lucide-react";
 import { getComparison } from "@/server/actions/forks";
 import { CompareTable } from "@/components/trip/compare-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
+
+/** Kit display title (same as Checklists / Files). Exported for tests. */
+export const COMPARE_TITLE_CLASS =
+  "font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl";
 
 export default async function ComparePage({
   params,
@@ -26,10 +30,11 @@ export default async function ComparePage({
   // No forks yet — show a helpful empty state so the page is still meaningful.
   if (plans.length <= 1) {
     return (
-      <div className="flex flex-col gap-6">
-        <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Compare plans</h2>
+      <div className="flex flex-col gap-3 md:gap-[18px]">
+        <h2 className={COMPARE_TITLE_CLASS}>Compare plans</h2>
         <EmptyState
-          icon={GitCompare}
+          icon={Copy}
+          tone="coral"
           title="No variants to compare"
           description="Create a fork from the Plan page to start comparing itinerary variants side by side."
         />
@@ -38,8 +43,8 @@ export default async function ComparePage({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Compare plans</h2>
+    <div className="flex flex-col gap-3 md:gap-[18px]">
+      <h2 className={COMPARE_TITLE_CLASS}>Compare plans</h2>
 
       <CompareTable
         trip={{ id: trip.id, name: trip.name, homeCurrency: trip.homeCurrency }}

@@ -73,6 +73,9 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
     onDeleteRef.current = onDelete;
   });
 
+  // The not-yet-fired "open the selected popup after the fly-to" moveend listener, if any.
+  const pendingOpenRef = useRef<(() => void) | null>(null);
+
   // Ref map: markerId → Leaflet Marker instance, for fly-to / highlight / popup.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const markerInstancesRef = useRef<Map<string, any>>(new Map());
@@ -162,21 +165,25 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
         const isSelected = mk.id === selectedId;
         const icon = isSelected ? selectedIcon(L, mk.category, isDark) : categoryIcon(L, mk.category, isDark);
         const attachCount = attachmentsByMarkerId?.[mk.id]?.length ?? 0;
+        // A <span>, not a <p>: leaflet.css's unlayered `.leaflet-popup-content p { margin: 1.3em 0 }`
+        // beats Tailwind's layered margin utilities.
         const attachLine = attachCount > 0
-          ? `<p style="font-size:12px;color:#6b7280;margin:0 0 4px">📎 ${attachCount}</p>`
+          ? `<span class="mb-1 block text-xs font-semibold text-muted-foreground">${attachCount} ${attachCount === 1 ? "file" : "files"}</span>`
           : "";
+        // Token classes only (Tailwind scans this file), so the popup follows the theme;
+        // the shell (.tp-map-popup in globals.css) gives it the kit outline + hard shadow.
         const popupHtml = `
-          <div style="min-width:min(140px,80vw);max-width:min(240px,90vw);line-height:1.5">
-            <strong style="font-size:13px;display:block;margin-bottom:6px">${escapeHtml(mk.title)}</strong>
+          <div class="min-w-[min(140px,80vw)] max-w-[min(240px,90vw)] leading-normal">
+            <strong class="mb-1.5 block font-display text-sm font-extrabold">${escapeHtml(mk.title)}</strong>
             ${attachLine}
-            <div style="display:flex;gap:6px;margin-top:4px">
-              <button data-edit="${escapeHtml(mk.id)}" style="font-size:12px;padding:2px 8px;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;background:#fff">Edit</button>
-              <button data-delete="${escapeHtml(mk.id)}" style="font-size:12px;padding:2px 8px;border:1px solid #fca5a5;border-radius:4px;cursor:pointer;background:#fff;color:#dc2626">Delete</button>
+            <div class="mt-1 flex gap-1.5">
+              <button type="button" data-edit="${escapeHtml(mk.id)}" class="h-11 cursor-pointer rounded-full border-2 border-border bg-card px-4 text-xs font-extrabold text-foreground shadow-hard-1">Edit</button>
+              <button type="button" data-delete="${escapeHtml(mk.id)}" class="h-11 cursor-pointer rounded-full border-2 border-border bg-destructive px-4 text-xs font-extrabold text-destructive-foreground shadow-hard-1">Delete</button>
             </div>
           </div>`;
         const marker = L.marker([mk.lat, mk.lng], { icon })
           .addTo(map)
-          .bindPopup(popupHtml);
+          .bindPopup(popupHtml, { className: "tp-map-popup" });
         if (isSelected) marker.setZIndexOffset(1000);
         marker.on("click", () => onSelectRef.current(mk.id));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -225,7 +232,11 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
   useEffect(() => {
     const map = leafletMapRef.current;
     if (!map) return;
+    // Set by the cleanup, so a fly started by an import() that resolves after this
+    // effect was torn down (unmount / next selection) never registers a listener.
+    let cancelled = false;
     import("leaflet").then((leaflet) => {
+      if (cancelled) return;
       const L = leaflet.default ?? leaflet;
       // Restyle all markers to reflect new selection.
       for (const mk of located) {
@@ -239,18 +250,41 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       if (!selectedId) return;
       const mk = located.find((m) => m.id === selectedId);
       if (!mk) return;
-      const instance = markerInstancesRef.current.get(selectedId);
-      if (!instance) return;
+      if (!markerInstancesRef.current.has(selectedId)) return;
+      // Open the popup only once the fly-to has landed: opening it mid-flight lets the
+      // fly's final centring undo Leaflet's pan-to-fit, clipping the popup's top on the
+      // 260px phone map. Any still-pending open from an earlier selection is dropped
+      // first, and whatever popup is open closes, so a mid-flight re-select can't leave
+      // the first marker's popup open.
+      if (pendingOpenRef.current) map.off("moveend", pendingOpenRef.current);
+      map.closePopup();
+      const id = selectedId;
+      const openWhenLanded = () => {
+        map.off("moveend", openWhenLanded);
+        if (pendingOpenRef.current === openWhenLanded) pendingOpenRef.current = null;
+        // Look the marker up now, not at select time: the replot effect recreates every
+        // instance (e.g. when attachments change), and can do so during the fly. If the
+        // marker is gone, there is nothing to open.
+        markerInstancesRef.current.get(id)?.openPopup();
+      };
+      pendingOpenRef.current = openWhenLanded;
+      map.on("moveend", openWhenLanded);
       map.flyTo([mk.lat, mk.lng], Math.max(map.getZoom(), 9), { duration: 0.6 });
-      instance.openPopup();
     });
+    return () => {
+      cancelled = true;
+      if (pendingOpenRef.current) {
+        map.off("moveend", pendingOpenRef.current);
+        pendingOpenRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
   return (
     <div
       ref={mapRef}
-      className="w-full h-56 sm:h-[440px] rounded-2xl overflow-hidden border border-border shadow-sm"
+      className="tp-map h-[260px] w-full overflow-hidden rounded-lg border-2 border-border lg:h-[460px]"
       aria-label="Globe map"
     />
   );

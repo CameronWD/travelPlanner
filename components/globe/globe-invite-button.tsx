@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 
 export interface GlobeInviteButtonProps {
   members: GlobeMemberView[];
@@ -48,7 +49,7 @@ export function GlobeInviteButton({ members }: GlobeInviteButtonProps) {
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
+      <Button variant="secondary" onClick={() => setOpen(true)}>
         Share
       </Button>
 
@@ -63,24 +64,22 @@ export function GlobeInviteButton({ members }: GlobeInviteButtonProps) {
 
           {members.length > 0 && (
             <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium">Current members</p>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.08em]">Current members</p>
               <ul className="flex flex-col gap-1">
                 {members.map((m) => (
                   <li
                     key={m.userId}
-                    className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
+                    className="flex min-h-11 items-center justify-between gap-3 rounded-md border-2 border-border bg-card px-3 py-2 text-sm"
                   >
                     <span className="flex flex-col">
                       {m.name && (
-                        <span className="font-medium">{m.name}</span>
+                        <span className="font-extrabold">{m.name}</span>
                       )}
                       {m.email && (
-                        <span className="text-muted-foreground">{m.email}</span>
+                        <span className="text-xs font-medium text-muted-foreground">{m.email}</span>
                       )}
                     </span>
-                    <span className="text-xs capitalize text-muted-foreground">
-                      {m.role}
-                    </span>
+                    <Badge className="capitalize">{m.role.toLowerCase()}</Badge>
                   </li>
                 ))}
               </ul>
@@ -89,7 +88,7 @@ export function GlobeInviteButton({ members }: GlobeInviteButtonProps) {
 
           {members.length < 2 && (
             <div className="flex flex-col gap-3">
-              <p className="text-sm font-medium">Invite someone</p>
+              <p className="text-[11px] font-extrabold uppercase tracking-[0.08em]">Invite someone</p>
               {done ? (
                 <p className="text-sm text-muted-foreground">
                   Invited — they&apos;ll join when they next sign in.

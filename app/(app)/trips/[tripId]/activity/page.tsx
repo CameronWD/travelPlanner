@@ -27,21 +27,20 @@ export default async function ActivityPage({
   const activities = rawActivities as unknown as ActivityRow[];
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">
+    <div className="flex flex-col gap-6">
+      {/* Header — kit: display title; the event count is ours */}
+      <div className="flex flex-col gap-1.5">
+        <h2 className="font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl">
           Activity
         </h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs font-semibold text-muted-foreground">
           {activities.length === 1
             ? "1 event"
             : `${activities.length} events`}
         </p>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-soft">
-        <ActivityFeed activities={activities} />
-      </div>
+      <ActivityFeed activities={activities} />
 
       <MarkReadOnView tripId={tripId} />
     </div>

@@ -1,5 +1,6 @@
 import { Activity } from "lucide-react";
-import { cn } from "@/lib/cn";
+import { Card } from "@/components/ui/card";
+import { ListRow } from "@/components/ui/list-row";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { headline } from "@/lib/activity";
@@ -29,117 +30,119 @@ export function ActivityFeed({ activities }: ActivityFeedProps) {
     return (
       <EmptyState
         icon={Activity}
-        title="No activity yet."
+        tone="teal"
+        title="No activity yet"
         description="Changes to your Trip — Stops, transport, costs, and notes — will appear here."
       />
     );
   }
 
   return (
-    <ul className="flex flex-col divide-y divide-border">
-      {activities.map((activity) => {
-        const actorName = activity.actor.name ?? "Someone";
-        const initials = actorName
-          .split(" ")
-          .map((w) => w[0])
-          .join("")
-          .slice(0, 2)
-          .toUpperCase();
+    <Card data-slot="activity-card" className="max-w-[760px] p-3.5 sm:p-[22px]">
+      <ul className="flex flex-col">
+        {activities.map((activity) => {
+          const actorName = activity.actor.name ?? "Someone";
+          const initials = actorName
+            .split(" ")
+            .map((w) => w[0])
+            .join("")
+            .slice(0, 2)
+            .toUpperCase();
 
-        const headlineText = headline({
-          verb: activity.verb,
-          entityType: activity.entityType,
-          entityLabel: activity.entityLabel,
-        });
+          const headlineText = headline({
+            verb: activity.verb,
+            entityType: activity.entityType,
+            entityLabel: activity.entityLabel,
+          });
 
-        // Parse field changes for UPDATED rows
-        let changes: ActivityChange[] = [];
-        if (activity.verb === "UPDATED" && Array.isArray(activity.changes)) {
-          changes = (activity.changes as unknown[]).filter(
-            (c): c is ActivityChange =>
-              typeof c === "object" &&
-              c !== null &&
-              "label" in c &&
-              "from" in c &&
-              "to" in c,
+          // Parse field changes for UPDATED rows
+          let changes: ActivityChange[] = [];
+          if (activity.verb === "UPDATED" && Array.isArray(activity.changes)) {
+            changes = (activity.changes as unknown[]).filter(
+              (c): c is ActivityChange =>
+                typeof c === "object" &&
+                c !== null &&
+                "label" in c &&
+                "from" in c &&
+                "to" in c,
+            );
+          }
+
+          // Extract excerpt for NOTED rows
+          const noteExcerpt =
+            activity.verb === "NOTED" &&
+            typeof activity.changes === "object" &&
+            activity.changes !== null &&
+            !Array.isArray(activity.changes) &&
+            "excerpt" in (activity.changes as object)
+              ? (activity.changes as { excerpt: string }).excerpt
+              : null;
+
+          // Extract a one-line summary payload (reorder / batch actions)
+          const summary =
+            typeof activity.changes === "object" &&
+            activity.changes !== null &&
+            !Array.isArray(activity.changes) &&
+            "summary" in (activity.changes as object)
+              ? (activity.changes as { summary: string }).summary
+              : null;
+
+          const when = relativeTime(activity.createdAt);
+
+          const sub =
+            changes.length > 0 || noteExcerpt ? (
+              <>
+                {changes.map((change) => (
+                  <span key={change.field} className="block">
+                    <span className="font-bold text-foreground">{change.label}:</span>{" "}
+                    {change.from || <em>empty</em>}{" "}
+                    <span aria-hidden="true">→</span>
+                    <span className="sr-only">to</span>{" "}
+                    {change.to || <em>empty</em>}
+                  </span>
+                ))}
+                {noteExcerpt ? (
+                  <span className="block">&ldquo;{noteExcerpt}&rdquo;</span>
+                ) : null}
+              </>
+            ) : null;
+
+          return (
+            <li
+              key={activity.id}
+              className="border-t border-border-soft py-[5px] first:border-t-0"
+            >
+              <ListRow
+                className="gap-3 text-sm font-medium text-foreground"
+                leading={
+                  <Avatar className="size-[30px]">
+                    {activity.actor.image ? (
+                      <AvatarImage src={activity.actor.image} alt={actorName} />
+                    ) : null}
+                    <AvatarFallback className="text-[11px]">{initials}</AvatarFallback>
+                  </Avatar>
+                }
+                title={
+                  <>
+                    <b className="font-extrabold">{actorName}</b> {summary ?? headlineText}
+                    <span className="sr-only">, {when}</span>
+                  </>
+                }
+                sub={sub}
+                trailing={
+                  <time
+                    dateTime={activity.createdAt.toISOString()}
+                    title={activity.createdAt.toLocaleString()}
+                    className="text-xs font-semibold"
+                  >
+                    {when}
+                  </time>
+                }
+              />
+            </li>
           );
-        }
-
-        // Extract excerpt for NOTED rows
-        const noteExcerpt =
-          activity.verb === "NOTED" &&
-          typeof activity.changes === "object" &&
-          activity.changes !== null &&
-          !Array.isArray(activity.changes) &&
-          "excerpt" in (activity.changes as object)
-            ? (activity.changes as { excerpt: string }).excerpt
-            : null;
-
-        // Extract a one-line summary payload (reorder / batch actions)
-        const summary =
-          typeof activity.changes === "object" &&
-          activity.changes !== null &&
-          !Array.isArray(activity.changes) &&
-          "summary" in (activity.changes as object)
-            ? (activity.changes as { summary: string }).summary
-            : null;
-
-        return (
-          <li
-            key={activity.id}
-            className={cn(
-              "flex items-start gap-3 py-4 transition-colors hover:bg-muted/30 rounded-xl -mx-1 px-1",
-            )}
-          >
-            <Avatar className="size-9 shrink-0">
-              {activity.actor.image ? (
-                <AvatarImage src={activity.actor.image} alt={actorName} />
-              ) : null}
-              <AvatarFallback className="bg-primary/10 text-primary text-xs">{initials}</AvatarFallback>
-            </Avatar>
-
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <p className="text-sm text-foreground">
-                <span className="font-semibold">{actorName}</span>{" "}
-                {summary ?? headlineText}
-              </p>
-
-              {changes.length > 0 ? (
-                <ul className="mt-1 flex flex-col gap-0.5">
-                  {changes.map((change) => (
-                    <li
-                      key={change.field}
-                      className="text-xs text-muted-foreground"
-                      aria-label={`${change.label}: changed from ${change.from || "empty"} to ${change.to || "empty"}`}
-                    >
-                      <span className="font-medium text-foreground/70">
-                        {change.label}:
-                      </span>{" "}
-                      {change.from || <em>empty</em>}{" "}
-                      <span aria-hidden="true">→</span>{" "}
-                      {change.to || <em>empty</em>}
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-
-              {noteExcerpt ? (
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  &ldquo;{noteExcerpt}&rdquo;
-                </p>
-              ) : null}
-
-              <time
-                dateTime={activity.createdAt.toISOString()}
-                title={activity.createdAt.toLocaleString()}
-                className="text-xs text-muted-foreground"
-              >
-                {relativeTime(activity.createdAt)}
-              </time>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
+        })}
+      </ul>
+    </Card>
   );
 }

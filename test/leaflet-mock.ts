@@ -53,6 +53,7 @@ export interface FakeMap {
   getZoom: ReturnType<typeof vi.fn>;
   on: ReturnType<typeof vi.fn>;
   off: ReturnType<typeof vi.fn>;
+  closePopup: ReturnType<typeof vi.fn>;
 }
 
 export function createLeafletMock() {
@@ -69,6 +70,7 @@ export function createLeafletMock() {
       getZoom: vi.fn(() => 5),
       on: vi.fn(),
       off: vi.fn(),
+      closePopup: vi.fn(),
     };
     maps.push(instance);
     return instance;
