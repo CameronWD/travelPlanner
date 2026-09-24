@@ -7,6 +7,8 @@ const TILE = { coral: "bg-coral text-on-accent", sun: "bg-sun text-on-accent", t
 export interface ListRowProps extends Omit<React.HTMLAttributes<HTMLElement>, "title"> {
   tile?: React.ReactNode;
   tileTone?: keyof typeof TILE;
+  /** Leading node rendered as-is (e.g. an Avatar) in place of the square tile. */
+  leading?: React.ReactNode;
   title: React.ReactNode;
   sub?: React.ReactNode;
   trailing?: React.ReactNode;
@@ -19,11 +21,11 @@ export interface ListRowProps extends Omit<React.HTMLAttributes<HTMLElement>, "t
  * Server Component (renders a <div> by default). Pass as={Link} + href to make it navigable.
  * Pass as="button" + onClick only from a Client Component.
  */
-function ListRow({ tile, tileTone = "lilac", title, sub, trailing, as: Comp = "div", className, ...props }: ListRowProps) {
+function ListRow({ tile, tileTone = "lilac", leading, title, sub, trailing, as: Comp = "div", className, ...props }: ListRowProps) {
   const interactive = Comp !== "div";
   return (
-    <Comp className={cn("flex min-h-11 w-full items-center gap-2.5 rounded-md text-left", interactive && "cursor-pointer", className)} {...props}>
-      {tile != null ? <span aria-hidden="true" className={cn("grid size-[34px] shrink-0 place-items-center rounded-sm border-2 border-border text-[13px] font-extrabold", TILE[tileTone])}>{tile}</span> : null}
+    <Comp data-slot="list-row" className={cn("flex min-h-11 w-full items-center gap-2.5 rounded-md text-left", interactive && "cursor-pointer", className)} {...props}>
+      {leading != null ? leading : tile != null ? <span aria-hidden="true" className={cn("grid size-[34px] shrink-0 place-items-center rounded-sm border-2 border-border text-[13px] font-extrabold", TILE[tileTone])}>{tile}</span> : null}
       <span className="min-w-0 flex-1 leading-tight">
         <span className="block">{title}</span>
         {sub ? <span className="block text-xs font-medium text-muted-foreground">{sub}</span> : null}

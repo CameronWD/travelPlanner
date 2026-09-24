@@ -168,6 +168,23 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
 
 ## p3/together
 
+- **`shared/together.jsx` `Activity` — day groups ("Today" / "Yesterday" / "Mon 29 Sep") with a
+  clock time on each row.** Kit shows: rows grouped under uppercase day labels, each row's time as
+  "10:42". We have: one flat, newest-first list in the kit Card with our relative time
+  ("9h ago", "16 Jul 2026") in the trailing column. Not built because: product decision (the page
+  renders on the server, which has no Traveller time zone to cut "today" at; wrong-day labels for
+  an AU Traveller would be worse than none).
+- **`shared/together.jsx` `Activity` — per-person avatar tones (lilac Alex, sun Jess, teal
+  you).** Kit shows: each Traveller's avatar in their own accent. We have: the coral initials
+  fallback for everyone, as in the bell. Not built because: needs a data model (no per-Traveller
+  colour is stored or derived anywhere).
+- **`shared/together.jsx` `Activity` — entity name in bold ("moved **Arashiyama**") and a
+  one-line detail under every row ("to Mon 20 Oct", "saved offline").** Kit shows: bold actor
+  and bold entity, plus a detail line for every event. We have: bold actor, then `headline()`'s
+  one string unchanged (shared with the bell and pushes); a detail line only where we record one
+  (field changes, note excerpt). Not built because: product decision (`headline()` stays one
+  string; per-verb detail lines would need new activity payloads).
+
 ## p3/admin-kit
 
 ## p3/og-default
