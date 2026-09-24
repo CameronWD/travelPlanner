@@ -11,7 +11,20 @@ import { AiBookingParser } from "@/components/trip/ai-booking-parser";
 import type { ChecklistKind } from "@/lib/enums";
 
 /** Reading-width wrapper applied to the tabs+content column. Exported for tests. */
-export const CHECKLISTS_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
+export const CHECKLISTS_READING_WIDTH_CLASS = "w-full max-w-3xl";
+
+/** Kit display title (same as Activity / Wishlist). Exported for tests. */
+export const CHECKLISTS_TITLE_CLASS =
+  "font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl";
+
+/**
+ * Kit Segmented, teal tone (together.jsx Checklists). Overrides the Tabs
+ * primitive's ink active fill; adds the Segmented primitive's 44px coarse-
+ * pointer hit area (the list is `overflow-visible` here so it isn't clipped —
+ * three tabs fit at 390px). Exported for tests.
+ */
+export const CHECKLISTS_TAB_CLASS =
+  "relative data-[state=active]:bg-teal data-[state=active]:text-on-accent pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-1.5 pointer-coarse:after:content-['']";
 
 export default async function ChecklistsPage({
   params,
@@ -76,28 +89,28 @@ export default async function ChecklistsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Checklists</h2>
+      <h2 className={CHECKLISTS_TITLE_CLASS}>Checklists</h2>
 
       <div className={CHECKLISTS_READING_WIDTH_CLASS}>
       <Tabs defaultValue="pretrip" className="w-full">
-        <TabsList className="h-auto w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0">
-          <TabsTrigger value="pretrip" className="rounded-none border-b-2 border-transparent px-0 py-2.5 font-semibold text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-bold data-[state=active]:text-primary data-[state=active]:shadow-none">
+        <TabsList className="overflow-visible">
+          <TabsTrigger value="pretrip" className={CHECKLISTS_TAB_CLASS}>
             Pre-trip
             {pretripItems.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
+              <span className="rounded-full bg-muted px-1.5 text-[11px] font-bold tabular-nums text-foreground">
                 {pretripItems.filter((i) => !i.done).length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="packing" className="rounded-none border-b-2 border-transparent px-0 py-2.5 font-semibold text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-bold data-[state=active]:text-primary data-[state=active]:shadow-none">
+          <TabsTrigger value="packing" className={CHECKLISTS_TAB_CLASS}>
             Packing
             {packingItems.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
+              <span className="rounded-full bg-muted px-1.5 text-[11px] font-bold tabular-nums text-foreground">
                 {packingItems.filter((i) => !i.done).length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="booking" className="rounded-none border-b-2 border-transparent px-0 py-2.5 font-semibold text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-bold data-[state=active]:text-primary data-[state=active]:shadow-none">
+          <TabsTrigger value="booking" className={CHECKLISTS_TAB_CLASS}>
             Booking parser
           </TabsTrigger>
         </TabsList>

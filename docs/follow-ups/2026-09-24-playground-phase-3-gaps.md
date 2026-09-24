@@ -199,6 +199,24 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   top-right and a name line under each entry. Not built because: needs a data model (journal
   photos belong to a date, not to an entry).
 
+- **`shared/together.jsx` `Checklists` — items grouped into titled cards ("Documents", "Money",
+  "Bookings"), each with its own "2/3" count and "+ Add item".** Kit shows: a 3-column grid of
+  group Cards per tab. We have: one kit Card per tab holding every item (sorted as before), one
+  "N of M done" count and one add form below. Not built because: needs a data model (checklist
+  items have no group/section field).
+- **`shared/together.jsx` `Checklists` — "N of M done" on the same row as the Pre-trip / Packing
+  switch.** Kit shows: the count right-aligned beside the Segmented. We have: the count
+  right-aligned above the progress bar, one line lower. Not built because: product decision (the
+  count is per tab and the tabs live in the Server Component page; lifting it would mean a new
+  client wrapper around the tabs for one label).
+- **`shared/together.jsx` `Checklists` — per-person avatar tones (teal CW, sun JM).** Kit shows:
+  each assignee's avatar in their own accent. We have: the coral initials fallback (24px, as in
+  the kit) for everyone. Not built because: needs a data model (no per-Traveller colour).
+- **`shared/together.jsx` `Checklists` — Packing "Start from a template" chips ("+ City break",
+  "+ Beach", …).** Kit shows: a dashed Card of one-tap starter templates. We have: the Templates
+  bar (apply one of your saved templates from a menu, or save this list as one) restyled as a
+  dashed Card, plus the AI "Draft packing list" button. Not built because: new feature (built-in
+  starter templates).
 ## p3/admin-kit
 
 ## p3/og-default
