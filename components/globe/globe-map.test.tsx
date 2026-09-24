@@ -208,6 +208,52 @@ describe("GlobeMap selection popup", () => {
     expect(m1.openPopup).toHaveBeenCalledTimes(1);
   });
 
+  it("opens the marker instance that exists when the fly lands, after a mid-flight replot", async () => {
+    const el = (selectedId: string | null, attachmentsByMarkerId?: Record<string, { id: string }[]>) => (
+      <GlobeMap
+        markers={MARKERS}
+        selectedId={selectedId}
+        onSelect={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onMapClick={vi.fn()}
+        attachmentsByMarkerId={attachmentsByMarkerId}
+      />
+    );
+    const { rerender } = render(el(null));
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    const map = hoisted.leaflet!.maps[0];
+    const bus = wireEmitter(map);
+    const [oldM1] = hoisted.leaflet!.markers;
+
+    rerender(el("m1"));
+    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(1));
+
+    // An attachment count change replots every marker (new instances) mid-flight.
+    rerender(el("m1", { m1: [{ id: "a1" }] }));
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(4));
+    const newM1 = hoisted.leaflet!.markers[2];
+    expect(newM1.latlng).toEqual(oldM1.latlng);
+
+    bus.fire("moveend");
+    expect(newM1.openPopup).toHaveBeenCalledTimes(1);
+    expect(oldM1.openPopup).not.toHaveBeenCalled();
+  });
+
+  it("removes a pending moveend listener on unmount", async () => {
+    const { rerender, unmount } = render(globeElement());
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));
+    const map = hoisted.leaflet!.maps[0];
+    const bus = wireEmitter(map);
+
+    rerender(globeElement("m1"));
+    await waitFor(() => expect(map.flyTo).toHaveBeenCalledTimes(1));
+    expect(bus.count("moveend")).toBe(1);
+
+    unmount();
+    expect(bus.count("moveend")).toBe(0);
+  });
+
   it("re-selecting mid-flight drops the first marker's pending open", async () => {
     const { rerender } = render(globeElement());
     await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(2));

@@ -232,7 +232,11 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
   useEffect(() => {
     const map = leafletMapRef.current;
     if (!map) return;
+    // Set by the cleanup, so a fly started by an import() that resolves after this
+    // effect was torn down (unmount / next selection) never registers a listener.
+    let cancelled = false;
     import("leaflet").then((leaflet) => {
+      if (cancelled) return;
       const L = leaflet.default ?? leaflet;
       // Restyle all markers to reflect new selection.
       for (const mk of located) {
@@ -246,8 +250,7 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       if (!selectedId) return;
       const mk = located.find((m) => m.id === selectedId);
       if (!mk) return;
-      const instance = markerInstancesRef.current.get(selectedId);
-      if (!instance) return;
+      if (!markerInstancesRef.current.has(selectedId)) return;
       // Open the popup only once the fly-to has landed: opening it mid-flight lets the
       // fly's final centring undo Leaflet's pan-to-fit, clipping the popup's top on the
       // 260px phone map. Any still-pending open from an earlier selection is dropped
@@ -255,15 +258,26 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
       // the first marker's popup open.
       if (pendingOpenRef.current) map.off("moveend", pendingOpenRef.current);
       map.closePopup();
+      const id = selectedId;
       const openWhenLanded = () => {
         map.off("moveend", openWhenLanded);
         if (pendingOpenRef.current === openWhenLanded) pendingOpenRef.current = null;
-        instance.openPopup();
+        // Look the marker up now, not at select time: the replot effect recreates every
+        // instance (e.g. when attachments change), and can do so during the fly. If the
+        // marker is gone, there is nothing to open.
+        markerInstancesRef.current.get(id)?.openPopup();
       };
       pendingOpenRef.current = openWhenLanded;
       map.on("moveend", openWhenLanded);
       map.flyTo([mk.lat, mk.lng], Math.max(map.getZoom(), 9), { duration: 0.6 });
     });
+    return () => {
+      cancelled = true;
+      if (pendingOpenRef.current) {
+        map.off("moveend", pendingOpenRef.current);
+        pendingOpenRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
