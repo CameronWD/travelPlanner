@@ -20,11 +20,18 @@ export const CHECKLISTS_TITLE_CLASS =
 /**
  * Kit Segmented, teal tone (together.jsx Checklists). Overrides the Tabs
  * primitive's ink active fill; adds the Segmented primitive's 44px coarse-
- * pointer hit area (the list is `overflow-visible` here so it isn't clipped —
- * three tabs fit at 390px). Exported for tests.
+ * pointer hit area (32px pill + 6px above and below). Exported for tests.
  */
+/**
+ * Tab list: keeps the primitive's `overflow-x-auto` so the pill scrolls on
+ * 360/375px phones instead of spilling. That overflow clips at the padding
+ * box, so on touch the list grows to 48px: its 44px padding box then holds
+ * each trigger's full 44px hit area. Exported for tests.
+ */
+export const CHECKLISTS_TABS_LIST_CLASS = "max-sm:gap-0 pointer-coarse:h-12";
+
 export const CHECKLISTS_TAB_CLASS =
-  "relative data-[state=active]:bg-teal data-[state=active]:text-on-accent pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-1.5 pointer-coarse:after:content-['']";
+  "relative shrink-0 max-sm:px-2.5 data-[state=active]:bg-teal data-[state=active]:text-on-accent pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-1.5 pointer-coarse:after:content-['']";
 
 export default async function ChecklistsPage({
   params,
@@ -93,7 +100,7 @@ export default async function ChecklistsPage({
 
       <div className={CHECKLISTS_READING_WIDTH_CLASS}>
       <Tabs defaultValue="pretrip" className="w-full">
-        <TabsList className="overflow-visible">
+        <TabsList className={CHECKLISTS_TABS_LIST_CLASS}>
           <TabsTrigger value="pretrip" className={CHECKLISTS_TAB_CLASS}>
             Pre-trip
             {pretripItems.length > 0 && (
