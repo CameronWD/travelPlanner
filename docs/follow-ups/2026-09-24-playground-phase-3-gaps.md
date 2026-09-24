@@ -330,5 +330,25 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
 - **`shared/admin.jsx` `WhatsNew` — short "22 SEP" date label.** Kit shows: day and month. We
   have: "21 September 2026" in the kit label style, keeping the year. Not built because:
   product decision.
+- **`shared/share.jsx` `SharePage` — header "What's Teepee?" / "Sign in" buttons.** Kit shows: a
+  ghost "What's Teepee?" and a secondary "Sign in" beside the logo. We have: the logo only; there
+  is no marketing page to link to, and the share page reads no session. Not built because:
+  product decision (whether a public trip page should funnel to sign-in).
+- **`shared/share.jsx` `SharePage` — hero AvatarStack and "Cameron, Jess + Alex".** Kit shows: the
+  Travellers' avatars and first names on the public page. We have: no people on the share page
+  (the fetch deliberately selects trip fields only). Not built because: product decision (it
+  would disclose who is on the trip to anyone holding the link).
+- **`shared/share.jsx` `SharePage` — stop dots coloured by chapter; per-stop to-do line.** Kit
+  shows: route dots in the stop's chapter colour and up to three of the stop's plans under its
+  name. We have: every dot in teal, with the country and the stay (name, address) under the name;
+  plans appear in "Day by day" below. Not built because: product decision (chapters and a
+  per-stop plan summary are not in the public projection today; exposing them widens what a link
+  shares).
+- **`shared/share.jsx` `SharePage` — "Busiest day" sun card.** Kit shows: the day with the most
+  plans, as a date and a one-line summary. We have: the full day-by-day list. Not built because:
+  new feature.
+- **`shared/share.jsx` `SharePage` — "Going too?" ink card ("Ask to join", "Copy this trip").**
+  Kit shows: a join request and a copy-this-trip action for viewers. We have: neither — a share
+  link is read-only and joining is by invite (ADR 0017). Not built because: new feature.
 
 ## p3/og-default
