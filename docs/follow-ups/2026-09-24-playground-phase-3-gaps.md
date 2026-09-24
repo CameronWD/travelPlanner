@@ -254,6 +254,33 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   status) at full precision, since the page is for comparing them. Not built because: product
   decision (dropping stats we compute would lose comparison information).
 
+- **`shared/onthego.jsx` `Globe` — All / Been / Want switch, the "been" chip on rows and the
+  been / want-to-go legend.** Kit shows: an ink Segmented filtering places you've been from places
+  you want to go, lilac "been" chips, and a two-dot legend under the map. We have: every Marker is
+  a place you want to go; the list filters by search, country and category (kit Chips), and pins
+  are coloured by category. Not built because: needs a data model (a Marker has no been/want
+  state).
+- **`shared/onthego.jsx` `Globe` — "23 someday" and "3 trips" stat chips.** Kit shows: lilac
+  countries, coral someday and white trips counts. We have: lilac "N countries" and coral
+  "N markers", both counted from the Globe's Markers. Not built because: new feature (the Globe
+  page fetches no trips, and "someday" needs the been/want split above).
+- **`shared/onthego.jsx` `Globe` — "+ To a trip" on each row, and the trip name as the row's
+  sub-line ("Japan in Autumn").** Kit shows: a secondary button that adds the place to a trip's
+  wishlist, and the trip a been-place came from. We have: a Marker is pulled into a Trip from that
+  Trip's Wishlist board (Add from Globe / suggestions); the sub-line is city · category · when.
+  Not built because: new feature (a trip picker on the Globe) and needs a data model (a Marker
+  records no trip).
+- **`shared/onthego.jsx` `Globe` — place-name labels beside every map pin.** Kit shows: each pin
+  with a pill label ("Kyoto", "Lisbon"). We have: category-coloured pins (lib/map-pins.ts, owned by
+  the audit-findings work) whose name shows in the popup on tap. Not built because: product
+  decision (always-on labels overlap on a real, zoomable tile map; pins are out of this task's
+  scope).
+- **`shared/onthego.jsx` `Globe` — "+ Drop a pin" header button.** Kit shows: that copy. We
+  have: "+ Add marker", because the button opens place search rather than dropping a pin, and
+  CONTEXT.md reserves "pin" language (Markers are added or dropped; "Pinned" is a Stop). The map
+  caption uses the kit line with our noun: "Tap the map to drop a marker". Not built because:
+  product decision (copy accuracy).
+
 ## p3/admin-kit
 
 ## p3/og-default
