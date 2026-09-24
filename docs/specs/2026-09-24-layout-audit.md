@@ -83,8 +83,10 @@ recorded as a coverage gap, not skipped silently.
 Each hit → one entry in `findings.auto.json`:
 `{ id, check, route, trip, width, theme, overlay?, selector, text?, rect, detail }`.
 
-1. **Page scrolls sideways** — `document.documentElement.scrollWidth > innerWidth + 1`; record
-   the widest offending elements.
+1. **Page scrolls sideways** — `document.documentElement.scrollWidth > document.documentElement.clientWidth + 1`
+   (not `innerWidth`: in mobile emulation an overflowing page zooms out and `innerWidth` grows to the
+   content width, so an `innerWidth` check can never fire on phones); record the widest offending
+   elements.
 2. **Spills out of container** — an element whose box extends past its nearest ancestor that
    clips or scrolls-hides (`overflow` not `visible`) or past the viewport, excluding elements
    inside an intentional horizontal scroller (`overflow-x: auto|scroll`) and Leaflet panes.
