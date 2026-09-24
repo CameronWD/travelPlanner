@@ -365,7 +365,7 @@ export function WishlistBoard({
       )}
 
       {/* ── List view — Items grouped by stop ── */}
-      {view === "list" && (!isEmpty || aiConfigured) && stops.length > 0 && (
+      {view === "list" && (!isEmpty || aiConfigured) && (stops.length > 0 || anywhereItems.length > 0) && (
         <div className="flex flex-col gap-6">
           {/* Stop-grouped sections */}
           {stopsToShow.map((stop) => {
