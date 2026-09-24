@@ -283,4 +283,27 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
 
 ## p3/admin-kit
 
+- **`shared/admin.jsx` `Account` — teal profile card (avatar, name, "email · Google").** Kit
+  shows: the signed-in Traveller's avatar, name, email and sign-in provider as the first card. We
+  have: name and email only inside the header avatar menu; the page does not read the session, and
+  no sign-in provider is surfaced anywhere. Not built because: new feature.
+- **`shared/admin.jsx` `Account` — "Look" card (Light / Dark / System Segmented).** Kit shows: a
+  three-way theme picker on Account. We have: the header's light/dark toggle
+  (`components/ui/theme-toggle.tsx`), with no "System" option on screen. Not built because: new
+  feature (a second theme control, plus a System choice).
+- **`shared/admin.jsx` `Account` — "Notifications" card ("Per event and channel. Quiet hours…",
+  "Notification settings" row).** Kit shows: per-event, per-channel notification settings with
+  quiet hours. We have: per-trip Digest switches and the Devices list; CONTEXT.md reserves
+  "notification" for the Activity bell, and account tests forbid the word here, so our "Devices" /
+  "Which trips send you a digest" headings stay. Not built because: new feature (channels, events
+  and quiet hours don't exist).
+- **`shared/admin.jsx` `Account` — "Help and more" card (How Teepee works / What's new / Send
+  feedback rows, "3 updates since you last looked").** Kit shows: three ListRows linking out, one
+  with an unseen-updates count. We have: "How to use Teepee" and "What's new" in the header avatar
+  menu, and Feedback from its own floating button; no unseen-updates count. Not built because:
+  product decision (placement — these live in the avatar menu today).
+- **`shared/admin.jsx` `Account` — "Sign out" secondary button.** Kit shows: sign out as a button
+  on Account. We have: "Sign out" in the header avatar menu (`components/ui/sign-out-button.tsx`).
+  Not built because: product decision (placement).
+
 ## p3/og-default
