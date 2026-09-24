@@ -158,19 +158,27 @@ export default async function TripsPage() {
               />
             </AnimatedItem>
           ))}
-          {/* Kit's dashed "+ Start a new trip" grid tile (DTrips.jsx / Trips.jsx) — the
-              header button above already covers this action, so this is a second,
-              faithful-to-kit affordance rather than a new one. */}
+          {/* Kit's dashed "+ Start a new trip" grid tile — DTrips.jsx (desktop): an
+              in-grid dashed Card. Hidden below `lg`, where the mobile kit (Trips.jsx)
+              instead renders a full-width dashed Button below the grid (next sibling).
+              The header button above already covers this action, so both are a second,
+              faithful-to-kit affordance rather than a new one. `hidden` (not just
+              visually hidden) keeps only one of the two out of the a11y tree at a time. */}
           <Link
             href="/trips/new"
             className={cn(
               cardVariants({ radius: "xl", dashed: true, interactive: true }),
-              "flex min-h-36 items-center justify-center p-5 text-center text-sm font-extrabold text-muted-foreground hover:text-foreground",
+              "hidden min-h-36 items-center justify-center p-5 text-center text-sm font-extrabold text-muted-foreground hover:text-foreground lg:flex",
             )}
           >
             + Start a new trip
           </Link>
         </AnimatedList>
+      )}
+      {trips.length > 0 && (
+        <Button asChild variant="dashed" className="w-full lg:hidden">
+          <Link href="/trips/new">+ Start a new trip</Link>
+        </Button>
       )}
     </div>
   );
