@@ -53,6 +53,13 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   from the trips already fetched, but no per-trip country field to total "countries so
   far". Not built because: needs a data model (no country data recorded per trip/stop to
   aggregate).
+- **`shared/forms.jsx` — form surface (new trip).** Kit shows: form fields inside a
+  bottom sheet/dialog (`Sheet`) with a single full-width primary CTA in a sticky footer;
+  the kit has no dedicated "new trip" screen at all — the "Forms" chip only demos generic
+  field styling (`EditStopForm`/`BookingForm`) inside that same sheet chrome. We have: a
+  full page at `/trips/new` (route unchanged) with inline "Cancel" + "Create trip"
+  actions, since there is no sheet to dismiss on a page. Not built because: product
+  decision (controller: keep this a page, not a sheet/dialog).
 
 ## p3/together
 
