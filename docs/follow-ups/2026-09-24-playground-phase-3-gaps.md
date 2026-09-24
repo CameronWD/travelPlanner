@@ -135,6 +135,22 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   product decision (our cards carry the vote picker, cost editor and a 44px Schedule
   button, which do not fit a ~175px column).
 
+- **`DDays.jsx` / `Days.jsx` — "Packed · 6 things" sticker on the day card.** Kit shows: a
+  coral day-load chip pinned over the selected day's card. We have: no day-load measure; the
+  Day page shows the day's rows only. Not built because: new feature.
+- **`DDays.jsx` / `Days.jsx` — "Heads up — that's a lot for a travel day. Move one to
+  Sunday?"** Kit shows: a busy-day advisory suggesting a move to another day. We have: the
+  tight-connection advisory (`DayFeasibility`, "Getting around"), restyled into the kit's sun
+  heads-up card; no busy-day heuristic and no move suggestion. Not built because: new feature.
+- **`DDays.jsx` day panel — "Kyoto · check-in day" day-type line.** Kit shows: the stop plus
+  what kind of day it is under the date. We have: stop, country and time zone. Not built
+  because: new feature.
+- **`Days.jsx` / `DDays.jsx` — the day as a panel beside/below the month grid.** Kit shows:
+  one Days screen, calendar on top (or left) with the selected day's plan beneath (or in the
+  right panel). We have: a dedicated Day route (prev/next, map, ideas, journal) linked from
+  the calendar page (Task 12b), with its plan in the kit's day card. Not built because:
+  product decision (the Day route carries far more than the kit panel).
+
 ## p3/together
 
 ## p3/admin-kit

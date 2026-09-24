@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
-import { buildItinerary, isFreeFormDay } from "@/lib/itinerary";
+import { buildItinerary, isFreeFormDay, dayHasEntries } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
 import { nearbyWishlistItems, dayIdeasWishlist } from "@/lib/nearby";
 import { flagTightConnections } from "@/lib/flags";
@@ -16,6 +16,7 @@ import { zoneLabel } from "@/lib/time-display";
 import { computeTripPhase } from "@/lib/trip-phase";
 import { orderPlanStops } from "@/lib/plan-order";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Card } from "@/components/ui/card";
 import { Timeline } from "@/components/trip/timeline";
 import { DayNav } from "@/components/trip/day-nav";
 import { DayMapPanel } from "@/components/trip/day-map-panel";
@@ -365,6 +366,7 @@ export default async function DayPage({
   const today = todayISOInZone(currentTripTimezone(orderPlanStops(stops)));
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
   const freeForm = isFreeFormDay(dayPlan);
+  const hasEntries = dayHasEntries(dayPlan);
   const dayStop = stops.find((s) => s.id === dayPlan.stop?.id) ?? null;
   // Only fetch when DayIdeas will actually render (freeForm + Travelling +
   // a resolvable stop) — a pre-departure free-form day shows the light
@@ -441,20 +443,34 @@ export default async function DayPage({
     { windingFactor: 1.5, avgSpeedKph: 80 },
   ).map((f) => ({ severity: f.severity, message: f.message }));
 
+  // Pre-departure free-form day: the light "browse your wishlist" nudge. On a
+  // wholly empty day it rides in the empty state instead of repeating it.
+  const showIdeas = freeForm && phase === "travelling" && dayStop;
+  const browseWishlist = (
+    <>
+      Nothing planned yet —{" "}
+      <Link href={`/trips/${tripId}/wishlist`} className="font-bold text-foreground underline underline-offset-2">
+        browse your wishlist
+      </Link>{" "}
+      or add something below.
+    </>
+  );
+  const nudgeInEmptyState = freeForm && !showIdeas && !hasEntries;
+
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 lg:gap-[18px]">
       <div className={DAY_HEADER_GRID_CLASS}>
         {/* Day header */}
-        <div className="flex flex-col gap-1">
-          <h2 className="font-display text-3xl font-bold tracking-tight text-foreground">
+        <div className="flex flex-col gap-1.5">
+          <h2 className="font-display text-[30px] font-extrabold leading-none tracking-[-0.04em] text-foreground lg:text-4xl">
             {formatLongDate(effectiveDate)}
           </h2>
           {dayPlan.stop && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm font-medium text-muted-foreground">
               {dayPlan.stop.name}
               {dayPlan.stop.country ? `, ${dayPlan.stop.country}` : ""}
               {dayPlan.stop.timezone && (
-                <span className="text-xs text-muted-foreground">
+                <span className="text-xs">
                   {" · "}{zoneLabel(dayPlan.stop.timezone, effectiveDate)}
                 </span>
               )}
@@ -478,9 +494,9 @@ export default async function DayPage({
       <DayMapPanel tripId={tripId} model={dayMapModel} />
 
       {/* Reading column: timeline + editor stack capped at max-w-3xl */}
-      <div className={`${DAY_READING_WIDTH_CLASS} flex flex-col gap-4`}>
+      <div className={`${DAY_READING_WIDTH_CLASS} flex flex-col gap-4 lg:gap-[18px]`}>
         {/* Nearby Wishlist items */}
-        {freeForm && phase === "travelling" && dayStop ? (
+        {showIdeas ? (
           <DayIdeas
             tripId={tripId}
             date={effectiveDate}
@@ -488,42 +504,55 @@ export default async function DayPage({
             wishlistIdeas={wishlistIdeas}
           />
         ) : freeForm ? (
-          <p className="text-sm text-muted-foreground">
-            Nothing planned yet —{" "}
-            <Link href={`/trips/${tripId}/wishlist`} className="underline hover:text-foreground">
-              browse your wishlist
-            </Link>{" "}
-            or add something below.
-          </p>
+          nudgeInEmptyState ? null : (
+            <p className="text-sm font-medium text-muted-foreground">{browseWishlist}</p>
+          )
         ) : (
           <NearbyWishlist tripId={tripId} date={effectiveDate} items={nearby} />
         )}
 
-        {/* Feasibility advisory */}
+        {/* The day's plan (kit Days day card: time · thing rows) */}
+        <Card className="p-3.5 lg:p-5">
+          <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
+            Day plan
+          </h3>
+          <div className="mt-2.5">
+            {hasEntries ? (
+              <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} showUnschedule />
+            ) : (
+              <EmptyState
+                icon={CalendarDays}
+                tone="sun"
+                title="Nothing planned"
+                description={nudgeInEmptyState ? browseWishlist : "Nothing is scheduled for this day yet."}
+                className="py-5"
+              />
+            )}
+          </div>
+        </Card>
+
+        {/* Feasibility advisory (kit sun "heads up" card) */}
         <DayFeasibility entries={feasibility} />
 
-        {/* Detailed timeline */}
-        <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} showUnschedule />
-
-        {/* Quick add */}
-        <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">Add something to this day</p>
-          <AddItemButton
-            tripId={tripId}
-            stops={stopOptions}
-            tripStartDate={effectiveDate}
-            defaultUnscheduled={false}
-            label="Add to this day"
-          />
-        </div>
+        {/* Quick add (kit: block secondary "+ Add to this day") */}
+        <AddItemButton
+          tripId={tripId}
+          stops={stopOptions}
+          tripStartDate={effectiveDate}
+          defaultUnscheduled={false}
+          label="Add to this day"
+          variant="secondary"
+          size="md"
+          className="w-full"
+        />
 
         {/* Journal */}
-        <section aria-labelledby="journal-heading">
+        <section aria-labelledby="journal-heading" className="mt-2">
           <div className="mb-3 flex items-center gap-2">
-            <BookOpen className="size-4 text-primary" aria-hidden />
+            <BookOpen className="size-[18px] text-foreground" strokeWidth={2.5} aria-hidden />
             <h3
               id="journal-heading"
-              className="font-display text-lg font-semibold text-foreground"
+              className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground"
             >
               Journal
             </h3>
@@ -538,15 +567,13 @@ export default async function DayPage({
                 authorName={entry.author.name}
               />
             ))}
-            <div className="rounded-xl border border-border bg-card px-4 py-4">
-              <JournalEditor
-                tripId={tripId}
-                date={effectiveDate}
-                initialBody={myJournalEntry?.body ?? ""}
-                updatedAt={myJournalEntry?.updatedAt ?? null}
-                photos={journalPhotos}
-              />
-            </div>
+            <JournalEditor
+              tripId={tripId}
+              date={effectiveDate}
+              initialBody={myJournalEntry?.body ?? ""}
+              updatedAt={myJournalEntry?.updatedAt ?? null}
+              photos={journalPhotos}
+            />
           </div>
         </section>
       </div>
