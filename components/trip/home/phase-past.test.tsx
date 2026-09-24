@@ -384,10 +384,12 @@ describe("PhasePast Playground kit restyle (Task 10b)", () => {
     expect(over.className).toMatch(/\bbg-destructive\b/);
   });
 
-  it("frames the route map in a kit Card and keeps money a shared pot", async () => {
+  it("renders the route map bare (it draws its own kit frame) and keeps money a shared pot", async () => {
     const { Card } = await import("@/components/ui/card");
-    const parent = findParent(await render(), RouteMapLoader);
-    expect(parent?.type).toBe(Card);
+    const tree = await render();
+    expect(findElementByType(tree, RouteMapLoader)).not.toBeNull();
+    // No Card around the map: the map's own 2px outline + hard shadow is the frame.
+    expect(findParent(tree, RouteMapLoader)?.type).not.toBe(Card);
     const div = await dom();
     expect(div.textContent).toContain("shared pot");
     expect(div.textContent).not.toMatch(/per person|each owes|split/i);

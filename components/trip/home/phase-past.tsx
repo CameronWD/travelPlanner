@@ -16,7 +16,6 @@ import { buildSpendSoFar, type SpendCost } from "@/lib/spend-so-far";
 import { chapterForStop } from "@/lib/chapters";
 import { chapterColourSwatch } from "@/lib/chapter-colours";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatCard } from "@/components/ui/stat-card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -306,9 +305,8 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   );
 
   const routeMap = mapStops.length > 0 ? (
-    <Card className="overflow-hidden p-0">
-      <RouteMap stops={mapStops} height={200} />
-    </Card>
+    // The map draws its own kit frame (2px outline, hard shadow) — no Card around it.
+    <RouteMap stops={mapStops} height={200} />
   ) : (
     // Kit shared/states.jsx "Plan" empty — the route has nothing to draw.
     <EmptyState
