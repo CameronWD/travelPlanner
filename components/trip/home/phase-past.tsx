@@ -226,9 +226,11 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
   const totalNights = nightsBetween(startDate, endDate);
   const { grandTotal } = budget;
 
-  // Spend retro: use trip end as "today" so tripElapsedPct reads 100 %
+  // Spend retro: use trip end as "today" so tripElapsedPct reads 100 %.
+  // Fed the same FX-applied costs as the budget roll-up, so "Trip cost" and
+  // "of X cost" can never disagree on a multi-currency trip.
   const spend = buildSpendSoFar({
-    costs: costs as SpendCost[],
+    costs: costsWithRates as SpendCost[],
     homeCurrency,
     tripStart: startDate,
     tripEnd: endDate,

@@ -41,9 +41,21 @@ vi.mock("@/lib/db", () => ({
     journalEntry: { count: journalEntryCountMock },
   },
 }));
-vi.mock("@/lib/dates", () => ({ nightsBetween: vi.fn() }));
-vi.mock("@/lib/money", () => ({ formatMoney: vi.fn() }));
-vi.mock("@/lib/budget", () => ({ buildBudget: buildBudgetMock, applyFxRatesToCosts: vi.fn() }));
+// Keep the real date helpers (the FX-consistency test below runs the real
+// budget/spend builders, which need daysBetween); only nightsBetween is stubbed.
+vi.mock("@/lib/dates", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/dates")>()),
+  nightsBetween: vi.fn(),
+}));
+vi.mock("@/lib/money", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/money")>()),
+  formatMoney: vi.fn(),
+}));
+vi.mock("@/lib/budget", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/budget")>()),
+  buildBudget: buildBudgetMock,
+  applyFxRatesToCosts: vi.fn(),
+}));
 vi.mock("@/lib/spend-so-far", () => ({ buildSpendSoFar: buildSpendSoFarMock }));
 vi.mock("@/lib/chapters", () => ({ chapterForStop: vi.fn() }));
 vi.mock("@/lib/chapter-colours", () => ({ chapterColourSwatch: vi.fn() }));
@@ -380,6 +392,28 @@ describe("PhasePast Playground kit restyle (Task 10b)", () => {
     expect(div.textContent).toContain("shared pot");
     expect(div.textContent).not.toMatch(/per person|each owes|split/i);
     expect(div.innerHTML).not.toMatch(/rounded-2xl border border-border|shadow-soft|hsl\(/);
+  });
+
+  it("reads 'Trip cost' and 'of X cost' from one FX source — a foreign cost priced only by the rate table counts in both", async () => {
+    const actualBudget = await vi.importActual<typeof import("@/lib/budget")>("@/lib/budget");
+    const actualSpend = await vi.importActual<typeof import("@/lib/spend-so-far")>("@/lib/spend-so-far");
+    const budgetMod = await import("@/lib/budget");
+    buildBudgetMock.mockImplementation(actualBudget.buildBudget);
+    vi.mocked(budgetMod.applyFxRatesToCosts).mockImplementation(actualBudget.applyFxRatesToCosts);
+    buildSpendSoFarMock.mockImplementation(actualSpend.buildSpendSoFar);
+    costFindManyMock.mockResolvedValue([
+      // £100 home-currency cost, paid.
+      { id: "c1", costMinor: 10000, paidMinor: 10000, currency: "GBP", rateToHome: null, paidAt: new Date("2026-01-02"), ownerType: "OTHER", ownerId: null, label: "Hotel", category: "OTHER" },
+      // €200 with no stored rateToHome — only the trip's rate table prices it (EUR→GBP 0.5 = £100).
+      { id: "c2", costMinor: 20000, paidMinor: null, currency: "EUR", rateToHome: null, paidAt: null, ownerType: "OTHER", ownerId: null, label: "Tour", category: "OTHER" },
+    ]);
+    exchangeRateFindManyMock.mockResolvedValue([{ base: "EUR", quote: "GBP", rate: 0.5 }]);
+
+    const div = await dom();
+    const statCard = (label: string) =>
+      [...div.querySelectorAll(".text-label")].find((el) => el.textContent === label)!.parentElement!;
+    expect(statCard("Trip cost").textContent).toContain("£200.00");
+    expect(statCard("Paid so far").textContent).toContain("of £200.00 cost");
   });
 
   it("renders the kit empty treatment in place of the route map when no stop has dates", async () => {
