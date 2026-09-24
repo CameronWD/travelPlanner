@@ -110,6 +110,15 @@ describe("MonthGrid — kit Days tiles (Task 12b)", () => {
     expect(link).toHaveAccessibleName(/2 things/);
   });
 
+  it("names the stop's country in the tile label, and omits it when absent", () => {
+    const noCountry = { ...dayPlan("2026-07-15", 0), stop: { ...dayPlan("2026-07-15", 0).stop!, country: null } };
+    render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", 0), noCountry as DayPlan]} />);
+    expect(screen.getByRole("link", { name: /Tue 14 Jul 2026/ })).toHaveAccessibleName(/Paris, France/);
+    const bare = screen.getByRole("link", { name: /Wed 15 Jul 2026/ });
+    expect(bare).toHaveAccessibleName(/Paris/);
+    expect(bare).not.toHaveAccessibleName(/France|null|undefined|, ,/);
+  });
+
   it("the stop band and tile tint come from lib/stop-colours.ts", () => {
     render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", 0)]} />);
     const link = screen.getByRole("link", { name: /Tue 14 Jul 2026/ });

@@ -111,6 +111,7 @@ export function MonthGrid({
           const label = [
             formatLongDate(cell.dateISO),
             day?.stop?.name,
+            day?.stop?.country,
             itemCount > 0 ? thingsLabel : null,
             packed ? "busy day" : null,
             isToday ? "today" : null,
