@@ -360,6 +360,11 @@ Handoff defects found while building phase 3 are appended here, one bullet each:
   wraps `trailing` in `aria-hidden="true"` (right for the default chevron), yet TripSettings passes
   an interactive `Toggle` there ("Read-only link"), which hides the switch from assistive tech —
   on Account we render the `Switch` / Remove button as a sibling of the row, not in `trailing`.
+- **`app/global-error.tsx`** — the badge, `<h1>` and `.tp-btn` use `font: "800 30px/1 inherit"`
+  (and `800 15px/1 inherit`); `inherit` is CSS-wide and can't sit inside the `font` shorthand, so
+  browsers drop the whole declaration and the heading/badge fall back to UA sizes — we spell the
+  family out (`800 30px/1 ui-sans-serif, system-ui, …`, the `<body>` stack), keeping the intended
+  sizes and weights; a test forbids `inherit` inside a `font` shorthand.
 
 ---
 

@@ -21,6 +21,10 @@ import {
  * `prefers-color-scheme` because the `.dark` class on <html> came from the
  * layout that just failed.
  */
+// `inherit` can't go inside the `font` shorthand (it's CSS-wide only), so every
+// shorthand here names the family explicitly — the same stack as <body>.
+const FONT_STACK = `ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif`;
+
 const CSS = `
 :root{
   --background: 40 100% 98%;
@@ -41,8 +45,8 @@ const CSS = `
   }
 }
 *{box-sizing:border-box}
-body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:hsl(var(--background));color:hsl(var(--foreground));font:600 15px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
-.tp-btn{appearance:none;border:2px solid hsl(var(--foreground));border-radius:999px;height:48px;padding:0 22px;font:800 15px/1 inherit;font-family:inherit;cursor:pointer;background:hsl(var(--foreground));color:hsl(var(--background));box-shadow:4px 4px 0 hsl(var(--coral));transition:transform 120ms cubic-bezier(.2,.8,.2,1),box-shadow 120ms cubic-bezier(.2,.8,.2,1)}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:hsl(var(--background));color:hsl(var(--foreground));font:600 15px/1.45 ${FONT_STACK};-webkit-font-smoothing:antialiased}
+.tp-btn{appearance:none;border:2px solid hsl(var(--foreground));border-radius:999px;height:48px;padding:0 22px;font:800 15px/1 ${FONT_STACK};cursor:pointer;background:hsl(var(--foreground));color:hsl(var(--background));box-shadow:4px 4px 0 hsl(var(--coral));transition:transform 120ms cubic-bezier(.2,.8,.2,1),box-shadow 120ms cubic-bezier(.2,.8,.2,1)}
 .tp-btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 hsl(var(--coral))}
 .tp-btn:focus-visible,.tp-link:focus-visible{outline:3px solid hsl(var(--foreground));outline-offset:3px}
 .tp-link{color:hsl(var(--foreground));font-weight:800;text-underline-offset:3px}
@@ -132,12 +136,12 @@ export default function GlobalError({
               display: "grid",
               placeItems: "center",
               color: "hsl(var(--on-accent))",
-              font: "800 30px/1 inherit",
+              font: `800 30px/1 ${FONT_STACK}`,
             }}
           >
             !
           </div>
-          <h1 style={{ margin: "8px 0 0", font: "800 30px/1 inherit", letterSpacing: "-0.03em" }}>
+          <h1 style={{ margin: "8px 0 0", font: `800 30px/1 ${FONT_STACK}`, letterSpacing: "-0.03em" }}>
             Teepee fell over
           </h1>
           <p style={{ margin: 0, color: "hsl(var(--muted-foreground))", maxWidth: 300 }}>
