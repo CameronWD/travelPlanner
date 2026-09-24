@@ -128,6 +128,65 @@
  *   markup. They're covered anyway, for real, by navigation: see the
  *   "not-found" entries in ROUTES below.
  *
+ * EXEMPTION: WCAG 1.4.3 inactive user interface components
+ * -----------------
+ *   Leaflet's own disabled zoom-in/zoom-out control (`.leaflet-control-zoom-*`,
+ *   stock CSS from node_modules/leaflet/dist/leaflet.css: #bbb text on #f4f4f4,
+ *   ~1.75:1) fails 3:1 in both themes, on both map surfaces, always — but
+ *   WCAG 2.x SC 1.4.3 explicitly scopes the contrast minimum to "text ... that
+ *   is part of ... an inactive user interface component", so this specific
+ *   failure is not a design-token defect: it is the control's intended
+ *   "you can't zoom further" affordance, genuinely exempt by name in the
+ *   normative text, not a convenient excuse to silence a red gate.
+ *
+ *   Without this exemption those 4 rows can never leave the failure list —
+ *   Leaflet ships the colours, this app doesn't own them, and they don't vary
+ *   by theme — which makes the whole gate permanently red and therefore
+ *   useless: nobody reads a check that never passes. But the fix has to be
+ *   narrow, or it quietly re-opens the exact hole this script exists to
+ *   close (see "THREE TRAPS" above, and the node-count-regression fix below
+ *   it) — a bucket that's easy to fall into by *looking* disabled is just a
+ *   failure with a rug pulled over it.
+ *
+ *   So the check is a real DOM state query, not a class-name or a component
+ *   allowlist: `el.closest('[aria-disabled="true"], :disabled')`.
+ *     - `[aria-disabled="true"]` matches only the exact string "true" — an
+ *       element sitting at `aria-disabled="false"` (which Leaflet also sets,
+ *       on the *other* zoom button, the instant you're not at that extreme)
+ *       does NOT match. Confirmed directly in
+ *       node_modules/leaflet/dist/leaflet-src.js (~line 5570-5583): Leaflet
+ *       flips this attribute between "true" and "false" as the real map zoom
+ *       crosses min/max, so this reads live interaction state, not a static
+ *       marker some stylesheet happened to leave lying around.
+ *     - `:disabled` is a browser pseudo-class, true only for real form
+ *       controls (button/input/select/textarea/…) carrying the `disabled`
+ *       DOM property — the platform's own definition of "inactive", not a
+ *       heuristic this script invents.
+ *     - `.closest()` starts at the text-owning element itself (this app's
+ *       Leaflet control is a single `<a aria-disabled="true">+</a>`, text and
+ *       attribute on the same node) and only climbs to an ancestor when that
+ *       ancestor is itself one of these two genuinely-disabled shapes — never
+ *       a class name, a data attribute, a colour, or an opacity value. Nothing
+ *       that merely *looks* greyed out can match this selector.
+ *
+ *   A row that fails AND matches this selector is moved to its own
+ *   `exempted` bucket — reported in full (every row, not a count) under its
+ *   own clearly-labelled heading, same treatment as `unmeasured` — but,
+ *   unlike `unmeasured`, deliberately NOT wired into the non-zero exit
+ *   condition, because the whole point is that a real, verified exemption
+ *   should let the gate go green. A row that passes despite matching this
+ *   selector is just left as a normal pass; the bucket only exists to hold
+ *   failures that are being deliberately excused, not to flag every disabled
+ *   control the sweep happens to touch.
+ *
+ *   Alternative considered and rejected: overriding Leaflet's own disabled
+ *   colours in globals.css to hit 3:1. Rejected because the low contrast IS
+ *   the correct affordance here (WCAG names this exact case as exempt, not
+ *   merely tolerated), so "fixing" it would fight the control's own design
+ *   intent to satisfy a check that doesn't apply to it, and it would mean
+ *   carrying a permanent CSS override against a third-party stylesheet for a
+ *   problem WCAG itself says isn't one.
+ *
  * KNOWN GAP: TripCover's gradient fallback is dormant in this sweep
  * -----------------
  *   `components/trip/trip-cover.tsx`'s `MonogramCover` renders
@@ -419,6 +478,15 @@ interface ProbeRow {
    * background-color, so the old walk read them as fully transparent and
    * silently composited against whatever was further up instead). */
   unmeasurable: boolean;
+  /** True when this element (or the closest ancestor matching) is a
+   * genuinely inactive UI component — `[aria-disabled="true"]` or `:disabled`
+   * — per WCAG 1.4.3's exemption for inactive user interface components. See
+   * the docblock's "EXEMPTION" section. A failing row with exempt=true is
+   * reported separately and does not gate the exit code; exempt=true on a
+   * passing row is not reported specially at all. */
+  exempt: boolean;
+  /** Which selector matched, for the exemption report. Null unless exempt. */
+  exemptReason: string | null;
 }
 
 // IMPORTANT: this is a plain JS *string*, not a TypeScript function, and it
@@ -552,6 +620,18 @@ const PROBE_SCRIPT = `
       need: need,
     };
 
+    // WCAG 1.4.3 exemption for genuinely inactive UI components -- see the
+    // docblock's "EXEMPTION" section for why these two selectors specifically
+    // (a live interaction-state attribute, and the platform's own disabled
+    // pseudo-class) and not, say, a class name or a colour/opacity heuristic.
+    const disabledAncestor = el.closest('[aria-disabled="true"], :disabled');
+    const exempt = disabledAncestor !== null;
+    const exemptReason = !disabledAncestor
+      ? null
+      : disabledAncestor.matches('[aria-disabled="true"]')
+        ? 'aria-disabled="true"'
+        : ":disabled (form control)";
+
     const bg = effectiveBackground(el);
     if (bg.unmeasurable) {
       // Report the raw (possibly translucent) colour here -- there is no
@@ -564,6 +644,8 @@ const PROBE_SCRIPT = `
           ratio: null,
           pass: false,
           unmeasurable: true,
+          exempt: exempt,
+          exemptReason: exemptReason,
         }),
       );
       continue;
@@ -583,6 +665,8 @@ const PROBE_SCRIPT = `
         ratio: Math.round(ratio * 1000) / 1000,
         pass: ratio >= need,
         unmeasurable: false,
+        exempt: exempt,
+        exemptReason: exemptReason,
       }),
     );
   }
@@ -667,17 +751,33 @@ interface RouteResult {
    * an ancestor — see effectiveBackground()). Reported and counted as *not
    * clean*, same as a zero-node route — never silently dropped. */
   unmeasured: FailureRecord[];
+  /** Rows that failed the contrast minimum but sit on a genuinely inactive
+   * UI component (WCAG 1.4.3 exemption — see the docblock). Reported in
+   * full, but deliberately NOT counted toward the exit code — see main(). */
+  exempted: FailureRecord[];
 }
 
-function splitRows(rows: ProbeRow[], route: string, theme: Theme): { failures: FailureRecord[]; unmeasured: FailureRecord[] } {
+function splitRows(
+  rows: ProbeRow[],
+  route: string,
+  theme: Theme,
+): { failures: FailureRecord[]; unmeasured: FailureRecord[]; exempted: FailureRecord[] } {
   const failures: FailureRecord[] = [];
   const unmeasured: FailureRecord[] = [];
+  const exempted: FailureRecord[] = [];
   for (const r of rows) {
     const record: FailureRecord = { ...r, route, theme };
-    if (r.unmeasurable) unmeasured.push(record);
-    else if (!r.pass) failures.push(record);
+    if (r.unmeasurable) {
+      unmeasured.push(record);
+    } else if (!r.pass) {
+      // A failing row on a genuinely inactive control (verified selector,
+      // not a heuristic — see the docblock's EXEMPTION section) is excused,
+      // but visibly, in its own bucket -- never silently folded into "pass".
+      if (r.exempt) exempted.push(record);
+      else failures.push(record);
+    }
   }
-  return { failures, unmeasured };
+  return { failures, unmeasured, exempted };
 }
 
 async function auditRoute(page: Page, spec: RouteSpec, theme: Theme): Promise<RouteResult> {
@@ -694,7 +794,7 @@ async function auditRoute(page: Page, spec: RouteSpec, theme: Theme): Promise<Ro
   }
 
   const rows = await page.evaluate<ProbeRow[]>(PROBE_SCRIPT);
-  const { failures, unmeasured } = splitRows(rows, spec.path, theme);
+  const { failures, unmeasured, exempted } = splitRows(rows, spec.path, theme);
 
   return {
     route: spec.path,
@@ -704,6 +804,7 @@ async function auditRoute(page: Page, spec: RouteSpec, theme: Theme): Promise<Ro
     markerCount: markers,
     failures,
     unmeasured,
+    exempted,
   };
 }
 
@@ -778,7 +879,7 @@ async function auditErrorPanelHarness(page: Page, theme: Theme): Promise<RouteRe
 
       const rows = await page.evaluate<ProbeRow[]>(PROBE_SCRIPT);
       const route = `error-panel(kind=${kind},layout=${layout})`;
-      const { failures, unmeasured } = splitRows(rows, route, theme);
+      const { failures, unmeasured, exempted } = splitRows(rows, route, theme);
 
       results.push({
         route,
@@ -787,6 +888,7 @@ async function auditErrorPanelHarness(page: Page, theme: Theme): Promise<RouteRe
         nodeCount: rows.length,
         failures,
         unmeasured,
+        exempted,
       });
     }
   }
@@ -800,6 +902,14 @@ async function auditErrorPanelHarness(page: Page, theme: Theme): Promise<RouteRe
 function printFailure(f: FailureRecord): void {
   console.log(`\n  [${f.theme.toUpperCase()}] ${f.route}`);
   console.log(`    ratio ${f.ratio}:1 (needs ${f.need}:1) — ${f.px}px${f.bold ? " bold" : ""}`);
+  console.log(`    text: ${JSON.stringify(f.text)}`);
+  console.log(`    fg ${f.color} on bg ${f.bg}`);
+  console.log(`    class: "${f.cls}"`);
+}
+
+function printExempted(f: FailureRecord): void {
+  console.log(`\n  [${f.theme.toUpperCase()}] ${f.route}`);
+  console.log(`    ratio ${f.ratio}:1 (needs ${f.need}:1) — ${f.px}px${f.bold ? " bold" : ""} — EXEMPT: ${f.exemptReason}`);
   console.log(`    text: ${JSON.stringify(f.text)}`);
   console.log(`    fg ${f.color} on bg ${f.bg}`);
   console.log(`    class: "${f.cls}"`);
@@ -892,6 +1002,7 @@ async function main(): Promise<void> {
   const allResults: RouteResult[] = [];
   const allFailures: FailureRecord[] = [];
   const allUnmeasured: FailureRecord[] = [];
+  const allExempted: FailureRecord[] = [];
   const zeroNodeRoutes: string[] = [];
 
   for (const theme of ["light", "dark"] as const) {
@@ -908,11 +1019,13 @@ async function main(): Promise<void> {
       allResults.push(result);
       allFailures.push(...result.failures);
       allUnmeasured.push(...result.unmeasured);
+      allExempted.push(...result.exempted);
       if (result.nodeCount === 0) zeroNodeRoutes.push(`[${theme}] ${result.route}`);
       const markerNote = result.markerCount !== undefined ? `, markers=${result.markerCount}` : "";
       const unmeasuredNote = result.unmeasured.length > 0 ? `, unmeasured=${result.unmeasured.length}` : "";
+      const exemptedNote = result.exempted.length > 0 ? `, exempted=${result.exempted.length}` : "";
       console.log(
-        `[${theme}] ${result.route} — nodes=${result.nodeCount}${markerNote}, failures=${result.failures.length}${unmeasuredNote}`,
+        `[${theme}] ${result.route} — nodes=${result.nodeCount}${markerNote}, failures=${result.failures.length}${unmeasuredNote}${exemptedNote}`,
       );
     }
 
@@ -921,10 +1034,12 @@ async function main(): Promise<void> {
       allResults.push(result);
       allFailures.push(...result.failures);
       allUnmeasured.push(...result.unmeasured);
+      allExempted.push(...result.exempted);
       if (result.nodeCount === 0) zeroNodeRoutes.push(`[${theme}] ${result.route}`);
       const unmeasuredNote = result.unmeasured.length > 0 ? `, unmeasured=${result.unmeasured.length}` : "";
+      const exemptedNote = result.exempted.length > 0 ? `, exempted=${result.exempted.length}` : "";
       console.log(
-        `[${theme}] ${result.route} — nodes=${result.nodeCount}, failures=${result.failures.length}${unmeasuredNote}`,
+        `[${theme}] ${result.route} — nodes=${result.nodeCount}, failures=${result.failures.length}${unmeasuredNote}${exemptedNote}`,
       );
     }
 
@@ -981,6 +1096,7 @@ async function main(): Promise<void> {
       `Total text nodes: ${totalNodes}  ` +
       `Failures: ${allFailures.length}  ` +
       `Unmeasured: ${allUnmeasured.length}  ` +
+      `Exempted: ${allExempted.length}  ` +
       `Node-count regressions: ${nodeCountRegressions.length}`,
   );
 
@@ -1009,6 +1125,16 @@ async function main(): Promise<void> {
     for (const u of allUnmeasured) printUnmeasured(u);
   }
 
+  if (allExempted.length > 0) {
+    console.log(
+      `\nEXEMPTED (${allExempted.length}) — fail the contrast minimum but sit on a genuinely inactive UI ` +
+        `component (WCAG 1.4.3's exemption for inactive user interface components; see the docblock's ` +
+        `"EXEMPTION" section for the exact selector and why it's narrow). Printed in full, every row, and ` +
+        `NOT counted toward RESULT below — this bucket exists to make the exemption visible, not to hide it:`,
+    );
+    for (const e of allExempted) printExempted(e);
+  }
+
   if (allFailures.length > 0) {
     console.log(`\nFAILURES (${allFailures.length}):`);
     for (const f of allFailures) printFailure(f);
@@ -1019,11 +1145,15 @@ async function main(): Promise<void> {
   if (allFailures.length > 0 || zeroNodeRoutes.length > 0 || allUnmeasured.length > 0 || nodeCountRegressions.length > 0) {
     console.log(
       `RESULT: FAIL — ${allFailures.length} contrast failure(s), ${allUnmeasured.length} unmeasured row(s), ` +
-        `${zeroNodeRoutes.length} zero-node route(s), ${nodeCountRegressions.length} node-count regression(s).`,
+        `${zeroNodeRoutes.length} zero-node route(s), ${nodeCountRegressions.length} node-count regression(s). ` +
+        `(${allExempted.length} exempted row(s) not counted — see EXEMPTED above.)`,
     );
     process.exitCode = 1;
   } else {
-    console.log("RESULT: PASS — no contrast failures, no unmeasured rows, no zero-node routes, no node-count regressions.");
+    console.log(
+      `RESULT: PASS — no contrast failures, no unmeasured rows, no zero-node routes, no node-count regressions. ` +
+        `(${allExempted.length} exempted row(s) not counted — see EXEMPTED above.)`,
+    );
   }
 }
 
