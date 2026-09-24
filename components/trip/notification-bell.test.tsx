@@ -26,6 +26,16 @@ const baseActivity: RecentActivity = {
 describe("NotificationBell", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("labels the trigger with the unread count", () => {
+    render(<NotificationBell tripId="t" unreadCount={3} recent={[]} />);
+    expect(screen.getByRole("button", { name: /3 unread/i })).toBeInTheDocument();
+  });
+
+  it("shows no count badge when nothing is unread", () => {
+    render(<NotificationBell tripId="t" unreadCount={0} recent={[]} />);
+    expect(screen.queryByText("0")).toBeNull();
+  });
+
   it("shows unread badge when unreadCount > 0", () => {
     render(
       <NotificationBell tripId="t1" unreadCount={3} recent={[baseActivity]} />,
@@ -79,7 +89,10 @@ describe("NotificationBell", () => {
     );
     const trigger = screen.getByRole("button", { name: /Notifications/ });
     await user.click(trigger);
-    expect(await screen.findByText("No activity yet.")).toBeInTheDocument();
+    expect(await screen.findByText("All quiet")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Changes your people make show up here."),
+    ).toBeInTheDocument();
   });
 
   it("calls markAllRead with the tripId when 'Mark all read' is clicked", async () => {
