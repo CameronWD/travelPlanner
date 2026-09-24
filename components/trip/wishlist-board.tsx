@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Globe2, Heart } from "lucide-react";
+import { Globe2, Heart } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ItemCard, type ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
@@ -16,6 +16,9 @@ import { AiActivitySuggestions } from "./ai-activity-suggestions";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Segmented, SegmentedItem } from "@/components/ui/segmented";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { WishlistMapLoader } from "./wishlist-map-loader";
 import type { MarkerView } from "@/components/globe/types";
 import { AddFromGlobeDialog } from "./add-from-globe-dialog";
@@ -200,12 +203,83 @@ export function WishlistBoard({
   const defaultScheduleDate = stops[0]?.arriveDate ?? tripStartDate ?? undefined;
   const tripStartDateValue = tripStartDate ?? undefined;
 
+  // Kit copy (states.jsx EMPTY.Wishlist / DWishlist "+ Add an idea").
+  const ADD_LABEL = "Add an idea";
+  const addProps = {
+    tripId,
+    stops: stopOptions,
+    tripStartDate: tripStartDateValue,
+    defaultUnscheduled: true,
+    homeCurrency,
+    label: ADD_LABEL,
+  };
+
+  // Map filter chips are the kit's 28px pills; on touch the hit area grows to 44px.
+  const chipTouch = "relative pointer-coarse:after:absolute pointer-coarse:after:-inset-2 pointer-coarse:after:content-['']";
+
+  function renderIdeaGrid(groupItems: ItemCardItem[], withAddTile: boolean) {
+    return (
+      <AnimatedList
+        as="ul"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-[18px] xl:grid-cols-3"
+      >
+        {groupItems.map((item, i) => (
+          <AnimatedItem key={item.id} as="li" className="min-w-0">
+            <ItemCard
+              item={item}
+              mode="wishlist"
+              // Kit rhythm (DWishlist.jsx): every second card of three is sun.
+              tone={i % 3 === 1 ? "sun" : "white"}
+              placed={placedSet.has(item.id)}
+              isPending={pendingId === item.id}
+              onEdit={setEditingItem}
+              onDelete={handleDelete}
+              onSchedule={setSchedulingItem}
+              costs={costsByItemId?.get(item.id)}
+              tripId={tripId}
+              homeCurrency={homeCurrency}
+              notes={notesByItemId?.get(item.id) ?? []}
+              votes={votesByItemId?.get(item.id) ?? []}
+              currentUserId={currentUserId}
+              forkId={activeForkId ?? null}
+            />
+          </AnimatedItem>
+        ))}
+        {withAddTile && (
+          // Desktop: the kit's dashed "+ Add an idea" tile closes the grid.
+          <AnimatedItem key="add-an-idea" as="li" className="hidden min-w-0 sm:block">
+            <AddItemButton
+              {...addProps}
+              variant="dashed"
+              size="md"
+              className="size-full min-h-[170px] rounded-lg text-[15px]"
+            />
+          </AnimatedItem>
+        )}
+      </AnimatedList>
+    );
+  }
+
+  function renderGroupHeader(title: string, count: number) {
+    return (
+      <div className="flex items-center gap-2 px-1">
+        <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">{title}</h3>
+        <Badge variant="outline">{count} {count === 1 ? "idea" : "ideas"}</Badge>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-        <div className="min-w-0">
-          <h2 className="font-display text-2xl font-semibold">Wishlist</h2>
+      {/* Header — kit: display title + "N ideas" chip, add action right */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <h2 className="font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl">
+            Wishlist
+          </h2>
+          {!isEmpty && (
+            <Badge>{items.length} {items.length === 1 ? "idea" : "ideas"}</Badge>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <Segmented
@@ -218,21 +292,15 @@ export function WishlistBoard({
             <SegmentedItem value="map">Map</SegmentedItem>
           </Segmented>
           {hasGlobe && (
-            <button
-              type="button"
-              onClick={openGlobeBrowser}
-              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-            >
-              <Globe2 className="size-4" aria-hidden="true" /> Add from Globe
-            </button>
+            <Button type="button" variant="secondary" size="md" onClick={openGlobeBrowser}>
+              <Globe2 aria-hidden="true" /> Add from Globe
+            </Button>
           )}
-          <AddItemButton
-            tripId={tripId}
-            stops={stopOptions}
-            tripStartDate={tripStartDateValue}
-            defaultUnscheduled={true}
-            homeCurrency={homeCurrency}
-          />
+          {/* Mobile kit has no header add — the block button closes the list
+              instead. An empty list carries the one add in its EmptyState. */}
+          {!(isEmpty && view === "list") && (
+            <AddItemButton {...addProps} size="md" className={view === "list" ? "max-sm:hidden" : undefined} />
+          )}
         </div>
       </div>
 
@@ -245,45 +313,41 @@ export function WishlistBoard({
         />
       )}
 
-      {/* Empty state — only in list view */}
+      {/* Empty state — only in list view (kit states.jsx EMPTY.Wishlist) */}
       {view === "list" && isEmpty && (
         <EmptyState
           icon={Heart}
-          title="No items yet."
-          description="Collect activities, sights, and restaurants you'd love to do — schedule them to a Stop when you're ready."
+          tone="lilac"
+          title="No ideas yet"
+          description="Drop in anything you might want to do. Your people can vote."
+          action={<AddItemButton {...addProps} variant="primary" size="md" />}
         />
       )}
 
       {/* ── Map view ── */}
       {view === "map" && (
         <div className="flex flex-col gap-4">
-          {/* Stop-filter chip row — "All" is always first */}
+          {/* Stop-filter chip row — "All" is always first (kit filter chips) */}
           {stops.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Filter the map by stop">
+              <Chip
+                tone={mapStopFilter === "all" ? "coral" : "white"}
+                selected={mapStopFilter === "all"}
                 onClick={() => setMapStopFilter("all")}
-                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-                  mapStopFilter === "all"
-                    ? "bg-foreground text-background"
-                    : "bg-muted text-muted-foreground hover:text-foreground"
-                }`}
+                className={chipTouch}
               >
                 All
-              </button>
+              </Chip>
               {stops.map((stop) => (
-                <button
+                <Chip
                   key={stop.id}
-                  type="button"
+                  tone={mapStopFilter === stop.id ? "coral" : "white"}
+                  selected={mapStopFilter === stop.id}
                   onClick={() => setMapStopFilter(stop.id)}
-                  className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-                    mapStopFilter === stop.id
-                      ? "bg-foreground text-background"
-                      : "bg-muted text-muted-foreground hover:text-foreground"
-                  }`}
+                  className={chipTouch}
                 >
                   {stop.name}
-                </button>
+                </Chip>
               ))}
             </div>
           )}
@@ -293,7 +357,7 @@ export function WishlistBoard({
 
           {/* Unlocated count — collapsed one-liner */}
           {unlocatedCount > 0 && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-[13px] font-semibold text-muted-foreground">
               {unlocatedCount} not on the map — add a location
             </p>
           )}
@@ -308,50 +372,14 @@ export function WishlistBoard({
             const stopItems = grouped.get(stop.id) ?? [];
             return (
               <section key={stop.id} className="flex flex-col gap-3">
-                <div className="flex items-baseline gap-2 px-1">
-                  <h3 className="font-display text-sm font-bold text-foreground">{stop.name}</h3>
-                  <span className="text-xs font-medium text-muted-foreground">{stopItems.length} {stopItems.length === 1 ? "idea" : "ideas"}</span>
-                </div>
+                {renderGroupHeader(stop.name, stopItems.length)}
                 <AiActivitySuggestions
                   tripId={tripId}
                   stopId={stop.id}
                   stopName={stop.name}
                   aiConfigured={aiConfigured}
                 />
-                {stopItems.length > 0 && (
-                  <AnimatedList className="flex flex-col gap-2">
-                    {stopItems.map((item) => (
-                      <AnimatedItem key={item.id}>
-                        <div className="flex flex-col gap-1">
-                          <ItemCard
-                            item={item}
-                            mode="wishlist"
-                            isPending={pendingId === item.id}
-                            onEdit={setEditingItem}
-                            onDelete={handleDelete}
-                            onSchedule={setSchedulingItem}
-                            costs={costsByItemId?.get(item.id)}
-                            tripId={tripId}
-                            homeCurrency={homeCurrency}
-                            notes={notesByItemId?.get(item.id) ?? []}
-                            votes={votesByItemId?.get(item.id) ?? []}
-                            currentUserId={currentUserId}
-                            forkId={activeForkId ?? null}
-                          />
-                          {placedSet.has(item.id) && (
-                            <span
-                              data-testid={`placed-marker-${item.id}`}
-                              className="inline-flex w-fit items-center gap-1 rounded-full border border-success/40 bg-success/15 px-2 py-0.5 text-xs font-medium text-teal-text"
-                            >
-                              <Check className="size-3" aria-hidden="true" />
-                              in this plan
-                            </span>
-                          )}
-                        </div>
-                      </AnimatedItem>
-                    ))}
-                  </AnimatedList>
-                )}
+                {stopItems.length > 0 && renderIdeaGrid(stopItems, false)}
               </section>
             );
           })}
@@ -359,43 +387,14 @@ export function WishlistBoard({
           {/* Anywhere / no stop group */}
           {anywhereItems.length > 0 && (
             <section className="flex flex-col gap-3">
-              <div className="flex items-baseline gap-2 px-1">
-                <h3 className="font-display text-sm font-bold text-foreground">Anywhere</h3>
-                <span className="text-xs font-medium text-muted-foreground">{anywhereItems.length} {anywhereItems.length === 1 ? "idea" : "ideas"}</span>
-              </div>
-              <AnimatedList className="flex flex-col gap-2">
-                {anywhereItems.map((item) => (
-                  <AnimatedItem key={item.id}>
-                    <div className="flex flex-col gap-1">
-                      <ItemCard
-                        item={item}
-                        mode="wishlist"
-                        isPending={pendingId === item.id}
-                        onEdit={setEditingItem}
-                        onDelete={handleDelete}
-                        onSchedule={setSchedulingItem}
-                        costs={costsByItemId?.get(item.id)}
-                        tripId={tripId}
-                        homeCurrency={homeCurrency}
-                        notes={notesByItemId?.get(item.id) ?? []}
-                        votes={votesByItemId?.get(item.id) ?? []}
-                        currentUserId={currentUserId}
-                        forkId={activeForkId ?? null}
-                      />
-                      {placedSet.has(item.id) && (
-                        <span
-                          data-testid={`placed-marker-${item.id}`}
-                          className="inline-flex w-fit items-center gap-1 rounded-full border border-success/40 bg-success/15 px-2 py-0.5 text-xs font-medium text-teal-text"
-                        >
-                          <Check className="size-3" aria-hidden="true" />
-                          in this plan
-                        </span>
-                      )}
-                    </div>
-                  </AnimatedItem>
-                ))}
-              </AnimatedList>
+              {renderGroupHeader("Anywhere", anywhereItems.length)}
+              {renderIdeaGrid(anywhereItems, true)}
             </section>
+          )}
+
+          {/* Mobile: the kit's block "+ Add an idea" under the grid */}
+          {!isEmpty && (
+            <AddItemButton {...addProps} variant="secondary" size="md" className="w-full sm:hidden" />
           )}
         </div>
       )}

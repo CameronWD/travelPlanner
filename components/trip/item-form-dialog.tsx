@@ -195,6 +195,9 @@ export function AddItemButton({
   defaultUnscheduled = true,
   label = "Add Item",
   homeCurrency,
+  variant = "primary",
+  size = "sm",
+  className,
 }: {
   tripId: string;
   stops: StopOption[];
@@ -203,11 +206,15 @@ export function AddItemButton({
   /** Button label. Defaults to "Add Item". */
   label?: string;
   homeCurrency?: string;
+  /** Trigger look — the Wishlist also uses a dashed tile and a block secondary (kit). */
+  variant?: "primary" | "secondary" | "dashed";
+  size?: "sm" | "md";
+  className?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   return (
     <>
-      <Button variant="primary" size="sm" onClick={() => setOpen(true)}>
+      <Button variant={variant} size={size} className={className} onClick={() => setOpen(true)}>
         <Plus className="size-4" aria-hidden="true" />
         {label}
       </Button>

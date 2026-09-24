@@ -6,7 +6,7 @@
  * verifies WishlistBoard never renders it.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // Mock WishlistMapLoader so Leaflet never touches jsdom.
@@ -42,14 +42,21 @@ vi.mock("@/server/actions/costs", () => ({
 // Task 7: ItemCard no longer takes an onUnschedule prop at all — the real
 // Unschedule control now lives on the day-view Timeline row instead, so this
 // stub deliberately has nothing left to surface for it.
+// Task 11 (phase 3): the "in this plan" marker moved INSIDE the card (the
+// kit's "in plan ✓" card), so the board now hands ItemCard `placed` and the
+// kit's decorative `tone`; the stub renders both so the board's wiring stays
+// pinned here and ItemCard's rendering of them is pinned in item-card.test.
 vi.mock("./item-card", () => ({
-  ItemCard: ({ item, onSchedule, onEdit }: {
+  ItemCard: ({ item, onSchedule, onEdit, placed, tone }: {
     item: { id: string; title: string };
     onSchedule?: (item: { id: string; title: string }) => void;
     onEdit?: (item: { id: string; title: string }) => void;
+    placed?: boolean;
+    tone?: string;
   }) => (
-    <div>
+    <div data-testid={`stub-card-${item.id}`} data-tone={tone ?? "white"}>
       <span>{item.title}</span>
+      {placed && <span data-testid={`placed-marker-${item.id}`}>in this plan</span>}
       {onEdit && (
         <button onClick={() => onEdit(item)}>Edit {item.title}</button>
       )}
@@ -73,7 +80,10 @@ vi.mock("./item-form-dialog", () => ({
     Object.assign(lastItemFormDialogProps, props);
     return null;
   },
-  AddItemButton: () => null,
+  // Renders its label + variant so the kit's "Add an idea" affordances are visible to tests.
+  AddItemButton: ({ label, variant }: { label?: string; variant?: string }) => (
+    <button data-variant={variant ?? "primary"}>{label ?? "Add Item"}</button>
+  ),
 }));
 
 // Capture forkId so tests can inspect what was passed to the dialog.
@@ -390,5 +400,99 @@ describe("WishlistBoard — Globe suggestions strip", () => {
     );
 
     expect(await screen.findByText(/from your globe/i)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 11 (phase 3): Wishlist to the Playground kit (DWishlist.jsx / Wishlist.jsx)
+// ---------------------------------------------------------------------------
+
+describe("WishlistBoard — Playground kit", () => {
+  it("heads the board with the kit's display title and an idea-count badge", () => {
+    renderBoard([
+      makeItem({ id: "a", title: "One" }),
+      makeItem({ id: "b", title: "Two" }),
+    ]);
+    const h = screen.getByRole("heading", { level: 2, name: "Wishlist" });
+    expect(h.className).toMatch(/\bfont-extrabold\b/);
+    expect(within(h.parentElement as HTMLElement).getByText("2 ideas")).toBeInTheDocument();
+  });
+
+  it("uses the kit's 'Add an idea' copy for the add action", () => {
+    renderBoard([makeItem()]);
+    expect(screen.getAllByRole("button", { name: "Add an idea" }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Add Item" })).not.toBeInTheDocument();
+  });
+
+  it("ends the idea grid with the kit's dashed 'Add an idea' tile", () => {
+    render(<WishlistBoard tripId={TRIP_ID} stops={[baseStop]} items={[makeItem({ stopId: null, stopName: null })]} />);
+    const dashed = screen
+      .getAllByRole("button", { name: "Add an idea" })
+      .filter((b) => b.dataset.variant === "dashed");
+    expect(dashed).toHaveLength(1);
+  });
+
+  it("lays ideas out in the kit's card grid, every second-of-three card in the sun tone", () => {
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={["a", "b", "c", "d", "e"].map((id) => makeItem({ id, title: `Idea ${id}`, stopId: null, stopName: null }))}
+      />,
+    );
+    const tones = ["a", "b", "c", "d", "e"].map((id) => screen.getByTestId(`stub-card-${id}`).dataset.tone);
+    expect(tones).toEqual(["white", "sun", "white", "white", "sun"]);
+    const grid = screen.getByTestId("stub-card-a").closest("ul");
+    expect(grid?.className).toMatch(/\bgrid\b/);
+  });
+
+  it("shows the kit's empty state (EmptyState, kit copy, add action) when there are no ideas", () => {
+    render(<WishlistBoard tripId={TRIP_ID} stops={[baseStop]} items={[]} />);
+    const title = screen.getByRole("heading", { name: "No ideas yet" });
+    const panel = title.closest("div.border-dashed") as HTMLElement;
+    expect(panel).not.toBeNull();
+    expect(within(panel).getByText("Drop in anything you might want to do. Your people can vote.")).toBeInTheDocument();
+    expect(within(panel).getByRole("button", { name: "Add an idea" })).toBeInTheDocument();
+    // One add affordance on an empty board — the EmptyState's.
+    expect(screen.getAllByRole("button", { name: "Add an idea" })).toHaveLength(1);
+    expect(screen.queryByText(/No items yet/)).not.toBeInTheDocument();
+  });
+
+  it("filters the map with kit Chips that report their pressed state", async () => {
+    const user = userEvent.setup();
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={[makeItem({ lat: 48.85, lng: 2.35 })]}
+      />,
+    );
+    await user.click(screen.getByRole("radio", { name: /map/i }));
+    const all = screen.getByRole("button", { name: "All", pressed: true });
+    expect(all.className).toMatch(/\bborder-2\b/);
+    const paris = screen.getByRole("button", { name: "Paris", pressed: false });
+    await user.click(paris);
+    expect(screen.getByRole("button", { name: "Paris", pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "All", pressed: false })).toBeInTheDocument();
+  });
+
+  it("renders 'Add from Globe' as a kit secondary Button", () => {
+    render(<WishlistBoard tripId={TRIP_ID} stops={[]} items={[]} hasGlobe />);
+    const btn = screen.getByRole("button", { name: "Add from Globe" });
+    expect(btn.className).toMatch(/\bborder-2\b/);
+    expect(btn.className).toMatch(/\bshadow-hard-1\b/);
+  });
+
+  it("offers Globe suggestions as kit Chips with accessible names", () => {
+    const marker: MarkerView = {
+      id: "m2", title: "Senso-ji Temple", category: "SIGHTSEEING", note: null, link: null, timing: null,
+      lat: 35.71, lng: 139.79, city: "Tokyo", country: "Japan", countryCode: "jp",
+    };
+    render(
+      <WishlistBoard tripId={TRIP_ID} stops={[]} items={[]} hasGlobe globeMarkers={[marker]} addedMarkerIds={[]} suggestedMarkers={[marker]} />,
+    );
+    const chip = screen.getByRole("button", { name: "Add Senso-ji Temple" });
+    expect(chip.className).toMatch(/\bborder-2\b/);
+    expect(chip.className).not.toMatch(/shadow-soft/);
   });
 });

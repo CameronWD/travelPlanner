@@ -119,6 +119,21 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
   Per day) and the map caption.** Kit shows: the stop table under the map. We have: the
   same table on the Summary page, not on Past Home. Not built because: new feature
   (embedding the Summary table on Home).
+- **`DWishlist.jsx` / `Wishlist.jsx` — who added the idea (avatar + name) on each card.**
+  Kit shows: the adder's avatar and name in the card's top-left. We have: no creator on
+  `Item` (the category chip sits there instead). Not built because: needs a data model.
+- **`DWishlist.jsx` / `Wishlist.jsx` — heart vote count chip.** Kit shows: a single
+  heart toggle with a running count. We have: the Must / Keen / Meh vote picker plus the
+  other traveller's level (restyled in place of the heart). Not built because: product
+  decision (our three-level vote carries more than a like count; swapping would drop data).
+- **`DWishlist.jsx` / `Wishlist.jsx` — filter chips over the list (All / Tokyo / Kyoto /
+  Day trips / Food / Unplaced).** Kit shows: stop and category filters on the list. We
+  have: the stop filter chips on the Map view only (restyled to kit Chips); the list is
+  grouped instead. Not built because: new feature (list filtering).
+- **`Wishlist.jsx` — two-column card grid at phone width.** Kit shows: 2-up cards at
+  390px. We have: 1-up below 640px, 2-up from `sm`, 3-up from `xl`. Not built because:
+  product decision (our cards carry the vote picker, cost editor and a 44px Schedule
+  button, which do not fit a ~175px column).
 
 ## p3/together
 
