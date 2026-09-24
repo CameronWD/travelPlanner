@@ -537,6 +537,31 @@ describe("HelpGuide — Playground kit shape", () => {
     }
   });
 
+  it("prints every section full width in one column, since print opens bodies without [open]", () => {
+    // HELP_PRINT_STYLE forces closed bodies visible in print, so open:col-span-full
+    // never matches there; without these, bodies print in half-width columns.
+    const { container } = render(<HelpGuide />);
+    for (const id of ["help-everyday-heading", "help-advanced-heading", "help-reference-heading"]) {
+      const grid = container.querySelector(`section[aria-labelledby='${id}'] > div`);
+      expect(grid?.className, id).toMatch(/\bprint:grid-cols-1\b/);
+    }
+    for (const d of Array.from(container.querySelectorAll("details"))) {
+      expect(d.className, d.id).toMatch(/\bprint:col-span-full\b/);
+    }
+  });
+
+  it("spaces wrapped contents rows so the chips' 44px hit areas never overlap", () => {
+    // Chips are 28px (min-h-7) with a 44px ::after, i.e. 8px spill above and
+    // below: rows need at least 16px between them.
+    const { container } = render(<HelpGuide />);
+    const list = container.querySelector('nav[aria-label="Contents"] ol');
+    expect(list?.className).toMatch(/\bgap-y-4\b/);
+    expect(list?.className).not.toMatch(/(^|\s)gap-2(\s|$)/);
+    const chip = list?.querySelector("a");
+    expect(chip?.className).toMatch(/\bmin-h-7\b/);
+    expect(chip?.className).toMatch(/\bafter:h-11\b/);
+  });
+
   it("keeps an open section's body at a readable measure on wide screens", () => {
     const { container } = render(<HelpGuide />);
     // The separator spans the card; the text inside it keeps to ~65ch.

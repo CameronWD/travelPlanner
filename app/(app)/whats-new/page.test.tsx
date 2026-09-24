@@ -51,7 +51,11 @@ describe("/whats-new", () => {
     for (const card of cards) {
       expect(card.className).toMatch(/\bborder-2\b/);
       expect(card.querySelector("h2")).toBeTruthy();
+      // Not a landmark per shipped day: the h2 already gives the structure.
+      expect(card.getAttribute("role")).toBeNull();
+      expect(card.hasAttribute("aria-labelledby")).toBe(false);
     }
+    expect(screen.queryAllByRole("region")).toHaveLength(0);
     expect(cards[0].querySelector("h2")?.textContent).toBe("21 September 2026");
     expect(cards[1].querySelector("h2")?.textContent).toBe("10 September 2026");
     // A day's notes stay together inside that day's card.

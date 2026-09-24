@@ -192,7 +192,7 @@ function Section({
     <details
       id={section.id}
       open={open}
-      className="group rounded-lg border-2 border-border bg-card p-4 text-card-foreground shadow-hard-2 open:col-span-full target:col-span-full"
+      className="group rounded-lg border-2 border-border bg-card p-4 text-card-foreground shadow-hard-2 open:col-span-full target:col-span-full print:col-span-full"
     >
       <summary className="flex cursor-pointer list-none items-start gap-2.5 rounded-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card">
         <span
@@ -240,8 +240,10 @@ const LIST_CLASS = "flex flex-col gap-2 pl-5";
 
 /** Group-heading type: the kit's h3 (24/800, tight). */
 const GROUP_HEADING = "font-display text-2xl font-extrabold leading-tight tracking-[-0.03em] text-foreground";
-/** The kit's topic grid: one column on phone, three-up on desktop. */
-const TOPIC_GRID = "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3";
+/** The kit's topic grid: one column on phone, three-up on desktop. Print is one
+ *  column: HELP_PRINT_STYLE opens bodies without setting [open], so
+ *  open:col-span-full can't widen them there. */
+const TOPIC_GRID = "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-1";
 
 export function HelpGuide({
   tripId,
@@ -276,7 +278,9 @@ export function HelpGuide({
           </Group>
           <HelpExpandAll />
         </div>
-        <ol className="flex flex-wrap gap-2">
+        {/* gap-y-4: chips are 28px with a 44px ::after (8px spill each side),
+            so 16px between rows keeps neighbouring hit areas from overlapping. */}
+        <ol className="flex flex-wrap gap-x-2 gap-y-4">
           {HELP_SECTIONS.map((s) => (
             <li key={s.id}>
               <a

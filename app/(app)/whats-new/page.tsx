@@ -57,19 +57,15 @@ export default async function WhatsNewPage() {
         <div className="flex flex-col gap-3 lg:max-w-[720px]">
           {groups.map((group, i) => {
             const lead = i === 0;
-            const headingId = `release-${group.date}`;
             return (
               <Card
                 key={group.date}
                 data-slot="release"
-                role="region"
-                aria-labelledby={headingId}
                 tone={lead ? "coral" : "white"}
                 shadow={lead ? 4 : 2}
                 className="p-[18px]"
               >
                 <h2
-                  id={headingId}
                   className={cn(
                     "text-[11px] font-bold uppercase leading-tight tracking-[0.08em]",
                     lead ? "text-foreground" : "text-muted-foreground",
