@@ -55,12 +55,18 @@ vi.mock("@/lib/dates", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/dates")>();
   return { ...actual, todayISO: vi.fn(), formatLongDate: vi.fn(), dayNumberInTrip: vi.fn() };
 });
-vi.mock("@/lib/itinerary", () => ({
-  buildItinerary: buildItineraryMock,
-  effectiveTodayISO: vi.fn(),
-  pickDayPlan: pickDayPlanMock,
-  isFreeFormDay: isFreeFormDayMock,
-}));
+vi.mock("@/lib/itinerary", async (importOriginal) => {
+  // Keep the real dayHasEntries — the one "anything to show?" check shared
+  // with Timeline, so the empty branch here can't drift from Timeline's.
+  const actual = await importOriginal<typeof import("@/lib/itinerary")>();
+  return {
+    buildItinerary: buildItineraryMock,
+    effectiveTodayISO: vi.fn(),
+    pickDayPlan: pickDayPlanMock,
+    isFreeFormDay: isFreeFormDayMock,
+    dayHasEntries: actual.dayHasEntries,
+  };
+});
 vi.mock("@/lib/day-map", () => ({ buildDayMapModel: vi.fn(), buildItemDirections: vi.fn() }));
 vi.mock("@/lib/nearby", () => ({ nearbyWishlistItems: vi.fn(), dayIdeasWishlist: dayIdeasWishlistMock }));
 vi.mock("@/lib/chapters", () => ({ chapterForDate: vi.fn() }));

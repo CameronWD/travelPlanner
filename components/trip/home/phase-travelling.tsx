@@ -9,6 +9,7 @@ import {
   effectiveTodayISO,
   pickDayPlan,
   isFreeFormDay,
+  dayHasEntries,
 } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
 import { nearbyWishlistItems, dayIdeasWishlist } from "@/lib/nearby";
@@ -426,14 +427,9 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
     : [];
 
   const totalDays = dayNumberInTrip(endDate, startDate);
-  // Mirrors Timeline's own "anything to show?" check, so an empty day gets the
-  // kit empty treatment here instead of Timeline's plain one-line fallback.
-  const dayHasEntries =
-    dayPlan != null &&
-    (dayPlan.timedItems.length > 0 ||
-      dayPlan.untimedItems.length > 0 ||
-      dayPlan.transportEntries.length > 0 ||
-      dayPlan.accommodationEntries.length > 0);
+  // Timeline's own "anything to show?" check (one helper, shared), so an
+  // empty day gets this card's empty treatment.
+  const hasEntries = dayPlan != null && dayHasEntries(dayPlan);
   const stopLocated = effectiveStop ? stops.find((s) => s.id === effectiveStop.id) : undefined;
 
   return (
@@ -494,7 +490,7 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
               Today&apos;s plan
             </h3>
             <div className="mt-2.5">
-              {dayPlan && dayHasEntries ? (
+              {dayPlan && hasEntries ? (
                 <Timeline day={dayPlan} variant="day" itemDirections={itemDirections} attachmentsByTarget={attachmentsByTarget} />
               ) : (
                 <EmptyState
