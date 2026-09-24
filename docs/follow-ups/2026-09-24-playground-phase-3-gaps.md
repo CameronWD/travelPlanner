@@ -305,5 +305,18 @@ from — not a to-do list. Spec: `docs/specs/2026-09-24-playground-phase-3.md`. 
 - **`shared/admin.jsx` `Account` — "Sign out" secondary button.** Kit shows: sign out as a button
   on Account. We have: "Sign out" in the header avatar menu (`components/ui/sign-out-button.tsx`).
   Not built because: product decision (placement).
+- **`shared/admin.jsx` `Help` — "Search the guide" input.** Kit shows: a search field above the
+  topic cards. We have: the "What's in here" contents list (now kit Chip-shaped anchor links) plus
+  Expand all / Collapse all; browser find-in-page reaches collapsed text. Not built because: new
+  feature (in-guide search).
+- **`shared/admin.jsx` `Help` — six short topic cards (Rough stops vs dated stops, Chapters, Plan
+  B, Hard end date, Costs and paying, Offline).** Kit shows: six one-paragraph cards, tap to open.
+  We have: nineteen disclosure sections in three groups (everyday / going deeper / word list) plus
+  the button key, drawn in the kit's topic-card shape; content text unchanged, since the guide is a
+  glossary source whose claims are pinned by tests. Not built because: product decision (the kit's
+  copy is a shorter guide, not the same content in the kit's voice).
+- **`shared/admin.jsx` `Help` — mobile back-arrow page header.** Kit shows: "‹ Help" top bar on
+  phone. We have: the app header and a display h1. Not built because: product decision (app-wide
+  header pattern, not per screen).
 
 ## p3/og-default

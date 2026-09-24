@@ -41,4 +41,15 @@ describe("HelpExpandAll", () => {
     const { container } = render(<HelpExpandAll />);
     expect(container.firstElementChild?.className).toContain("help-print-hide");
   });
+
+  it("draws both controls as kit small secondary Buttons with a 44px coarse-pointer hit area", () => {
+    render(<HelpExpandAll />);
+    for (const name of [/expand all/i, /collapse all/i]) {
+      const b = screen.getByRole("button", { name });
+      expect(b.className).toMatch(/\bborder-2\b/);
+      expect(b.className).toMatch(/\bshadow-hard-1\b/);
+      expect(b.className).toMatch(/pointer-coarse:after:-inset-y-1/);
+      expect(b.className).not.toMatch(/\bunderline\b/);
+    }
+  });
 });
