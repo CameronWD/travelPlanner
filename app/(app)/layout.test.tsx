@@ -124,7 +124,27 @@ describe("AppLayout", () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     expect(screen.getByRole("link", { name: "Globe" }).className).toContain("min-h-11");
-    expect(screen.getByRole("button", { name: "Open traveller menu" }).className).toContain("tap-target");
+    // A real 44px box, not tap-target's invisible ::before: flush against the
+    // header's trailing edge, that pseudo poked 4px past a 360px viewport and
+    // made every phone page scroll sideways (Stage 2 diagnosis G).
+    const avatar = screen.getByRole("button", { name: "Open traveller menu" });
+    expect(avatar.className).toContain("size-11");
+    expect(avatar.className).toContain("grid");
+    expect(avatar.className).toContain("place-items-center");
+    expect(avatar.className).not.toContain("tap-target");
+  });
+
+  it("fits the header's right-hand controls inside a 360px phone", async () => {
+    // Logo (~131px) + search, Globe, theme and avatar (4 x 44px-ish) must fit
+    // 360 - 2 x 16px: phones get the tighter gap and Globe padding back.
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const globe = screen.getByRole("link", { name: "Globe" });
+    expect(globe.className).toContain("px-2");
+    expect(globe.className).toContain("sm:px-3");
+    const cluster = globe.parentElement as HTMLElement;
+    expect(cluster.className).toContain("gap-1");
+    expect(cluster.className).toContain("sm:gap-2");
   });
 
   it("renders the Logo lockup with a single accessible name for the link", async () => {

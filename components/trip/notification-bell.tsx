@@ -110,7 +110,11 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
             </p>
           </div>
         ) : (
-          <ul className="max-h-80 overflow-y-auto pb-3 scroll-pb-3">
+          // LA-010: the list is its own 320px scroll box ("See all activity"
+          // sits below it, never over it); the fold lands mid-row, so fade the
+          // bottom 1.5rem of the window to read as "more below" rather than a
+          // date sliced in half. At the scroll end that band is only padding.
+          <ul className="max-h-80 overflow-y-auto pb-3 scroll-pb-3 [mask-image:linear-gradient(to_bottom,black_calc(100%-1.5rem),transparent)]">
             {recent.map((item, i) => {
               // The repo passes only unreadCount, not per-item read state, so the
               // first `unreadCount` rows (most recent first) get the unread treatment.

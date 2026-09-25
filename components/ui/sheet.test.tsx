@@ -39,7 +39,7 @@ describe("Sheet", () => {
     expect(panel.querySelector('[aria-hidden="true"].bg-border')).not.toBeNull();
   });
 
-  it("docks to the bottom right from md up and fills the screen below it", () => {
+  it("docks to the bottom right from md up and hugs the bottom edge below it", () => {
     render(
       <Sheet open>
         <SheetContent side="docked" hideOverlay>
@@ -48,7 +48,8 @@ describe("Sheet", () => {
       </Sheet>,
     );
     const panel = screen.getByRole("dialog");
-    expect(panel.className).toContain("inset-0");
+    expect(panel.className).toContain("inset-x-0");
+    expect(panel.className).toContain("bottom-0");
     expect(panel.className).toContain("md:right-4");
     expect(panel.className).toContain("md:w-[560px]");
   });
@@ -174,5 +175,22 @@ describe("Sheet", () => {
     const panel = screen.getByRole("dialog");
     expect(panel.className).toContain("md:h-auto");
     expect(panel.className).toContain("md:max-h-[min(37.5rem,calc(100vh-9rem))]");
+  });
+
+  it("LA-023 mobile: below md the docked sheet is a bottom sheet sized to its content", () => {
+    // It used to be a full-screen panel (inset-0 h-full) on phones, so an
+    // empty feedback log left a screen-tall void between the title and the
+    // write box. Below md it now hugs the bottom edge, grows with content and
+    // stops at 90dvh; the md: desktop card is untouched.
+    const classes = sheetVariants({ side: "docked" }).split(/\s+/);
+    expect(classes).toEqual(
+      expect.arrayContaining(["inset-x-0", "bottom-0", "h-auto", "max-h-[90dvh]", "rounded-t-2xl", "border-t-2"]),
+    );
+    expect(classes).not.toContain("inset-0");
+    expect(classes).not.toContain("h-full");
+    // Desktop card stays as Task 10 left it.
+    expect(classes).toEqual(
+      expect.arrayContaining(["md:inset-auto", "md:bottom-[5.25rem]", "md:right-4", "md:h-auto", "md:rounded-2xl", "md:border-2"]),
+    );
   });
 });

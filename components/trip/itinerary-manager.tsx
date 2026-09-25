@@ -33,6 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { TAB_BAR_MENU_COLLISION_PADDING } from "@/components/ui/tab-bar";
 import {
   moveStop,
   toggleStopPin,
@@ -2123,7 +2124,7 @@ export function ItineraryManager({
                     Chapters
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" collisionPadding={16}>
+                <DropdownMenuContent align="end" collisionPadding={TAB_BAR_MENU_COLLISION_PADDING}>
                   {chaptersEnabled ? (
                     <>
                       <DropdownMenuItem onSelect={handleNewChapter}>

@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   Dialog,
@@ -299,5 +299,102 @@ describe("DialogFooter", () => {
 
     const footer = screen.getByRole("button", { name: "Save" }).closest("div")!;
     expect(footer.className).toContain("flex-wrap");
+  });
+
+  // LA-011 (Stage 2): scrolled to the end, the last field already clears the
+  // footer (measured in-browser: 24px). The real leak is focus: a field that
+  // peeks above the sticky footer counts as "visible" to the browser, so
+  // focusing or tapping it scrolls nothing and it stays under the footer.
+  function rect(top: number, bottom: number) {
+    return { top, bottom, left: 0, right: 360, width: 360, height: bottom - top, x: 0, y: top, toJSON: () => ({}) } as DOMRect;
+  }
+
+  function renderForm() {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Stop</DialogTitle>
+          </DialogHeader>
+          <form>
+            <label>
+              Place
+              <input />
+            </label>
+            <label>
+              Notes
+              <textarea />
+            </label>
+            <DialogFooter>
+              <button type="button">Cancel</button>
+              <button type="submit">Save</button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>,
+    );
+    const footer = screen.getByRole("button", { name: "Save" }).parentElement as HTMLElement;
+    const header = screen.getByText("Edit Stop").parentElement as HTMLElement;
+    const body = header.parentElement as HTMLElement;
+    const scrollBy = vi.fn();
+    body.scrollBy = scrollBy as unknown as typeof body.scrollBy;
+    header.getBoundingClientRect = () => rect(80, 152);
+    footer.getBoundingClientRect = () => rect(744, 822);
+    body.getBoundingClientRect = () => rect(80, 844);
+    return { body, footer, header, scrollBy };
+  }
+
+  it("scrolls a focused field out from under the sticky footer", () => {
+    const { scrollBy } = renderForm();
+    const notes = screen.getByRole("textbox", { name: "Notes" });
+    notes.getBoundingClientRect = () => rect(705, 801);
+
+    fireEvent.focus(notes);
+
+    // 801 - 744 = 57px under the footer, plus a 16px breathing gap.
+    expect(scrollBy).toHaveBeenCalledWith({ top: 73 });
+  });
+
+  it("scrolls a focused field out from under the stuck header", () => {
+    const { scrollBy } = renderForm();
+    const place = screen.getByRole("textbox", { name: "Place" });
+    place.getBoundingClientRect = () => rect(120, 170);
+
+    fireEvent.focus(place);
+
+    // Top at 120 is 32px under the header's 152 bottom, plus the 16px gap.
+    expect(scrollBy).toHaveBeenCalledWith({ top: -48 });
+  });
+
+  it("leaves a field that already clears the footer where it is", () => {
+    const { scrollBy } = renderForm();
+    const notes = screen.getByRole("textbox", { name: "Notes" });
+    notes.getBoundingClientRect = () => rect(600, 700);
+
+    fireEvent.focus(notes);
+
+    expect(scrollBy).not.toHaveBeenCalled();
+  });
+
+  it("never scrolls for the footer's own buttons", () => {
+    const { scrollBy } = renderForm();
+    const save = screen.getByRole("button", { name: "Save" });
+    save.getBoundingClientRect = () => rect(756, 800);
+
+    fireEvent.focus(save);
+
+    expect(scrollBy).not.toHaveBeenCalled();
+  });
+
+  it("never pushes a tall field's top up under the header", () => {
+    const { scrollBy } = renderForm();
+    const notes = screen.getByRole("textbox", { name: "Notes" });
+    // 700px tall: it cannot fit between header (152) and footer (744) at all,
+    // so it scrolls only until its top sits 16px below the header (300 - 168).
+    notes.getBoundingClientRect = () => rect(300, 1000);
+
+    fireEvent.focus(notes);
+
+    expect(scrollBy).toHaveBeenCalledWith({ top: 132 });
   });
 });

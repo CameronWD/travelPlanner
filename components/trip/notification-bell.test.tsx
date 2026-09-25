@@ -119,6 +119,24 @@ describe("NotificationBell", () => {
     expect(list.className).toContain("scroll-pb-3");
   });
 
+  it("LA-010: the list's scroll fold fades out instead of slicing a row", async () => {
+    // Measured in-browser: the list is its own 320px scroll box and "See all
+    // activity" sits below it, not over it; scrolled to the end the last date
+    // clears the link by 24px. What read as "covered" is the fold landing
+    // mid-row and cutting a date's glyphs in half. The bottom 1.5rem of the
+    // visible window fades out — at the end that band is only the row's and
+    // list's own padding (12px + 12px), so nothing real is ever faded there.
+    const user = userEvent.setup();
+    render(
+      <NotificationBell tripId="t1" unreadCount={1} recent={[baseActivity]} />,
+    );
+    await user.click(screen.getByRole("button", { name: /Notifications/ }));
+    const list = await screen.findByRole("list");
+    expect(list.className).toContain(
+      "[mask-image:linear-gradient(to_bottom,black_calc(100%-1.5rem),transparent)]",
+    );
+  });
+
   it("renders a 'See all activity' link", async () => {
     const user = userEvent.setup();
     render(
