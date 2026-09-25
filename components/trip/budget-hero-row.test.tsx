@@ -63,6 +63,51 @@ describe("BudgetHeroRow", () => {
     expect(container.querySelector(".bg-muted")).toBeInTheDocument();
   });
 
+  describe("stat grid layout (LA-031 / LA-032)", () => {
+    it("lays four stats out 2-up on phones/tablet and 4-up at lg, without a lone orphan card", () => {
+      render(<BudgetHeroRow {...baseProps} />);
+      const grid = screen.getByText("Cost / day").closest("[data-stat-grid]") as HTMLElement;
+      expect(grid).not.toBeNull();
+      expect(grid.className).toContain("grid-cols-2");
+      expect(grid.className).toContain("lg:grid-cols-4");
+      expect(grid.className).not.toContain("sm:grid-cols-4");
+    });
+
+    it("gives Cost / day a full-width row on phones/tablet instead of sitting alone", () => {
+      render(<BudgetHeroRow {...baseProps} />);
+      const dayTile = screen.getByTestId("est-per-day-value").closest("div") as HTMLElement;
+      expect(dayTile.className).toContain("col-span-2");
+      expect(dayTile.className).toContain("lg:col-span-1");
+    });
+
+    it("money values never split mid-number", () => {
+      render(
+        <BudgetHeroRow
+          costTotalMinor={3000000}
+          paidTotalMinor={1879563}
+          homeCurrency="AUD"
+          tripNights={10}
+        />,
+      );
+      // 3,000,000 - 1,879,563 = 1,120,437 -> $11,204.37
+      const paidValue = screen.getByText("$18,795.63");
+      expect(paidValue.className).toContain("whitespace-nowrap");
+      expect(paidValue.className).not.toContain("break-words");
+
+      const costTotalValue = screen.getByText("$30,000.00");
+      expect(costTotalValue.className).toContain("whitespace-nowrap");
+      expect(costTotalValue.className).not.toContain("break-words");
+
+      const stillToPayValue = screen.getByText("$11,204.37");
+      expect(stillToPayValue.className).toContain("whitespace-nowrap");
+      expect(stillToPayValue.className).not.toContain("break-words");
+
+      const perDayValue = screen.getByTestId("est-per-day-value");
+      expect(perDayValue.className).toContain("whitespace-nowrap");
+      expect(perDayValue.className).not.toContain("break-words");
+    });
+  });
+
   describe("showPaid", () => {
     it("defaults to showing the Paid / Still-to-pay tiles and the paid progress bar", () => {
       const { container } = render(<BudgetHeroRow {...baseProps} />);

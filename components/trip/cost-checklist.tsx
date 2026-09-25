@@ -113,7 +113,7 @@ export function CostChecklist({ rows }: CostChecklistProps) {
           >
             {checkbox}
 
-            <span className="flex-1 truncate text-sm">{row.label}</span>
+            <span className="min-w-0 flex-1 text-sm [overflow-wrap:anywhere]">{row.label}</span>
 
             <span className="shrink-0 text-sm text-muted-foreground">
               {formatMoney(

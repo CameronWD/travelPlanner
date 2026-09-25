@@ -186,6 +186,26 @@ describe("CostChecklist", () => {
     );
   });
 
+  it("cost names wrap, and ID-like names wrap anywhere (LA-006)", () => {
+    render(
+      <CostChecklist
+        rows={[
+          {
+            id: "c-long",
+            label: "Colosseum, Roman Forum & Palatine guided tour",
+            costMinor: 8500,
+            paidMinor: null,
+            currency: "GBP",
+            paidAt: null,
+          },
+        ]}
+      />,
+    );
+    const name = screen.getByText("Colosseum, Roman Forum & Palatine guided tour");
+    expect(name.className).not.toContain("truncate");
+    expect(name.className).toContain("[overflow-wrap:anywhere]");
+  });
+
   it("shows every owner-type label, including a standalone other cost", () => {
     const mixedRows = [
       ...rows,

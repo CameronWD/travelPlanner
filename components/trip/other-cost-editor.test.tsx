@@ -308,6 +308,22 @@ describe("OtherCostEditor", () => {
     expect(screen.queryByText(/≈.*11\.00/)).not.toBeInTheDocument();
   });
 
+  it("cost name wraps instead of truncating, and wraps anywhere for ID-like names (LA-006)", () => {
+    const longNameCost: CostRow = {
+      ...sampleCost,
+      id: "cost-long",
+      label: "Travel insurance (winter-sports cover, both travellers)",
+    };
+
+    render(<OtherCostEditor {...baseProps} costs={[longNameCost]} />);
+
+    const name = screen.getByText(
+      "Travel insurance (winter-sports cover, both travellers)",
+    );
+    expect(name.className).not.toContain("truncate");
+    expect(name.className).toContain("[overflow-wrap:anywhere]");
+  });
+
   it("shows only the cost amount in the list row while unpaid, even with a stale paidMinor", () => {
     const staleCost: CostRow = {
       ...sampleCost,

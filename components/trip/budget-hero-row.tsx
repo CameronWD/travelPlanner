@@ -50,22 +50,26 @@ export function BudgetHeroRow({
 
   return (
     <div
+      data-stat-grid
       className={cn(
         "grid gap-3",
-        showPaid ? "grid-cols-2 sm:grid-cols-4" : "grid-cols-1 sm:grid-cols-2",
+        showPaid ? "grid-cols-2 lg:grid-cols-4" : "grid-cols-1 sm:grid-cols-2",
       )}
     >
-      {/* Tile 1: COST TOTAL */}
+      {/* Tile 1: COST TOTAL. Spans both columns through `lg` for its progress
+          bar; at `lg` it drops to one column like the other three tiles so
+          all four sit in a single row (the bar just gets as narrow as any
+          other tile's content at that width). */}
       <div
         className={cn(
           "rounded-2xl border border-border bg-card p-4 flex flex-col gap-3",
-          showPaid && "col-span-2 sm:col-span-2",
+          showPaid && "col-span-2 lg:col-span-1",
         )}
       >
         <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
           Cost total
         </p>
-        <p className="font-display text-3xl sm:text-4xl font-semibold tabular-nums tracking-tight break-words">
+        <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums tracking-tight whitespace-nowrap">
           {formatMoney(costTotalMinor, homeCurrency)}
         </p>
         {/* Paid/cost progress bar — only meaningful when paid tracking applies */}
@@ -78,7 +82,7 @@ export function BudgetHeroRow({
                 aria-label={`${paidPct}% paid`}
               />
             </div>
-            <p className="text-xs text-muted-foreground tabular-nums">
+            <p className="text-xs text-muted-foreground tabular-nums whitespace-nowrap">
               {formatMoney(paidTotalMinor, homeCurrency)} paid so far
             </p>
           </div>
@@ -92,7 +96,7 @@ export function BudgetHeroRow({
             <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
               Paid
             </p>
-            <p className="font-display text-2xl font-semibold tabular-nums tracking-tight break-words">
+            <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums tracking-tight whitespace-nowrap">
               {formatMoney(paidTotalMinor, homeCurrency)}
             </p>
           </div>
@@ -102,21 +106,29 @@ export function BudgetHeroRow({
             <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
               Still to pay
             </p>
-            <p className="font-display text-2xl font-semibold tabular-nums tracking-tight break-words">
+            <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums tracking-tight whitespace-nowrap">
               {formatMoney(Math.max(0, stillToPayMinor), homeCurrency)}
             </p>
           </div>
         </>
       )}
 
-      {/* Tile 4: COST / DAY */}
-      <div className="rounded-2xl border border-border bg-card p-4 flex flex-col gap-2">
+      {/* Tile 4: COST / DAY. Spans both columns through `lg` (same as Cost
+          total) so it never sits alone next to an empty cell on phones/768 —
+          it only takes a single column once there's a fourth tile to share
+          the row with, at `lg`. */}
+      <div
+        className={cn(
+          "rounded-2xl border border-border bg-card p-4 flex flex-col gap-2",
+          showPaid && "col-span-2 lg:col-span-1",
+        )}
+      >
         <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
           Cost / day
         </p>
         <p
           data-testid="est-per-day-value"
-          className="font-display text-2xl font-semibold tabular-nums tracking-tight break-words"
+          className="font-display text-xl sm:text-2xl font-semibold tabular-nums tracking-tight whitespace-nowrap"
         >
           {estPerDayMinor !== null ? formatMoney(estPerDayMinor, homeCurrency) : "—"}
         </p>
