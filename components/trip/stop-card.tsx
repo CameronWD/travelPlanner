@@ -328,7 +328,7 @@ export function StopCard({
       <div className="flex items-start justify-between gap-3">
         {dragHandle}
         <div className="flex flex-col gap-0.5 min-w-0">
-          <h3 className="font-display text-xl font-semibold leading-tight text-foreground truncate">
+          <h3 className="font-display min-w-0 flex-1 break-words text-xl font-semibold leading-tight text-foreground">
             {stop.name}
           </h3>
           {stop.country && (
@@ -355,7 +355,7 @@ export function StopCard({
         </div>
 
         {/* Action buttons */}
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex flex-wrap shrink-0 justify-end items-center gap-1">
           {/* Inline "Start a chapter here" button */}
           {onStartChapter && (
             <Button
@@ -547,7 +547,7 @@ export function StopCard({
                     )}
                     aria-hidden="true"
                   />
-                  <span className="flex-1 truncate text-sm text-foreground">{thing.title}</span>
+                  <span className="min-w-0 flex-1 break-words text-sm text-foreground">{thing.title}</span>
                   {/* Right-aligned time when item is timed */}
                   {thing.startTime && (
                     <span className="shrink-0 text-xs tabular-nums text-muted-foreground">

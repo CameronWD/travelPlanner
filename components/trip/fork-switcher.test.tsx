@@ -303,6 +303,17 @@ describe("ForkSwitcher", () => {
   // -------------------------------------------------------------------------
   // Discarding the active fork navigates to real plan
   // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // LA-009: fork names wrap instead of truncating in the menu list
+  // -------------------------------------------------------------------------
+
+  it("fork names wrap instead of truncating", async () => {
+    render(<ForkSwitcher {...baseProps} />);
+    const row = await screen.findByText("Variant 1");
+    expect(row.className).not.toContain("truncate");
+    expect(row.className).toContain("min-w-0");
+  });
+
   it("navigates to the real plan after discarding the active fork", async () => {
     const user = userEvent.setup();
     // Set ?plan=fork-1 to simulate the active fork being fork-1

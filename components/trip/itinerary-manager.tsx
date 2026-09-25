@@ -2102,16 +2102,18 @@ export function ItineraryManager({
               Add transport
             </Button>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {stops.some((s) => s.arriveDate === null) && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleFirmUpTrip}
                   loading={pendingId === "firm-up-trip"}
+                  aria-label="Firm up the whole trip"
                 >
                   <CalendarClock className="size-4" aria-hidden="true" />
-                  Firm up the whole trip
+                  <span className="sm:hidden">Firm up</span>
+                  <span className="hidden sm:inline">Firm up the whole trip</span>
                 </Button>
               )}
               <DropdownMenu>
@@ -2121,7 +2123,7 @@ export function ItineraryManager({
                     Chapters
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" collisionPadding={16}>
                   {chaptersEnabled ? (
                     <>
                       <DropdownMenuItem onSelect={handleNewChapter}>

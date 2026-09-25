@@ -61,6 +61,16 @@ describe("collapsed day rows", () => {
 });
 
 describe("expanded day", () => {
+  it("day activity labels wrap rather than truncate", async () => {
+    const user = userEvent.setup();
+    render(<StopDayList {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    const region = screen.getByTestId("day-detail-2026-12-06");
+    const label = within(region).getByText("Seine cruise");
+    expect(label.className).not.toContain("truncate");
+    expect(label.className).toContain("min-w-0");
+  });
+
   it("expands to timed rows in time order plus an Anytime group and an open-day link", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);

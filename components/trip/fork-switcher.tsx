@@ -301,12 +301,12 @@ export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
             aria-label={`Active plan: ${activeLabel}. Open plan switcher`}
           >
             <GitBranch className="size-3.5 shrink-0" aria-hidden="true" />
-            <span className="max-w-32 truncate">{activeLabel}</span>
+            <span className="max-w-32 truncate" title={activeLabel}>{activeLabel}</span>
             <ChevronDown className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
 
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className="w-64 max-w-[calc(100vw-2rem)]">
           {/* Real plan option */}
           <DropdownMenuItem
             onSelect={() => navigateToPlan(null)}
@@ -330,7 +330,7 @@ export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
               {activeForkId === fork.id && (
                 <Check className="size-4 shrink-0" aria-hidden="true" />
               )}
-              <span className={activeForkId === fork.id ? "font-medium flex-1 truncate" : "pl-6 flex-1 truncate"}>
+              <span className={activeForkId === fork.id ? "font-medium min-w-0 flex-1 break-words" : "min-w-0 flex-1 break-words pl-6"}>
                 {fork.name}
               </span>
               {/* Rename + duplicate + discard actions for this fork */}

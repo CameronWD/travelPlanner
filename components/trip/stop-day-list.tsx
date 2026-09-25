@@ -125,18 +125,18 @@ export function StopDayList({
                 {formatDayLabel(day.dateISO)}
               </span>
               {all.length === 0 ? (
-                <span className="flex-1 truncate text-xs italic text-muted-foreground/60">
+                <span className="min-w-0 flex-1 break-words text-xs italic text-muted-foreground/60">
                   Nothing planned
                 </span>
               ) : (
-                <span className="flex flex-1 items-center gap-2 truncate">
+                <span className="flex flex-1 items-start gap-2 min-w-0 break-words">
                   {all.slice(0, PREVIEW_COUNT).map((it) => (
                     <span key={it.id} className="inline-flex min-w-0 items-center gap-1">
                       <span
                         className={cn("size-1.5 shrink-0 rounded-full", categoryDotClass(it.category))}
                         aria-hidden="true"
                       />
-                      <span className="truncate text-xs text-foreground">{it.title}</span>
+                      <span className="min-w-0 break-words text-xs text-foreground">{it.title}</span>
                     </span>
                   ))}
                   {all.length > PREVIEW_COUNT && (
@@ -292,7 +292,7 @@ function DayItemRow({
         className={cn("size-2 shrink-0 rounded-full", categoryDotClass(item.category))}
         aria-hidden="true"
       />
-      <span className="flex-1 truncate text-sm text-foreground">{item.title}</span>
+      <span className="min-w-0 flex-1 break-words text-sm text-foreground">{item.title}</span>
       {ownerLabel && (
         <span className="shrink-0 text-xs italic text-muted-foreground/70">
           {ownerLabel}

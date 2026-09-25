@@ -53,6 +53,13 @@ it("shows the date range and a pin control for a scheduled stop", () => {
   expect(screen.getByRole("button", { name: /pin/i })).toBeInTheDocument();
 });
 
+it("stop title may wrap; it never truncates at a single breakpoint", () => {
+  render(<StopCard stop={scheduledStop} isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} onDelete={() => {}} />);
+  const h3 = screen.getByRole("heading", { level: 3, name: /Rome/ });
+  expect(h3.className).not.toContain("truncate");
+  expect(h3.className).toContain("min-w-0");
+});
+
 it("ARCH-DAT-1: hides the Delete control when onDelete is omitted (non-owner)", () => {
   render(<StopCard stop={roughStop} isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} />);
   expect(screen.queryByRole("button", { name: /^Delete Rome$/ })).not.toBeInTheDocument();

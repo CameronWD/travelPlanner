@@ -719,6 +719,31 @@ describe("whole-trip firm-up confirm dialog", () => {
 });
 
 // ---------------------------------------------------------------------------
+// LA-008: bottom action row wraps instead of overflowing
+// ---------------------------------------------------------------------------
+
+describe("bottom action row (LA-008)", () => {
+  it("bottom action row wraps so Add Stop is never pushed off-screen", () => {
+    const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[roughStop]}
+        tripStartDate="2026-08-01"
+      />,
+    );
+
+    // With a rough stop present, "Firm up the whole trip" / "Chapters" /
+    // "Add Stop" all render together in the same row — the failure mode
+    // LA-008 describes.
+    expect(screen.getByRole("button", { name: "Firm up the whole trip" })).toBeInTheDocument();
+    const addStop = screen.getByRole("button", { name: /add stop/i });
+    expect(addStop.parentElement!.className).toContain("flex-wrap");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 9. Chapter collapse localStorage persistence
 // ---------------------------------------------------------------------------
 
