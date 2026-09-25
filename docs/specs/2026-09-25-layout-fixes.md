@@ -29,7 +29,7 @@ it. The suggested fixes are leads; the decisions below win where they differ.
   map fills the content area.
 - **Three shared widths** replace the ~25 ad-hoc `max-w-*` values on page containers:
   - **wide** — ~1600px; grids step 1 → 2 → 3 columns as width grows.
-  - **reading** — 68ch, for prose.
+  - **reading** — 68ch, for prose. (Implemented as `38em`: `ch` is the "0" glyph, which let 68ch run ~92 real characters per line in this font — LA-051 ruling; see COMPONENTS.md "Page widths".)
   - **dialog** — the one dialog width.
   Component-internal caps (popovers, menus, chips) are not page widths and may stay.
 - Phones and 768 keep today's layout apart from the fixes below.
