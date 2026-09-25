@@ -400,6 +400,32 @@ describe("PromoteForkDialog", () => {
   });
 
   // -------------------------------------------------------------------------
+  // 17. Committed-things labels wrap; IDs wrap anywhere (LA-020)
+  // -------------------------------------------------------------------------
+  it("committed-things labels wrap; IDs wrap anywhere", async () => {
+    const previewWithLongLabels: PromotionPreview = {
+      ...PREVIEW_WITH_LOSSES,
+      lossList: [
+        { kind: "CONFIRMATION", label: "The Bloomsbury — Room 412, King Suite (non-refundable)" },
+        { kind: "PAID_COST", label: "Cost cmueo57u50012q1lofhz9j2b3long-id-that-must-not-overflow" },
+      ],
+    };
+    (getPromotionPreview as ReturnType<typeof vi.fn>).mockResolvedValue(
+      previewWithLongLabels,
+    );
+
+    render(<PromoteForkDialog {...DEFAULT_PROPS} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/promoting will discard/i)).toBeInTheDocument();
+    });
+
+    const label = screen.getByText(/The Bloomsbury/);
+    expect(label.className).not.toContain("truncate");
+    expect(label.className).toContain("[overflow-wrap:anywhere]");
+  });
+
+  // -------------------------------------------------------------------------
   // 16. Identical plans message when all deltas are zero
   // -------------------------------------------------------------------------
   it("shows 'identical plan' message when all deltas are zero", async () => {
