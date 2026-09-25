@@ -1,4 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+// React import needed for JSX in the PlanOverview mock below (vi.mock calls
+// are hoisted above every import, so this being written before or after
+// them doesn't change execution order — top-of-file here for readability).
+import React from "react";
 
 // plan/page.tsx is a heavy async server component with DB calls. We assert
 // the sticky-aside className via an exported constant, and exercise the
@@ -31,8 +35,6 @@ vi.mock("@/components/trip/plan-overview", () => ({
   PlanOverview: () => <div data-testid="plan-overview-marker" />,
 }));
 vi.mock("@/components/trip/variant-banner", () => ({ VariantBanner: () => null }));
-// React import needed for JSX in the PlanOverview mock above.
-import React from "react";
 
 const { PLAN_ASIDE_CLASS, default: TripPlanPage } = await import("./page");
 const { renderToStaticMarkup } = await import("react-dom/server");

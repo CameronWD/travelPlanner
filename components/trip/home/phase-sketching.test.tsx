@@ -190,4 +190,28 @@ describe("PhaseSketching reminders slot (LA-029/045)", () => {
     );
     expect(div.querySelector('[data-testid="reminders"]')).not.toBeNull();
   });
+
+  // Review fix (round 1): QuickActions rendered after the two-column grid in
+  // source order, so below `lg` — where the grid collapses to one column and
+  // items stack in DOM order — reminders (inside that grid) landed BEFORE
+  // QuickActions, not last. Both are now items of the same grid, in DOM
+  // order hero → route → quick actions → reminders, so this holds regardless
+  // of viewport (jsdom never applies the `lg:` placement that moves things
+  // back around on desktop).
+  it("keeps reminders after quick actions in DOM order, so it's last in the stacked mobile column", async () => {
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(
+      (await PhaseSketching({
+        tripId: "trip-1",
+        tripName: "Test Trip",
+        reminders: React.createElement("div", { "data-testid": "reminders" }),
+      })) as Parameters<typeof renderToStaticMarkup>[0],
+    );
+    const actionsRow = div.querySelector('[data-testid="sketching-actions-row"]');
+    const reminders = div.querySelector('[data-testid="reminders"]');
+    expect(actionsRow).not.toBeNull();
+    expect(reminders).not.toBeNull();
+    const position = actionsRow!.compareDocumentPosition(reminders!);
+    expect(Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
 });

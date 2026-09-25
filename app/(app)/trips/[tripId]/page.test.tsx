@@ -1,6 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { formatDateRange } from "@/lib/dates";
+// React import needed for JSX in the mocks below (vi.mock calls are hoisted
+// above every import, so this being written before or after them doesn't
+// change execution order — top-of-file here purely for readability).
+import React from "react";
 
 /**
  * Trip Home, composed the way Next.js actually renders it: the trip layout
@@ -79,8 +83,6 @@ vi.mock("@/components/trip/home/phase-past", () => ({
     <div data-testid="phase-marker">{props.reminders}</div>
   ),
 }));
-// React import needed for JSX in the phase mocks above.
-import React from "react";
 
 const { default: TripLayout } = await import("./layout");
 const { default: TripHomePage } = await import("./page");
