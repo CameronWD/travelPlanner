@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { AutoFinding } from "./checks";
-import { ROUTES, type CaptureSpec } from "./config";
+import { ROUTES, buildCaptureMatrix, type CaptureSpec } from "./config";
 import { exitCodeFor, filterCaptures, mergeRerun, rerunExitCode, shotLocation, summarise, type Manifest, type CaptureRecord } from "./run";
 
 const cap = (o: Partial<CaptureRecord> = {}): CaptureRecord => ({
@@ -128,13 +128,19 @@ describe("a filtered re-run that captures nothing fails, even merged into a clea
 });
 
 describe("filterCaptures", () => {
-  const specs = [spec({ id: "deep/plan/deep/390-light" }), spec({ id: "overlay/overlay/deep/360-light/stop-add" })];
+  const specs = [spec({ id: "deep/plan/deep/390-light" }), spec({ id: "overlay/stop-add/360-light" })];
   it("keeps everything when unset or blank", () => {
     expect(filterCaptures(specs, undefined)).toHaveLength(2);
     expect(filterCaptures(specs, "  ")).toHaveLength(2);
   });
   it("is a substring match on the id", () =>
-    expect(filterCaptures(specs, "overlay/").map((s) => s.id)).toEqual(["overlay/overlay/deep/360-light/stop-add"]));
+    expect(filterCaptures(specs, "overlay/").map((s) => s.id)).toEqual(["overlay/stop-add/360-light"]));
+  it("the documented overlay example matches the real overlay id shape", () => {
+    const real = buildCaptureMatrix({ overlays: [{ id: "stop-add", form: true }, { id: "other-cost-add", form: true }], phaseTripsAvailable: [] });
+    const hit = filterCaptures(real, "overlay/stop-add/").map((s) => s.id);
+    expect(hit).toHaveLength(5);
+    expect(hit.every((id) => id.startsWith("overlay/stop-add/"))).toBe(true);
+  });
   it("commas separate alternatives", () => expect(filterCaptures(specs, "deep/plan/, stop-add")).toHaveLength(2));
   it("a filter that matches nothing yields nothing (and rerunExitCode then fails the run, merged or not)", () =>
     expect(filterCaptures(specs, "typo")).toEqual([]));

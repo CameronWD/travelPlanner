@@ -69,6 +69,16 @@ describe("buildCaptureMatrix", () => {
     expect(m.filter((c) => c.overlay === "rail-more").map((c) => c.width)).toEqual([1440]);
   });
   it("ids are unique", () => expect(new Set(m.map((c) => c.id)).size).toBe(m.length));
+  it("overlay ids read overlay/<overlayId>/<width>-<theme>[-kbd], like their shot paths", () => {
+    expect(m.filter((c) => c.overlay === "stop-add").map((c) => c.id)).toEqual([
+      "overlay/stop-add/360-light",
+      "overlay/stop-add/390-light",
+      "overlay/stop-add/1440-light",
+      "overlay/stop-add/360-light-kbd",
+      "overlay/stop-add/390-light-kbd",
+    ]);
+    expect(m.filter((c) => c.set !== "overlay").every((c) => c.id === `${c.set}/${c.route.label}/${c.trip}/${c.width}-${c.theme}`)).toBe(true);
+  });
   it("non-trip routes use trip 'none'", () =>
     expect(m.filter((c) => !c.route.tripScoped && c.set !== "overlay").every((c) => c.trip === "none")).toBe(true));
 });

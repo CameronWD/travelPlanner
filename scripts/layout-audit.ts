@@ -54,8 +54,10 @@
  *   LAYOUT_AUDIT_AUTH_STATE   Playwright storageState JSON. Default
  *                             /tmp/auth.json. Created if missing.
  *   LAYOUT_AUDIT_ONLY         Substring filter on capture ids for quick
- *                             re-runs, e.g. "deep/plan/deep/390-light" or
- *                             "overlay/" (commas separate alternatives). A
+ *                             re-runs, e.g. "deep/plan/deep/390-light",
+ *                             "overlay/stop-add/" or "overlay/" (commas
+ *                             separate alternatives; ids mirror the shot
+ *                             paths below, minus the .png). A
  *                             filtered run into an out dir that already
  *                             holds a manifest MERGES into it — re-run
  *                             captures replace their old records and

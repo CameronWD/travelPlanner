@@ -86,8 +86,9 @@ export function shotLocation(outDir: string, spec: CaptureSpec): { dir: string; 
 // --------------------------------------------------------------------------
 
 /** Keeps captures whose id contains the filter. A comma separates
- * alternatives ("deep/plan/,overlay/stop-add"); ids never contain commas.
- * Unset or blank keeps everything. */
+ * alternatives ("deep/plan/,overlay/stop-add/"); ids never contain commas.
+ * Unset or blank keeps everything. Ids mirror the shot folders:
+ * `deep/plan/deep/390-light`, `overlay/stop-add/360-light-kbd`. */
 export function filterCaptures(specs: CaptureSpec[], only: string | undefined): CaptureSpec[] {
   const needles = (only ?? "")
     .split(",")

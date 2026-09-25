@@ -164,7 +164,11 @@ export const ROUTES: RouteDef[] = [
 // --------------------------------------------------------------------------
 
 export interface CaptureSpec {
-  id: string; // `${set}/${label}/${trip}/${width}-${theme}${overlay ? "/" + overlay : ""}${keyboard ? "-kbd" : ""}`
+  /** Pages: `${set}/${routeLabel}/${trip}/${width}-${theme}`; overlays:
+   * `overlay/${overlayId}/${width}-${theme}[-kbd]` — the same shape as each
+   * capture's shot path under `shots/` (run.ts shotLocation), so a
+   * LAYOUT_AUDIT_ONLY filter reads like the folder it re-shoots. */
+  id: string;
   set: "deep" | "phase" | "empty" | "dark" | "print" | "overlay";
   route: RouteDef;
   trip: TripKey;
@@ -190,7 +194,8 @@ const PRINT_WIDTH = 794;
 
 /** Placeholder route for overlay captures. Task 7 maps `overlay` (the
  * recipe id) back to its real route via the Task 6 recipe table; the
- * capture matrix itself doesn't need that route to build the id or count. */
+ * capture matrix itself doesn't need that route to build the id or count
+ * (an overlay id leaves this label out — see makeCapture). */
 const OVERLAY_ROUTE: RouteDef = { label: "overlay", sub: null, auth: true, tripScoped: true };
 
 function tripForRoute(route: RouteDef, tripIfScoped: TripKey): TripKey {
@@ -208,7 +213,8 @@ function makeCapture(params: {
   keyboard?: boolean;
 }): CaptureSpec {
   const { set, route, trip, width, theme, media = "screen", overlay, keyboard } = params;
-  const id = `${set}/${route.label}/${trip}/${width}-${theme}${overlay ? `/${overlay}` : ""}${keyboard ? "-kbd" : ""}`;
+  const where = overlay !== undefined ? `overlay/${overlay}` : `${set}/${route.label}/${trip}`;
+  const id = `${where}/${width}-${theme}${keyboard ? "-kbd" : ""}`;
   const spec: CaptureSpec = { id, set, route, trip, width, theme, media };
   if (overlay !== undefined) spec.overlay = overlay;
   if (keyboard !== undefined) spec.keyboard = keyboard;
