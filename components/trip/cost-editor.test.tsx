@@ -267,6 +267,16 @@ describe("CostEditor", () => {
     );
   });
 
+  // -------------------------------------------------------------------------
+  // LA-037: the edit/delete icon buttons get an invisible 44px coarse-pointer
+  // tap target.
+  // -------------------------------------------------------------------------
+  it("gives the edit and delete cost buttons a 44px tap target", () => {
+    render(<CostEditor {...baseProps} costs={[labeledCost]} />);
+    expect(screen.getByRole("button", { name: /edit cost/i }).className).toContain("tap-target");
+    expect(screen.getByRole("button", { name: /delete cost/i }).className).toContain("tap-target");
+  });
+
   it("ticking Paid on a cost with a stored due date clears it — updateCost is called with no dueDate key", async () => {
     // Regression: parseFormToInput omits `dueDate` whenever form.paid is
     // true, and updateCost writes `dueDate: data.dueDate ?? null`

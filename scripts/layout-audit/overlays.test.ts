@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { OVERLAYS, SUBMIT_LABELS, parseName, openOverlay } from "./overlays";
+import { OVERLAYS, SUBMIT_LABELS, parseName, openOverlay, type Step } from "./overlays";
 
 describe("parseName", () => {
   it("returns literals untouched", () => expect(parseName("Add Stop", {})).toBe("Add Stop"));
@@ -13,6 +13,15 @@ describe("parseName", () => {
     expect((parseName("/^Edit {stop}$/", { stop: "St. Anton (AT)" }) as RegExp).test("Edit St. Anton (AT)")).toBe(true));
 });
 
+/** Both click-like step shapes carry a `{role, name}` to check — used by the
+ * OVERLAYS-wide assertions below so `clickInCard` gets the same coverage as
+ * plain `click` steps. */
+function clickLike(s: Step): { role: string; name: string } | undefined {
+  if ("click" in s) return s.click;
+  if ("clickInCard" in s) return s.clickInCard;
+  return undefined;
+}
+
 describe("OVERLAYS", () => {
   it("has unique ids", () => expect(new Set(OVERLAYS.map((o) => o.id)).size).toBe(OVERLAYS.length));
   it("covers the 34 recipes from the plan", () => expect(OVERLAYS).toHaveLength(34));
@@ -23,28 +32,39 @@ describe("OVERLAYS", () => {
     // strings are literally different.
     for (const o of OVERLAYS)
       for (const s of o.steps) {
-        if (!("click" in s)) continue;
-        const parsed = parseName(s.click.name, { stop: "X" });
+        const click = clickLike(s);
+        if (!click) continue;
+        const parsed = parseName(click.name, { stop: "X" });
         if (parsed instanceof RegExp) {
           for (const label of SUBMIT_LABELS) {
-            expect(parsed.test(label), `${o.id}'s "${s.click.name}" matches SUBMIT_LABELS "${label}"`).toBe(false);
+            expect(parsed.test(label), `${o.id}'s "${click.name}" matches SUBMIT_LABELS "${label}"`).toBe(false);
           }
         } else {
-          expect(SUBMIT_LABELS, `${o.id} clicks "${s.click.name}"`).not.toContain(parsed);
+          expect(SUBMIT_LABELS, `${o.id} clicks "${click.name}"`).not.toContain(parsed);
         }
       }
   });
   it("every name parses", () => {
     for (const o of OVERLAYS) {
-      for (const s of o.steps) if ("click" in s) expect(() => parseName(s.click.name, { stop: "X" })).not.toThrow();
+      for (const s of o.steps) {
+        const click = clickLike(s);
+        if (click) expect(() => parseName(click.name, { stop: "X" })).not.toThrow();
+      }
       if (o.expect.name) expect(() => parseName(o.expect.name!, { stop: "X" })).not.toThrow();
     }
   });
   it("recipes using {stop} derive it first", () => {
     for (const o of OVERLAYS) {
-      const idx = o.steps.findIndex((s) => "click" in s && s.click.name.includes("{stop}"));
+      const idx = o.steps.findIndex((s) => clickLike(s)?.name.includes("{stop}"));
       if (idx >= 0) expect(o.steps.slice(0, idx).some((s) => "deriveStop" in s), o.id).toBe(true);
     }
+  });
+  it("save-template is width-aware: an optional tab click, then a clickInCard scoped to \"Packing\"", () => {
+    const recipe = OVERLAYS.find((o) => o.id === "save-template")!;
+    expect(recipe.steps).toEqual([
+      { click: { role: "tab", name: "/Packing/", optional: true } },
+      { clickInCard: { heading: "Packing", role: "button", name: "Save as template", exact: true } },
+    ]);
   });
 });
 
@@ -139,5 +159,111 @@ describe("openOverlay", () => {
     expect(interceptor.startsWith('<div class="xxx')).toBe(true);
     expect(interceptor.length).toBeLessThanOrEqual(200);
     expect(interceptor).not.toMatch(/\u001b|\[2m|\[22m/);
+  });
+});
+
+// --------------------------------------------------------------------------
+// click.optional / clickInCard — LA-018 harness fix, save-template recipe
+// --------------------------------------------------------------------------
+
+describe("openOverlay: click.optional and clickInCard", () => {
+  interface FakeLocator {
+    count: () => Promise<number>;
+    first: () => FakeLocator;
+    click: () => Promise<void>;
+    locator: (selector: string) => FakeLocator;
+    waitFor: () => Promise<void>;
+  }
+
+  /** A locator with `count`, whose `.locator(selector)` (used to scope into
+   * a Card) is answered by `onLocator` — defaulting to "nothing there". */
+  function fakeLocator(count: number, onLocator?: (selector: string) => FakeLocator): FakeLocator {
+    const self: FakeLocator = {
+      count: vi.fn(async () => count),
+      first: vi.fn(() => self),
+      click: vi.fn(async () => {}),
+      locator: vi.fn((selector: string) => (onLocator ? onLocator(selector) : fakeLocator(0))),
+      waitFor: vi.fn(async () => {}),
+    };
+    return self;
+  }
+
+  const CARD_SELECTOR_PREFIX = "div:has(";
+
+  /**
+   * `tab`: count for `getByRole("tab", …)`. `card`: count for the
+   * `div:has(…)` Card-heading selector; when it's >0, `cardButton` is the
+   * count `.locator(...)` inside that Card returns. `fallbackButton`: count
+   * for the unscoped `getByRole("button", …)` clickInCard falls back to.
+   * `dialog`: count for the `[role=dialog]` "already open" guard (0 unless
+   * a test says otherwise).
+   */
+  function fakePage(opts: { tab: number; card: number; cardButton?: number; fallbackButton?: number; dialog?: number }) {
+    const dialogLocator = fakeLocator(opts.dialog ?? 0);
+    const cardLocator = fakeLocator(opts.card, () => fakeLocator(opts.cardButton ?? 0));
+    return {
+      locator: vi.fn((selector: string) => (selector.startsWith(CARD_SELECTOR_PREFIX) ? cardLocator : dialogLocator)),
+      getByRole: vi.fn((role: string) => (role === "tab" ? fakeLocator(opts.tab) : fakeLocator(opts.fallbackButton ?? 0))),
+    };
+  }
+
+  const recipe = OVERLAYS.find((o) => o.id === "save-template")!;
+
+  it("desktop shape: no tab (skipped, not a gap) — clickInCard finds the button scoped to the Packing card", async () => {
+    const page = fakePage({ tab: 0, card: 1, cardButton: 1 });
+    await expect(openOverlay(page as never, recipe)).resolves.toEqual({ ok: true });
+    // The unscoped fallback getByRole("button", …) must never have been used.
+    expect(page.getByRole).not.toHaveBeenCalledWith("button", expect.anything());
+  });
+
+  it("phone shape: the tab is clicked, then clickInCard falls back to an unscoped click (no Card exists)", async () => {
+    const page = fakePage({ tab: 1, card: 0, fallbackButton: 1 });
+    await expect(openOverlay(page as never, recipe)).resolves.toEqual({ ok: true });
+    expect(page.getByRole).toHaveBeenCalledWith("tab", expect.objectContaining({ name: /Packing/ }));
+  });
+
+  it("reports the card-scoped trigger as a gap, naming the card, when the Card exists but the button doesn't", async () => {
+    const page = fakePage({ tab: 0, card: 1, cardButton: 0 });
+    await expect(openOverlay(page as never, recipe)).resolves.toEqual({
+      ok: false,
+      reason: 'trigger not found: button "Save as template" in card "Packing"',
+    });
+  });
+
+  it("reports a plain gap (no \"in card\") when neither the tab nor the fallback button exist", async () => {
+    const page = fakePage({ tab: 0, card: 0, fallbackButton: 0 });
+    await expect(openOverlay(page as never, recipe)).resolves.toEqual({
+      ok: false,
+      reason: 'trigger not found: button "Save as template"',
+    });
+  });
+
+  it("an optional click step never reports its own gap — a recipe whose only step is skipped still falls through to the final \"overlay did not open\" check", async () => {
+    const optionalOnly: typeof recipe = {
+      ...recipe,
+      steps: [{ click: { role: "tab", name: "Packing", optional: true } }],
+      expect: { role: "dialog", name: "Never opens" },
+    };
+    // The tab is absent (skipped, not a gap) and nothing ever opens the
+    // dialog — the final `expect` wait times out, which is the gap that
+    // must surface, not a false "trigger not found" from the optional step.
+    const neverVisible = fakeLocator(0);
+    neverVisible.waitFor = vi.fn(async () => {
+      throw new Error("Timeout 5000ms exceeded.");
+    });
+    const page = {
+      locator: vi.fn(() => fakeLocator(0)),
+      getByRole: vi.fn((role: string) => (role === "tab" ? fakeLocator(0) : neverVisible)),
+    };
+    await expect(openOverlay(page as never, optionalOnly)).resolves.toEqual({
+      ok: false,
+      reason: 'overlay did not open: dialog "Never opens"',
+    });
+  });
+
+  it("the dialog-already-open guard still applies before a clickInCard step", async () => {
+    const clickInCardOnly: typeof recipe = { ...recipe, steps: [recipe.steps[1]] };
+    const page = fakePage({ tab: 0, card: 1, cardButton: 1, dialog: 1 });
+    await expect(openOverlay(page as never, clickInCardOnly)).resolves.toEqual({ ok: false, reason: "a dialog is already open" });
   });
 });

@@ -125,6 +125,15 @@ describe("expanded day", () => {
     expect(scheduleItem).toHaveBeenCalledWith("c", { date: "2026-12-07" });
   });
 
+  // LA-037: the per-item edit pencil gets a 44px coarse-pointer tap target.
+  it("gives the item edit pencil a 44px tap target", async () => {
+    const user = userEvent.setup();
+    render(<StopDayList {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    const region = screen.getByTestId("day-detail-2026-12-06");
+    expect(within(region).getByRole("button", { name: "Edit Louvre" }).className).toContain("tap-target");
+  });
+
   it("offers Unschedule on each expanded item row", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);

@@ -301,7 +301,7 @@ function DayItemRow({
       <Button
         variant="ghost"
         size="icon"
-        className="size-7 shrink-0 text-muted-foreground"
+        className="tap-target size-7 shrink-0 text-muted-foreground"
         disabled={isPending}
         onClick={onEdit}
         aria-label={`Edit ${item.title}`}

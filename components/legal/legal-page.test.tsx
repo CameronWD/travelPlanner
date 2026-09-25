@@ -54,16 +54,32 @@ describe("LegalPage", () => {
     );
   });
 
-  // LA-054: the header's logo link and companion ("Terms"/"Privacy") link
-  // each get a 44px-tall tap target.
-  it("gives the header logo link and the companion link a 44px tap target", () => {
+  // LA-054: the header's logo link is already a wide (~90px, icon+wordmark)
+  // 44px-tall box — fine as-is. The companion ("Terms"/"Privacy") link sits
+  // at the right edge of the header and was measuring 42×44 (2px narrow):
+  // `tap-target`'s invisible ::before would be safe here too, but it's an
+  // absolute box right at the viewport edge (Task 16 had a real 4px overflow
+  // from exactly this), so a real `min-w-11 min-h-11` box — inside the
+  // header's own padding, can't poke past the edge — is used instead.
+  it("gives the header logo link a 44px-tall tap target", () => {
     render(
       <LegalPage title="Privacy" other={{ href: "/terms", label: "Terms" }}>
         <LegalSection title="Your rights">y</LegalSection>
       </LegalPage>,
     );
     expect(screen.getByRole("link", { name: "Teepee sign in" }).className).toContain("min-h-11");
-    expect(screen.getByRole("link", { name: "Terms" }).className).toContain("min-h-11");
+  });
+
+  it("gives the companion nav link a real 44×44 box, not just height", () => {
+    render(
+      <LegalPage title="Privacy" other={{ href: "/terms", label: "Terms" }}>
+        <LegalSection title="Your rights">y</LegalSection>
+      </LegalPage>,
+    );
+    const link = screen.getByRole("link", { name: "Terms" });
+    expect(link.className).toContain("min-h-11");
+    expect(link.className).toContain("min-w-11");
+    expect(link.className).toContain("justify-center");
   });
 
   it("gives each LegalSection its slugged id as a scroll-margin anchor", () => {

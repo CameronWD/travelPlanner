@@ -43,7 +43,7 @@ export function LegalPage({
           {other ? (
             <Link
               href={other.href}
-              className="inline-flex min-h-11 items-center text-[13px] font-extrabold"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center text-[13px] font-extrabold"
             >
               {other.label}
             </Link>

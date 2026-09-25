@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/items", () => ({
@@ -233,6 +233,18 @@ describe("ItemFormDialog", () => {
     expect(await screen.findByText("Category is required")).toBeInTheDocument();
     const categoryGroup = screen.getByRole("group", { name: "Category" });
     expect(categoryGroup).toHaveAttribute("aria-invalid", "true");
+  });
+
+  // -------------------------------------------------------------------------
+  // LA-049: category chips get an invisible 44px coarse-pointer tap target.
+  // -------------------------------------------------------------------------
+  it("gives every category chip a 44px tap target", async () => {
+    render(<ItemFormDialog {...baseProps} />);
+
+    const categoryGroup = screen.getByRole("group", { name: "Category" });
+    const chips = within(categoryGroup).getAllByRole("button");
+    expect(chips.length).toBeGreaterThan(0);
+    for (const chip of chips) expect(chip.className).toContain("tap-target");
   });
 
   // -------------------------------------------------------------------------
