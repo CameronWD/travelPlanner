@@ -103,6 +103,28 @@ describe("Dialog", () => {
     expect(header?.className).toContain("top-0");
   });
 
+  it("keeps scrolled content from ever showing through or above the pinned header", async () => {
+    // jsdom has no layout engine, so this can't drive a real scroll and read
+    // pixels back (see the fix-round-2 report for the in-browser scroll
+    // verification). What it CAN pin is the structural invariants that make
+    // "nothing peeks" true regardless of a browser's exact sticky-tracking
+    // behaviour: the header paints above in-flow siblings (z-10) with an
+    // opaque backdrop (bg-background), and is the scroll body's *first*
+    // child, so nothing in document flow ever precedes it into the padding
+    // strip above it.
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+
+    const header = screen.getByText("Invite traveller").closest("[class*='sticky']") as HTMLElement;
+    expect(header.className).toContain("z-10");
+    expect(header.className).toContain("bg-background");
+
+    const scrollBody = content.querySelector('[class*="overflow-y-auto"]') as HTMLElement;
+    expect(scrollBody.firstElementChild).toBe(header);
+  });
+
   it("gives the header breathing room below the title", async () => {
     const user = userEvent.setup();
     render(<Example />);
