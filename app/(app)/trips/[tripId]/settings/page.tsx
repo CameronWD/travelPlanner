@@ -23,6 +23,14 @@ import { DangerZone } from "@/components/trip/settings/danger-zone";
 import { DuplicateTripDialog } from "@/components/trip/duplicate-trip-dialog";
 import { ChaptersManager } from "@/components/trip/chapters-manager";
 
+/**
+ * Companion-column grid for the settings cards (LA-046, spec §3): below
+ * `lg` a single stack, as today; from `lg` up, two columns grouped like the
+ * kit's desktop reference (trip-content cards on the left, outward-facing
+ * ones on the right — see the column split below). Exported for tests.
+ */
+export const SETTINGS_GRID_CLASS = "grid grid-cols-1 items-start gap-3.5 lg:grid-cols-2";
+
 export default async function SettingsPage({
   params,
 }: {
@@ -97,148 +105,156 @@ export default async function SettingsPage({
   ]);
 
   return (
-    <div className="mx-auto max-w-2xl flex flex-col gap-3.5">
+    <div className="mx-auto flex flex-col gap-3.5">
       <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Settings</h2>
 
-      {/* ── Trip details ── */}
-      <Card>
-        <CardHeader className="p-5 pb-0">
-          <CardTitle className="font-display text-base font-bold tracking-tight">Trip details</CardTitle>
-        </CardHeader>
-        <CardContent className="p-5 pt-3">
-          <TripDetailsForm
-            tripId={tripId}
-            defaultValues={{
-              name: trip.name,
-              // A date-less trip renders empty date inputs.
-              startDate: trip.startDate ?? "",
-              endDate: trip.endDate ?? "",
-              hardEndDate: trip.hardEndDate ?? "",
-              homeCurrency: trip.homeCurrency,
-              homeName: trip.homeName,
-              roundTrip: trip.roundTrip,
-            }}
-          />
-          <div className="mt-6">
-            <CoverImageField tripId={tripId} hasCover={trip.coverImageKey != null} />
-          </div>
-        </CardContent>
-      </Card>
+      <div className={SETTINGS_GRID_CLASS}>
+        {/* ── Left column: this trip's own content ── */}
+        <div className="flex flex-col gap-3.5">
+          {/* ── Trip details ── */}
+          <Card>
+            <CardHeader className="p-5 pb-0">
+              <CardTitle className="font-display text-base font-bold tracking-tight">Trip details</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 pt-3">
+              <TripDetailsForm
+                tripId={tripId}
+                defaultValues={{
+                  name: trip.name,
+                  // A date-less trip renders empty date inputs.
+                  startDate: trip.startDate ?? "",
+                  endDate: trip.endDate ?? "",
+                  hardEndDate: trip.hardEndDate ?? "",
+                  homeCurrency: trip.homeCurrency,
+                  homeName: trip.homeName,
+                  roundTrip: trip.roundTrip,
+                }}
+              />
+              <div className="mt-6">
+                <CoverImageField tripId={tripId} hasCover={trip.coverImageKey != null} />
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* ── Chapters — hidden while the trip has chapters turned off (Task 13);
-          turn them back on from the plan editor's Chapters menu. ── */}
-      {trip.chaptersEnabled && (
-        <Card>
-          <CardHeader className="p-5 pb-0">
-            <CardTitle className="font-display text-base font-bold tracking-tight">Chapters</CardTitle>
-          </CardHeader>
-          <CardContent className="p-5 pt-3">
-            <ChaptersManager tripId={tripId} chapters={chapters} />
-          </CardContent>
-        </Card>
-      )}
+          {/* ── Chapters — hidden while the trip has chapters turned off (Task 13);
+              turn them back on from the plan editor's Chapters menu. ── */}
+          {trip.chaptersEnabled && (
+            <Card>
+              <CardHeader className="p-5 pb-0">
+                <CardTitle className="font-display text-base font-bold tracking-tight">Chapters</CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 pt-3">
+                <ChaptersManager tripId={tripId} chapters={chapters} />
+              </CardContent>
+            </Card>
+          )}
 
-      {/* ── Travellers ── */}
-      <Card>
-        <CardHeader className="p-5 pb-0">
-          <CardTitle className="font-display text-base font-bold tracking-tight">Travellers</CardTitle>
-        </CardHeader>
-        <CardContent className="p-5 pt-3">
-          <InvitePanel
-            tripId={tripId}
-            members={trip.members}
-            pendingInvites={trip.invites}
-            canInvite={canManageTrip}
-            currentUserId={user.id}
-            viewerIsOwner={isOwner}
-          />
-        </CardContent>
-      </Card>
+          {/* ── Driving estimates ── */}
+          <Card>
+            <CardHeader className="p-5 pb-0">
+              <CardTitle className="font-display text-base font-bold tracking-tight">Driving estimates</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 pt-3">
+              <p className="text-xs text-muted-foreground max-w-reading">
+                Tune the offline estimates used to flag long driving days. These are rough guides, not
+                navigation ETAs.
+              </p>
+              <DrivingEstimatesPanel
+                tripId={tripId}
+                initialWindingFactor={trip.drivingWindingFactor}
+                initialAvgSpeedKph={trip.drivingAvgSpeedKph}
+              />
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* ── Sharing ── */}
-      <Card>
-        <CardContent className="p-5">
-          <ShareLinksPanel tripId={tripId} initialLinks={shareLinks} />
-        </CardContent>
-      </Card>
+        {/* ── Right column: travellers/sharing and outward delivery ── */}
+        <div className="flex flex-col gap-3.5">
+          {/* ── Travellers ── */}
+          <Card>
+            <CardHeader className="p-5 pb-0">
+              <CardTitle className="font-display text-base font-bold tracking-tight">Travellers</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 pt-3">
+              <InvitePanel
+                tripId={tripId}
+                members={trip.members}
+                pendingInvites={trip.invites}
+                canInvite={canManageTrip}
+                currentUserId={user.id}
+                viewerIsOwner={isOwner}
+              />
+            </CardContent>
+          </Card>
 
-      {/* ── Digest — the app's own outward push, above the Calendar feed
-          card because the two are the trip's outward-delivery sections. ── */}
-      <Card>
-        <CardHeader className="p-5 pb-0">
-          <CardTitle className="font-display text-base font-bold tracking-tight">Digest</CardTitle>
-        </CardHeader>
-        <CardContent className="p-5 pt-3">
-          <DigestPanel tripId={tripId} initial={digestSettings} />
-        </CardContent>
-      </Card>
+          {/* ── Sharing ── */}
+          <Card>
+            <CardContent className="p-5">
+              <ShareLinksPanel tripId={tripId} initialLinks={shareLinks} />
+            </CardContent>
+          </Card>
 
-      {/* ── Calendar feed ── */}
-      <Card>
-        <CardHeader className="p-5 pb-0">
-          <CardTitle className="font-display text-base font-bold tracking-tight">Calendar feed</CardTitle>
-        </CardHeader>
-        <CardContent className="p-5 pt-3">
-          <p className="text-xs text-muted-foreground">
-            Subscribe to this trip in Google, Apple or Outlook Calendar. Updates one-way as you
-            edit the itinerary.
-          </p>
-          <CalendarFeedPanel
-            tripId={tripId}
-            initialToken={calendarFeed?.token ?? null}
-            initialFilter={
-              calendarFeed
-                ? {
-                    includeTransport: calendarFeed.includeTransport,
-                    includeAccommodation: calendarFeed.includeAccommodation,
-                    includeActivities: calendarFeed.includeActivities,
-                  }
-                : undefined
-            }
-            initialAlarms={
-              calendarFeed
-                ? {
-                    alarmTransport: calendarFeed.alarmTransport,
-                    alarmCheckOut: calendarFeed.alarmCheckOut,
-                  }
-                : undefined
-            }
-          />
-        </CardContent>
-      </Card>
+          {/* ── Digest — the app's own outward push, above the Calendar feed
+              card because the two are the trip's outward-delivery sections. ── */}
+          <Card>
+            <CardHeader className="p-5 pb-0">
+              <CardTitle className="font-display text-base font-bold tracking-tight">Digest</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 pt-3">
+              <DigestPanel tripId={tripId} initial={digestSettings} />
+            </CardContent>
+          </Card>
 
-      {/* ── Driving estimates ── */}
-      <Card>
-        <CardHeader className="p-5 pb-0">
-          <CardTitle className="font-display text-base font-bold tracking-tight">Driving estimates</CardTitle>
-        </CardHeader>
-        <CardContent className="p-5 pt-3">
-          <p className="text-xs text-muted-foreground">
-            Tune the offline estimates used to flag long driving days. These are rough guides, not
-            navigation ETAs.
-          </p>
-          <DrivingEstimatesPanel
-            tripId={tripId}
-            initialWindingFactor={trip.drivingWindingFactor}
-            initialAvgSpeedKph={trip.drivingAvgSpeedKph}
-          />
-        </CardContent>
-      </Card>
+          {/* ── Calendar feed ── */}
+          <Card>
+            <CardHeader className="p-5 pb-0">
+              <CardTitle className="font-display text-base font-bold tracking-tight">Calendar feed</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 pt-3">
+              <p className="text-xs text-muted-foreground max-w-reading">
+                Subscribe to this trip in Google, Apple or Outlook Calendar. Updates one-way as you
+                edit the itinerary.
+              </p>
+              <CalendarFeedPanel
+                tripId={tripId}
+                initialToken={calendarFeed?.token ?? null}
+                initialFilter={
+                  calendarFeed
+                    ? {
+                        includeTransport: calendarFeed.includeTransport,
+                        includeAccommodation: calendarFeed.includeAccommodation,
+                        includeActivities: calendarFeed.includeActivities,
+                      }
+                    : undefined
+                }
+                initialAlarms={
+                  calendarFeed
+                    ? {
+                        alarmTransport: calendarFeed.alarmTransport,
+                        alarmCheckOut: calendarFeed.alarmCheckOut,
+                      }
+                    : undefined
+                }
+              />
+            </CardContent>
+          </Card>
 
-      {/* ── Danger zone (owner or admin) — includes Duplicate ── */}
-      {canManageTrip && (
-        <Card className="bg-destructive/5 border-destructive/30">
-          <CardHeader className="p-5 pb-0">
-            <CardTitle className="font-display text-base font-bold tracking-tight text-destructive">Danger zone</CardTitle>
-          </CardHeader>
-          <CardContent className="p-5 pt-3">
-            <div className="flex flex-wrap gap-2.5">
-              <DuplicateTripDialog tripId={tripId} tripName={trip.name} />
-              <DangerZone tripId={tripId} tripName={trip.name} />
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          {/* ── Danger zone (owner or admin) — includes Duplicate ── */}
+          {canManageTrip && (
+            <Card className="bg-destructive/5 border-destructive/30">
+              <CardHeader className="p-5 pb-0">
+                <CardTitle className="font-display text-base font-bold tracking-tight text-destructive">Danger zone</CardTitle>
+              </CardHeader>
+              <CardContent className="p-5 pt-3">
+                <div className="flex flex-wrap gap-2.5">
+                  <DuplicateTripDialog tripId={tripId} tripName={trip.name} />
+                  <DangerZone tripId={tripId} tripName={trip.name} />
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

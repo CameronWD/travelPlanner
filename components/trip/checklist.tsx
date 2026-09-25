@@ -202,74 +202,85 @@ function AddItemForm({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      aria-label={kind === "PRETRIP" ? "Add a pre-trip task" : "Add a packing item"}
-      className={cn(
-        cardVariants({ dashed: true }),
-        "flex flex-col gap-3 p-3.5 sm:flex-row sm:items-end sm:p-[18px]",
-      )}
-    >
-      <div className="flex-1 min-w-0">
-        <Field label="New item" error={error}>
-          <Input
-            placeholder={
-              kind === "PRETRIP" ? "e.g. Book airport taxi" : "e.g. Sunscreen"
-            }
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={pending}
-          />
-        </Field>
-      </div>
-
-      {showDueDate && (
-        <div className="w-full sm:w-40 shrink-0">
-          <Field label="Due date (optional)">
+    // `@container`: this form now also renders inside a Checklists grid card
+    // (LA-017), which is always narrower than the ~700px this row layout
+    // needs, regardless of viewport — a viewport-based `sm:` broke
+    // (input/date/assignee/button overlapped) whenever the form's own
+    // rendered width, not the viewport, was the narrow one. Querying the
+    // form's own box from this wrapper side-steps that (a container can't
+    // query itself, so the `@min-[700px]:` variants below live one level
+    // down): it stays stacked in a grid card at any desktop width, and still
+    // rows up in the full-width tab panel once there's actually room.
+    <div className="@container">
+      <form
+        onSubmit={handleSubmit}
+        aria-label={kind === "PRETRIP" ? "Add a pre-trip task" : "Add a packing item"}
+        className={cn(
+          cardVariants({ dashed: true }),
+          "flex flex-col gap-3 p-3.5 @min-[700px]:flex-row @min-[700px]:items-end @min-[700px]:p-[18px]",
+        )}
+      >
+        <div className="flex-1 min-w-0">
+          <Field label="New item" error={error}>
             <Input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+              placeholder={
+                kind === "PRETRIP" ? "e.g. Book airport taxi" : "e.g. Sunscreen"
+              }
+              value={text}
+              onChange={(e) => setText(e.target.value)}
               disabled={pending}
             />
           </Field>
         </div>
-      )}
 
-      {showAssignee && members && members.length > 0 && (
-        <div className="w-full sm:w-44 shrink-0">
-          <Field label="Assignee (optional)">
-            <Select
-              value={assignedToId}
-              onValueChange={setAssignedToId}
-              disabled={pending}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Anyone" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Anyone</SelectItem>
-                {members.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.name ?? "Unknown"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
-      )}
+        {showDueDate && (
+          <div className="w-full @min-[700px]:w-40 shrink-0">
+            <Field label="Due date (optional)">
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                disabled={pending}
+              />
+            </Field>
+          </div>
+        )}
 
-      <Button
-        type="submit"
-        variant="primary"
-        loading={pending}
-        className="shrink-0 self-end sm:self-auto"
-      >
-        <Plus aria-hidden="true" />
-        Add item
-      </Button>
-    </form>
+        {showAssignee && members && members.length > 0 && (
+          <div className="w-full @min-[700px]:w-44 shrink-0">
+            <Field label="Assignee (optional)">
+              <Select
+                value={assignedToId}
+                onValueChange={setAssignedToId}
+                disabled={pending}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Anyone" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Anyone</SelectItem>
+                  {members.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name ?? "Unknown"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        )}
+
+        <Button
+          type="submit"
+          variant="primary"
+          loading={pending}
+          className="shrink-0 self-end @min-[700px]:self-auto"
+        >
+          <Plus aria-hidden="true" />
+          Add item
+        </Button>
+      </form>
+    </div>
   );
 }
 

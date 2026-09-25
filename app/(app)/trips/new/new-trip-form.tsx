@@ -20,6 +20,14 @@ import {
 
 type FieldErrors = Record<string, string[] | undefined>;
 
+/**
+ * Companion-column grid for the form fields (LA-034, spec §3): below `lg` a
+ * single column, as today; from `lg` up, details on the left and dates/cover
+ * on the right, with the actions row spanning both columns beneath. Exported
+ * for tests.
+ */
+export const NEW_TRIP_FORM_GRID_CLASS = "grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8";
+
 export function NewTripForm() {
   const [isPending, startTransition] = useTransition();
   const [errors, setErrors] = React.useState<FieldErrors>({});
@@ -59,93 +67,101 @@ export function NewTripForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="space-y-6">
-      {/* Trip name */}
-      <Field
-        label="Trip name"
-        required
-        error={fieldError("name")}
-      >
-        <Input
-          name="name"
-          placeholder="Europe Summer 2026"
-          autoFocus
-          disabled={isPending}
-        />
-      </Field>
+    <form onSubmit={handleSubmit} noValidate>
+      <div className={NEW_TRIP_FORM_GRID_CLASS}>
+        {/* ── Left column: trip identity ── */}
+        <div className="flex flex-col gap-6">
+          {/* Trip name */}
+          <Field
+            label="Trip name"
+            required
+            error={fieldError("name")}
+          >
+            <Input
+              name="name"
+              placeholder="Europe Summer 2026"
+              autoFocus
+              disabled={isPending}
+            />
+          </Field>
 
-      {/* Date range (optional — sketch first, set dates as you firm up stops) */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-foreground">Dates</span>
-          <span className="text-xs text-muted-foreground">optional — sketch first</span>
+          {/* Home currency */}
+          <Field
+            id="homeCurrency"
+            label="Home currency"
+            required
+            error={fieldError("homeCurrency")}
+            description="Trip totals will be shown in this currency."
+          >
+            <Select name="homeCurrency" defaultValue={DEFAULT_HOME_CURRENCY}>
+              <SelectTrigger id="homeCurrency" disabled={isPending}>
+                <SelectValue placeholder="Select currency" />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCIES.map((c) => (
+                  <SelectItem key={c.code} value={c.code}>
+                    {c.code} — {c.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+
+          {/* Home base (optional) */}
+          <Field
+            label="Home base (optional)"
+            error={fieldError("homeName")}
+            description="Where this trip departs from and returns to. Leave blank to add later."
+          >
+            <Input name="homeName" placeholder="e.g. Sydney" disabled={isPending} />
+          </Field>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <DateField
-            name="startDate"
-            label="Start date"
-            error={fieldError("startDate")}
-            disabled={isPending}
-          />
-          <DateField
-            name="endDate"
-            label="End date"
-            error={fieldError("endDate")}
-            disabled={isPending}
-          />
+
+        {/* ── Right column: dates + cover ── */}
+        <div className="flex flex-col gap-6">
+          {/* Date range (optional — sketch first, set dates as you firm up stops) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-foreground">Dates</span>
+              <span className="text-xs text-muted-foreground">optional — sketch first</span>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <DateField
+                name="startDate"
+                label="Start date"
+                error={fieldError("startDate")}
+                disabled={isPending}
+              />
+              <DateField
+                name="endDate"
+                label="End date"
+                error={fieldError("endDate")}
+                disabled={isPending}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Leave dates blank to start planning now and add dates later as you firm up stops.
+            </p>
+          </div>
+
+          {/* Cover photo (optional) */}
+          <Field
+            label="Cover photo (optional)"
+            description="Upload a photo for this trip. You can change it later in Settings."
+          >
+            <Input type="file" name="cover" accept="image/*" disabled={isPending} />
+          </Field>
         </div>
-        <p className="text-xs text-muted-foreground">
-          Leave dates blank to start planning now and add dates later as you firm up stops.
-        </p>
-      </div>
 
-      {/* Home currency */}
-      <Field
-        id="homeCurrency"
-        label="Home currency"
-        required
-        error={fieldError("homeCurrency")}
-        description="Trip totals will be shown in this currency."
-      >
-        <Select name="homeCurrency" defaultValue={DEFAULT_HOME_CURRENCY}>
-          <SelectTrigger id="homeCurrency" disabled={isPending}>
-            <SelectValue placeholder="Select currency" />
-          </SelectTrigger>
-          <SelectContent>
-            {CURRENCIES.map((c) => (
-              <SelectItem key={c.code} value={c.code}>
-                {c.code} — {c.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-
-      {/* Home base (optional) */}
-      <Field
-        label="Home base (optional)"
-        error={fieldError("homeName")}
-        description="Where this trip departs from and returns to. Leave blank to add later."
-      >
-        <Input name="homeName" placeholder="e.g. Sydney" disabled={isPending} />
-      </Field>
-
-      {/* Cover photo (optional) */}
-      <Field
-        label="Cover photo (optional)"
-        description="Upload a photo for this trip. You can change it later in Settings."
-      >
-        <Input type="file" name="cover" accept="image/*" disabled={isPending} />
-      </Field>
-
-      {/* Actions */}
-      <div className="flex items-center justify-end gap-3 pt-2">
-        <Button variant="ghost" asChild disabled={isPending}>
-          <Link href="/trips">Cancel</Link>
-        </Button>
-        <Button type="submit" loading={isPending}>
-          Create trip
-        </Button>
+        {/* Actions — spans both columns */}
+        <div className="flex items-center justify-end gap-3 pt-2 lg:col-span-2">
+          <Button variant="ghost" asChild disabled={isPending}>
+            <Link href="/trips">Cancel</Link>
+          </Button>
+          <Button type="submit" loading={isPending}>
+            Create trip
+          </Button>
+        </div>
       </div>
     </form>
   );

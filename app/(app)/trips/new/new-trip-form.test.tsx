@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { NewTripForm } from "./new-trip-form";
+import { NewTripForm, NEW_TRIP_FORM_GRID_CLASS } from "./new-trip-form";
 
 const createMock = vi.fn();
 vi.mock("@/server/actions/trips", () => ({
@@ -55,5 +55,11 @@ describe("NewTripForm", () => {
     render(<NewTripForm />);
     await userEvent.click(screen.getByRole("button", { name: /create trip/i }));
     expect(await screen.findByText("Trip name is required.")).toBeInTheDocument();
+  });
+});
+
+describe("NewTripForm companion-column layout (LA-034)", () => {
+  it("new trip form uses two columns from lg", () => {
+    expect(NEW_TRIP_FORM_GRID_CLASS).toContain("lg:grid-cols-2");
   });
 });

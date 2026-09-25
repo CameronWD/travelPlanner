@@ -49,7 +49,7 @@ vi.mock("@/components/trip/chapters-manager", () => ({
 }));
 
 const { getDigestSettings } = await import("@/server/actions/digest");
-const { default: SettingsPage } = await import("./page");
+const { default: SettingsPage, SETTINGS_GRID_CLASS } = await import("./page");
 
 const BASE_TRIP = {
   id: "trip-1",
@@ -123,6 +123,24 @@ describe("SettingsPage Digest card", () => {
       .getAllByRole("heading", { level: 3 })
       .map((h) => h.textContent);
     expect(titles.indexOf("Calendar feed")).toBe(titles.indexOf("Digest") + 1);
+  });
+});
+
+describe("Settings companion-column layout (LA-046)", () => {
+  it("settings cards sit in two columns from lg", () => {
+    expect(SETTINGS_GRID_CLASS).toContain("lg:grid-cols-2");
+    expect(SETTINGS_GRID_CLASS).not.toContain("max-w-2xl");
+  });
+
+  it("card body copy is capped to a reading measure (LA-051)", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+
+    await renderSettings();
+
+    const calendarCopy = screen.getByText(/Subscribe to this trip/);
+    expect(calendarCopy.className).toContain("max-w-reading");
+    const drivingCopy = screen.getByText(/Tune the offline estimates/);
+    expect(drivingCopy.className).toContain("max-w-reading");
   });
 });
 
