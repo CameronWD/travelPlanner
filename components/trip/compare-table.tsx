@@ -422,7 +422,7 @@ export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps)
               shadow={isReal ? 2 : 4}
               className="min-w-0 p-3.5 md:p-5"
             >
-              <div className="flex flex-wrap items-start gap-2">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <h3 className="min-w-0 font-display text-[22px] font-extrabold leading-tight tracking-[-0.03em]">
                   {plan.name}
                 </h3>

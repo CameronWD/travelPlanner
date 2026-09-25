@@ -360,6 +360,19 @@ describe("CompareTable — wide-screen grid, stat overlap, wrapping (LA-001 003 
     const h3 = screen.getByRole("heading", { name: "+ Switzerland" });
     expect(h3.className).not.toContain("break-words");
   });
+
+  it("fork card header row wraps but still pins the arrows/badge right when there's room (LA-019 review fix)", () => {
+    const swissFork: ComparisonPlan = {
+      forkId: "fork-ch",
+      name: "+ Switzerland",
+      metrics: makeMetrics({ route: [R("Zurich", 3, "CH")] }),
+    };
+    render(<CompareTable trip={trip} plans={[realPlan, swissFork]} />);
+    const h3 = screen.getByRole("heading", { name: "+ Switzerland" });
+    const headerRow = h3.parentElement as HTMLElement;
+    expect(headerRow.className).toContain("flex-wrap");
+    expect(headerRow.className).toContain("justify-between");
+  });
 });
 
 describe("CompareTable — reorder arrows", () => {
