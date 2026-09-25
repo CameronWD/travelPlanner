@@ -150,3 +150,44 @@ describe("PhaseSketching Playground kit restyle (Task 10b)", () => {
     expect(empty!.props.tone).toBe("teal");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Reminders slot (Task 5 — LA-029/045)
+// ---------------------------------------------------------------------------
+
+describe("PhaseSketching reminders slot (LA-029/045)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([
+      { id: "s1", name: "Rome", country: "Italy", nights: 3, chapterId: null, arriveDate: null },
+    ]);
+    chapterFindManyMock.mockResolvedValue([]);
+  });
+
+  it("renders reminders inside the right column, not as a full-width row", async () => {
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(
+      (await PhaseSketching({
+        tripId: "trip-1",
+        tripName: "Test Trip",
+        reminders: React.createElement("div", { "data-testid": "reminders" }),
+      })) as Parameters<typeof renderToStaticMarkup>[0],
+    );
+    const marker = div.querySelector('[data-testid="reminders"]');
+    expect(marker).not.toBeNull();
+    expect(marker!.closest("[data-home-aside]")).not.toBeNull();
+  });
+
+  it("still renders reminders when the trip has no stops (no aside to align with)", async () => {
+    stopFindManyMock.mockResolvedValue([]);
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(
+      (await PhaseSketching({
+        tripId: "trip-1",
+        tripName: "Test Trip",
+        reminders: React.createElement("div", { "data-testid": "reminders" }),
+      })) as Parameters<typeof renderToStaticMarkup>[0],
+    );
+    expect(div.querySelector('[data-testid="reminders"]')).not.toBeNull();
+  });
+});

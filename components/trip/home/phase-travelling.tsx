@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { CalendarDays, Bed, ArrowRight } from "lucide-react";
@@ -39,22 +40,35 @@ import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 export const TRAVELLING_DESKTOP_GRID_CLASS =
   "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
 
-export async function PhaseTravelling({ tripId }: { tripId: string }) {
+export async function PhaseTravelling({
+  tripId,
+  reminders,
+}: {
+  tripId: string;
+  /** The trip Home's Reminders card, rendered by the page for every Phase —
+   * this phase's job is only to place it at the end of the right rail. */
+  reminders?: ReactNode;
+}) {
   const trip = await db.trip.findUnique({
     where: { id: tripId },
     select: { startDate: true, endDate: true, homeCurrency: true, chaptersEnabled: true },
   });
   if (!trip) notFound();
 
-  // A date-less trip has no calendar to anchor "today" against.
+  // A date-less trip has no calendar to anchor "today" against. Reminders
+  // still need a home even in this defensive branch, since the page passes
+  // them in regardless of phase.
   if (!trip.startDate) {
     return (
-      <EmptyState
-        icon={CalendarDays}
-        tone="sun"
-        title="No dates yet."
-        description="Set your trip's start date to see a day-by-day view of today."
-      />
+      <>
+        <EmptyState
+          icon={CalendarDays}
+          tone="sun"
+          title="No dates yet."
+          description="Set your trip's start date to see a day-by-day view of today."
+        />
+        {reminders}
+      </>
     );
   }
 
@@ -520,8 +534,8 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
           )}
         </div>
 
-        {/* ── Right rail: tonight · where-you-are · spend · payments ── */}
-        <div className="flex flex-col gap-3 lg:order-2 lg:gap-[18px]">
+        {/* ── Right rail: tonight · where-you-are · spend · payments · reminders ── */}
+        <div className="flex flex-col gap-3 lg:order-2 lg:gap-[18px]" data-home-aside>
           {/* Tonight's accommodation (kit "Tonight" card on the stay fill) */}
           {tonightAccom && (
             <Card tone="lilac" className="p-4 lg:p-5">
@@ -601,6 +615,8 @@ export async function PhaseTravelling({ tripId }: { tripId: string }) {
 
           {/* Upcoming payments */}
           <UpcomingPaymentsCard payments={upcomingPayments} tripId={tripId} />
+
+          {reminders}
         </div>
       </div>
 

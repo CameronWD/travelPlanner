@@ -555,3 +555,37 @@ describe("PhaseTravelling Playground kit restyle (Task 10b)", () => {
     expect(hrefs).toEqual(expect.arrayContaining(["/trips/trip-1/day/2026-01-05", "/trips/trip-1/calendar"]));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Reminders slot (Task 5 — LA-029/045)
+// ---------------------------------------------------------------------------
+
+describe("PhaseTravelling reminders slot (LA-029/045)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: "2026-01-01",
+      endDate: "2026-01-10",
+      homeCurrency: "GBP",
+      chaptersEnabled: true,
+    });
+    stopFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    reminderFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    attachmentFindManyMock.mockResolvedValue([]);
+    buildItineraryMock.mockReturnValue([]);
+  });
+
+  it("renders reminders inside the right column, not as a full-width row", async () => {
+    const dom = toDom(
+      await PhaseTravelling({ tripId: "trip-1", reminders: React.createElement("div", { "data-testid": "reminders" }) }),
+    );
+    const marker = dom.querySelector('[data-testid="reminders"]');
+    expect(marker).not.toBeNull();
+    expect(marker!.closest("[data-home-aside]")).not.toBeNull();
+  });
+});

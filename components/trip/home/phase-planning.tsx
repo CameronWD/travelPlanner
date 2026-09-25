@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { daysBetween } from "@/lib/dates";
@@ -68,6 +69,9 @@ interface PhasePlanningProps {
   };
   today: string;
   phase: TripPhase; // "planning" | "final-prep"
+  /** The trip Home's Reminders card, rendered by the page for every Phase —
+   * this phase's job is only to place it at the end of the right rail. */
+  reminders?: ReactNode;
 }
 
 /** Exported for className assertion in tests — must match the JSX below. */
@@ -79,9 +83,12 @@ export async function PhasePlanning({
   trip,
   today,
   phase,
+  reminders,
 }: PhasePlanningProps) {
   // This phase only renders for dated trips; bail safely if called otherwise.
-  if (!trip.startDate) return null;
+  // Reminders still need a home even in this defensive branch, since the
+  // page passes them in regardless of phase.
+  if (!trip.startDate) return <>{reminders}</>;
 
   const base = `/trips/${tripId}`;
   const startDate = trip.startDate!;
@@ -401,10 +408,11 @@ export async function PhasePlanning({
         {route}
         {nextSteps}
       </div>
-      <div className="flex flex-col gap-3.5">
+      <div className="flex flex-col gap-3.5" data-home-aside>
         {money}
         {upcomingEl}
         {actions}
+        {reminders}
       </div>
     </div>
   );

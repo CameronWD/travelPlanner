@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { Route } from "lucide-react";
 import { db } from "@/lib/db";
@@ -15,9 +16,17 @@ interface PhaseSketchingProps {
   /** A disabled trip renders as if it had no chapters (Task 13). Defaults to
    * on so existing call sites that predate the toggle keep their chapters. */
   chaptersEnabled?: boolean;
+  /** The trip Home's Reminders card, rendered by the page for every Phase —
+   * this phase's job is only to place it at the end of the right column. */
+  reminders?: ReactNode;
 }
 
-export async function PhaseSketching({ tripId, tripName, chaptersEnabled = true }: PhaseSketchingProps) {
+export async function PhaseSketching({
+  tripId,
+  tripName,
+  chaptersEnabled = true,
+  reminders,
+}: PhaseSketchingProps) {
   const [stops, chapters] = await Promise.all([
     db.stop.findMany({
       // Dated views follow the real plan — CONTEXT.md; consistent with
@@ -42,19 +51,24 @@ export async function PhaseSketching({ tripId, tripName, chaptersEnabled = true 
   const chapterById = new Map(chapters.map((c) => [c.id, c]));
 
   if (stops.length === 0) {
-    // Kit shared/states.jsx "Plan" empty.
+    // Kit shared/states.jsx "Plan" empty. No two-column grid here, so
+    // reminders (still owed a home on every Phase) join the end of this
+    // single column rather than an aside.
     return (
-      <EmptyState
-        icon={Route}
-        tone="teal"
-        title="No stops yet"
-        description="Add the first place. We'll draw the route as you go."
-        action={
-          <Button asChild>
-            <Link href={`/trips/${tripId}/plan`}>+ Add a place</Link>
-          </Button>
-        }
-      />
+      <>
+        <EmptyState
+          icon={Route}
+          tone="teal"
+          title="No stops yet"
+          description="Add the first place. We'll draw the route as you go."
+          action={
+            <Button asChild>
+              <Link href={`/trips/${tripId}/plan`}>+ Add a place</Link>
+            </Button>
+          }
+        />
+        {reminders}
+      </>
     );
   }
 
@@ -78,22 +92,25 @@ export async function PhaseSketching({ tripId, tripName, chaptersEnabled = true 
           </div>
         </Card>
 
-        <Card className="p-4">
-          <h3 className="text-label text-muted-foreground">Route</h3>
-          <ul className="mt-1.5 flex flex-col gap-1">
-            {stops.map((s) => {
-              const chapter = s.chapterId ? chapterById.get(s.chapterId) : undefined;
-              return (
-                <li key={s.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <span className="font-display text-[15px] font-extrabold tracking-[-0.02em] text-foreground">{s.name}</span>
-                  <span className="text-xs font-semibold text-muted-foreground">~{s.nights ?? 0}n</span>
-                  {s.country && <span className="text-xs font-semibold text-muted-foreground">{s.country}</span>}
-                  {chapter && <ChapterChip name={chapter.name} colour={chapter.colour} />}
-                </li>
-              );
-            })}
-          </ul>
-        </Card>
+        <div className="flex flex-col gap-3.5" data-home-aside>
+          <Card className="p-4">
+            <h3 className="text-label text-muted-foreground">Route</h3>
+            <ul className="mt-1.5 flex flex-col gap-1">
+              {stops.map((s) => {
+                const chapter = s.chapterId ? chapterById.get(s.chapterId) : undefined;
+                return (
+                  <li key={s.id} className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    <span className="font-display text-[15px] font-extrabold tracking-[-0.02em] text-foreground">{s.name}</span>
+                    <span className="text-xs font-semibold text-muted-foreground">~{s.nights ?? 0}n</span>
+                    {s.country && <span className="text-xs font-semibold text-muted-foreground">{s.country}</span>}
+                    {chapter && <ChapterChip name={chapter.name} colour={chapter.colour} />}
+                  </li>
+                );
+              })}
+            </ul>
+          </Card>
+          {reminders}
+        </div>
       </div>
 
       <QuickActions tripId={tripId} phase="sketching" />

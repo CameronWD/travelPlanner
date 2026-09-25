@@ -95,16 +95,31 @@ export default async function TripHomePage({
   // started nobody could see or write one.
   const reminders = await listRemindersForTrip(tripId, today);
 
+  // Reminders join whichever Phase's own right column/aside, rather than a
+  // full-width row of their own below it (LA-029/045) — each phase component
+  // renders this node at the end of its aside (desktop) / single column
+  // (mobile).
+  const remindersEl = <RemindersCard tripId={tripId} reminders={reminders} today={today} />;
+
   const phaseEl = (() => {
     switch (phase) {
       case "sketching":
-        return <PhaseSketching tripId={tripId} tripName={trip.name} chaptersEnabled={trip.chaptersEnabled} />;
+        return (
+          <PhaseSketching
+            tripId={tripId}
+            tripName={trip.name}
+            chaptersEnabled={trip.chaptersEnabled}
+            reminders={remindersEl}
+          />
+        );
       case "travelling":
-        return <PhaseTravelling tripId={tripId} />;
+        return <PhaseTravelling tripId={tripId} reminders={remindersEl} />;
       case "past":
-        return <PhasePast tripId={tripId} trip={trip} />;
+        return <PhasePast tripId={tripId} trip={trip} reminders={remindersEl} />;
       default: // planning | final-prep
-        return <PhasePlanning tripId={tripId} trip={trip} today={today} phase={phase} />;
+        return (
+          <PhasePlanning tripId={tripId} trip={trip} today={today} phase={phase} reminders={remindersEl} />
+        );
     }
   })();
 
@@ -114,9 +129,6 @@ export default async function TripHomePage({
       <WhatsNewBanner />
       {cover}
       {phaseEl}
-      <section className="mt-6 flex flex-col gap-1">
-        <RemindersCard tripId={tripId} reminders={reminders} today={today} />
-      </section>
     </>
   );
 }
