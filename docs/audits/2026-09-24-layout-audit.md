@@ -4,13 +4,13 @@ Spec: `docs/specs/2026-09-24-layout-audit.md`. Harness: `npm run audit:layout` (
 
 ## Run
 
-- 581 captures, 0 errors, run 2026-09-25T01:01Z against local `next dev` on branch `feat/layout-audit` (harness at `baca4cd`). Screenshots live outside the repo (`/tmp/layout-audit/stage1`).
+- 581 captures, 0 errors, run 2026-09-25T01:01Z against local `next dev` on branch `feat/layout-audit` (harness at `baca4cd`; on-screen `/print` added at `c7b3644`). Screenshots live outside the repo (`/tmp/layout-audit/stage1`).
 - Widths 360 · 375 · 390 · 430 · 768 · 1024 · 1280 · 1440 · 1920 · 2560, light; dark at 390 and 1440; phase screens on one trip per Phase (Sketching, Planning, Final prep, Travelling, Past); an empty trip; print at A4; 34 overlay recipes at 360 / 390 / 1440 (+ keyboard-up variants).
 - Automatic checks: small-target 3530, clipped-text 668, spill 73, sideways-scroll 10, overlap 166, line-too-long 72. These were leads for the 27 visual reviewers, not findings in themselves.
 
 ## Findings
 
-**53 findings — 15 Broken, 31 Ugly, 7 Polish** (LA-013 withdrawn, see below). Cross-screen duplicates are merged (e.g. one header tap-target finding covers every screen).
+**54 findings — 15 Broken, 32 Ugly, 7 Polish** (LA-013 withdrawn; LA-055 added for the on-screen Print page — see below). Cross-screen duplicates are merged (e.g. one header tap-target finding covers every screen).
 
 Patterns:
 
@@ -131,8 +131,13 @@ Patterns:
 
 - `LA-054` **Polish** — Footer and legal-page links are small, tightly spaced tap targets _(at 360, 375, 390, 430, 768, 1024, 1280, 1440, 1920, 2560px, dark)_
 
+### Print
+
+- `LA-055` **Ugly** — Print page stays a fixed ~750px column at every desktop width _(at 768, 1024, 1280, 1440, 1920, 2560px)_. Captured after the final code review found the first run had skipped on-screen `/print` (fixed in the harness); reviewed from `/tmp/layout-audit/finalfix`.
+
 ## Left out
 
+- Print page lacks the kit’s “Include” export toggles and Calendar feed card — a feature, not layout (out of scope).
 - `LA-013` Danger zone buttons “behind the tab bar”: withdrawn after re-verification. The buttons clear the tab bar by 70px; the failed tap was caused by LA-015’s overflow zooming the page out.
 - Day map renders as a repeating "API KEY REQUIRED" watermark, not tiles — local env: no CARTO tile key in .env.local, so tiles carry an API KEY REQUIRED watermark.
 - Map tiles covered by repeating "API KEY REQUIRED" watermark — local env: no CARTO tile key in .env.local.
