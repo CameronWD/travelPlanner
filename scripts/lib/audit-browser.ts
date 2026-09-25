@@ -210,3 +210,15 @@ export function middleDate(dates: string[]): string | null {
   if (dates.length === 0) return null;
   return dates[Math.floor(dates.length / 2)];
 }
+
+/** Swaps each run-time value in a route path (a trip id, a share token, a
+ * derived day date) for a stable `{name}` placeholder, so anything keyed by
+ * path — the contrast audit's node-count baseline — survives a reseed that
+ * changes the ids. Empty values are skipped. Pure. */
+export function templatePath(routePath: string, values: Record<string, string>): string {
+  let out = routePath;
+  for (const [name, value] of Object.entries(values)) {
+    if (value) out = out.split(value).join(`{${name}}`);
+  }
+  return out;
+}

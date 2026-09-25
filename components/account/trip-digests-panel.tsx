@@ -78,7 +78,7 @@ export function TripDigestsPanel({ initial }: TripDigestsPanelProps) {
             <div data-slot="digest-row" className="flex min-h-11 items-center justify-between gap-3">
               <label
                 htmlFor={inputId}
-                className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground"
+                className="min-w-0 flex-1 break-words text-sm font-semibold text-foreground"
               >
                 {trip.tripName}
               </label>

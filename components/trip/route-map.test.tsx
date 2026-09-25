@@ -14,7 +14,7 @@ vi.mock("@/components/ui/theme-provider", () => ({
   useTheme: () => ({ theme: hoisted.theme, setTheme: vi.fn(), toggleTheme: vi.fn() }),
 }));
 
-import { RouteMap } from "./route-map";
+import { RouteMap, routeFitPoints } from "./route-map";
 
 const STOPS = [
   { id: "s1", name: "Tokyo", lat: 35.68, lng: 139.76, arriveDate: "2026-01-01", departDate: "2026-01-04" },
@@ -33,6 +33,29 @@ beforeEach(() => {
   // factory before each test so the next dynamic import picks up the
   // current `hoisted.leaflet`.
   vi.doMock("leaflet", () => hoisted.leaflet!.module);
+});
+
+describe("routeFitPoints (LA-042)", () => {
+  it("fits the map to the stops, not the far-away home marker", () => {
+    const stops = [{ lat: 48.1, lng: 11.5 }, { lat: 51.5, lng: -0.1 }];
+    const home = { lat: -27.5, lng: 153.0 };
+    expect(routeFitPoints(stops, home)).toEqual(stops);
+  });
+
+  it("includes home when there are fewer than two located stops", () => {
+    const home = { lat: -27.5, lng: 153.0 };
+    expect(routeFitPoints([{ lat: 48.1, lng: 11.5 }], home)).toHaveLength(2);
+  });
+
+  it("returns just home when there are no located stops at all", () => {
+    const home = { lat: -27.5, lng: 153.0 };
+    expect(routeFitPoints([], home)).toEqual([home]);
+  });
+
+  it("returns just the stops when there is no home", () => {
+    const stops = [{ lat: 48.1, lng: 11.5 }, { lat: 51.5, lng: -0.1 }];
+    expect(routeFitPoints(stops, null)).toEqual(stops);
+  });
 });
 
 describe("RouteMap theme handling", () => {

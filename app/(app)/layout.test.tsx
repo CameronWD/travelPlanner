@@ -119,6 +119,34 @@ describe("AppLayout", () => {
     expect(screen.getByRole("button", { name: /traveller menu/i })).toBeInTheDocument();
   });
 
+  // LA-050: the header's icon-sized controls get a 44px tap target.
+  it("gives the header's Globe link and avatar trigger a 44px tap target", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    expect(screen.getByRole("link", { name: "Globe" }).className).toContain("min-h-11");
+    // A real 44px box, not tap-target's invisible ::before: flush against the
+    // header's trailing edge, that pseudo poked 4px past a 360px viewport and
+    // made every phone page scroll sideways (Stage 2 diagnosis G).
+    const avatar = screen.getByRole("button", { name: "Open traveller menu" });
+    expect(avatar.className).toContain("size-11");
+    expect(avatar.className).toContain("grid");
+    expect(avatar.className).toContain("place-items-center");
+    expect(avatar.className).not.toContain("tap-target");
+  });
+
+  it("fits the header's right-hand controls inside a 360px phone", async () => {
+    // Logo (~131px) + search, Globe, theme and avatar (4 x 44px-ish) must fit
+    // 360 - 2 x 16px: phones get the tighter gap and Globe padding back.
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const globe = screen.getByRole("link", { name: "Globe" });
+    expect(globe.className).toContain("px-2");
+    expect(globe.className).toContain("sm:px-3");
+    const cluster = globe.parentElement as HTMLElement;
+    expect(cluster.className).toContain("gap-1");
+    expect(cluster.className).toContain("sm:gap-2");
+  });
+
   it("renders the Logo lockup with a single accessible name for the link", async () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
@@ -135,13 +163,21 @@ describe("AppLayout", () => {
     svgs.forEach((svg) => expect(svg).toHaveAttribute("aria-hidden", "true"));
   });
 
-  it("ramps the content width up on large screens", async () => {
+  it("caps non-trip content at the shared wide width and goes full-bleed for the trip shell", async () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     const main = screen.getByTestId("app-main");
-    expect(main.className).toContain("max-w-5xl");
-    expect(main.className).toContain("lg:max-w-6xl");
-    expect(main.className).toContain("2xl:max-w-7xl");
+    expect(main.className).toContain("max-w-page-wide");
+    expect(main.className).toContain("has-[[data-trip-shell]]:max-w-none");
+    expect(main.className).toContain("has-[[data-trip-shell]]:p-0");
+    expect(main.className).not.toMatch(/max-w-(5xl|6xl|7xl)/);
+  });
+
+  it("lets the top bar span the full width", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const header = document.querySelector("header")!;
+    expect(header.innerHTML).not.toMatch(/max-w-(5xl|6xl|7xl)/);
   });
 
   it("mounts the feedback launcher for a signed-in traveller", async () => {

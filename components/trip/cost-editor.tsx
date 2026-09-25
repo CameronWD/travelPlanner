@@ -358,11 +358,11 @@ export function CostEditor({
                 className="flex-1 min-w-0"
               />
 
-              <div className="flex shrink-0 items-center gap-0.5">
+              <div className="flex shrink-0 items-center gap-2">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8"
+                  className="tap-target size-8"
                   onClick={() => {
                     setErrors({});
                     setEditingCost(cost);
@@ -375,7 +375,7 @@ export function CostEditor({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="tap-target size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => handleDelete(cost.id)}
                   aria-label="Delete Cost"
                   title="Delete"

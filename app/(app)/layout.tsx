@@ -91,7 +91,7 @@ export default async function AppLayout({
       <FeedbackLauncher />
       {/* ── Top bar ── */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-14 max-w-5xl lg:max-w-6xl 2xl:max-w-7xl items-center justify-between px-4 sm:px-6">
+        <div className="flex h-14 items-center justify-between px-4 sm:px-6">
           {/* Wordmark */}
           <Link
             href="/trips"
@@ -107,20 +107,21 @@ export default async function AppLayout({
             a trip at md+ — someone on /trips, or on any route below md, has
             no other way to Globe, so the link stays here too.
           */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 sm:gap-2">
             <CommandPaletteTrigger />
             <Link
               href="/globe"
-              className="rounded-md px-2 py-1 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
+              className="inline-flex min-h-11 items-center rounded-md px-2 text-sm sm:px-3 font-medium text-foreground/80 hover:text-foreground transition-colors"
             >
               Globe
             </Link>
             <ThemeToggle />
 
-            {/* Traveller avatar dropdown */}
+            {/* Traveller avatar dropdown. A real 44px box around the 36px
+                avatar — tap-target's ::before poked 4px past a 360px screen. */}
             <DropdownMenu>
               <DropdownMenuTrigger
-                className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="grid size-11 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 aria-label="Open traveller menu"
               >
                 <Avatar className="size-9">
@@ -183,8 +184,12 @@ export default async function AppLayout({
       </header>
 
       {/* ── Content area ── */}
-      {/* Deliberately wider than the mocks' 1024px: they were framed at 1360px; real monitors need more. */}
-      <main data-testid="app-main" className="mx-auto w-full max-w-5xl lg:max-w-6xl 2xl:max-w-7xl flex-1 px-4 py-8 sm:px-6">
+      {/* ADR 0062: non-trip pages cap at the shared wide width; a trip page (which renders
+          [data-trip-shell]) goes full-bleed so its rail sits on the viewport's left edge. */}
+      <main
+        data-testid="app-main"
+        className="mx-auto w-full max-w-page-wide flex-1 px-4 py-8 sm:px-6 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0"
+      >
         {children}
       </main>
     </div>

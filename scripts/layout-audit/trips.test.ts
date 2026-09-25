@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseTripLinks, matchTrips, verifyPhases, missingToGaps, TRIP_NAMES } from "./trips";
+import { parseTripLinks, matchTrips, verifyPhases, missingToGaps, findTripId, parseShareToken, TRIP_NAMES } from "./trips";
 
 describe("parseTripLinks", () => {
   it("keeps /trips/<id> links, drops /trips/new and sub-routes, dedupes by id", () => {
@@ -51,4 +51,23 @@ describe("verifyPhases", () => {
     expect(r.gaps[0].reason).toMatch(/expected travelling.*past/);
     expect(r.gaps[1].reason).toMatch(/no data-trip-phase marker/);
   });
+});
+
+describe("findTripId", () => {
+  const links = [
+    { id: "ai", name: "AI TRIP - EU Christmas 2026" },
+    { id: "eu", name: "EU Christmas 2026 PLANNING" },
+  ];
+  it("prefers the tightest link containing the name (same rule as matchTrips)", () =>
+    expect(findTripId(links, "EU Christmas 2026")).toBe("eu"));
+  it("is undefined when no link contains the name", () =>
+    expect(findTripId(links, "Japan someday")).toBeUndefined());
+});
+
+describe("parseShareToken", () => {
+  const token = "014b029f-d13b-4e09-8648-5aef72f8c702";
+  it("reads the uuid out of a share URL anywhere in the text", () =>
+    expect(parseShareToken(`Copy link\nhttp://localhost:3000/share/${token}\nRevoke`)).toBe(token));
+  it("is undefined when the settings page shows no share link", () =>
+    expect(parseShareToken("Create a read-only link")).toBeUndefined());
 });

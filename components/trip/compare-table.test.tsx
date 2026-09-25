@@ -323,6 +323,69 @@ describe("CompareTable — route diff in fork columns", () => {
   });
 });
 
+describe("CompareTable — wide-screen grid, stat overlap, wrapping (LA-001 003 018 019)", () => {
+  it("country summary wraps (LA-001)", () => {
+    const realWithCountries: ComparisonPlan = {
+      forkId: null,
+      name: "Real plan",
+      metrics: makeMetrics({
+        countries: ["Finland", "Germany", "United Kingdom", "Ireland", "France"],
+        route: [R("Helsinki", 2, "FI")],
+      }),
+    };
+    render(<CompareTable trip={trip} plans={[realWithCountries, forkA]} />);
+    expect(screen.getByText(/Finland · Germany/).className).not.toContain("truncate");
+  });
+
+  it("grid steps to 3 columns on wide screens (LA-018)", () => {
+    render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
+    const grid = screen.getAllByTestId("plan-card")[0].parentElement as HTMLElement;
+    expect(grid.className).toContain("xl:grid-cols-3");
+  });
+
+  it("a lone last card (odd count) spans both columns at md/1024, back to one at xl's 3 columns (LA-018)", () => {
+    render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
+    const grid = screen.getAllByTestId("plan-card")[0].parentElement as HTMLElement;
+    // CSS-only rule (`:nth-child(odd)` + `:last-child`) so a 3rd (or 5th, ...)
+    // card stranded alone in the 2-column layout spans the row instead of
+    // leaving a blank half-width gap beside it; xl's 3-column layout doesn't
+    // need it, so it's reset back to col-span-1 there.
+    expect(grid.className).toContain("md:[&>*:last-child:nth-child(odd)]:col-span-2");
+    expect(grid.className).toContain("xl:[&>*:last-child:nth-child(odd)]:col-span-1");
+  });
+
+  it("stat row never overlaps: 2 columns until the card is wide (LA-003)", () => {
+    render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
+    const stats = screen.getAllByText("Trip cost")[0].closest("[data-plan-stats]") as HTMLElement;
+    expect(stats.className).toContain("grid-cols-2");
+    expect(stats.className).not.toContain("sm:grid-cols-3");
+  });
+
+  it("fork title never breaks mid-word (LA-019)", () => {
+    const swissFork: ComparisonPlan = {
+      forkId: "fork-ch",
+      name: "+ Switzerland",
+      metrics: makeMetrics({ route: [R("Zurich", 3, "CH")] }),
+    };
+    render(<CompareTable trip={trip} plans={[realPlan, swissFork]} />);
+    const h3 = screen.getByRole("heading", { name: "+ Switzerland" });
+    expect(h3.className).not.toContain("break-words");
+  });
+
+  it("fork card header row wraps but still pins the arrows/badge right when there's room (LA-019 review fix)", () => {
+    const swissFork: ComparisonPlan = {
+      forkId: "fork-ch",
+      name: "+ Switzerland",
+      metrics: makeMetrics({ route: [R("Zurich", 3, "CH")] }),
+    };
+    render(<CompareTable trip={trip} plans={[realPlan, swissFork]} />);
+    const h3 = screen.getByRole("heading", { name: "+ Switzerland" });
+    const headerRow = h3.parentElement as HTMLElement;
+    expect(headerRow.className).toContain("flex-wrap");
+    expect(headerRow.className).toContain("justify-between");
+  });
+});
+
 describe("CompareTable — reorder arrows", () => {
   it("renders reorder arrows on fork columns, disabled at the ends", () => {
     const real = { forkId: null, name: "Real plan", metrics: makeMetrics({ route: [R("Rome", 3)] }) };

@@ -20,6 +20,14 @@ export interface TabItem {
 }
 
 /**
+ * Collision padding for a popover/menu that can open near the bottom of a
+ * phone screen: 16px from every edge, plus the fixed tab bar's height
+ * (--tp-tab-bar-h, 4.75rem = 76px) at the bottom, so Radix flips or shifts
+ * the menu above the bar instead of drawing it on top.
+ */
+export const TAB_BAR_MENU_COLLISION_PADDING = { top: 16, right: 16, left: 16, bottom: 16 + 76 } as const;
+
+/**
  * Client Component. Mobile only (< md). Sliding pill indicator.
  * Drop-in replacement for components/trip/mobile-tab-bar.tsx. Height matches --tp-tab-bar-h.
  */

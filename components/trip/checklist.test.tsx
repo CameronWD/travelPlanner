@@ -245,4 +245,26 @@ describe("Checklist", () => {
     expect(screen.getByPlaceholderText(/book airport taxi/i)).toBeInTheDocument();
     expect(screen.queryByRole("progressbar")).toBeNull();
   });
+
+  // Task 11 (LA-017): the Checklists page now also embeds this quick-add form
+  // inside a companion-column grid card, which is always narrower than a full
+  // page column. A viewport-based `sm:flex-row` doesn't know that — it rowed
+  // up and overlapped its own fields whenever the *form's* width, not the
+  // viewport's, was the narrow one. It must react to its own rendered width.
+  it("the quick-add form sizes its row layout off its own width, not the viewport", () => {
+    render(
+      <Checklist
+        tripId="trip-1"
+        kind="PRETRIP"
+        items={[]}
+        members={[{ id: "u1", name: "You", image: null }]}
+        showDueDate
+        showAssignee
+      />,
+    );
+    const form = screen.getByRole("form", { name: "Add a pre-trip task" });
+    expect(form.className).not.toMatch(/(^|\s)sm:flex-row/);
+    expect(form.className).toContain("@min-[700px]:flex-row");
+    expect(form.parentElement).toHaveClass("@container");
+  });
 });

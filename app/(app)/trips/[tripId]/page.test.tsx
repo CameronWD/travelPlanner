@@ -1,6 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { formatDateRange } from "@/lib/dates";
+// React import needed for JSX in the mocks below (vi.mock calls are hoisted
+// above every import, so this being written before or after them doesn't
+// change execution order — top-of-file here purely for readability).
+import React from "react";
 
 /**
  * Trip Home, composed the way Next.js actually renders it: the trip layout
@@ -55,18 +59,29 @@ vi.mock("@/components/trip/reminders-card", () => ({
 }));
 // Phase content isn't this task's concern (Task 10 restyles only page.tsx,
 // trip-cover.tsx, reminders-card.tsx) — mocked away as markers so this test
-// doesn't depend on which phase the fixture's dates land in.
+// doesn't depend on which phase the fixture's dates land in. Each marker
+// renders its `reminders` prop so Task 5's wiring (the page passes
+// RemindersCard into whichever phase renders, instead of a full-width
+// section of its own) is still checkable.
 vi.mock("@/components/trip/home/phase-sketching", () => ({
-  PhaseSketching: () => <div data-testid="phase-marker" />,
+  PhaseSketching: (props: { reminders?: React.ReactNode }) => (
+    <div data-testid="phase-marker">{props.reminders}</div>
+  ),
 }));
 vi.mock("@/components/trip/home/phase-planning", () => ({
-  PhasePlanning: () => <div data-testid="phase-marker" />,
+  PhasePlanning: (props: { reminders?: React.ReactNode }) => (
+    <div data-testid="phase-marker">{props.reminders}</div>
+  ),
 }));
 vi.mock("@/components/trip/home/phase-travelling", () => ({
-  PhaseTravelling: () => <div data-testid="phase-marker" />,
+  PhaseTravelling: (props: { reminders?: React.ReactNode }) => (
+    <div data-testid="phase-marker">{props.reminders}</div>
+  ),
 }));
 vi.mock("@/components/trip/home/phase-past", () => ({
-  PhasePast: () => <div data-testid="phase-marker" />,
+  PhasePast: (props: { reminders?: React.ReactNode }) => (
+    <div data-testid="phase-marker">{props.reminders}</div>
+  ),
 }));
 
 const { default: TripLayout } = await import("./layout");
@@ -141,5 +156,16 @@ describe("Trip Home, composed with its layout", () => {
     expect(marker).toHaveAttribute("hidden");
     // BASE_TRIP is Jan 2026 and "today" is real time, so the phase is past — assert it's a known phase, not a specific one.
     expect(["sketching", "planning", "final-prep", "travelling", "past"]).toContain(marker!.getAttribute("data-trip-phase"));
+  });
+
+  // LA-029/045: Reminders used to render as the page's own full-width section
+  // below the phase content; now the page hands it to the phase component as
+  // a prop, so the phase decides where it lands (its own right column/aside).
+  it("passes Reminders into the phase component instead of rendering a section of its own", async () => {
+    await renderTripHome();
+    const phaseMarker = screen.getByTestId("phase-marker");
+    expect(
+      phaseMarker.querySelector('[data-testid="reminders-card-marker"]'),
+    ).not.toBeNull();
   });
 });

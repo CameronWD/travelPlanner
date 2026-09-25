@@ -58,9 +58,30 @@ describe("collapsed day rows", () => {
     expect(dec5).toHaveTextContent(/nothing planned/i);
     expect(dec5).toHaveAttribute("aria-expanded", "false");
   });
+
+  // LA-037 / I-1: the full-width day-row toggle is itself 44px tall on coarse
+  // pointers. It must NOT use `tap-target`: the rows sit with no gap, so a
+  // centred 44px ::before on a ~30px row reaches into the row above and
+  // tapping one day's bottom edge opened the next day.
+  it("makes the day row toggle a real 44px row on touch, with no overhanging hit area", () => {
+    render(<StopDayList {...baseProps} />);
+    const row = screen.getByRole("button", { name: /Sat 5 Dec/ });
+    expect(row.className).toContain("pointer-coarse:min-h-11");
+    expect(row.className).not.toMatch(/\btap-target\b/);
+  });
 });
 
 describe("expanded day", () => {
+  it("day activity labels wrap rather than truncate", async () => {
+    const user = userEvent.setup();
+    render(<StopDayList {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    const region = screen.getByTestId("day-detail-2026-12-06");
+    const label = within(region).getByText("Seine cruise");
+    expect(label.className).not.toContain("truncate");
+    expect(label.className).toContain("min-w-0");
+  });
+
   it("expands to timed rows in time order plus an Anytime group and an open-day link", async () => {
     const user = userEvent.setup();
     render(<StopDayList {...baseProps} />);
@@ -107,6 +128,29 @@ describe("expanded day", () => {
     await user.click(within(region).getByRole("button", { name: "Move Wander Marais to another day" }));
     await user.click(await screen.findByRole("menuitem", { name: "Mon 7 Dec" }));
     expect(scheduleItem).toHaveBeenCalledWith("c", { date: "2026-12-07" });
+  });
+
+  // LA-037: the per-item edit pencil gets a 44px coarse-pointer tap target.
+  it("gives the item edit pencil a 44px tap target", async () => {
+    const user = userEvent.setup();
+    render(<StopDayList {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    const region = screen.getByTestId("day-detail-2026-12-06");
+    expect(within(region).getByRole("button", { name: "Edit Louvre" }).className).toContain("tap-target");
+  });
+
+  // I-1: item rows hold 28–32px controls whose 44px ::before overhangs by up
+  // to 8px each side, so on touch the rows are spaced 16px apart — adjacent
+  // hit areas meet mid-gap and never cover a neighbouring row's controls —
+  // and the list starts 8px below the day toggle so the first row's hit
+  // areas don't reach up into it.
+  it("spaces expanded item rows so their tap targets don't overlap on touch", async () => {
+    const user = userEvent.setup();
+    render(<StopDayList {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /Sun 6 Dec/ }));
+    const region = screen.getByTestId("day-detail-2026-12-06");
+    expect(region.className).toContain("pointer-coarse:gap-4");
+    expect(region.className).toContain("pointer-coarse:pt-2");
   });
 
   it("offers Unschedule on each expanded item row", async () => {

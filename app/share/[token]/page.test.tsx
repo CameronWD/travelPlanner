@@ -35,7 +35,7 @@ vi.mock("@/components/trip/route-map-loader", () => ({ RouteMapLoader: () => <di
 vi.mock("@/server/actions/items", () => ({ unscheduleItem: vi.fn() }));
 vi.mock("@/lib/weather", () => ({ getDayWeather: vi.fn(async () => null) }));
 
-import SharePage, { metadata } from "./page";
+import SharePage, { metadata, noOrphan } from "./page";
 
 /** Private values that must never reach the public page. */
 const PRIVATE = {
@@ -148,6 +148,17 @@ describe("SharePage — kit SharePage (shared/share.jsx)", () => {
     expect(within(hero).getByText(/3 nights · 2 stops/)).toBeInTheDocument();
   });
 
+  // LA-043: `text-balance` alone didn't stop a bare year orphaning onto its
+  // own last line at 360–390px ("EU Christmas" / "2026"). The last two words
+  // of the trip name are joined with a non-breaking space so they can't wrap
+  // apart.
+  it("joins the trip name's last two words with a non-breaking space so the year can't orphan (LA-043)", async () => {
+    shareFindUniqueMock.mockResolvedValue(share({ name: "EU Christmas 2026" }));
+    await renderPage();
+    const h1 = screen.getByRole("heading", { level: 1 });
+    expect(h1.textContent).toBe("EU Christmas 2026");
+  });
+
   it("lists the stops in 'The route' card with the outbound transport as a chip", async () => {
     await renderPage();
     const heading = screen.getByRole("heading", { name: "The route" });
@@ -185,6 +196,32 @@ describe("SharePage — kit SharePage (shared/share.jsx)", () => {
   it("ends with the kit footer line", async () => {
     await renderPage();
     expect(screen.getByText("Made with Teepee · plan it with your people")).toBeInTheDocument();
+  });
+
+  it("addresses wrap (LA-012) and the hero title balances (LA-043)", async () => {
+    await renderPage();
+    expect(screen.getByText(/Sparkassenstraße/).className).not.toContain("truncate");
+    expect(screen.getByRole("heading", { level: 1 }).className).toContain("text-balance");
+  });
+
+  it("day-by-day cards form a grid on wide screens (LA-041)", async () => {
+    await renderPage();
+    const day = screen.getAllByTestId("share-day")[0];
+    expect(day.parentElement!.className).toContain("lg:grid-cols-2");
+  });
+});
+
+describe("noOrphan (LA-043)", () => {
+  it("joins the last two words with a non-breaking space", () => {
+    expect(noOrphan("EU Christmas 2026")).toBe("EU Christmas\u00A02026");
+  });
+
+  it("leaves a single word unchanged", () => {
+    expect(noOrphan("Japan")).toBe("Japan");
+  });
+
+  it("joins the last two of a three-word name, leaving earlier words untouched", () => {
+    expect(noOrphan("Alpine Road Loop")).toBe("Alpine Road\u00A0Loop");
   });
 });
 

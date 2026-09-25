@@ -329,6 +329,25 @@
   --ease-pop: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Shared page widths (ADR 0062, COMPONENTS.md "Page widths"). */
+  --container-page-wide: 100rem;
+  /* LA-051 / diagnosis G: `ch` is the width of the "0" glyph, not an average
+     character — for this body font that gap is large enough that 68ch
+     rendered ~92 real characters per line, well past the ~80-char ceiling.
+     Fix round 1: a fixed `rem` value held the column width steady but not
+     the character count — text set smaller than the root font (e.g. the
+     12px `text-xs` copy on Settings cards) still packed ~100 real
+     characters into that same width. `em` scales the cap with each
+     consuming element's OWN font-size instead of the root's, so the same
+     "38 characters of width" holds roughly steady across text sizes. This
+     only works when `max-w-reading` sits on the same element as the text's
+     font-size class (or inherits it unchanged) — see
+     components/legal/legal-page.tsx's LegalSection, fixed in the same
+     round to stop resolving against its 14px wrapper instead of its own
+     15px prose. */
+  --container-reading: 38em;
+  --container-dialog: 30rem;
 }
 
 /* Accent "island": anything on a coral/sun/teal/lilac fill re-scopes its text,
@@ -359,6 +378,27 @@
     &:hover:not(:disabled) { transform: translate(-1px, -1px); }
   }
   &:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: var(--shadow-pressed); }
+}
+
+/* Invisible ≥44×44 hit area around a small control; the control looks the same.
+   Coarse pointers only, so desktop hover targets don't overlap neighbours.
+   See COMPONENTS.md "Tap targets". */
+@utility tap-target {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    transform: translate(-50%, -50%);
+  }
+  @media (pointer: fine) {
+    &::before { content: none; }
+  }
 }
 
 /* ---------------------------------------------------------------------------

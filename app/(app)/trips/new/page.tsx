@@ -10,7 +10,7 @@ export default async function NewTripPage() {
   await requireUser();
 
   return (
-    <div className="mx-auto max-w-xl space-y-8">
+    <div className="mx-auto w-full max-w-[64rem] space-y-8">
       {/* Page header */}
       <div>
         <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em]">

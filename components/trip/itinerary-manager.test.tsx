@@ -123,6 +123,32 @@ vi.mock("@dnd-kit/core", async (importOriginal) => {
   };
 });
 
+// Radix hands collisionPadding to its popper, never to the DOM, so the only
+// way to see which padding a menu asked for is to record the props the real
+// DropdownMenuContent receives. Rendering is passed straight through.
+const menuCapture = vi.hoisted(() => ({ contents: [] as Array<Record<string, unknown>> }));
+
+/** Does a React children tree contain this literal text anywhere? */
+function hasText(node: unknown, text: string): boolean {
+  if (node == null || typeof node === "boolean") return false;
+  if (typeof node === "string") return node.includes(text);
+  if (Array.isArray(node)) return node.some((child) => hasText(child, text));
+  if (typeof node === "object" && "props" in node) {
+    return hasText((node as { props: { children?: unknown } }).props.children, text);
+  }
+  return false;
+}
+
+vi.mock("@/components/ui/dropdown-menu", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/components/ui/dropdown-menu")>();
+  const { forwardRef, createElement } = await import("react");
+  const Recorded = forwardRef<HTMLDivElement, React.ComponentProps<typeof actual.DropdownMenuContent>>((props, ref) => {
+    menuCapture.contents.push(props as Record<string, unknown>);
+    return createElement(actual.DropdownMenuContent, { ...props, ref });
+  });
+  return { ...actual, DropdownMenuContent: Recorded };
+});
+
 import type * as React from "react";
 import { deleteStop, moveStop, firmUpSegment, firmUpTrip, createStop, reorderStops } from "@/server/actions/stops";
 import { createTransport, deleteTransport } from "@/server/actions/transport";
@@ -130,6 +156,7 @@ import { createAccommodation } from "@/server/actions/accommodation";
 import { createChapter, deleteChapter } from "@/server/actions/chapters";
 import { setChaptersEnabled } from "@/server/actions/trips";
 import { toast } from "@/components/ui/use-toast";
+import { TAB_BAR_MENU_COLLISION_PADDING } from "@/components/ui/tab-bar";
 import { ItineraryManager, summariseReorder, undoPayloadFor, type ItineraryStop, type ItineraryTransport } from "./itinerary-manager";
 
 // ---------------------------------------------------------------------------
@@ -643,6 +670,17 @@ describe("drag handle rendering", () => {
 
     expect(screen.getByTestId("drag-handle-chapter")).toBeInTheDocument();
   });
+
+  // LA-037: drag handles get an invisible 44px coarse-pointer tap target.
+  it("stop drag handle has a 44px tap target (LA-037)", () => {
+    const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[roughStop]} />,
+    );
+
+    expect(screen.getByTestId("drag-handle-stop").className).toContain("tap-target");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -715,6 +753,31 @@ describe("whole-trip firm-up confirm dialog", () => {
     await user.click(cancelBtn);
 
     expect(firmUpTrip).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LA-008: bottom action row wraps instead of overflowing
+// ---------------------------------------------------------------------------
+
+describe("bottom action row (LA-008)", () => {
+  it("bottom action row wraps so Add Stop is never pushed off-screen", () => {
+    const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[roughStop]}
+        tripStartDate="2026-08-01"
+      />,
+    );
+
+    // With a rough stop present, "Firm up the whole trip" / "Chapters" /
+    // "Add Stop" all render together in the same row — the failure mode
+    // LA-008 describes.
+    expect(screen.getByRole("button", { name: "Firm up the whole trip" })).toBeInTheDocument();
+    const addStop = screen.getByRole("button", { name: /add stop/i });
+    expect(addStop.parentElement!.className).toContain("flex-wrap");
   });
 });
 
@@ -2144,6 +2207,28 @@ describe("Task 14: HEAD_SLOT legs are visible in both no-chapters and chapters p
 // ---------------------------------------------------------------------------
 
 describe("Chapters menu — opt-in affordance gating", () => {
+  it("keeps the open menu clear of the fixed mobile tab bar", async () => {
+    // Stage 2 re-check: at 360/390 the menu opened on top of the tab bar,
+    // because Radix only avoided the viewport edge. The bottom collision
+    // padding now includes the tab bar's 76px (--tp-tab-bar-h, 4.75rem).
+    const user = userEvent.setup();
+    render(
+      <ItineraryManager
+        {...baseProps}
+        initialStops={[makeStop({ id: "s-1", name: "Lisbon" })]}
+        chapters={[]}
+        chaptersEnabled={false}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Chapters" }));
+    await screen.findByText("Group into chapters…");
+
+    const chaptersMenu = menuCapture.contents.findLast((props) => hasText(props.children, "Group into chapters…"))!;
+    expect(chaptersMenu.collisionPadding).toEqual({ top: 16, right: 16, left: 16, bottom: 92 });
+    expect(TAB_BAR_MENU_COLLISION_PADDING).toEqual({ top: 16, right: 16, left: 16, bottom: 16 + 76 });
+  });
+
+
   it("renders flat with no chapter controls when chaptersEnabled is false, and the menu offers only the opt-in item", async () => {
     const user = userEvent.setup();
     const stop = makeStop({ id: "s-1", name: "Lisbon" });

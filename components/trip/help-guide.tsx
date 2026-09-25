@@ -177,12 +177,21 @@ function Section({
   section,
   open,
   heading: Title,
+  /**
+   * Only the 60-second section sets this: its `<ol>` reflows into
+   * `lg:columns-2` and needs the full row `open:col-span-full` gives it, so
+   * it opts out of the reading-measure cap every other section's body keeps
+   * (fix round 1: that cap was dropped for everyone, which let all 20 other
+   * topics' prose run edge-to-edge once opened at `lg`).
+   */
+  bodyUnconstrained,
   children,
 }: {
   section: HelpSection;
   open?: boolean;
   /** One level below the group heading (a server component: no context). */
   heading: HeadingTag;
+  bodyUnconstrained?: boolean;
   children: React.ReactNode;
 }) {
   const tile = SECTION_TILES[section.id];
@@ -220,7 +229,12 @@ function Section({
         />
       </summary>
       <div className="mt-3.5 border-t-2 border-border-soft pt-3.5">
-        <div className="flex max-w-prose flex-col gap-3 text-sm leading-relaxed text-foreground">
+        <div
+          className={cn(
+            "flex flex-col gap-3 text-sm leading-relaxed text-foreground",
+            !bodyUnconstrained && "max-w-reading",
+          )}
+        >
           {children}
         </div>
       </div>
@@ -242,8 +256,23 @@ const LIST_CLASS = "flex flex-col gap-2 pl-5";
 const GROUP_HEADING = "font-display text-2xl font-extrabold leading-tight tracking-[-0.03em] text-foreground";
 /** The kit's topic grid: one column on phone, three-up on desktop. Print is one
  *  column: HELP_PRINT_STYLE opens bodies without setting [open], so
- *  open:col-span-full can't widen them there. */
-const TOPIC_GRID = "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-1";
+ *  open:col-span-full can't widen them there. `grid-flow-row-dense` backfills
+ *  the gap an `open:col-span-full` card would otherwise leave beside it in the
+ *  row above, without changing the column count itself (no `auto-rows-fr`:
+ *  that would stretch every row to the expanded card's height). */
+// LA-027: a lone last card in an otherwise-full grid spans the row instead of
+// leaving a blank half/third-width gap beside it. Two rules, because the
+// everyday grid's first card (the 60-second version) opens by default and
+// spans the whole row (`open:col-span-full` below) — while it's open, the
+// OTHER 11 cards fill the grid on their own, so it's the *even* DOM position
+// that lands alone (12th child, 11th "real" card); if a reader closes that
+// hero card by hand, all 12 cards become uniform again and land evenly with
+// no orphan, so the even-position rule is scoped with `:has()` to only the
+// hero-open shape — it must not also fire once the hero is closed, which
+// would strand the second-to-last card instead. The plain odd-position rule
+// covers every TOPIC_GRID list with no such hero (Advanced, Reference).
+export const TOPIC_GRID =
+  "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-1 grid-flow-row-dense sm:[&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1 sm:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-2 lg:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-1";
 
 export function HelpGuide({
   tripId,
@@ -311,11 +340,14 @@ export function HelpGuide({
         </Group>
         <div className={TOPIC_GRID}>
           {/* One <Section> per everyday id, in HELP_SECTIONS order. */}
-          <Section heading={Sub} section={sectionById("sixty-seconds")} open>
-            <p>
+          <Section heading={Sub} section={sectionById("sixty-seconds")} open bodyUnconstrained>
+            <p className="max-w-reading">
               The whole app is one loop. Six steps, and you have a planned trip.
             </p>
-            <ol className={`list-decimal ${LIST_CLASS}`}>
+            <ol
+              aria-label="The 60-second version"
+              className="flex flex-col gap-2 pl-5 list-decimal lg:block lg:columns-2 lg:gap-8 lg:[&>li]:mb-2 [&>li]:break-inside-avoid"
+            >
               <li>
                 Open{" "}
                 <Go tripId={tripId} segment="plan">
@@ -356,7 +388,7 @@ export function HelpGuide({
                 missing.
               </li>
             </ol>
-            <p>
+            <p className="max-w-reading">
               You can stop anywhere in that loop and come back later. Nothing has
               to be finished, everything saves as you go, and the other one of you
               picks up your changes the next time they open the screen.

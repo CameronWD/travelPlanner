@@ -46,4 +46,22 @@ describe("SignInPage", () => {
     render(page);
     expect(screen.getByText(/Welcome to TEEPEE/i)).toBeInTheDocument();
   });
+
+  // LA-054: footer links are padded, spaced tap targets (no bare "·" separator).
+  it("footer links are padded, spaced tap targets", async () => {
+    const page = await SignInPage({ searchParams: Promise.resolve({}) });
+    render(page);
+    const privacy = screen.getByRole("link", { name: "Privacy" });
+    expect(privacy.className).toContain("tap-target");
+    expect(privacy.parentElement!.className).toContain("gap-4");
+    expect(privacy.parentElement).toHaveTextContent(/^PrivacyTerms$/);
+  });
+
+  // M-10: a second, unlabelled <nav> is indistinguishable in a landmarks list.
+  it("labels the footer links' nav landmark 'Legal'", async () => {
+    const page = await SignInPage({ searchParams: Promise.resolve({}) });
+    render(page);
+    const nav = screen.getByRole("navigation", { name: "Legal" });
+    expect(nav).toContainElement(screen.getByRole("link", { name: "Privacy" }));
+  });
 });

@@ -58,7 +58,7 @@ export function AccommodationRow(props: AccommodationRowProps) {
         )}
       >
         <Home className="size-4 shrink-0 text-foreground" aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate font-medium text-foreground">
+        <span className="min-w-0 flex-1 break-words font-medium text-foreground">
           {a.name}
         </span>
         <span className="shrink-0 text-xs text-foreground/80">

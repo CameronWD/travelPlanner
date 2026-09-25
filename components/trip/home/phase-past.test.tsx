@@ -430,6 +430,56 @@ describe("PhasePast Playground kit restyle (Task 10b)", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Reminders slot (Task 5 — LA-029/045)
+// ---------------------------------------------------------------------------
+
+describe("PhasePast reminders slot (LA-029/045)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    chaptersEnabled: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    journalEntryCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+    buildSpendSoFarMock.mockReturnValue({
+      costTotalMinor: 0,
+      paidSoFarMinor: 0,
+      paidCostMinor: 0,
+      varianceMinor: 0,
+      costRemainingMinor: 0,
+      tripElapsedPct: 100,
+    });
+  });
+
+  it("renders reminders inside the right column, not as a full-width row", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const tree = await PhasePast({
+      tripId: "trip-1",
+      trip: baseTrip,
+      reminders: React.createElement("div", { "data-testid": "reminders" }),
+    });
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+    const marker = div.querySelector('[data-testid="reminders"]');
+    expect(marker).not.toBeNull();
+    expect(marker!.closest("[data-home-aside]")).not.toBeNull();
+  });
+});
+
 function findParent(node: unknown, type: unknown): { type?: unknown } | null {
   if (node == null || typeof node !== "object") return null;
   if (Array.isArray(node)) {

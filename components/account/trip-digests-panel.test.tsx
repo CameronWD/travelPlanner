@@ -52,6 +52,15 @@ describe("TripDigestsPanel", () => {
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 
+  it("LA-048: digest trip name wraps instead of truncating", () => {
+    render(
+      <TripDigestsPanel
+        initial={[{ tripId: "trip-1", tripName: "Alpine Road Loop — Spring 2027", enabled: true }]}
+      />,
+    );
+    expect(screen.getByText(/Alpine Road Loop/).className).not.toContain("truncate");
+  });
+
   it("saves the toggled value for the right trip", async () => {
     const user = userEvent.setup();
     render(

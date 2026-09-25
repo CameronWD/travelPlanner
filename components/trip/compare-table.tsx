@@ -189,7 +189,7 @@ function RouteRow({ stop }: { stop: RouteDiffStop }) {
         stop.kind === "dropped" && "line-through",
       )}
     >
-      <span className="min-w-0 truncate">
+      <span className="min-w-0 break-words">
         <b className="font-extrabold">
           {CHANGE_PREFIX[stop.kind] && <span aria-hidden="true">{CHANGE_PREFIX[stop.kind]}</span>}
           {stop.name}
@@ -221,12 +221,12 @@ function RouteSection({ realPlan, plan }: { realPlan: ComparisonPlan; plan: Comp
         <p className="px-2.5 text-[13px] font-semibold text-muted-foreground">No stops yet</p>
       )}
       {diff?.legChanges.map((l, i) => (
-        <p key={`leg-${i}`} className="mt-1.5 truncate px-2.5 text-xs font-semibold text-muted-foreground">
+        <p key={`leg-${i}`} className="mt-1.5 px-2.5 text-xs font-semibold text-muted-foreground">
           {l.fromName}→{l.toName}: {l.fromMode.toLowerCase()} → {l.toMode.toLowerCase()}
         </p>
       ))}
       {isReal && plan.metrics.countries.length > 0 && (
-        <p className="mt-1.5 truncate px-2.5 text-xs font-semibold text-muted-foreground">
+        <p className="mt-1.5 px-2.5 text-xs font-semibold text-muted-foreground">
           {plan.metrics.countries.join(" · ")}
         </p>
       )}
@@ -303,7 +303,7 @@ const METRIC_ROWS: { id: MetricRowId; label: string; wide?: boolean }[] = [
   { id: "projected-end", label: "Projected end", wide: true },
 ];
 
-const VALUE_CLASS = "font-display text-lg font-extrabold leading-tight tracking-[-0.02em]";
+const VALUE_CLASS = "font-display text-lg font-extrabold leading-tight tracking-[-0.02em] whitespace-nowrap tabular-nums";
 
 export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps) {
   const [promoteOpenFor, setPromoteOpenFor] = React.useState<string | null>(null);
@@ -409,7 +409,10 @@ export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps)
   return (
     <>
       {/* One tree at every width: stacked cards on phones, the kit's two columns from md. */}
-      <div data-slot="compare-grid" className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 md:gap-[18px]">
+      <div
+        data-slot="compare-grid"
+        className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 md:gap-[18px] xl:grid-cols-3 md:[&>*:last-child:nth-child(odd)]:col-span-2 xl:[&>*:last-child:nth-child(odd)]:col-span-1"
+      >
         {plans.map((plan, planIndex) => {
           const isReal = planIndex === 0;
           const forkIndex = planIndex - 1;
@@ -422,8 +425,8 @@ export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps)
               shadow={isReal ? 2 : 4}
               className="min-w-0 p-3.5 md:p-5"
             >
-              <div className="flex items-start justify-between gap-2">
-                <h3 className="min-w-0 break-words font-display text-[22px] font-extrabold leading-tight tracking-[-0.03em]">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h3 className="min-w-0 font-display text-[22px] font-extrabold leading-tight tracking-[-0.03em]">
                   {plan.name}
                 </h3>
                 <div className="flex h-7 shrink-0 items-center gap-1">
@@ -442,7 +445,7 @@ export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps)
 
               <RouteSection realPlan={realPlan} plan={plan} />
 
-              <dl className="mt-3.5 grid grid-cols-2 gap-x-2 gap-y-3 sm:grid-cols-3">
+              <dl data-plan-stats className="mt-3.5 grid grid-cols-2 gap-x-2 gap-y-3 2xl:grid-cols-3">
                 {METRIC_ROWS.map((row) => (
                   <div key={row.id} className={cn("min-w-0", row.wide && "col-span-2")}>
                     <dt className="text-label">{row.label}</dt>

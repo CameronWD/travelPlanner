@@ -169,6 +169,18 @@ describe("TripCard", () => {
     expect(screen.getByRole("heading", { name: "Europe" })).toBeInTheDocument();
   });
 
+  it("LA-016: status badge wraps instead of clipping", () => {
+    render(
+      <TripCard
+        {...defaultProps}
+        phase={{ phase: "planning", label: "Planning", countdown: "In 72 days", countdownValue: "72", countdownUnit: "DAYS TO GO" }}
+      />,
+    );
+    const badge = screen.getByText(/planning · in 72 days/i);
+    expect(badge.className).toContain("whitespace-normal");
+    expect(badge.className).toContain("max-w-[calc(100%-1.5rem)]");
+  });
+
   it("does not drop a very long trip name", () => {
     const longName = "A".repeat(60);
     render(<TripCard {...defaultProps} name={longName} />);

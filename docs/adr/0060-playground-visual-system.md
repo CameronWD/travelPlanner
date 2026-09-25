@@ -322,3 +322,5 @@ at the primitives instead of guessing at screens it had no kit for.
 This work lives on `feat/playground-visual-system`, cut from `beta`. It must
 not reach `main`, and must not be merged into `beta` without an explicit
 go-ahead — this ADR records a decision, it is not itself that go-ahead.
+
+Layout conventions (page widths, truncation, tap targets) live in COMPONENTS.md under "Finalized UI conventions" (2026-09-25).

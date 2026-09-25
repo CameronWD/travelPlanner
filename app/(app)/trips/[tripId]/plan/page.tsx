@@ -12,6 +12,15 @@ import { summarizePlan } from "@/lib/plan-overview";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { groupScheduledItemsByStop } from "@/lib/stop-days";
 
+/**
+ * The plan overview rail: pinned under the sticky h-14 app header with a
+ * small breathing gap, and capped to the viewport so its own scroll never
+ * outgrows the window. Exported for className assertion in tests — must
+ * match the JSX below.
+ */
+export const PLAN_ASIDE_CLASS =
+  "flex flex-col gap-6 lg:order-2 lg:sticky lg:top-[calc(3.5rem+env(safe-area-inset-top)+1.5rem)] lg:max-h-[calc(100dvh-3.5rem-env(safe-area-inset-top)-3rem)] lg:overflow-y-auto";
+
 const COST_SELECT = {
   id: true,
   costMinor: true,
@@ -363,9 +372,15 @@ export default async function TripPlanPage({
       {/* Bold Modular desktop (D3): itinerary editor in the main column, plan overview
           in a right rail. DOM order (overview → itinerary) keeps the overview on top on
           mobile; lg:order swaps them so the editor is the 1fr main column on desktop. */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+      <div
+        className={
+          stops.length > 0
+            ? "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start"
+            : "grid grid-cols-1 gap-6"
+        }
+      >
         {stops.length > 0 && (
-          <div className="flex flex-col gap-6 lg:order-2">
+          <div className={PLAN_ASIDE_CLASS}>
             <PlanOverview
               tripId={tripId}
               isOwner={isOwner}

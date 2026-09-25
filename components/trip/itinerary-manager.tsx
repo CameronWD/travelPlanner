@@ -33,6 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { TAB_BAR_MENU_COLLISION_PADDING } from "@/components/ui/tab-bar";
 import {
   moveStop,
   toggleStopPin,
@@ -253,7 +254,7 @@ function SortableStop({
       aria-label={`Reorder ${stop.name}`}
       title="Drag to reorder"
       data-testid="drag-handle-stop"
-      className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
+      className="tap-target cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
     >
       <svg
         width="10"
@@ -308,7 +309,7 @@ function SortableChapterHeader({
       {...attributes}
       aria-label="Reorder chapter"
       data-testid="drag-handle-chapter"
-      className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
+      className="tap-target cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
     >
       <svg
         width="10"
@@ -362,7 +363,7 @@ function SortableTransport({
       aria-label="Reorder transport leg"
       title="Drag to reorder"
       data-testid="drag-handle-transport"
-      className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
+      className="tap-target cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
     >
       <svg
         width="10"
@@ -2102,16 +2103,18 @@ export function ItineraryManager({
               Add transport
             </Button>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {stops.some((s) => s.arriveDate === null) && (
                 <Button
                   variant="outline"
                   size="sm"
                   onClick={handleFirmUpTrip}
                   loading={pendingId === "firm-up-trip"}
+                  aria-label="Firm up the whole trip"
                 >
                   <CalendarClock className="size-4" aria-hidden="true" />
-                  Firm up the whole trip
+                  <span className="sm:hidden">Firm up</span>
+                  <span className="hidden sm:inline">Firm up the whole trip</span>
                 </Button>
               )}
               <DropdownMenu>
@@ -2121,7 +2124,7 @@ export function ItineraryManager({
                     Chapters
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" collisionPadding={TAB_BAR_MENU_COLLISION_PADDING}>
                   {chaptersEnabled ? (
                     <>
                       <DropdownMenuItem onSelect={handleNewChapter}>

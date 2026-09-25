@@ -13,7 +13,7 @@ export default function HelpPage() {
         <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-foreground lg:text-4xl">
           How to use Teepee
         </h1>
-        <p className="max-w-prose text-[13px] font-medium text-muted-foreground">
+        <p className="max-w-[60ch] text-[13px] font-medium text-muted-foreground">
           Everything you need, shortest bits first. Open a trip to get links
           that jump straight to the right screen.
         </p>

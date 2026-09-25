@@ -75,6 +75,21 @@ describe("TripCover", () => {
     expect(screen.getByText("A")).toBeInTheDocument();
   });
 
+  it("LA-028: cover backdrop fills the card instead of leaving a gap", () => {
+    const { container } = render(
+      <TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} />,
+    );
+    const backdrop = container.querySelector("img[aria-hidden='true']")!;
+    expect(backdrop.className).toContain("size-[calc(100%+4rem)]");
+  });
+
+  it("LA-044: monogram cover uses the same bold hue-gradient treatment as other photo-less trips", () => {
+    render(<TripCover tripId="trip-lonely" name="Lonely" hasCover={false} stops={[]} />);
+    const cover = screen.getByText("L").parentElement!;
+    expect(cover.className).toMatch(/bg-gradient-to-br from-(coral|sun|teal|lilac)/);
+    expect(cover.className).not.toContain("from-secondary");
+  });
+
   it("versions the cover URL so a replaced photo busts the browser cache", () => {
     render(
       <TripCover

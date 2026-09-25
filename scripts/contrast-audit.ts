@@ -235,11 +235,13 @@
  * KNOWN GAP: TripCover's gradient fallback is dormant in this sweep
  * -----------------
  *   `components/trip/trip-cover.tsx`'s `MonogramCover` renders
- *   `bg-gradient-to-br from-secondary to-muted` with `text-primary/70` —
+ *   `bg-gradient-to-br from-{coral,sun,teal,lilac} to-muted` with
+ *   `text-on-accent/80` (LA-044 changed the exact tokens; the gap below is
+ *   unaffected) —
  *   another background-image site, same as trap 3 above, and now correctly
  *   caught as `unmeasurable` if this script ever renders it. But it never
- *   does in this sweep: every trip belonging to TRIP_ID (a fixed, seeded
- *   demo id) has a rasterised cover image, so `TripCover` always takes the
+ *   does in this sweep: the one trip it visits (the seeded "EU Christmas
+ *   2026", resolved by name) has a rasterised cover image, so `TripCover` always takes the
  *   photo branch, never the monogram-gradient fallback. A real Traveller
  *   reaches `MonogramCover` on any brand-new, coverless trip — this script
  *   just can't exercise that state without creating one (out of scope for a
@@ -309,9 +311,11 @@ import {
   markerCount,
   deriveDayDates,
   middleDate,
+  templatePath,
   type Theme,
   type MapReveal,
 } from "./lib/audit-browser";
+import { TRIP_NAMES, readShareToken, resolveTripIdByName } from "./layout-audit/trips";
 
 type Kind = NonNullable<ErrorPanelProps["kind"]>;
 type Layout = NonNullable<ErrorPanelProps["layout"]>;
@@ -320,8 +324,14 @@ const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 const AUTH_STATE_PATH =
   process.env.CONTRAST_AUDIT_AUTH_STATE ?? "/tmp/auth.json";
 
-const TRIP_ID = "cmueo582d00b0q1lo9lf5taru";
-const SHARE_TOKEN = "014b029f-d13b-4e09-8648-5aef72f8c702";
+// The sweep's one seeded trip and its public share link are resolved at run
+// time — the trip by name on /trips (the layout audit's "deep" trip), the
+// token off that trip's settings page — rather than hard-coded, since a
+// hard-coded id silently goes stale the moment seed data is regenerated.
+// Either can be pinned with an env override.
+const TRIP_NAME = TRIP_NAMES.deep;
+const TRIP_ID_OVERRIDE = process.env.CONTRAST_TRIP_ID;
+const SHARE_TOKEN_OVERRIDE = process.env.CONTRAST_SHARE_TOKEN;
 
 const VIEWPORT = { width: 1280, height: 1100 };
 const NAV_TIMEOUT_MS = 30_000;
@@ -342,74 +352,78 @@ interface RouteSpec {
   note?: string;
 }
 
-function tripPath(sub: string): string {
-  return `/trips/${TRIP_ID}${sub}`;
+function tripPath(tripId: string, sub: string): string {
+  return `/trips/${tripId}${sub}`;
 }
 
-const BASE_ROUTES: RouteSpec[] = [
-  // --- Public: unauthenticated context ---
-  { path: "/", label: "root (redirect)", auth: false },
-  { path: "/signin", label: "sign in", auth: false },
-  { path: "/privacy", label: "privacy", auth: false },
-  { path: "/terms", label: "terms", auth: false },
-  {
-    path: `/share/${SHARE_TOKEN}`,
-    label: "public share",
-    auth: false,
-    isMap: true,
-  },
+function baseRoutes(tripId: string, shareToken: string): RouteSpec[] {
+  const trip = (sub: string) => tripPath(tripId, sub);
+  return [
+    // --- Public: unauthenticated context ---
+    { path: "/", label: "root (redirect)", auth: false },
+    { path: "/signin", label: "sign in", auth: false },
+    { path: "/privacy", label: "privacy", auth: false },
+    { path: "/terms", label: "terms", auth: false },
+    {
+      path: `/share/${shareToken}`,
+      label: "public share",
+      auth: false,
+      isMap: true,
+    },
 
-  // --- App: authenticated context ---
-  { path: "/trips", label: "trips list", auth: true },
-  { path: "/trips/new", label: "new trip", auth: true },
-  { path: "/account", label: "account", auth: true },
-  { path: "/globe", label: "globe", auth: true, isMap: true },
-  { path: "/help", label: "help", auth: true },
-  { path: "/whats-new", label: "what's new", auth: true },
-  {
-    path: "/admin",
-    label: "admin",
-    auth: true,
-    note:
-      "ADMIN_EMAILS is unset in this environment, so requireAdmin() calls " +
-      "notFound() here and this route renders app/(app)/not-found.tsx. " +
-      "Kept in the sweep deliberately: it's the only route in this codebase " +
-      "that reaches that boundary through a real notFound() call rather " +
-      "than a synthetic unmatched URL (see the docblock note on why a bare " +
-      "made-up path doesn't reach it).",
-  },
+    // --- App: authenticated context ---
+    { path: "/trips", label: "trips list", auth: true },
+    { path: "/trips/new", label: "new trip", auth: true },
+    { path: "/account", label: "account", auth: true },
+    { path: "/globe", label: "globe", auth: true, isMap: true },
+    { path: "/help", label: "help", auth: true },
+    { path: "/whats-new", label: "what's new", auth: true },
+    {
+      path: "/admin",
+      label: "admin",
+      auth: true,
+      note:
+        "ADMIN_EMAILS is unset in this environment, so requireAdmin() calls " +
+        "notFound() here and this route renders app/(app)/not-found.tsx. " +
+        "Kept in the sweep deliberately: it's the only route in this codebase " +
+        "that reaches that boundary through a real notFound() call rather " +
+        "than a synthetic unmatched URL (see the docblock note on why a bare " +
+        "made-up path doesn't reach it).",
+    },
 
-  // --- Trip: authenticated context, one seeded trip ---
-  { path: tripPath(""), label: "trip home", auth: true, isMap: true, reveal: "show-day-map" },
-  { path: tripPath("/plan"), label: "trip plan", auth: true },
-  { path: tripPath("/budget"), label: "trip budget", auth: true },
-  { path: tripPath("/calendar"), label: "trip calendar", auth: true },
-  {
-    path: tripPath("/wishlist"),
-    label: "trip wishlist",
-    auth: true,
-    isMap: true,
-    reveal: "wishlist-map-tab",
-  },
-  { path: tripPath("/summary"), label: "trip summary", auth: true, isMap: true },
-  { path: tripPath("/today"), label: "trip today", auth: true },
-  { path: tripPath("/checklists"), label: "trip checklists", auth: true },
-  { path: tripPath("/files"), label: "trip files", auth: true },
-  { path: tripPath("/journal"), label: "trip journal", auth: true },
-  { path: tripPath("/activity"), label: "trip activity", auth: true },
-  { path: tripPath("/settings"), label: "trip settings", auth: true },
-  { path: tripPath("/compare"), label: "trip compare", auth: true },
-  { path: tripPath("/print"), label: "trip print", auth: true },
-  { path: tripPath("/help"), label: "trip help", auth: true },
+    // --- Trip: authenticated context, one seeded trip ---
+    { path: trip(""), label: "trip home", auth: true, isMap: true, reveal: "show-day-map" },
+    { path: trip("/plan"), label: "trip plan", auth: true },
+    { path: trip("/budget"), label: "trip budget", auth: true },
+    { path: trip("/calendar"), label: "trip calendar", auth: true },
+    {
+      path: trip("/wishlist"),
+      label: "trip wishlist",
+      auth: true,
+      isMap: true,
+      reveal: "wishlist-map-tab",
+    },
+    { path: trip("/summary"), label: "trip summary", auth: true, isMap: true },
+    { path: trip("/today"), label: "trip today", auth: true },
+    { path: trip("/checklists"), label: "trip checklists", auth: true },
+    { path: trip("/files"), label: "trip files", auth: true },
+    { path: trip("/journal"), label: "trip journal", auth: true },
+    { path: trip("/activity"), label: "trip activity", auth: true },
+    { path: trip("/settings"), label: "trip settings", auth: true },
+    { path: trip("/compare"), label: "trip compare", auth: true },
+    { path: trip("/print"), label: "trip print", auth: true },
+    { path: trip("/help"), label: "trip help", auth: true },
 
-  // --- Not-found: authenticated context ---
-  {
-    path: "/trips/does-not-exist",
-    label: "not-found (trip)",
-    auth: true,
-    note: "Renders trips/[tripId]/not-found.tsx.",
-  },
-];
+    // --- Not-found: authenticated context ---
+    {
+      path: "/trips/does-not-exist",
+      label: "not-found (trip)",
+      auth: true,
+      note: "Renders trips/[tripId]/not-found.tsx.",
+    },
+  ];
+}
+
 // A synthetic top-level path like "/this-page-does-not-exist" is
 // deliberately NOT in this list: there is no root app/not-found.tsx and no
 // layout segment matches it, so Next serves its own unstyled default 404
@@ -807,18 +821,21 @@ async function auditRoute(page: Page, spec: RouteSpec, theme: Theme): Promise<Ro
 
 /** Derives a date inside the trip's own range by reading its calendar page,
  * rather than hard-coding one. */
-async function deriveDayRoute(page: Page): Promise<{ path: string; date: string; candidates: number }> {
-  const dates = await deriveDayDates(page, BASE_URL, TRIP_ID);
+async function deriveDayRoute(
+  page: Page,
+  tripId: string,
+): Promise<{ path: string; date: string; candidates: number }> {
+  const dates = await deriveDayDates(page, BASE_URL, tripId);
   // Middle of the range rather than the first/last day, to land on a day
   // with a full agenda rather than a possibly-thin arrival/departure day.
   const chosen = middleDate(dates);
   if (!chosen) {
     throw new Error(
-      `Could not derive a day route: no /day/{date} links found on ${tripPath("/calendar")}. ` +
+      `Could not derive a day route: no /day/{date} links found on ${tripPath(tripId, "/calendar")}. ` +
         "Check the trip id and that demo data is seeded.",
     );
   }
-  return { path: tripPath(`/day/${chosen}`), date: chosen, candidates: dates.length };
+  return { path: tripPath(tripId, `/day/${chosen}`), date: chosen, candidates: dates.length };
 }
 
 // --------------------------------------------------------------------------
@@ -981,7 +998,23 @@ async function main(): Promise<void> {
   const bootCtx = await browser.newContext({ viewport: VIEWPORT, storageState: AUTH_STATE_PATH });
   const bootPage = await bootCtx.newPage();
   await ensureAuthenticated(bootPage, BASE_URL, { timeoutMs: NAV_TIMEOUT_MS, authStatePath: AUTH_STATE_PATH });
-  const day = await deriveDayRoute(bootPage);
+  const tripId = TRIP_ID_OVERRIDE || (await resolveTripIdByName(bootPage, BASE_URL, TRIP_NAME));
+  if (!tripId) {
+    throw new Error(
+      `No trip named "${TRIP_NAME}" on ${BASE_URL}/trips. Seed the demo data, or set CONTRAST_TRIP_ID.`,
+    );
+  }
+  const shareToken = SHARE_TOKEN_OVERRIDE || (await readShareToken(bootPage, BASE_URL, tripId));
+  if (!shareToken) {
+    throw new Error(
+      `No share link on ${tripPath(tripId, "/settings")}. Create one there, or set CONTRAST_SHARE_TOKEN.`,
+    );
+  }
+  console.log(
+    `Trip ${tripId} (${TRIP_ID_OVERRIDE ? "CONTRAST_TRIP_ID" : `"${TRIP_NAME}" on /trips`}); ` +
+      `share token ${SHARE_TOKEN_OVERRIDE ? "from CONTRAST_SHARE_TOKEN" : "read from its settings"}.`,
+  );
+  const day = await deriveDayRoute(bootPage, tripId);
   await bootCtx.close();
   console.log(
     `Derived day route ${day.path} (${day.candidates} day links found on the trip's calendar; ` +
@@ -989,7 +1022,7 @@ async function main(): Promise<void> {
   );
 
   const routes: RouteSpec[] = [
-    ...BASE_ROUTES,
+    ...baseRoutes(tripId, shareToken),
     {
       path: day.path,
       label: "trip day",
@@ -1077,7 +1110,9 @@ async function main(): Promise<void> {
   const nextBaseline: Record<string, number> = { ...previousCounts };
   const nodeCountRegressions: string[] = [];
   for (const r of allResults) {
-    const key = `${r.theme}:${r.route}`;
+    // Keyed by path template, not the literal path, so a reseed that
+    // changes the trip id / share token / day date keeps its history.
+    const key = `${r.theme}:${templatePath(r.route, { trip: tripId, token: shareToken, date: day.date })}`;
     const previous = previousCounts[key];
     const isRegression =
       typeof previous === "number" &&

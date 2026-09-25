@@ -85,4 +85,30 @@ describe("TripLayout", () => {
     expect(header).toBeInTheDocument();
     expect(header).toContainElement(screen.getByText("Test Trip"));
   });
+
+  it("marks the trip shell and centres content at the wide width right of the rail", async () => {
+    await renderLayout();
+    const shell = document.querySelector("[data-trip-shell]")!;
+    expect(shell).not.toBeNull();
+    const content = document.querySelector("[data-trip-content]")!;
+    expect(content.className).toContain("min-w-0");
+    expect(content.className).toContain("flex-1");
+    expect(content.firstElementChild!.className).toContain("max-w-page-wide");
+  });
+
+  // LA-050: the avatar stack becomes one 44px link to Settings → Travellers,
+  // with an accessible name that includes the member count.
+  it("member avatars are one 44px link to the travellers settings", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({
+      ...BASE_TRIP,
+      members: [
+        { user: { id: "u1", name: "Alice", image: null } },
+        { user: { id: "u2", name: "Bob", image: null } },
+      ],
+    });
+    await renderLayout();
+    const link = screen.getByRole("link", { name: /trip members \(2\)/i });
+    expect(link).toHaveAttribute("href", "/trips/trip-1/settings#travellers");
+    expect(link.className).toContain("min-h-11");
+  });
 });

@@ -118,6 +118,15 @@ describe("ForkSwitcher", () => {
     expect(trigger).toBeInTheDocument();
   });
 
+  // LA-037: the fork row's Rename/Duplicate/Discard icon buttons get an
+  // invisible 44px coarse-pointer tap target.
+  it("gives the fork row's action icon buttons a 44px tap target", () => {
+    render(<ForkSwitcher {...baseProps} />);
+    expect(screen.getByRole("button", { name: "Rename Variant 1" }).className).toContain("tap-target");
+    expect(screen.getByRole("button", { name: "Duplicate Variant 1" }).className).toContain("tap-target");
+    expect(screen.getByRole("button", { name: "Discard Variant 1" }).className).toContain("tap-target");
+  });
+
   // -------------------------------------------------------------------------
   // 3. Selecting a fork routes to the Plan editor for that variant
   // -------------------------------------------------------------------------
@@ -303,6 +312,17 @@ describe("ForkSwitcher", () => {
   // -------------------------------------------------------------------------
   // Discarding the active fork navigates to real plan
   // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // LA-009: fork names wrap instead of truncating in the menu list
+  // -------------------------------------------------------------------------
+
+  it("fork names wrap instead of truncating", async () => {
+    render(<ForkSwitcher {...baseProps} />);
+    const row = await screen.findByText("Variant 1");
+    expect(row.className).not.toContain("truncate");
+    expect(row.className).toContain("min-w-0");
+  });
+
   it("navigates to the real plan after discarding the active fork", async () => {
     const user = userEvent.setup();
     // Set ?plan=fork-1 to simulate the active fork being fork-1

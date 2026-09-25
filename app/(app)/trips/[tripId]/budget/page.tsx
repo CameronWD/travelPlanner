@@ -28,6 +28,7 @@ import { BudgetHeroRow } from "@/components/trip/budget-hero-row";
 import { CostChecklist, type CostChecklistRow } from "@/components/trip/cost-checklist";
 import { buildCostLabelMap } from "@/lib/cost-labels";
 import { buildUpcomingPayments } from "@/lib/upcoming-payments";
+import { cn } from "@/lib/cn";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 
 // ---------------------------------------------------------------------------
@@ -54,6 +55,18 @@ const COST_SELECT = {
 
 export const BUDGET_DESKTOP_GRID_CLASS =
   "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start";
+
+/*
+ * Breakdown rows (M-7): one grid track per child, because an empty track
+ * still costs a column gap and pushes the amounts off the right edge. Below
+ * `sm` the amounts wrap to their own full-width line (`col-span-2`).
+ */
+/** By category: label · % of cost · amounts. */
+export const BUDGET_CATEGORY_ROW_CLASS =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,1fr)_auto_auto]";
+/** By destination and the chapter reconciliation rows: label · amounts. */
+export const BUDGET_AMOUNT_ROW_CLASS =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1";
 
 // ---------------------------------------------------------------------------
 // Page component
@@ -428,9 +441,9 @@ export default async function BudgetPage({
                         : 0;
                     return (
                       <div key={cat.category} className="flex flex-col gap-1">
-                        <div className="flex items-center justify-between gap-2 text-sm">
+                        <div className={cn(BUDGET_CATEGORY_ROW_CLASS, "text-sm")}>
                           <span className="flex items-center gap-1.5 min-w-0">
-                            <span className="truncate font-medium">{cat.category}</span>
+                            <span className="min-w-0 break-words font-medium">{cat.category}</span>
                             {categoriesWithMissingRates.has(cat.category) && (
                               <span
                                 title="Some costs in this category are excluded — missing exchange rate"
@@ -442,18 +455,19 @@ export default async function BudgetPage({
                               </span>
                             )}
                           </span>
-                          <div className="flex items-center gap-3 tabular-nums text-right">
-                            <span className="text-muted-foreground text-xs" title="% of cost">{pct}% cost</span>
-                            <CostAmounts
-                              costTotalMinor={cat.costTotalMinor}
-                              // Aggregate: 0 genuinely means nothing paid, so keep the
-                              // placeholder rather than letting the component's zero
-                              // guard (which now only exists for a real per-item paid
-                              // amount) show $0.00 here (CP-17 / OPS-05).
-                              paidTotalMinor={cat.paidTotalMinor > 0 ? cat.paidTotalMinor : null}
-                              currency={homeCurrency}
-                            />
-                          </div>
+                          <span className="shrink-0 text-right text-xs tabular-nums text-muted-foreground" title="% of cost">
+                            {pct}% cost
+                          </span>
+                          <CostAmounts
+                            costTotalMinor={cat.costTotalMinor}
+                            // Aggregate: 0 genuinely means nothing paid, so keep the
+                            // placeholder rather than letting the component's zero
+                            // guard (which now only exists for a real per-item paid
+                            // amount) show $0.00 here (CP-17 / OPS-05).
+                            paidTotalMinor={cat.paidTotalMinor > 0 ? cat.paidTotalMinor : null}
+                            currency={homeCurrency}
+                            className="col-span-2 justify-between sm:col-span-1"
+                          />
                         </div>
                         <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
                           <div
@@ -481,13 +495,14 @@ export default async function BudgetPage({
                   {budget.byStop.map((stop) => (
                     <div
                       key={stop.stopId ?? "tripwide"}
-                      className="flex items-center justify-between py-2.5 gap-2"
+                      className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}
                     >
-                      <span className="min-w-0 truncate text-sm font-medium">{stop.stopName}</span>
+                      <span className="min-w-0 break-words text-sm font-medium">{stop.stopName}</span>
                       <CostAmounts
                         costTotalMinor={stop.costTotalMinor}
                         paidTotalMinor={stop.paidTotalMinor > 0 ? stop.paidTotalMinor : null}
                         currency={homeCurrency}
+                        className="col-span-2 justify-between sm:col-span-1"
                       />
                     </div>
                   ))}
@@ -520,8 +535,8 @@ export default async function BudgetPage({
                   {/* Reconciliation rows — shown only when non-zero */}
                   {(budget.chapterReconciliation.ungrouped.costTotalMinor > 0 ||
                     budget.chapterReconciliation.ungrouped.paidTotalMinor > 0) && (
-                    <div className="flex items-center justify-between py-2.5 gap-2">
-                      <span className="min-w-0 truncate text-sm text-muted-foreground">Ungrouped</span>
+                    <div className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}>
+                      <span className="min-w-0 break-words text-sm text-muted-foreground">Ungrouped</span>
                       <CostAmounts
                         costTotalMinor={budget.chapterReconciliation.ungrouped.costTotalMinor}
                         paidTotalMinor={
@@ -530,14 +545,14 @@ export default async function BudgetPage({
                             : null
                         }
                         currency={homeCurrency}
-                        className="text-muted-foreground"
+                        className="col-span-2 justify-between text-muted-foreground sm:col-span-1"
                       />
                     </div>
                   )}
                   {(budget.chapterReconciliation.betweenLegs.costTotalMinor > 0 ||
                     budget.chapterReconciliation.betweenLegs.paidTotalMinor > 0) && (
-                    <div className="flex items-center justify-between py-2.5 gap-2">
-                      <span className="min-w-0 truncate text-sm text-muted-foreground">Between legs</span>
+                    <div className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}>
+                      <span className="min-w-0 break-words text-sm text-muted-foreground">Between legs</span>
                       <CostAmounts
                         costTotalMinor={budget.chapterReconciliation.betweenLegs.costTotalMinor}
                         paidTotalMinor={
@@ -546,14 +561,14 @@ export default async function BudgetPage({
                             : null
                         }
                         currency={homeCurrency}
-                        className="text-muted-foreground"
+                        className="col-span-2 justify-between text-muted-foreground sm:col-span-1"
                       />
                     </div>
                   )}
                   {(budget.chapterReconciliation.otherCosts.costTotalMinor > 0 ||
                     budget.chapterReconciliation.otherCosts.paidTotalMinor > 0) && (
-                    <div className="flex items-center justify-between py-2.5 gap-2">
-                      <span className="min-w-0 truncate text-sm text-muted-foreground">Other costs</span>
+                    <div className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}>
+                      <span className="min-w-0 break-words text-sm text-muted-foreground">Other costs</span>
                       <CostAmounts
                         costTotalMinor={budget.chapterReconciliation.otherCosts.costTotalMinor}
                         paidTotalMinor={
@@ -562,7 +577,7 @@ export default async function BudgetPage({
                             : null
                         }
                         currency={homeCurrency}
-                        className="text-muted-foreground"
+                        className="col-span-2 justify-between text-muted-foreground sm:col-span-1"
                       />
                     </div>
                   )}

@@ -260,31 +260,32 @@ describe("Timeline — per-hop directions link", () => {
   });
 });
 
-describe("Timeline — long-name truncation", () => {
-  it("check-in row text element has truncate class for a long accommodation name", () => {
-    const { container } = render(<Timeline day={dayPlanWithCheckin} variant="day" />);
-    // The span containing "Check-in — <name>" should carry truncate
-    const span = container.querySelector("span.truncate");
-    expect(span).not.toBeNull();
-    expect(span!.className).toMatch(/\btruncate\b/);
-    expect(span!.getAttribute("title")).toBe(`Check-in — ${LONG_ACCOMMODATION_NAME}`);
+describe("Timeline — long-name wrapping (LA-021)", () => {
+  it("check-in row text wraps instead of truncating, with no now-redundant title", () => {
+    render(<Timeline day={dayPlanWithCheckin} variant="day" />);
+    const span = screen.getByText(`Check-in — ${LONG_ACCOMMODATION_NAME}`);
+    expect(span.className).not.toContain("truncate");
+    expect(span.className).toContain("break-words");
+    expect(span).not.toHaveAttribute("title");
   });
 
-  it("check-out row text element has truncate class for a long accommodation name", () => {
-    const { container } = render(<Timeline day={dayPlanWithCheckout} variant="day" />);
-    const span = container.querySelector("span.truncate");
-    expect(span).not.toBeNull();
-    expect(span!.className).toMatch(/\btruncate\b/);
-    expect(span!.getAttribute("title")).toBe(`Check-out — ${LONG_ACCOMMODATION_NAME}`);
+  it("check-out row text wraps instead of truncating, with no now-redundant title", () => {
+    render(<Timeline day={dayPlanWithCheckout} variant="day" />);
+    const span = screen.getByText(`Check-out — ${LONG_ACCOMMODATION_NAME}`);
+    expect(span.className).not.toContain("truncate");
+    expect(span.className).toContain("break-words");
+    expect(span).not.toHaveAttribute("title");
   });
 
-  it("transport departure from/to labels have truncate class for long place names", () => {
-    const { container } = render(<Timeline day={dayPlanWithTransport} variant="day" />);
-    const truncatedSpans = Array.from(container.querySelectorAll("span.truncate"));
-    const depSpan = truncatedSpans.find((s) => s.getAttribute("title") === LONG_DEP_PLACE);
-    const arrSpan = truncatedSpans.find((s) => s.getAttribute("title") === LONG_ARR_PLACE);
-    expect(depSpan).not.toBeUndefined();
-    expect(arrSpan).not.toBeUndefined();
+  it("transport departure from/to labels wrap instead of truncating for long place names", () => {
+    render(<Timeline day={dayPlanWithTransport} variant="day" />);
+    const depSpan = screen.getByText(LONG_DEP_PLACE);
+    const arrSpan = screen.getByText(LONG_ARR_PLACE);
+    for (const span of [depSpan, arrSpan]) {
+      expect(span.className).not.toContain("truncate");
+      expect(span.className).toContain("break-words");
+      expect(span).not.toHaveAttribute("title");
+    }
   });
 });
 
@@ -547,6 +548,56 @@ describe("Timeline — untimed day row address regression (Task 8 fix)", () => {
   it("renders the address for an untimed day item that has an address", () => {
     render(<Timeline day={dayPlanWithUntimedItemAddress} variant="day" />);
     expect(screen.getByText(UNTIMED_ITEM_ADDRESS)).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 7 (LA-021 / LA-012): titles and addresses wrap instead of truncating
+// — this component is shared with the public share page.
+// ---------------------------------------------------------------------------
+
+const WRAP_ITEM_TITLE = "Vatican Museums & Sistine Chapel";
+const WRAP_ITEM_ADDRESS = "Sparkassenstraße 10, 80331 München, Germany";
+
+const dayPlanWithWrappingItem: DayPlan = {
+  dateISO: "2025-07-01",
+  stop: {
+    id: "stop-1",
+    name: "Rome",
+    timezone: "Europe/Rome",
+    arriveDate: "2025-07-01",
+    departDate: "2025-07-03",
+    sortOrder: 0,
+  },
+  timedItems: [
+    {
+      kind: "item",
+      item: {
+        id: "item-wrap-1",
+        title: WRAP_ITEM_TITLE,
+        category: "SIGHTSEEING",
+        date: "2025-07-01",
+        startTime: "09:00",
+        address: WRAP_ITEM_ADDRESS,
+      },
+    },
+  ],
+  untimedItems: [],
+  transportEntries: [],
+  accommodationEntries: [],
+};
+
+describe("Timeline — item titles and addresses wrap (LA-021 / LA-012)", () => {
+  it("item titles and addresses wrap instead of truncating", () => {
+    render(<Timeline day={dayPlanWithWrappingItem} variant="day" />);
+    const title = screen.getByText(WRAP_ITEM_TITLE);
+    expect(title.className).not.toContain("truncate");
+    expect(title.className).toContain("break-words");
+    expect(title).not.toHaveAttribute("title");
+
+    const address = screen.getByText(WRAP_ITEM_ADDRESS);
+    expect(address.className).not.toContain("truncate");
+    expect(address.className).toContain("break-words");
   });
 });
 

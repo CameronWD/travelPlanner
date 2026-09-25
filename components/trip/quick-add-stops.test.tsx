@@ -45,6 +45,12 @@ describe("QuickAddStops", () => {
     expect(createStop).toHaveBeenCalledWith("t1", expect.objectContaining({ name: "Berlin" }), undefined, null);
   });
 
+  it("the nights box has a visible 'nights' unit", () => {
+    render(<QuickAddStops tripId="trip-1" chapterId="it" />);
+    expect(screen.getByText("nights")).toBeVisible();
+    expect(screen.getByLabelText("Nights")).toBeInTheDocument();
+  });
+
   it("forwards afterStopId as the 4th arg to createStop", async () => {
     render(<QuickAddStops tripId="trip-1" chapterId="ch-1" afterStopId="stop-anchor" />);
     const input = screen.getByPlaceholderText(/add a place/i);

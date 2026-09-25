@@ -49,6 +49,27 @@ function modeLabel(mode: string) {
 }
 
 // ---------------------------------------------------------------------------
+// LA-043: `text-balance` alone doesn't stop a short last word (often a bare
+// year, e.g. "2026") orphaning onto its own line at narrow widths — it only
+// evens out line lengths, it doesn't know some breaks read worse than
+// others. Joining the last two words with a non-breaking space keeps them
+// on the same line as each other, wherever the browser decides to wrap.
+// ---------------------------------------------------------------------------
+
+/**
+ * Pure: joins the last two words of `name` with a non-breaking space (U+00A0)
+ * so they never wrap apart from each other. A single-word name is returned
+ * unchanged (there's no second word to tether it to).
+ */
+export function noOrphan(name: string): string {
+  const words = name.trim().split(/\s+/);
+  if (words.length < 2) return name;
+  const last = words.pop()!;
+  const secondLast = words.pop()!;
+  return [...words, `${secondLast} ${last}`].join(" ");
+}
+
+// ---------------------------------------------------------------------------
 // Page — NO AUTH. Public read-only view via share token.
 // Deliberately excludes: costs, budget, notes, confirmations.
 // ---------------------------------------------------------------------------
@@ -290,7 +311,7 @@ export default async function SharePage({
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-3.5 px-4 pb-5 pt-4 sm:px-6 lg:gap-5 lg:px-12 lg:pt-7">
+      <div className="mx-auto flex w-full max-w-page-wide flex-col gap-3.5 px-4 pb-5 pt-4 sm:px-6 lg:gap-5 lg:px-12 lg:pt-7">
         {/* ── Header: kit SharePage top row (Logo 22 / 28) ── */}
         <header className="flex items-center justify-between">
           <Logo size={22} className="lg:hidden" />
@@ -307,8 +328,8 @@ export default async function SharePage({
             className="p-5 lg:p-8"
           >
             <Badge caps>Shared trip · view only</Badge>
-            <h1 className="mt-[18px] break-words font-display text-[40px] font-extrabold leading-[0.95] tracking-[-0.05em] lg:mt-7 lg:text-[72px]">
-              {trip.name}
+            <h1 className="mt-[18px] break-words text-balance font-display text-[40px] font-extrabold leading-[0.95] tracking-[-0.05em] lg:mt-7 lg:text-[72px]">
+              {noOrphan(trip.name)}
             </h1>
             <p className="mt-2.5 text-base font-medium lg:text-lg">
               {formatDateRange(trip.startDate, trip.endDate)} · {totalNights} night
@@ -382,8 +403,8 @@ export default async function SharePage({
                             <div className="mt-1 flex min-w-0 items-start gap-1.5 text-xs font-medium text-muted-foreground">
                               <Home className="mt-px size-3.5 shrink-0" aria-hidden="true" />
                               <div className="min-w-0">
-                                <p className="truncate font-bold text-foreground">{accom.name}</p>
-                                {accom.address && <p className="truncate">{accom.address}</p>}
+                                <p className="break-words font-bold text-foreground">{accom.name}</p>
+                                {accom.address && <p className="break-words">{accom.address}</p>}
                               </div>
                             </div>
                           )}
@@ -433,11 +454,11 @@ export default async function SharePage({
               >
                 Day by day
               </h2>
-              <ol className="flex flex-col gap-3">
+              <ol className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                 {itinerary.map((day) => {
                   const isToday = phase === "travelling" && day.dateISO === todayISO;
                   return (
-                    <li key={day.dateISO}>
+                    <li key={day.dateISO} data-testid="share-day">
                       <Card
                         shadow={isToday ? 4 : 2}
                         className={cn("p-4", isToday && "ring-[3px] ring-coral")}

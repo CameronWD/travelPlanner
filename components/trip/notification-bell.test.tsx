@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { NotificationBell, type RecentActivity } from "./notification-bell";
 
@@ -105,6 +105,56 @@ describe("NotificationBell", () => {
     const markBtn = await screen.findByRole("button", { name: "Mark all read" });
     await user.click(markBtn);
     expect(markAllRead).toHaveBeenCalledWith("t1");
+  });
+
+  it("LA-010: last notification clears the sticky footer", async () => {
+    const user = userEvent.setup();
+    render(
+      <NotificationBell tripId="t1" unreadCount={1} recent={[baseActivity]} />,
+    );
+    const trigger = screen.getByRole("button", { name: /Notifications/ });
+    await user.click(trigger);
+    const list = await screen.findByRole("list");
+    expect(list.className).toContain("pb-3");
+    expect(list.className).toContain("scroll-pb-3");
+  });
+
+  // LA-010 / M-3: the list is its own 320px scroll box; where the fold lands
+  // mid-row the bottom 1.5rem fades to read as "more below". The fade is
+  // only on while there IS more below — a list that fits, or one scrolled to
+  // its end, shows its last row's date unfaded.
+  describe("LA-010 / M-3: the scroll-fold fade", () => {
+    const FADE = "[mask-image:linear-gradient(to_bottom,black_calc(100%-1.5rem),transparent)]";
+
+    function sizeList(list: HTMLElement, scrollHeight: number, clientHeight: number) {
+      Object.defineProperty(list, "scrollHeight", { configurable: true, value: scrollHeight });
+      Object.defineProperty(list, "clientHeight", { configurable: true, value: clientHeight });
+    }
+
+    it("does not fade a list that fits without scrolling", async () => {
+      const user = userEvent.setup();
+      render(<NotificationBell tripId="t1" unreadCount={1} recent={[baseActivity]} />);
+      await user.click(screen.getByRole("button", { name: /Notifications/ }));
+      const list = await screen.findByRole("list");
+      expect(list.getAttribute("data-more-below")).toBe("false");
+      expect(list.className).toContain(`data-[more-below=true]:${FADE}`);
+    });
+
+    it("fades while more rows sit below the fold, and stops at the scroll end", async () => {
+      const user = userEvent.setup();
+      render(<NotificationBell tripId="t1" unreadCount={1} recent={[baseActivity]} />);
+      await user.click(screen.getByRole("button", { name: /Notifications/ }));
+      const list = await screen.findByRole("list");
+
+      sizeList(list, 900, 320);
+      list.scrollTop = 0;
+      fireEvent.scroll(list);
+      expect(list.getAttribute("data-more-below")).toBe("true");
+
+      list.scrollTop = 580;
+      fireEvent.scroll(list);
+      expect(list.getAttribute("data-more-below")).toBe("false");
+    });
   });
 
   it("renders a 'See all activity' link", async () => {

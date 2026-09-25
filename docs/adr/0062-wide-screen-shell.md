@@ -4,7 +4,7 @@
 
 Accepted 2026-09-24. Supersedes the phase-3 gaps-log entry "content capped at `max-w-7xl`, with no
 use of the extra width on 1440/1920 — product decision" and amends the rail placement in ADR 0061.
-Built in Stage 2 of `docs/specs/2026-09-24-layout-audit.md`.
+Built on `fix/layout-audit-findings` (2026-09-25).
 
 ## Decision
 

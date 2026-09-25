@@ -50,4 +50,13 @@ describe("DrivingEstimatesPanel", () => {
     expect(screen.getByLabelText(/winding factor/i)).not.toBeDisabled();
     expect(screen.getByLabelText(/average speed/i)).not.toBeDisabled();
   });
+
+  // LA-051: this card's closing note is prose, not a label — it needs the
+  // same reading-measure cap as the rest of Settings.
+  it("caps its closing note to a reading measure (LA-051)", () => {
+    render(
+      <DrivingEstimatesPanel tripId="t1" initialWindingFactor={1.5} initialAvgSpeedKph={80} />,
+    );
+    expect(screen.getByText(/rough offline estimates/).className).toContain("max-w-reading");
+  });
 });

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { NotebookPen, PlaneTakeoff, Route } from "lucide-react";
 import { db } from "@/lib/db";
@@ -54,6 +55,9 @@ interface PhasePastProps {
     homeCurrency: string;
     chaptersEnabled: boolean;
   };
+  /** The trip Home's Reminders card, rendered by the page for every Phase —
+   * this phase's job is only to place it at the end of the right rail. */
+  reminders?: ReactNode;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,9 +80,11 @@ export const PAST_CTAS_ROW_CLASS = "flex flex-col gap-3 sm:flex-row lg:flex-col"
 // Component
 // ---------------------------------------------------------------------------
 
-export async function PhasePast({ tripId, trip }: PhasePastProps) {
+export async function PhasePast({ tripId, trip, reminders }: PhasePastProps) {
   const base = `/trips/${tripId}`;
-  if (!trip.startDate) return null;
+  // Reminders still need a home even in this defensive branch, since the
+  // page passes them in regardless of phase.
+  if (!trip.startDate) return <>{reminders}</>;
 
   const startDate = trip.startDate;
   const endDate = trip.endDate ?? startDate;
@@ -353,8 +359,9 @@ export async function PhasePast({ tripId, trip }: PhasePastProps) {
           {routeMap}
         </div>
         {/* Rail: CTAs */}
-        <div className="flex flex-col gap-3.5 lg:order-2">
+        <div className="flex flex-col gap-3.5 lg:order-2" data-home-aside>
           {ctas}
+          {reminders}
         </div>
       </div>
     </div>

@@ -121,7 +121,7 @@ function CategoryGroup({ category, onSelect, disabled }: CategoryGroupProps) {
           type="button"
           onClick={() => onSelect(cat.value as Category)}
           disabled={disabled}
-          className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-full"
+          className="tap-target focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background rounded-full"
           aria-pressed={category === cat.value}
         >
           <CategoryPill

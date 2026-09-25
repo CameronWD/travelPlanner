@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { HelpGuide, HELP_PRINT_STYLE } from "./help-guide";
+import { HelpGuide, HELP_PRINT_STYLE, TOPIC_GRID } from "./help-guide";
 import { HELP_SECTIONS, sectionsInGroup, type HelpGroup } from "@/lib/help-guide";
 
 // trip-nav.tsx is a client component that imports next/navigation at module
@@ -562,11 +562,64 @@ describe("HelpGuide — Playground kit shape", () => {
     expect(chip?.className).toMatch(/\bafter:h-11\b/);
   });
 
-  it("keeps an open section's body at a readable measure on wide screens", () => {
+  it("lets only the 60-second section's body use the full row it just claimed, keeping its own paragraphs at a readable measure", () => {
+    // LA-026/027: the 60-second body opts out of the reading-measure cap
+    // (bodyUnconstrained) because its <ol> reflows into lg:columns-2 and
+    // wants the whole row open:col-span-full gives it. Its standalone
+    // paragraphs still opt into max-w-reading individually so the prose
+    // doesn't run edge to edge.
     const { container } = render(<HelpGuide />);
-    // The separator spans the card; the text inside it keeps to ~65ch.
     const body = container.querySelector("details#sixty-seconds > summary + div > div");
-    expect(body?.className).toMatch(/\bmax-w-prose\b/);
+    expect(body?.className).not.toMatch(/\bmax-w-prose\b/);
+    expect(body?.className).not.toMatch(/\bmax-w-reading\b/);
+    const paragraphs = Array.from(body?.querySelectorAll("p") ?? []);
+    expect(paragraphs.length).toBeGreaterThanOrEqual(2);
+    for (const p of paragraphs) {
+      expect(p.className).toMatch(/\bmax-w-reading\b/);
+    }
+  });
+
+  it("keeps every other section's body at a readable measure — only the 60-second card opts out (fix round 1)", () => {
+    // The shared Section body div defaults to max-w-reading; only the
+    // sixty-seconds instance passes bodyUnconstrained to drop it. Every one
+    // of the other 20 topics must keep the cap, since each one also spans
+    // the full row via open:col-span-full once the reader opens it.
+    const { container } = render(<HelpGuide />);
+    for (const s of HELP_SECTIONS) {
+      if (s.id === "sixty-seconds") continue;
+      const body = container.querySelector(`details#${s.id} > summary + div > div`);
+      expect(body?.className, `section ${s.id} lost its reading-measure cap`).toMatch(
+        /\bmax-w-reading\b/,
+      );
+    }
+  });
+
+  it("60-second steps reflow into two columns when the card is wide", () => {
+    render(<HelpGuide />);
+    expect(screen.getByRole("list", { name: /60-second/i }).className).toContain(
+      "lg:columns-2",
+    );
+  });
+
+  // M-5: at lg the list drops flex's gap-2 for columns-2, so each step
+  // carries its own 8px bottom margin instead (margin-bottom, not space-y's
+  // margin-top, so the second column's first step still lines up at the top).
+  it("60-second steps keep their 8px spacing in the two-column layout", () => {
+    render(<HelpGuide />);
+    const list = screen.getByRole("list", { name: /60-second/i });
+    expect(list.className).toContain("lg:[&>li]:mb-2");
+    expect(list.className).toContain("[&>li]:break-inside-avoid");
+  });
+
+  it("the open 60-second card doesn't change the grid's column count", () => {
+    expect(TOPIC_GRID).toContain("lg:grid-cols-3");
+    expect(TOPIC_GRID).toContain("grid-flow-row-dense");
+    expect(TOPIC_GRID).not.toContain("auto-rows-fr");
+  });
+
+  it("a lone last card (odd count, e.g. the 11-card everyday grid) spans both columns at sm/768, back to one at lg's 3 columns (LA-027)", () => {
+    expect(TOPIC_GRID).toContain("sm:[&>*:last-child:nth-child(odd)]:col-span-2");
+    expect(TOPIC_GRID).toContain("lg:[&>*:last-child:nth-child(odd)]:col-span-1");
   });
 
   it("puts the contents list and the key in kit Cards", () => {

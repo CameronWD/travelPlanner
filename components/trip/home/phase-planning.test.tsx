@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+// React import needed for JSX in the reminders-slot test below.
+import React from "react";
 
 // phase-planning.tsx is a heavy async server component with DB calls.
 // We test the desktop grid className via an exported constant so we can assert
@@ -486,6 +488,60 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     const { renderToStaticMarkup } = await import("react-dom/server");
     const html = renderToStaticMarkup((await render()) as Parameters<typeof renderToStaticMarkup>[0]);
     expect(html).not.toMatch(/per person|each owes|split/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reminders slot (Task 5 — LA-029/045)
+// ---------------------------------------------------------------------------
+
+describe("PhasePlanning reminders slot (LA-029/045)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    drivingWindingFactor: 1.3,
+    drivingAvgSpeedKph: 80,
+    homeName: null,
+    homeLat: null,
+    homeLng: null,
+    homeCountryCode: null,
+    roundTrip: false,
+    chaptersEnabled: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    stopCountMock.mockResolvedValue(0);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCountMock.mockResolvedValue(0);
+    checklistItemCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
+  });
+
+  it("renders reminders inside the right column, not as a full-width row", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const tree = await PhasePlanning({
+      tripId: "trip-1",
+      trip: baseTrip,
+      today: "2026-01-05",
+      phase: "planning",
+      reminders: <div data-testid="reminders" />,
+    });
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+    const marker = div.querySelector('[data-testid="reminders"]');
+    expect(marker).not.toBeNull();
+    expect(marker!.closest("[data-home-aside]")).not.toBeNull();
   });
 });
 

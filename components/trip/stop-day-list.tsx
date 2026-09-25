@@ -119,24 +119,24 @@ export function StopDayList({
               type="button"
               aria-expanded={isOpen}
               onClick={() => toggle(day.dateISO)}
-              className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-sm hover:bg-muted/50"
+              className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-sm hover:bg-muted/50 pointer-coarse:min-h-11"
             >
               <span className="w-24 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
                 {formatDayLabel(day.dateISO)}
               </span>
               {all.length === 0 ? (
-                <span className="flex-1 truncate text-xs italic text-muted-foreground/60">
+                <span className="min-w-0 flex-1 break-words text-xs italic text-muted-foreground/60">
                   Nothing planned
                 </span>
               ) : (
-                <span className="flex flex-1 items-center gap-2 truncate">
+                <span className="flex flex-1 items-start gap-2 min-w-0 break-words">
                   {all.slice(0, PREVIEW_COUNT).map((it) => (
                     <span key={it.id} className="inline-flex min-w-0 items-center gap-1">
                       <span
                         className={cn("size-1.5 shrink-0 rounded-full", categoryDotClass(it.category))}
                         aria-hidden="true"
                       />
-                      <span className="truncate text-xs text-foreground">{it.title}</span>
+                      <span className="min-w-0 break-words text-xs text-foreground">{it.title}</span>
                     </span>
                   ))}
                   {all.length > PREVIEW_COUNT && (
@@ -158,7 +158,7 @@ export function StopDayList({
             {isOpen && (
               <div
                 data-testid={`day-detail-${day.dateISO}`}
-                className="ml-3 flex flex-col gap-1 border-l border-border/40 pb-2 pl-4"
+                className="ml-3 flex flex-col gap-1 border-l border-border/40 pb-2 pl-4 pointer-coarse:gap-4 pointer-coarse:pt-2"
               >
                 {day.timed.map((it) => (
                   <DayItemRow
@@ -292,7 +292,7 @@ function DayItemRow({
         className={cn("size-2 shrink-0 rounded-full", categoryDotClass(item.category))}
         aria-hidden="true"
       />
-      <span className="flex-1 truncate text-sm text-foreground">{item.title}</span>
+      <span className="min-w-0 flex-1 break-words text-sm text-foreground">{item.title}</span>
       {ownerLabel && (
         <span className="shrink-0 text-xs italic text-muted-foreground/70">
           {ownerLabel}
@@ -301,7 +301,7 @@ function DayItemRow({
       <Button
         variant="ghost"
         size="icon"
-        className="size-7 shrink-0 text-muted-foreground"
+        className="tap-target size-7 shrink-0 text-muted-foreground"
         disabled={isPending}
         onClick={onEdit}
         aria-label={`Edit ${item.title}`}

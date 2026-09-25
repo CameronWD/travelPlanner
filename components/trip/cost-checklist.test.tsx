@@ -186,6 +186,35 @@ describe("CostChecklist", () => {
     );
   });
 
+  it("cost names wrap, and ID-like names wrap anywhere (LA-006)", () => {
+    render(
+      <CostChecklist
+        rows={[
+          {
+            id: "c-long",
+            label: "Colosseum, Roman Forum & Palatine guided tour",
+            costMinor: 8500,
+            paidMinor: null,
+            currency: "GBP",
+            paidAt: null,
+          },
+        ]}
+      />,
+    );
+    const name = screen.getByText("Colosseum, Roman Forum & Palatine guided tour");
+    expect(name.className).not.toContain("truncate");
+    expect(name.className).toContain("[overflow-wrap:anywhere]");
+  });
+
+  // LA-049: the whole row toggles paid, not just the small checkbox.
+  it("wraps the whole row in a 44px-tall label so the whole row toggles paid", () => {
+    render(<CostChecklist rows={rows} />);
+    const label = screen.getByText("Hotel Ibis").closest("label")!;
+    expect(label).toBeInTheDocument();
+    expect(label.className).toContain("min-h-11");
+    expect(label.contains(screen.getByRole("checkbox", { name: /hotel ibis/i }))).toBe(true);
+  });
+
   it("shows every owner-type label, including a standalone other cost", () => {
     const mixedRows = [
       ...rows,

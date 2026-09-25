@@ -32,8 +32,38 @@ import type { OverlayMeta } from "./config";
 
 export type Role = "button" | "menuitem" | "tab" | "link";
 
+/**
+ * `click.optional` — skip this step instead of reporting a gap when the
+ * trigger isn't on the page at all (rather than merely not-yet-visible).
+ * Only "save-template" uses it so far: below 1024px the checklists grid
+ * renders Segmented tabs (a "Packing" tab exists), at >=1024px it renders a
+ * Card grid instead (no tab role anywhere) — see
+ * app/(app)/trips/[tripId]/checklists/checklists-layout.tsx, which mounts
+ * exactly one of the two shapes, never both. An optional step lets one
+ * recipe cover both shapes without a width parameter threaded through
+ * `openOverlay`: the tab click is skipped (not failed) when there's no tab,
+ * and the final `expect` wait still catches a recipe that finds nothing at
+ * all — the "trigger not found" errors just move to the step that actually
+ * matters at each width.
+ *
+ * `clickInCard` — like `click`, but scoped to the Card whose heading
+ * (`h3`, substring match, un-anchored — a heading can carry a trailing
+ * count badge, same reasoning as the `/Packing/` regex trigger below) is
+ * `heading`. Falls back to an unscoped click when no such Card exists at
+ * all (the tabs shape, where content isn't organised into per-category
+ * Cards) — so this one step is what makes "save-template" width-aware,
+ * without needing two near-duplicate recipes. Built on CSS text
+ * pseudo-classes (`:text()`/`:text-is()`) rather than `getByRole`, because
+ * the ambient Playwright type shim (scripts/types/playwright-shim.d.ts)
+ * only gives `Locator` a string-selector `.locator()`, not `.getByRole()` —
+ * extending the shim for one recipe's scoping felt like more surface than
+ * this needs. The getByRole-over-getByText rule in this file's docblock is
+ * about skipping a hidden mobile/desktop duplicate; that risk doesn't apply
+ * here since only one shape is ever mounted.
+ */
 export type Step =
-  | { click: { role: Role; name: string; exact?: boolean } }
+  | { click: { role: Role; name: string; exact?: boolean; optional?: boolean } }
+  | { clickInCard: { heading: string; role: Role; name: string; exact?: boolean } }
   | { press: string }
   | { deriveStop: true };
 
@@ -401,9 +431,15 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/checklists",
     tripScoped: true,
     form: true,
+    // Below 1024px: a "Packing" tab exists — click it, then the button is
+    // unscoped-unique on the page (the tabs shape has one panel visible at a
+    // time). At >=1024px: no tab exists (the checklist categories are a Card
+    // grid instead), so the tab click is a no-op (`optional`) and
+    // `clickInCard` finds the button scoped to the Card headed "Packing" —
+    // see the Step type's doc comment above.
     steps: [
-      { click: { role: "tab", name: "/Packing/" } },
-      { click: { role: "button", name: "Save as template", exact: true } },
+      { click: { role: "tab", name: "/Packing/", optional: true } },
+      { clickInCard: { heading: "Packing", role: "button", name: "Save as template", exact: true } },
     ],
     expect: { role: "dialog", name: "Save as template" },
   },
@@ -495,7 +531,68 @@ function gapReason(err: unknown): string {
 function describeStep(step: Step): string {
   if ("deriveStop" in step) return "deriveStop";
   if ("press" in step) return `press "${step.press}"`;
+  if ("clickInCard" in step) {
+    return `click ${step.clickInCard.role} "${step.clickInCard.name}" in card "${step.clickInCard.heading}"`;
+  }
   return `click ${step.click.role} "${step.click.name}"`;
+}
+
+// --------------------------------------------------------------------------
+// clickInCard — CSS-selector scoping (see the Step type's doc comment)
+// --------------------------------------------------------------------------
+
+/** Tag/attribute selector for a `Role`, for building a plain CSS selector
+ * (the shim gives `Locator` no `.getByRole()` — see the Step doc comment). */
+function roleTagSelector(role: Role): string {
+  switch (role) {
+    case "button":
+      return "button";
+    case "link":
+      return "a";
+    case "tab":
+      return '[role="tab"]';
+    case "menuitem":
+      return '[role="menuitem"]';
+  }
+}
+
+/** Playwright text-selector, `exact` choosing `:text-is()` (whole,
+ * normalised text) over `:text()` (substring, case-insensitive). `name` is
+ * JSON-stringified into the selector so quotes/backslashes in it can never
+ * break out of the pseudo-class's argument. */
+function textSelector(tag: string, name: string, exact: boolean | undefined): string {
+  const fn = exact ? "text-is" : "text";
+  return `${tag}:${fn}(${JSON.stringify(name)})`;
+}
+
+/** Selects the Card whose heading (an `h3`, two levels down per
+ * `components/ui/card.tsx`'s `Card > CardHeader > CardTitle`) contains
+ * `heading` as a substring — un-anchored so a trailing count badge (e.g.
+ * "Packing" + a "3" span, no space between them in the JSX) doesn't break
+ * the match. */
+function cardHeadingSelector(heading: string): string {
+  return `div:has(> div > ${textSelector("h3", heading, false)})`;
+}
+
+/**
+ * Resolves a `clickInCard` step's target: scoped to the named Card when one
+ * exists on the page, otherwise an unscoped `getByRole` (the tabs shape,
+ * where there's no Card at all). `scoped` is only for the gap message.
+ */
+async function resolveClickInCardTarget(
+  page: Page,
+  step: Extract<Step, { clickInCard: unknown }>["clickInCard"],
+  vars: Record<string, string>,
+): Promise<{ target: Locator; scoped: boolean }> {
+  const name = parseName(step.name, vars);
+  const heading = parseName(step.heading, vars);
+  if (typeof name === "string" && typeof heading === "string") {
+    const card = page.locator(cardHeadingSelector(heading));
+    if ((await card.count()) > 0) {
+      return { target: card.first().locator(textSelector(roleTagSelector(step.role), name, step.exact)), scoped: true };
+    }
+  }
+  return { target: page.getByRole(step.role, { name, exact: step.exact }), scoped: false };
 }
 
 /**
@@ -524,15 +621,27 @@ export async function openOverlay(page: Page, recipe: OverlayRecipe): Promise<{ 
         continue;
       }
 
-      // click step — refuse if a dialog is already open (an open menu is
-      // fine: that's how menu -> menuitem recipes like new-variant work).
+      // click/clickInCard step — refuse if a dialog is already open (an open
+      // menu is fine: that's how menu -> menuitem recipes like new-variant
+      // work).
       if ((await page.locator(OPEN_DIALOG_SELECTOR).count()) > 0) {
         return { ok: false, reason: "a dialog is already open" };
+      }
+
+      if ("clickInCard" in step) {
+        const { target, scoped } = await resolveClickInCardTarget(page, step.clickInCard, vars);
+        if ((await target.count()) === 0) {
+          const where = scoped ? ` in card "${step.clickInCard.heading}"` : "";
+          return { ok: false, reason: `trigger not found: ${step.clickInCard.role} "${step.clickInCard.name}"${where}` };
+        }
+        await target.first().click({ timeout: 5000 });
+        continue;
       }
 
       const name = parseName(step.click.name, vars);
       const target = page.getByRole(step.click.role, { name, exact: step.click.exact });
       if ((await target.count()) === 0) {
+        if (step.click.optional) continue;
         return { ok: false, reason: `trigger not found: ${step.click.role} "${name}"` };
       }
       await target.first().click({ timeout: 5000 });

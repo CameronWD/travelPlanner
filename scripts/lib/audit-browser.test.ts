@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { middleDate, deriveDayDates, applyThemeClass, ensureAuthenticated, playwrightMissingMessage } from "./audit-browser";
+import { middleDate, deriveDayDates, applyThemeClass, ensureAuthenticated, playwrightMissingMessage, templatePath } from "./audit-browser";
 
 describe("middleDate", () => {
   it("returns null for no dates", () => expect(middleDate([])).toBeNull());
@@ -95,4 +95,17 @@ describe("playwrightMissingMessage", () => {
     ));
   it("says when npm root -g itself failed", () =>
     expect(playwrightMissingMessage("audit:layout", null)).toMatch(/\("npm root -g" itself failed\)/));
+});
+
+describe("templatePath", () => {
+  it("swaps run-time ids for stable placeholders so baselines survive a reseed", () =>
+    expect(
+      templatePath("/trips/abc123/day/2026-12-20", { trip: "abc123", date: "2026-12-20" }),
+    ).toBe("/trips/{trip}/day/{date}"));
+  it("replaces every occurrence and leaves unrelated paths alone", () => {
+    expect(templatePath("/share/tok/tok", { token: "tok" })).toBe("/share/{token}/{token}");
+    expect(templatePath("/trips/does-not-exist", { trip: "abc123" })).toBe("/trips/does-not-exist");
+  });
+  it("ignores empty values rather than templating every gap", () =>
+    expect(templatePath("/help", { trip: "" })).toBe("/help"));
 });

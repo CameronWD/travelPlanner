@@ -104,6 +104,12 @@ describe("ShareLinksPanel", () => {
     expect(await screen.findByText(/tok-9/)).toBeInTheDocument();
   });
 
+  it("LA-015: share link actions wrap on phones", () => {
+    render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
+    const revoke = screen.getByRole("button", { name: /revoke/i });
+    expect(revoke.parentElement!.className).toContain("flex-wrap");
+  });
+
   it("saves dial edits through updateShareLink", async () => {
     updateShareLink.mockResolvedValue({ success: true, link: link({ includeDailyPlans: false }) });
     render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
@@ -117,5 +123,14 @@ describe("ShareLinksPanel", () => {
       includeDailyPlans: false,
     });
     expect(await screen.findByText("Route & dates · Accommodation · Transport")).toBeInTheDocument();
+  });
+
+  // LA-051: this card's body copy is prose, not a label — it needs the same
+  // reading-measure cap as the rest of Settings, or it runs the full width
+  // of the (now two-column) card on a wide screen.
+  it("caps its body copy to a reading measure (LA-051)", () => {
+    render(<ShareLinksPanel tripId="t" initialLinks={[]} />);
+    expect(screen.getByText(/One link per audience/).className).toContain("max-w-reading");
+    expect(screen.getByText(/No share links yet/).className).toContain("max-w-reading");
   });
 });
