@@ -91,7 +91,7 @@ export default async function AppLayout({
       <FeedbackLauncher />
       {/* ── Top bar ── */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-14 max-w-5xl lg:max-w-6xl 2xl:max-w-7xl items-center justify-between px-4 sm:px-6">
+        <div className="flex h-14 items-center justify-between px-4 sm:px-6">
           {/* Wordmark */}
           <Link
             href="/trips"
@@ -183,8 +183,12 @@ export default async function AppLayout({
       </header>
 
       {/* ── Content area ── */}
-      {/* Deliberately wider than the mocks' 1024px: they were framed at 1360px; real monitors need more. */}
-      <main data-testid="app-main" className="mx-auto w-full max-w-5xl lg:max-w-6xl 2xl:max-w-7xl flex-1 px-4 py-8 sm:px-6">
+      {/* ADR 0062: non-trip pages cap at the shared wide width; a trip page (which renders
+          [data-trip-shell]) goes full-bleed so its rail sits on the viewport's left edge. */}
+      <main
+        data-testid="app-main"
+        className="mx-auto w-full max-w-page-wide flex-1 px-4 py-8 sm:px-6 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0"
+      >
         {children}
       </main>
     </div>

@@ -135,13 +135,21 @@ describe("AppLayout", () => {
     svgs.forEach((svg) => expect(svg).toHaveAttribute("aria-hidden", "true"));
   });
 
-  it("ramps the content width up on large screens", async () => {
+  it("caps non-trip content at the shared wide width and goes full-bleed for the trip shell", async () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     const main = screen.getByTestId("app-main");
-    expect(main.className).toContain("max-w-5xl");
-    expect(main.className).toContain("lg:max-w-6xl");
-    expect(main.className).toContain("2xl:max-w-7xl");
+    expect(main.className).toContain("max-w-page-wide");
+    expect(main.className).toContain("has-[[data-trip-shell]]:max-w-none");
+    expect(main.className).toContain("has-[[data-trip-shell]]:p-0");
+    expect(main.className).not.toMatch(/max-w-(5xl|6xl|7xl)/);
+  });
+
+  it("lets the top bar span the full width", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const header = document.querySelector("header")!;
+    expect(header.innerHTML).not.toMatch(/max-w-(5xl|6xl|7xl)/);
   });
 
   it("mounts the feedback launcher for a signed-in traveller", async () => {

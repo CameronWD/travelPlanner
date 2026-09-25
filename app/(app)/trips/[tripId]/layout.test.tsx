@@ -85,4 +85,14 @@ describe("TripLayout", () => {
     expect(header).toBeInTheDocument();
     expect(header).toContainElement(screen.getByText("Test Trip"));
   });
+
+  it("marks the trip shell and centres content at the wide width right of the rail", async () => {
+    await renderLayout();
+    const shell = document.querySelector("[data-trip-shell]")!;
+    expect(shell).not.toBeNull();
+    const content = document.querySelector("[data-trip-content]")!;
+    expect(content.className).toContain("min-w-0");
+    expect(content.className).toContain("flex-1");
+    expect(content.firstElementChild!.className).toContain("max-w-page-wide");
+  });
 });
