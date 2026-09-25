@@ -24,6 +24,18 @@ declare module "playwright" {
     viewport?: ViewportSize | null;
     colorScheme?: "light" | "dark" | "no-preference";
     storageState?: string;
+    // Added for the layout audit's entry script (Task 7) — phone widths
+    // (<=430) run as a real mobile/touch device at 2x; see viewportFor() in
+    // layout-audit/config.ts.
+    isMobile?: boolean;
+    hasTouch?: boolean;
+    deviceScaleFactor?: number;
+  }
+
+  // Added for the layout audit's entry script (Task 7) — the auth
+  // bootstrap saves a fresh storageState file after signing in.
+  export interface StorageStateOptions {
+    path?: string;
   }
 
   export interface GotoOptions {
@@ -156,6 +168,11 @@ declare module "playwright" {
   export interface BrowserContext {
     newPage(): Promise<Page>;
     close(): Promise<void>;
+    // Added for the layout audit's entry script (Task 7): with `path`, writes
+    // the context's cookies + localStorage to that file so later contexts
+    // can start from it (`storageState: path`). The returned object itself
+    // is unused here, so it stays `unknown` rather than a guessed shape.
+    storageState(options?: StorageStateOptions): Promise<unknown>;
   }
 
   export interface Browser {
