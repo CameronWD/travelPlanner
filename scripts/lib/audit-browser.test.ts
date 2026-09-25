@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { middleDate, deriveDayDates, applyThemeClass, ensureAuthenticated } from "./audit-browser";
+import { middleDate, deriveDayDates, applyThemeClass, ensureAuthenticated, playwrightMissingMessage } from "./audit-browser";
 
 describe("middleDate", () => {
   it("returns null for no dates", () => expect(middleDate([])).toBeNull());
@@ -61,4 +61,38 @@ describe("ensureAuthenticated: afterFirstLoad", () => {
     ).rejects.toThrow("not next dev");
     expect(events).toEqual(["goto"]);
   });
+});
+
+// Final review: the not-found message always said `npm run audit:contrast`, even from the layout audit.
+describe("playwrightMissingMessage", () => {
+  it("names the script that needs Playwright", () => {
+    expect(playwrightMissingMessage("audit:layout", "/usr/lib/node_modules")).toMatch(
+      /NODE_PATH=\/path\/to\/global\/node_modules npm run audit:layout$/,
+    );
+    expect(playwrightMissingMessage("audit:layout:crops", null)).toMatch(/npm run audit:layout:crops$/);
+  });
+  it("for audit:contrast (resolvePlaywright's default), word for word what contrast-audit printed before", () =>
+    expect(playwrightMissingMessage("audit:contrast", "/g")).toBe(
+      [
+        "Playwright is required to run this audit, and could not be found.",
+        "",
+        "It is deliberately NOT a project dependency — see the docblock at the",
+        "top of contrast-audit.ts — so it needs a one-time install of its own:",
+        "",
+        "  npx playwright install chromium",
+        "",
+        "If that alone doesn't fix it, Playwright's Node package itself isn't",
+        "resolvable from here. Either install it locally without saving it to",
+        "package.json:",
+        "",
+        "  npm install --no-save playwright && npx playwright install chromium",
+        "",
+        `...or, if it's installed globally somewhere this check didn't find (checked "/g"),`,
+        "point Node at that location directly:",
+        "",
+        "  NODE_PATH=/path/to/global/node_modules npm run audit:contrast",
+      ].join("\n"),
+    ));
+  it("says when npm root -g itself failed", () =>
+    expect(playwrightMissingMessage("audit:layout", null)).toMatch(/\("npm root -g" itself failed\)/));
 });

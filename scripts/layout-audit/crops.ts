@@ -297,7 +297,7 @@ async function main(): Promise<void> {
 
   let chromium: BrowserType;
   try {
-    ({ chromium } = resolvePlaywright());
+    ({ chromium } = resolvePlaywright("audit:layout:crops"));
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exitCode = 1;

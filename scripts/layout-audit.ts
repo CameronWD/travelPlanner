@@ -673,7 +673,7 @@ async function main(): Promise<void> {
 
   let chromium: BrowserType;
   try {
-    ({ chromium } = resolvePlaywright());
+    ({ chromium } = resolvePlaywright("audit:layout"));
   } catch (err) {
     // A documented prerequisite problem, not a bug — print just the
     // actionable message (see resolvePlaywright()), not a stack.

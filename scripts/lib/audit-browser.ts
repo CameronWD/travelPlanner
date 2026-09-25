@@ -50,7 +50,37 @@ function isModuleNotFoundError(err: unknown): boolean {
   return err instanceof Error && (err as NodeJS.ErrnoException).code === "MODULE_NOT_FOUND";
 }
 
-export function resolvePlaywright(): { chromium: BrowserType } {
+/** The "Playwright not found" message, naming the npm script to re-run.
+ * `globalRoot` is what `npm root -g` said, or null if it failed. */
+export function playwrightMissingMessage(scriptName: string, globalRoot: string | null): string {
+  return [
+    "Playwright is required to run this audit, and could not be found.",
+    "",
+    "It is deliberately NOT a project dependency — see the docblock at the",
+    "top of contrast-audit.ts — so it needs a one-time install of its own:",
+    "",
+    "  npx playwright install chromium",
+    "",
+    "If that alone doesn't fix it, Playwright's Node package itself isn't",
+    "resolvable from here. Either install it locally without saving it to",
+    "package.json:",
+    "",
+    "  npm install --no-save playwright && npx playwright install chromium",
+    "",
+    "...or, if it's installed globally somewhere this check didn't find" +
+      (globalRoot ? ` (checked "${globalRoot}")` : ' ("npm root -g" itself failed)') +
+      ",",
+    "point Node at that location directly:",
+    "",
+    `  NODE_PATH=/path/to/global/node_modules npm run ${scriptName}`,
+  ].join("\n");
+}
+
+/** `scriptName` is the npm script the not-found message tells the user to
+ * re-run (playwrightMissingMessage). It defaults to "audit:contrast", so
+ * contrast-audit.ts's call and message are unchanged; the layout audit
+ * passes its own. */
+export function resolvePlaywright(scriptName: string = "audit:contrast"): { chromium: BrowserType } {
   // Deliberately dynamic (not a static `import`) — see the comment above.
   const req = require as NodeRequire;
 
@@ -75,29 +105,7 @@ export function resolvePlaywright(): { chromium: BrowserType } {
     }
   }
 
-  throw new Error(
-    [
-      "Playwright is required to run this audit, and could not be found.",
-      "",
-      "It is deliberately NOT a project dependency — see the docblock at the",
-      "top of contrast-audit.ts — so it needs a one-time install of its own:",
-      "",
-      "  npx playwright install chromium",
-      "",
-      "If that alone doesn't fix it, Playwright's Node package itself isn't",
-      "resolvable from here. Either install it locally without saving it to",
-      "package.json:",
-      "",
-      "  npm install --no-save playwright && npx playwright install chromium",
-      "",
-      "...or, if it's installed globally somewhere this check didn't find" +
-        (globalRoot ? ` (checked "${globalRoot}")` : ' ("npm root -g" itself failed)') +
-        ",",
-      "point Node at that location directly:",
-      "",
-      "  NODE_PATH=/path/to/global/node_modules npm run audit:contrast",
-    ].join("\n"),
-  );
+  throw new Error(playwrightMissingMessage(scriptName, globalRoot));
 }
 
 // --------------------------------------------------------------------------
