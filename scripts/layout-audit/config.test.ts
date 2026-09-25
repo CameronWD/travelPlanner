@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WIDTHS, viewportFor, assertLocalBaseUrl, resolveOutDir, buildCaptureMatrix, ROUTES } from "./config";
+import { WIDTHS, viewportFor, assertLocalBaseUrl, assertOutsideRepo, resolveOutDir, buildCaptureMatrix, ROUTES } from "./config";
 
 describe("viewportFor", () => {
   it("phones are mobile, touch, 2x, 800 tall", () =>
@@ -21,6 +21,15 @@ describe("resolveOutDir", () => {
   it("defaults to a timestamped /tmp dir", () =>
     expect(resolveOutDir({}, new Date("2026-09-24T10:11:12Z"))).toBe("/tmp/layout-audit/2026-09-24T10-11-12Z"));
   it("refuses a path inside the repo", () => expect(() => resolveOutDir({ LAYOUT_AUDIT_OUT: process.cwd() + "/out" }, new Date())).toThrow(/repo/));
+  it("accepts a sibling of the repo that merely shares its name as a prefix", () =>
+    expect(resolveOutDir({ LAYOUT_AUDIT_OUT: process.cwd() + "-audit-out" }, new Date())).toBe(process.cwd() + "-audit-out"));
+});
+
+describe("assertOutsideRepo", () => {
+  it.each(["/work", "/work/", "/work/out", "/work/a/../out", "out", "./tmp/x"])("refuses %s (inside /work)", (d) =>
+    expect(() => assertOutsideRepo(d, "/work")).toThrow(/inside the repo/));
+  it.each(["/tmp/layout-audit/x", "/work-audit", "/workspace/out", "/", "../elsewhere"])("accepts %s", (d) =>
+    expect(() => assertOutsideRepo(d, "/work")).not.toThrow());
 });
 
 describe("buildCaptureMatrix", () => {

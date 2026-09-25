@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cropOutsideImage, paddedCrop, pngSize } from "./crops";
+import { cropOutsideImage, cropsPaths, paddedCrop, pngSize } from "./crops";
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -54,4 +54,15 @@ describe("cropOutsideImage", () => {
     expect(cropOutsideImage({ x: 10, y: 500, w: 50, h: 50 }, { w: 400, h: 400 })).toBe(true));
   it("true for a crop entirely above the image (negative y)", () =>
     expect(cropOutsideImage({ x: 10, y: -100, w: 50, h: 50 }, { w: 400, h: 400 })).toBe(true));
+});
+
+// Final review: report-data.json was written into any out dir, including one inside the repo.
+describe("cropsPaths", () => {
+  it("refuses an out dir inside the repo before anything is read or written", () =>
+    expect(() => cropsPaths("/work/tmp/audit", "/work")).toThrow(/inside the repo/));
+  it("puts findings.json and report-data.json in an out dir outside it", () =>
+    expect(cropsPaths("/tmp/layout-audit/x", "/work")).toEqual({
+      findingsPath: "/tmp/layout-audit/x/findings.json",
+      reportPath: "/tmp/layout-audit/x/report-data.json",
+    }));
 });

@@ -82,14 +82,25 @@ function defaultOutDir(now: Date): string {
   return `/tmp/layout-audit/${timestamp}`;
 }
 
+/** Throws when `dir` (resolved against `cwd`, the repo checkout — `npm run`
+ * always runs from it) is the repo itself or anything under it. A sibling
+ * that merely shares the repo's name as a prefix (`/work-audit` next to
+ * `/work`) is outside it. Shared by resolveOutDir and crops.ts. */
+export function assertOutsideRepo(dir: string, cwd: string): void {
+  const root = path.resolve(cwd);
+  const resolved = path.resolve(root, dir);
+  const prefix = root.endsWith(path.sep) ? root : root + path.sep;
+  if (resolved === root || resolved.startsWith(prefix)) {
+    throw new Error(`Refusing to write layout-audit output inside the repo: ${dir}`);
+  }
+}
+
 /** Output never goes into the repo. Prefers LAYOUT_AUDIT_OUT; otherwise a
  * timestamped directory under /tmp. Refuses (throws) a directory inside the
  * current repo checkout either way. */
-export function resolveOutDir(env: Record<string, string | undefined>, now: Date): string {
+export function resolveOutDir(env: Record<string, string | undefined>, now: Date, cwd: string = process.cwd()): string {
   const dir = env.LAYOUT_AUDIT_OUT ?? defaultOutDir(now);
-  if (path.resolve(dir).startsWith(path.resolve(process.cwd()))) {
-    throw new Error(`Refusing to write layout-audit output inside the repo: ${dir}`);
-  }
+  assertOutsideRepo(dir, cwd);
   return dir;
 }
 

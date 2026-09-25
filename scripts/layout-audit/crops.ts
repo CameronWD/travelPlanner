@@ -8,6 +8,8 @@
  * `data:image/jpeg;base64,…` URI of the padded, downscaled crop). That file
  * feeds a private triage page Cam reviews on a phone, so the whole thing has
  * to stay well under the artifact size limit — see the 12MB budget below.
+ * Like the audit itself, it refuses an out dir inside the repo (cropsPaths)
+ * before reading or writing anything.
  *
  * NO IMAGE LIBRARY. No sharp, jimp or pngjs: this repo already resolves
  * Playwright for the audit itself (see scripts/lib/audit-browser.ts's
@@ -48,6 +50,7 @@ import * as path from "node:path";
 import type { Browser, BrowserType } from "playwright";
 
 import { resolvePlaywright } from "../lib/audit-browser";
+import { assertOutsideRepo } from "./config";
 
 // --------------------------------------------------------------------------
 // The reviewed-findings contract (written by the review step, read here)
@@ -259,6 +262,15 @@ function mb(bytes: number): string {
   return (bytes / MB).toFixed(2);
 }
 
+/** Where this run reads findings.json and writes report-data.json. Throws
+ * for an out dir inside the repo (`cwd`), the same rule as the audit's own
+ * out dir (config.ts assertOutsideRepo) — checked before anything is read or
+ * written. */
+export function cropsPaths(outDir: string, cwd: string): { findingsPath: string; reportPath: string } {
+  assertOutsideRepo(outDir, cwd);
+  return { findingsPath: path.join(outDir, "findings.json"), reportPath: path.join(outDir, "report-data.json") };
+}
+
 async function main(): Promise<void> {
   const outDir = process.argv[2];
   if (!outDir) {
@@ -267,7 +279,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  const findingsPath = path.join(outDir, "findings.json");
+  let findingsPath: string;
+  let reportPath: string;
+  try {
+    ({ findingsPath, reportPath } = cropsPaths(outDir, process.cwd()));
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exitCode = 1;
+    return;
+  }
   if (!fs.existsSync(findingsPath)) {
     console.error(`No findings.json at ${findingsPath} — run the review step first.`);
     process.exitCode = 1;
@@ -309,7 +329,6 @@ async function main(): Promise<void> {
       console.warn(`report-data.json is ${mb(bytes)}MB — over the ${mb(SIZE_WARN_BYTES)}MB budget but under the hard cap; writing it anyway.`);
     }
 
-    const reportPath = path.join(outDir, "report-data.json");
     fs.writeFileSync(reportPath, json);
     console.log(
       `${reportPath}: ${report.length} finding(s), ${bytes} bytes (${mb(bytes)}MB), ${failed} failed crop(s)`,
