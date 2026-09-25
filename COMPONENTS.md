@@ -265,6 +265,30 @@ A future reviewer may choose to inline them if a third usage does not materialis
 These conventions were established during the `refactor/ui-refinement-consistency-pass`
 branch and are now the project standard. See **ADR 0029** for the authoritative record.
 
+### Page widths
+
+Pages use one of three shared widths, never an ad-hoc `max-w-*` on a page container:
+`max-w-page-wide` (~1600px — the app shell caps content here; grids step 1 → 2 → 3 columns),
+`max-w-reading` (68ch — prose), `max-w-dialog` (480px — the centred dialog). A prose or form page
+that would be a narrow island on a wide screen gets a **companion column** at `lg` (a sticky table of
+contents, a release list, a second card column) rather than stretched text. Component-internal caps
+(menus, popovers, chips) are not page widths. (ADR 0062)
+
+### Truncation
+
+1. Wrap by default — names, titles, addresses, cost names, labels.
+2. `line-clamp-2` only in dense grids/asides where rows must stay even, and only when the item links
+   to a view with the full text. A hover `title` alone doesn't count (nothing on a phone).
+3. Short fixed labels (status badges, currency codes, fork names, segmented tabs) never clip — give them room.
+4. Single-line `truncate` only where the same text is fully visible nearby, and then with `title`.
+IDs and URLs use `[overflow-wrap:anywhere]` so they wrap inside their card.
+
+### Tap targets
+
+Small controls keep their look and get `tap-target` — an invisible ≥44×44 `::before` on coarse
+pointers. Where two targets sit closer than 44px apart, add spacing too. Prefer making a whole row the
+target when the row has one action.
+
 ### Icon-button size standard
 
 All icon buttons: `size-8` (`2rem / 32 px`). Use `<Button size="icon" className="size-8">`
