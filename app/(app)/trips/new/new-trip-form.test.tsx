@@ -62,4 +62,18 @@ describe("NewTripForm companion-column layout (LA-034)", () => {
   it("new trip form uses two columns from lg", () => {
     expect(NEW_TRIP_FORM_GRID_CLASS).toContain("lg:grid-cols-2");
   });
+
+  // Spec §3: phones keep today's one-column order — Dates second, straight
+  // after the name. The lg columns are placed explicitly, not by DOM order.
+  it("keeps the original one-column field order in the DOM for phones (I-4)", () => {
+    const { container } = render(<NewTripForm />);
+    const order = Array.from(
+      container.querySelectorAll<HTMLInputElement>(
+        "input[name], button[id='homeCurrency']",
+      ),
+    )
+      .map((el) => el.getAttribute("name") ?? el.id)
+      .filter((n) => ["name", "startDate", "endDate", "homeCurrency", "homeName", "cover"].includes(n));
+    expect(order).toEqual(["name", "startDate", "endDate", "homeCurrency", "homeName", "cover"]);
+  });
 });

@@ -84,6 +84,27 @@ describe("/whats-new", () => {
     expect(grid.className).toContain("minmax(0,38rem)");
   });
 
+  // I-3: the title block lives in the same centred grid as the cards, so at
+  // ≥1024 the h1 lines up with the release column instead of the shell edge.
+  it("puts the page title in the centred grid's first column (I-3)", async () => {
+    render(await WhatsNewPage());
+    const nav = screen.getByRole("navigation", { name: "Releases" });
+    const grid = nav.parentElement as HTMLElement;
+    const titleBlock = screen.getByRole("heading", { level: 1 }).parentElement as HTMLElement;
+    expect(titleBlock.parentElement).toBe(grid);
+    expect(titleBlock.className).toContain("lg:col-start-1");
+    expect(nav.className).toContain("lg:col-start-2");
+  });
+
+  // M-6: a long release list scrolls inside its sticky column instead of
+  // running past the viewport where its lower links can't be reached.
+  it("caps the sticky release list to the viewport and lets it scroll (M-6)", async () => {
+    render(await WhatsNewPage());
+    const nav = screen.getByRole("navigation", { name: "Releases" });
+    expect(nav.className).toContain("lg:max-h-[calc(100dvh-6rem)]");
+    expect(nav.className).toContain("lg:overflow-y-auto");
+  });
+
   it("shows a sticky release list beside the notes on desktop", async () => {
     render(await WhatsNewPage());
     const nav = screen.getByRole("navigation", { name: "Releases" });

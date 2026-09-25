@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Bell } from "lucide-react";
@@ -38,6 +38,11 @@ interface Props {
   recent: RecentActivity[];
 }
 
+/** True while a scroll box has content below its visible window. */
+function hasMoreBelow(el: HTMLElement): boolean {
+  return el.scrollHeight - el.scrollTop - el.clientHeight > 1;
+}
+
 /** First two initials of a name, for the avatar fallback. */
 function initials(name: string | null): string {
   return (name ?? "?")
@@ -51,6 +56,11 @@ function initials(name: string | null): string {
 export function NotificationBell({ tripId, unreadCount, recent }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [moreBelow, setMoreBelow] = useState(false);
+  // Measured when the list mounts (the menu opening) and on every scroll.
+  const measureList = useCallback((el: HTMLUListElement | null) => {
+    if (el) setMoreBelow(hasMoreBelow(el));
+  }, []);
 
   const displayCount = unreadCount > 9 ? "9+" : unreadCount > 0 ? String(unreadCount) : null;
 
@@ -113,8 +123,14 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
           // LA-010: the list is its own 320px scroll box ("See all activity"
           // sits below it, never over it); the fold lands mid-row, so fade the
           // bottom 1.5rem of the window to read as "more below" rather than a
-          // date sliced in half. At the scroll end that band is only padding.
-          <ul className="max-h-80 overflow-y-auto pb-3 scroll-pb-3 [mask-image:linear-gradient(to_bottom,black_calc(100%-1.5rem),transparent)]">
+          // date sliced in half. M-3: only while there is more below — a list
+          // that fits, or one scrolled to its end, isn't faded at all.
+          <ul
+            ref={measureList}
+            onScroll={(e) => setMoreBelow(hasMoreBelow(e.currentTarget))}
+            data-more-below={moreBelow}
+            className="max-h-80 overflow-y-auto pb-3 scroll-pb-3 data-[more-below=true]:[mask-image:linear-gradient(to_bottom,black_calc(100%-1.5rem),transparent)]"
+          >
             {recent.map((item, i) => {
               // The repo passes only unreadCount, not per-item read state, so the
               // first `unreadCount` rows (most recent first) get the unread treatment.

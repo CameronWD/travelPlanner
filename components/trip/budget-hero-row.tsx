@@ -1,6 +1,16 @@
 import { cn } from "@/lib/cn";
 import { formatMoney } from "@/lib/money";
 
+/*
+ * M-8: each tile is a size container and its value steps down with the
+ * tile's own content width (not the viewport), so a six-figure amount fits
+ * the ~126px 2-up tiles at 360 and still gets text-2xl where there's room.
+ * `min-w-0` keeps a long value from widening its grid track.
+ */
+const TILE_CLASS = "@container min-w-0 rounded-2xl border border-border bg-card p-4 flex flex-col";
+const VALUE_CLASS =
+  "font-display text-lg @[9rem]:text-xl @[12rem]:text-2xl font-semibold tabular-nums tracking-tight whitespace-nowrap";
+
 interface BudgetHeroRowProps {
   /** Trip-wide cost total in home currency minor units. */
   costTotalMinor: number;
@@ -62,14 +72,15 @@ export function BudgetHeroRow({
           other tile's content at that width). */}
       <div
         className={cn(
-          "rounded-2xl border border-border bg-card p-4 flex flex-col gap-3",
+          TILE_CLASS,
+          "gap-3",
           showPaid && "col-span-2 lg:col-span-1",
         )}
       >
         <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
           Cost total
         </p>
-        <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums tracking-tight whitespace-nowrap">
+        <p className={VALUE_CLASS}>
           {formatMoney(costTotalMinor, homeCurrency)}
         </p>
         {/* Paid/cost progress bar — only meaningful when paid tracking applies */}
@@ -92,21 +103,21 @@ export function BudgetHeroRow({
       {showPaid && (
         <>
           {/* Tile 2: PAID */}
-          <div className="rounded-2xl border border-border bg-card p-4 flex flex-col gap-2">
+          <div className={cn(TILE_CLASS, "gap-2")}>
             <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
               Paid
             </p>
-            <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums tracking-tight whitespace-nowrap">
+            <p className={VALUE_CLASS}>
               {formatMoney(paidTotalMinor, homeCurrency)}
             </p>
           </div>
 
           {/* Tile 3: STILL TO PAY */}
-          <div className="rounded-2xl border border-border bg-card p-4 flex flex-col gap-2">
+          <div className={cn(TILE_CLASS, "gap-2")}>
             <p className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground">
               Still to pay
             </p>
-            <p className="font-display text-xl sm:text-2xl font-semibold tabular-nums tracking-tight whitespace-nowrap">
+            <p className={VALUE_CLASS}>
               {formatMoney(Math.max(0, stillToPayMinor), homeCurrency)}
             </p>
           </div>
@@ -119,7 +130,8 @@ export function BudgetHeroRow({
           the row with, at `lg`. */}
       <div
         className={cn(
-          "rounded-2xl border border-border bg-card p-4 flex flex-col gap-2",
+          TILE_CLASS,
+          "gap-2",
           showPaid && "col-span-2 lg:col-span-1",
         )}
       >
@@ -128,7 +140,7 @@ export function BudgetHeroRow({
         </p>
         <p
           data-testid="est-per-day-value"
-          className="font-display text-xl sm:text-2xl font-semibold tabular-nums tracking-tight whitespace-nowrap"
+          className={VALUE_CLASS}
         >
           {estPerDayMinor !== null ? formatMoney(estPerDayMinor, homeCurrency) : "—"}
         </p>

@@ -28,6 +28,7 @@ import { BudgetHeroRow } from "@/components/trip/budget-hero-row";
 import { CostChecklist, type CostChecklistRow } from "@/components/trip/cost-checklist";
 import { buildCostLabelMap } from "@/lib/cost-labels";
 import { buildUpcomingPayments } from "@/lib/upcoming-payments";
+import { cn } from "@/lib/cn";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
 
 // ---------------------------------------------------------------------------
@@ -54,6 +55,18 @@ const COST_SELECT = {
 
 export const BUDGET_DESKTOP_GRID_CLASS =
   "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start";
+
+/*
+ * Breakdown rows (M-7): one grid track per child, because an empty track
+ * still costs a column gap and pushes the amounts off the right edge. Below
+ * `sm` the amounts wrap to their own full-width line (`col-span-2`).
+ */
+/** By category: label · % of cost · amounts. */
+export const BUDGET_CATEGORY_ROW_CLASS =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,1fr)_auto_auto]";
+/** By destination and the chapter reconciliation rows: label · amounts. */
+export const BUDGET_AMOUNT_ROW_CLASS =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1";
 
 // ---------------------------------------------------------------------------
 // Page component
@@ -428,7 +441,7 @@ export default async function BudgetPage({
                         : 0;
                     return (
                       <div key={cat.category} className="flex flex-col gap-1">
-                        <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+                        <div className={cn(BUDGET_CATEGORY_ROW_CLASS, "text-sm")}>
                           <span className="flex items-center gap-1.5 min-w-0">
                             <span className="min-w-0 break-words font-medium">{cat.category}</span>
                             {categoriesWithMissingRates.has(cat.category) && (
@@ -482,7 +495,7 @@ export default async function BudgetPage({
                   {budget.byStop.map((stop) => (
                     <div
                       key={stop.stopId ?? "tripwide"}
-                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]"
+                      className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}
                     >
                       <span className="min-w-0 break-words text-sm font-medium">{stop.stopName}</span>
                       <CostAmounts
@@ -522,7 +535,7 @@ export default async function BudgetPage({
                   {/* Reconciliation rows — shown only when non-zero */}
                   {(budget.chapterReconciliation.ungrouped.costTotalMinor > 0 ||
                     budget.chapterReconciliation.ungrouped.paidTotalMinor > 0) && (
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+                    <div className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}>
                       <span className="min-w-0 break-words text-sm text-muted-foreground">Ungrouped</span>
                       <CostAmounts
                         costTotalMinor={budget.chapterReconciliation.ungrouped.costTotalMinor}
@@ -538,7 +551,7 @@ export default async function BudgetPage({
                   )}
                   {(budget.chapterReconciliation.betweenLegs.costTotalMinor > 0 ||
                     budget.chapterReconciliation.betweenLegs.paidTotalMinor > 0) && (
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+                    <div className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}>
                       <span className="min-w-0 break-words text-sm text-muted-foreground">Between legs</span>
                       <CostAmounts
                         costTotalMinor={budget.chapterReconciliation.betweenLegs.costTotalMinor}
@@ -554,7 +567,7 @@ export default async function BudgetPage({
                   )}
                   {(budget.chapterReconciliation.otherCosts.costTotalMinor > 0 ||
                     budget.chapterReconciliation.otherCosts.paidTotalMinor > 0) && (
-                    <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+                    <div className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}>
                       <span className="min-w-0 break-words text-sm text-muted-foreground">Other costs</span>
                       <CostAmounts
                         costTotalMinor={budget.chapterReconciliation.otherCosts.costTotalMinor}

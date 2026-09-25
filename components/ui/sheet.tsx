@@ -38,10 +38,11 @@ const sheetVariants = cva(
           "inset-y-0 right-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden border-l-2 data-[state=open]:tp-slide-in-right data-[state=closed]:tp-slide-out-right",
         left: "inset-y-0 left-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden border-r-2 data-[state=open]:tp-slide-in-left data-[state=closed]:tp-slide-out-left",
         // Below md: a bottom sheet that grows with its content up to 90dvh
-        // (LA-023 mobile). md+: the floating card beside a usable page.
+        // (LA-023 mobile). md+: the floating card beside a usable page, sized
+        // to content; its cap keeps the FP-13 16rem floor on short windows.
         docked:
           "gap-4 p-6 inset-x-0 bottom-0 h-auto max-h-[90dvh] w-full rounded-t-2xl border-t-2 data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down " +
-          "md:inset-auto md:bottom-[5.25rem] md:right-4 md:h-auto md:max-h-[min(37.5rem,calc(100vh-9rem))] md:w-[560px] md:max-w-[calc(100vw-2rem)] md:rounded-2xl md:border-2 md:shadow-hard-5",
+          "md:inset-auto md:bottom-[5.25rem] md:right-4 md:h-auto md:max-h-[min(37.5rem,max(16rem,calc(100vh-9rem)))] md:w-[560px] md:max-w-[calc(100vw-2rem)] md:rounded-2xl md:border-2 md:shadow-hard-5",
       },
     },
     defaultVariants: {

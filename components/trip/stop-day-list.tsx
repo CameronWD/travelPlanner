@@ -119,7 +119,7 @@ export function StopDayList({
               type="button"
               aria-expanded={isOpen}
               onClick={() => toggle(day.dateISO)}
-              className="tap-target flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-sm hover:bg-muted/50"
+              className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-sm hover:bg-muted/50 pointer-coarse:min-h-11"
             >
               <span className="w-24 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
                 {formatDayLabel(day.dateISO)}
@@ -158,7 +158,7 @@ export function StopDayList({
             {isOpen && (
               <div
                 data-testid={`day-detail-${day.dateISO}`}
-                className="ml-3 flex flex-col gap-1 border-l border-border/40 pb-2 pl-4"
+                className="ml-3 flex flex-col gap-1 border-l border-border/40 pb-2 pl-4 pointer-coarse:gap-4 pointer-coarse:pt-2"
               >
                 {day.timed.map((it) => (
                   <DayItemRow

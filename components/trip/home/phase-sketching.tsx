@@ -55,7 +55,7 @@ export async function PhaseSketching({
     // reminders (still owed a home on every Phase) join the end of this
     // single column rather than an aside.
     return (
-      <>
+      <div className="flex flex-col gap-3.5">
         <EmptyState
           icon={Route}
           tone="teal"
@@ -68,7 +68,7 @@ export async function PhaseSketching({
           }
         />
         {reminders}
-      </>
+      </div>
     );
   }
 

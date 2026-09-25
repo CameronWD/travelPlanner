@@ -601,6 +601,16 @@ describe("HelpGuide — Playground kit shape", () => {
     );
   });
 
+  // M-5: at lg the list drops flex's gap-2 for columns-2, so each step
+  // carries its own 8px bottom margin instead (margin-bottom, not space-y's
+  // margin-top, so the second column's first step still lines up at the top).
+  it("60-second steps keep their 8px spacing in the two-column layout", () => {
+    render(<HelpGuide />);
+    const list = screen.getByRole("list", { name: /60-second/i });
+    expect(list.className).toContain("lg:[&>li]:mb-2");
+    expect(list.className).toContain("[&>li]:break-inside-avoid");
+  });
+
   it("the open 60-second card doesn't change the grid's column count", () => {
     expect(TOPIC_GRID).toContain("lg:grid-cols-3");
     expect(TOPIC_GRID).toContain("grid-flow-row-dense");

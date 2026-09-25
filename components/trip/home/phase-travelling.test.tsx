@@ -588,4 +588,22 @@ describe("PhaseTravelling reminders slot (LA-029/045)", () => {
     expect(marker).not.toBeNull();
     expect(marker!.closest("[data-home-aside]")).not.toBeNull();
   });
+
+  // M-4: the no-dates branch stacks EmptyState and Reminders with the card
+  // gap, rather than rendering Reminders flush under the empty state.
+  it("spaces reminders below the no-dates empty state with the card gap", async () => {
+    tripFindUniqueMock.mockResolvedValue({
+      startDate: null,
+      endDate: null,
+      homeCurrency: "GBP",
+      chaptersEnabled: true,
+    });
+    const dom = toDom(
+      await PhaseTravelling({ tripId: "trip-1", reminders: React.createElement("div", { "data-testid": "reminders" }) }),
+    );
+    const stack = dom.querySelector('[data-testid="reminders"]')!.parentElement!;
+    expect(stack.className).toMatch(/\bflex\b/);
+    expect(stack.className).toMatch(/\bflex-col\b/);
+    expect(stack.className).toMatch(/\bgap-3\.5\b/);
+  });
 });

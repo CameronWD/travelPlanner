@@ -191,6 +191,24 @@ describe("PhaseSketching reminders slot (LA-029/045)", () => {
     expect(div.querySelector('[data-testid="reminders"]')).not.toBeNull();
   });
 
+  // M-4: the empty branch stacks EmptyState and Reminders with the page's
+  // card gap, rather than rendering Reminders flush under the empty state.
+  it("spaces reminders below the no-stops empty state with the card gap", async () => {
+    stopFindManyMock.mockResolvedValue([]);
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(
+      (await PhaseSketching({
+        tripId: "trip-1",
+        tripName: "Test Trip",
+        reminders: React.createElement("div", { "data-testid": "reminders" }),
+      })) as Parameters<typeof renderToStaticMarkup>[0],
+    );
+    const stack = div.querySelector('[data-testid="reminders"]')!.parentElement!;
+    expect(stack.className).toMatch(/\bflex\b/);
+    expect(stack.className).toMatch(/\bflex-col\b/);
+    expect(stack.className).toMatch(/\bgap-3\.5\b/);
+  });
+
   // Review fix (round 1): QuickActions rendered after the two-column grid in
   // source order, so below `lg` — where the grid collapses to one column and
   // items stack in DOM order — reminders (inside that grid) landed BEFORE

@@ -196,6 +196,23 @@ describe("RemindersCard kit shape", () => {
     expect(card.className).toMatch(/\bshadow-hard-\d\b/);
   });
 
+  // I-2: in the 21.25rem home aside a long title must wrap, not ellipsis —
+  // the card is the only place a Reminder's text is shown (truncation rule 1).
+  it("wraps a long reminder title instead of truncating it", () => {
+    const long = "Book the overnight sleeper from Vienna to Venice before the Christmas rush";
+    render(
+      <RemindersCard
+        tripId="trip-1"
+        today={TODAY}
+        reminders={[{ id: "r1", title: long, date: "2026-11-29" }]}
+      />,
+    );
+    const title = screen.getByText(long);
+    expect(title.className).not.toMatch(/\btruncate\b/);
+    expect(title.className).toMatch(/\bbreak-words\b/);
+    expect(title.parentElement!.className).toMatch(/\bmin-w-0\b/);
+  });
+
   it("gives the delete button a 44px touch target", () => {
     render(
       <RemindersCard

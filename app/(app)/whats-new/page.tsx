@@ -39,8 +39,11 @@ export default async function WhatsNewPage() {
   }
 
   return (
-    <div className="flex flex-col gap-3 lg:gap-[18px]">
-      <div className="flex flex-col gap-1.5">
+    // One grid for the title and the release columns (I-3): the title block
+    // sits in the first column, so at ≥1024 it lines up with the centred
+    // cards rather than the shell's left edge. Below lg it's a plain stack.
+    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,38rem)_14rem] lg:justify-center lg:gap-x-12 lg:gap-y-[18px]">
+      <div className="flex flex-col gap-1.5 lg:col-start-1">
         <h1 className="font-display text-3xl font-extrabold tracking-[-0.03em] text-foreground lg:text-4xl">
           What&apos;s new
         </h1>
@@ -50,13 +53,15 @@ export default async function WhatsNewPage() {
       </div>
 
       {groups.length === 0 ? (
-        <EmptyState icon={Sparkles} tone="coral" title="Nothing yet" />
+        <div className="lg:col-start-1">
+          <EmptyState icon={Sparkles} tone="coral" title="Nothing yet" />
+        </div>
       ) : (
         // The kit's release column: one Card per release, the newest a coral
         // lead card (shadow 4), the rest white (shadow 2). On desktop it runs
         // beside a sticky release-date column that jumps straight to a Card.
-        <div className="lg:grid lg:grid-cols-[minmax(0,38rem)_14rem] lg:justify-center lg:gap-12">
-          <div className="flex flex-col gap-3">
+        <>
+          <div className="flex flex-col gap-3 lg:col-start-1">
             {groups.map((group, i) => {
               const lead = i === 0;
               return (
@@ -98,7 +103,9 @@ export default async function WhatsNewPage() {
           </div>
           <nav
             aria-label="Releases"
-            className="hidden lg:block lg:sticky lg:top-20 lg:self-start"
+            // Capped to the viewport so a long list scrolls in place (M-6);
+            // -m-1/p-1 keeps the links' focus rings inside the scroll clip.
+            className="hidden lg:col-start-2 lg:row-start-2 lg:-m-1 lg:block lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:self-start lg:overflow-y-auto lg:p-1"
           >
             <p className="text-label text-muted-foreground">Releases</p>
             <ul className="mt-3 flex flex-col gap-2">
@@ -114,7 +121,7 @@ export default async function WhatsNewPage() {
               ))}
             </ul>
           </nav>
-        </div>
+        </>
       )}
     </div>
   );

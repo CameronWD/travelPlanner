@@ -346,7 +346,7 @@ export function HelpGuide({
             </p>
             <ol
               aria-label="The 60-second version"
-              className="flex flex-col gap-2 pl-5 list-decimal lg:block lg:columns-2 lg:gap-8 [&>li]:break-inside-avoid"
+              className="flex flex-col gap-2 pl-5 list-decimal lg:block lg:columns-2 lg:gap-8 lg:[&>li]:mb-2 [&>li]:break-inside-avoid"
             >
               <li>
                 Open{" "}

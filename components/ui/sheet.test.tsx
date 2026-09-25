@@ -156,10 +156,12 @@ describe("Sheet", () => {
     // The docked panel used to force a tall fixed height on desktop even when
     // its content (e.g. an empty feedback log) only filled a third of it,
     // leaving a big blank void. It now sizes to its content, capped so it
-    // never grows past the viewport.
+    // never grows past the viewport — and (M-13, the FP-13 floor) the cap
+    // never drops below 16rem on a very short window, so a tall log still
+    // gets a usable scroll box instead of a sliver.
     expect(sheetVariants({ side: "docked" })).toContain("md:h-auto");
     expect(sheetVariants({ side: "docked" })).toContain(
-      "md:max-h-[min(37.5rem,calc(100vh-9rem))]",
+      "md:max-h-[min(37.5rem,max(16rem,calc(100vh-9rem)))]",
     );
     expect(sheetVariants({ side: "docked" })).not.toContain(
       "md:h-[min(37.5rem,max(16rem,calc(100vh-9rem)))]",
@@ -174,7 +176,7 @@ describe("Sheet", () => {
     );
     const panel = screen.getByRole("dialog");
     expect(panel.className).toContain("md:h-auto");
-    expect(panel.className).toContain("md:max-h-[min(37.5rem,calc(100vh-9rem))]");
+    expect(panel.className).toContain("md:max-h-[min(37.5rem,max(16rem,calc(100vh-9rem)))]");
   });
 
   it("LA-023 mobile: below md the docked sheet is a bottom sheet sized to its content", () => {

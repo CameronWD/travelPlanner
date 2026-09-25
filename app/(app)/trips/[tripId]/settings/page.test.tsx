@@ -132,6 +132,45 @@ describe("Settings companion-column layout (LA-046)", () => {
     expect(SETTINGS_GRID_CLASS).not.toContain("max-w-2xl");
   });
 
+  // Spec §3: "Below 1024px: one column, as today". The phone stack follows
+  // DOM order (the column wrappers are `display: contents` below lg), so the
+  // DOM must keep the pre-grid order — Driving estimates second to last.
+  it("keeps the original one-column card order in the DOM for phones (I-4)", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: true });
+    mockDb.chapter.findMany.mockResolvedValue([]);
+
+    await renderSettings();
+
+    const titles = screen
+      .getAllByRole("heading", { level: 3 })
+      .map((h) => h.textContent);
+    expect(titles).toEqual([
+      "Trip details",
+      "Chapters",
+      "Travellers",
+      "Digest",
+      "Calendar feed",
+      "Driving estimates",
+      "Danger zone",
+    ]);
+  });
+
+  it("places the cards into the two lg columns explicitly, not by DOM order (I-4)", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+
+    await renderSettings();
+
+    const cardOf = (title: string) =>
+      screen.getByRole("heading", { level: 3, name: title }).closest("[data-slot='settings-slot']")!;
+    expect(cardOf("Trip details").className).toContain("lg:col-start-1");
+    expect(cardOf("Driving estimates").className).toContain("lg:col-start-1");
+    expect(cardOf("Travellers").className).toContain("lg:col-start-2");
+    expect(cardOf("Danger zone").className).toContain("lg:col-start-2");
+    // Column wrappers dissolve below lg so the one-column stack is DOM order.
+    expect(cardOf("Trip details").className).toMatch(/(^| )contents( |$)/);
+    expect(cardOf("Travellers").className).toMatch(/(^| )contents( |$)/);
+  });
+
   it("card body copy is capped to a reading measure (LA-051)", async () => {
     mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
 

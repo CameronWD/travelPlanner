@@ -56,4 +56,12 @@ describe("SignInPage", () => {
     expect(privacy.parentElement!.className).toContain("gap-4");
     expect(privacy.parentElement).toHaveTextContent(/^PrivacyTerms$/);
   });
+
+  // M-10: a second, unlabelled <nav> is indistinguishable in a landmarks list.
+  it("labels the footer links' nav landmark 'Legal'", async () => {
+    const page = await SignInPage({ searchParams: Promise.resolve({}) });
+    render(page);
+    const nav = screen.getByRole("navigation", { name: "Legal" });
+    expect(nav).toContainElement(screen.getByRole("link", { name: "Privacy" }));
+  });
 });

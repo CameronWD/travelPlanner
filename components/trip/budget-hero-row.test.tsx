@@ -108,6 +108,40 @@ describe("BudgetHeroRow", () => {
     });
   });
 
+  // M-8: a six-figure amount at a fixed text-xl overflowed the ~126px Paid /
+  // Still-to-pay tiles at 360. Each tile is a size container and the value
+  // steps its font size with the tile's own width, so the narrow 2-up tiles
+  // get a smaller size and the wide ones keep text-2xl.
+  describe("six-figure values fit their tiles (M-8)", () => {
+    it("sizes every money value by its tile's width, not the viewport", () => {
+      render(
+        <BudgetHeroRow
+          costTotalMinor={98765432}
+          paidTotalMinor={12345678}
+          homeCurrency="AUD"
+          tripNights={10}
+        />,
+      );
+      const values = [
+        screen.getByText("$987,654.32"),
+        screen.getByText("$123,456.78"),
+        screen.getByText("$864,197.54"),
+        screen.getByTestId("est-per-day-value"),
+      ];
+      for (const value of values) {
+        const tile = value.parentElement!;
+        expect(tile.className).toMatch(/(^| )@container( |$)/);
+        expect(tile.className).toContain("min-w-0");
+        expect(value.className).toContain("text-lg");
+        expect(value.className).toContain("@[9rem]:text-xl");
+        expect(value.className).toContain("@[12rem]:text-2xl");
+        // No viewport step left to override the container steps.
+        expect(value.className).not.toContain("sm:text-2xl");
+        expect(value.className).toContain("whitespace-nowrap");
+      }
+    });
+  });
+
   describe("showPaid", () => {
     it("defaults to showing the Paid / Still-to-pay tiles and the paid progress bar", () => {
       const { container } = render(<BudgetHeroRow {...baseProps} />);

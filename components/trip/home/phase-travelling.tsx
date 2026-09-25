@@ -60,7 +60,7 @@ export async function PhaseTravelling({
   // them in regardless of phase.
   if (!trip.startDate) {
     return (
-      <>
+      <div className="flex flex-col gap-3.5">
         <EmptyState
           icon={CalendarDays}
           tone="sun"
@@ -68,7 +68,7 @@ export async function PhaseTravelling({
           description="Set your trip's start date to see a day-by-day view of today."
         />
         {reminders}
-      </>
+      </div>
     );
   }
 

@@ -266,7 +266,7 @@ describe("DialogFooter", () => {
     expect(footer.className).toContain("after:bg-background");
   });
 
-  it("scroll body reserves room so the sticky footer never covers the last field", () => {
+  it("scroll body carries scroll-pb-24 beside its sticky footer (the focus-reveal tests hold the real no-cover guarantee)", () => {
     render(
       <Dialog open>
         <DialogContent>

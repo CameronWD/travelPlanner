@@ -95,7 +95,7 @@ export default async function SignInPage({
         </CardContent>
       </Card>
 
-      <nav className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
+      <nav aria-label="Legal" className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
         <Link href="/privacy" className="tap-target underline underline-offset-2">
           Privacy
         </Link>

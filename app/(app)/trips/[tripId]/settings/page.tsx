@@ -1,3 +1,4 @@
+import { cn } from "@/lib/cn";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
@@ -28,8 +29,21 @@ import { ChaptersManager } from "@/components/trip/chapters-manager";
  * `lg` a single stack, as today; from `lg` up, two columns grouped like the
  * kit's desktop reference (trip-content cards on the left, outward-facing
  * ones on the right — see the column split below). Exported for tests.
+ *
+ * The DOM keeps the phone order (I-4): Details, Chapters, Travellers,
+ * Sharing, Digest, Calendar feed, Driving estimates, Danger zone. The two
+ * multi-card groups are `contents` below lg (so every card is a direct
+ * one-column grid item) and flex columns from lg; each slot is then placed
+ * explicitly. Rows are `auto 1fr auto`: the right group spans rows 1–2 and
+ * Driving spans rows 2–3, so both cross the `1fr` row and neither column's
+ * height forces a gap under the other's cards (a spanning item never grows
+ * the `auto` rows it crosses when one of its tracks is flexible).
  */
-export const SETTINGS_GRID_CLASS = "grid grid-cols-1 items-start gap-3.5 lg:grid-cols-2";
+export const SETTINGS_GRID_CLASS =
+  "grid grid-cols-1 items-start gap-3.5 lg:grid-cols-2 lg:grid-rows-[auto_1fr_auto]";
+
+/** A multi-card slot: dissolves into the grid below lg, a flex column from lg. */
+const SLOT_GROUP_CLASS = "contents lg:flex lg:flex-col lg:gap-3.5";
 
 export default async function SettingsPage({
   params,
@@ -109,8 +123,8 @@ export default async function SettingsPage({
       <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Settings</h2>
 
       <div className={SETTINGS_GRID_CLASS}>
-        {/* ── Left column: this trip's own content ── */}
-        <div className="flex flex-col gap-3.5">
+        {/* ── Left column (lg), top: this trip's own content ── */}
+        <div data-slot="settings-slot" className={cn(SLOT_GROUP_CLASS, "lg:col-start-1 lg:row-start-1")}>
           {/* ── Trip details ── */}
           <Card>
             <CardHeader className="p-5 pb-0">
@@ -148,28 +162,13 @@ export default async function SettingsPage({
               </CardContent>
             </Card>
           )}
-
-          {/* ── Driving estimates ── */}
-          <Card>
-            <CardHeader className="p-5 pb-0">
-              <CardTitle className="font-display text-base font-bold tracking-tight">Driving estimates</CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 pt-3">
-              <p className="text-xs text-muted-foreground max-w-reading">
-                Tune the offline estimates used to flag long driving days. These are rough guides, not
-                navigation ETAs.
-              </p>
-              <DrivingEstimatesPanel
-                tripId={tripId}
-                initialWindingFactor={trip.drivingWindingFactor}
-                initialAvgSpeedKph={trip.drivingAvgSpeedKph}
-              />
-            </CardContent>
-          </Card>
         </div>
 
-        {/* ── Right column: travellers/sharing and outward delivery ── */}
-        <div className="flex flex-col gap-3.5">
+        {/* ── Right column (lg): travellers/sharing and outward delivery ── */}
+        <div
+          data-slot="settings-slot"
+          className={cn(SLOT_GROUP_CLASS, "lg:col-start-2 lg:row-span-2 lg:row-start-1")}
+        >
           {/* ── Travellers ── */}
           <Card id="travellers" className="scroll-mt-20">
             <CardHeader className="p-5 pb-0">
@@ -238,9 +237,32 @@ export default async function SettingsPage({
               />
             </CardContent>
           </Card>
+        </div>
 
-          {/* ── Danger zone (owner or admin) — includes Duplicate ── */}
-          {canManageTrip && (
+        {/* ── Left column (lg), under Details/Chapters — second to last on phones ── */}
+        <div data-slot="settings-slot" className="lg:col-start-1 lg:row-span-2 lg:row-start-2">
+          {/* ── Driving estimates ── */}
+          <Card>
+            <CardHeader className="p-5 pb-0">
+              <CardTitle className="font-display text-base font-bold tracking-tight">Driving estimates</CardTitle>
+            </CardHeader>
+            <CardContent className="p-5 pt-3">
+              <p className="text-xs text-muted-foreground max-w-reading">
+                Tune the offline estimates used to flag long driving days. These are rough guides, not
+                navigation ETAs.
+              </p>
+              <DrivingEstimatesPanel
+                tripId={tripId}
+                initialWindingFactor={trip.drivingWindingFactor}
+                initialAvgSpeedKph={trip.drivingAvgSpeedKph}
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Danger zone (owner or admin) — includes Duplicate ── */}
+        {canManageTrip && (
+          <div data-slot="settings-slot" className="lg:col-start-2 lg:row-start-3">
             <Card className="bg-destructive/5 border-destructive/30">
               <CardHeader className="p-5 pb-0">
                 <CardTitle className="font-display text-base font-bold tracking-tight text-destructive">Danger zone</CardTitle>
@@ -252,8 +274,8 @@ export default async function SettingsPage({
                 </div>
               </CardContent>
             </Card>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );
