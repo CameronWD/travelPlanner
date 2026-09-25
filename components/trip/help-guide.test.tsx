@@ -562,18 +562,35 @@ describe("HelpGuide — Playground kit shape", () => {
     expect(chip?.className).toMatch(/\bafter:h-11\b/);
   });
 
-  it("lets an open section's body use the full row it just claimed, keeping only its paragraphs at a readable measure", () => {
-    // LA-026/027: the body wrapper no longer caps width itself (an expanded
-    // open:col-span-full card should use the whole row), but its standalone
-    // paragraphs still opt into a reading measure so prose doesn't run edge
-    // to edge on a wide screen.
+  it("lets only the 60-second section's body use the full row it just claimed, keeping its own paragraphs at a readable measure", () => {
+    // LA-026/027: the 60-second body opts out of the reading-measure cap
+    // (bodyUnconstrained) because its <ol> reflows into lg:columns-2 and
+    // wants the whole row open:col-span-full gives it. Its standalone
+    // paragraphs still opt into max-w-reading individually so the prose
+    // doesn't run edge to edge.
     const { container } = render(<HelpGuide />);
     const body = container.querySelector("details#sixty-seconds > summary + div > div");
     expect(body?.className).not.toMatch(/\bmax-w-prose\b/);
+    expect(body?.className).not.toMatch(/\bmax-w-reading\b/);
     const paragraphs = Array.from(body?.querySelectorAll("p") ?? []);
     expect(paragraphs.length).toBeGreaterThanOrEqual(2);
     for (const p of paragraphs) {
       expect(p.className).toMatch(/\bmax-w-reading\b/);
+    }
+  });
+
+  it("keeps every other section's body at a readable measure — only the 60-second card opts out (fix round 1)", () => {
+    // The shared Section body div defaults to max-w-reading; only the
+    // sixty-seconds instance passes bodyUnconstrained to drop it. Every one
+    // of the other 20 topics must keep the cap, since each one also spans
+    // the full row via open:col-span-full once the reader opens it.
+    const { container } = render(<HelpGuide />);
+    for (const s of HELP_SECTIONS) {
+      if (s.id === "sixty-seconds") continue;
+      const body = container.querySelector(`details#${s.id} > summary + div > div`);
+      expect(body?.className, `section ${s.id} lost its reading-measure cap`).toMatch(
+        /\bmax-w-reading\b/,
+      );
     }
   });
 

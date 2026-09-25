@@ -177,12 +177,21 @@ function Section({
   section,
   open,
   heading: Title,
+  /**
+   * Only the 60-second section sets this: its `<ol>` reflows into
+   * `lg:columns-2` and needs the full row `open:col-span-full` gives it, so
+   * it opts out of the reading-measure cap every other section's body keeps
+   * (fix round 1: that cap was dropped for everyone, which let all 20 other
+   * topics' prose run edge-to-edge once opened at `lg`).
+   */
+  bodyUnconstrained,
   children,
 }: {
   section: HelpSection;
   open?: boolean;
   /** One level below the group heading (a server component: no context). */
   heading: HeadingTag;
+  bodyUnconstrained?: boolean;
   children: React.ReactNode;
 }) {
   const tile = SECTION_TILES[section.id];
@@ -220,11 +229,12 @@ function Section({
         />
       </summary>
       <div className="mt-3.5 border-t-2 border-border-soft pt-3.5">
-        {/* No max-w here: an expanded card (open:col-span-full) should use the
-            full row width it just claimed. Individual paragraphs opt into
-            max-w-reading where a long block of prose wants a stopping point;
-            the 60-second list instead reflows into lg:columns-2. */}
-        <div className="flex flex-col gap-3 text-sm leading-relaxed text-foreground">
+        <div
+          className={cn(
+            "flex flex-col gap-3 text-sm leading-relaxed text-foreground",
+            !bodyUnconstrained && "max-w-reading",
+          )}
+        >
           {children}
         </div>
       </div>
@@ -319,7 +329,7 @@ export function HelpGuide({
         </Group>
         <div className={TOPIC_GRID}>
           {/* One <Section> per everyday id, in HELP_SECTIONS order. */}
-          <Section heading={Sub} section={sectionById("sixty-seconds")} open>
+          <Section heading={Sub} section={sectionById("sixty-seconds")} open bodyUnconstrained>
             <p className="max-w-reading">
               The whole app is one loop. Six steps, and you have a planned trip.
             </p>

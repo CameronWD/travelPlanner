@@ -113,6 +113,10 @@ export function legalToc(children: ReactNode): { id: string; title: string }[] {
     React.Children.forEach(node, (child) => {
       if (!React.isValidElement(child)) return;
       if (child.type === LegalSection) {
+        // React.isValidElement narrows child.props to `unknown`; the cast is
+        // safe here because the `child.type === LegalSection` check above it
+        // already confirms the element is a LegalSection, whose only prop
+        // shape is { title, children }.
         const { title } = child.props as { title: string };
         toc.push({ id: slugify(title), title });
       } else if (child.type === React.Fragment) {
