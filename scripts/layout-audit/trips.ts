@@ -83,6 +83,22 @@ export function parseTripLinks(anchors: { href: string; text: string }[]): TripL
 // Matching links to the audit's expected trips (pure)
 // --------------------------------------------------------------------------
 
+/** The id of the link whose text contains `name`, preferring the shortest
+ * such text (see matchTrips for why); undefined if none does. Pure. Also
+ * used on its own by the contrast audit, which needs just the one trip. */
+export function findTripId(links: TripLink[], name: string): string | undefined {
+  const matches = links.filter((l) => l.name.includes(name));
+  if (matches.length === 0) return undefined;
+  matches.sort((a, b) => a.name.length - b.name.length);
+  return matches[0].id;
+}
+
+/** Pulls a share token out of the text a trip's settings page shows for its
+ * share link (the link's href and/or the page text). Pure. */
+export function parseShareToken(text: string): string | undefined {
+  return /\/share\/([0-9a-f-]{36})/.exec(text)?.[1];
+}
+
 /** Matches each TRIP_NAMES entry against the link whose text *contains* that
  * name (card link text also carries the phase badge, e.g. "PLANNING · 73
  * days"), preferring the shortest matching text when more than one link
@@ -95,11 +111,8 @@ export function matchTrips(
   const found: Partial<Record<Exclude<TripKey, "none">, string>> = {};
   const keys = Object.keys(TRIP_NAMES) as Exclude<TripKey, "none">[];
   for (const key of keys) {
-    const name = TRIP_NAMES[key];
-    const matches = links.filter((l) => l.name.includes(name));
-    if (matches.length === 0) continue;
-    matches.sort((a, b) => a.name.length - b.name.length);
-    found[key] = matches[0].id;
+    const id = findTripId(links, TRIP_NAMES[key]);
+    if (id !== undefined) found[key] = id;
   }
   const missing = keys.filter((key) => found[key] === undefined);
   return { found, missing };
@@ -160,6 +173,13 @@ export function missingToGaps(missing: Exclude<TripKey, "none">[]): { key: TripK
  * function-reference form would try (and fail) to call inside the page. */
 const TRIP_LINKS_JS = `Array.from(document.querySelectorAll('a[href^="/trips/"]')).map((a) => ({ href: a.getAttribute("href") || "", text: a.textContent || "" }))`;
 
+/** The share link's href (if it is a link) plus the page text, for
+ * parseShareToken. Expression string for the same reason as above. */
+export const SHARE_TEXT_JS = String.raw`(() => {
+  const a = document.querySelector('a[href*="/share/"]');
+  return (a ? a.getAttribute("href") || "" : "") + "\n" + document.body.innerText;
+})()`;
+
 const READ_PHASE_JS = `(() => { const el = document.querySelector('[data-trip-phase]'); return el ? el.getAttribute('data-trip-phase') : null; })()`;
 
 /** Reads the derived Phase off a trip's Home page via the hidden
@@ -169,6 +189,26 @@ export async function readPhase(page: Page, baseUrl: string, tripId: string): Pr
   await page.goto(`${baseUrl}/trips/${tripId}`, { waitUntil: "networkidle" });
   const phase = await page.evaluate<string | null>(READ_PHASE_JS);
   return (phase as PhaseName | null) ?? null;
+}
+
+/** Reads every `/trips/<id>` link off /trips (live). */
+async function readTripLinks(page: Page, baseUrl: string): Promise<TripLink[]> {
+  await page.goto(`${baseUrl}/trips`, { waitUntil: "networkidle" });
+  return parseTripLinks(await page.evaluate<{ href: string; text: string }[]>(TRIP_LINKS_JS));
+}
+
+/** Resolves one trip's id by name on /trips (live) — for callers that need a
+ * single trip, not the layout audit's whole verified cast. Assumes the page
+ * is already signed in. */
+export async function resolveTripIdByName(page: Page, baseUrl: string, name: string): Promise<string | undefined> {
+  return findTripId(await readTripLinks(page, baseUrl), name);
+}
+
+/** Reads a trip's share token off its settings page (live); undefined when
+ * the trip has no share link. */
+export async function readShareToken(page: Page, baseUrl: string, tripId: string): Promise<string | undefined> {
+  await page.goto(`${baseUrl}/trips/${tripId}/settings`, { waitUntil: "networkidle", timeout: 30_000 });
+  return parseShareToken(await page.evaluate<string>(SHARE_TEXT_JS));
 }
 
 /**
@@ -184,11 +224,7 @@ export async function resolveTrips(
   baseUrl: string,
 ): Promise<{ ids: Partial<Record<Exclude<TripKey, "none">, string>>; gaps: { key: TripKey; reason: string }[] }> {
   await ensureAuthenticated(page, baseUrl);
-  await page.goto(`${baseUrl}/trips`, { waitUntil: "networkidle" });
-
-  const anchors = await page.evaluate<{ href: string; text: string }[]>(TRIP_LINKS_JS);
-  const links = parseTripLinks(anchors);
-  const { found, missing } = matchTrips(links);
+  const { found, missing } = matchTrips(await readTripLinks(page, baseUrl));
 
   const gaps: { key: TripKey; reason: string }[] = missingToGaps(missing);
 

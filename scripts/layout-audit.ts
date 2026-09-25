@@ -171,7 +171,15 @@ import {
   type Gap,
   type Manifest,
 } from "./layout-audit/run";
-import { EXPECTED_PHASE, TRIP_NAMES, ensureEmptyTrip, readPhase, resolveTrips } from "./layout-audit/trips";
+import {
+  EXPECTED_PHASE,
+  SHARE_TEXT_JS,
+  TRIP_NAMES,
+  ensureEmptyTrip,
+  parseShareToken,
+  readPhase,
+  resolveTrips,
+} from "./layout-audit/trips";
 
 const NAV_TIMEOUT_MS = 30_000;
 const DEV_OVERLAY_WAIT_MS = 5_000;
@@ -193,15 +201,6 @@ function errorText(err: unknown): string {
 // Setup: auth, trips, then (for the captures actually wanted) share token
 // and day dates — all on one short-lived context
 // --------------------------------------------------------------------------
-
-/** Plain JS string, not a TS function (trap 1). The share URL is rendered as
- * text in the settings share panel; a link to it counts too. */
-const SHARE_TOKEN_JS = String.raw`(() => {
-  const a = document.querySelector('a[href*="/share/"]');
-  const text = (a ? a.getAttribute("href") || "" : "") + "\n" + document.body.innerText;
-  const m = text.match(/\/share\/([0-9a-f-]{36})/);
-  return m ? m[1] : null;
-})()`;
 
 interface Setup {
   tripIds: Partial<Record<TripKey, string>>;
@@ -314,7 +313,9 @@ async function lookups(
       gaps.push({ key: "share", reason: "no deep trip to read a share link from" });
     } else {
       await gotoPage(page, `${baseUrl}/trips/${tripIds.deep}/settings`);
-      shareToken = (await page.evaluate<string | null>(SHARE_TOKEN_JS)) ?? undefined;
+      // The share URL is rendered as text in the settings share panel; a
+      // link to it counts too (SHARE_TEXT_JS reads both).
+      shareToken = parseShareToken(await page.evaluate<string>(SHARE_TEXT_JS));
       if (!shareToken) gaps.push({ key: "share", reason: "no share link on settings" });
     }
   }
