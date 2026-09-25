@@ -437,27 +437,27 @@ export default async function SharePage({
                 {itinerary.map((day) => {
                   const isToday = phase === "travelling" && day.dateISO === todayISO;
                   return (
-                    <Card
-                      key={day.dateISO}
-                      data-testid="share-day"
-                      shadow={isToday ? 4 : 2}
-                      className={cn("p-4", isToday && "ring-[3px] ring-coral")}
-                      aria-current={isToday ? "date" : undefined}
-                    >
-                      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                        <h3 className="flex items-center gap-2 font-display text-base font-extrabold tracking-[-0.02em]">
-                          {formatLongDate(day.dateISO)}
-                          {isToday && <Badge variant="coral" caps>Today</Badge>}
-                        </h3>
-                        {day.stop && (
-                          <span className="text-xs font-medium text-muted-foreground">
-                            {day.stop.name}
-                            {day.stop.country ? `, ${day.stop.country}` : ""}
-                          </span>
-                        )}
-                      </div>
-                      <Timeline day={day} variant="agenda" />
-                    </Card>
+                    <li key={day.dateISO} data-testid="share-day">
+                      <Card
+                        shadow={isToday ? 4 : 2}
+                        className={cn("p-4", isToday && "ring-[3px] ring-coral")}
+                        aria-current={isToday ? "date" : undefined}
+                      >
+                        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                          <h3 className="flex items-center gap-2 font-display text-base font-extrabold tracking-[-0.02em]">
+                            {formatLongDate(day.dateISO)}
+                            {isToday && <Badge variant="coral" caps>Today</Badge>}
+                          </h3>
+                          {day.stop && (
+                            <span className="text-xs font-medium text-muted-foreground">
+                              {day.stop.name}
+                              {day.stop.country ? `, ${day.stop.country}` : ""}
+                            </span>
+                          )}
+                        </div>
+                        <Timeline day={day} variant="agenda" />
+                      </Card>
+                    </li>
                   );
                 })}
               </ol>
