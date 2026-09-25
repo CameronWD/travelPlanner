@@ -152,11 +152,42 @@ export function mergeRerun(
  * findings are for the reviewers to grade.
  */
 export function exitCodeFor(m: Manifest): 0 | 1 {
+  return failureReasons(m).length === 0 ? 0 : 1;
+}
+
+/** Why exitCodeFor(m) is 1 — empty exactly when it is 0, so the printed
+ * RESULT line and the exit code can't disagree. */
+function failureReasons(m: Manifest): string[] {
   const ran = m.captures.filter((c) => !c.skipped);
-  if (ran.length === 0) return 1;
-  if (m.captures.some((c) => c.error !== undefined)) return 1;
-  if (ran.some((c) => c.elementCount === 0)) return 1;
-  return 0;
+  if (ran.length === 0) return ["nothing was captured"];
+  const reasons: string[] = [];
+  const errored = m.captures.filter((c) => c.error !== undefined).length;
+  const zero = ran.filter((c) => c.error === undefined && c.elementCount === 0).length;
+  if (errored > 0) reasons.push(`${errored} errored`);
+  if (zero > 0) reasons.push(`${zero} zero-element`);
+  return reasons;
+}
+
+/** Failure reasons that belong to this run alone, beyond the merged
+ * manifest's. A re-run's errored / zero-element records are merged in, so
+ * they already show in the manifest; what the merge hides is a run that
+ * captured nothing — the merged manifest is then just the previous run's. */
+function ownFailureReasons(thisRun: Manifest, merged: Manifest): string[] {
+  if (thisRun === merged || thisRun.captures.some((c) => !c.skipped)) return [];
+  return thisRun.captures.length === 0
+    ? ["this run matched no captures (a LAYOUT_AUDIT_ONLY typo?)"]
+    : [`this run's ${thisRun.captures.length} capture(s) were all skipped`];
+}
+
+/**
+ * The exit code for a run whose records were merged into an existing
+ * manifest (mergeRerun): 1 if the merged manifest fails, or if this run
+ * itself captured nothing. Without the second half, a typo'd
+ * LAYOUT_AUDIT_ONLY re-run into a clean out dir merges nothing and exits 0.
+ * Pass the same manifest twice when nothing was merged.
+ */
+export function rerunExitCode(thisRun: Manifest, merged: Manifest): 0 | 1 {
+  return exitCodeFor(thisRun) === 1 || exitCodeFor(merged) === 1 ? 1 : 0;
 }
 
 // --------------------------------------------------------------------------
@@ -175,9 +206,11 @@ function countBy<T>(items: T[], key: (item: T) => string): [string, number][] {
  * map captures that found no markers, skip reasons, and finding counts by
  * check. `findings` is optional so the manifest alone still summarises;
  * without it the by-check breakdown is omitted and only the total (summed
- * from the capture records) is shown.
+ * from the capture records) is shown. `thisRun` is this run's own manifest
+ * when `m` is a merge (see rerunExitCode); the RESULT line always agrees
+ * with rerunExitCode(thisRun, m).
  */
-export function summarise(m: Manifest, findings?: AutoFinding[]): string {
+export function summarise(m: Manifest, findings?: AutoFinding[], thisRun: Manifest = m): string {
   const ran = m.captures.filter((c) => !c.skipped);
   const skipped = m.captures.filter((c) => c.skipped);
   const errored = m.captures.filter((c) => c.error !== undefined);
@@ -214,11 +247,12 @@ export function summarise(m: Manifest, findings?: AutoFinding[]): string {
     for (const [check, n] of countBy(findings, (f) => f.check)) lines.push(`  ${check}: ${n}`);
   }
 
-  const code = exitCodeFor(m);
+  // Same verdict as rerunExitCode(thisRun, m), with its reasons.
+  const reasons = [...failureReasons(m), ...ownFailureReasons(thisRun, m)];
   lines.push(
-    code === 0
+    reasons.length === 0
       ? "RESULT: OK — every capture ran (or was skipped with a reason); findings don't fail Stage 1."
-      : `RESULT: FAIL — ${ran.length === 0 ? "nothing was captured" : `${errored.length} errored, ${zero.length} zero-element`}.`,
+      : `RESULT: FAIL — ${reasons.join("; ")}.`,
   );
   return lines.join("\n");
 }

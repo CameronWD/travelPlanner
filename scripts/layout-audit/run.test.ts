@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { AutoFinding } from "./checks";
 import { ROUTES, type CaptureSpec } from "./config";
-import { exitCodeFor, filterCaptures, mergeRerun, shotLocation, summarise, type Manifest, type CaptureRecord } from "./run";
+import { exitCodeFor, filterCaptures, mergeRerun, rerunExitCode, shotLocation, summarise, type Manifest, type CaptureRecord } from "./run";
 
 const cap = (o: Partial<CaptureRecord> = {}): CaptureRecord => ({
   id: "deep/plan/deep/390-light", set: "deep", route: "/trips/x/plan", routeLabel: "plan", trip: "deep",
@@ -93,6 +93,38 @@ describe("mergeRerun", () => {
   it("drops re-evaluated run-level gaps and re-run captures' gaps, keeps un-evaluated ones", () =>
     expect(merged.manifest.gaps).toEqual([{ key: "share", reason: "no share link on settings" }]));
   it("keeps the first run's start time", () => expect(merged.manifest.startedAt).toBe("t0"));
+  it("a re-run that captured something and fixed the errors passes, and says so", () => {
+    expect(rerunExitCode(next.manifest, merged.manifest)).toBe(0);
+    expect(summarise(merged.manifest, merged.findings, next.manifest)).toMatch(/RESULT: OK/);
+  });
+});
+
+// Review fix: the merged manifest is the previous run's when this run captured nothing, so its
+// exit code alone would pass a typo'd LAYOUT_AUDIT_ONLY. This run's own records must count too.
+describe("a filtered re-run that captures nothing fails, even merged into a clean manifest", () => {
+  const prev = { manifest: man([cap({ id: "a" }), cap({ id: "b" })]), findings: [] };
+
+  it("no capture matched the filter", () => {
+    const next = { manifest: man([]), findings: [] };
+    const merged = mergeRerun(prev, next, []);
+    expect(exitCodeFor(merged.manifest)).toBe(0); // the trap: the merged manifest alone looks clean
+    expect(rerunExitCode(next.manifest, merged.manifest)).toBe(1);
+    expect(summarise(merged.manifest, merged.findings, next.manifest)).toMatch(/RESULT: FAIL.*matched no captures/);
+  });
+
+  it("every re-run capture was skipped", () => {
+    const next = { manifest: man([cap({ id: "b", skipped: "coverage gap: x", elementCount: 0, files: [] })]), findings: [] };
+    const merged = mergeRerun(prev, next, []);
+    expect(exitCodeFor(merged.manifest)).toBe(0);
+    expect(rerunExitCode(next.manifest, merged.manifest)).toBe(1);
+    expect(summarise(merged.manifest, merged.findings, next.manifest)).toMatch(/RESULT: FAIL.*all skipped/);
+  });
+
+  it("without a merge, this run and the manifest are the same thing", () => {
+    const only = man([cap()]);
+    expect(rerunExitCode(only, only)).toBe(0);
+    expect(summarise(only, [], only)).toMatch(/RESULT: OK/);
+  });
 });
 
 describe("filterCaptures", () => {
@@ -104,7 +136,7 @@ describe("filterCaptures", () => {
   it("is a substring match on the id", () =>
     expect(filterCaptures(specs, "overlay/").map((s) => s.id)).toEqual(["overlay/overlay/deep/360-light/stop-add"]));
   it("commas separate alternatives", () => expect(filterCaptures(specs, "deep/plan/, stop-add")).toHaveLength(2));
-  it("a filter that matches nothing yields nothing (and exitCodeFor then fails the run)", () =>
+  it("a filter that matches nothing yields nothing (and rerunExitCode then fails the run, merged or not)", () =>
     expect(filterCaptures(specs, "typo")).toEqual([]));
 });
 

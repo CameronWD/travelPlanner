@@ -60,7 +60,9 @@
  *                             holds a manifest MERGES into it — re-run
  *                             captures replace their old records and
  *                             findings — so re-running a few failures never
- *                             throws away a full run's manifest.
+ *                             throws away a full run's manifest. The exit
+ *                             code still fails a re-run that captured
+ *                             nothing (no match, or every match skipped).
  *
  * OUTPUT (the contract crops.ts and the review steps read)
  * -----------------
@@ -144,9 +146,9 @@ import {
 } from "./layout-audit/config";
 import { focusFirstInput, openOverlay, OVERLAYS, type OverlayRecipe } from "./layout-audit/overlays";
 import {
-  exitCodeFor,
   filterCaptures,
   mergeRerun,
+  rerunExitCode,
   shotLocation,
   summarise,
   type CaptureRecord,
@@ -583,7 +585,11 @@ async function audit(
     }
   }
 
-  let manifest: Manifest = {
+  // This run's own records. A filtered re-run merges them into the out dir's
+  // existing manifest below, but the verdict still counts them on their own:
+  // a re-run that captured nothing must fail even when the merged manifest
+  // (then just the previous run's) is clean.
+  const thisRun: Manifest = {
     startedAt: opts.startedAt,
     finishedAt: new Date().toISOString(),
     baseUrl,
@@ -592,6 +598,7 @@ async function audit(
     gaps: [...setup.gaps, ...captureGaps],
     captures: records,
   };
+  let manifest = thisRun;
   let allFindings = findings;
 
   const manifestPath = path.join(outDir, "manifest.json");
@@ -602,7 +609,7 @@ async function audit(
         manifest: JSON.parse(fs.readFileSync(manifestPath, "utf8")) as Manifest,
         findings: fs.existsSync(findingsPath) ? (JSON.parse(fs.readFileSync(findingsPath, "utf8")) as AutoFinding[]) : [],
       };
-      ({ manifest, findings: allFindings } = mergeRerun(prev, { manifest, findings }, setup.evaluated));
+      ({ manifest, findings: allFindings } = mergeRerun(prev, { manifest: thisRun, findings }, setup.evaluated));
       console.log(`merged ${records.length} re-run capture(s) into the existing ${manifestPath}`);
     } catch (err) {
       console.log(`could not merge into the existing ${manifestPath} (${errorText(err)}) — overwriting it`);
@@ -612,8 +619,8 @@ async function audit(
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
   fs.writeFileSync(findingsPath, JSON.stringify(allFindings, null, 2) + "\n");
   console.log("");
-  console.log(summarise(manifest, allFindings));
-  process.exitCode = exitCodeFor(manifest);
+  console.log(summarise(manifest, allFindings, thisRun));
+  process.exitCode = rerunExitCode(thisRun, manifest);
 }
 
 async function main(): Promise<void> {
