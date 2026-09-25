@@ -36,11 +36,12 @@ describe("buildCaptureMatrix", () => {
   });
   const count = (set: string) => m.filter((c) => c.set === set).length;
   const tripRoutes = ROUTES.filter((r) => r.tripScoped);
-  const nonPrint = ROUTES.filter((r) => r.sub !== "/print");
+  const widthsOf = (set: string, label: string) => m.filter((c) => c.set === set && c.route.label === label).map((c) => c.width);
 
-  it("deep: every non-print route at all 10 widths, light", () => {
-    expect(count("deep")).toBe(nonPrint.length * WIDTHS.length);
-    expect(m.filter((c) => c.set === "deep").every((c) => c.theme === "light")).toBe(true);
+  it("deep: every route (on-screen /print included) at all 10 widths, light", () => {
+    expect(count("deep")).toBe(ROUTES.length * WIDTHS.length);
+    expect(m.filter((c) => c.set === "deep").every((c) => c.theme === "light" && c.media === "screen")).toBe(true);
+    expect(widthsOf("deep", "print")).toEqual([...WIDTHS]);
   });
   it("phase: phase-sensitive routes × 4 trips × 4 widths", () =>
     expect(count("phase")).toBe(ROUTES.filter((r) => r.phaseSensitive).length * 4 * 4));
@@ -50,9 +51,10 @@ describe("buildCaptureMatrix", () => {
   });
   it("empty: trip routes minus print at 375 and 1440", () =>
     expect(count("empty")).toBe(tripRoutes.filter((r) => r.sub !== "/print").length * 2));
-  it("dark: non-print routes at 390 and 1440", () => {
-    expect(count("dark")).toBe(nonPrint.length * 2);
-    expect(m.filter((c) => c.set === "dark").every((c) => c.theme === "dark")).toBe(true);
+  it("dark: the deep set's routes (on-screen /print included) at 390 and 1440", () => {
+    expect(count("dark")).toBe(ROUTES.length * 2);
+    expect(m.filter((c) => c.set === "dark").every((c) => c.theme === "dark" && c.media === "screen")).toBe(true);
+    expect(widthsOf("dark", "print")).toEqual([390, 1440]);
   });
   it("print: one A4 print capture", () => {
     const p = m.filter((c) => c.set === "print");

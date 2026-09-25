@@ -219,13 +219,16 @@ function makeCapture(params: {
  * Builds every screenshot the audit takes, per the spec's coverage table
  * (docs/specs/2026-09-24-layout-audit.md §2):
  *
- * - deep: every non-print route × all 10 widths × light.
+ * - deep: every route (the contrast audit's list, so on-screen /print
+ *   too) × all 10 widths × light.
  * - phase: every phase-sensitive route × each available phase trip ×
  *   [375, 768, 1440, 2560] × light.
  * - empty: every trip-scoped route except /print × trip "empty" ×
  *   [375, 1440] × light.
- * - dark: every non-print route × [390, 1440] × dark.
- * - print: /print × trip "deep" × 794 × light × media "print".
+ * - dark: the deep set's routes × [390, 1440] × dark.
+ * - print: /print × trip "deep" × 794 × light × media "print" — ON TOP OF
+ *   /print's on-screen deep and dark captures, not instead of them: the
+ *   page renders on screen too (a Traveller opens it before printing).
  * - overlay: each overlay × [360, 390, 1440] (filtered by `only`) × light;
  *   plus, for form overlays not desktop-only, [360, 390] with keyboard:true.
  */
@@ -234,11 +237,10 @@ export function buildCaptureMatrix(input: {
   phaseTripsAvailable: Exclude<TripKey, "deep" | "empty" | "none">[];
 }): CaptureSpec[] {
   const specs: CaptureSpec[] = [];
-  const nonPrintRoutes = ROUTES.filter((r) => r.sub !== "/print");
   const printRoute = ROUTES.find((r) => r.sub === "/print");
 
   // deep
-  for (const route of nonPrintRoutes) {
+  for (const route of ROUTES) {
     for (const width of WIDTHS) {
       specs.push(makeCapture({ set: "deep", route, trip: tripForRoute(route, "deep"), width, theme: "light" }));
     }
@@ -263,7 +265,7 @@ export function buildCaptureMatrix(input: {
   }
 
   // dark
-  for (const route of nonPrintRoutes) {
+  for (const route of ROUTES) {
     for (const width of DARK_WIDTHS) {
       specs.push(makeCapture({ set: "dark", route, trip: tripForRoute(route, "deep"), width, theme: "dark" }));
     }
