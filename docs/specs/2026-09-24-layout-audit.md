@@ -42,7 +42,10 @@ Output goes to a directory outside the repo (default: `$LAYOUT_AUDIT_OUT`, else
 `/tmp/layout-audit/<timestamp>`), never into the repo:
 
 - `shots/<set>/<route-label>/<trip>/<width>-<theme>.png` (overlays: `shots/overlay/<overlay-id>/…`) — full-page screenshots, sliced so no single
-  image is taller than ~2000px (`…-part2.png` etc.), so a reviewer can read them.
+  image is taller than ~2000px (`…-part2.png` etc.), so a reviewer can read them. The slices are
+  drawn with `position: fixed` chrome (tab bar, feedback button) hidden, since a full-page capture
+  would paint it once over mid-page content; each page capture adds `…-end.png`, one viewport
+  scrolled to the page end with that chrome shown.
 - `findings.auto.json` — every automatic-check hit (schema below).
 - `manifest.json` — every capture: route, trip, phase, width, theme, overlay, file paths, marker
   count, and any capture error. A capture that errors is recorded, never silently dropped, and

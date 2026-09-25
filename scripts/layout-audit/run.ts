@@ -34,7 +34,9 @@ export interface CaptureRecord {
   media: "screen" | "print";
   overlay?: string;
   keyboard?: boolean;
-  /** Absolute PNG paths, top-to-bottom slice order. */
+  /** Absolute PNG paths. Pages: the slices top to bottom, then the
+   * `-end.png` viewport shot at the page end (fixed chrome shown) last.
+   * Overlays: the one viewport shot. */
   files: string[];
   markerCount?: number;
   elementCount: number;
@@ -70,7 +72,8 @@ export interface Manifest {
 /**
  * `<out>/shots/<set>/<routeLabel>/<trip>/<width>-<theme>[-kbd]` for page
  * captures; `<out>/shots/overlay/<overlayId>/<width>-<theme>[-kbd]` for
- * overlay captures. `captureSlices` appends `.png` (or `-partN.png`).
+ * overlay captures. `captureSlices` appends `.png` (or `-partN.png`) per
+ * slice, then `-end.png`; `captureViewport` (overlays) appends `.png`.
  */
 export function shotLocation(outDir: string, spec: CaptureSpec): { dir: string; baseName: string } {
   const baseName = `${spec.width}-${spec.theme}${spec.keyboard ? "-kbd" : ""}`;

@@ -21,7 +21,9 @@
  *      map, open the overlay if it is one (plus the simulated on-screen
  *      keyboard variant: viewport 300px shorter, first field focused), let
  *      motion settle, screenshot (pages: the full page in <=2000-device-px
- *      slices; overlays: the viewport — see captureViewport), THEN run the
+ *      slices with fixed chrome hidden, plus one viewport shot at the page
+ *      end with it shown — see captureSlices; overlays: the viewport — see
+ *      captureViewport), THEN run the
  *      in-page collector (it scrolls to the end to measure the mobile tab
  *      bar, and the screenshots must show the page as it loaded) and
  *      classify its geometry into findings.
@@ -73,9 +75,13 @@
  *                              and finding counts, error / skip reason,
  *                              timing; plus the trip ids and coverage gaps.
  *   <out>/findings.auto.json   every automatic-check hit (AutoFinding[]).
- *   <out>/shots/<set>/<routeLabel>/<trip>/<width>-<theme>[-kbd].png
+ *   <out>/shots/<set>/<routeLabel>/<trip>/<width>-<theme>.png
  *   <out>/shots/overlay/<overlayId>/<width>-<theme>[-kbd].png
- *                              (tall pages: -part1.png, -part2.png, …;
+ *                              (tall pages: -part1.png, -part2.png, …,
+ *                              drawn with position:fixed chrome hidden;
+ *                              every page capture then adds -end.png, one
+ *                              viewport scrolled to the page end with the
+ *                              tab bar etc. shown, listed last in `files`;
  *                              overlays are always one viewport image)
  *
  * EXIT CODE
@@ -134,7 +140,7 @@ import {
   resolvePlaywright,
   revealMap,
 } from "./lib/audit-browser";
-import { captureSlices } from "./layout-audit/capture";
+import { captureSlices, isShotOf } from "./layout-audit/capture";
 import { classify, type AutoFinding } from "./layout-audit/checks";
 import { COLLECTOR_SCRIPT, type RawCollect } from "./layout-audit/collector";
 import {
@@ -384,11 +390,10 @@ const HIDE_DEV_CHROME_JS = `(() => { const s = document.createElement("style"); 
 
 /** Removes this capture's screenshots from an earlier run into the same out
  * dir, so a re-run that yields fewer slices (or none — a new gap / error)
- * can't leave a stale `-partN.png` next to the fresh ones. */
+ * can't leave a stale `-partN.png` / `-end.png` next to the fresh ones. */
 function clearShots(dir: string, baseName: string): void {
   if (!fs.existsSync(dir)) return;
-  const mine = new RegExp(`^${baseName}(?:-part\\d+)?\\.png$`);
-  for (const f of fs.readdirSync(dir)) if (mine.test(f)) fs.unlinkSync(path.join(dir, f));
+  for (const f of fs.readdirSync(dir)) if (isShotOf(baseName, f)) fs.unlinkSync(path.join(dir, f));
 }
 
 /**
