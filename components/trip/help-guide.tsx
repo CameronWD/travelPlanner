@@ -220,7 +220,11 @@ function Section({
         />
       </summary>
       <div className="mt-3.5 border-t-2 border-border-soft pt-3.5">
-        <div className="flex max-w-prose flex-col gap-3 text-sm leading-relaxed text-foreground">
+        {/* No max-w here: an expanded card (open:col-span-full) should use the
+            full row width it just claimed. Individual paragraphs opt into
+            max-w-reading where a long block of prose wants a stopping point;
+            the 60-second list instead reflows into lg:columns-2. */}
+        <div className="flex flex-col gap-3 text-sm leading-relaxed text-foreground">
           {children}
         </div>
       </div>
@@ -242,8 +246,12 @@ const LIST_CLASS = "flex flex-col gap-2 pl-5";
 const GROUP_HEADING = "font-display text-2xl font-extrabold leading-tight tracking-[-0.03em] text-foreground";
 /** The kit's topic grid: one column on phone, three-up on desktop. Print is one
  *  column: HELP_PRINT_STYLE opens bodies without setting [open], so
- *  open:col-span-full can't widen them there. */
-const TOPIC_GRID = "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-1";
+ *  open:col-span-full can't widen them there. `grid-flow-row-dense` backfills
+ *  the gap an `open:col-span-full` card would otherwise leave beside it in the
+ *  row above, without changing the column count itself (no `auto-rows-fr`:
+ *  that would stretch every row to the expanded card's height). */
+export const TOPIC_GRID =
+  "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-1 grid-flow-row-dense";
 
 export function HelpGuide({
   tripId,
@@ -312,10 +320,13 @@ export function HelpGuide({
         <div className={TOPIC_GRID}>
           {/* One <Section> per everyday id, in HELP_SECTIONS order. */}
           <Section heading={Sub} section={sectionById("sixty-seconds")} open>
-            <p>
+            <p className="max-w-reading">
               The whole app is one loop. Six steps, and you have a planned trip.
             </p>
-            <ol className={`list-decimal ${LIST_CLASS}`}>
+            <ol
+              aria-label="The 60-second version"
+              className="flex flex-col gap-2 pl-5 list-decimal lg:block lg:columns-2 lg:gap-8 [&>li]:break-inside-avoid"
+            >
               <li>
                 Open{" "}
                 <Go tripId={tripId} segment="plan">
@@ -356,7 +367,7 @@ export function HelpGuide({
                 missing.
               </li>
             </ol>
-            <p>
+            <p className="max-w-reading">
               You can stop anywhere in that loop and come back later. Nothing has
               to be finished, everything saves as you go, and the other one of you
               picks up your changes the next time they open the screen.

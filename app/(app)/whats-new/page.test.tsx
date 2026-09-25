@@ -73,6 +73,26 @@ describe("/whats-new", () => {
     expect(older.className).toMatch(/\bshadow-hard-2\b/);
   });
 
+  it("shows a sticky release list beside the notes on desktop", async () => {
+    render(await WhatsNewPage());
+    const nav = screen.getByRole("navigation", { name: "Releases" });
+    expect(nav.className).toContain("lg:sticky");
+    expect(
+      screen.getByRole("link", { name: "21 September 2026" }),
+    ).toHaveAttribute("href", "#release-2026-09-21");
+    expect(
+      screen.getByRole("link", { name: "10 September 2026" }),
+    ).toHaveAttribute("href", "#release-2026-09-10");
+  });
+
+  it("gives each release Card a scroll-anchored id matching the nav link", async () => {
+    const { container } = render(await WhatsNewPage());
+    const cards = Array.from(container.querySelectorAll("[data-slot='release']"));
+    expect(cards[0].id).toBe("release-2026-09-21");
+    expect(cards[0].className).toContain("scroll-mt-20");
+    expect(cards[1].id).toBe("release-2026-09-10");
+  });
+
   it("shows the kit empty state when there are no Release notes", async () => {
     const saved = RELEASE_NOTES.splice(0, RELEASE_NOTES.length);
     try {

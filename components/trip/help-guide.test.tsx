@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { HelpGuide, HELP_PRINT_STYLE } from "./help-guide";
+import { HelpGuide, HELP_PRINT_STYLE, TOPIC_GRID } from "./help-guide";
 import { HELP_SECTIONS, sectionsInGroup, type HelpGroup } from "@/lib/help-guide";
 
 // trip-nav.tsx is a client component that imports next/navigation at module
@@ -562,11 +562,32 @@ describe("HelpGuide — Playground kit shape", () => {
     expect(chip?.className).toMatch(/\bafter:h-11\b/);
   });
 
-  it("keeps an open section's body at a readable measure on wide screens", () => {
+  it("lets an open section's body use the full row it just claimed, keeping only its paragraphs at a readable measure", () => {
+    // LA-026/027: the body wrapper no longer caps width itself (an expanded
+    // open:col-span-full card should use the whole row), but its standalone
+    // paragraphs still opt into a reading measure so prose doesn't run edge
+    // to edge on a wide screen.
     const { container } = render(<HelpGuide />);
-    // The separator spans the card; the text inside it keeps to ~65ch.
     const body = container.querySelector("details#sixty-seconds > summary + div > div");
-    expect(body?.className).toMatch(/\bmax-w-prose\b/);
+    expect(body?.className).not.toMatch(/\bmax-w-prose\b/);
+    const paragraphs = Array.from(body?.querySelectorAll("p") ?? []);
+    expect(paragraphs.length).toBeGreaterThanOrEqual(2);
+    for (const p of paragraphs) {
+      expect(p.className).toMatch(/\bmax-w-reading\b/);
+    }
+  });
+
+  it("60-second steps reflow into two columns when the card is wide", () => {
+    render(<HelpGuide />);
+    expect(screen.getByRole("list", { name: /60-second/i }).className).toContain(
+      "lg:columns-2",
+    );
+  });
+
+  it("the open 60-second card doesn't change the grid's column count", () => {
+    expect(TOPIC_GRID).toContain("lg:grid-cols-3");
+    expect(TOPIC_GRID).toContain("grid-flow-row-dense");
+    expect(TOPIC_GRID).not.toContain("auto-rows-fr");
   });
 
   it("puts the contents list and the key in kit Cards", () => {

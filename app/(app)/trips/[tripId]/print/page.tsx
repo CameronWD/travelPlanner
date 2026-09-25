@@ -314,6 +314,11 @@ export default async function PrintPage({
 
       <div data-print-root className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8 text-foreground print:max-w-none print:gap-6 print:px-0 print:py-0">
 
+        {/* On screen this page is deliberately A4-shaped (max-w-3xl), not the
+            full page-wide column — it's a preview of the printout, not a
+            reading layout, so say so. Gone in the printout itself. */}
+        <p className="text-label text-muted-foreground print:hidden">Print preview</p>
+
         {/* ── Print control bar (hidden in print) ── */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-border-soft pb-4 print:hidden">
           <p className="text-[13px] font-semibold text-muted-foreground">

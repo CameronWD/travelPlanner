@@ -35,6 +35,20 @@ describe("Print view — tokens only (Task 15)", () => {
     expect(page).toMatch(/break-inside-avoid/);
   });
 
+  it("stays A4-shaped on screen but goes full width in the printout", () => {
+    expect(page).toMatch(/data-print-root[^>]*\bmax-w-3xl\b/);
+    expect(page).toMatch(/data-print-root[^>]*\bprint:max-w-none\b/);
+  });
+
+  it("labels the on-screen preview, hidden from the print output itself (LA-055)", () => {
+    expect(page).toMatch(/Print preview/);
+    // Scoped: the label's own className carries print:hidden, not just any
+    // print:hidden elsewhere on the page.
+    const labelMatch = page.match(/<p className="([^"]*)">Print preview<\/p>/);
+    expect(labelMatch, "couldn't find the Print preview label's own <p>").toBeTruthy();
+    expect(labelMatch![1]).toMatch(/\bprint:hidden\b/);
+  });
+
   it("prints in the light palette even when the app is in dark mode", () => {
     const style = page.slice(page.indexOf("@media print"), page.indexOf("`}</style>"));
     expect(style).toMatch(/html\.dark[^{]*\{[^}]*color-scheme:\s*light/);
