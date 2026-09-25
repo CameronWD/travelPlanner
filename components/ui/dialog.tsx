@@ -45,7 +45,10 @@ function revealFocusedField(event: React.FocusEvent<HTMLDivElement>) {
   if (header?.contains(field) || footer?.contains(field)) return;
   if (typeof body.scrollBy !== "function") return;
 
-  const box = field.getBoundingClientRect();
+  // Reveal the control's whole Field — its hint and error render *below* the
+  // control, so clearing only the control can leave them under the footer.
+  const wrapper = field.closest<HTMLElement>('[data-slot="field"]');
+  const box = (wrapper && body.contains(wrapper) ? wrapper : field).getBoundingClientRect();
   const bodyBox = body.getBoundingClientRect();
   const headerEdge = header ? header.getBoundingClientRect().bottom : bodyBox.top;
   const footerEdge = footer ? footer.getBoundingClientRect().top : bodyBox.bottom;

@@ -10,6 +10,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "./dialog";
+import { Field } from "./field";
 
 function Example() {
   return (
@@ -396,5 +397,50 @@ describe("DialogFooter", () => {
     fireEvent.focus(notes);
 
     expect(scrollBy).toHaveBeenCalledWith({ top: 132 });
+  });
+
+  it("reveals the whole Field, trailing hint included, not just the focused control", () => {
+    // Money → Add other cost at 360×500: the Cost input clears the footer on
+    // focus, but its "Your best number…" hint renders *below* it (Field puts
+    // description after children), so revealing only the input left the hint
+    // under Cancel/Save.
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Other Cost</DialogTitle>
+          </DialogHeader>
+          <form>
+            <Field label="Cost" description="Your best number.">
+              <input aria-label="Cost amount" />
+            </Field>
+            <DialogFooter>
+              <button type="button">Cancel</button>
+              <button type="submit">Save</button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>,
+    );
+    const footer = screen.getByRole("button", { name: "Save" }).parentElement as HTMLElement;
+    const header = screen.getByText("Add Other Cost").parentElement as HTMLElement;
+    const body = header.parentElement as HTMLElement;
+    const scrollBy = vi.fn();
+    body.scrollBy = scrollBy as unknown as typeof body.scrollBy;
+    header.getBoundingClientRect = () => rect(80, 152);
+    footer.getBoundingClientRect = () => rect(406, 484);
+    body.getBoundingClientRect = () => rect(80, 506);
+
+    const input = screen.getByRole("textbox", { name: "Cost amount" });
+    // The input itself already clears the footer (390 < 406)…
+    input.getBoundingClientRect = () => rect(346, 390);
+    // …but its Field (label + input + hint) ends at 420.
+    const fieldBox = screen.getByText("Your best number.").parentElement as HTMLElement;
+    fieldBox.getBoundingClientRect = () => rect(320, 420);
+
+    fireEvent.focus(input);
+
+    // 420 - 406 = 14px under the footer, plus the 16px gap.
+    expect(scrollBy).toHaveBeenCalledWith({ top: 30 });
   });
 });
