@@ -71,6 +71,21 @@ declare module "playwright" {
     colorScheme?: "light" | "dark" | null;
   }
 
+  // Added for overlays.ts (Task 6) — openOverlay's `{ press: string }` step
+  // (e.g. "Escape" to close an overlay after a screenshot in Task 7).
+  export interface Keyboard {
+    press(key: string, options?: { delay?: number }): Promise<void>;
+  }
+
+  export interface LocatorFilterOptions {
+    hasText?: string | RegExp;
+  }
+
+  export interface LocatorWaitForOptions {
+    state?: "attached" | "detached" | "visible" | "hidden";
+    timeout?: number;
+  }
+
   export interface Locator {
     count(): Promise<number>;
     first(): Locator;
@@ -78,6 +93,27 @@ declare module "playwright" {
     // Added for trips.ts's ensureEmptyTrip (Task 5) — fills the /trips/new
     // name field via the app's own form, never the database directly.
     fill(value: string, options?: FillOptions): Promise<void>;
+    // Added for overlays.ts (Task 6) — openOverlay narrows a "menu" role
+    // match down to the one carrying particular body text (e.g. the
+    // notifications menu, whose accessible name doesn't include
+    // "Notifications" but whose content does).
+    filter(options?: LocatorFilterOptions): Locator;
+    // Added for overlays.ts (Task 6) — focusFirstInput's "no-op if none"
+    // guard, and a defensive check openOverlay could add later.
+    isVisible(): Promise<boolean>;
+    // Added for overlays.ts (Task 6) — openOverlay's "wait up to 5s for the
+    // overlay to become visible" step; failing that wait (not throwing) is
+    // how a recipe reports "overlay did not open" as a gap.
+    waitFor(options?: LocatorWaitForOptions): Promise<void>;
+    // Added for overlays.ts (Task 6) — deriveStop reads the stop name off
+    // the drag handle's `aria-label="Reorder <name>"`.
+    getAttribute(name: string): Promise<string | null>;
+    // Added for overlays.ts (Task 6) — focusFirstInput scopes its search for
+    // an input/textarea to inside the just-opened overlay.
+    locator(selector: string): Locator;
+    // Added for overlays.ts (Task 6) — focusFirstInput focuses the first
+    // visible field inside the open overlay (never types into it).
+    focus(): Promise<void>;
   }
 
   export interface Page {
@@ -112,6 +148,9 @@ declare module "playwright" {
     screenshot(options?: ScreenshotOptions): Promise<Buffer>;
     setViewportSize(size: ViewportSize): Promise<void>;
     emulateMedia(options: EmulateMediaOptions): Promise<void>;
+    // Added for overlays.ts (Task 6) — the `{ press: string }` recipe step
+    // and Task 7's post-screenshot Escape.
+    keyboard: Keyboard;
   }
 
   export interface BrowserContext {
