@@ -235,7 +235,9 @@
  * KNOWN GAP: TripCover's gradient fallback is dormant in this sweep
  * -----------------
  *   `components/trip/trip-cover.tsx`'s `MonogramCover` renders
- *   `bg-gradient-to-br from-secondary to-muted` with `text-primary/70` —
+ *   `bg-gradient-to-br from-{coral,sun,teal,lilac} to-muted` with
+ *   `text-on-accent/80` (LA-044 changed the exact tokens; the gap below is
+ *   unaffected) —
  *   another background-image site, same as trap 3 above, and now correctly
  *   caught as `unmeasurable` if this script ever renders it. But it never
  *   does in this sweep: every trip belonging to TRIP_ID (a fixed, seeded

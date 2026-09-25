@@ -39,7 +39,7 @@ const sheetVariants = cva(
         left: "inset-y-0 left-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden border-r-2 data-[state=open]:tp-slide-in-left data-[state=closed]:tp-slide-out-left",
         docked:
           "gap-4 p-6 inset-0 h-full w-full rounded-none border-0 data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down " +
-          "md:inset-auto md:bottom-[5.25rem] md:right-4 md:h-[min(37.5rem,max(16rem,calc(100vh-9rem)))] md:w-[560px] md:max-w-[calc(100vw-2rem)] md:rounded-2xl md:border-2 md:shadow-hard-5",
+          "md:inset-auto md:bottom-[5.25rem] md:right-4 md:h-auto md:max-h-[min(37.5rem,calc(100vh-9rem))] md:w-[560px] md:max-w-[calc(100vw-2rem)] md:rounded-2xl md:border-2 md:shadow-hard-5",
       },
     },
     defaultVariants: {
@@ -167,4 +167,5 @@ export {
   SheetFooter,
   SheetTitle,
   SheetDescription,
+  sheetVariants,
 };

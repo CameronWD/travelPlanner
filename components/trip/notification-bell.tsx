@@ -110,7 +110,7 @@ export function NotificationBell({ tripId, unreadCount, recent }: Props) {
             </p>
           </div>
         ) : (
-          <ul className="max-h-80 overflow-y-auto">
+          <ul className="max-h-80 overflow-y-auto pb-3 scroll-pb-3">
             {recent.map((item, i) => {
               // The repo passes only unreadCount, not per-item read state, so the
               // first `unreadCount` rows (most recent first) get the unread treatment.

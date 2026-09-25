@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { Sheet, SheetContent, SheetTitle } from "./sheet";
+import { Sheet, SheetContent, SheetTitle, sheetVariants } from "./sheet";
 
 describe("Sheet", () => {
   it("renders the dimming overlay by default", () => {
@@ -151,9 +151,19 @@ describe("Sheet", () => {
     expect(document.querySelector(".bg-foreground\\/40")).not.toBeNull();
   });
 
-  it("gives the docked panel a height floor", () => {
-    // FP-13: min(37.5rem, calc(100vh - 9rem)) goes non-positive below a
-    // 144px-tall viewport at md and up.
+  it("LA-023: docked feedback sheet sizes to content on desktop", () => {
+    // The docked panel used to force a tall fixed height on desktop even when
+    // its content (e.g. an empty feedback log) only filled a third of it,
+    // leaving a big blank void. It now sizes to its content, capped so it
+    // never grows past the viewport.
+    expect(sheetVariants({ side: "docked" })).toContain("md:h-auto");
+    expect(sheetVariants({ side: "docked" })).toContain(
+      "md:max-h-[min(37.5rem,calc(100vh-9rem))]",
+    );
+    expect(sheetVariants({ side: "docked" })).not.toContain(
+      "md:h-[min(37.5rem,max(16rem,calc(100vh-9rem)))]",
+    );
+
     render(
       <Sheet open>
         <SheetContent side="docked" hideOverlay>
@@ -162,7 +172,7 @@ describe("Sheet", () => {
       </Sheet>,
     );
     const panel = screen.getByRole("dialog");
-    expect(panel.className).toContain("md:h-[min(37.5rem,max(16rem,calc(100vh-9rem)))]");
-    expect(panel.className).not.toContain("md:h-[min(37.5rem,calc(100vh-9rem))]");
+    expect(panel.className).toContain("md:h-auto");
+    expect(panel.className).toContain("md:max-h-[min(37.5rem,calc(100vh-9rem))]");
   });
 });

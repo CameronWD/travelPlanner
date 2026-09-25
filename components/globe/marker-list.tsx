@@ -63,9 +63,9 @@ export function MarkerList({ markers, selectedId, onSelect, onEdit, onDelete, gl
                         className={cn("size-3.5 shrink-0 rounded-full", categoryAccent(mk.category as Category).dot)}
                       />
                     }
-                    title={<span className="block truncate text-sm font-extrabold text-foreground">{mk.title}</span>}
+                    title={<span className="block break-words text-sm font-extrabold text-foreground">{mk.title}</span>}
                     sub={
-                      <span className="block truncate">
+                      <span className="block break-words">
                         {[mk.city, categoryLabel(mk.category as never), mk.timing].filter(Boolean).join(" · ")}
                       </span>
                     }

@@ -222,6 +222,20 @@ describe("FeedbackLauncher", () => {
     await waitFor(() => expect(box).toHaveValue(""));
   });
 
+  it("LA-023: sizes the empty log to fill the panel instead of leaving a blank void below it", async () => {
+    listMock.mockResolvedValue({ success: true, notes: [] });
+    const user = userEvent.setup();
+    render(<FeedbackLauncher />);
+
+    await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+
+    const empty = await screen.findByText(/no feedback yet/i);
+    const centred = empty.closest("div")!;
+    expect(centred.className).toContain("flex-1");
+    expect(centred.className).toContain("items-center");
+    expect(centred.className).toContain("justify-center");
+  });
+
   describe("the panel is non-modal from md up, so the page behind it can navigate mid-draft", () => {
     it("files a note against the page where typing began, not the page at send time", async () => {
       const user = userEvent.setup();

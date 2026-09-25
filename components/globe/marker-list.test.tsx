@@ -142,6 +142,20 @@ describe("MarkerList", () => {
     expect(rowButton).toHaveAttribute("aria-current", "true");
   });
 
+  it("LA-025: marker rows wrap title and subtitle instead of truncating", () => {
+    const longMarker = [
+      mkMarker({
+        id: "m2",
+        title: "Sahara overnight camp",
+        city: "Merzouga",
+        country: "Morocco",
+        category: "ACTIVITY",
+      }),
+    ];
+    render(<MarkerList markers={longMarker} {...defaultListProps} />);
+    expect(screen.getByText(/Sahara overnight/).className).not.toContain("truncate");
+  });
+
   it("renders a paperclip badge with the attachment count when globeId and attachmentsByMarkerId are provided", () => {
     const singleMarker = [mkMarker({ id: "m1", title: "Tokyo Tower", category: "SIGHTSEEING" })];
     const attachment = {

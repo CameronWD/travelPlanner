@@ -107,6 +107,18 @@ describe("NotificationBell", () => {
     expect(markAllRead).toHaveBeenCalledWith("t1");
   });
 
+  it("LA-010: last notification clears the sticky footer", async () => {
+    const user = userEvent.setup();
+    render(
+      <NotificationBell tripId="t1" unreadCount={1} recent={[baseActivity]} />,
+    );
+    const trigger = screen.getByRole("button", { name: /Notifications/ });
+    await user.click(trigger);
+    const list = await screen.findByRole("list");
+    expect(list.className).toContain("pb-3");
+    expect(list.className).toContain("scroll-pb-3");
+  });
+
   it("renders a 'See all activity' link", async () => {
     const user = userEvent.setup();
     render(

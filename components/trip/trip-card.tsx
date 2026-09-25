@@ -108,7 +108,10 @@ export function TripCard({
         <div className={cn("relative w-full overflow-hidden", featured ? "h-48" : "h-36")}>
           <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} home={home} roundTrip={roundTrip} coverVersion={coverVersion} />
           {phase && (
-            <Badge caps className="absolute left-3 top-3 gap-1.5">
+            <Badge
+              caps
+              className="absolute left-3 top-3 max-w-[calc(100%-1.5rem)] gap-1.5 whitespace-normal text-left leading-tight"
+            >
               <span
                 data-testid="phase-dot"
                 aria-hidden="true"

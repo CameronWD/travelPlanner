@@ -607,7 +607,9 @@ export function FeedbackLauncher() {
         </SheetHeader>
 
         {entries.length === 0 ? (
-          <p className="py-4 text-sm text-muted-foreground">{EMPTY_LOG}</p>
+          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center">
+            <p className="text-sm text-muted-foreground">{EMPTY_LOG}</p>
+          </div>
         ) : (
           <ul className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto pr-1">
             {entries.map((entry) =>

@@ -104,6 +104,12 @@ describe("ShareLinksPanel", () => {
     expect(await screen.findByText(/tok-9/)).toBeInTheDocument();
   });
 
+  it("LA-015: share link actions wrap on phones", () => {
+    render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);
+    const revoke = screen.getByRole("button", { name: /revoke/i });
+    expect(revoke.parentElement!.className).toContain("flex-wrap");
+  });
+
   it("saves dial edits through updateShareLink", async () => {
     updateShareLink.mockResolvedValue({ success: true, link: link({ includeDailyPlans: false }) });
     render(<ShareLinksPanel tripId="t" initialLinks={[link()]} />);

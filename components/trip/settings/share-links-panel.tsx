@@ -164,14 +164,14 @@ function LinkRow({
 
   return (
     <li className="rounded-2xl border border-border p-4 space-y-3">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate font-medium text-foreground">{link.label}</p>
           <p className="text-xs text-muted-foreground">
             {scopeCaption(link)}
           </p>
         </div>
-        <div className="flex shrink-0 gap-1">
+        <div className="flex flex-wrap justify-end gap-1">
           <Button type="button" variant="ghost" size="sm" onClick={() => setEditing((v) => !v)} disabled={isPending}>
             <Pencil className="size-4" aria-hidden="true" />
             Edit

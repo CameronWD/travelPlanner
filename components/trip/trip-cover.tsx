@@ -57,20 +57,28 @@ export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, clas
       // foreground, so it is one network request and one cache entry — which
       // matters for the offline warm-set.
       //
-      // The backdrop is inset by a fixed -inset-8 (32px) rather than scaled up,
-      // because blur-xl's fringe is a fixed 24px radius, not a percentage of the
-      // box. A percentage scale (e.g. scale-110) shrinks with the box and would
-      // leave that fringe visible on the shortest cover (the h-36 card). 32px of
-      // margin clears the 24px radius with room to spare at every box size. If
-      // either the blur radius or this margin changes, check that 32 still beats
-      // the radius.
+      // The backdrop is offset by a fixed 32px (-left-8/-top-8) rather than
+      // scaled up, because blur-xl's fringe is a fixed 24px radius, not a
+      // percentage of the box. A percentage scale (e.g. scale-110) shrinks
+      // with the box and would leave that fringe visible on the shortest
+      // cover (the h-36 card). 32px of margin clears the 24px radius with
+      // room to spare at every box size. If either the blur radius or this
+      // margin changes, check that 32 still beats the radius.
+      //
+      // Width/height are both given explicitly as size-[calc(100%+4rem)]
+      // (100% of the box + the 32px offset on each side) rather than left
+      // alone to `inset-x/-y` auto-sizing (LA-028): an absolutely positioned
+      // <img> with opposite insets set but no explicit size can fall back to
+      // its intrinsic aspect ratio instead of stretching to fill, leaving a
+      // background-coloured gap on one axis whenever the photo's aspect
+      // ratio didn't happen to match the box's.
       <div className={`relative size-full overflow-hidden bg-muted ${className ?? ""}`}>
         {/* eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable */}
         <img
           src={src}
           alt=""
           aria-hidden="true"
-          className="absolute -inset-8 object-cover blur-xl brightness-75"
+          className="absolute -left-8 -top-8 size-[calc(100%+4rem)] max-w-none object-cover blur-xl brightness-75"
         />
         {/* eslint-disable-next-line @next/next/no-img-element -- member-gated dynamic blob, not statically optimisable */}
         <img
@@ -84,7 +92,7 @@ export function TripCover({ tripId, name, hasCover, stops, home, roundTrip, clas
   if (stops.length > 0) {
     return <RouteRender name={name} stops={stops} home={home ?? null} roundTrip={roundTrip ?? false} className={className} />;
   }
-  return <MonogramCover name={name} className={className} />;
+  return <MonogramCover tripId={tripId} name={name} className={className} />;
 }
 
 const VIEW_W = 400;
@@ -138,13 +146,27 @@ function RouteRender({ name, stops, home, roundTrip, className }: { name: string
   );
 }
 
-function MonogramCover({ name, className }: { name: string; className?: string }) {
+// The four bold accent tokens used for tinted tiles elsewhere (e.g. this
+// same ramp backs components/ui/empty-state.tsx's `Tone`) — not the 9-hue
+// category ramp in lib/hues.ts. Written out in full (not `from-${hue}`) so
+// Tailwind's scanner sees every class; see lib/hues.ts's own comment on why.
+const MONOGRAM_GRADIENTS = ["from-coral", "from-sun", "from-teal", "from-lilac"] as const;
+
+/** Deterministic per-trip pick from MONOGRAM_GRADIENTS, so a given trip's
+ *  plain-monogram cover always lands on the same one of the four. */
+function monogramGradient(tripId: string): (typeof MONOGRAM_GRADIENTS)[number] {
+  let hash = 0;
+  for (let i = 0; i < tripId.length; i++) hash = (hash * 31 + tripId.charCodeAt(i)) >>> 0;
+  return MONOGRAM_GRADIENTS[hash % MONOGRAM_GRADIENTS.length];
+}
+
+function MonogramCover({ tripId, name, className }: { tripId: string; name: string; className?: string }) {
   return (
     <div
-      className={`flex size-full items-center justify-center bg-gradient-to-br from-secondary to-muted ${className ?? ""}`}
+      className={`flex size-full items-center justify-center bg-gradient-to-br ${monogramGradient(tripId)} to-muted ${className ?? ""}`}
       aria-label={`${name} cover`}
     >
-      <span className="font-display text-5xl font-semibold text-primary/70 select-none">
+      <span className="font-display text-5xl font-semibold text-on-accent/80 select-none">
         {monogram(name)}
       </span>
     </div>
