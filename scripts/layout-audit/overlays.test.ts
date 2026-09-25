@@ -82,4 +82,62 @@ describe("openOverlay", () => {
       reason: 'click button "Make it fit": locator.click: Timeout 5000ms exceeded.',
     });
   });
+
+  // Final review: the call log's "… intercepts pointer events" line names the element that
+  // actually got the click — the whole point of the gap — so it survives, ANSI-stripped.
+  const throwingPage = (message: string) => {
+    interface FakeLocator {
+      count: () => Promise<number>;
+      first: () => FakeLocator;
+      click: () => Promise<void>;
+    }
+    const target: FakeLocator = {
+      count: vi.fn(async () => 1),
+      first: vi.fn((): FakeLocator => target),
+      click: vi.fn(async () => {
+        throw new Error(message);
+      }),
+    };
+    return { getByRole: vi.fn(() => target), locator: vi.fn(() => ({ count: vi.fn(async () => 0) })) };
+  };
+  const dim = (line: string) => `\u001b[2m${line}\u001b[22m`;
+
+  it("keeps the call-log line naming the element that intercepts the click", async () => {
+    const message = [
+      "locator.click: Timeout 5000ms exceeded.",
+      "Call log:",
+      dim(`  - waiting for getByRole('button', { name: 'Delete trip' }).first()`),
+      dim(`    - locator resolved to <button type="button" class="inline-flex items-center gap-2">Delete trip</button>`),
+      dim("  - attempting click action"),
+      dim("    2 × waiting for element to be visible, enabled and stable"),
+      dim("      - element is visible, enabled and stable"),
+      dim("      - scrolling into view if needed"),
+      dim("      - done scrolling"),
+      dim(`      - <h3 class="text-base font-semibold">Danger zone</h3> from <div class="rounded-2xl border p-4">…</div> subtree intercepts pointer events`),
+      dim("    - retrying click action"),
+      dim("      - waiting 20ms"),
+      dim(`      - <h3 class="text-base font-semibold">Danger zone</h3> from <div class="rounded-2xl border p-4">…</div> subtree intercepts pointer events`),
+      "",
+    ].join("\n");
+    const recipe = OVERLAYS.find((o) => o.id === "make-it-fit")!;
+    const result = await openOverlay(throwingPage(message) as never, recipe);
+    expect(result).toEqual({
+      ok: false,
+      reason:
+        'click button "Make it fit": locator.click: Timeout 5000ms exceeded. — ' +
+        '<h3 class="text-base font-semibold">Danger zone</h3> from <div class="rounded-2xl border p-4">…</div> subtree intercepts pointer events',
+    });
+    expect((result as { reason: string }).reason).not.toMatch(/\u001b/);
+  });
+
+  it("caps the interceptor line at 200 characters", async () => {
+    const longClass = "x".repeat(300);
+    const message = `locator.click: Timeout 5000ms exceeded.\nCall log:\n${dim(`      - <div class="${longClass}">…</div> intercepts pointer events`)}`;
+    const recipe = OVERLAYS.find((o) => o.id === "make-it-fit")!;
+    const result = (await openOverlay(throwingPage(message) as never, recipe)) as { ok: false; reason: string };
+    const [, interceptor] = result.reason.split(" — ");
+    expect(interceptor.startsWith('<div class="xxx')).toBe(true);
+    expect(interceptor.length).toBeLessThanOrEqual(200);
+    expect(interceptor).not.toMatch(/\u001b|\[2m|\[22m/);
+  });
 });

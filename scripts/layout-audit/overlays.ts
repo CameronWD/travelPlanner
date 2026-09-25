@@ -470,13 +470,24 @@ function nameFor(recipe: OverlayRecipe, vars: Record<string, string>): string | 
   return recipe.expect.name ? parseName(recipe.expect.name, vars) : undefined;
 }
 
-/** First line of an Error's message (or of String(err) for a non-Error
- * throw) — Playwright's own timeout/strict-mode errors carry a multi-line
- * "Call log:" trace after the first line; that's noise for a one-line gap
- * reason, so only the summary line is kept. */
-function firstLine(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err);
-  return message.split("\n")[0];
+const ANSI = /\u001b\[[0-9;]*[A-Za-z]/g;
+const INTERCEPTOR_MAX = 200;
+
+/** A one-line gap reason from a thrown error (or String(err) for a non-Error
+ * throw). Playwright's timeout/strict-mode errors carry a multi-line
+ * "Call log:" trace after the summary line, mostly noise — except the line
+ * naming the element that took the click (`<h3 …>Danger zone</h3> from
+ * <div …> subtree intercepts pointer events`), which is exactly what a
+ * reviewer needs to act on the gap. So: the summary line, plus the first
+ * such line when there is one (ANSI dim codes stripped, its "- " bullet and
+ * whitespace trimmed, capped at 200 characters). */
+function gapReason(err: unknown): string {
+  const lines = (err instanceof Error ? err.message : String(err)).replace(ANSI, "").split("\n");
+  const summary = lines[0].trim();
+  const interceptor = lines.find((l) => l.includes("intercepts pointer events"));
+  if (!interceptor) return summary;
+  const line = interceptor.trim().replace(/^-\s+/, "");
+  return `${summary} — ${line.length > INTERCEPTOR_MAX ? `${line.slice(0, INTERCEPTOR_MAX - 1)}…` : line}`;
 }
 
 /** Short, stable description of a step for a gap's reason prefix — e.g.
@@ -531,7 +542,7 @@ export async function openOverlay(page: Page, recipe: OverlayRecipe): Promise<{ 
       // page chrome (a fixed nav, an overlapping header) intercepts the
       // click. That's a genuine finding, not a harness crash: report it as
       // a gap naming the step, exactly like every other failure mode above.
-      return { ok: false, reason: `${describeStep(step)}: ${firstLine(err)}` };
+      return { ok: false, reason: `${describeStep(step)}: ${gapReason(err)}` };
     }
   }
 
