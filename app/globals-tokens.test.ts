@@ -7,7 +7,7 @@ const css = readFileSync(join(__dirname, "globals.css"), "utf8");
 describe("layout primitives in globals.css", () => {
   it("defines the three shared page widths as container tokens", () => {
     expect(css).toMatch(/--container-page-wide:\s*100rem;/);
-    expect(css).toMatch(/--container-reading:\s*38rem;/);
+    expect(css).toMatch(/--container-reading:\s*38em;/);
     expect(css).toMatch(/--container-dialog:\s*30rem;/);
   });
 

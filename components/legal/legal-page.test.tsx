@@ -79,8 +79,10 @@ describe("LegalPage", () => {
 
   // LA-051 / diagnosis G: 68ch (the "0" glyph's width) rendered ~92 real
   // characters per line on this body font — 38rem is a measured value that
-  // actually delivers a readable line length.
-  it("caps the reading column at the corrected 38rem measure, not the old 68ch", () => {
+  // actually delivers a readable line length. The grid track stays a fixed
+  // rem (it sizes a column, not a glyph run); max-w-reading itself moved to
+  // em in fix round 1, see the next test.
+  it("caps the reading column at the corrected 38rem grid track, not the old 68ch", () => {
     const { container } = render(
       <LegalPage title="Privacy">
         <LegalSection title="Your rights">y</LegalSection>
@@ -89,7 +91,21 @@ describe("LegalPage", () => {
     const main = container.querySelector("main") as HTMLElement;
     expect(main.className).toContain("minmax(0,38rem)");
     expect(main.className).not.toContain("68ch");
+  });
+
+  // Fix round 1 (LA-051): an em-based max-w-reading only tracks the text
+  // it's measured against. This wrapper inherits the body's 14px, not the
+  // 15px LegalSection's prose actually renders at, so the cap has to sit on
+  // the same element as that 15px — not here, and not stranded on a
+  // 14px-inheriting ancestor above it.
+  it("keeps max-w-reading off the 14px wrapper — it belongs on LegalSection's own 15px text", () => {
+    const { container } = render(
+      <LegalPage title="Privacy">
+        <LegalSection title="Your rights">y</LegalSection>
+      </LegalPage>,
+    );
     const body = container.querySelector(".max-w-reading") as HTMLElement;
     expect(body).toBeTruthy();
+    expect(body.className).toContain("text-[15px]");
   });
 });

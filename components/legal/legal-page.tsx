@@ -9,9 +9,11 @@ import { Logo } from "@/components/ui/logo";
  *   <LegalPage title="Terms" intro="…" other={{ href: "/privacy", label: "Privacy" }}>
  *     <LegalSection title="What this is">…</LegalSection>
  *   </LegalPage>
- * Reading measure 38rem (max-w-reading), body 15px/1.6 at full foreground (not muted — this is
- * the content). On desktop the text runs beside a sticky "On this page" contents column built
- * from the section titles (legalToc) — no client state, just anchors into the page.
+ * Reading measure 38em (max-w-reading, on LegalSection's own 15px prose div — fix round 1: an
+ * em cap only tracks the text it's measured against, so it has to sit on the same element as
+ * the font-size, not a 14px-inheriting wrapper above it), body 15px/1.6 at full foreground (not
+ * muted — this is the content). On desktop the text runs beside a sticky "On this page" contents
+ * column built from the section titles (legalToc) — no client state, just anchors into the page.
  */
 export function LegalPage({
   title,
@@ -61,7 +63,11 @@ export function LegalPage({
               </p>
             ) : null}
           </div>
-          <div className="flex max-w-reading flex-col gap-9 border-t-2 border-dashed border-border-soft pt-8">
+          {/* No max-w-reading here (fix round 1): this wrapper inherits the
+              body's 14px, not the 15px each LegalSection's prose actually
+              renders at, so an em-based cap needs to live on the text
+              itself — see LegalSection below. */}
+          <div className="flex flex-col gap-9 border-t-2 border-dashed border-border-soft pt-8">
             {children}
           </div>
         </div>
@@ -94,7 +100,7 @@ export function LegalSection({ title, children }: { title: string; children: Rea
   return (
     <section id={slugify(title)} className="flex scroll-mt-8 flex-col gap-2.5">
       <h2 className="text-xl">{title}</h2>
-      <div className="flex flex-col gap-3 text-[15px] font-medium leading-relaxed text-foreground [&_a]:font-bold [&_a]:underline [&_li]:ml-5 [&_ul]:list-disc [&_ul]:space-y-1.5">
+      <div className="flex max-w-reading flex-col gap-3 text-[15px] font-medium leading-relaxed text-foreground [&_a]:font-bold [&_a]:underline [&_li]:ml-5 [&_ul]:list-disc [&_ul]:space-y-1.5">
         {children}
       </div>
     </section>

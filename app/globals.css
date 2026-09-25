@@ -335,9 +335,18 @@
   /* LA-051 / diagnosis G: `ch` is the width of the "0" glyph, not an average
      character — for this body font that gap is large enough that 68ch
      rendered ~92 real characters per line, well past the ~80-char ceiling.
-     38rem is a measured px/rem value instead, calibrated against the real
-     font metrics (see task-17-report.md for the re-measurement). */
-  --container-reading: 38rem;
+     Fix round 1: a fixed `rem` value held the column width steady but not
+     the character count — text set smaller than the root font (e.g. the
+     12px `text-xs` copy on Settings cards) still packed ~100 real
+     characters into that same width. `em` scales the cap with each
+     consuming element's OWN font-size instead of the root's, so the same
+     "38 characters of width" holds roughly steady across text sizes. This
+     only works when `max-w-reading` sits on the same element as the text's
+     font-size class (or inherits it unchanged) — see
+     components/legal/legal-page.tsx's LegalSection, fixed in the same
+     round to stop resolving against its 14px wrapper instead of its own
+     15px prose. */
+  --container-reading: 38em;
   --container-dialog: 30rem;
 }
 

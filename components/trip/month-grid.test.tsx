@@ -178,4 +178,24 @@ describe("MonthGrid — kit Days tiles (Task 12b)", () => {
     const badge = screen.getByText("2 things").parentElement!;
     expect(badge.className).toContain("max-w-full");
   });
+
+  // LA-022 residual: `sm:line-clamp-2 sm:whitespace-normal` alone still let a
+  // single unbreakable word ("Rovaniemi", "London") overflow its line and
+  // get ellipsized by the base `truncate`'s inherited `text-overflow` — on
+  // every wrapped line, not just a true last line. `sm:break-words` lets the
+  // browser break inside the word instead, so short names render in full and
+  // long ones get a real 2-line clamp. The legend chip below the grid also
+  // renders the stop name (without these classes), so this filters on the
+  // cell label's own `uppercase` class to avoid matching that chip instead.
+  it("clamps the city label to 2 lines and lets it wrap/break at sm, instead of single-line-truncating (LA-022)", () => {
+    render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", 1)]} />);
+    const cellLabel = screen
+      .getAllByText("Paris")
+      .find((el) => el.className.includes("uppercase"))!;
+    expect(cellLabel).not.toBeUndefined();
+    expect(cellLabel.className).toContain("truncate");
+    expect(cellLabel.className).toContain("sm:line-clamp-2");
+    expect(cellLabel.className).toContain("sm:whitespace-normal");
+    expect(cellLabel.className).toContain("sm:break-words");
+  });
 });
