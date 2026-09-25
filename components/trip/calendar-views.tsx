@@ -216,7 +216,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
               </div>
 
               {wishlistItems.length > 0 && (
-                <aside className={cn(cardVariants({ shadow: 1 }), "self-start p-3 lg:w-64 lg:shrink-0")}>
+                <aside className={cn(cardVariants({ shadow: 1 }), "self-start p-3 lg:w-72 lg:shrink-0 xl:w-80")}>
                   <button
                     type="button"
                     aria-expanded={railOpen}
@@ -242,8 +242,17 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
                           }}
                           className="flex cursor-grab items-center gap-2 rounded-md border-2 border-border bg-background py-1 pl-2.5 pr-1 text-[13px] font-semibold active:cursor-grabbing"
                         >
-                          <span aria-hidden="true" className={cn("size-2.5 shrink-0 rounded-full", categoryDotClass(w.category))} />
-                          <span className="min-w-0 flex-1 truncate">{w.title}</span>
+                          {/* Opens the same schedule dialog as the CalendarCheck action below — the
+                              only "view this item" affordance this rail has — so the clamped title
+                              still has somewhere to reveal its full text. */}
+                          <button
+                            type="button"
+                            onClick={() => setSchedulingItem(w)}
+                            className="flex min-w-0 flex-1 items-center gap-2 rounded text-left"
+                          >
+                            <span aria-hidden="true" className={cn("size-2.5 shrink-0 rounded-full", categoryDotClass(w.category))} />
+                            <span className="min-w-0 flex-1 line-clamp-2">{w.title}</span>
+                          </button>
                           <Button
                             type="button"
                             variant="ghost"

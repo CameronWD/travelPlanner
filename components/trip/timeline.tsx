@@ -446,10 +446,7 @@ function DayItemBody({
   return (
     <>
       <div className="flex min-h-7 min-w-0 items-center gap-1.5">
-        <span
-          className="min-w-0 flex-1 truncate text-sm font-semibold leading-tight text-foreground"
-          title={item.title}
-        >
+        <span className="min-w-0 flex-1 break-words text-sm font-semibold leading-tight text-foreground">
           {item.title}
         </span>
         <DirectionsLink directions={directions} label={item.title} />
@@ -467,7 +464,7 @@ function DayItemBody({
       <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-muted-foreground">
         <CategoryPill category={item.category as Category} size="sm" />
         {timeLabel && <span className="tabular-nums">{timeLabel}</span>}
-        {item.address && <span className="min-w-0 truncate">{item.address}</span>}
+        {item.address && <span className="min-w-0 break-words">{item.address}</span>}
       </div>
       <AttachmentLinks attachments={attachments} />
     </>

@@ -551,6 +551,56 @@ describe("Timeline — untimed day row address regression (Task 8 fix)", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Task 7 (LA-021 / LA-012): titles and addresses wrap instead of truncating
+// — this component is shared with the public share page.
+// ---------------------------------------------------------------------------
+
+const WRAP_ITEM_TITLE = "Vatican Museums & Sistine Chapel";
+const WRAP_ITEM_ADDRESS = "Sparkassenstraße 10, 80331 München, Germany";
+
+const dayPlanWithWrappingItem: DayPlan = {
+  dateISO: "2025-07-01",
+  stop: {
+    id: "stop-1",
+    name: "Rome",
+    timezone: "Europe/Rome",
+    arriveDate: "2025-07-01",
+    departDate: "2025-07-03",
+    sortOrder: 0,
+  },
+  timedItems: [
+    {
+      kind: "item",
+      item: {
+        id: "item-wrap-1",
+        title: WRAP_ITEM_TITLE,
+        category: "SIGHTSEEING",
+        date: "2025-07-01",
+        startTime: "09:00",
+        address: WRAP_ITEM_ADDRESS,
+      },
+    },
+  ],
+  untimedItems: [],
+  transportEntries: [],
+  accommodationEntries: [],
+};
+
+describe("Timeline — item titles and addresses wrap (LA-021 / LA-012)", () => {
+  it("item titles and addresses wrap instead of truncating", () => {
+    render(<Timeline day={dayPlanWithWrappingItem} variant="day" />);
+    const title = screen.getByText(WRAP_ITEM_TITLE);
+    expect(title.className).not.toContain("truncate");
+    expect(title.className).toContain("break-words");
+    expect(title).not.toHaveAttribute("title");
+
+    const address = screen.getByText(WRAP_ITEM_ADDRESS);
+    expect(address.className).not.toContain("truncate");
+    expect(address.className).toContain("break-words");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Task 7: reachable Unschedule control (P1-5 UI half)
 // ---------------------------------------------------------------------------
 

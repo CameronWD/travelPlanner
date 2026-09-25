@@ -148,10 +148,13 @@ describe("MonthGrid — kit Days tiles (Task 12b)", () => {
 
   it("the things count is a kit chip; a packed day turns it coral", () => {
     render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", PACKED_DAY_THRESHOLD + 1), dayPlan("2026-07-15", 1)]} />);
-    const packed = screen.getByText(`${PACKED_DAY_THRESHOLD + 1} things`);
+    // The badge shows a bare number below `xl` and "N things" from `xl` (LA-022/053) —
+    // both live in the DOM at once, so the chip itself is found by its accessible
+    // name (kept as "N things" regardless of which span is visible), not by text.
+    const packed = screen.getByLabelText(`${PACKED_DAY_THRESHOLD + 1} things`);
     expect(packed.className).toMatch(/\bbg-coral\b/);
     expect(packed.className).toMatch(/\bborder-2\b/);
-    const calm = screen.getByText("1 thing");
+    const calm = screen.getByLabelText("1 thing");
     expect(calm.className).not.toMatch(/\bbg-coral\b/);
   });
 
@@ -162,5 +165,14 @@ describe("MonthGrid — kit Days tiles (Task 12b)", () => {
     const chips = within(legend).getAllByRole("listitem");
     expect(chips.map((c) => c.textContent)).toEqual(["Paris", "Berlin"]);
     for (const cls of stopPillClass(1).split(" ")) expect(chips[1].classList.contains(cls)).toBe(true);
+  });
+
+  it("tablet day cells drop the country line and keep the badge inside the cell (LA-022 / LA-053)", () => {
+    render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", 2)]} />);
+    const country = screen.getByText("France");
+    expect(country.className).toContain("lg:block");
+    expect(country.className).not.toContain("sm:block");
+    const badge = screen.getByLabelText("2 things");
+    expect(badge.className).toContain("max-w-full");
   });
 });

@@ -75,7 +75,7 @@ const baseProps = {
 };
 
 describe("CalendarViews wishlist rail width", () => {
-  it("renders the wishlist aside with lg:w-64 when wishlistItems are present in month view", () => {
+  it("renders the wishlist aside with lg:w-72 xl:w-80 when wishlistItems are present in month view", () => {
     // Force month view via localStorage stub
     vi.stubGlobal("localStorage", { getItem: () => "month" } as unknown as Storage);
     vi.stubGlobal("matchMedia", (() => ({ matches: true })) as unknown as typeof matchMedia);
@@ -86,7 +86,33 @@ describe("CalendarViews wishlist rail width", () => {
 
     const aside = container.querySelector("aside");
     expect(aside).not.toBeNull();
-    expect(aside?.className).toContain("lg:w-64");
+    expect(aside?.className).toContain("lg:w-72");
+    expect(aside?.className).toContain("xl:w-80");
+  });
+});
+
+describe("CalendarViews wishlist rail — item titles (LA-004)", () => {
+  it("wishlist aside titles clamp to two lines and link to the item", () => {
+    mockEnv(true, "month");
+    const longItem = [{ id: "w1", title: "Overnight at the Snow Hotel with the Northern Lights tour included", category: "activity" }];
+
+    render(<CalendarViews {...baseProps} wishlistItems={longItem} />);
+
+    const title = screen.getByText(/Overnight at the Snow/);
+    expect(title.className).toContain("line-clamp-2");
+    expect(title.closest("a, button")).not.toBeNull();
+  });
+
+  it("clicking the title opens the same schedule dialog as the CalendarCheck action", () => {
+    mockEnv(true, "month");
+    render(<CalendarViews {...baseProps} wishlistItems={wishlistItems} />);
+
+    const title = screen.getByText("Eiffel Tower");
+    const opener = title.closest("button")!;
+    // ScheduleItemDialog is mocked away module-wide; the observable contract
+    // here is that the row's button — not just the icon — reaches the item.
+    expect(opener).not.toBeNull();
+    expect(opener.tagName).toBe("BUTTON");
   });
 });
 

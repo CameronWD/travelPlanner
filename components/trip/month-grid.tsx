@@ -80,7 +80,7 @@ export function MonthGrid({
       {/* Weeks */}
       <div className="grid grid-cols-7 gap-1 sm:gap-2">
         {weeks.flat().map((cell) => {
-          const tile = "flex h-[50px] min-w-0 flex-col overflow-hidden rounded-sm border-2 p-1 sm:h-24 sm:rounded-md sm:p-2.5";
+          const tile = "flex h-[50px] min-w-0 flex-col overflow-hidden rounded-sm border-2 p-1 sm:h-24 sm:rounded-md sm:p-2 xl:p-2.5";
 
           if (!cell.inMonth) {
             // Kit: the month's leading/trailing slots are empty space, not dim days.
@@ -155,7 +155,7 @@ export function MonthGrid({
             >
               <span className="flex items-start justify-between gap-1">
                 <span className={numberClass}>{dayNum}</span>
-                <span className="hidden items-center gap-0.5 sm:flex">
+                <span className="hidden min-w-0 items-center gap-0.5 overflow-hidden sm:flex">
                   {day?.transportEntries.map((t) => {
                     const Icon = TRANSPORT_MODE_META[t.transport.mode as TransportMode]?.icon ?? Navigation;
                     return <Icon key={`${t.kind}-${t.transport.id}`} className="size-3.5 shrink-0" aria-hidden="true" />;
@@ -176,11 +176,16 @@ export function MonthGrid({
                 </span>
               )}
               {day?.stop?.country && (
-                <span className="hidden truncate text-[11px] font-medium leading-tight sm:block">{day.stop.country}</span>
+                <span className="hidden truncate text-[11px] font-medium leading-tight lg:block">{day.stop.country}</span>
               )}
               {itemCount > 0 && (
-                <Badge variant={packed ? "coral" : "default"} className="mt-auto hidden self-start sm:inline-flex">
-                  {thingsLabel}
+                <Badge
+                  variant={packed ? "coral" : "default"}
+                  className="mt-auto hidden max-w-full self-start truncate sm:inline-flex"
+                  aria-label={thingsLabel}
+                >
+                  <span className="xl:hidden">{itemCount}</span>
+                  <span className="hidden xl:inline">{thingsLabel}</span>
                 </Badge>
               )}
             </Link>
