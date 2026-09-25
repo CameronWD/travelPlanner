@@ -134,6 +134,25 @@ describe("Dialog", () => {
     const scrollBody = content.querySelector('[class*="overflow-y-auto"]');
     expect(scrollBody?.className).toContain("safe-area-inset-bottom");
   });
+
+  it("header never shrinks under overflowing content", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+
+    const header = screen.getByText("Invite traveller").closest("[class*='sticky']") as HTMLElement;
+    expect(header.className).toContain("shrink-0");
+  });
+
+  it("centred dialog uses the shared dialog width", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+
+    expect(content.className).toContain("sm:max-w-dialog");
+  });
 });
 
 describe("DialogFooter", () => {
@@ -202,5 +221,41 @@ describe("DialogFooter", () => {
 
     const footer = screen.getByRole("button", { name: "Cancel" }).closest("div")!;
     expect(footer.className).toContain("after:bg-background");
+  });
+
+  it("scroll body reserves room so the sticky footer never covers the last field", () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Test</DialogTitle>
+          <DialogFooter>
+            <button>Cancel</button>
+            <button>Save</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>,
+    );
+
+    const footer = screen.getByRole("button", { name: "Save" }).closest("div")!;
+    expect(footer.className).toContain("sticky");
+    const body = footer.parentElement as HTMLElement;
+    expect(body.className).toContain("scroll-pb-24");
+  });
+
+  it("footer buttons wrap instead of overflowing a 360px sheet", () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Test</DialogTitle>
+          <DialogFooter>
+            <button>Cancel</button>
+            <button>Save</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>,
+    );
+
+    const footer = screen.getByRole("button", { name: "Save" }).closest("div")!;
+    expect(footer.className).toContain("flex-wrap");
   });
 });
