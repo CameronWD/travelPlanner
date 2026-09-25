@@ -41,7 +41,7 @@ state it needs (the empty trip) it creates through the local app's own UI.
 Output goes to a directory outside the repo (default: `$LAYOUT_AUDIT_OUT`, else
 `/tmp/layout-audit/<timestamp>`), never into the repo:
 
-- `shots/<route-label>/<trip>/<width>-<theme>.png` — full-page screenshots, sliced so no single
+- `shots/<set>/<route-label>/<trip>/<width>-<theme>.png` (overlays: `shots/overlay/<overlay-id>/…`) — full-page screenshots, sliced so no single
   image is taller than ~2000px (`…-part2.png` etc.), so a reviewer can read them.
 - `findings.auto.json` — every automatic-check hit (schema below).
 - `manifest.json` — every capture: route, trip, phase, width, theme, overlay, file paths, marker
@@ -64,7 +64,7 @@ for ≥768, 800 below; phones use `isMobile`/`hasTouch` + `deviceScaleFactor: 2`
 
 Trips are resolved **by name** from `/trips` at run time, not by hard-coded id. **Phase is derived
 from today's date**, so the phase trips drift: the harness verifies each trip's phase from a
-stable marker on Home (add a `data-phase` attribute to the Home root if none exists — the one
+stable marker on Home (a hidden `<span data-trip-phase>` as the Home page's first child — the one
 permitted app change in Stage 1) and, if a phase has no trip, records a coverage gap in the
 manifest and prints it loudly rather than auditing the wrong phase.
 

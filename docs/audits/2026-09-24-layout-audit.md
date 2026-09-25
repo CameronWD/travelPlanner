@@ -10,13 +10,13 @@ Spec: `docs/specs/2026-09-24-layout-audit.md`. Harness: `npm run audit:layout` (
 
 ## Findings
 
-**54 findings — 16 Broken, 31 Ugly, 7 Polish.** Cross-screen duplicates are merged (e.g. one header tap-target finding covers every screen).
+**53 findings — 15 Broken, 31 Ugly, 7 Polish** (LA-013 withdrawn, see below). Cross-screen duplicates are merged (e.g. one header tap-target finding covers every screen).
 
 Patterns:
 
 - **Truncated text you can’t read** is the most common Broken finding (Money, Days, Plan, Public link, Compare, fork switcher). One shared rule — wrap, or line-clamp plus a full-text title — would fix most of it.
 - **Wide-screen islands** (Settings, Checklists, New trip, What’s new, Privacy, Compare): pages capped far narrower than their neighbours. ADR 0062’s shared page widths fix these as a side effect.
-- **Fixed chrome covering content on phones**: Danger zone buttons under the tab bar, sticky dialog footers hiding the last field, the notifications footer hiding the last timestamp.
+- **Fixed chrome covering content on phones**: sticky dialog footers hiding the last field, the notifications footer hiding the last timestamp.
 
 ### Compare
 
@@ -68,7 +68,6 @@ Patterns:
 
 ### Trip settings
 
-- `LA-013` **Broken** — Danger zone buttons sit behind the fixed mobile tab bar _(at 360, 375, 390, 430px, dark)_
 - `LA-014` **Broken** — Delete-trip and Duplicate-trip confirm sheets overflow the viewport at 360px _(at 360px)_
 - `LA-015` **Broken** — Share-link action row overflows the screen, clipping "Revoke" _(at 360, 375, 390, 430px, dark)_
 - `LA-046` **Ugly** — Settings stays one narrow column at every desktop width _(at 1024, 1280, 1440, 1920, 2560px, dark)_
@@ -134,6 +133,7 @@ Patterns:
 
 ## Left out
 
+- `LA-013` Danger zone buttons “behind the tab bar”: withdrawn after re-verification. The buttons clear the tab bar by 70px; the failed tap was caused by LA-015’s overflow zooming the page out.
 - Day map renders as a repeating "API KEY REQUIRED" watermark, not tiles — local env: no CARTO tile key in .env.local, so tiles carry an API KEY REQUIRED watermark.
 - Map tiles covered by repeating "API KEY REQUIRED" watermark — local env: no CARTO tile key in .env.local.
 - Flags render as plain read-only pills, not the kit's actionable "Worth a look" list — a feature, not layout: actionable flag fixes are new behaviour (out of scope).
@@ -143,7 +143,7 @@ Patterns:
 
 - `make-it-fit`: the audit trip’s plan doesn’t overrun its hard end date, so the dialog never appears.
 - `chapter-add`: chapters are off on the audit trip.
-- `duplicate-trip` / `delete-trip` at 390: the trigger buttons sit under fixed bottom chrome and can’t be tapped — reported as LA-013, not just a gap.
+- `duplicate-trip` / `delete-trip` at 390: the harness's tap landed on the Danger zone heading because Settings overflows to 409px and the phone viewport zooms out (LA-015).
 
 ## Re-running
 
