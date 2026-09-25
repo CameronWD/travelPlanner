@@ -186,6 +186,18 @@ describe("SharePage — kit SharePage (shared/share.jsx)", () => {
     await renderPage();
     expect(screen.getByText("Made with Teepee · plan it with your people")).toBeInTheDocument();
   });
+
+  it("addresses wrap (LA-012) and the hero title balances (LA-043)", async () => {
+    await renderPage();
+    expect(screen.getByText(/Sparkassenstraße/).className).not.toContain("truncate");
+    expect(screen.getByRole("heading", { level: 1 }).className).toContain("text-balance");
+  });
+
+  it("day-by-day cards form a grid on wide screens (LA-041)", async () => {
+    await renderPage();
+    const day = screen.getAllByTestId("share-day")[0];
+    expect(day.parentElement!.className).toContain("lg:grid-cols-2");
+  });
 });
 
 describe("SharePage — empty", () => {

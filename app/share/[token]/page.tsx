@@ -290,7 +290,7 @@ export default async function SharePage({
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto flex w-full max-w-[1080px] flex-col gap-3.5 px-4 pb-5 pt-4 sm:px-6 lg:gap-5 lg:px-12 lg:pt-7">
+      <div className="mx-auto flex w-full max-w-page-wide flex-col gap-3.5 px-4 pb-5 pt-4 sm:px-6 lg:gap-5 lg:px-12 lg:pt-7">
         {/* ── Header: kit SharePage top row (Logo 22 / 28) ── */}
         <header className="flex items-center justify-between">
           <Logo size={22} className="lg:hidden" />
@@ -307,7 +307,7 @@ export default async function SharePage({
             className="p-5 lg:p-8"
           >
             <Badge caps>Shared trip · view only</Badge>
-            <h1 className="mt-[18px] break-words font-display text-[40px] font-extrabold leading-[0.95] tracking-[-0.05em] lg:mt-7 lg:text-[72px]">
+            <h1 className="mt-[18px] break-words text-balance font-display text-[40px] font-extrabold leading-[0.95] tracking-[-0.05em] lg:mt-7 lg:text-[72px]">
               {trip.name}
             </h1>
             <p className="mt-2.5 text-base font-medium lg:text-lg">
@@ -382,8 +382,8 @@ export default async function SharePage({
                             <div className="mt-1 flex min-w-0 items-start gap-1.5 text-xs font-medium text-muted-foreground">
                               <Home className="mt-px size-3.5 shrink-0" aria-hidden="true" />
                               <div className="min-w-0">
-                                <p className="truncate font-bold text-foreground">{accom.name}</p>
-                                {accom.address && <p className="truncate">{accom.address}</p>}
+                                <p className="break-words font-bold text-foreground">{accom.name}</p>
+                                {accom.address && <p className="break-words">{accom.address}</p>}
                               </div>
                             </div>
                           )}
@@ -433,31 +433,31 @@ export default async function SharePage({
               >
                 Day by day
               </h2>
-              <ol className="flex flex-col gap-3">
+              <ol className="grid grid-cols-1 items-start gap-3 lg:grid-cols-2 2xl:grid-cols-3">
                 {itinerary.map((day) => {
                   const isToday = phase === "travelling" && day.dateISO === todayISO;
                   return (
-                    <li key={day.dateISO}>
-                      <Card
-                        shadow={isToday ? 4 : 2}
-                        className={cn("p-4", isToday && "ring-[3px] ring-coral")}
-                        aria-current={isToday ? "date" : undefined}
-                      >
-                        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-                          <h3 className="flex items-center gap-2 font-display text-base font-extrabold tracking-[-0.02em]">
-                            {formatLongDate(day.dateISO)}
-                            {isToday && <Badge variant="coral" caps>Today</Badge>}
-                          </h3>
-                          {day.stop && (
-                            <span className="text-xs font-medium text-muted-foreground">
-                              {day.stop.name}
-                              {day.stop.country ? `, ${day.stop.country}` : ""}
-                            </span>
-                          )}
-                        </div>
-                        <Timeline day={day} variant="agenda" />
-                      </Card>
-                    </li>
+                    <Card
+                      key={day.dateISO}
+                      data-testid="share-day"
+                      shadow={isToday ? 4 : 2}
+                      className={cn("p-4", isToday && "ring-[3px] ring-coral")}
+                      aria-current={isToday ? "date" : undefined}
+                    >
+                      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                        <h3 className="flex items-center gap-2 font-display text-base font-extrabold tracking-[-0.02em]">
+                          {formatLongDate(day.dateISO)}
+                          {isToday && <Badge variant="coral" caps>Today</Badge>}
+                        </h3>
+                        {day.stop && (
+                          <span className="text-xs font-medium text-muted-foreground">
+                            {day.stop.name}
+                            {day.stop.country ? `, ${day.stop.country}` : ""}
+                          </span>
+                        )}
+                      </div>
+                      <Timeline day={day} variant="agenda" />
+                    </Card>
                   );
                 })}
               </ol>

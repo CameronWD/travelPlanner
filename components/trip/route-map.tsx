@@ -102,6 +102,25 @@ const homeLegColour = (dark: boolean) => routeStyles(dark).returnLeg.color;
 const POPUP = { className: "tp-map-popup" } as const;
 
 /**
+ * Points the map should fit its viewport to.
+ *
+ * Fits the located stops alone whenever there are at least two of them — the
+ * home base can be far from the trip itself (LA-042), and zooming out to
+ * include it would shrink the actual route to a speck. Only when there are
+ * fewer than two located stops (nothing meaningful to fit to on its own) does
+ * home rejoin the set, so the map still has something to frame.
+ *
+ * Pure and Leaflet-free so it's unit-testable without a Leaflet mock.
+ */
+export function routeFitPoints<P extends { lat: number; lng: number }>(
+  stops: P[],
+  home: P | null | undefined,
+): P[] {
+  if (stops.length >= 2 || !home) return stops;
+  return [...stops, home];
+}
+
+/**
  * Stops that have valid coordinates.
  */
 function stopsWithCoords(
@@ -258,12 +277,10 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
       // Home base marker + bookend polylines
       // VISUAL: these changes (home marker, outbound/return dashed polylines)
       // require human browser verification — they cannot be asserted in tests.
-      const allLatLngs: [number, number][] = [...latlngs];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let homeMarker: any = null;
       if (home) {
         const homeLatLng: [number, number] = [home.lat, home.lng];
-        allLatLngs.push(homeLatLng);
 
         homeMarker = lf
           .marker(homeLatLng, { icon: homeIcon(lf, isDark) })
@@ -296,8 +313,13 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
 
       overlaysRef.current = { L: lf, stopMarkers, homeMarker, legs };
 
-      // Fit bounds to all markers (including home if present)
-      const bounds = lf.latLngBounds(allLatLngs);
+      // Fit bounds to the stops — home only rejoins the fit when there
+      // aren't enough located stops to frame on their own (LA-042).
+      const fitPoints = routeFitPoints(
+        coordStops.map((s) => ({ lat: s.lat, lng: s.lng })),
+        home ? { lat: home.lat, lng: home.lng } : null,
+      );
+      const bounds = lf.latLngBounds(fitPoints.map((p): [number, number] => [p.lat, p.lng]));
       mapInstance.fitBounds(bounds, { padding: [40, 40] });
     });
 
