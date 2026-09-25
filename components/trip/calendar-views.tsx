@@ -248,7 +248,10 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
                           <button
                             type="button"
                             onClick={() => setSchedulingItem(w)}
-                            className="flex min-w-0 flex-1 items-center gap-2 rounded text-left"
+                            // tap-target: invisible ≥44px hit area on coarse pointers (COMPONENTS.md
+                            // "Tap targets"). It's centred on this button's own box, so it can't
+                            // spread sideways into the CalendarCheck button's separate hit area.
+                            className="tap-target flex min-w-0 flex-1 items-center gap-2 rounded text-left"
                           >
                             <span aria-hidden="true" className={cn("size-2.5 shrink-0 rounded-full", categoryDotClass(w.category))} />
                             <span className="min-w-0 flex-1 line-clamp-2">{w.title}</span>

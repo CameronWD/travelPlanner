@@ -114,6 +114,15 @@ describe("CalendarViews wishlist rail — item titles (LA-004)", () => {
     expect(opener).not.toBeNull();
     expect(opener.tagName).toBe("BUTTON");
   });
+
+  it("the title button carries tap-target for a ≥44px hit area on coarse pointers (review fix)", () => {
+    mockEnv(true, "month");
+    render(<CalendarViews {...baseProps} wishlistItems={wishlistItems} />);
+
+    const title = screen.getByText("Eiffel Tower");
+    const opener = title.closest("button")!;
+    expect(opener.className).toContain("tap-target");
+  });
 });
 
 describe("CalendarViews drop routing (ADR 0019 P0-4)", () => {

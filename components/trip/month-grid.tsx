@@ -179,10 +179,12 @@ export function MonthGrid({
                 <span className="hidden truncate text-[11px] font-medium leading-tight lg:block">{day.stop.country}</span>
               )}
               {itemCount > 0 && (
+                // No aria-label here — the enclosing Link already names the day with
+                // `thingsLabel` (see `label` above), so a label on the chip itself
+                // would just be inert duplicate text in the accessibility tree.
                 <Badge
                   variant={packed ? "coral" : "default"}
                   className="mt-auto hidden max-w-full self-start truncate sm:inline-flex"
-                  aria-label={thingsLabel}
                 >
                   <span className="xl:hidden">{itemCount}</span>
                   <span className="hidden xl:inline">{thingsLabel}</span>

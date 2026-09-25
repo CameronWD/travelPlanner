@@ -149,12 +149,15 @@ describe("MonthGrid — kit Days tiles (Task 12b)", () => {
   it("the things count is a kit chip; a packed day turns it coral", () => {
     render(<MonthGrid {...JULY} days={[dayPlan("2026-07-14", PACKED_DAY_THRESHOLD + 1), dayPlan("2026-07-15", 1)]} />);
     // The badge shows a bare number below `xl` and "N things" from `xl` (LA-022/053) —
-    // both live in the DOM at once, so the chip itself is found by its accessible
-    // name (kept as "N things" regardless of which span is visible), not by text.
-    const packed = screen.getByLabelText(`${PACKED_DAY_THRESHOLD + 1} things`);
+    // both live in the DOM at once, so the visible "N things" text (unique — the
+    // chip's own concatenated text differs from either child) anchors the query,
+    // then `.parentElement` is the chip itself (no aria-label to key off: the
+    // enclosing Link already names the day with "N things", so one on the chip
+    // would be inert duplicate text).
+    const packed = screen.getByText(`${PACKED_DAY_THRESHOLD + 1} things`).parentElement!;
     expect(packed.className).toMatch(/\bbg-coral\b/);
     expect(packed.className).toMatch(/\bborder-2\b/);
-    const calm = screen.getByLabelText("1 thing");
+    const calm = screen.getByText("1 thing").parentElement!;
     expect(calm.className).not.toMatch(/\bbg-coral\b/);
   });
 
@@ -172,7 +175,7 @@ describe("MonthGrid — kit Days tiles (Task 12b)", () => {
     const country = screen.getByText("France");
     expect(country.className).toContain("lg:block");
     expect(country.className).not.toContain("sm:block");
-    const badge = screen.getByLabelText("2 things");
+    const badge = screen.getByText("2 things").parentElement!;
     expect(badge.className).toContain("max-w-full");
   });
 });
