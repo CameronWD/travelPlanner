@@ -35,8 +35,11 @@ type Hit = Omit<AutoFinding, "id" | "captureId">;
 
 /** Sub-pixel noise guard for "is it wider/taller than its box". */
 const ROUNDING_PX = 1;
-/** How far an element may poke past its clipping container before it counts. */
-const SPILL_PX = 2;
+/** How far an element may poke past its clipping container before it counts.
+ * Exported because the collector's outermost-spiller dedupe must use the
+ * same cut: with a smaller one, a parent spilling 1px (never reported) is
+ * kept as "the" spiller and hides its child spilling 30px. */
+export const SPILL_PX = 2;
 /** Minimum intersection depth for overlap / hidden-behind-chrome. */
 const OVERLAP_PX = 4;
 /** WCAG 2.5.5 (AAA) target size, and the width at or below which it applies. */

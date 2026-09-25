@@ -9,6 +9,8 @@
  * is commented where it happens, with the false positive it exists to stop.
  */
 
+import { SPILL_PX } from "./checks";
+
 /** Document coordinates: the client rect plus the scroll offset at the time
  * it was measured. */
 export interface Rect {
@@ -112,8 +114,9 @@ export const PAINTS_BACKGROUND_JS = `(cs) => {
 //     "\s". Double-escaping still parses, silently matches nothing, and the
 //     affected check reports clean.
 //   - No template literals or "${" inside it — this whole string is itself a
-//     template literal. Use string concatenation. The one deliberate "${" is
-//     the PAINTS_BACKGROUND_JS splice, which is itself plain JS source.
+//     template literal. Use string concatenation. The deliberate "${"s are
+//     the PAINTS_BACKGROUND_JS splice, which is itself plain JS source, and
+//     SPILL_PX, a number shared with checks.ts.
 export const COLLECTOR_SCRIPT = `
 (() => {
   const html = document.documentElement;
@@ -312,6 +315,10 @@ export const COLLECTOR_SCRIPT = `
   // Only the outermost spilling element per container is kept: once a row
   // spills, every descendant in its overflowing part spills past the same
   // container too, and one root cause would otherwise fill the whole list.
+  // "Spilling" here uses checks.ts's own SPILL_PX: a looser cut would keep a
+  // parent that pokes out 1px (which checkSpill then drops) as the root
+  // cause, and hide its child that pokes out 30px.
+  const SPILL_PX = ${SPILL_PX};
   const spilledFor = new Map();
   for (const v of vis) {
     const el = v.el;
@@ -320,7 +327,7 @@ export const COLLECTOR_SCRIPT = `
     const rightEdge = v.rect.x + v.rect.w;
     if (!container && !fixedRoot(el) && rightEdge > vw + 0.5) widestAll.push({ v: v, right: rightEdge, depth: depthOf(el) });
     const over = Math.max(cRect.x - v.rect.x, rightEdge - (cRect.x + cRect.w));
-    if (over <= 0.5) continue;
+    if (over <= SPILL_PX) continue;
     // Text truncated with an ellipsis / line clamp overflows its box by
     // design; that is the clipped-text check's call, not a spill.
     if (container) {
