@@ -924,3 +924,53 @@ Run by the main session, not an implementer subagent (it needs the dev server, P
 - [ ] **Step 4:** `NODE_PATH=/usr/local/lib/node_modules npm run audit:contrast` → `RESULT: PASS`.
 - [ ] **Step 5: Before/after page.** Crops with `npm run audit:layout:crops -- /tmp/layout-audit/stage2` (after writing a Stage 2 `findings.json` of the re-checked findings with new screenshot paths). Publish a private artifact: per finding, the Stage 1 description, the new crop and the verdict.
 - [ ] **Step 6:** Write `docs/audits/2026-09-25-layout-recheck.md` (verdict per finding, new findings, coverage), commit it. Stop — merging to `beta` waits for Cam.
+
+---
+
+## Addendum (2026-09-25): residual fix wave after the Task 15 re-check
+
+The fresh audit (`/tmp/layout-audit/stage2`) and re-check (`.superpowers/sdd/2026-09-25-layout-fixes/recheck/*.md`, git-ignored) found 36 fixed / 13 partly / 5 not fixed and no new Broken. These three tasks close the rest. Each re-check file names the screenshots; read the relevant one before starting. Global Constraints above still bind.
+
+### Task 16: Overlays — footers, sheets, menus, header overflow
+
+**Files:** `components/ui/dialog.tsx`, `components/trip/notification-bell.tsx`, `components/ui/sheet.tsx` + `components/feedback/feedback-launcher.tsx`, `components/trip/itinerary-manager.tsx` (Chapters menu), `app/(app)/layout.tsx` (avatar trigger); tests beside each.
+
+- [ ] **LA-011 + promote-fork list + other-cost hint (re-check A, B):** at the end of a scrolled dialog body the sticky `DialogFooter` still covers the last field / last list row / helper text (Stage 2 shots `overlay/stop-edit/390-light.png`, `overlay/transport-edit/390-light.png`, `overlay/other-cost-add/360-light-kbd.png`, `overlay/promote-fork/360-light.png`). `scroll-pb-24` only affects scroll snapping, not layout. Reproduce in `npm run dev` at 390 (and 390×500 for the keyboard case), find why content ends under the footer (e.g. the footer's negative bottom margin or the body's padding arithmetic), and fix it in the shared primitive so the last field fully clears the footer when scrolled to the end. Test: pin the arrangement; add a jsdom-independent assertion where possible (e.g. the body's bottom padding ≥ footer height token).
+- [ ] **LA-010 (re-check A):** the last notification's date is still under "See all activity" at 360 and 1440 (`overlay/notifications/*.png`). Task 10 added `pb-3 scroll-pb-3` but it didn't clear it — reproduce, find the real cause (footer overlapping the list's box vs. list max-height), fix, test.
+- [ ] **LA-023 mobile (re-check D):** the feedback sheet is still full-height with a void on 360/390. On mobile make it a bottom sheet sized to content (`h-auto max-h-[90dvh]`, anchored bottom) — keep desktop as fixed in Task 10.
+- [ ] **Chapters menu over the tab bar (re-check A, Ugly):** at 360/390 the Chapters `DropdownMenuContent` renders on top of the fixed mobile tab bar. Give it a bottom collision padding that includes the tab bar: `collisionPadding={{ top: 16, right: 16, left: 16, bottom: 16 + 76 }}` (76px = `--tp-tab-bar-h` 4.75rem) or read the CSS var; prefer `side="top"` if the trigger sits in the lower half. Test the prop.
+- [ ] **4px sideways scroll at 360 (diagnosis G):** the avatar trigger's `tap-target` `::before` pokes past the viewport edge. Replace it with a real 44px box: trigger `grid size-11 place-items-center rounded-full` wrapping the `size-9` Avatar (drop `tap-target` there). Verify `document.documentElement.scrollWidth === 360` at 360 with a dialog open. Test the class.
+
+Gates as usual; commit `fix(overlays): footers clear the last field, sheets size to content, menu clears the tab bar (LA-010 011 023)`.
+
+### Task 17: Text, measure and grids
+
+**Files:** `app/globals.css` + `app/globals-tokens.test.ts`, `components/legal/legal-page.tsx`, `app/(app)/whats-new/page.tsx`, `app/(app)/trips/[tripId]/settings/page.tsx`, `components/trip/help-guide.tsx`, `components/trip/timeline.tsx`, `components/trip/month-grid.tsx`, `app/share/[token]/page.tsx`, `components/trip/compare-table.tsx`, `app/(app)/trips/[tripId]/checklists/checklists-layout.tsx`, `app/(app)/trips/new/page.tsx`, `components/trip/home/phase-sketching.tsx`; tests beside each.
+
+- [ ] **Reading measure (diagnosis G, LA-051):** `--container-reading: 68ch` renders ~92 characters (ch = width of "0"). Change to `--container-reading: 38rem;` and replace the literal `minmax(0,68ch)` in `legal-page.tsx` and `whats-new/page.tsx` with `minmax(0,38rem)` (or the var). Update the token test. Re-measure a Privacy paragraph at 1440: ≤ ~80 chars/line.
+- [ ] **LA-051 (re-check F):** every prose `<p>` in Settings cards (Digest, Calendar feed, Driving estimates, Share links, and any other body copy) and the 60-second closing paragraph gets `max-w-reading`.
+- [ ] **LA-047 (re-check F):** `whats-new/page.tsx:58` `lg:justify-start` → `lg:justify-center`.
+- [ ] **LA-021 (re-check C):** `timeline.tsx:400` and `:424` check-in/check-out titles `block truncate …` → `block break-words …` (drop the now-redundant `title`); `:322/:324` transport from/to labels likewise if they clip.
+- [ ] **LA-022 (re-check C):** month-grid city label (`month-grid.tsx:174`) still ellipsizes at 768 — the cell links to the day, so rule 2 allows a 2-line clamp: make it `line-clamp-2 whitespace-normal break-words` from `sm` (drop `truncate` at `sm+`; keep phone behaviour).
+- [ ] **LA-043 (re-check C):** `text-balance` didn't stop "2026" orphaning at 360–390. In the share hero, join the last two words of the trip name with a non-breaking space (small pure helper `noOrphan(name)`, unit-tested: `"EU Christmas 2026"` → `"EU Christmas 2026"`, single word unchanged).
+- [ ] **LA-018 at 768/1024 and LA-027 at 768 (re-check B, F):** in a 2-column state, a lone last card spans the row: compare grid add `md:[&>*:last-child:nth-child(odd)]:col-span-2 xl:[&>*:last-child:nth-child(odd)]:col-span-1`; help `TOPIC_GRID` add `sm:[&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1`. Test the class strings.
+- [ ] **LA-052 at 360 (re-check E):** the tab strip's rounded right edge still clips the last "r" of "Booking parser" — reduce the list's inline padding or trigger padding one step at `max-[375px]` so the label clears the border by ≥4px. Verify at 360 in the browser.
+- [ ] **New trip width (re-check E Polish):** page wrapper `max-w-page-wide` → `max-w-[64rem]` (a 2-column form doesn't need 1600px). Keep `app/page-widths.test.ts` green.
+- [ ] **Sketching blank cell (re-check D, Ugly):** at ≥1024 on a Sketching trip, a blank rectangle sits left of Reminders. Place QuickActions in the left column of the same row as Reminders at `lg` (`lg:col-start-1 lg:col-span-1`, Reminders `lg:col-start-2` same row) so neither column dead-ends; DOM order stays hero → route → quick actions → reminders (mobile). Update the sketching tests.
+
+Gates; commit `fix(layout): readable measure, wrap check-ins, clamp month cells, no orphans (LA-018 021 022 027 043 047 051 052)`.
+
+### Task 18: Tap-target stragglers + harness recipe
+
+**Files:** `components/trip/cost-editor.tsx:362-384`, `components/trip/stop-day-list.tsx:301-311`, `components/trip/item-form-dialog.tsx` (`CategoryGroup`), `components/legal/legal-page.tsx` header nav link, `scripts/layout-audit/overlays.ts` (+ its test); tests beside each.
+
+- [ ] **LA-037:** cost-row edit/delete icon buttons and the `DayItemRow` edit pencil get `tap-target` (spacing `gap-2` between adjacent icon buttons).
+- [ ] **LA-049:** Category chips in the item form get `tap-target` (or `pointer-coarse:min-h-11`), with `gap-2` between chips.
+- [ ] **LA-054:** the legal header's nav link gets `tap-target` so its hit area is ≥44×44 (it is 42×44 today).
+- [ ] **Harness:** the `save-template` overlay recipe assumes a "Packing" tab, which only exists below 1024px now. Make the recipe width-aware: below 1024 click the tab; at ≥1024 click the "Save as template" button inside the Packing card (scope the locator to the card whose heading is "Packing"). Update `overlays.test.ts` accordingly. Do not change other recipes.
+
+Gates; commit `fix(a11y): last tap-target stragglers; save-template recipe follows the checklist grid (LA-037 049 054)`.
+
+### Task 19 (controller-run): re-run the gate for the residual wave
+
+Subset re-run into a fresh dir (`LAYOUT_AUDIT_OUT=/tmp/layout-audit/stage3`, full run), re-check only the ids touched by Tasks 16–18 plus the new-problem items, contrast audit, then the before/after page and `docs/audits/2026-09-25-layout-recheck.md`.
