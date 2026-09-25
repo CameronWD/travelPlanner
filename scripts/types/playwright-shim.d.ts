@@ -128,10 +128,19 @@ declare module "playwright" {
     focus(): Promise<void>;
   }
 
+  // Added for crops.ts (Task 8) — setContent renders a synthetic one-<img>
+  // page (the original PNG as a data URI) so a crop can be captured via a
+  // plain viewport screenshot rather than an image-decoding library.
+  export interface SetContentOptions {
+    timeout?: number;
+    waitUntil?: "load" | "domcontentloaded" | "networkidle" | "commit";
+  }
+
   export interface Page {
     goto(url: string, options?: GotoOptions): Promise<unknown>;
     url(): string;
     close(): Promise<void>;
+    setContent(html: string, options?: SetContentOptions): Promise<void>;
     waitForTimeout(ms: number): Promise<void>;
     waitForSelector(
       selector: string,
