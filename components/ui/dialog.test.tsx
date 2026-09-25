@@ -115,7 +115,7 @@ describe("Dialog", () => {
     expect(header?.className).toContain("mb-1");
   });
 
-  it("covers the header's negative-margin gap during iOS elastic overscroll", async () => {
+  it("covers the top padding strip above the sticky header during iOS elastic overscroll", async () => {
     const user = userEvent.setup();
     render(<Example />);
     await user.click(screen.getByRole("button", { name: "Open dialog" }));
@@ -123,6 +123,26 @@ describe("Dialog", () => {
 
     const header = screen.getByText("Invite traveller").closest("div");
     expect(header?.className).toContain("before:bg-background");
+  });
+
+  it("gives the scroll body sole ownership of the top inset — the header carries none of its own (LA-024)", async () => {
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    const content = await screen.findByRole("dialog");
+
+    // The header must not duplicate the scroll body's own top padding (that
+    // doubled the visible inset), and must not cancel it with a negative
+    // top margin either (that's what broke LA-024 — see dialog.tsx).
+    const header = screen.getByText("Invite traveller").closest("[class*='sticky']") as HTMLElement;
+    expect(header.className).not.toMatch(/(?<!-)\bpt-3\.5\b/);
+    expect(header.className).not.toMatch(/sm:pt-6\b/);
+    expect(header.className).not.toMatch(/-mt-3\.5|sm:-mt-6/);
+
+    // The scroll body is the sole, uncancelled owner of the top inset.
+    const scrollBody = content.querySelector('[class*="overflow-y-auto"]') as HTMLElement;
+    expect(scrollBody.className).toMatch(/(?<!-)\bpt-3\.5\b/);
+    expect(scrollBody.className).toMatch(/sm:pt-6\b/);
   });
 
   it("pads the scroll body for the mobile safe-area inset", async () => {

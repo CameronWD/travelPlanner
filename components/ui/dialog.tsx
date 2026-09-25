@@ -61,27 +61,44 @@ const DialogContent = React.forwardRef<
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
 function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  // before: covers whatever's revealed above the sticky header during
-  // elastic/rubber-band overscroll on iOS Safari (same bg-background color,
-  // so this is a belt-and-braces cover rather than load-bearing).
+  // Top inset ownership (LA-024 fix round 2): the scroll body (DialogContent)
+  // owns the *only* top padding (pt-3.5/sm:pt-6) — the header carries none of
+  // its own, so there's nothing to cancel and no negative top margin anywhere
+  // near a sticky element. That negative margin used to bleed the header
+  // through the scroll body's own padding so the header's title sat 14/24px
+  // down while its background still reached the true top edge; but a sticky
+  // flex item's *rendered* position at rest doesn't reflect a negative top
+  // margin the way a static/relative item's would (verified in-browser —
+  // Chromium keeps the flex track's gap reservation as if the margin
+  // applied, but paints the sticky box lower, by the margin's own
+  // magnitude), so the reserved gap-3.5/mb-1 space undershot by exactly that
+  // margin and the header could overlap the block after it (worst with a
+  // short eyebrow like "Current members", whose glyphs sit closer to its
+  // line-box edge). Giving the scroll body sole ownership sidesteps the bug
+  // instead of working around it: at rest the header sits pt-3.5/pt-6 below
+  // the true edge (its normal flex-flow position — gap-3.5/mb-1 measured
+  // correct in-browser, no more shortfall). Per spec, scrolling that same
+  // 14/24px should engage `sticky`'s own top-0 constraint and dock it flush
+  // at the true edge from then on, without a jump (it only ever reaches
+  // that edge, never overshoots it) — the at-rest geometry above is verified
+  // in-browser, but this environment's headless Chromium doesn't visibly
+  // move a `position: sticky` element on programmatic or synthetic-wheel
+  // scroll at all (confirmed on the pre-fix code too, so it's a harness
+  // limitation, not a regression), so the actual engage/dock transition
+  // during a real scroll is unverified here.
   //
-  // No negative top margin here (LA-024, was -mt-3.5/-mt-6 to bleed the
-  // header up through the scroll body's own top padding): a sticky flex
-  // item's *rendered* position at rest doesn't reflect a negative top margin
-  // the way a static/relative item's would (verified in-browser — Chromium
-  // keeps the flex track's gap reservation as if the margin applied, but
-  // paints the sticky box lower, by the margin's own magnitude), so the
-  // reserved gap-3.5/mb-1 space undershot by exactly that margin and the
-  // header could overlap the block after it (worst with a short eyebrow like
-  // "Current members", whose glyphs sit closer to its line-box edge).
-  // Horizontal bleed (-mx) is unaffected — only the sticky axis (top)
-  // triggers this — so only -mt is dropped; the header still docks flush
-  // once actually stuck, since sticky's own top-0 constraint (not a margin)
-  // is what pins it there during scroll.
+  // before: sized to that same 14/24px, so it now covers exactly the padding
+  // strip between the header and the true edge — at rest that strip is
+  // already the scroll body's own (borderless, backgroundless) padding
+  // showing DialogContent's own bg-background through it, so this is a
+  // belt-and-braces cover for iOS elastic/rubber-band overscroll rather than
+  // load-bearing (verified the geometry above in-browser; iOS's own bounce
+  // physics aren't reproducible in this environment, so the overscroll case
+  // itself is unverified on a real device).
   return (
     <div
       className={cn(
-        "sticky top-0 z-10 shrink-0 -mx-[18px] mb-1 flex min-h-[72px] flex-col justify-center gap-1 bg-background px-[18px] pr-16 pt-3.5 text-left sm:-mx-6 sm:px-6 sm:pt-6",
+        "sticky top-0 z-10 shrink-0 -mx-[18px] mb-1 flex min-h-[72px] flex-col justify-center gap-1 bg-background px-[18px] pr-16 text-left sm:-mx-6 sm:px-6",
         "before:content-[''] before:absolute before:inset-x-0 before:bottom-full before:h-3.5 before:bg-background sm:before:h-6",
         className,
       )}
