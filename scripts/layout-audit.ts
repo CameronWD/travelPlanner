@@ -100,8 +100,10 @@
  *   dotenv, lib/db, Prisma, or read DATABASE_URL: load-env.ts prefers
  *   .env.production.local, so a single such import would point this script
  *   at the production database. Any state it needs (the empty trip) it
- *   creates through the local app's own UI. run.test.ts pins this with a
- *   test that scans every harness file's imports.
+ *   creates through the local app's own UI. run.test.ts pins this with an
+ *   allowlist over every harness file's module references: relative paths
+ *   inside scripts/layout-audit/, scripts/lib/ or scripts/types/ (scanned
+ *   in turn), `node:` builtins, and type-only `playwright` — nothing else.
  *
  * TRAPS THIS HARNESS IS BUILT AROUND
  * -----------------
