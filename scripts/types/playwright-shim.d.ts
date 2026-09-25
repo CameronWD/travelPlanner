@@ -93,10 +93,10 @@ declare module "playwright" {
     // Added for trips.ts's ensureEmptyTrip (Task 5) — fills the /trips/new
     // name field via the app's own form, never the database directly.
     fill(value: string, options?: FillOptions): Promise<void>;
-    // Added for overlays.ts (Task 6) — openOverlay narrows a "menu" role
-    // match down to the one carrying particular body text (e.g. the
-    // notifications menu, whose accessible name doesn't include
-    // "Notifications" but whose content does).
+    // Added for overlays.ts (Task 6) — openOverlay narrows a role match down
+    // to the one carrying particular body text when a recipe's `expect` sets
+    // `hasText` (e.g. the notifications menu, whose accessible name doesn't
+    // include "Notifications" but whose visible content does).
     filter(options?: LocatorFilterOptions): Locator;
     // Added for overlays.ts (Task 6) — focusFirstInput's "no-op if none"
     // guard, and a defensive check openOverlay could add later.
