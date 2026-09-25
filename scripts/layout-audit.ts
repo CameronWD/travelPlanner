@@ -6,7 +6,8 @@
  *
  * WHAT IT DOES
  * -----------------
- *   1. Refuses to run unless BASE_URL is local (see THE HARD SAFETY RULE).
+ *   1. Refuses to run unless BASE_URL is local, and — on its first page
+ *      load — unless that server is `next dev` (see THE HARD SAFETY RULE).
  *   2. Signs in (auth bootstrap below) and resolves the audit's cast of
  *      trips BY NAME on /trips — EU Christmas 2026 (the "deep" trip), one
  *      trip per Phase, and "Layout audit — empty", which it creates through
@@ -96,10 +97,13 @@
  *   The harness talks to the app only over HTTP, to a local `next dev`.
  *   assertLocalBaseUrl() runs before anything else — before the out dir is
  *   made or a browser launched — and refuses any host but localhost /
- *   127.0.0.1. No file of this harness may import scripts/load-env.ts,
- *   dotenv, lib/db, Prisma, or read DATABASE_URL: load-env.ts prefers
- *   .env.production.local, so a single such import would point this script
- *   at the production database. Any state it needs (the empty trip) it
+ *   127.0.0.1. A `next start` on localhost would pass that, so the run's
+ *   first page load must also carry `next dev`'s overlay host
+ *   (<nextjs-portal>), or assertNextDev() stops the run there — before the
+ *   sign-in click and before any capture. No file of this harness may
+ *   import scripts/load-env.ts, dotenv, lib/db, Prisma, or read
+ *   DATABASE_URL: load-env.ts prefers .env.production.local, so a single
+ *   such import would point this script at the production database. Any state it needs (the empty trip) it
  *   creates through the local app's own UI. run.test.ts pins this with an
  *   allowlist over every harness file's module references: relative paths
  *   inside scripts/layout-audit/, scripts/lib/ or scripts/types/ (scanned
@@ -156,8 +160,10 @@ import {
 } from "./layout-audit/config";
 import { focusFirstInput, openOverlay, OVERLAYS, type OverlayRecipe } from "./layout-audit/overlays";
 import {
+  assertNextDev,
   filterCaptures,
   mergeRerun,
+  NEXT_DEV_OVERLAY_SELECTOR,
   rerunExitCode,
   shotLocation,
   summarise,
@@ -168,6 +174,7 @@ import {
 import { EXPECTED_PHASE, TRIP_NAMES, ensureEmptyTrip, readPhase, resolveTrips } from "./layout-audit/trips";
 
 const NAV_TIMEOUT_MS = 30_000;
+const DEV_OVERLAY_WAIT_MS = 5_000;
 const MARKER_WAIT_MS = 8_000;
 const SETTLE_MS = 300;
 const KEYBOARD_PX = 300;
@@ -243,7 +250,22 @@ async function bootstrap(
   baseUrl: string,
   authStatePath: string,
 ): Promise<Pick<Setup, "tripIds" | "phases" | "gaps" | "evaluated">> {
-  await ensureAuthenticated(page, baseUrl, { timeoutMs: NAV_TIMEOUT_MS, authStatePath });
+  await ensureAuthenticated(page, baseUrl, {
+    timeoutMs: NAV_TIMEOUT_MS,
+    authStatePath,
+    // The run's first page load: refuse anything but `next dev` before
+    // signing in or capturing anything (see assertNextDev).
+    afterFirstLoad: async (first) => {
+      const found = await first
+        .waitForSelector(NEXT_DEV_OVERLAY_SELECTOR, { state: "attached", timeout: DEV_OVERLAY_WAIT_MS })
+        .then(
+          () => true,
+          () => false,
+        );
+      assertNextDev(baseUrl, found);
+      console.log(`target: ${baseUrl} is \`next dev\` (<${NEXT_DEV_OVERLAY_SELECTOR}> present)`);
+    },
+  });
   if (new URL(page.url()).pathname.startsWith("/signin")) {
     throw new Error(
       `Auth bootstrap failed: still on ${page.url()} after "Continue as You". Is ALLOW_DEV_LOGIN=true on the dev server?`,
@@ -387,8 +409,9 @@ function recordFor(spec: CaptureSpec, plan: Plan, setup: Setup): CaptureRecord {
 /** Trap 4: `next dev` paints its own dev-tools badge (bottom-left, over the
  * mobile tab bar's first tab). Travellers never see it, so it's hidden from
  * the screenshots. It lives in a shadow root on a zero-size host, so the
- * collector never measured it either way. */
-const HIDE_DEV_CHROME_JS = `(() => { const s = document.createElement("style"); s.textContent = "nextjs-portal { display: none !important; }"; document.head.appendChild(s); })()`;
+ * collector never measured it either way. (The same host is the run's proof
+ * that BASE_URL is `next dev` — see assertNextDev.) */
+const HIDE_DEV_CHROME_JS = `(() => { const s = document.createElement("style"); s.textContent = "${NEXT_DEV_OVERLAY_SELECTOR} { display: none !important; }"; document.head.appendChild(s); })()`;
 
 /** Removes this capture's screenshots from an earlier run into the same out
  * dir, so a re-run that yields fewer slices (or none — a new gap / error)

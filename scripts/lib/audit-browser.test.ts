@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { middleDate, deriveDayDates, applyThemeClass } from "./audit-browser";
+import { middleDate, deriveDayDates, applyThemeClass, ensureAuthenticated } from "./audit-browser";
 
 describe("middleDate", () => {
   it("returns null for no dates", () => expect(middleDate([])).toBeNull());
@@ -26,5 +26,39 @@ describe("applyThemeClass", () => {
     await applyThemeClass(page as never, "dark", 10);
     expect(page.evaluate).toHaveBeenCalledTimes(1);
     expect(page.waitForTimeout).toHaveBeenCalledWith(10);
+  });
+});
+
+describe("ensureAuthenticated: afterFirstLoad", () => {
+  const signinPage = () => {
+    const events: string[] = [];
+    const button = { count: vi.fn(async () => 1), first: () => ({ click: vi.fn(async () => void events.push("click")) }) };
+    const page = {
+      goto: vi.fn(async () => void events.push("goto")),
+      url: () => "http://localhost:3000/signin",
+      getByText: vi.fn(() => button),
+      waitForURL: vi.fn(async () => undefined),
+    };
+    return { page, events };
+  };
+
+  it("runs on the first page load, before any sign-in click", async () => {
+    const { page, events } = signinPage();
+    await ensureAuthenticated(page as never, "http://localhost:3000", {
+      afterFirstLoad: async () => void events.push("check"),
+    });
+    expect(events).toEqual(["goto", "check", "click"]);
+  });
+
+  it("a throwing check aborts before signing in", async () => {
+    const { page, events } = signinPage();
+    await expect(
+      ensureAuthenticated(page as never, "http://localhost:3000", {
+        afterFirstLoad: async () => {
+          throw new Error("not next dev");
+        },
+      }),
+    ).rejects.toThrow("not next dev");
+    expect(events).toEqual(["goto"]);
   });
 });

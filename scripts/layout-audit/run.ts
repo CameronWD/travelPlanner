@@ -66,6 +66,30 @@ export interface Manifest {
 }
 
 // --------------------------------------------------------------------------
+// The target must be `next dev`
+// --------------------------------------------------------------------------
+
+/** The Next dev overlay's host element. `next dev` mounts it on every page
+ * (it is also what HIDE_DEV_CHROME_JS hides); `next start` never does. */
+export const NEXT_DEV_OVERLAY_SELECTOR = "nextjs-portal";
+
+/**
+ * The positive half of the hard safety rule. assertLocalBaseUrl() only
+ * proves the host is local, and a `next start` on localhost passes it —
+ * while loading .env.production.local, i.e. the production database. So the
+ * run's first page load must carry the Next dev overlay host, or the run
+ * stops there, before any capture (or any sign-in click).
+ */
+export function assertNextDev(baseUrl: string, devOverlayFound: boolean): void {
+  if (devOverlayFound) return;
+  throw new Error(
+    `BASE_URL is not a \`next dev\` server: the first page from ${baseUrl} has no Next dev overlay ` +
+      `(<${NEXT_DEV_OVERLAY_SELECTOR}>). The layout audit only runs against \`next dev\` (\`npm run dev\`, which ` +
+      "reads .env.local) — never audit `next start`, which loads .env.production.local.",
+  );
+}
+
+// --------------------------------------------------------------------------
 // Screenshot locations — the contract Task 8 and the review steps read
 // --------------------------------------------------------------------------
 

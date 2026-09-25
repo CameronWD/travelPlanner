@@ -104,10 +104,14 @@ export function resolvePlaywright(): { chromium: BrowserType } {
 // Auth
 // --------------------------------------------------------------------------
 
+/** Loads /trips and, if that lands on /signin, signs in through the dev
+ * login's "Continue as You". `afterFirstLoad` runs on that first page load,
+ * before any sign-in click — the layout audit uses it to refuse a server
+ * that isn't `next dev`; a throw from it aborts here. */
 export async function ensureAuthenticated(
   page: Page,
   baseUrl: string,
-  opts?: { timeoutMs?: number; authStatePath?: string },
+  opts?: { timeoutMs?: number; authStatePath?: string; afterFirstLoad?: (page: Page) => Promise<void> },
 ): Promise<void> {
   const timeoutMs = opts?.timeoutMs ?? 30_000;
   const authStatePath = opts?.authStatePath ?? "/tmp/auth.json";
@@ -115,6 +119,7 @@ export async function ensureAuthenticated(
     waitUntil: "networkidle",
     timeout: timeoutMs,
   });
+  await opts?.afterFirstLoad?.(page);
   if (!page.url().includes("/signin")) return;
 
   const continueButton = page.getByText("Continue as You", { exact: true });

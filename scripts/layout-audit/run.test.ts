@@ -5,7 +5,17 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import type { AutoFinding } from "./checks";
 import { ROUTES, buildCaptureMatrix, type CaptureSpec } from "./config";
-import { exitCodeFor, filterCaptures, mergeRerun, rerunExitCode, shotLocation, summarise, type Manifest, type CaptureRecord } from "./run";
+import {
+  assertNextDev,
+  exitCodeFor,
+  filterCaptures,
+  mergeRerun,
+  rerunExitCode,
+  shotLocation,
+  summarise,
+  type Manifest,
+  type CaptureRecord,
+} from "./run";
 
 const cap = (o: Partial<CaptureRecord> = {}): CaptureRecord => ({
   id: "deep/plan/deep/390-light", set: "deep", route: "/trips/x/plan", routeLabel: "plan", trip: "deep",
@@ -147,6 +157,18 @@ describe("filterCaptures", () => {
   it("commas separate alternatives", () => expect(filterCaptures(specs, "deep/plan/, stop-add")).toHaveLength(2));
   it("a filter that matches nothing yields nothing (and rerunExitCode then fails the run, merged or not)", () =>
     expect(filterCaptures(specs, "typo")).toEqual([]));
+});
+
+// Final review: a `next start` on localhost passes the host guard, and `next start` loads
+// .env.production.local. Only `next dev` mounts its dev overlay host, <nextjs-portal>.
+describe("assertNextDev", () => {
+  it("passes when the first page carried the Next dev overlay", () =>
+    expect(() => assertNextDev("http://localhost:3000", true)).not.toThrow());
+  it("refuses, naming the server and next start, when it did not", () => {
+    expect(() => assertNextDev("http://localhost:3001", false)).toThrow(/BASE_URL is not a `next dev` server/);
+    expect(() => assertNextDev("http://localhost:3001", false)).toThrow(/localhost:3001/);
+    expect(() => assertNextDev("http://localhost:3001", false)).toThrow(/never audit `next start`/);
+  });
 });
 
 // The hard safety rule, pinned: nothing in the harness may import code that can reach a database
