@@ -51,9 +51,12 @@ export interface OverlayRecipe extends OverlayMeta {
 // --------------------------------------------------------------------------
 
 /**
- * Labels a recipe must never click. `OVERLAYS`'s own test suite asserts no
- * recipe's `click` step name is one of these verbatim — the harness's one
- * hard safety rule, enforced structurally rather than left to reviewer
+ * Labels a recipe must never click. `OVERLAYS`'s own test suite asserts
+ * this for every recipe's `click` step — resolving each name through
+ * `parseName` first (a RegExp trigger is checked against every label via
+ * `.test()`, not by comparing raw strings, since e.g. `/^Promote /` would
+ * otherwise silently match "Promote to real plan") — the harness's one hard
+ * safety rule, enforced structurally rather than left to reviewer
  * attention.
  */
 export const SUBMIT_LABELS = [
@@ -358,7 +361,15 @@ export const OVERLAYS: OverlayRecipe[] = [
     route: "/compare",
     tripScoped: true,
     form: false,
-    steps: [{ click: { role: "button", name: "/^Promote /" } }],
+    // The real trigger's accessible name is "Promote <fork name>" (see
+    // components/trip/compare-table.tsx's aria-label={`Promote ${plan.name}`}
+    // on the CompareTable row button). A plain /^Promote /, though, also
+    // matches PromoteForkDialog's own confirm button — "Promote to real
+    // plan" or "Promote anyway" (both SUBMIT_LABELS) — since both also start
+    // with "Promote ". The negative lookahead excludes exactly those two
+    // known confirm labels (matched to end-of-string) while still matching
+    // any fork name.
+    steps: [{ click: { role: "button", name: "/^Promote (?!to real plan$|anyway$)/" } }],
     expect: { role: "dialog", name: "/^Promote /" },
   },
   {
@@ -431,72 +442,97 @@ export const OVERLAYS: OverlayRecipe[] = [
 const OPEN_DIALOG_SELECTOR = '[role="dialog"][data-state="open"]';
 const DRAG_HANDLE_SELECTOR = '[data-testid="drag-handle-stop"]';
 
-/** One-line expression string, not a TS function reference — see the "why a
- * string, not a function" note in contrast-audit.ts / collector.ts: tsx's
- * esbuild wraps named bindings in a `__name(...)` helper that page.evaluate's
- * function-reference form would try (and fail) to call inside the page. */
-const FIRST_H3_TEXT_JS = `(() => { const h = document.querySelector("h3"); return h ? h.textContent : null; })()`;
-
 /**
  * Derives `{stop}` from the first stop's drag handle, whose accessible name
  * is `Reorder <name>` (see components/trip/itinerary-manager.tsx's
  * SortableStop). ADR 0021 gives every stop a drag handle now (rough and
- * dated alike), but the brief flags this as a possible regression point, so
- * this still falls back to the first `<h3>` on the page — the stop-name
- * heading StopCard renders — if no drag handle is present at all. That
- * fallback reads via `page.evaluate` (a JS string, per the project-wide
- * convention above) rather than adding a `Locator.textContent` to the
- * Playwright shim for what should be a rare path.
+ * dated alike), so this is the one source of the stop name.
+ *
+ * The brief's fallback note ("if drag-handle-stop only renders on rough
+ * stops, fall back to the first h3 inside the itinerary list") was
+ * deliberately NOT implemented: `components/trip/itinerary-manager.tsx`
+ * has no stable selector scoping "the itinerary list" (no test id, no
+ * `aria-label`, no landmark role around its root `<div>` or the `<h3>`
+ * StopCard renders per stop — checked directly, not guessed), and adding
+ * one would mean editing app code, which is out of scope here. An
+ * unscoped `document.querySelector("h3")` risks matching an unrelated
+ * heading elsewhere on the page and deriving a wrong stop name silently —
+ * worse than a loud gap. So: no drag handle means no stop, full stop.
  */
 async function deriveStopName(page: Page): Promise<string | null> {
   const handles = page.locator(DRAG_HANDLE_SELECTOR);
-  if ((await handles.count()) > 0) {
-    const label = await handles.first().getAttribute("aria-label");
-    if (label) return label.replace(/^Reorder /, "");
-  }
-  const heading = await page.evaluate<string | null>(FIRST_H3_TEXT_JS);
-  return heading ? heading.trim() : null;
+  if ((await handles.count()) === 0) return null;
+  const label = await handles.first().getAttribute("aria-label");
+  return label ? label.replace(/^Reorder /, "") : null;
 }
 
 function nameFor(recipe: OverlayRecipe, vars: Record<string, string>): string | RegExp | undefined {
   return recipe.expect.name ? parseName(recipe.expect.name, vars) : undefined;
 }
 
+/** First line of an Error's message (or of String(err) for a non-Error
+ * throw) — Playwright's own timeout/strict-mode errors carry a multi-line
+ * "Call log:" trace after the first line; that's noise for a one-line gap
+ * reason, so only the summary line is kept. */
+function firstLine(err: unknown): string {
+  const message = err instanceof Error ? err.message : String(err);
+  return message.split("\n")[0];
+}
+
+/** Short, stable description of a step for a gap's reason prefix — e.g.
+ * `click button "Make it fit"`, `press "Escape"`, `deriveStop`. */
+function describeStep(step: Step): string {
+  if ("deriveStop" in step) return "deriveStop";
+  if ("press" in step) return `press "${step.press}"`;
+  return `click ${step.click.role} "${step.click.name}"`;
+}
+
 /**
  * Opens one overlay by walking its recipe's steps, then waits up to 5s for
  * `expect` to become visible. Never throws on a recipe that can't open —
  * every failure mode (missing trigger, a dialog already open, no stop to
- * derive, the overlay never appearing) comes back as `{ ok: false, reason }`
- * so Task 7 can record it as a coverage gap rather than crash the run.
+ * derive, a step throwing (e.g. a real Playwright actionability timeout on
+ * `.click()`), the overlay never appearing) comes back as
+ * `{ ok: false, reason }` so Task 7 can record it as a coverage gap rather
+ * than crash the run.
  */
 export async function openOverlay(page: Page, recipe: OverlayRecipe): Promise<{ ok: true } | { ok: false; reason: string }> {
   const vars: Record<string, string> = {};
 
   for (const step of recipe.steps) {
-    if ("deriveStop" in step) {
-      const stop = await deriveStopName(page);
-      if (stop === null) return { ok: false, reason: "no stop on the page" };
-      vars.stop = stop;
-      continue;
-    }
+    try {
+      if ("deriveStop" in step) {
+        const stop = await deriveStopName(page);
+        if (stop === null) return { ok: false, reason: "no stop on the page" };
+        vars.stop = stop;
+        continue;
+      }
 
-    if ("press" in step) {
-      await page.keyboard.press(step.press);
-      continue;
-    }
+      if ("press" in step) {
+        await page.keyboard.press(step.press);
+        continue;
+      }
 
-    // click step — refuse if a dialog is already open (an open menu is
-    // fine: that's how menu -> menuitem recipes like new-variant work).
-    if ((await page.locator(OPEN_DIALOG_SELECTOR).count()) > 0) {
-      return { ok: false, reason: "a dialog is already open" };
-    }
+      // click step — refuse if a dialog is already open (an open menu is
+      // fine: that's how menu -> menuitem recipes like new-variant work).
+      if ((await page.locator(OPEN_DIALOG_SELECTOR).count()) > 0) {
+        return { ok: false, reason: "a dialog is already open" };
+      }
 
-    const name = parseName(step.click.name, vars);
-    const target = page.getByRole(step.click.role, { name, exact: step.click.exact });
-    if ((await target.count()) === 0) {
-      return { ok: false, reason: `trigger not found: ${step.click.role} "${name}"` };
+      const name = parseName(step.click.name, vars);
+      const target = page.getByRole(step.click.role, { name, exact: step.click.exact });
+      if ((await target.count()) === 0) {
+        return { ok: false, reason: `trigger not found: ${step.click.role} "${name}"` };
+      }
+      await target.first().click({ timeout: 5000 });
+    } catch (err) {
+      // A real Playwright call (count/click/getAttribute/evaluate/keyboard)
+      // can throw — most commonly a click() actionability timeout when real
+      // page chrome (a fixed nav, an overlapping header) intercepts the
+      // click. That's a genuine finding, not a harness crash: report it as
+      // a gap naming the step, exactly like every other failure mode above.
+      return { ok: false, reason: `${describeStep(step)}: ${firstLine(err)}` };
     }
-    await target.first().click({ timeout: 5000 });
   }
 
   const name = nameFor(recipe, vars);
