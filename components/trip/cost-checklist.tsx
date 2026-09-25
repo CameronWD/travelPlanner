@@ -106,30 +106,28 @@ export function CostChecklist({ rows }: CostChecklistProps) {
         );
 
         return (
-          <li
-            key={row.id}
-            className="flex items-center gap-3 py-2"
-            aria-busy={pendingId === row.id}
-          >
-            {checkbox}
+          <li key={row.id} aria-busy={pendingId === row.id}>
+            <label className="flex min-h-11 items-center gap-3 py-2">
+              {checkbox}
 
-            <span className="min-w-0 flex-1 text-sm [overflow-wrap:anywhere]">{row.label}</span>
+              <span className="min-w-0 flex-1 text-sm [overflow-wrap:anywhere]">{row.label}</span>
 
-            <span className="shrink-0 text-sm text-muted-foreground">
-              {formatMoney(
-                isPaid && row.paidMinor !== null && row.paidMinor !== undefined
-                  ? row.paidMinor
-                  : row.costMinor,
-                row.currency,
+              <span className="shrink-0 text-sm text-muted-foreground">
+                {formatMoney(
+                  isPaid && row.paidMinor !== null && row.paidMinor !== undefined
+                    ? row.paidMinor
+                    : row.costMinor,
+                  row.currency,
+                )}
+              </span>
+
+              {isPaid && (
+                <CheckCircle2
+                  className="size-4 shrink-0 text-teal-text"
+                  aria-hidden="true"
+                />
               )}
-            </span>
-
-            {isPaid && (
-              <CheckCircle2
-                className="size-4 shrink-0 text-teal-text"
-                aria-hidden="true"
-              />
-            )}
+            </label>
           </li>
         );
       })}

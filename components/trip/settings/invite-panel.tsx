@@ -169,7 +169,7 @@ export function InvitePanel({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-8 text-destructive hover:bg-destructive/5"
+                  className="tap-target size-8 text-destructive hover:bg-destructive/5"
                   onClick={() => handleRemove(m)}
                   disabled={removingUserId === m.userId}
                   aria-label={`Remove ${label} from this trip`}
@@ -200,7 +200,7 @@ export function InvitePanel({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-8"
+                  className="tap-target size-8"
                   onClick={() => handleCancel(invite.id)}
                   disabled={cancelPending}
                   aria-label={`Cancel invite for ${invite.email}`}

@@ -54,6 +54,18 @@ describe("LegalPage", () => {
     );
   });
 
+  // LA-054: the header's logo link and companion ("Terms"/"Privacy") link
+  // each get a 44px-tall tap target.
+  it("gives the header logo link and the companion link a 44px tap target", () => {
+    render(
+      <LegalPage title="Privacy" other={{ href: "/terms", label: "Terms" }}>
+        <LegalSection title="Your rights">y</LegalSection>
+      </LegalPage>,
+    );
+    expect(screen.getByRole("link", { name: "Teepee sign in" }).className).toContain("min-h-11");
+    expect(screen.getByRole("link", { name: "Terms" }).className).toContain("min-h-11");
+  });
+
   it("gives each LegalSection its slugged id as a scroll-margin anchor", () => {
     const { container } = render(
       <LegalPage title="Privacy">

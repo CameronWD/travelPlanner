@@ -355,13 +355,13 @@ export function StopCard({
         </div>
 
         {/* Action buttons */}
-        <div className="flex flex-wrap shrink-0 justify-end items-center gap-1">
+        <div className="flex flex-wrap shrink-0 justify-end items-center gap-2">
           {/* Inline "Start a chapter here" button */}
           {onStartChapter && (
             <Button
               variant="ghost"
               size="icon"
-              className="size-8 hidden sm:inline-flex"
+              className="tap-target size-8 hidden sm:inline-flex"
               disabled={isPending}
               onClick={() => onStartChapter(stop)}
               aria-label="Start a chapter here"
@@ -377,7 +377,7 @@ export function StopCard({
               variant="ghost"
               size="icon"
               className={cn(
-                "size-8 hidden sm:inline-flex",
+                "tap-target size-8 hidden sm:inline-flex",
                 stop.pinned
                   ? "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary"
                   : "text-muted-foreground",
@@ -402,7 +402,7 @@ export function StopCard({
             <Button
               variant="ghost"
               size="icon"
-              className="size-8 text-muted-foreground hidden sm:inline-flex"
+              className="tap-target size-8 text-muted-foreground hidden sm:inline-flex"
               disabled={isPending}
               onClick={() => onMakeRough(stop.id)}
               aria-label={`Clear dates for ${stop.name}`}
@@ -416,7 +416,7 @@ export function StopCard({
           <Button
             variant="ghost"
             size="icon"
-            className="size-8"
+            className="tap-target size-8"
             disabled={isPending}
             onClick={() => onEdit?.(stop)}
             aria-label={`Edit ${stop.name}`}
@@ -458,7 +458,7 @@ export function StopCard({
             <Button
               variant="ghost"
               size="icon"
-              className="hidden sm:inline-flex size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+              className="tap-target hidden sm:inline-flex size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
               disabled={isPending}
               onClick={() => onDelete(stop.id)}
               aria-label={`Delete ${stop.name}`}
@@ -565,7 +565,7 @@ export function StopCard({
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="size-8 shrink-0 text-muted-foreground"
+                    className="tap-target size-8 shrink-0 text-muted-foreground"
                     disabled={isPending}
                     onClick={() => {
                       setEditingThing({

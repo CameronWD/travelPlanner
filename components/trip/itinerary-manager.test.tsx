@@ -643,6 +643,17 @@ describe("drag handle rendering", () => {
 
     expect(screen.getByTestId("drag-handle-chapter")).toBeInTheDocument();
   });
+
+  // LA-037: drag handles get an invisible 44px coarse-pointer tap target.
+  it("stop drag handle has a 44px tap target (LA-037)", () => {
+    const roughStop = makeStop({ id: "s-1", name: "Paris", arriveDate: null, departDate: null });
+
+    render(
+      <ItineraryManager {...baseProps} initialStops={[roughStop]} />,
+    );
+
+    expect(screen.getByTestId("drag-handle-stop").className).toContain("tap-target");
+  });
 });
 
 // ---------------------------------------------------------------------------

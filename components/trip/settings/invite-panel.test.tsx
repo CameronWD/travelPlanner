@@ -83,6 +83,23 @@ describe("InvitePanel", () => {
     expect(cancelInvite).toHaveBeenCalledWith("inv1");
   });
 
+  // LA-037/LA-050: the Remove and Cancel-invite icon buttons get an
+  // invisible 44px coarse-pointer tap target.
+  it("gives the Remove and Cancel-invite icon buttons a 44px tap target", () => {
+    render(
+      <InvitePanel
+        tripId="trip1"
+        members={members}
+        pendingInvites={pendingInvites}
+        canInvite
+        currentUserId="u1"
+        viewerIsOwner
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Remove Bob Jones from this trip" }).className).toContain("tap-target");
+    expect(screen.getByRole("button", { name: "Cancel invite for bob@example.com" }).className).toContain("tap-target");
+  });
+
   it("hides the invite form for a non-owner, non-admin member", () => {
     render(
       <InvitePanel

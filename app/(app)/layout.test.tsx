@@ -119,6 +119,14 @@ describe("AppLayout", () => {
     expect(screen.getByRole("button", { name: /traveller menu/i })).toBeInTheDocument();
   });
 
+  // LA-050: the header's icon-sized controls get a 44px tap target.
+  it("gives the header's Globe link and avatar trigger a 44px tap target", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    expect(screen.getByRole("link", { name: "Globe" }).className).toContain("min-h-11");
+    expect(screen.getByRole("button", { name: "Open traveller menu" }).className).toContain("tap-target");
+  });
+
   it("renders the Logo lockup with a single accessible name for the link", async () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);

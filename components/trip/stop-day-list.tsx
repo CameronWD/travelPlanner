@@ -119,7 +119,7 @@ export function StopDayList({
               type="button"
               aria-expanded={isOpen}
               onClick={() => toggle(day.dateISO)}
-              className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-sm hover:bg-muted/50"
+              className="tap-target flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left text-sm hover:bg-muted/50"
             >
               <span className="w-24 shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
                 {formatDayLabel(day.dateISO)}

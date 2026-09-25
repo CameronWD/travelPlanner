@@ -118,6 +118,15 @@ describe("ForkSwitcher", () => {
     expect(trigger).toBeInTheDocument();
   });
 
+  // LA-037: the fork row's Rename/Duplicate/Discard icon buttons get an
+  // invisible 44px coarse-pointer tap target.
+  it("gives the fork row's action icon buttons a 44px tap target", () => {
+    render(<ForkSwitcher {...baseProps} />);
+    expect(screen.getByRole("button", { name: "Rename Variant 1" }).className).toContain("tap-target");
+    expect(screen.getByRole("button", { name: "Duplicate Variant 1" }).className).toContain("tap-target");
+    expect(screen.getByRole("button", { name: "Discard Variant 1" }).className).toContain("tap-target");
+  });
+
   // -------------------------------------------------------------------------
   // 3. Selecting a fork routes to the Plan editor for that variant
   // -------------------------------------------------------------------------

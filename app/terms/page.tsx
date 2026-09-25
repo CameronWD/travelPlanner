@@ -56,7 +56,7 @@ export default function TermsPage() {
 
       <LegalSection title="Questions">
         <p>
-          See the <Link href="/privacy">Privacy</Link> page for what Teepee
+          See the <Link href="/privacy" className="tap-target">Privacy</Link> page for what Teepee
           collects and keeps. For anything else, ask the Admin.
         </p>
       </LegalSection>

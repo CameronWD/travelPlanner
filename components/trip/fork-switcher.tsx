@@ -343,7 +343,7 @@ export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-8"
+                  className="tap-target size-8"
                   aria-label={`Rename ${fork.name}`}
                   onClick={(e) => {
                     e.stopPropagation();
@@ -356,7 +356,7 @@ export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-8"
+                  className="tap-target size-8"
                   aria-label={`Duplicate ${fork.name}`}
                   disabled={atCap}
                   onClick={(e) => { e.stopPropagation(); setCreateTarget({ mode: "duplicate", source: fork }); }}
@@ -367,7 +367,7 @@ export function ForkSwitcher({ tripId, forks, phase }: ForkSwitcherProps) {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-8 text-destructive hover:bg-destructive/10"
+                  className="tap-target size-8 text-destructive hover:bg-destructive/10"
                   aria-label={`Discard ${fork.name}`}
                   onClick={(e) => {
                     e.stopPropagation();

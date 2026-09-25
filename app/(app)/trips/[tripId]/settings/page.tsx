@@ -171,7 +171,7 @@ export default async function SettingsPage({
         {/* ── Right column: travellers/sharing and outward delivery ── */}
         <div className="flex flex-col gap-3.5">
           {/* ── Travellers ── */}
-          <Card>
+          <Card id="travellers" className="scroll-mt-20">
             <CardHeader className="p-5 pb-0">
               <CardTitle className="font-display text-base font-bold tracking-tight">Travellers</CardTitle>
             </CardHeader>

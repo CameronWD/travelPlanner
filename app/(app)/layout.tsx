@@ -107,11 +107,11 @@ export default async function AppLayout({
             a trip at md+ — someone on /trips, or on any route below md, has
             no other way to Globe, so the link stays here too.
           */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <CommandPaletteTrigger />
             <Link
               href="/globe"
-              className="rounded-md px-2 py-1 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
+              className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
             >
               Globe
             </Link>
@@ -120,7 +120,7 @@ export default async function AppLayout({
             {/* Traveller avatar dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger
-                className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="tap-target rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 aria-label="Open traveller menu"
               >
                 <Avatar className="size-9">

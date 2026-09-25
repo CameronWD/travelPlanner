@@ -65,6 +65,13 @@ it("ARCH-DAT-1: hides the Delete control when onDelete is omitted (non-owner)", 
   expect(screen.queryByRole("button", { name: /^Delete Rome$/ })).not.toBeInTheDocument();
 });
 
+// LA-037: the card's size-8 icon buttons get an invisible 44px coarse-pointer
+// tap target, same pattern as Task 1's `tap-target` utility.
+it("gives the Edit icon button a 44px tap target (LA-037)", () => {
+  render(<StopCard stop={scheduledStop} isFirst isLast onEdit={() => {}} onMoveUp={() => {}} onMoveDown={() => {}} onDelete={() => {}} />);
+  expect(screen.getByRole("button", { name: /^Edit Rome$/ }).className).toContain("tap-target");
+});
+
 // Task 5 tests — drag handle slot + retire desktop arrows
 
 it("renders a drag handle for a rough stop when dragHandle is provided", () => {

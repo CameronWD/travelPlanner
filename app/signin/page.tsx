@@ -95,15 +95,14 @@ export default async function SignInPage({
         </CardContent>
       </Card>
 
-      <p className="text-center text-xs text-muted-foreground">
-        <Link href="/privacy" className="underline underline-offset-2">
+      <nav className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
+        <Link href="/privacy" className="tap-target underline underline-offset-2">
           Privacy
-        </Link>{" "}
-        ·{" "}
-        <Link href="/terms" className="underline underline-offset-2">
+        </Link>
+        <Link href="/terms" className="tap-target underline underline-offset-2">
           Terms
         </Link>
-      </p>
+      </nav>
     </main>
   );
 }

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
@@ -133,27 +134,33 @@ export default async function TripLayout({
               {/* Member avatars + fork switcher + notification bell */}
               <div className="flex items-center gap-2">
                 {trip.members.length > 0 && (
-                  <div className="flex -space-x-2" aria-label="Trip members">
-                    {trip.members.slice(0, 6).map(({ user }) => (
-                      <Avatar
-                        key={user.id}
-                        className="size-8 ring-2 ring-background"
-                        title={user.name ?? undefined}
-                      >
-                        {user.image ? (
-                          <AvatarImage src={user.image} alt={user.name ?? "Member"} />
-                        ) : null}
-                        <AvatarFallback className="text-xs">
-                          {initials(user.name)}
-                        </AvatarFallback>
-                      </Avatar>
-                    ))}
-                    {trip.members.length > 6 && (
-                      <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">
-                        +{trip.members.length - 6}
-                      </div>
-                    )}
-                  </div>
+                  <Link
+                    href={`/trips/${tripId}/settings#travellers`}
+                    aria-label={`Trip members (${trip.members.length})`}
+                    className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  >
+                    <div className="flex -space-x-2">
+                      {trip.members.slice(0, 6).map(({ user }) => (
+                        <Avatar
+                          key={user.id}
+                          className="size-8 ring-2 ring-background"
+                          title={user.name ?? undefined}
+                        >
+                          {user.image ? (
+                            <AvatarImage src={user.image} alt={user.name ?? "Member"} />
+                          ) : null}
+                          <AvatarFallback className="text-xs">
+                            {initials(user.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                      ))}
+                      {trip.members.length > 6 && (
+                        <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">
+                          +{trip.members.length - 6}
+                        </div>
+                      )}
+                    </div>
+                  </Link>
                 )}
                 {showForkSwitcher && (
                   <ForkSwitcher

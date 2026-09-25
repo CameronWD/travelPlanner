@@ -253,7 +253,7 @@ function SortableStop({
       aria-label={`Reorder ${stop.name}`}
       title="Drag to reorder"
       data-testid="drag-handle-stop"
-      className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
+      className="tap-target cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
     >
       <svg
         width="10"
@@ -308,7 +308,7 @@ function SortableChapterHeader({
       {...attributes}
       aria-label="Reorder chapter"
       data-testid="drag-handle-chapter"
-      className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
+      className="tap-target cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
     >
       <svg
         width="10"
@@ -362,7 +362,7 @@ function SortableTransport({
       aria-label="Reorder transport leg"
       title="Drag to reorder"
       data-testid="drag-handle-transport"
-      className="cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
+      className="tap-target cursor-grab touch-none p-1 text-muted-foreground hover:text-foreground focus:outline-none"
     >
       <svg
         width="10"

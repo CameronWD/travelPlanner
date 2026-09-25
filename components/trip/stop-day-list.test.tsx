@@ -58,6 +58,12 @@ describe("collapsed day rows", () => {
     expect(dec5).toHaveTextContent(/nothing planned/i);
     expect(dec5).toHaveAttribute("aria-expanded", "false");
   });
+
+  // LA-037: the day-row toggle gets an invisible 44px coarse-pointer tap target.
+  it("gives the day row toggle a 44px tap target", () => {
+    render(<StopDayList {...baseProps} />);
+    expect(screen.getByRole("button", { name: /Sat 5 Dec/ }).className).toContain("tap-target");
+  });
 });
 
 describe("expanded day", () => {

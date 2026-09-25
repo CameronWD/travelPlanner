@@ -142,6 +142,20 @@ describe("Settings companion-column layout (LA-046)", () => {
     const drivingCopy = screen.getByText(/Tune the offline estimates/);
     expect(drivingCopy.className).toContain("max-w-reading");
   });
+
+  // LA-050: the Travellers card is the scroll target for the trip header's
+  // avatar-stack link (#travellers), so it needs the anchor id and enough
+  // scroll-margin to clear the sticky app header.
+  it("gives the Travellers card id=\"travellers\" and scroll-mt-20", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+
+    await renderSettings();
+
+    const card = document.querySelector("#travellers")!;
+    expect(card).not.toBeNull();
+    expect(card.className).toContain("scroll-mt-20");
+    expect(card.textContent).toContain("Travellers");
+  });
 });
 
 describe("SettingsPage Danger zone admin gate (ADR 0045)", () => {

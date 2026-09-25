@@ -38,7 +38,7 @@ export function DayPickerMenu({
         <Button
           variant="ghost"
           size="icon"
-          className="size-8 text-muted-foreground"
+          className="tap-target size-8 text-muted-foreground"
           disabled={disabled}
           aria-label={label}
           title={label}

@@ -31,11 +31,18 @@ export function LegalPage({
     <div data-legal-page className="min-h-screen bg-background">
       <header className="border-b-2 border-border">
         <div className="mx-auto flex h-16 max-w-page-wide items-center justify-between px-5">
-          <Link href="/signin" aria-label="Teepee sign in">
+          <Link
+            href="/signin"
+            aria-label="Teepee sign in"
+            className="inline-flex min-h-11 items-center"
+          >
             <Logo size={22} />
           </Link>
           {other ? (
-            <Link href={other.href} className="text-[13px] font-extrabold">
+            <Link
+              href={other.href}
+              className="inline-flex min-h-11 items-center text-[13px] font-extrabold"
+            >
               {other.label}
             </Link>
           ) : null}
