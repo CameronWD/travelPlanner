@@ -77,11 +77,15 @@ export async function PhaseSketching({
   //
   // One grid, not a grid nested in a flex column: below `lg` every item
   // falls into the single auto-placed column in DOM order (hero → route →
-  // quick actions → reminders — reminders last, per the interface contract),
-  // while at `lg` explicit placement puts quick actions back on its own
-  // full-width row (`lg:col-span-2`, unchanged from before) and reminders
-  // into the aside column beneath Route (`lg:col-start-2`), so reminders
-  // still reads as a right-column card rather than a full-width row.
+  // quick actions → reminders — reminders last, per the interface contract).
+  // At `lg`, quick actions used to take its own full-width row
+  // (`lg:col-span-2`) with reminders alone underneath in the right column —
+  // leaving a blank rectangle in the left column beside it whenever nothing
+  // else follows Route there (a short, undated Sketching-phase trip). Quick
+  // actions now shares that row with reminders instead (`lg:col-start-1
+  // lg:col-span-1` beside reminders' `lg:col-start-2`), so neither column
+  // dead-ends.
+
   return (
     <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] lg:items-start">
       <Card tone="coral" shadow={3} radius="xl" className="flex flex-col p-[18px] lg:p-[22px]">
@@ -116,7 +120,7 @@ export async function PhaseSketching({
         </ul>
       </Card>
 
-      <div className="lg:col-span-2" data-testid="sketching-actions-row">
+      <div className="lg:col-start-1 lg:col-span-1" data-testid="sketching-actions-row">
         <QuickActions tripId={tripId} phase="sketching" />
       </div>
 

@@ -332,7 +332,12 @@
 
   /* Shared page widths (ADR 0062, COMPONENTS.md "Page widths"). */
   --container-page-wide: 100rem;
-  --container-reading: 68ch;
+  /* LA-051 / diagnosis G: `ch` is the width of the "0" glyph, not an average
+     character — for this body font that gap is large enough that 68ch
+     rendered ~92 real characters per line, well past the ~80-char ceiling.
+     38rem is a measured px/rem value instead, calibrated against the real
+     font metrics (see task-17-report.md for the re-measurement). */
+  --container-reading: 38rem;
   --container-dialog: 30rem;
 }
 

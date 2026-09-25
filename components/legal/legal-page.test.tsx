@@ -76,4 +76,20 @@ describe("LegalPage", () => {
     expect(section).toBeTruthy();
     expect(section?.className).toContain("scroll-mt-8");
   });
+
+  // LA-051 / diagnosis G: 68ch (the "0" glyph's width) rendered ~92 real
+  // characters per line on this body font — 38rem is a measured value that
+  // actually delivers a readable line length.
+  it("caps the reading column at the corrected 38rem measure, not the old 68ch", () => {
+    const { container } = render(
+      <LegalPage title="Privacy">
+        <LegalSection title="Your rights">y</LegalSection>
+      </LegalPage>,
+    );
+    const main = container.querySelector("main") as HTMLElement;
+    expect(main.className).toContain("minmax(0,38rem)");
+    expect(main.className).not.toContain("68ch");
+    const body = container.querySelector(".max-w-reading") as HTMLElement;
+    expect(body).toBeTruthy();
+  });
 });

@@ -269,7 +269,7 @@ export function ShareLinksPanel({
         </Button>
       </div>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="max-w-reading text-xs text-muted-foreground">
         One link per audience — each read-only, each scoped. Costs, notes and
         booking confirmations are never shared, whatever the dials.
       </p>
@@ -302,7 +302,7 @@ export function ShareLinksPanel({
       )}
 
       {links.length === 0 && !creating ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="max-w-reading text-sm text-muted-foreground">
           No share links yet. Create one to give family or friends a read-only
           view of the itinerary.
         </p>

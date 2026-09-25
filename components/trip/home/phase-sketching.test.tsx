@@ -214,4 +214,26 @@ describe("PhaseSketching reminders slot (LA-029/045)", () => {
     const position = actionsRow!.compareDocumentPosition(reminders!);
     expect(Boolean(position & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
+
+  // New problem (Ugly) from the D-home-globe re-check: quick actions used to
+  // take its own full-width `lg:col-span-2` row, leaving a blank rectangle
+  // in the left column beside reminders whenever nothing else follows Route
+  // there (a short, undated Sketching trip). Quick actions now shares
+  // reminders' row instead, so neither column dead-ends.
+  it("shares reminders' row at lg instead of taking its own full-width row", async () => {
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(
+      (await PhaseSketching({
+        tripId: "trip-1",
+        tripName: "Test Trip",
+        reminders: React.createElement("div", { "data-testid": "reminders" }),
+      })) as Parameters<typeof renderToStaticMarkup>[0],
+    );
+    const actionsRow = div.querySelector('[data-testid="sketching-actions-row"]')!;
+    const aside = div.querySelector("[data-home-aside]")!;
+    expect(actionsRow.className).toContain("lg:col-start-1");
+    expect(actionsRow.className).toContain("lg:col-span-1");
+    expect(actionsRow.className).not.toContain("lg:col-span-2");
+    expect(aside.className).toContain("lg:col-start-2");
+  });
 });

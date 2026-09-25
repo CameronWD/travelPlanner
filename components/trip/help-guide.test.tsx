@@ -607,6 +607,11 @@ describe("HelpGuide — Playground kit shape", () => {
     expect(TOPIC_GRID).not.toContain("auto-rows-fr");
   });
 
+  it("a lone last card (odd count, e.g. the 11-card everyday grid) spans both columns at sm/768, back to one at lg's 3 columns (LA-027)", () => {
+    expect(TOPIC_GRID).toContain("sm:[&>*:last-child:nth-child(odd)]:col-span-2");
+    expect(TOPIC_GRID).toContain("lg:[&>*:last-child:nth-child(odd)]:col-span-1");
+  });
+
   it("puts the contents list and the key in kit Cards", () => {
     const { container } = render(<HelpGuide />);
     const nav = container.querySelector('nav[aria-label="Contents"]');

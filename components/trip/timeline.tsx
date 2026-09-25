@@ -319,9 +319,9 @@ function TransportRow({
       </div>
       {(fromLabel || toLabel) && (
         <div className="mt-0.5 flex min-w-0 items-center gap-1 text-xs font-medium text-muted-foreground">
-          {fromLabel && <span className="min-w-0 truncate" title={fromLabel}>{fromLabel}</span>}
+          {fromLabel && <span className="min-w-0 break-words">{fromLabel}</span>}
           {fromLabel && toLabel && <ArrowRight className="size-3 shrink-0" aria-hidden="true" />}
-          {toLabel && <span className="min-w-0 truncate" title={toLabel}>{toLabel}</span>}
+          {toLabel && <span className="min-w-0 break-words">{toLabel}</span>}
         </div>
       )}
       {isDep && depEntry && !depEntry.arrivesSameDay && depEntry.arrivalDateISO && (
@@ -397,7 +397,7 @@ function AccomCheckinRow({
   const { accommodation: a } = entry;
   return (
     <DayRow time={a.checkInTime ?? null} tile={<Tile icon={LogIn} className={NEUTRAL_TILE} />}>
-      <span className="block truncate text-sm font-semibold leading-7 text-foreground" title={`Check-in — ${a.name}`}>
+      <span className="block break-words text-sm font-semibold leading-7 text-foreground">
         Check-in — {a.name}
       </span>
       {a.confirmation && (
@@ -421,7 +421,7 @@ function AccomCheckoutRow({
   const { accommodation: a } = entry;
   return (
     <DayRow time={a.checkOutTime ?? null} tile={<Tile icon={LogOut} className={NEUTRAL_TILE} />}>
-      <span className="block truncate text-sm font-semibold leading-7 text-foreground" title={`Check-out — ${a.name}`}>
+      <span className="block break-words text-sm font-semibold leading-7 text-foreground">
         Check-out — {a.name}
       </span>
       <AttachmentLinks attachments={attachments} />

@@ -409,7 +409,10 @@ export function CompareTable({ trip, plans, isOwner = true }: CompareTableProps)
   return (
     <>
       {/* One tree at every width: stacked cards on phones, the kit's two columns from md. */}
-      <div data-slot="compare-grid" className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 md:gap-[18px] xl:grid-cols-3">
+      <div
+        data-slot="compare-grid"
+        className="grid grid-cols-1 items-start gap-3 md:grid-cols-2 md:gap-[18px] xl:grid-cols-3 md:[&>*:last-child:nth-child(odd)]:col-span-2 xl:[&>*:last-child:nth-child(odd)]:col-span-1"
+      >
         {plans.map((plan, planIndex) => {
           const isReal = planIndex === 0;
           const forkIndex = planIndex - 1;

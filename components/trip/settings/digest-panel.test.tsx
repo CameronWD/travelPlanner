@@ -617,4 +617,26 @@ describe("DigestPanel", () => {
       await screen.findByText(/only sent when there is something to say/i),
     ).toBeInTheDocument();
   });
+
+  // LA-051: this card's body copy is prose, not a label — it needs the same
+  // reading-measure cap as the rest of Settings, or it runs the full width
+  // of the (now two-column) card on a wide screen.
+  it("caps its body copy to a reading measure (LA-051)", async () => {
+    render(
+      <DigestPanel
+        tripId="t1"
+        initial={{
+          enabled: true,
+          deviceCount: 1,
+        }}
+      />,
+    );
+
+    expect((await screen.findByText(/one push in the evening/i)).className).toContain(
+      "max-w-reading",
+    );
+    expect(screen.getByText(/only sent when there is something to say/i).className).toContain(
+      "max-w-reading",
+    );
+  });
 });

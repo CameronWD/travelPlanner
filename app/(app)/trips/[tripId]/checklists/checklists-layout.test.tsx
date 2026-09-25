@@ -48,6 +48,18 @@ describe("Checklists tab classes (LA-052)", () => {
     expect(CHECKLISTS_TAB_CLASS).not.toContain("max-sm:px-2.5");
   });
 
+  // LA-052 residual: at exactly 360px the tab strip's rounded right border
+  // still clipped the last "r" of "Booking parser" with only ~5px of
+  // clearance — one more padding step below the general max-sm cut buys
+  // that back.
+  it("takes one more padding step below 375px so 'Booking parser' clears the border (LA-052)", () => {
+    expect(CHECKLISTS_TAB_CLASS).toContain("max-[375px]:px-1.5");
+    // The two ranges must abut (not overlap another max-width rule at the
+    // same breakpoint) or Tailwind's generated stylesheet order — not the
+    // breakpoint size — decides which one silently wins.
+    expect(CHECKLISTS_TAB_CLASS).toContain("min-[375px]:max-sm:px-2");
+  });
+
   it("tab list grows enough to hold the 44px hit area without clipping", () => {
     expect(CHECKLISTS_TABS_LIST_CLASS).toContain("pointer-coarse:h-[3.25rem]");
     expect(CHECKLISTS_TABS_LIST_CLASS).not.toMatch(/overflow-(visible|hidden)/);

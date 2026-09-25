@@ -224,4 +224,20 @@ describe("InvitePanel", () => {
       screen.getByText(/Owner role can.?t be transferred to another Traveller yet/i),
     ).toBeInTheDocument();
   });
+
+  // LA-051: this card's explanatory copy is prose, not a label — it needs
+  // the same reading-measure cap as the rest of Settings.
+  it("caps its explanatory copy to a reading measure (LA-051)", () => {
+    render(
+      <InvitePanel
+        tripId="trip1"
+        members={members}
+        pendingInvites={[]}
+        canInvite
+        currentUserId="u1"
+        viewerIsOwner={false}
+      />,
+    );
+    expect(screen.getByText(/No email is sent/).className).toContain("max-w-reading");
+  });
 });

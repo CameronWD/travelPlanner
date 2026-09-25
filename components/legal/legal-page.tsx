@@ -9,7 +9,7 @@ import { Logo } from "@/components/ui/logo";
  *   <LegalPage title="Terms" intro="…" other={{ href: "/privacy", label: "Privacy" }}>
  *     <LegalSection title="What this is">…</LegalSection>
  *   </LegalPage>
- * Reading measure 68ch (max-w-reading), body 15px/1.6 at full foreground (not muted — this is
+ * Reading measure 38rem (max-w-reading), body 15px/1.6 at full foreground (not muted — this is
  * the content). On desktop the text runs beside a sticky "On this page" contents column built
  * from the section titles (legalToc) — no client state, just anchors into the page.
  */
@@ -48,7 +48,7 @@ export function LegalPage({
           ) : null}
         </div>
       </header>
-      <main className="mx-auto max-w-page-wide px-5 pb-20 pt-10 md:pt-14 lg:grid lg:grid-cols-[minmax(0,68ch)_16rem] lg:justify-center lg:gap-16">
+      <main className="mx-auto max-w-page-wide px-5 pb-20 pt-10 md:pt-14 lg:grid lg:grid-cols-[minmax(0,38rem)_16rem] lg:justify-center lg:gap-16">
         <div>
           <div className="flex flex-col gap-3 pb-8">
             {updated ? (

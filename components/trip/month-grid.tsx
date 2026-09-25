@@ -171,7 +171,7 @@ export function MonthGrid({
               </span>
 
               {day?.stop && (
-                <span className="mt-1 truncate text-[7px] font-extrabold uppercase leading-tight sm:mt-2 sm:line-clamp-2 sm:whitespace-normal sm:text-[10px] sm:tracking-[0.08em]">
+                <span className="mt-1 truncate text-[7px] font-extrabold uppercase leading-tight sm:mt-2 sm:line-clamp-2 sm:whitespace-normal sm:break-words sm:text-[10px] sm:tracking-[0.08em]">
                   {day.stop.name}
                 </span>
               )}

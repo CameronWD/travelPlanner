@@ -55,7 +55,7 @@ export default async function WhatsNewPage() {
         // The kit's release column: one Card per release, the newest a coral
         // lead card (shadow 4), the rest white (shadow 2). On desktop it runs
         // beside a sticky release-date column that jumps straight to a Card.
-        <div className="lg:grid lg:grid-cols-[minmax(0,68ch)_14rem] lg:justify-start lg:gap-12">
+        <div className="lg:grid lg:grid-cols-[minmax(0,38rem)_14rem] lg:justify-center lg:gap-12">
           <div className="flex flex-col gap-3">
             {groups.map((group, i) => {
               const lead = i === 0;

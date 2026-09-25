@@ -260,8 +260,19 @@ const GROUP_HEADING = "font-display text-2xl font-extrabold leading-tight tracki
  *  the gap an `open:col-span-full` card would otherwise leave beside it in the
  *  row above, without changing the column count itself (no `auto-rows-fr`:
  *  that would stretch every row to the expanded card's height). */
+// LA-027: a lone last card in an otherwise-full grid spans the row instead of
+// leaving a blank half/third-width gap beside it. Two rules, because the
+// everyday grid's first card (the 60-second version) opens by default and
+// spans the whole row (`open:col-span-full` below) — while it's open, the
+// OTHER 11 cards fill the grid on their own, so it's the *even* DOM position
+// that lands alone (12th child, 11th "real" card); if a reader closes that
+// hero card by hand, all 12 cards become uniform again and land evenly with
+// no orphan, so the even-position rule is scoped with `:has()` to only the
+// hero-open shape — it must not also fire once the hero is closed, which
+// would strand the second-to-last card instead. The plain odd-position rule
+// covers every TOPIC_GRID list with no such hero (Advanced, Reference).
 export const TOPIC_GRID =
-  "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-1 grid-flow-row-dense";
+  "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-1 grid-flow-row-dense sm:[&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1 sm:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-2 lg:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-1";
 
 export function HelpGuide({
   tripId,

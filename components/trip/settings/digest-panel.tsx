@@ -188,7 +188,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
 
       {saveError && <p className="text-xs text-destructive">{saveError}</p>}
 
-      <p className="text-xs text-muted-foreground">
+      <p className="max-w-reading text-xs text-muted-foreground">
         One push in the evening, carrying whatever is true that day — a payment
         due, checklist items falling due, that day&rsquo;s reminders, and
         tomorrow&rsquo;s plan once tomorrow falls inside the trip. On a travel
@@ -340,7 +340,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
       </div>
 
       {/* ── Why silence is not breakage ── */}
-      <p className="text-xs text-muted-foreground">
+      <p className="max-w-reading text-xs text-muted-foreground">
         A digest is only sent when there is something to say. On a day with no
         payment due, no checklist item, no reminder and nothing coming up, you
         get nothing at all — that is working correctly, not a delivery failure.

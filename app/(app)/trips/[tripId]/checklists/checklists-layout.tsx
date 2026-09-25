@@ -19,10 +19,21 @@ export const CHECKLISTS_TABS_LIST_CLASS = "max-sm:gap-0 pointer-coarse:h-[3.25re
  * to a 44px hit area (LA-052), and its `after` pseudo-element still pads out
  * the hit area a little further so adjacent triggers don't compete for taps.
  * At ≤360px the label padding shrinks so "Booking parser" stops clipping.
+ * LA-052 residual: below 375px (the audit found 360 broken, 375 already
+ * clean) the third trigger's own right edge sat only ~5px shy of the
+ * viewport edge, so the list's rounded-full corner still ate into the last
+ * "r" — one more padding step buys back enough width that the label clears
+ * the border by ≥4px. The two ranges are written so they never overlap
+ * (`min-[375px]:max-sm` / `max-[375px]`, which Tailwind compiles as
+ * `not (min-width: 375px)` — i.e. strictly below 375, abutting rather than
+ * double-covering the boundary) rather than as two competing `max-width`
+ * rules at the same breakpoint: Tailwind doesn't order two arbitrary
+ * `max-[…]` variants by their breakpoint size, so whichever happened to be
+ * generated later in the stylesheet would otherwise silently win.
  * Exported for tests.
  */
 export const CHECKLISTS_TAB_CLASS =
-  "relative shrink-0 max-sm:px-2 data-[state=active]:bg-teal data-[state=active]:text-on-accent pointer-coarse:h-11 pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-1.5 pointer-coarse:after:content-['']";
+  "relative shrink-0 min-[375px]:max-sm:px-2 max-[375px]:px-1.5 data-[state=active]:bg-teal data-[state=active]:text-on-accent pointer-coarse:h-11 pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-1.5 pointer-coarse:after:content-['']";
 
 /** Breakpoint the card grid takes over from the tab strip at (spec §3). */
 const DESKTOP_QUERY = "(min-width: 1024px)";

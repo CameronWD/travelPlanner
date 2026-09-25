@@ -73,6 +73,17 @@ describe("/whats-new", () => {
     expect(older.className).toMatch(/\bshadow-hard-2\b/);
   });
 
+  it("centres the two-column block in the wide shell, matching legal-page (LA-047)", async () => {
+    render(await WhatsNewPage());
+    const nav = screen.getByRole("navigation", { name: "Releases" });
+    const grid = nav.parentElement as HTMLElement;
+    expect(grid.className).toContain("lg:justify-center");
+    expect(grid.className).not.toContain("lg:justify-start");
+    // Same reading-measure token as legal-page.tsx (LA-051), not the old
+    // 68ch literal that mismeasured this font by ~40%.
+    expect(grid.className).toContain("minmax(0,38rem)");
+  });
+
   it("shows a sticky release list beside the notes on desktop", async () => {
     render(await WhatsNewPage());
     const nav = screen.getByRole("navigation", { name: "Releases" });

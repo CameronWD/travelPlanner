@@ -260,31 +260,32 @@ describe("Timeline — per-hop directions link", () => {
   });
 });
 
-describe("Timeline — long-name truncation", () => {
-  it("check-in row text element has truncate class for a long accommodation name", () => {
-    const { container } = render(<Timeline day={dayPlanWithCheckin} variant="day" />);
-    // The span containing "Check-in — <name>" should carry truncate
-    const span = container.querySelector("span.truncate");
-    expect(span).not.toBeNull();
-    expect(span!.className).toMatch(/\btruncate\b/);
-    expect(span!.getAttribute("title")).toBe(`Check-in — ${LONG_ACCOMMODATION_NAME}`);
+describe("Timeline — long-name wrapping (LA-021)", () => {
+  it("check-in row text wraps instead of truncating, with no now-redundant title", () => {
+    render(<Timeline day={dayPlanWithCheckin} variant="day" />);
+    const span = screen.getByText(`Check-in — ${LONG_ACCOMMODATION_NAME}`);
+    expect(span.className).not.toContain("truncate");
+    expect(span.className).toContain("break-words");
+    expect(span).not.toHaveAttribute("title");
   });
 
-  it("check-out row text element has truncate class for a long accommodation name", () => {
-    const { container } = render(<Timeline day={dayPlanWithCheckout} variant="day" />);
-    const span = container.querySelector("span.truncate");
-    expect(span).not.toBeNull();
-    expect(span!.className).toMatch(/\btruncate\b/);
-    expect(span!.getAttribute("title")).toBe(`Check-out — ${LONG_ACCOMMODATION_NAME}`);
+  it("check-out row text wraps instead of truncating, with no now-redundant title", () => {
+    render(<Timeline day={dayPlanWithCheckout} variant="day" />);
+    const span = screen.getByText(`Check-out — ${LONG_ACCOMMODATION_NAME}`);
+    expect(span.className).not.toContain("truncate");
+    expect(span.className).toContain("break-words");
+    expect(span).not.toHaveAttribute("title");
   });
 
-  it("transport departure from/to labels have truncate class for long place names", () => {
-    const { container } = render(<Timeline day={dayPlanWithTransport} variant="day" />);
-    const truncatedSpans = Array.from(container.querySelectorAll("span.truncate"));
-    const depSpan = truncatedSpans.find((s) => s.getAttribute("title") === LONG_DEP_PLACE);
-    const arrSpan = truncatedSpans.find((s) => s.getAttribute("title") === LONG_ARR_PLACE);
-    expect(depSpan).not.toBeUndefined();
-    expect(arrSpan).not.toBeUndefined();
+  it("transport departure from/to labels wrap instead of truncating for long place names", () => {
+    render(<Timeline day={dayPlanWithTransport} variant="day" />);
+    const depSpan = screen.getByText(LONG_DEP_PLACE);
+    const arrSpan = screen.getByText(LONG_ARR_PLACE);
+    for (const span of [depSpan, arrSpan]) {
+      expect(span.className).not.toContain("truncate");
+      expect(span.className).toContain("break-words");
+      expect(span).not.toHaveAttribute("title");
+    }
   });
 });
 

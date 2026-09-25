@@ -343,6 +343,17 @@ describe("CompareTable — wide-screen grid, stat overlap, wrapping (LA-001 003 
     expect(grid.className).toContain("xl:grid-cols-3");
   });
 
+  it("a lone last card (odd count) spans both columns at md/1024, back to one at xl's 3 columns (LA-018)", () => {
+    render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
+    const grid = screen.getAllByTestId("plan-card")[0].parentElement as HTMLElement;
+    // CSS-only rule (`:nth-child(odd)` + `:last-child`) so a 3rd (or 5th, ...)
+    // card stranded alone in the 2-column layout spans the row instead of
+    // leaving a blank half-width gap beside it; xl's 3-column layout doesn't
+    // need it, so it's reset back to col-span-1 there.
+    expect(grid.className).toContain("md:[&>*:last-child:nth-child(odd)]:col-span-2");
+    expect(grid.className).toContain("xl:[&>*:last-child:nth-child(odd)]:col-span-1");
+  });
+
   it("stat row never overlaps: 2 columns until the card is wide (LA-003)", () => {
     render(<CompareTable trip={trip} plans={[realPlan, forkA]} />);
     const stats = screen.getAllByText("Trip cost")[0].closest("[data-plan-stats]") as HTMLElement;

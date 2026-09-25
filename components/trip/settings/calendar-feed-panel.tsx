@@ -111,7 +111,7 @@ export function CalendarFeedPanel({
       <>
         {dialog}
         <div className="flex flex-col gap-3">
-          <p className="text-sm text-muted-foreground">
+          <p className="max-w-reading text-sm text-muted-foreground">
             No calendar feed active. Create one to subscribe in Google, Apple or Outlook Calendar.
           </p>
           <div>
@@ -171,7 +171,7 @@ export function CalendarFeedPanel({
             {label}
           </label>
         ))}
-        <p className="mt-2 text-xs text-muted-foreground">
+        <p className="mt-2 max-w-reading text-xs text-muted-foreground">
           <strong className="font-medium text-foreground">On iPhone, do this once:</strong>{" "}
           Settings → Apps → Calendar → Accounts → Subscribed Calendars → this trip →
           turn <strong className="font-medium text-foreground">Remove Alerts</strong> off.
@@ -214,7 +214,7 @@ export function CalendarFeedPanel({
         </Button>
       </div>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="max-w-reading text-xs text-muted-foreground">
         One-way: your itinerary publishes to this feed. Calendar apps refresh on their own
         schedule (often several hours), so changes are not instant. Regenerating invalidates the
         old URL immediately.
