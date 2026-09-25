@@ -36,7 +36,8 @@
  *     actual local devDependency), just: `npm run audit:contrast`.
  *   - A logged-in session at /tmp/auth.json (Playwright storageState JSON).
  *     If it's expired, the script signs back in itself via the "Continue as
- *     You" dev login button — see ensureAuthenticated() below — as long as
+ *     You" dev login button — see ensureAuthenticated() in
+ *     scripts/lib/audit-browser.ts — as long as
  *     ALLOW_DEV_LOGIN=true is set (it is, in .env, for local/demo use).
  *
  * CONFIGURATION (env vars)
@@ -64,7 +65,7 @@
  *      markers exist. That previously undercounted pins by 21 and made an
  *      unrelated token fix look three times more effective than it actually
  *      was. Fix: for every map route, explicitly wait on
- *      `.leaflet-marker-icon` (see revealMapIfNeeded()) and record the
+ *      `.leaflet-marker-icon` (see revealMap() in scripts/lib/audit-browser.ts) and record the
  *      marker count rather than trusting network idle. Two of the four map
  *      surfaces (wishlist, day/home) also hide their map behind a toggle
  *      button by default ("Map" tab, "Show day map") — the script clicks
@@ -293,7 +294,6 @@
 
 import * as path from "node:path";
 import * as fs from "node:fs";
-import { execFileSync } from "node:child_process";
 
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -301,93 +301,20 @@ import type { BrowserType, Page, BrowserContextOptions } from "playwright";
 
 import { ErrorPanel, type ErrorPanelProps } from "@/components/ui/error-panel";
 import { Button } from "@/components/ui/button";
+import {
+  resolvePlaywright,
+  ensureAuthenticated,
+  applyThemeClass,
+  revealMap,
+  markerCount,
+  deriveDayDates,
+  middleDate,
+  type Theme,
+  type MapReveal,
+} from "./lib/audit-browser";
 
-type Theme = "light" | "dark";
 type Kind = NonNullable<ErrorPanelProps["kind"]>;
 type Layout = NonNullable<ErrorPanelProps["layout"]>;
-
-// --------------------------------------------------------------------------
-// Resolving Playwright at runtime (not a static import — see below)
-// --------------------------------------------------------------------------
-//
-// `playwright` is deliberately not a project dependency (see the docblock),
-// so plain `require("playwright")` only succeeds if it happens to live
-// somewhere Node's default resolution already looks: this script's own
-// node_modules chain, or a directory listed in NODE_PATH. That covers a
-// local `npm install --no-save playwright` and an environment that already
-// exports NODE_PATH — but not a bare `npm run audit:contrast` in a
-// container/machine where Playwright was installed globally and NODE_PATH
-// isn't set, which is exactly this environment. `npm run` does not
-// magically add npm's global root to Node's module resolution.
-//
-// So: try the normal resolution first: if that fails, ask npm itself where
-// its global packages live (`npm root -g`) — NOT hard-coded, since that
-// path differs by machine (this container vs. a Mac's Homebrew prefix,
-// for instance) — and try requiring Playwright from there directly. If
-// neither works, fail with an actionable message instead of a raw
-// MODULE_NOT_FOUND stack trace.
-// Node reports a failed `require("playwright")` and a failed
-// `require("/abs/path/to/playwright")` with differently-shaped messages
-// (the bare specifier vs. the full resolved path), so this only checks the
-// one thing both forms guarantee: the `MODULE_NOT_FOUND` error code. That's
-// slightly broader than matching "playwright" by name — a MODULE_NOT_FOUND
-// thrown from deep inside Playwright's own dependency chain would also be
-// swallowed here and reported as "not found" rather than surfaced verbatim
-// — but the fallback error message below still points at the right fix
-// (reinstall Playwright) in that case too, so the tradeoff is fine.
-function isModuleNotFoundError(err: unknown): boolean {
-  return err instanceof Error && (err as NodeJS.ErrnoException).code === "MODULE_NOT_FOUND";
-}
-
-function resolvePlaywright(): { chromium: BrowserType } {
-  // Deliberately dynamic (not a static `import`) — see the comment above.
-  const req = require as NodeRequire;
-
-  try {
-    return req("playwright");
-  } catch (err) {
-    if (!isModuleNotFoundError(err)) throw err;
-  }
-
-  let globalRoot: string | null = null;
-  try {
-    globalRoot = execFileSync("npm", ["root", "-g"], { encoding: "utf8" }).trim() || null;
-  } catch {
-    globalRoot = null;
-  }
-
-  if (globalRoot) {
-    try {
-      return req(path.join(globalRoot, "playwright"));
-    } catch (err) {
-      if (!isModuleNotFoundError(err)) throw err;
-    }
-  }
-
-  throw new Error(
-    [
-      "Playwright is required to run this audit, and could not be found.",
-      "",
-      "It is deliberately NOT a project dependency — see the docblock at the",
-      "top of this file — so it needs a one-time install of its own:",
-      "",
-      "  npx playwright install chromium",
-      "",
-      "If that alone doesn't fix it, Playwright's Node package itself isn't",
-      "resolvable from here. Either install it locally without saving it to",
-      "package.json:",
-      "",
-      "  npm install --no-save playwright && npx playwright install chromium",
-      "",
-      "...or, if it's installed globally somewhere this check didn't find" +
-        (globalRoot ? ` (checked "${globalRoot}")` : ' ("npm root -g" itself failed)') +
-        ",",
-      "point Node at that location directly:",
-      "",
-      "  NODE_PATH=/path/to/global/node_modules npm run audit:contrast",
-    ].join("\n"),
-  );
-}
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3000";
 const AUTH_STATE_PATH =
@@ -411,7 +338,7 @@ interface RouteSpec {
   label: string;
   auth: boolean;
   isMap?: boolean;
-  reveal?: "wishlist-map-tab" | "show-day-map";
+  reveal?: MapReveal;
   note?: string;
 }
 
@@ -740,63 +667,6 @@ const PROBE_SCRIPT = `
 `;
 
 // --------------------------------------------------------------------------
-// Playwright helpers
-// --------------------------------------------------------------------------
-
-async function ensureAuthenticated(page: Page): Promise<void> {
-  await page.goto(`${BASE_URL}/trips`, {
-    waitUntil: "networkidle",
-    timeout: NAV_TIMEOUT_MS,
-  });
-  if (!page.url().includes("/signin")) return;
-
-  const continueButton = page.getByText("Continue as You", { exact: true });
-  if ((await continueButton.count()) === 0) {
-    throw new Error(
-      `Session at ${AUTH_STATE_PATH} is expired/invalid, and no "Continue as You" ` +
-        "dev sign-in button was found on /signin (ALLOW_DEV_LOGIN may be off). " +
-        "Refresh the storageState file and retry.",
-    );
-  }
-  await continueButton.first().click();
-  await page.waitForURL(/\/trips/, { timeout: NAV_TIMEOUT_MS }).catch(() => {});
-}
-
-async function applyThemeClass(page: Page, theme: Theme): Promise<void> {
-  if (theme === "dark") {
-    await page.evaluate(() => document.documentElement.classList.add("dark"));
-    await page.waitForTimeout(DARK_SETTLE_MS);
-  } else {
-    await page.evaluate(() => document.documentElement.classList.remove("dark"));
-  }
-}
-
-/** Trap 1: click open the maps that mount collapsed, then wait for real markers. */
-async function revealMapIfNeeded(page: Page, spec: RouteSpec): Promise<void> {
-  if (!spec.isMap) return;
-
-  if (spec.reveal === "show-day-map") {
-    const toggle = page.locator('button:has-text("Show day map")');
-    if ((await toggle.count()) > 0) await toggle.first().click();
-  } else if (spec.reveal === "wishlist-map-tab") {
-    const tab = page.getByText("Map", { exact: true });
-    if ((await tab.count()) > 0) await tab.first().click();
-  }
-
-  await page
-    .waitForSelector(".leaflet-marker-icon", { timeout: MARKER_WAIT_MS })
-    .catch(() => {
-      // No marker appeared in time. Could be a genuinely empty map (e.g. an
-      // empty wishlist) or a real regression — markerCount() below records
-      // the number either way, and Step 6 in the report says which this is.
-    });
-}
-
-async function markerCount(page: Page): Promise<number> {
-  return page.evaluate(() => document.querySelectorAll(".leaflet-marker-icon").length);
-}
-
-// --------------------------------------------------------------------------
 // Auditing
 // --------------------------------------------------------------------------
 
@@ -911,11 +781,11 @@ async function auditRoute(page: Page, spec: RouteSpec, theme: Theme): Promise<Ro
     waitUntil: "networkidle",
     timeout: NAV_TIMEOUT_MS,
   });
-  await applyThemeClass(page, theme);
+  await applyThemeClass(page, theme, DARK_SETTLE_MS);
 
   let markers: number | undefined;
   if (spec.isMap) {
-    await revealMapIfNeeded(page, spec);
+    await revealMap(page, spec.reveal, MARKER_WAIT_MS);
     markers = await markerCount(page);
   }
 
@@ -938,27 +808,17 @@ async function auditRoute(page: Page, spec: RouteSpec, theme: Theme): Promise<Ro
 /** Derives a date inside the trip's own range by reading its calendar page,
  * rather than hard-coding one. */
 async function deriveDayRoute(page: Page): Promise<{ path: string; date: string; candidates: number }> {
-  await page.goto(`${BASE_URL}${tripPath("/calendar")}`, {
-    waitUntil: "networkidle",
-    timeout: NAV_TIMEOUT_MS,
-  });
-  const dates = await page.evaluate(() =>
-    Array.from(document.querySelectorAll("a[href*='/day/']"))
-      .map((a) => a.getAttribute("href") ?? "")
-      .map((href) => href.match(/\/day\/(\d{4}-\d{2}-\d{2})/)?.[1])
-      .filter((d): d is string => Boolean(d)),
-  );
-  const unique = Array.from(new Set(dates)).sort();
-  if (unique.length === 0) {
+  const dates = await deriveDayDates(page, BASE_URL, TRIP_ID);
+  // Middle of the range rather than the first/last day, to land on a day
+  // with a full agenda rather than a possibly-thin arrival/departure day.
+  const chosen = middleDate(dates);
+  if (!chosen) {
     throw new Error(
       `Could not derive a day route: no /day/{date} links found on ${tripPath("/calendar")}. ` +
         "Check the trip id and that demo data is seeded.",
     );
   }
-  // Middle of the range rather than the first/last day, to land on a day
-  // with a full agenda rather than a possibly-thin arrival/departure day.
-  const chosen = unique[Math.floor(unique.length / 2)];
-  return { path: tripPath(`/day/${chosen}`), date: chosen, candidates: unique.length };
+  return { path: tripPath(`/day/${chosen}`), date: chosen, candidates: dates.length };
 }
 
 // --------------------------------------------------------------------------
@@ -994,7 +854,7 @@ async function auditErrorPanelHarness(page: Page, theme: Theme): Promise<RouteRe
     waitUntil: "networkidle",
     timeout: NAV_TIMEOUT_MS,
   });
-  await applyThemeClass(page, theme);
+  await applyThemeClass(page, theme, DARK_SETTLE_MS);
 
   const results: RouteResult[] = [];
   for (const kind of ERROR_PANEL_KINDS) {
@@ -1120,7 +980,7 @@ async function main(): Promise<void> {
   // Derive the day route once, up front, from a short-lived context.
   const bootCtx = await browser.newContext({ viewport: VIEWPORT, storageState: AUTH_STATE_PATH });
   const bootPage = await bootCtx.newPage();
-  await ensureAuthenticated(bootPage);
+  await ensureAuthenticated(bootPage, BASE_URL, { timeoutMs: NAV_TIMEOUT_MS, authStatePath: AUTH_STATE_PATH });
   const day = await deriveDayRoute(bootPage);
   await bootCtx.close();
   console.log(
@@ -1152,7 +1012,7 @@ async function main(): Promise<void> {
     const authCtx = await browser.newContext({ ...contextOpts, storageState: AUTH_STATE_PATH });
     const anonPage = await anonCtx.newPage();
     const authPage = await authCtx.newPage();
-    await ensureAuthenticated(authPage);
+    await ensureAuthenticated(authPage, BASE_URL, { timeoutMs: NAV_TIMEOUT_MS, authStatePath: AUTH_STATE_PATH });
 
     for (const spec of routes) {
       const page = spec.auth ? authPage : anonPage;
