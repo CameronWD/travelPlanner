@@ -47,14 +47,18 @@ const PREVIEW_COUNT = 2;
  * rather than trusting a bogus 0px measurement.
  */
 function useElementWidth(ref: React.RefObject<HTMLElement | null>): number {
-  return React.useSyncExternalStore(
-    (onStoreChange) => {
+  const subscribe = React.useCallback(
+    (onStoreChange: () => void) => {
       const el = ref.current;
       if (!el || typeof ResizeObserver === "undefined") return () => {};
       const observer = new ResizeObserver(() => onStoreChange());
       observer.observe(el);
       return () => observer.disconnect();
     },
+    [ref],
+  );
+  return React.useSyncExternalStore(
+    subscribe,
     () => ref.current?.getBoundingClientRect().width ?? 0,
     () => 0,
   );
@@ -295,7 +299,7 @@ function CollapsedDayRow({
       )}
       <ChevronDown
         className={cn(
-          "ml-auto size-3.5 shrink-0 text-muted-foreground transition-transform",
+          "size-3.5 shrink-0 text-muted-foreground transition-transform",
           isOpen && "rotate-180",
         )}
         aria-hidden="true"
