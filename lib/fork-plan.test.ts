@@ -47,3 +47,10 @@ it("carries a cost's Settlement into the variant; a missing one copies as BEFORE
   expect(onTrip.costs[0].data.settlement).toBe("ON_TRIP");
   expect(buildForkPlan(source).costs[0].data.settlement).toBe("BEFORE");
 });
+
+// Review fix (Task 9): a hidden Item stays hidden when copied into a Fork.
+it("carries hiddenFromShares into the variant; a missing one copies as false", () => {
+  const hidden = buildForkPlan({ ...source, items: [{ ...source.items[0], hiddenFromShares: true }] });
+  expect(hidden.items[0].data.hiddenFromShares).toBe(true);
+  expect(buildForkPlan(source).items[0].data.hiddenFromShares).toBe(false);
+});

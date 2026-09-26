@@ -100,6 +100,8 @@ export interface ForkSourceItem {
   booking: string | null;
   notes: string | null;
   sortOrder: number;
+  /** CONTEXT.md "Share link" — carried into the variant so a hidden Item stays hidden. */
+  hiddenFromShares?: boolean;
 }
 
 export interface ForkSourceCost {
@@ -208,6 +210,7 @@ export interface ForkPlan {
       notes: string | null;
       sortOrder: number;
       sourceItemId: null;
+      hiddenFromShares: boolean;
     };
   }>;
   costs: Array<{
@@ -269,6 +272,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
         title: it.title, category: it.category, date: it.date, startTime: it.startTime, endTime: it.endTime,
         lat: it.lat, lng: it.lng, address: it.address, link: it.link, booking: it.booking,
         notes: it.notes, sortOrder: it.sortOrder, sourceItemId: null,
+        hiddenFromShares: it.hiddenFromShares ?? false,
       },
     })),
     costs: source.costs.map((c) => ({

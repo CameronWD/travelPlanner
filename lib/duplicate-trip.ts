@@ -50,6 +50,8 @@ export interface DuplicateSourceItem {
   link: string | null;
   booking: string | null;
   notes: string | null;
+  /** CONTEXT.md "Share link" — carried into the copy so a hidden Item stays hidden. */
+  hiddenFromShares?: boolean;
 }
 
 export interface DuplicateSourceTransport {
@@ -102,6 +104,7 @@ export interface DuplicatePlan {
     data: {
       title: string; category: string; date: null; startTime: null; endTime: null; booking: null;
       lat: number | null; lng: number | null; countryCode: string | null; address: string | null; link: string | null; notes: string | null; sortOrder: number;
+      hiddenFromShares: boolean;
     };
   }>;
   transports: Array<{
@@ -169,6 +172,7 @@ export function buildDuplicatePlan(source: DuplicateSource, newName: string): Du
         link: it.link,
         notes: it.notes,
         sortOrder: idx,
+        hiddenFromShares: it.hiddenFromShares ?? false,
       },
     })),
     transports: source.transports.map((t, idx) => ({

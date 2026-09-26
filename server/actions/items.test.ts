@@ -286,6 +286,18 @@ describe("plan-scope: createItem with forkId", () => {
 });
 
 describe("createItem", () => {
+  // Task 9 review fix: cheap action-level coverage alongside the update test.
+  it("persists hiddenFromShares: true to db.item.create", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-1" });
+
+    await createItem("trip-1", { ...VALID_INPUT, hiddenFromShares: true });
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ hiddenFromShares: true }),
+    });
+  });
+
   it("creates an item with sortOrder = max + 1", async () => {
     itemFindFirstMock.mockResolvedValue({ sortOrder: 4 });
     itemCreateMock.mockResolvedValue({ id: "item-1" });
@@ -738,6 +750,23 @@ describe("scheduleItem", () => {
         endTime: "12:00",
         sourceItemId: "item-1",
       }),
+    });
+  });
+
+  it("carries hiddenFromShares from the Wishlist idea onto the placed copy (review fix)", async () => {
+    itemFindUniqueMock
+      .mockResolvedValueOnce({ id: "item-1", tripId: "trip-1" })
+      .mockResolvedValueOnce({
+        id: "item-1", tripId: "trip-1", forkId: null, date: null, stopId: null,
+        title: "Anniversary dinner", category: "FOOD", hiddenFromShares: true,
+      });
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "placed-1" });
+
+    await scheduleItem("item-1", { date: "2026-08-10" }, null);
+
+    expect(itemCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ hiddenFromShares: true }),
     });
   });
 

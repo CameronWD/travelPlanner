@@ -21,7 +21,8 @@ const SOURCE: DuplicateSource = {
   ],
   items: [
     { stopId: "s1", title: "Colosseum", category: "SIGHTSEEING", date: "2026-08-02",
-      startTime: "09:00", endTime: "11:00", lat: 41.89, lng: 12.49, countryCode: "it", address: "Rome", link: "x", booking: "BK1", notes: "n" },
+      startTime: "09:00", endTime: "11:00", lat: 41.89, lng: 12.49, countryCode: "it", address: "Rome", link: "x", booking: "BK1", notes: "n",
+      hiddenFromShares: true },
     { stopId: null, title: "Gelato somewhere", category: "FOOD", date: null,
       startTime: null, endTime: null, lat: null, lng: null, countryCode: null, address: null, link: null, booking: null, notes: null },
   ],
@@ -75,7 +76,7 @@ describe("buildDuplicatePlan", () => {
       title: "Colosseum", category: "SIGHTSEEING",
       date: null, startTime: null, endTime: null, booking: null,
       lat: 41.89, lng: 12.49, countryCode: "it", address: "Rome", link: "x", notes: "n",
-      sortOrder: 0,
+      sortOrder: 0, hiddenFromShares: true,
     });
   });
 
@@ -83,6 +84,14 @@ describe("buildDuplicatePlan", () => {
     const plan = buildDuplicatePlan(SOURCE, "x");
     const gelato = plan.items[1];
     expect(gelato.data.countryCode).toBeNull();
+  });
+
+  // Review fix (Task 9): a hidden Item stays hidden in the duplicate;
+  // a source item without the field (pre-migration-shaped row) copies as false.
+  it("carries hiddenFromShares into the duplicate; a missing one copies as false", () => {
+    const plan = buildDuplicatePlan(SOURCE, "x");
+    expect(plan.items[0].data.hiddenFromShares).toBe(true); // Colosseum
+    expect(plan.items[1].data.hiddenFromShares).toBe(false); // Gelato somewhere
   });
 
   it("keeps transport connections but strips times/reference/notes/cost-bearing fields", () => {

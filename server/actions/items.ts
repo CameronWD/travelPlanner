@@ -569,6 +569,10 @@ export async function scheduleItem(
         startTime: startTime ?? null,
         endTime: endTime ?? null,
         sortOrder,
+        // A Wishlist idea marked "Hide from shared links" must stay hidden
+        // once scheduled — the placed copy is what the share page actually
+        // reads (review fix, Task 9).
+        hiddenFromShares: fullItem.hiddenFromShares ?? false,
       },
     });
 
