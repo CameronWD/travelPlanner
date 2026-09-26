@@ -5,12 +5,13 @@ import userEvent from "@testing-library/user-event";
 vi.mock("@/server/actions/items", () => ({
   createItem: vi.fn().mockResolvedValue({ success: true }),
   updateItem: vi.fn().mockResolvedValue({ success: true }),
+  deleteItem: vi.fn().mockResolvedValue({ success: true }),
 }));
 vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),
 }));
-import { createItem, updateItem } from "@/server/actions/items";
+import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 
 import { ItemFormDialog, AddItemButton, EditItemButton } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
@@ -647,6 +648,37 @@ describe("ItemFormDialog", () => {
     );
 
     expect(screen.queryByLabelText(/^cost amount$/i)).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14: Delete — offered only in edit mode, confirmed, then deletes.
+  // -------------------------------------------------------------------------
+  it("offers Delete only when editing an existing item", () => {
+    const { unmount } = render(<ItemFormDialog {...baseProps} item={existingItem} />);
+    expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument();
+    unmount();
+    render(<ItemFormDialog {...baseProps} />);
+    expect(screen.queryByRole("button", { name: /delete/i })).toBeNull();
+  });
+
+  it("asks before deleting, then deletes and closes", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} item={existingItem} />);
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
+    expect(deleteItem).toHaveBeenCalledWith("item-99");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("does nothing when the confirmation is cancelled", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={existingItem} />);
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    await user.click(within(confirmDialog).getByRole("button", { name: /cancel/i }));
+    expect(deleteItem).not.toHaveBeenCalled();
   });
 });
 

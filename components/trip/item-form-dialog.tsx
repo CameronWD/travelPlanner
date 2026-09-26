@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field, useFieldControl } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,8 @@ import {
 import { CATEGORIES, type Category } from "@/lib/categories";
 import { CategoryPill } from "./category-pill";
 import { FormError } from "@/components/ui/form-error";
-import { createItem, updateItem } from "@/server/actions/items";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
@@ -404,6 +405,30 @@ function ItemForm({
     onSaved,
   });
 
+  const { confirm, dialog: confirmDialog } = useConfirm();
+  const [deleting, setDeleting] = React.useState(false);
+
+  async function handleDelete() {
+    if (!item) return;
+    const ok = await confirm({
+      title: `Delete "${item.title}"?`,
+      description: "This can't be undone.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const result = await deleteItem(item.id);
+      if (result.success) {
+        onSaved?.();
+        onClose();
+      }
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-4">
       {/* Title */}
@@ -572,15 +597,29 @@ function ItemForm({
       <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
 
       <DialogFooter>
+        {isEdit && (
+          <Button
+            type="button"
+            variant="ghost"
+            className="sm:mr-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={() => void handleDelete()}
+            loading={deleting}
+            disabled={isPending}
+          >
+            <Trash2 aria-hidden="true" />
+            Delete
+          </Button>
+        )}
         <DialogClose asChild>
-          <Button variant="outline" type="button" disabled={isPending}>
+          <Button variant="outline" type="button" disabled={isPending || deleting}>
             Cancel
           </Button>
         </DialogClose>
-        <Button type="submit" variant="primary" loading={isPending}>
+        <Button type="submit" variant="primary" loading={isPending} disabled={deleting}>
           {isEdit ? "Save changes" : "Add Item"}
         </Button>
       </DialogFooter>
+      {confirmDialog}
     </form>
   );
 }
