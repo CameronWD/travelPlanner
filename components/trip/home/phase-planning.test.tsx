@@ -551,7 +551,8 @@ describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
     div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
     for (const tile of Array.from(div.querySelectorAll("[data-stat-tile]"))) {
       expect(tile.className).toMatch(/(^|\s)hidden(\s|$)/);
-      expect(tile.className).toContain("lg:block");
+      expect(tile.className.split(/\s+/)).toContain("lg:flex");
+      expect(tile.className).not.toContain("lg:block");
     }
     expect(div.querySelector("[data-home-money]")!.className).toContain("lg:hidden");
   });

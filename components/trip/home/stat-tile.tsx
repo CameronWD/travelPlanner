@@ -33,7 +33,7 @@ export function StatTile({ label, value, sub, tone = "white", href, className }:
   if (href) {
     return (
       <Link href={href} data-stat-tile className={cn("block h-full rounded-lg", className)}>
-        <Card tone={tone} interactive className="flex h-full min-w-0 flex-col p-3.5">
+        <Card tone={tone} interactive className="flex h-full w-full min-w-0 flex-col p-3.5">
           {body}
         </Card>
       </Link>

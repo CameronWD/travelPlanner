@@ -29,11 +29,28 @@ describe("StatTile", () => {
 
   it("puts extra classes on the outermost element", () => {
     const { container } = render(
-      <StatTile label="Next payment" value="£50" href="/x" className="hidden lg:block" />,
+      <StatTile label="Next payment" value="£50" href="/x" className="hidden lg:flex" />,
     );
     const outer = container.firstElementChild as HTMLElement;
     expect(outer.className).toContain("hidden");
-    expect(outer.className).toContain("lg:block");
+    expect(outer.className).toContain("lg:flex");
     expect(outer).toHaveAttribute("data-stat-tile");
+  });
+
+  it("a link-less tile hidden below lg comes back as a flex column at lg, so its sub still pins to the bottom", () => {
+    const { container } = render(<StatTile label="Reminders" value="2" className="hidden lg:flex" />);
+    const tile = container.querySelector("[data-stat-tile]") as HTMLElement;
+    const tokens = tile.className.split(/\s+/);
+    expect(tokens).toContain("hidden");
+    expect(tokens).toContain("lg:flex");
+    expect(tokens).toContain("flex-col");
+    expect(tokens).not.toContain("lg:block");
+  });
+
+  it("a linked tile shown at lg as flex still fills the link's width", () => {
+    const { container } = render(<StatTile label="Next payment" value="£50" href="/x" className="hidden lg:flex" />);
+    const link = container.firstElementChild as HTMLElement;
+    expect(link.className.split(/\s+/)).toContain("lg:flex");
+    expect((link.firstElementChild as HTMLElement).className).toContain("w-full");
   });
 });

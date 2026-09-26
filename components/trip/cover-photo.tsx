@@ -46,8 +46,10 @@ export function CoverPhoto({ src, alt, focalX, focalY, tile = false, className }
     if (imgRef.current?.complete) measure();
   }, [measure]);
 
-  const fx = focalX ?? 0.5;
-  const fy = focalY ?? 0.5;
+  // The focal point steers the crop only. A letterboxed (contained) portrait
+  // isn't cropped, so it stays centred and the blur band is even both sides.
+  const fx = fillEdges ? 0.5 : (focalX ?? 0.5);
+  const fy = fillEdges ? 0.5 : (focalY ?? 0.5);
 
   return (
     <div ref={boxRef} className={cn("relative size-full overflow-hidden bg-muted", className)}>

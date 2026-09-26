@@ -50,6 +50,9 @@ export interface TripCardProps {
   home?: LatLng | null;
   roundTrip?: boolean;
   coverVersion?: string | null;
+  /** Trip.coverFocalX / coverFocalY — where the cover photo's crop centres (spec E2); null = centre. */
+  focalX?: number | null;
+  focalY?: number | null;
   /** The single "up next" card in the grid — kit's `NEXT UP` treatment: spans 2 columns, bigger heading. */
   featured?: boolean;
   /**
@@ -98,6 +101,8 @@ export function TripCard({
   home,
   roundTrip,
   coverVersion,
+  focalX,
+  focalY,
   featured,
   featuredDetails,
 }: TripCardProps) {
@@ -138,7 +143,7 @@ export function TripCard({
             showFeaturedDetails && "lg:h-full lg:w-1/2 lg:shrink-0",
           )}
         >
-          <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} home={home} roundTrip={roundTrip} coverVersion={coverVersion} variant={coverVariant} />
+          <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} home={home} roundTrip={roundTrip} coverVersion={coverVersion} focalX={focalX} focalY={focalY} variant={coverVariant} />
           {phase && (
             <Badge
               caps

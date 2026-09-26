@@ -72,6 +72,17 @@ describe("TripCover", () => {
     expect(photo.className).toContain("object-contain");
   });
 
+  it('variant="tile": a letterboxed portrait photo stays centred, whatever its focal point', () => {
+    render(
+      <TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} variant="tile" focalX={0.2} focalY={0.9} />,
+    );
+    const photo = screen.getByAltText("Trip cover") as HTMLImageElement;
+    expect(photo.style.objectPosition).toBe("20% 90%");
+    loadAs(photo, 900, 1600);
+    expect(photo.className).toContain("object-contain");
+    expect(photo.style.objectPosition).toBe("50% 50%");
+  });
+
   it("outside the tile, a portrait photo never gets the blurred copy", () => {
     const { container } = render(<TripCover tripId="t1" name="Trip" hasCover={true} stops={[]} />);
     loadAs(screen.getByAltText("Trip cover") as HTMLImageElement, 900, 1600);

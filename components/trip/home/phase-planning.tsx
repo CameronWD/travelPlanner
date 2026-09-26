@@ -402,7 +402,7 @@ export async function PhasePlanning({
   const statTiles = [
     <StatTile
       key="cost"
-      className="hidden lg:block"
+      className="hidden lg:flex"
       tone="sun"
       label="Cost so far"
       value={formatMoneyCompact(budget.grandTotal.costTotalMinor, homeCurrency)}
@@ -411,7 +411,7 @@ export async function PhasePlanning({
     />,
     <StatTile
       key="next-payment"
-      className="hidden lg:block"
+      className="hidden lg:flex"
       tone="teal"
       label="Next payment"
       value={nextPayment ? formatMoneyCompact(nextPayment.costMinor, nextPayment.currency) : "Nothing due"}
@@ -420,7 +420,7 @@ export async function PhasePlanning({
     />,
     <StatTile
       key="reminders"
-      className="hidden lg:block"
+      className="hidden lg:flex"
       tone="lilac"
       label="Reminders"
       value={reminderItems.length}

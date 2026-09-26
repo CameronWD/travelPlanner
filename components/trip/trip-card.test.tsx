@@ -117,6 +117,15 @@ describe("TripCard", () => {
     expect(img).toHaveAttribute("src", "/api/trips/trip-123/cover");
   });
 
+  it("crops the cover photo around the Trip's focal point (spec E2)", () => {
+    render(
+      <TripCard {...defaultProps} id="trip-123" hasCover={true} coverStops={[]} focalX={0.3} focalY={0.6} />,
+    );
+    const img = screen.getByRole("img", { name: /europe cover/i }) as HTMLImageElement;
+    expect(img.className).toContain("object-cover");
+    expect(img.style.objectPosition).toBe("30% 60%");
+  });
+
   it("opens the ⋯ menu and shows Duplicate item when the trigger is clicked", async () => {
     const user = userEvent.setup();
     render(<TripCard {...defaultProps} />);

@@ -232,3 +232,30 @@ describe("TripsPage — featured card's next step", () => {
     expect(featuredCall.featuredDetails.nextStep).toBeNull();
   });
 });
+
+describe("TripsPage cover focal point (spec E2)", () => {
+  it("hands each TripCard its Trip's cover focal point", async () => {
+    const trip = {
+      id: "trip-1",
+      name: "Test Trip",
+      startDate: null,
+      endDate: null,
+      createdAt: new Date("2026-01-01T00:00:00Z"),
+      coverImageKey: "trips/trip-1/k.webp",
+      coverFocalX: 0.3,
+      coverFocalY: 0.6,
+      homeLat: null,
+      homeLng: null,
+      roundTrip: false,
+      _count: { stops: 0 },
+      stops: [] as unknown[],
+    };
+    tripMemberFindManyMock.mockResolvedValue([{ tripId: trip.id, lastReadActivityAt: null, trip }]);
+
+    render(await TripsPage());
+
+    expect(tripCardMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "trip-1", focalX: 0.3, focalY: 0.6 }),
+    );
+  });
+});

@@ -197,6 +197,8 @@ export default async function TripsPage() {
                   unreadCount={unreadByTrip[trip.id] ?? 0}
                   hasCover={(coverKeyByTrip.get(trip.id) ?? null) != null}
                   coverVersion={coverKeyByTrip.get(trip.id) ?? null}
+                  focalX={trip.coverFocalX}
+                  focalY={trip.coverFocalY}
                   coverStops={coverStopsByTrip.get(trip.id) ?? []}
                   home={trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null}
                   roundTrip={trip.roundTrip ?? false}
