@@ -39,6 +39,7 @@ export async function generateMetadata({
   params: Promise<{ tripId: string }>;
 }): Promise<Metadata> {
   const { tripId } = await params;
+  await requireTripAccess(tripId);
   const trip = await db.trip.findUnique({ where: { id: tripId }, select: { name: true } });
   if (!trip) return {};
   return { title: tripTitle(trip.name) };

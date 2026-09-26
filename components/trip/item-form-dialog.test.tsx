@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/items", () => ({
@@ -679,6 +679,72 @@ describe("ItemFormDialog", () => {
     const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
     await user.click(within(confirmDialog).getByRole("button", { name: /cancel/i }));
     expect(deleteItem).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 15: Save/Delete stay disabled while busy, so a double-click (or a
+  // second Enter/confirm) can't fire the action twice.
+  // -------------------------------------------------------------------------
+  it("disables the Save/Add button while createItem is pending", async () => {
+    let resolveCreate!: (v: { success: true }) => void;
+    const pendingPromise = new Promise<{ success: true }>((res) => {
+      resolveCreate = res;
+    });
+    (createItem as ReturnType<typeof vi.fn>).mockReturnValueOnce(pendingPromise);
+
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+    const saveButton = screen.getByRole("button", { name: /add item/i });
+    expect(saveButton).not.toBeDisabled();
+
+    await user.click(saveButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /add item/i })).toBeDisabled();
+    });
+
+    resolveCreate({ success: true });
+    await waitFor(() => {
+      expect(createItem).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("disables both Delete and Save while a delete is pending", async () => {
+    let resolveDelete!: (v: { success: true }) => void;
+    const pendingPromise = new Promise<{ success: true }>((res) => {
+      resolveDelete = res;
+    });
+    (deleteItem as ReturnType<typeof vi.fn>).mockReturnValueOnce(pendingPromise);
+
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={existingItem} />);
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^delete$/i })).toBeDisabled();
+    });
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeDisabled();
+
+    resolveDelete({ success: true });
+    await waitFor(() => {
+      expect(deleteItem).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("keeps the dialog open and shows an error when deleteItem rejects", async () => {
+    (deleteItem as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("not found"));
+
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} item={existingItem} />);
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
+
+    await screen.findByText(/couldn't delete this item/i);
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 });
 

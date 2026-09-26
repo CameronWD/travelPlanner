@@ -418,6 +418,7 @@ function ItemForm({
 
   const { confirm, dialog: confirmDialog } = useConfirm();
   const [deleting, setDeleting] = React.useState(false);
+  const [deleteError, setDeleteError] = React.useState<string | null>(null);
 
   async function handleDelete() {
     if (!item) return;
@@ -429,12 +430,15 @@ function ItemForm({
     });
     if (!ok) return;
     setDeleting(true);
+    setDeleteError(null);
     try {
       const result = await deleteItem(item.id);
       if (result.success) {
         onSaved?.();
         onClose();
       }
+    } catch {
+      setDeleteError("Couldn't delete this Item. Try again.");
     } finally {
       setDeleting(false);
     }
@@ -612,7 +616,7 @@ function ItemForm({
         disabled={isPending}
       />
 
-      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      <FormError>{(errors as FormErrors)._form?.[0] ?? deleteError ?? undefined}</FormError>
 
       <DialogFooter>
         {isEdit && (
@@ -622,7 +626,7 @@ function ItemForm({
             className="sm:mr-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
             onClick={() => void handleDelete()}
             loading={deleting}
-            disabled={isPending}
+            disabled={isPending || deleting}
           >
             <Trash2 aria-hidden="true" />
             Delete
@@ -633,7 +637,7 @@ function ItemForm({
             Cancel
           </Button>
         </DialogClose>
-        <Button type="submit" variant="primary" loading={isPending} disabled={deleting}>
+        <Button type="submit" variant="primary" loading={isPending} disabled={isPending || deleting}>
           {isEdit ? "Save changes" : "Add Item"}
         </Button>
       </DialogFooter>

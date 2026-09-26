@@ -96,6 +96,14 @@ describe("Button", () => {
     expect(screen.getByRole("button", { name: "Plain" }).className).toContain("rounded-full");
   });
 
+  it("lets a caller's own gap override reach the flex container via gap-[inherit]", () => {
+    render(<Button className="gap-1">x</Button>);
+    const btn = screen.getByRole("button", { name: "x" });
+    expect(btn).toHaveClass("gap-1");
+    const wrapper = screen.getByText("x");
+    expect(wrapper).toHaveClass("gap-[inherit]");
+  });
+
   it("keeps its label in flow (invisible) while loading, so the width never changes", () => {
     render(<Button loading>Send</Button>);
     const label = screen.getByText("Send");

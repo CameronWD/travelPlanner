@@ -127,4 +127,10 @@ describe("generateMetadata", () => {
     const md = await generateMetadata({ params: Promise.resolve({ tripId: "trip-1" }) });
     expect(md).toEqual({});
   });
+
+  it("guards access before reading the trip name", async () => {
+    mockDb.trip.findUnique.mockResolvedValueOnce({ name: "Test Trip" });
+    await generateMetadata({ params: Promise.resolve({ tripId: "trip-1" }) });
+    expect(requireTripAccessMock).toHaveBeenCalledWith("trip-1");
+  });
 });
