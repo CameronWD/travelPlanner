@@ -171,3 +171,41 @@ than the thing it prints.
   that automatically in CI after a successful production deploy. Both are
   worth doing only if the manual step proves forgettable in practice; neither
   changes this decision, they only automate step 3.
+
+## Amendment — 2026-09-26: a note records the site it was written on
+
+The beta preview and the live site share one production database. A note
+written on beta — often about something only beta has — landed in the same
+table and the same inbox as notes about the live site, with nothing to tell
+them apart, so the operator could not tell "this is broken on beta" from
+"this is broken for everyone".
+
+### Decision
+
+1. **Every note records its site**, set by the server from Vercel's own
+   deployment variables and never sent by the browser: `main` for a production
+   deploy (`VERCEL_ENV=production`), the branch name for a preview
+   (`VERCEL_GIT_COMMIT_REF`, so `beta` for the beta preview), `local` for
+   `next dev`. Notes written before this amendment have no site and count as
+   `main`; they are not backfilled.
+2. **The inbox splits Open notes by site** (Beta, Main, any other preview by
+   name), each grouped by area as before; Resolved history keeps one list with
+   a site label per note.
+3. **The Feedback panel still shows all of a viewer's notes** on either site
+   (it is their log, and a note must not seem to vanish), with a site chip on
+   any note written on a different site from the one being viewed.
+4. **"Landed means deployed" is per site.** A beta note is resolved once the
+   fix is live on beta; a main note once it is live on main. The
+   `Resolves-Feedback:` trailer is unchanged; after a confirmed deploy the
+   operator resolves the trailers on *that site's branch* since its last
+   deploy. `feedback:resolve` prints each note's site and warns (without
+   blocking) when a note's site doesn't match the site being resolved for.
+
+### Why a column, not a label prefix
+
+Prefixing the page label ("beta · Plan editor") would have shipped on beta
+alone with no migration, but it corrupts a field this ADR defines as a plain
+record of where the author was, and every reader would have to strip it. The
+cost of the column is sequencing: migrations run only on production deploys
+(`vercel.json`), so the column ships to `main` first and reaches beta by
+merging `main` into `beta`.
