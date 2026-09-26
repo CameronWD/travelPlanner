@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { weatherTone } from "./weather-tone";
+import { weatherLabel } from "@/lib/weather";
 
 describe("weatherTone", () => {
   it("0 → sun/sun (clear)", () => {
@@ -38,12 +39,53 @@ describe("weatherTone", () => {
     expect(weatherTone(86)).toEqual({ tone: "hue-lilac", icon: "snowflake" });
   });
 
-  it("≥95 → indigo/cloud-lightning (thunderstorm)", () => {
+  it("87 and above → indigo/cloud-lightning (thunderstorm — the ladder's final, unbounded rung)", () => {
+    expect(weatherTone(87)).toEqual({ tone: "hue-indigo", icon: "cloud-lightning" });
     expect(weatherTone(95)).toEqual({ tone: "hue-indigo", icon: "cloud-lightning" });
     expect(weatherTone(99)).toEqual({ tone: "hue-indigo", icon: "cloud-lightning" });
   });
 
   it("null → sky/sun (no data)", () => {
     expect(weatherTone(null)).toEqual({ tone: "hue-sky", icon: "sun" });
+  });
+
+  // Codes the WMO table itself skips (never returned by the API, but not
+  // excluded by the cascading `<=` ladder either) — weatherTone must follow
+  // the same rung weatherLabel would land on for these, not a hardcoded
+  // "no match" default. Regression coverage for the bug where `weatherTone`
+  // ran its own explicit-range lookup instead of this shared ladder, so a
+  // gap code like 90 fell through to the null-case default (sun look) while
+  // weatherLabel(90) already said "Thunderstorm".
+  describe("gap codes (unassigned by WMO, still covered by the ladder)", () => {
+    it("20 → stone/cloud-fog, the <=48 rung", () => {
+      expect(weatherTone(20)).toEqual({ tone: "hue-stone", icon: "cloud-fog" });
+    });
+
+    it("70 → lilac/snowflake, the <=77 rung", () => {
+      expect(weatherTone(70)).toEqual({ tone: "hue-lilac", icon: "snowflake" });
+    });
+
+    it("90 → indigo/cloud-lightning, the final rung", () => {
+      expect(weatherTone(90)).toEqual({ tone: "hue-indigo", icon: "cloud-lightning" });
+    });
+  });
+
+  it("agrees with weatherLabel's wording for every code 0..99 (property: same bucket, never disagree)", () => {
+    const iconByLabel: Record<string, string> = {
+      Clear: "sun",
+      "Partly cloudy": "cloud",
+      Overcast: "cloud",
+      Fog: "cloud-fog",
+      Rain: "cloud-rain",
+      Showers: "cloud-rain",
+      Snow: "snowflake",
+      "Snow showers": "snowflake",
+      Thunderstorm: "cloud-lightning",
+    };
+    for (let code = 0; code <= 99; code++) {
+      const label = weatherLabel(code);
+      const { icon } = weatherTone(code);
+      expect(iconByLabel[label], `code ${code}: label "${label}" vs icon "${icon}"`).toBe(icon);
+    }
   });
 });
