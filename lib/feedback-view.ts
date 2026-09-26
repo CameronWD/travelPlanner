@@ -17,6 +17,7 @@
  */
 
 import type { FeedbackStatus } from "@/lib/enums";
+import { siteLabel, siteOf } from "@/lib/feedback-site";
 
 /** A Feedback note as the Feedback panel sees it. Dates are ISO strings. */
 export type FeedbackNoteView = {
@@ -35,6 +36,11 @@ export type FeedbackNoteView = {
   canDelete: boolean;
   status: FeedbackStatus;
   authoredAt: string;
+  /**
+   * Label of the site this note was written on, only when it isn't the site
+   * being viewed.
+   */
+  siteChip: string | null;
 };
 
 /** The columns `VIEW_SELECT` reads, as Prisma returns them. */
@@ -48,6 +54,7 @@ export type FeedbackNoteQueryRow = {
   authorName: string | null;
   status: string;
   authoredAt: Date;
+  site: string | null;
 };
 
 /** The Prisma selection every action backing the Feedback panel reads. */
@@ -61,9 +68,15 @@ export const VIEW_SELECT = {
   authorName: true,
   status: true,
   authoredAt: true,
+  site: true,
 } as const;
 
-export function toView(row: FeedbackNoteQueryRow, viewerId: string): FeedbackNoteView {
+export function toView(
+  row: FeedbackNoteQueryRow,
+  viewerId: string,
+  currentSite: string,
+): FeedbackNoteView {
+  const site = siteOf(row.site);
   return {
     id: row.id,
     body: row.body,
@@ -74,5 +87,6 @@ export function toView(row: FeedbackNoteQueryRow, viewerId: string): FeedbackNot
     canDelete: row.authorId === viewerId,
     status: row.status as FeedbackStatus,
     authoredAt: row.authoredAt.toISOString(),
+    siteChip: site === currentSite ? null : siteLabel(site),
   };
 }

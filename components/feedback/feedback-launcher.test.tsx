@@ -940,6 +940,31 @@ describe("FeedbackLauncher", () => {
     expect(screen.queryByText("OPEN")).toBeNull();
   });
 
+  it("shows the site chip on a note from another site", async () => {
+    listMock.mockResolvedValue({
+      success: true,
+      notes: [{ ...existingNote, siteChip: "Beta" }],
+    });
+    const user = userEvent.setup();
+    render(<FeedbackLauncher />);
+    await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+
+    expect(await screen.findByText("Beta")).toBeInTheDocument();
+  });
+
+  it("shows no chip when siteChip is null", async () => {
+    listMock.mockResolvedValue({
+      success: true,
+      notes: [{ ...existingNote, siteChip: null }],
+    });
+    const user = userEvent.setup();
+    render(<FeedbackLauncher />);
+    await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+
+    expect(await screen.findByText("Budget totals look wrong")).toBeInTheDocument();
+    expect(screen.queryByText("Beta")).toBeNull();
+  });
+
   it("deletes a note you wrote and drops it from the log", async () => {
     // FN-11: the Delete button's rendering was covered; pressing it never was.
     deleteMock.mockResolvedValue({ success: true });

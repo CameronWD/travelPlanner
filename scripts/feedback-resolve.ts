@@ -2,7 +2,7 @@
  * Close a Feedback note (ADR 0040).
  *
  * Run command:
- *   npm run feedback:resolve -- <id> --note "what you did" [--wontfix] [--dry-run]
+ *   npm run feedback:resolve -- <id> --note "what you did" [--wontfix] [--dry-run] [--site <name>]
  *
  * Status changes when the work actually lands — this is the only writer to the
  * FeedbackNote table outside the app, and it touches only status, resolution
@@ -25,6 +25,8 @@ import "./load-env";
 
 import { db } from "../lib/db";
 import { parseResolveArgs } from "../lib/feedback-resolve-args";
+import { siteMismatchWarning } from "../lib/feedback-resolve-site";
+import { siteLabel, siteOf } from "../lib/feedback-site";
 
 /**
  * The host of DATABASE_URL and nothing else — never the user, password or
@@ -66,11 +68,18 @@ async function main() {
       status: true,
       resolution: true,
       resolvedAt: true,
+      site: true,
     },
   });
   if (!existing) {
     console.error(`No feedback note with id ${parsed.id}.`);
     process.exit(1);
+  }
+
+  console.log(`Site: ${siteLabel(siteOf(existing.site))}`);
+  const mismatchWarning = siteMismatchWarning(existing.site, parsed.site);
+  if (mismatchWarning) {
+    console.log(mismatchWarning);
   }
 
   if (parsed.dryRun) {
