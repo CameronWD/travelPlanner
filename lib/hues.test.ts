@@ -19,9 +19,9 @@ describe("stored colour values never change", () => {
     }
   });
 
-  it("keeps the seven category values the database already holds", () => {
+  it("keeps the eight category values the database already holds", () => {
     expect([...CATEGORY_VALUES]).toEqual([
-      "SIGHTSEEING", "FOOD", "ACTIVITY", "NIGHTLIFE", "SHOPPING", "GETTING_AROUND", "OTHER",
+      "SIGHTSEEING", "FOOD", "ACTIVITY", "NIGHTLIFE", "SHOPPING", "GETTING_AROUND", "PLACE", "OTHER",
     ]);
   });
 

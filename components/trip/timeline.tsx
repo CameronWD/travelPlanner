@@ -12,6 +12,7 @@ import {
   MoonStar,
   ShoppingBag,
   TramFront,
+  MapPin,
   CircleDot,
   type LucideIcon,
 } from "lucide-react";
@@ -283,6 +284,7 @@ const CATEGORY_ICON: Record<string, LucideIcon> = {
   "moon-star": MoonStar,
   "shopping-bag": ShoppingBag,
   "tram-front": TramFront,
+  "map-pin": MapPin,
   "circle-dot": CircleDot,
 };
 

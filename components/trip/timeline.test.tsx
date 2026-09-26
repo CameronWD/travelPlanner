@@ -821,3 +821,40 @@ describe("Timeline — day-page entries open their details (editor)", () => {
     expect(screen.getByRole("button", { name: /Arrives — Train/ })).toBeInTheDocument();
   });
 });
+
+describe("Timeline — Place category (map-pin icon)", () => {
+  const PLACE_ITEM_TITLE = "Kyoto";
+
+  const dayPlanWithPlace: DayPlan = {
+    dateISO: "2025-07-01",
+    stop: {
+      id: "stop-1",
+      name: "Tokyo",
+      timezone: "Asia/Tokyo",
+      arriveDate: "2025-07-01",
+      departDate: "2025-07-03",
+      sortOrder: 0,
+    },
+    timedItems: [
+      {
+        kind: "item",
+        item: {
+          id: "item-place-1",
+          title: PLACE_ITEM_TITLE,
+          category: "PLACE",
+          date: "2025-07-01",
+          startTime: "09:00",
+          endTime: "10:00",
+        },
+      },
+    ],
+    untimedItems: [],
+    transportEntries: [],
+    accommodationEntries: [],
+  };
+
+  it("renders a timed item's title for the Place category without throwing", () => {
+    render(<Timeline day={dayPlanWithPlace} variant="day" />);
+    expect(screen.getByText(PLACE_ITEM_TITLE)).toBeInTheDocument();
+  });
+});

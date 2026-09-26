@@ -8,7 +8,7 @@ import {
 } from "@/lib/categories";
 
 describe("categories", () => {
-  it("exposes all seven item categories", () => {
+  it("exposes all eight item categories", () => {
     expect(CATEGORY_VALUES).toEqual([
       "SIGHTSEEING",
       "FOOD",
@@ -16,6 +16,7 @@ describe("categories", () => {
       "NIGHTLIFE",
       "SHOPPING",
       "GETTING_AROUND",
+      "PLACE",
       "OTHER",
     ]);
   });
@@ -48,5 +49,12 @@ describe("categories", () => {
     expect(categoryMeta("GETTING_AROUND")).toEqual({
       value: "GETTING_AROUND", label: "Getting around", color: "indigo", hue: "indigo", icon: "tram-front",
     });
+  });
+
+  it("includes Place (somewhere to go) before Other, on the teal hue with a map-pin icon", () => {
+    const values = CATEGORIES.map((c) => c.value);
+    expect(values.indexOf("PLACE")).toBe(values.indexOf("OTHER") - 1);
+    expect(categoryMeta("PLACE")).toMatchObject({ label: "Place", hue: "teal", icon: "map-pin" });
+    expect(categorySchema.safeParse("PLACE").success).toBe(true);
   });
 });

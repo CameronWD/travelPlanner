@@ -384,10 +384,10 @@ export function WishlistBoard({
             );
           })}
 
-          {/* Anywhere / no stop group */}
+          {/* Not tied to a Stop yet / no stop group */}
           {anywhereItems.length > 0 && (
             <section className="flex flex-col gap-3">
-              {renderGroupHeader("Anywhere", anywhereItems.length)}
+              {renderGroupHeader("Not tied to a Stop yet", anywhereItems.length)}
               {renderIdeaGrid(anywhereItems, true)}
             </section>
           )}

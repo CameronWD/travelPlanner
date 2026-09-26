@@ -506,8 +506,9 @@ describe("WishlistBoard — Playground kit", () => {
 
   // Bug: with a trip that has no stops at all, the List view's stop-grouped
   // section was gated on `stops.length > 0`, so a stop-less idea (stopId
-  // null) never rendered even though it belongs in the "Anywhere" group.
-  it("renders a stop-less idea in the 'Anywhere' group when the trip has no stops", () => {
+  // null) never rendered even though it belongs in the "Not tied to a Stop
+  // yet" group.
+  it("renders a stop-less idea in the 'Not tied to a Stop yet' group when the trip has no stops", () => {
     render(
       <WishlistBoard
         tripId={TRIP_ID}
@@ -516,7 +517,18 @@ describe("WishlistBoard — Playground kit", () => {
       />,
     );
     expect(screen.getByText("Wander the old town")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Anywhere" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Not tied to a Stop yet" })).toBeInTheDocument();
+  });
+
+  it("heads the no-Stop group 'Not tied to a Stop yet' when an idea has no Stop", () => {
+    render(
+      <WishlistBoard
+        tripId={TRIP_ID}
+        stops={[baseStop]}
+        items={[makeItem({ id: "item-61", stopId: null, stopName: null, title: "Somewhere in Tuscany" })]}
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Not tied to a Stop yet" })).toBeInTheDocument();
   });
 
   it("still renders the empty state exactly once with no ideas and no stops", () => {
