@@ -209,7 +209,7 @@ describe("TripCard", () => {
           unit: "DAYS TO GO",
           routeSummary: "Paris → Rome",
           stopsAndNights: "3 stops · 9 nights",
-          nextStep: "In 26 days",
+          nextStep: "Book transport",
         }}
       />,
     );
@@ -217,7 +217,25 @@ describe("TripCard", () => {
     expect(screen.getByText("DAYS TO GO")).toBeInTheDocument();
     expect(screen.getByText("Paris → Rome")).toBeInTheDocument();
     expect(screen.getByText("3 stops · 9 nights")).toBeInTheDocument();
-    expect(screen.getByText("In 26 days")).toBeInTheDocument();
+    expect(screen.getByText("Book transport")).toBeInTheDocument();
+  });
+
+  it("renders no next-step line when featuredDetails.nextStep is null", () => {
+    render(
+      <TripCard
+        {...defaultProps}
+        featured
+        featuredDetails={{
+          countdown: "26",
+          unit: "DAYS TO GO",
+          routeSummary: "Paris → Rome",
+          stopsAndNights: "3 stops · 9 nights",
+          nextStep: null,
+        }}
+      />,
+    );
+    expect(screen.getByText("26")).toBeInTheDocument();
+    expect(screen.queryByTestId("featured-next-step")).not.toBeInTheDocument();
   });
 
   it("never renders a single-letter monogram on a featured card with no photo and no located stops — the trip name instead", () => {

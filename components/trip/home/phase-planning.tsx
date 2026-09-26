@@ -4,8 +4,6 @@ import { REAL_PLAN } from "@/lib/plan-scope";
 import { daysBetween } from "@/lib/dates";
 import { describePhase, type TripPhase } from "@/lib/trip-phase";
 import {
-  detectFlags,
-  type FlagStop,
   type FlagTransport,
   type FlagAccommodation,
   type FlagItem,
@@ -18,8 +16,8 @@ import {
   type BudgetAccommodation,
   type BudgetTransport,
 } from "@/lib/budget";
-import { buildNextSteps } from "@/lib/next-steps";
-import { tripHomeBase, hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
+import { buildTripNextSteps } from "@/lib/next-steps-builder";
+import { tripHomeBase } from "@/lib/home-base";
 import { getTripProjection } from "@/server/actions/stops";
 import { chapterForStop } from "@/lib/chapters";
 import { Route } from "lucide-react";
@@ -270,50 +268,33 @@ export async function PhasePlanning({
   const upcomingPayments = buildUpcomingPayments({ costs, ownerNames, today });
 
   // ---------------------------------------------------------------------------
-  // Detect flags (mirrors summary/page.tsx)
+  // Detect flags + build next steps — shared with the trips list's featured
+  // card (lib/next-steps-builder.ts's `buildTripNextSteps`), so the two never
+  // drift apart. This page already has all the data that pure combiner needs
+  // (fetched above for the budget/route/etc), so it's passed in directly
+  // rather than re-fetched.
   // ---------------------------------------------------------------------------
-  const flagStops: FlagStop[] = datedStops.map((s) => ({ ...s, timezone: s.timezone ?? "UTC" }));
   const projection = await getTripProjection(tripId);
-  const flags = detectFlags({
-    stops: flagStops,
+  const steps = buildTripNextSteps({
+    tripBasePath: base,
+    phase,
+    tripStart: startDate,
+    tripEnd: endDate,
+    roundTrip: trip.roundTrip,
+    home: tripHomeBase(trip),
+    datedStops: datedStops.map((s) => ({ ...s, timezone: s.timezone ?? "UTC" })),
+    roughStopCount: roughStops,
+    allStops: allStopsRaw, // already ordered by sortOrder asc
     transports: transports as FlagTransport[],
     accommodations: accommodations as FlagAccommodation[],
     items: items as FlagItem[],
-    tripStart: startDate,
-    tripEnd: endDate,
-    roughStopCount: roughStops,
     projectedEnd: projection.projectedEnd,
     hardEndDate: projection.hardEndDate,
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
-  });
-
-  // ---------------------------------------------------------------------------
-  // Build next steps
-  // ---------------------------------------------------------------------------
-  const sortedStops = allStopsRaw; // already ordered by sortOrder asc
-  const home = tripHomeBase(trip);
-  const firstStop = sortedStops[0] ?? null;
-  const lastStop = sortedStops[sortedStops.length - 1] ?? null;
-
-  const steps = buildNextSteps({
-    flags,
-    phase,
-    nudges: {
-      hasDates: true, // we only render PhasePlanning when dates exist
-      undatedChapterCount,
-      hasPackingList: packingCount > 0,
-      hasPretripList: pretripCount > 0,
-      unbookedTransportCount: transports.filter((t) => !t.depAt).length,
-      hasHomeBase: !!home,
-      hasOutboundLeg: hasOutboundLeg(transports, firstStop?.id ?? null),
-      hasReturnLeg: hasReturnLeg(transports, lastStop?.id ?? null),
-      roundTrip: trip.roundTrip,
-      homeName: home?.name ?? null,
-      firstStopName: firstStop?.name ?? null,
-      lastStopName: lastStop?.name ?? null,
-    },
-    tripBasePath: base,
+    undatedChapterCount,
+    hasPackingList: packingCount > 0,
+    hasPretripList: pretripCount > 0,
   });
 
   // ---------------------------------------------------------------------------

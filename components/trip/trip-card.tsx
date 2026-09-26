@@ -201,7 +201,9 @@ export function TripCard({
             <p className="text-sm text-muted-foreground">{featuredDetails!.stopsAndNights}</p>
 
             {featuredDetails!.nextStep && (
-              <p className="text-sm font-semibold text-foreground">{featuredDetails!.nextStep}</p>
+              <p data-testid="featured-next-step" className="text-sm font-semibold text-foreground">
+                {featuredDetails!.nextStep}
+              </p>
             )}
           </div>
         )}

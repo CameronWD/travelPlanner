@@ -15,6 +15,7 @@ import { describePhase, compareForTripList } from "@/lib/trip-phase";
 import { todayISO, daysBetween } from "@/lib/dates";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { orderPlanStops } from "@/lib/plan-order";
+import { loadNextSteps } from "@/lib/next-steps-loader";
 import { cn } from "@/lib/cn";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -107,6 +108,16 @@ export default async function TripsPage() {
   );
   const sorted = [...trips].sort((a, b) => compareForTripList(a, b, today, todayByTripId));
 
+  // Featured card's "next step" — the same Next steps a Traveller sees on
+  // that trip's Home (lib/next-steps-loader.ts's `loadNextSteps`, shared with
+  // components/trip/home/phase-planning.tsx so the two can't drift apart).
+  // One extra query set, for the one featured trip only.
+  const featuredTrip = sorted[0];
+  const featuredNextSteps = featuredTrip
+    ? await loadNextSteps(featuredTrip.id, todayByTripId.get(featuredTrip.id) ?? today)
+    : [];
+  const featuredNextStep = featuredNextSteps[0]?.title ?? null;
+
   return (
     <div className="space-y-8">
       {/* Page header */}
@@ -146,11 +157,10 @@ export default async function TripsPage() {
 
             // Featured card only: a richer "Next up" — route summary (first
             // Stop → last Stop) and Stops/nights from the same canonical
-            // plan order used for the cover render; the "next step" text is
-            // the phase description's countdown line (the page doesn't fetch
-            // what buildNextSteps from lib/next-steps needs — flags, packing/
-            // pre-trip lists, transport legs — so this is a reasonable
-            // stand-in, not that richer nudge).
+            // plan order used for the cover render; `nextStep` is the title
+            // of that trip's first real Next step (loaded above via
+            // loadNextSteps), or null when there isn't one — never a
+            // restatement of the countdown already shown beside it.
             let featuredDetails: ComponentProps<typeof TripCard>["featuredDetails"];
             if (featured) {
               const orderedStops = orderPlanStops(trip.stops);
@@ -171,7 +181,7 @@ export default async function TripsPage() {
                 unit: phase.countdownUnit,
                 routeSummary,
                 stopsAndNights,
-                nextStep: phase.countdown,
+                nextStep: featuredNextStep,
               };
             }
 
