@@ -38,7 +38,7 @@ export function tripOfflinePaths(
   // route exactly like `${base}/help` — the project already treats those as
   // worth warming — so it rides along in the same list rather than needing
   // its own warm-set mechanism.
-  const paths = [base, `${base}/plan`, `${base}/summary`, `${base}/today`, `${base}/checklists`, `${base}/files`, `${base}/help`, '/whats-new'];
+  const paths = [base, `${base}/plan`, `${base}/summary`, `${base}/checklists`, `${base}/files`, `${base}/help`, '/whats-new'];
   if (startDate && endDate && endDate >= startDate) {
     const span = Math.min(daysBetween(startDate, endDate), MAX_WARM_DAYS - 1);
     for (let i = 0; i <= span; i++) {
