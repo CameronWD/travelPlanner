@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { Copy } from "lucide-react";
 import { getComparison } from "@/server/actions/forks";
 import { CompareTable } from "@/components/trip/compare-table";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requireTripAccess, isTripOwnerOrAdmin } from "@/lib/guards";
+
+export const metadata: Metadata = { title: "Compare plans" };
 
 /** Kit display title (same as Checklists / Files). Exported for tests. */
 export const COMPARE_TITLE_CLASS =

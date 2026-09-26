@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { isAiConfigured } from "@/lib/ai";
@@ -9,6 +10,8 @@ import { AiPackingSuggestions } from "@/components/trip/ai-packing-suggestions";
 import { AiBookingParser } from "@/components/trip/ai-booking-parser";
 import { ChecklistsLayout } from "./checklists-layout";
 import type { ChecklistKind } from "@/lib/enums";
+
+export const metadata: Metadata = { title: "Checklists" };
 
 /** Kit display title (same as Activity / Wishlist). Exported for tests. */
 export const CHECKLISTS_TITLE_CLASS =

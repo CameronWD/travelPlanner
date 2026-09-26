@@ -44,7 +44,7 @@ vi.mock("@/components/feedback/feedback-trip-marker", () => ({
   FeedbackTripMarker: () => null,
 }));
 
-const { default: TripLayout } = await import("./layout");
+const { default: TripLayout, generateMetadata } = await import("./layout");
 
 const BASE_TRIP = {
   id: "trip-1",
@@ -110,5 +110,21 @@ describe("TripLayout", () => {
     const link = screen.getByRole("link", { name: /trip members \(2\)/i });
     expect(link).toHaveAttribute("href", "/trips/trip-1/settings#travellers");
     expect(link.className).toContain("min-h-11");
+  });
+});
+
+describe("generateMetadata", () => {
+  it("titles the trip home with the trip name and subpages page-first", async () => {
+    mockDb.trip.findUnique.mockResolvedValueOnce({ name: "Test Trip" });
+    const md = await generateMetadata({ params: Promise.resolve({ tripId: "trip-1" }) });
+    expect(md).toEqual({
+      title: { default: "Test Trip", template: "%s · Test Trip · Teepee" },
+    });
+  });
+
+  it("returns no title when the trip is gone, so the root 'Teepee' stands", async () => {
+    mockDb.trip.findUnique.mockResolvedValueOnce(null);
+    const md = await generateMetadata({ params: Promise.resolve({ tripId: "trip-1" }) });
+    expect(md).toEqual({});
   });
 });

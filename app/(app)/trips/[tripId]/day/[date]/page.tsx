@@ -1,9 +1,11 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, CalendarDays } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
+import { dayTitle } from "@/lib/page-title";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { buildItinerary, isFreeFormDay, dayHasEntries } from "@/lib/itinerary";
 import { buildDayMapModel, buildItemDirections } from "@/lib/day-map";
@@ -36,6 +38,16 @@ export const DAY_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
 /** Header row: date/stop left, compact weather card right on desktop. Exported for tests. */
 export const DAY_HEADER_GRID_CLASS =
   "flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tripId: string; date: string }>;
+}): Promise<Metadata> {
+  const { date } = await params;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return {};
+  return { title: dayTitle(date) };
+}
 
 export default async function DayPage({
   params,

@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CalendarDays, MapPin } from "lucide-react";
@@ -10,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { CalendarViews } from "@/components/trip/calendar-views";
 import type { TransportMode } from "@/lib/enums";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
+
+export const metadata: Metadata = { title: "Days" };
 
 export default async function CalendarPage({
   params,

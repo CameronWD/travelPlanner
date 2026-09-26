@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import { db } from "@/lib/db";
@@ -8,6 +9,8 @@ import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AttachmentLink } from "@/components/trip/attachment-link";
 import { JournalEntryView } from "@/components/trip/journal-entry-view";
+
+export const metadata: Metadata = { title: "Journal" };
 
 /**
  * Kit day-card grid: one reading-width column on phones, two from md (each

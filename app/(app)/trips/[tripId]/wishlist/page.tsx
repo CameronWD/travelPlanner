@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
@@ -12,6 +13,8 @@ import type { ItemCardItem } from "@/components/trip/item-card";
 import type { CostRow } from "@/server/actions/costs";
 import type { NoteView } from "@/components/trip/note-thread";
 import type { VoteView } from "@/components/trip/vote-control";
+
+export const metadata: Metadata = { title: "Wishlist" };
 
 export default async function WishlistPage({
   params,

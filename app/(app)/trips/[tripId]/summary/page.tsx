@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   MapPin,
@@ -48,6 +49,8 @@ import { MakeItFit } from "@/components/trip/make-it-fit";
 import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { FitStop } from "@/lib/make-it-fit";
+
+export const metadata: Metadata = { title: "Summary" };
 
 // ---------------------------------------------------------------------------
 // Selects

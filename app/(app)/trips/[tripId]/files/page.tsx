@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { Paperclip } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
@@ -8,6 +9,8 @@ import {
 } from "@/components/trip/attachment-list";
 import type { TargetType } from "@/lib/enums";
 import { TARGET_TYPES } from "@/lib/enums";
+
+export const metadata: Metadata = { title: "Files" };
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -1,9 +1,11 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { formatDateRange } from "@/lib/dates";
+import { tripTitle } from "@/lib/page-title";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +31,17 @@ function initials(name?: string | null): string {
     .slice(0, 2)
     .map((w) => w[0].toUpperCase())
     .join("");
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tripId: string }>;
+}): Promise<Metadata> {
+  const { tripId } = await params;
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { name: true } });
+  if (!trip) return {};
+  return { title: tripTitle(trip.name) };
 }
 
 export default async function TripLayout({
