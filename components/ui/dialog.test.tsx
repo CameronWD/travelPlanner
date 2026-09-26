@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 import { SPRING_POP } from "@/lib/motion";
+import { setMatchMedia } from "@/test/setup";
 
 // Task 16 (spec H4): the desktop (sm+) dialog pop is a Motion spring instead
 // of the CSS tp-pop-in keyframe. Mocked the same way calendar-views.test.tsx
@@ -521,6 +522,9 @@ describe("Dialog spring pop (spec H4)", () => {
   beforeEach(() => {
     useReducedMotionMock.mockReturnValue(false);
     lastSpringProps = undefined;
+    // Desktop by default (matches this file's other tests, which assume a
+    // centred sm+ dialog); individual tests below opt into the phone path.
+    setMatchMedia((query) => query === "(min-width: 640px)");
   });
 
   it("wraps the content in the motion spring when motion is allowed", async () => {
@@ -581,5 +585,25 @@ describe("Dialog spring pop (spec H4)", () => {
 
     expect(content.className).toContain("data-[state=open]:tp-slide-up");
     expect(content.className).toContain("data-[state=closed]:tp-slide-down");
+  });
+
+  it("applies the spring's initial scale on a desktop (sm+) viewport", async () => {
+    setMatchMedia((query) => query === "(min-width: 640px)"); // desktop
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+
+    expect(lastSpringProps?.initial).toEqual({ scale: 0.96, opacity: 0 });
+  });
+
+  it("applies no initial scale on a phone viewport, even when motion is allowed — the sheet keeps its plain CSS slide", async () => {
+    setMatchMedia(false); // no query matches: phone viewport
+    const user = userEvent.setup();
+    render(<Example />);
+    await user.click(screen.getByRole("button", { name: "Open dialog" }));
+    await screen.findByRole("dialog");
+
+    expect(lastSpringProps?.initial).toBe(false);
   });
 });

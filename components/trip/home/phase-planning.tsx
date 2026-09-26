@@ -443,10 +443,20 @@ export async function PhasePlanning({
         data-testid="planning-desktop-grid"
         staggerOnMount
       >
-        <AnimatedItem key="hero" index={0}>{hero}</AnimatedItem>
+        {/* Grid-placement/visibility classes that used to live on the tile's
+            own root element must be repeated on the AnimatedItem: it is now
+            the direct grid child, and row-span/col-span (and the stat tiles'
+            `hidden` at non-lg — an un-hidden empty grid cell would still eat
+            a track + gap) only take effect on the element that IS the grid
+            item, not a nested descendant of it. */}
+        <AnimatedItem key="hero" index={0} className="lg:row-span-2">{hero}</AnimatedItem>
         {cover ? <AnimatedItem key="cover" index={1}>{cover}</AnimatedItem> : null}
         {statTiles.map((tile, i) => (
-          <AnimatedItem key={typeof tile.key === "string" ? tile.key : `stat-${i}`} index={(cover ? 2 : 1) + i}>
+          <AnimatedItem
+            key={typeof tile.key === "string" ? tile.key : `stat-${i}`}
+            index={(cover ? 2 : 1) + i}
+            className="hidden lg:flex"
+          >
             {tile}
           </AnimatedItem>
         ))}
@@ -459,7 +469,11 @@ export async function PhasePlanning({
       >
         <AnimatedItem key="route" index={0}>{route}</AnimatedItem>
         <AnimatedItem key="next-steps" index={1}>{nextSteps}</AnimatedItem>
-        <AnimatedItem key="money" index={2}>
+        {/* This tile is lg:hidden itself (spec E1's desktop stat tiles take
+            over from lg) — repeated on the AnimatedItem grid item for the
+            same reason as the desktop grid above: an un-hidden empty grid
+            cell would still claim a track + gap at lg. */}
+        <AnimatedItem key="money" index={2} className="lg:hidden">
           <div className="flex flex-col gap-3.5 lg:hidden" data-home-money>
             {money}
             {upcomingEl}

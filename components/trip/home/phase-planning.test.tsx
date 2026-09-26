@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 // React import needed for JSX in the reminders-slot test below.
 import React from "react";
+import { render } from "@testing-library/react";
 
 // phase-planning.tsx is a heavy async server component with DB calls.
 // We test the desktop grid className via an exported constant so we can assert
@@ -73,8 +74,12 @@ vi.mock("@/components/ui/animated-list", () => ({
   AnimatedList: ({
     children,
     className,
+    // Dropped rather than spread onto the DOM node — it's a boolean prop,
+    // not a valid HTML attribute.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    staggerOnMount,
     ...rest
-  }: { children?: React.ReactNode; className?: string } & Record<string, unknown>) => (
+  }: { children?: React.ReactNode; className?: string; staggerOnMount?: boolean } & Record<string, unknown>) => (
     <div className={className} {...rest}>{children}</div>
   ),
   AnimatedItem: ({
@@ -730,3 +735,82 @@ function flattenTypes(node: unknown): unknown[] {
   if (typeof tid === "string") self.push(tid);
   return [...self, ...flattenTypes(el.props?.children)];
 }
+
+// ---------------------------------------------------------------------------
+// Grid-item classes stay on the animated wrapper (Task 16 fix — review found
+// that AnimatedItem is now the *actual* CSS grid item, so any row-span/
+// col-span/hidden class that used to live on the tile's own root element has
+// no effect there anymore; it has to be repeated on the AnimatedItem).
+// ---------------------------------------------------------------------------
+
+describe("PhasePlanning grid-item classes stay on the animated wrapper (Task 16 fix)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    drivingWindingFactor: 1.3,
+    drivingAvgSpeedKph: 80,
+    homeName: null,
+    homeLat: null,
+    homeLng: null,
+    homeCountryCode: null,
+    roundTrip: false,
+    chaptersEnabled: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    stopCountMock.mockResolvedValue(0);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCountMock.mockResolvedValue(0);
+    checklistItemCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
+  });
+
+  // No `cover` passed, so the desktop grid's direct children are, in order:
+  // [hero, stat-tile, stat-tile, stat-tile].
+  async function renderGrid() {
+    const tree = await PhasePlanning({
+      tripId: "trip-1",
+      trip: baseTrip,
+      today: "2025-12-01",
+      phase: "planning",
+    });
+    return render(tree as React.ReactElement);
+  }
+
+  it("keeps lg:row-span-2 on the hero's direct grid-item element, not a nested descendant", async () => {
+    const { container } = await renderGrid();
+    const grid = container.querySelector('[data-testid="planning-desktop-grid"]') as HTMLElement;
+    const heroItem = grid.children[0] as HTMLElement;
+    expect(heroItem.className).toContain("lg:row-span-2");
+  });
+
+  it("keeps hidden + lg:flex on each stat tile's direct grid-item element", async () => {
+    const { container } = await renderGrid();
+    const grid = container.querySelector('[data-testid="planning-desktop-grid"]') as HTMLElement;
+    const statItems = Array.from(grid.children).slice(1) as HTMLElement[];
+    expect(statItems).toHaveLength(3);
+    for (const item of statItems) {
+      expect(item.className.split(/\s+/)).toContain("hidden");
+      expect(item.className.split(/\s+/)).toContain("lg:flex");
+    }
+  });
+
+  it("keeps lg:hidden on the money tile's direct grid-item element in the tile row", async () => {
+    const { container } = await renderGrid();
+    const row = container.querySelector('[data-testid="planning-tile-row"]') as HTMLElement;
+    // route, next-steps, money, actions — money is index 2.
+    const moneyItem = row.children[2] as HTMLElement;
+    expect(moneyItem.className.split(/\s+/)).toContain("lg:hidden");
+  });
+});

@@ -7,6 +7,33 @@ import { motion, useReducedMotion } from "motion/react";
 import { cn } from "@/lib/cn";
 import { SPRING_POP } from "@/lib/motion";
 
+// Gates the spring pop to the sm+ (desktop) centred dialog — the phone
+// bottom sheet keeps its plain CSS slide, unchanged by this task. Reactive
+// (not a one-shot check) via useSyncExternalStore, mirroring the resolveView
+// external-store pattern in calendar-views.tsx; the server snapshot is
+// `false` so SSR always matches the phone layout, and the client value
+// settles synchronously on the first client render (no flash).
+const DESKTOP_QUERY = "(min-width: 640px)";
+
+function subscribeDesktopQuery(callback: () => void) {
+  if (typeof window === "undefined" || !window.matchMedia) return () => {};
+  const mql = window.matchMedia(DESKTOP_QUERY);
+  mql.addEventListener("change", callback);
+  return () => mql.removeEventListener("change", callback);
+}
+
+function getDesktopSnapshot() {
+  return typeof window !== "undefined" && window.matchMedia ? window.matchMedia(DESKTOP_QUERY).matches : false;
+}
+
+function getDesktopServerSnapshot() {
+  return false;
+}
+
+function useIsDesktopDialog() {
+  return React.useSyncExternalStore(subscribeDesktopQuery, getDesktopSnapshot, getDesktopServerSnapshot);
+}
+
 /* Restyle only: same exports and props as before. Mobile = bottom sheet, sm+ = centred dialog. */
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -76,6 +103,10 @@ const DialogContent = React.forwardRef<
   }
 >(({ className, children, hideClose, bare, size = "md", ...props }, ref) => {
   const reduce = useReducedMotion();
+  const isDesktop = useIsDesktopDialog();
+  // Only the desktop (sm+) pop gets the spring — the phone bottom sheet
+  // keeps its plain CSS slide-up untouched, unaffected by either flag.
+  const spring = isDesktop && !reduce;
   const body = bare ? (
     children
   ) : (
@@ -112,7 +143,7 @@ const DialogContent = React.forwardRef<
       >
         <motion.div
           className="flex min-h-0 flex-1 flex-col"
-          initial={reduce ? false : { scale: 0.96, opacity: 0 }}
+          initial={spring ? { scale: 0.96, opacity: 0 } : false}
           animate={{ scale: 1, opacity: 1 }}
           transition={SPRING_POP}
         >

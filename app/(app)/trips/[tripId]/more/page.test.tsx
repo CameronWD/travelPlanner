@@ -18,9 +18,10 @@ vi.mock("@/components/ui/animated-list", () => ({
     children,
     className,
     as = "div",
+    staggerOnMount,
     ...rest
-  }: { children?: React.ReactNode; className?: string; as?: string } & Record<string, unknown>) => {
-    capturedListProps = { className, as, ...rest };
+  }: { children?: React.ReactNode; className?: string; as?: string; staggerOnMount?: boolean } & Record<string, unknown>) => {
+    capturedListProps = { className, as, staggerOnMount, ...rest };
     return React.createElement(as, { className, ...rest }, children);
   },
   AnimatedItem: ({
