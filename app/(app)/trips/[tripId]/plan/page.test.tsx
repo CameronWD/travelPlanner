@@ -154,7 +154,13 @@ describe("Plan page with stops (LA-038)", () => {
       unknown[]
     >;
     expect(remindersByStopId.get("s1")).toEqual([
-      { id: "r1", title: "Reconfirm the tour", date: "2026-01-02", stopId: "s1" },
+      {
+        id: "r1",
+        title: "Reconfirm the tour",
+        date: "2026-01-02",
+        stopId: "s1",
+        stopName: "Rome",
+      },
     ]);
   });
 

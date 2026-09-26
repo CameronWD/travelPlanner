@@ -5,7 +5,12 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { reminderSchema, type ReminderInput } from "@/lib/validations/reminder";
-import { type ActionResult, validationResult } from "@/lib/action-result";
+import {
+  type ActionResult,
+  type FieldErrors,
+  fail,
+  validationResult,
+} from "@/lib/action-result";
 
 // ---------------------------------------------------------------------------
 // Result types
@@ -17,14 +22,15 @@ export type ReminderActionResult = ActionResult<{ id?: string }>;
  * A Reminder as the Home card (and a Stop card) render it: a title against a
  * calendar date. `stopId`/`stopName` are set when the Reminder is about a
  * Stop (Task 7) — `stopName` is the related Stop's name, joined at read time
- * so the Home card can render a chip without a second round trip.
+ * so the Home card can render a chip without a second round trip. Both are
+ * `null` (never omitted) for a Reminder about the Trip as a whole.
  */
 export interface ReminderItem {
   id: string;
   title: string;
   date: string;
-  stopId?: string | null;
-  stopName?: string | null;
+  stopId: string | null;
+  stopName: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,12 +57,34 @@ async function requireReminderAccess(
 
 /**
  * Reminders now render on the trip Home in every Phase, not only on Today —
- * both paths have to be revalidated or a freshly-written note is invisible
- * on the very screen it was written from.
+ * and (Task 7) on the Plan page's Stop cards — so all three paths have to be
+ * revalidated or a freshly-written note is invisible on the very screen it
+ * was written from.
  */
 function revalidateReminderPaths(tripId: string) {
   revalidatePath(`/trips/${tripId}`);
   revalidatePath(`/trips/${tripId}/today`);
+  revalidatePath(`/trips/${tripId}/plan`);
+}
+
+/**
+ * Guard against a cross-trip `stopId` (Task 7): without this, a member of
+ * trip A could pass a Stop id from trip B, silently linking the two — trip
+ * A's Home card would then render trip B's Stop name, and a delete on trip
+ * B's Stop (onDelete: SetNull) would reach into trip A's Reminder. Returns
+ * `null` when `stopId` is absent (nothing to check) or belongs to this trip;
+ * otherwise a field-error dict ready to hand back to the caller.
+ */
+async function assertStopOnTrip(
+  stopId: string | undefined,
+  tripId: string,
+): Promise<FieldErrors | null> {
+  if (stopId === undefined) return null;
+  const stop = await db.stop.findFirst({
+    where: { id: stopId, tripId },
+    select: { id: true },
+  });
+  return stop ? null : { stopId: ["That Stop isn't on this trip"] };
 }
 
 // ---------------------------------------------------------------------------
@@ -120,6 +148,11 @@ export async function addReminder(
 
   const { title, date, stopId } = parsed.data;
 
+  const stopError = await assertStopOnTrip(stopId, tripId);
+  if (stopError) {
+    return fail(stopError);
+  }
+
   const reminder = await db.reminder.create({
     // `stopId` is omitted entirely (never sent as `undefined`) when absent —
     // that leaves the column NULL, which is what "about the Trip as a whole"
@@ -151,6 +184,11 @@ export async function updateReminder(
   }
 
   const { title, date, stopId } = parsed.data;
+
+  const stopError = await assertStopOnTrip(stopId, reminder.tripId);
+  if (stopError) {
+    return fail(stopError);
+  }
 
   await db.reminder.update({
     where: { id },

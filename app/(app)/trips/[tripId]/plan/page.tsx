@@ -355,11 +355,18 @@ export default async function TripPlanPage({
     orderBy: { date: "asc" },
     select: { id: true, title: true, date: true, stopId: true },
   });
+  const stopNameById = new Map(stops.map((s) => [s.id, s.name]));
   const remindersByStopId = new Map<string, ReminderItem[]>();
   for (const r of stopReminders) {
     if (!r.stopId) continue;
     const existing = remindersByStopId.get(r.stopId) ?? [];
-    existing.push({ id: r.id, title: r.title, date: r.date, stopId: r.stopId });
+    existing.push({
+      id: r.id,
+      title: r.title,
+      date: r.date,
+      stopId: r.stopId,
+      stopName: stopNameById.get(r.stopId) ?? null,
+    });
     remindersByStopId.set(r.stopId, existing);
   }
 

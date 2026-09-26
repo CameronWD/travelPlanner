@@ -873,7 +873,7 @@ describe("Stop card row (kit DPlan) with an overflow menu", () => {
   // Task 7: a Reminder about this Stop, listed under a small "Reminders" line.
   it("lists the Stop's reminders under a 'Reminders' line", () => {
     renderRow({
-      reminders: [{ id: "rem-1", title: "Reconfirm the tour", date: "2026-07-11" }],
+      reminders: [{ id: "rem-1", title: "Reconfirm the tour", date: "2026-07-11", stopId: null, stopName: null }],
     });
     expect(screen.getByText("Reminders")).toBeInTheDocument();
     expect(screen.getByText("Reconfirm the tour")).toBeInTheDocument();

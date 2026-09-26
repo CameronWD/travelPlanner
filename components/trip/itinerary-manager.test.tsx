@@ -2494,7 +2494,7 @@ describe("Add a reminder from a Stop's overflow menu (Task 7)", () => {
         initialStops={[stop]}
         remindersByStopId={
           new Map([
-            ["s1", [{ id: "rem-1", title: "Reconfirm the tour", date: "2026-08-01" }]],
+            ["s1", [{ id: "rem-1", title: "Reconfirm the tour", date: "2026-08-01", stopId: "s1", stopName: "Denpasar" }]],
           ])
         }
       />,
