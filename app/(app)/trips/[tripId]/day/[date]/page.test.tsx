@@ -95,7 +95,10 @@ vi.mock("@/lib/nearby", () => ({
 }));
 vi.mock("@/lib/flags", () => ({ flagTightConnections: flagTightConnectionsMock }));
 vi.mock("@/lib/daylight", () => ({ daylight: daylightMock, utcHmToZone: vi.fn() }));
-vi.mock("@/lib/weather", () => ({ getDayWeather: getDayWeatherMock }));
+vi.mock("@/lib/weather", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/weather")>();
+  return { ...actual, getDayWeather: getDayWeatherMock };
+});
 vi.mock("@/lib/time-display", () => ({ zoneLabel: vi.fn() }));
 vi.mock("@/components/ui/empty-state", () => ({ EmptyState: () => null }));
 vi.mock("@/components/trip/timeline", () => ({ Timeline: () => null }));

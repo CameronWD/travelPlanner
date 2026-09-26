@@ -36,7 +36,10 @@ vi.mock("@/server/actions/items", () => ({ unscheduleItem: vi.fn() }));
 // …and the day page's DayEntryLink (edit dialogs → server actions → auth). The
 // share page never passes an editor, so it is never rendered here.
 vi.mock("@/components/trip/day-entry-link", () => ({ DayEntryLink: () => null }));
-vi.mock("@/lib/weather", () => ({ getDayWeather: vi.fn(async () => null) }));
+vi.mock("@/lib/weather", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/weather")>();
+  return { ...actual, getDayWeather: vi.fn(async () => null) };
+});
 
 import SharePage, { metadata, noOrphan } from "./page";
 
