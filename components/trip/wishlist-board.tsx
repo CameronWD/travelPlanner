@@ -196,11 +196,14 @@ export function WishlistBoard({
     setSchedulingItem(item);
   }
 
-  // First stop date (for defaulting schedule dialog)
-  // Prefer the first stop's arrival; fall back to the trip start. Either may be
-  // null/undefined for rough stops / a date-less trip, in which case the
-  // scheduling dialog opens with an empty date.
-  const defaultScheduleDate = stops[0]?.arriveDate ?? tripStartDate ?? undefined;
+  // Schedule-dialog date default (for a Wishlist idea): the idea's own Stop's
+  // arrival first, else the trip's first Stop, else the trip start. Any of
+  // these may be null/undefined for rough stops / a date-less trip, in which
+  // case the scheduling dialog opens with an empty date.
+  const stopArrive = React.useCallback(
+    (stopId: string | null | undefined) => stops.find((s) => s.id === stopId)?.arriveDate ?? null,
+    [stops],
+  );
   const tripStartDateValue = tripStartDate ?? undefined;
 
   // Kit copy (states.jsx EMPTY.Wishlist / DWishlist "+ Add an idea").
@@ -424,7 +427,7 @@ export function WishlistBoard({
         <ScheduleItemDialog
           itemId={schedulingItem.id}
           itemTitle={schedulingItem.title}
-          defaultDate={defaultScheduleDate}
+          defaultDate={stopArrive(schedulingItem.stopId) ?? stops[0]?.arriveDate ?? tripStartDate ?? undefined}
           forkId={activeForkId}
           open={Boolean(schedulingItem)}
           onOpenChange={(open) => {

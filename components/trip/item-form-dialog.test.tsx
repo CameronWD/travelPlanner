@@ -836,3 +836,54 @@ describe("defaultDate prop", () => {
     expect(screen.getByLabelText(/^date$/i)).toHaveValue("2026-12-07");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Stop arrive-date defaults (scheduled create defaults to the Stop's date)
+// ---------------------------------------------------------------------------
+
+describe("Stop arrive-date defaults", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const STOPS = [
+    { id: "stop-a", name: "Denpasar", arriveDate: "2026-12-04" },
+    { id: "stop-b", name: "Munich", arriveDate: "2026-12-08" },
+  ];
+
+  it("scheduled create defaults the date to the pre-selected Stop's arrive date", () => {
+    render(
+      <ItemFormDialog {...baseProps} stops={STOPS} defaultUnscheduled={false} defaultStopId="stop-a" tripStartDate="2026-12-01" />,
+    );
+    expect(screen.getByLabelText(/^date/i)).toHaveValue("2026-12-04");
+  });
+
+  it("scheduled create with no Stop falls back to the trip start", () => {
+    render(<ItemFormDialog {...baseProps} stops={STOPS} defaultUnscheduled={false} tripStartDate="2026-12-01" />);
+    expect(screen.getByLabelText(/^date/i)).toHaveValue("2026-12-01");
+  });
+
+  it("unscheduled create keeps the date blank even under a Stop", () => {
+    render(<ItemFormDialog {...baseProps} stops={STOPS} defaultUnscheduled defaultStopId="stop-a" />);
+    expect(screen.getByLabelText(/^date/i)).toHaveValue("");
+  });
+
+  it("changing the Stop re-defaults an untouched date, but never a date the Traveller typed", async () => {
+    const user = userEvent.setup();
+    render(
+      <ItemFormDialog {...baseProps} stops={STOPS} defaultUnscheduled={false} defaultStopId="stop-a" tripStartDate="2026-12-01" />,
+    );
+    const date = screen.getByLabelText(/^date/i);
+    // Pick Munich via the Stop Select (Radix). The trigger carries no
+    // accessible name of its own (unlike the Currency combobox, which has
+    // aria-label="Currency"), so with a Stop present there are two
+    // comboboxes on the page — the Stop trigger is the first in DOM order.
+    const stopSelect = () => screen.getAllByRole("combobox")[0];
+    await user.click(stopSelect());
+    await user.click(await screen.findByRole("option", { name: "Munich" }));
+    expect(date).toHaveValue("2026-12-08");
+    await user.clear(date);
+    await user.type(date, "2026-12-09");
+    await user.click(stopSelect());
+    await user.click(await screen.findByRole("option", { name: "Denpasar" }));
+    expect(date).toHaveValue("2026-12-09");
+  });
+});

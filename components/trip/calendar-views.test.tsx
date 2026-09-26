@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, afterEach } from "vitest";
 
 // Mock heavy server/client imports that resolveView() doesn't need but that
@@ -30,7 +31,16 @@ vi.mock("motion/react", () => ({
   motion: { div: ({ children, ...rest }: React.HTMLAttributes<HTMLDivElement>) => <div {...rest}>{children}</div> },
   useReducedMotion: () => true,
 }));
-vi.mock("@/components/trip/schedule-item-dialog", () => ({ ScheduleItemDialog: () => null }));
+// Captures the props CalendarViews passes to ScheduleItemDialog so tests can
+// assert on the computed `defaultDate` without a real dialog mounting.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let capturedScheduleProps: any;
+vi.mock("@/components/trip/schedule-item-dialog", () => ({
+  ScheduleItemDialog: (props: unknown) => {
+    capturedScheduleProps = props;
+    return null;
+  },
+}));
 vi.mock("@/components/trip/category-dot", () => ({ categoryDotClass: () => "" }));
 
 import React from "react";
@@ -63,6 +73,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   capturedOnDropItem = undefined;
+  capturedScheduleProps = undefined;
 });
 
 const wishlistItems = [{ id: "w1", title: "Eiffel Tower", category: "activity" }];
@@ -213,5 +224,35 @@ describe("CalendarViews — kit toolbar and rail (Task 12b)", () => {
     expect(row.className).toMatch(/\bborder-2\b/);
     expect(row.className).not.toMatch(/(^|\s)border(\s|$)/);
     expect(screen.getByRole("button", { name: "Schedule Eiffel Tower" })).toBeInTheDocument();
+  });
+});
+
+describe("CalendarViews — Schedule dialog defaults to the idea's Stop (Task 8)", () => {
+  it("schedules a wishlist idea from the calendar defaulting to its Stop's arrive date, not the trip start", async () => {
+    mockEnv(true, "month");
+    const user = userEvent.setup();
+
+    const stopDay = {
+      dateISO: "2026-08-04",
+      stop: {
+        id: "s1",
+        name: "Denpasar",
+        timezone: "UTC",
+        arriveDate: "2026-12-04",
+        departDate: "2026-12-08",
+        sortOrder: 0,
+      },
+      timedItems: [],
+      untimedItems: [],
+      transportEntries: [],
+      accommodationEntries: [],
+    };
+    const wishlistWithStop = [{ id: "w1", title: "Eiffel Tower", category: "activity", stopId: "s1" }];
+
+    render(<CalendarViews {...baseProps} days={[stopDay]} wishlistItems={wishlistWithStop} />);
+
+    await user.click(screen.getByRole("button", { name: "Schedule Eiffel Tower" }));
+
+    expect(capturedScheduleProps.defaultDate).toBe("2026-12-04");
   });
 });

@@ -38,6 +38,8 @@ import { AttachmentList, type AttachmentView } from "@/components/trip/attachmen
 export interface StopOption {
   id: string;
   name: string;
+  /** Stop's arrive date (YYYY-MM-DD) — the scheduled-mode date default. Null/absent for a rough Stop. */
+  arriveDate?: string | null;
 }
 
 interface FormErrors {
@@ -322,10 +324,19 @@ function ItemForm({
   const [category, setCategory] = React.useState<Category>(
     (item?.category as Category) ?? "SIGHTSEEING",
   );
-  const [stopId, setStopId] = React.useState(item?.stopId ?? defaultStopId ?? "");
-  const [date, setDate] = React.useState(
-    item?.date ?? defaultDate ?? (defaultUnscheduled ? "" : (tripStartDate ?? "")),
+  const arriveOf = React.useCallback(
+    (id: string) => stops.find((s) => s.id === id)?.arriveDate ?? null,
+    [stops],
   );
+  const initialStopId = item?.stopId ?? defaultStopId ?? "";
+  const [stopId, setStopId] = React.useState(initialStopId);
+  const [date, setDate] = React.useState(
+    item?.date ??
+      defaultDate ??
+      (defaultUnscheduled ? "" : (arriveOf(initialStopId) ?? tripStartDate ?? "")),
+  );
+  // True once the Traveller edits the date by hand; a Stop change then leaves it alone.
+  const [dateTouched, setDateTouched] = React.useState(Boolean(item?.date ?? defaultDate));
   const [startTime, setStartTime] = React.useState(item?.startTime ?? "");
   const [endTime, setEndTime] = React.useState(item?.endTime ?? "");
   const [address, setAddress] = React.useState(item?.address ?? "");
@@ -456,7 +467,13 @@ function ItemForm({
         <Field label="Stop" error={(errors as FormErrors).stopId?.[0]}>
           <Select
             value={stopId}
-            onValueChange={(v) => setStopId(v === "__none__" ? "" : v)}
+            onValueChange={(v) => {
+              const next = v === "__none__" ? "" : v;
+              setStopId(next);
+              if (!isEdit && !defaultUnscheduled && !dateTouched) {
+                setDate(arriveOf(next) ?? tripStartDate ?? "");
+              }
+            }}
             disabled={isPending}
           >
             <SelectTrigger>
@@ -479,6 +496,7 @@ function ItemForm({
         label="Date"
         value={date}
         onChange={(e) => {
+          setDateTouched(true);
           setDate(e.target.value);
           // Clear times when date is cleared
           if (!e.target.value) {
