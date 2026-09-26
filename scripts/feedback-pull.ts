@@ -55,6 +55,7 @@ async function main() {
       resolvedAt: true,
       resolution: true,
       authorName: true,
+      site: true,
     },
   });
 

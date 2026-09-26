@@ -31,6 +31,10 @@ Main session only, at the start of the session, before the grilling interview:
 
 ### Closing a Feedback note (ADR 0040, amended 2026-09-22)
 
+Each note records the **site** it was written on (ADR 0040, amended
+2026-09-26): a beta note closes when the fix is live on beta, a main note
+when it is live on main.
+
 **"Landed" means deployed, not merged.** `feedback:resolve` writes to
 production, so resolving before a Traveller can actually use the fix makes
 production report **Done** for something that does not exist yet. That failure
@@ -57,8 +61,9 @@ So, while the work is on a branch:
 
 After I confirm the deploy is live:
 
-1. `npm run feedback:resolve -- <id> --note "what you did"` for each
-   `Resolves-Feedback:` trailer on `main` since the last deploy. Write the note
+1. `npm run feedback:resolve -- <id> --site <site> --note "what you did"` for
+   each `Resolves-Feedback:` trailer on that site's branch (`main` for the
+   live site, `beta` for beta) since that site's last deploy. Write the note
    for *me* — what changed and any caveat worth knowing — not for a changelog.
 2. `npm run feedback:pull`, then commit the regenerated `inbox.md`.
 

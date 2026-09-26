@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { renderInbox, toInboxNote, type InboxNote } from "@/lib/feedback-inbox";
+import { siteOf } from "@/lib/feedback-site";
 
 const generatedAt = new Date("2026-09-08T10:00:00.000Z");
 
-function note(overrides: Partial<InboxNote> = {}): InboxNote {
+function note(
+  overrides: Partial<Omit<InboxNote, "site">> & { site?: string | null } = {},
+): InboxNote {
+  const { site, ...rest } = overrides;
   return {
     id: "n1",
     body: "Dragging is fiddly on a phone",
@@ -19,7 +23,8 @@ function note(overrides: Partial<InboxNote> = {}): InboxNote {
     createdAt: new Date("2026-09-07T08:00:02.000Z"),
     resolvedAt: null,
     resolution: null,
-    ...overrides,
+    site: siteOf(site === undefined ? "main" : site),
+    ...rest,
   };
 }
 
@@ -152,6 +157,37 @@ describe("renderInbox", () => {
     expect(md).not.toContain("Close a note with");
   });
 
+  it("splits open notes into site sections, Beta first, then Main, then others", () => {
+    const md = renderInbox([
+      note({ id: "m1", site: "main" }),
+      note({ id: "b1", site: "beta" }),
+      note({ id: "x1", site: "feat/x" }),
+    ], new Date("2026-09-26"));
+    const beta = md.indexOf("## Open · Beta");
+    const main = md.indexOf("## Open · Main");
+    const other = md.indexOf("## Open · feat/x");
+    expect(beta).toBeGreaterThan(-1);
+    expect(main).toBeGreaterThan(beta);
+    expect(other).toBeGreaterThan(main);
+    expect(md.slice(beta, main)).toContain("`b1`");
+  });
+
+  it("a note with no site is Main, and an absent site gets no empty section", () => {
+    const md = renderInbox([note({ id: "old", site: null })], new Date("2026-09-26"));
+    expect(md).toContain("## Open · Main");
+    expect(md).not.toContain("## Open · Beta");
+  });
+
+  it("shows open counts per site in the header", () => {
+    const md = renderInbox([note({ site: "beta" }), note({ site: "beta" }), note({ site: null })], new Date("2026-09-26"));
+    expect(md).toContain("_3 open (Beta 2 · Main 1), 0 resolved · pulled 2026-09-26_");
+  });
+
+  it("labels each resolved note with its site", () => {
+    const md = renderInbox([note({ id: "r1", site: "beta", status: "DONE", resolvedAt: new Date() })], new Date("2026-09-26"));
+    expect(md).toMatch(/- \*\*Beta · .*\*\* — `r1`/);
+  });
+
   it("renders unknown status values as the raw status string, not undefined", () => {
     const unknownNote = {
       id: "unknown-status",
@@ -168,6 +204,7 @@ describe("renderInbox", () => {
       createdAt: new Date("2026-09-07T08:00:00.000Z"),
       resolvedAt: new Date("2026-09-05T00:00:00.000Z"),
       resolution: "Working on it",
+      site: "main",
     };
     const md = renderInbox([unknownNote], generatedAt);
     expect(md).toContain("PENDING");
@@ -191,6 +228,7 @@ describe("toInboxNote", () => {
     resolvedAt: null,
     resolution: null,
     authorName: "Cam",
+    site: "beta",
   };
 
   it("carries every field across, unchanged", () => {
@@ -208,7 +246,12 @@ describe("toInboxNote", () => {
       createdAt: new Date("2026-09-07T04:05:06.000Z"),
       resolvedAt: null,
       resolution: null,
+      site: "beta",
     });
+  });
+
+  it("maps a null stored site to Main", () => {
+    expect(toInboxNote({ ...row, site: null }).site).toBe("main");
   });
 
   it("falls back to 'Traveller' when the author has no name", () => {

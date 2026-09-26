@@ -249,6 +249,32 @@ error sink (ADR 0059), plus one migration,
    invited Traveller signing in **twice**, across the Invite-acceptance
    boundary) is the one to do first.
 
+## 4d. Feedback note site — deploy order (`feat/feedback-site-tag`)
+
+`prisma/migrations/20260926000000_feedback_note_site` adds the nullable
+`FeedbackNote.site` column that this branch's code selects and writes.
+**Deploy production — the migration included — before this code reaches any
+preview or beta**, including a preview Vercel creates just from pushing this
+branch. New code against the old (unmigrated) schema is the direction §4b's
+worked examples don't cover: `VIEW_SELECT` includes `site`, so every
+`listFeedbackNotes` and `createFeedbackNote` call 500s (Prisma P2022, column
+does not exist) until the production migration has run. It's non-destructive
+— a failed send stays in the offline queue and the flush retries it once the
+column exists — but it will look broken on that preview until then. Once
+`main` has deployed with the migration applied, merging `main` into `beta` is
+safe (the column already exists in the shared database).
+
+`site` also depends on `VERCEL_GIT_COMMIT_REF` being exposed to the running
+function, not just `VERCEL_ENV`. Vercel always exposes `VERCEL_ENV` at
+runtime, but the Git system variables (`VERCEL_GIT_COMMIT_REF` among them)
+only reach the runtime when the project's "Automatically expose System
+Environment Variables" setting is on (the default for new projects). If it's
+off, every beta note records as `preview` instead of `beta` — still not
+`main`, so it fails safe, but it lands in the wrong inbox section with the
+wrong chip. **The check:** after beta is deployed, write one Feedback note
+from beta and confirm both the panel chip and the pulled inbox show it as
+**Beta**. If either shows "Preview" instead, turn the setting on and redeploy.
+
 ## 5. GitHub Actions cron (reminder delivery)
 
 In the GitHub repo settings:
