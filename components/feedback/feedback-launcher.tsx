@@ -705,6 +705,11 @@ function SentEntry({
           {note.body}
         </p>
       </div>
+      {note.siteChip ? (
+        <Badge variant="outline" aria-label={`Written on ${note.siteChip}`}>
+          {note.siteChip}
+        </Badge>
+      ) : null}
       {statusLabel ? <Badge variant={badgeVariant}>{statusLabel}</Badge> : null}
       {canDelete ? (
         <Button

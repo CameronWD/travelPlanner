@@ -49,6 +49,7 @@ export async function createFeedbackNote(
     return validationResult(parsed.error);
   }
   const { clientKey, authoredAt, ...rest } = parsed.data;
+  const site = feedbackSite();
 
   const row = await db.feedbackNote.upsert({
     where: { clientKey },
@@ -58,13 +59,13 @@ export async function createFeedbackNote(
       authorId: user.id,
       authorName: user.name ?? null,
       authoredAt: new Date(authoredAt),
-      site: feedbackSite(),
+      site,
       ...rest,
     },
     select: VIEW_SELECT,
   });
 
-  return ok({ note: toView(row as FeedbackNoteQueryRow, user.id) });
+  return ok({ note: toView(row as FeedbackNoteQueryRow, user.id, site) });
 }
 
 /**
@@ -77,6 +78,7 @@ export async function listFeedbackNotes(): Promise<
   ActionResult<{ notes: FeedbackNoteView[] }>
 > {
   const user = await requireUser();
+  const site = feedbackSite();
 
   const rows = await db.feedbackNote.findMany({
     ...(isAdminEmail(user.email) ? {} : { where: { authorId: user.id } }),
@@ -85,7 +87,7 @@ export async function listFeedbackNotes(): Promise<
   });
 
   return ok({
-    notes: (rows as FeedbackNoteQueryRow[]).map((row) => toView(row, user.id)),
+    notes: (rows as FeedbackNoteQueryRow[]).map((row) => toView(row, user.id, site)),
   });
 }
 

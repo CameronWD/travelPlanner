@@ -68,6 +68,7 @@ const row = {
   authorName: "Cam",
   status: "OPEN",
   authoredAt: new Date(input.authoredAt),
+  site: "local",
 };
 
 const otherRow = {
@@ -80,6 +81,7 @@ const otherRow = {
   authorName: "Partner",
   status: "OPEN",
   authoredAt: new Date("2026-09-09T00:00:00.000Z"),
+  site: "local",
 };
 
 afterEach(() => {
@@ -106,6 +108,7 @@ describe("createFeedbackNote", () => {
       canDelete: true,
       status: "OPEN",
       authoredAt: "2026-09-08T04:05:06.000Z",
+      siteChip: null,
     });
   });
 
@@ -231,8 +234,10 @@ describe("toView", () => {
         authorName: "Cam",
         status: "OPEN",
         authoredAt: new Date("2026-09-21T00:00:00Z"),
+        site: "local",
       },
       "someone-else",
+      "local",
     );
 
     expect(view.authorName).toBe("Cam");
