@@ -227,13 +227,13 @@ describe("CalendarViews — kit toolbar and rail (Task 12b)", () => {
   });
 });
 
-describe("CalendarViews — Schedule dialog defaults to the idea's Stop (Task 8)", () => {
-  it("schedules a wishlist idea from the calendar defaulting to its Stop's arrive date, not the trip start", async () => {
+describe("CalendarViews — Schedule dialog defaults to the trip's first Stop (Task 8)", () => {
+  it("schedules a wishlist idea from the calendar defaulting to the first Stop's arrive date, not the trip start", async () => {
     mockEnv(true, "month");
     const user = userEvent.setup();
 
     const stopDay = {
-      dateISO: "2026-08-04",
+      dateISO: "2026-12-04",
       stop: {
         id: "s1",
         name: "Denpasar",
@@ -247,9 +247,19 @@ describe("CalendarViews — Schedule dialog defaults to the idea's Stop (Task 8)
       transportEntries: [],
       accommodationEntries: [],
     };
-    const wishlistWithStop = [{ id: "w1", title: "Eiffel Tower", category: "activity", stopId: "s1" }];
+    // A Wishlist idea is never attached to a Stop (ADR 0022) — stopId is
+    // always null in practice; the default must still come from the trip's
+    // first Stop rather than the trip start.
+    const wishlistNoStop = [{ id: "w1", title: "Eiffel Tower", category: "activity", stopId: null }];
 
-    render(<CalendarViews {...baseProps} days={[stopDay]} wishlistItems={wishlistWithStop} />);
+    render(
+      <CalendarViews
+        {...baseProps}
+        tripStart="2026-12-01"
+        days={[stopDay]}
+        wishlistItems={wishlistNoStop}
+      />,
+    );
 
     await user.click(screen.getByRole("button", { name: "Schedule Eiffel Tower" }));
 

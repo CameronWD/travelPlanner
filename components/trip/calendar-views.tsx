@@ -74,8 +74,6 @@ export interface WishlistRailItem {
   id: string;
   title: string;
   category: string;
-  /** The idea's Stop, if any — used to default the Schedule dialog's date. */
-  stopId?: string | null;
 }
 
 export interface CalendarViewsProps {
@@ -118,7 +116,8 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
 
   // Stops in trip order, derived from the days already projected here (no
   // separate stops prop to keep in sync) — used to default the Schedule
-  // dialog's date to a Wishlist idea's own Stop, else the trip's first Stop.
+  // dialog's date to the trip's first Stop. A Wishlist idea is never
+  // attached to a Stop (ADR 0022), so the first Stop is the natural default.
   const stops = React.useMemo(() => {
     const seen = new Map<string, { id: string; arriveDate: string }>();
     for (const d of days) {
@@ -128,10 +127,6 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
     }
     return [...seen.values()];
   }, [days]);
-  const stopArrive = React.useCallback(
-    (stopId: string | null | undefined) => stops.find((s) => s.id === stopId)?.arriveDate ?? null,
-    [stops],
-  );
 
   const handleDropItem = React.useCallback(
     (itemId: string, dateISO: string) => {
@@ -309,7 +304,7 @@ export function CalendarViews({ tripId, days, tripStart, tripEnd, wishlistItems,
         <ScheduleItemDialog
           itemId={schedulingItem.id}
           itemTitle={schedulingItem.title}
-          defaultDate={stopArrive(schedulingItem.stopId) ?? stops[0]?.arriveDate ?? tripStart}
+          defaultDate={stops[0]?.arriveDate ?? tripStart}
           open={Boolean(schedulingItem)}
           onOpenChange={(open) => {
             if (!open) setSchedulingItem(null);
