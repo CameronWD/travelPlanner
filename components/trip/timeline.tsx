@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/cn";
 import { CategoryPill } from "./category-pill";
 import { categoryClasses } from "@/lib/categories";
+import { groupByCategory } from "@/lib/group-by-category";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TRANSPORT_MODE_META } from "@/lib/transport";
 import {
@@ -174,19 +175,26 @@ export function Timeline({
         }
       })}
 
-      {/* Untimed items */}
+      {/* Untimed items, grouped by Category */}
       {anytime.length > 0 && (
         <div className="flex flex-col border-t-2 border-dotted border-border-soft pt-2.5 first:border-t-0 first:pt-0">
           <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Anytime</p>
-          {anytime.map((e) => (
-            <UntimedItemRow
-              key={`ui-${e.item.id}`}
-              entry={e}
-              directions={itemDirections?.[e.item.id]}
-              attachments={attachmentsByTarget?.[e.item.id] ?? []}
-              showUnschedule={unschedule}
-              editor={editor}
-            />
+          {groupByCategory(anytime.map((e) => e.item)).map((group) => (
+            <div key={group.category} className="flex flex-col">
+              <h4 className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                {group.label}
+              </h4>
+              {group.items.map((it) => (
+                <UntimedItemRow
+                  key={`ui-${it.id}`}
+                  entry={{ kind: "item", item: it }}
+                  directions={itemDirections?.[it.id]}
+                  attachments={attachmentsByTarget?.[it.id] ?? []}
+                  showUnschedule={unschedule}
+                  editor={editor}
+                />
+              ))}
+            </div>
           ))}
         </div>
       )}

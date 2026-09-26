@@ -11,6 +11,8 @@ import { formatDayLabel } from "@/lib/dates";
 import { buildStopDays, type StopDayItem } from "@/lib/stop-days";
 import { scheduleItem } from "@/server/actions/items";
 import { categoryDotClass } from "./category-dot";
+import { CategoryPill } from "./category-pill";
+import type { Category } from "@/lib/categories";
 import { DayPickerMenu } from "./day-picker-menu";
 import { ItemFormDialog, type StopOption } from "./item-form-dialog";
 import { UnscheduleItemButton } from "./unschedule-item-button";
@@ -288,10 +290,7 @@ function DayItemRow({
       <span className="w-12 shrink-0 text-xs tabular-nums text-muted-foreground">
         {timeLabel ?? ""}
       </span>
-      <span
-        className={cn("size-2 shrink-0 rounded-full", categoryDotClass(item.category))}
-        aria-hidden="true"
-      />
+      <CategoryPill category={item.category as Category} size="sm" />
       <span className="min-w-0 flex-1 break-words text-sm text-foreground">{item.title}</span>
       {ownerLabel && (
         <span className="shrink-0 text-xs italic text-muted-foreground/70">

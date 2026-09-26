@@ -858,3 +858,46 @@ describe("Timeline — Place category (map-pin icon)", () => {
     expect(screen.getByText(PLACE_ITEM_TITLE)).toBeInTheDocument();
   });
 });
+
+describe("Timeline — Anytime bucket grouped by Category", () => {
+  const dayPlanWithTwoUntimedCategories: DayPlan = {
+    dateISO: "2025-07-01",
+    stop: {
+      id: "stop-1",
+      name: "Tokyo",
+      timezone: "Asia/Tokyo",
+      arriveDate: "2025-07-01",
+      departDate: "2025-07-03",
+      sortOrder: 0,
+    },
+    timedItems: [],
+    untimedItems: [
+      {
+        kind: "item",
+        item: {
+          id: "item-untimed-food-2",
+          title: "Browse Tsukiji Market",
+          category: "FOOD",
+          date: "2025-07-01",
+        },
+      },
+      {
+        kind: "item",
+        item: {
+          id: "item-untimed-sightseeing-1",
+          title: "Senso-ji Temple",
+          category: "SIGHTSEEING",
+          date: "2025-07-01",
+        },
+      },
+    ],
+    transportEntries: [],
+    accommodationEntries: [],
+  };
+
+  it("renders two group labels under Anytime, in CATEGORIES order", () => {
+    render(<Timeline day={dayPlanWithTwoUntimedCategories} variant="day" />);
+    const headings = screen.getAllByRole("heading", { level: 4 });
+    expect(headings.map((h) => h.textContent)).toEqual(["Sightseeing", "Food & Drink"]);
+  });
+});

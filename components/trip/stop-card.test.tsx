@@ -511,13 +511,15 @@ describe("Task 10 — StopCard Bold-Modular anatomy", () => {
     expect(screen.getByText(/^3 nights$/)).toBeInTheDocument();
   });
 
-  it("things-to-do rows render a leading hue dot element", () => {
+  it("groups things to do by Category, with a real CategoryPill chip on each row and no dot", () => {
     const thingsToDo = [
-      { id: "ttd-1", title: "Visit the Colosseum", category: "SIGHTSEEING", date: null, stopId: "a" },
+      { id: "ttd-1", title: "Try pasta", category: "FOOD", date: null, stopId: "a" },
+      { id: "ttd-2", title: "Visit the Colosseum", category: "SIGHTSEEING", date: null, stopId: "a" },
+      { id: "ttd-3", title: "Try gelato", category: "FOOD", date: null, stopId: "a" },
     ];
     const { container } = render(
       <StopCard
-        stop={{ ...roughStop, sortOrder: 0 }}
+        stop={scheduledStop}
         isFirst={false}
         isLast={false}
         tripId="trip-1"
@@ -526,9 +528,17 @@ describe("Task 10 — StopCard Bold-Modular anatomy", () => {
         forkId={null}
       />,
     );
-    // Should contain a dot span with a bg colour class
-    const dots = container.querySelectorAll("[data-testid='thing-dot']");
-    expect(dots.length).toBeGreaterThanOrEqual(1);
+    // Group headings appear in CATEGORIES order: Sightseeing, then Food & Drink.
+    const groups = screen.getAllByTestId("things-group");
+    expect(groups).toHaveLength(2);
+    const headings = screen.getAllByRole("heading", { level: 4 });
+    expect(headings.map((h) => h.textContent)).toEqual(["Sightseeing", "Food & Drink"]);
+
+    // Each row carries a real CategoryPill chip (its label text), not a dot.
+    expect(screen.getByText("Try pasta").closest("li")?.textContent).toContain("Food & Drink");
+    expect(screen.getByText("Try gelato").closest("li")?.textContent).toContain("Food & Drink");
+    expect(screen.getByText("Visit the Colosseum").closest("li")?.textContent).toContain("Sightseeing");
+    expect(container.querySelectorAll("[data-testid='thing-dot']")).toHaveLength(0);
   });
 
   it("'+ Add thing to do' link has text-primary class (coral styling)", () => {

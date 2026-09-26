@@ -31,7 +31,9 @@ import type { ItemCardItem } from "./item-card";
 import type { CostRow } from "@/server/actions/costs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { stopBandBorderClass, stopPillClass } from "@/lib/stop-colours";
-import { categoryDotClass } from "./category-dot";
+import { CategoryPill } from "./category-pill";
+import type { Category } from "@/lib/categories";
+import { groupByCategory } from "@/lib/group-by-category";
 import { enumerateTripDays } from "@/lib/itinerary";
 import { scheduleItem } from "@/server/actions/items";
 import { toast } from "@/components/ui/use-toast";
@@ -529,67 +531,66 @@ export function StopCard({
       {/* Things to do (ADR 0022) — shown when tripId is provided */}
       {tripId && (
         <>
-          {/* List of existing things to do */}
+          {/* List of existing things to do, grouped by Category */}
           {thingsToDo && thingsToDo.length > 0 && (
             <div className="flex flex-col gap-1.5 border-t border-border/40 pt-2">
               <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
                 Things to do
               </div>
-              <ul className="flex flex-col gap-1.5">
-              {thingsToDo.map((thing) => (
-                <li key={thing.id} className="flex items-center gap-2">
-                  {/* Category/stop hue dot */}
-                  <span
-                    data-testid="thing-dot"
-                    className={cn(
-                      "size-2 shrink-0 rounded-full",
-                      categoryDotClass(thing.category),
-                    )}
-                    aria-hidden="true"
-                  />
-                  <span className="min-w-0 flex-1 break-words text-sm text-foreground">{thing.title}</span>
-                  {/* Right-aligned time when item is timed */}
-                  {thing.startTime && (
-                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                      {thing.startTime}
-                    </span>
-                  )}
-                  {!isRough && stayDays.length > 0 && (
-                    <DayPickerMenu
-                      days={stayDays}
-                      label={`Pick a day for ${thing.title}`}
-                      onPick={(d) => handleScheduleThing(thing, d)}
-                      disabled={isPending}
-                    />
-                  )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="tap-target size-8 shrink-0 text-muted-foreground"
-                    disabled={isPending}
-                    onClick={() => {
-                      setEditingThing({
-                        id: thing.id,
-                        title: thing.title,
-                        category: thing.category,
-                        date: thing.date ?? null,
-                        startTime: thing.startTime ?? null,
-                        endTime: thing.endTime ?? null,
-                        address: thing.address ?? null,
-                        link: thing.link ?? null,
-                        booking: thing.booking ?? null,
-                        notes: thing.notes ?? null,
-                        stopId: thing.stopId ?? null,
-                      });
-                    }}
-                    aria-label={`Edit ${thing.title}`}
-                    title="Edit"
-                  >
-                    <Pencil className="size-4" aria-hidden="true" />
-                  </Button>
-                </li>
+              {groupByCategory(thingsToDo).map((group) => (
+                <section key={group.category} data-testid="things-group" className="flex flex-col gap-1.5">
+                  <h4 className="text-[10px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
+                    {group.label}
+                  </h4>
+                  <ul className="flex flex-col gap-1.5">
+                  {group.items.map((thing) => (
+                    <li key={thing.id} className="flex items-center gap-2">
+                      <CategoryPill category={thing.category as Category} size="sm" />
+                      <span className="min-w-0 flex-1 break-words text-sm text-foreground">{thing.title}</span>
+                      {/* Right-aligned time when item is timed */}
+                      {thing.startTime && (
+                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                          {thing.startTime}
+                        </span>
+                      )}
+                      {!isRough && stayDays.length > 0 && (
+                        <DayPickerMenu
+                          days={stayDays}
+                          label={`Pick a day for ${thing.title}`}
+                          onPick={(d) => handleScheduleThing(thing, d)}
+                          disabled={isPending}
+                        />
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="tap-target size-8 shrink-0 text-muted-foreground"
+                        disabled={isPending}
+                        onClick={() => {
+                          setEditingThing({
+                            id: thing.id,
+                            title: thing.title,
+                            category: thing.category,
+                            date: thing.date ?? null,
+                            startTime: thing.startTime ?? null,
+                            endTime: thing.endTime ?? null,
+                            address: thing.address ?? null,
+                            link: thing.link ?? null,
+                            booking: thing.booking ?? null,
+                            notes: thing.notes ?? null,
+                            stopId: thing.stopId ?? null,
+                          });
+                        }}
+                        aria-label={`Edit ${thing.title}`}
+                        title="Edit"
+                      >
+                        <Pencil className="size-4" aria-hidden="true" />
+                      </Button>
+                    </li>
+                  ))}
+                  </ul>
+                </section>
               ))}
-              </ul>
             </div>
           )}
 
