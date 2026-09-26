@@ -63,11 +63,12 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             <Loader2 className="animate-spin" data-testid="button-spinner" />
           </span>
         )}
-        {/* `contents` keeps children in the flex flow (icons keep their gap);
-            `opacity-0` hides them while loading without changing the box —
-            unlike `invisible` (visibility: hidden), it doesn't strip the
-            label from the accessible name. */}
-        <span className={cn("contents", showSpinner && "opacity-0")}>{children}</span>
+        {/* The wrapper keeps its own box (`inline-flex items-center gap-2`,
+            matching the button variants' gap) so `opacity-0` actually applies —
+            `display: contents` has no box, so opacity on it has no effect.
+            `visibility: hidden` was rejected because it strips the label
+            from the accessible name while loading. */}
+        <span className={cn("inline-flex items-center gap-2", showSpinner && "opacity-0")}>{children}</span>
       </>
     );
     return (
