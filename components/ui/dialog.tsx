@@ -66,8 +66,13 @@ function revealFocusedField(event: React.FocusEvent<HTMLDivElement>) {
 
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & { hideClose?: boolean; bare?: boolean }
->(({ className, children, hideClose, bare, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+    hideClose?: boolean;
+    bare?: boolean;
+    /** `lg` widens the centred (sm+) dialog for two-column entity forms. The phone bottom sheet is unaffected. */
+    size?: "md" | "lg";
+  }
+>(({ className, children, hideClose, bare, size = "md", ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -76,7 +81,8 @@ const DialogContent = React.forwardRef<
         "fixed z-50 flex flex-col overflow-hidden border-2 border-border bg-background text-foreground",
         "inset-x-0 bottom-0 max-h-[90dvh] rounded-t-2xl border-b-0",
         "data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
-        "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-w-dialog sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border-b-2 sm:shadow-hard-5",
+        "sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:w-[calc(100%-2rem)] sm:max-h-[85vh] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-2xl sm:border-b-2 sm:shadow-hard-5",
+        size === "lg" ? "sm:max-w-dialog-lg" : "sm:max-w-dialog",
         "sm:data-[state=open]:tp-pop-in sm:data-[state=closed]:tp-pop-out",
         className,
       )}

@@ -96,6 +96,7 @@ export function AccommodationFormDialog({
       onOpenChange={onOpenChange}
       title={accommodation ? `Edit ${accommodation.name}` : "Add Accommodation"}
       recordId={accommodation?.id ?? null}
+      size="lg"
     >
       <AccommodationForm
         tripId={tripId}
@@ -310,7 +311,7 @@ function AccommodationForm({
   });
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4 sm:grid sm:grid-cols-2 sm:gap-x-4">
       {/* Name */}
       <Field label="Accommodation name" required error={(errors as FormErrors).name?.[0]}>
         <Input
@@ -333,45 +334,41 @@ function AccommodationForm({
       </Field>
 
       {/* Dates */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <DateField
-          label="Check-in"
-          required
-          value={checkIn}
-          onChange={(e) => setCheckIn(e.target.value)}
-          error={(errors as FormErrors).checkIn?.[0]}
-          disabled={isPending}
-        />
-        <DateField
-          label="Check-out"
-          required
-          value={checkOut}
-          onChange={(e) => setCheckOut(e.target.value)}
-          min={checkIn}
-          error={(errors as FormErrors).checkOut?.[0]}
-          disabled={isPending}
-        />
-      </div>
+      <DateField
+        label="Check-in"
+        required
+        value={checkIn}
+        onChange={(e) => setCheckIn(e.target.value)}
+        error={(errors as FormErrors).checkIn?.[0]}
+        disabled={isPending}
+      />
+      <DateField
+        label="Check-out"
+        required
+        value={checkOut}
+        onChange={(e) => setCheckOut(e.target.value)}
+        min={checkIn}
+        error={(errors as FormErrors).checkOut?.[0]}
+        disabled={isPending}
+      />
 
       {/* Times */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Check-in time" error={(errors as FormErrors).checkInTime?.[0]}>
-          <Input
-            type="time"
-            value={checkInTime}
-            onChange={(e) => setCheckInTime(e.target.value)}
-            disabled={isPending}
-          />
-        </Field>
-        <Field label="Check-out time" error={(errors as FormErrors).checkOutTime?.[0]}>
-          <Input
-            type="time"
-            value={checkOutTime}
-            onChange={(e) => setCheckOutTime(e.target.value)}
-            disabled={isPending}
-          />
-        </Field>
-      </div>
+      <Field label="Check-in time" error={(errors as FormErrors).checkInTime?.[0]}>
+        <Input
+          type="time"
+          value={checkInTime}
+          onChange={(e) => setCheckInTime(e.target.value)}
+          disabled={isPending}
+        />
+      </Field>
+      <Field label="Check-out time" error={(errors as FormErrors).checkOutTime?.[0]}>
+        <Input
+          type="time"
+          value={checkOutTime}
+          onChange={(e) => setCheckOutTime(e.target.value)}
+          disabled={isPending}
+        />
+      </Field>
 
       {/* Soft date warnings */}
       {dateWarnings.length > 0 && (
@@ -400,7 +397,7 @@ function AccommodationForm({
       </Field>
 
       {/* Notes */}
-      <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
+      <Field label="Notes" error={(errors as FormErrors).notes?.[0]} className="sm:col-span-2">
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -410,7 +407,7 @@ function AccommodationForm({
       </Field>
 
       {/* Attachments */}
-      <Field label="Attachments">
+      <Field label="Attachments" className="sm:col-span-2">
         {accommodation?.id && tripId ? (
           <AttachmentList
             tripId={tripId}
@@ -427,25 +424,29 @@ function AccommodationForm({
       </Field>
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
-      <InlineCostFields
-        hasMultipleCosts={hasMultipleCosts}
-        costAmount={costAmount}
-        onCostChange={setCostAmount}
-        currency={currency}
-        onCurrencyChange={setCurrency}
-        paid={paid}
-        onPaidChange={setPaid}
-        paidAmount={paidAmount}
-        onPaidAmountChange={setPaidAmount}
-        paidAt={paidAt}
-        onPaidAtChange={setPaidAt}
-        errors={errors}
-        disabled={isPending}
-      />
+      <div className="sm:col-span-2 flex flex-col gap-4">
+        <InlineCostFields
+          hasMultipleCosts={hasMultipleCosts}
+          costAmount={costAmount}
+          onCostChange={setCostAmount}
+          currency={currency}
+          onCurrencyChange={setCurrency}
+          paid={paid}
+          onPaidChange={setPaid}
+          paidAmount={paidAmount}
+          onPaidAmountChange={setPaidAmount}
+          paidAt={paidAt}
+          onPaidAtChange={setPaidAt}
+          errors={errors}
+          disabled={isPending}
+        />
+      </div>
 
-      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      <div className="sm:col-span-2">
+        <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      </div>
 
-      <DialogFooter>
+      <DialogFooter className="sm:col-span-2">
         <DialogClose asChild>
           <Button variant="outline" type="button" disabled={isPending}>
             Cancel

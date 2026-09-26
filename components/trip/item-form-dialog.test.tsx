@@ -48,6 +48,12 @@ const existingItem: ItemCardItem = {
 describe("ItemFormDialog", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  it("lays out fields in two columns from sm", () => {
+    render(<ItemFormDialog {...baseProps} />);
+    const form = document.querySelector("form");
+    expect(form?.className).toContain("sm:grid-cols-2");
+  });
+
   // -------------------------------------------------------------------------
   // Case 1: empty title — no client-side guard; the server action IS called
   // with the empty string and then returns a field error which is rendered.

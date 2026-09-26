@@ -167,6 +167,7 @@ export function ItemFormDialog({
       onOpenChange={onOpenChange}
       title={item ? "Edit Item" : "Add Item"}
       recordId={item?.id ?? null}
+      size="lg"
     >
       <ItemForm
         tripId={tripId}
@@ -445,9 +446,9 @@ function ItemForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4 sm:grid sm:grid-cols-2 sm:gap-x-4">
       {/* Title */}
-      <Field label="Title" required error={(errors as FormErrors).title?.[0]}>
+      <Field label="Title" required error={(errors as FormErrors).title?.[0]} className="sm:col-span-2">
         <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -458,7 +459,7 @@ function ItemForm({
       </Field>
 
       {/* Category */}
-      <Field label="Category" error={(errors as FormErrors).category?.[0]}>
+      <Field label="Category" error={(errors as FormErrors).category?.[0]} className="sm:col-span-2">
         <CategoryGroup
           category={category}
           onSelect={setCategory}
@@ -514,32 +515,30 @@ function ItemForm({
       />
 
       {/* Times (enabled only when date is set) */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field
-          label="Start time"
-          error={(errors as FormErrors).startTime?.[0]}
-          description={timesDisabled ? "Set a date first" : undefined}
-        >
-          <Input
-            type="time"
-            value={startTime}
-            onChange={(e) => setStartTime(e.target.value)}
-            disabled={isPending || timesDisabled}
-          />
-        </Field>
-        <Field
-          label="End time"
-          error={(errors as FormErrors).endTime?.[0]}
-          description={timesDisabled ? "Set a date first" : !startTime ? "Set a start time first" : undefined}
-        >
-          <Input
-            type="time"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            disabled={isPending || timesDisabled || !startTime}
-          />
-        </Field>
-      </div>
+      <Field
+        label="Start time"
+        error={(errors as FormErrors).startTime?.[0]}
+        description={timesDisabled ? "Set a date first" : undefined}
+      >
+        <Input
+          type="time"
+          value={startTime}
+          onChange={(e) => setStartTime(e.target.value)}
+          disabled={isPending || timesDisabled}
+        />
+      </Field>
+      <Field
+        label="End time"
+        error={(errors as FormErrors).endTime?.[0]}
+        description={timesDisabled ? "Set a date first" : !startTime ? "Set a start time first" : undefined}
+      >
+        <Input
+          type="time"
+          value={endTime}
+          onChange={(e) => setEndTime(e.target.value)}
+          disabled={isPending || timesDisabled || !startTime}
+        />
+      </Field>
 
       {/* Address */}
       <Field label="Address" error={(errors as FormErrors).address?.[0]}>
@@ -573,7 +572,7 @@ function ItemForm({
       </Field>
 
       {/* Notes */}
-      <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
+      <Field label="Notes" error={(errors as FormErrors).notes?.[0]} className="sm:col-span-2">
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -583,7 +582,7 @@ function ItemForm({
       </Field>
 
       {/* Attachments */}
-      <Field label="Attachments">
+      <Field label="Attachments" className="sm:col-span-2">
         {item?.id ? (
           <AttachmentList
             tripId={tripId}
@@ -600,25 +599,29 @@ function ItemForm({
       </Field>
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
-      <InlineCostFields
-        hasMultipleCosts={hasMultipleCosts}
-        costAmount={costAmount}
-        onCostChange={setCostAmount}
-        currency={currency}
-        onCurrencyChange={setCurrency}
-        paid={paid}
-        onPaidChange={setPaid}
-        paidAmount={paidAmount}
-        onPaidAmountChange={setPaidAmount}
-        paidAt={paidAt}
-        onPaidAtChange={setPaidAt}
-        errors={errors}
-        disabled={isPending}
-      />
+      <div className="sm:col-span-2 flex flex-col gap-4">
+        <InlineCostFields
+          hasMultipleCosts={hasMultipleCosts}
+          costAmount={costAmount}
+          onCostChange={setCostAmount}
+          currency={currency}
+          onCurrencyChange={setCurrency}
+          paid={paid}
+          onPaidChange={setPaid}
+          paidAmount={paidAmount}
+          onPaidAmountChange={setPaidAmount}
+          paidAt={paidAt}
+          onPaidAtChange={setPaidAt}
+          errors={errors}
+          disabled={isPending}
+        />
+      </div>
 
-      <FormError>{(errors as FormErrors)._form?.[0] ?? deleteError ?? undefined}</FormError>
+      <div className="sm:col-span-2">
+        <FormError>{(errors as FormErrors)._form?.[0] ?? deleteError ?? undefined}</FormError>
+      </div>
 
-      <DialogFooter>
+      <DialogFooter className="sm:col-span-2">
         {isEdit && (
           <Button
             type="button"

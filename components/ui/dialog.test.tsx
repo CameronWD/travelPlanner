@@ -198,6 +198,37 @@ describe("Dialog", () => {
   });
 });
 
+describe("DialogContent size", () => {
+  function renderSize(size?: "md" | "lg") {
+    render(
+      <Dialog open>
+        <DialogContent size={size}>
+          <DialogTitle>X</DialogTitle>
+        </DialogContent>
+      </Dialog>,
+    );
+    return screen.getByRole("dialog");
+  }
+
+  it("defaults to the standard dialog width", () => {
+    const content = renderSize(undefined);
+    const classes = content.className.split(/\s+/);
+    expect(classes).toContain("sm:max-w-dialog");
+    expect(classes).not.toContain("sm:max-w-dialog-lg");
+    expect(content.className).toContain("max-h-[90dvh]");
+    expect(content.className).toContain("sm:max-h-[85vh]");
+  });
+
+  it('size="lg" swaps in the wide dialog width, keeping the sheet height caps', () => {
+    const content = renderSize("lg");
+    const classes = content.className.split(/\s+/);
+    expect(classes).toContain("sm:max-w-dialog-lg");
+    expect(classes).not.toContain("sm:max-w-dialog");
+    expect(content.className).toContain("max-h-[90dvh]");
+    expect(content.className).toContain("sm:max-h-[85vh]");
+  });
+});
+
 describe("DialogFooter", () => {
   it("lays buttons side-by-side: equal halves on mobile, right-aligned on desktop, primary last in DOM", () => {
     render(

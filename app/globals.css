@@ -348,6 +348,8 @@
      15px prose. */
   --container-reading: 38em;
   --container-dialog: 30rem;
+  /* Wide two-column entity dialogs (Item, Transport, Accommodation forms). */
+  --container-dialog-lg: 44rem;
 }
 
 /* Accent "island": anything on a coral/sun/teal/lilac fill re-scopes its text,

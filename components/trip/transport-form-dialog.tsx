@@ -118,6 +118,7 @@ export function TransportFormDialog({
       onOpenChange={onOpenChange}
       title={transport ? "Edit Transport" : "Add Transport"}
       recordId={transport?.id ?? null}
+      size="lg"
     >
       <TransportForm
         tripId={tripId}
@@ -438,7 +439,7 @@ function TransportForm({
   const arrInstant = arrAt ? zonedWallTimeToInstant(arrAt.slice(0, 10), arrAt.slice(11, 16), currentZones.arrTz) : null;
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4 sm:grid sm:grid-cols-2 sm:gap-x-4">
       {/* Mode */}
       <Field label="Mode" required error={(errors as FormErrors).mode?.[0]}>
         <Select
@@ -466,33 +467,31 @@ function TransportForm({
       </Field>
 
       {/* Location comboboxes — replace From/To stop selects + place inputs */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="From" error={(errors as FormErrors).fromStopId?.[0]}>
-          <LocationCombobox
-            label="From"
-            value={fromValue}
-            onChange={setFromValue}
-            stops={stops}
-            homeBaseName={homeBaseName}
-            tripId={tripId}
-            disabled={isPending}
-            data-testid="from-combobox"
-          />
-        </Field>
+      <Field label="From" error={(errors as FormErrors).fromStopId?.[0]}>
+        <LocationCombobox
+          label="From"
+          value={fromValue}
+          onChange={setFromValue}
+          stops={stops}
+          homeBaseName={homeBaseName}
+          tripId={tripId}
+          disabled={isPending}
+          data-testid="from-combobox"
+        />
+      </Field>
 
-        <Field label="To" error={(errors as FormErrors).toStopId?.[0]}>
-          <LocationCombobox
-            label="To"
-            value={toValue}
-            onChange={setToValue}
-            stops={stops}
-            homeBaseName={homeBaseName}
-            tripId={tripId}
-            disabled={isPending}
-            data-testid="to-combobox"
-          />
-        </Field>
-      </div>
+      <Field label="To" error={(errors as FormErrors).toStopId?.[0]}>
+        <LocationCombobox
+          label="To"
+          value={toValue}
+          onChange={setToValue}
+          stops={stops}
+          homeBaseName={homeBaseName}
+          tripId={tripId}
+          disabled={isPending}
+          data-testid="to-combobox"
+        />
+      </Field>
 
       {/* Position in plan — edit mode only */}
       {isEdit && (
@@ -522,24 +521,22 @@ function TransportForm({
       )}
 
       {/* Times */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Field label="Departure time" error={(errors as FormErrors).depAt?.[0]}>
-          <Input
-            type="datetime-local"
-            value={depAt}
-            onChange={(e) => setDepAt(e.target.value)}
-            disabled={isPending}
-          />
-        </Field>
-        <Field label="Arrival time" error={(errors as FormErrors).arrAt?.[0]}>
-          <Input
-            type="datetime-local"
-            value={arrAt}
-            onChange={(e) => setArrAt(e.target.value)}
-            disabled={isPending}
-          />
-        </Field>
-      </div>
+      <Field label="Departure time" error={(errors as FormErrors).depAt?.[0]}>
+        <Input
+          type="datetime-local"
+          value={depAt}
+          onChange={(e) => setDepAt(e.target.value)}
+          disabled={isPending}
+        />
+      </Field>
+      <Field label="Arrival time" error={(errors as FormErrors).arrAt?.[0]}>
+        <Input
+          type="datetime-local"
+          value={arrAt}
+          onChange={(e) => setArrAt(e.target.value)}
+          disabled={isPending}
+        />
+      </Field>
 
       {/* Soft date-order warning */}
       {depInstant && arrInstant && depInstant >= arrInstant && (
@@ -563,7 +560,7 @@ function TransportForm({
       </Field>
 
       {/* Notes */}
-      <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
+      <Field label="Notes" error={(errors as FormErrors).notes?.[0]} className="sm:col-span-2">
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -573,7 +570,7 @@ function TransportForm({
       </Field>
 
       {/* Attachments */}
-      <Field label="Attachments">
+      <Field label="Attachments" className="sm:col-span-2">
         {transport?.id ? (
           <AttachmentList
             tripId={tripId}
@@ -590,25 +587,29 @@ function TransportForm({
       </Field>
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
-      <InlineCostFields
-        hasMultipleCosts={hasMultipleCosts}
-        costAmount={costAmount}
-        onCostChange={setCostAmount}
-        currency={currency}
-        onCurrencyChange={setCurrency}
-        paid={paid}
-        onPaidChange={setPaid}
-        paidAmount={paidAmount}
-        onPaidAmountChange={setPaidAmount}
-        paidAt={paidAt}
-        onPaidAtChange={setPaidAt}
-        errors={errors}
-        disabled={isPending}
-      />
+      <div className="sm:col-span-2 flex flex-col gap-4">
+        <InlineCostFields
+          hasMultipleCosts={hasMultipleCosts}
+          costAmount={costAmount}
+          onCostChange={setCostAmount}
+          currency={currency}
+          onCurrencyChange={setCurrency}
+          paid={paid}
+          onPaidChange={setPaid}
+          paidAmount={paidAmount}
+          onPaidAmountChange={setPaidAmount}
+          paidAt={paidAt}
+          onPaidAtChange={setPaidAt}
+          errors={errors}
+          disabled={isPending}
+        />
+      </div>
 
-      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      <div className="sm:col-span-2">
+        <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      </div>
 
-      <DialogFooter>
+      <DialogFooter className="sm:col-span-2">
         <DialogClose asChild>
           <Button variant="outline" type="button" disabled={isPending}>
             Cancel
