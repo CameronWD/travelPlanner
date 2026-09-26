@@ -9,7 +9,7 @@ import { PhaseSketching } from "@/components/trip/home/phase-sketching";
 import { PhasePlanning } from "@/components/trip/home/phase-planning";
 import { PhaseTravelling } from "@/components/trip/home/phase-travelling";
 import { PhasePast } from "@/components/trip/home/phase-past";
-import { TripCover } from "@/components/trip/trip-cover";
+import { TripCover, TripCoverCard } from "@/components/trip/trip-cover";
 import { RemindersCard } from "@/components/trip/reminders-card";
 import { listRemindersForTrip } from "@/server/actions/reminders";
 import { orderPlanStops } from "@/lib/plan-order";
@@ -44,6 +44,8 @@ export default async function TripHomePage({
       drivingWindingFactor: true,
       drivingAvgSpeedKph: true,
       coverImageKey: true,
+      coverFocalX: true,
+      coverFocalY: true,
       homeName: true,
       homeLat: true,
       homeLng: true,
@@ -73,21 +75,36 @@ export default async function TripHomePage({
   const today = todayISOInZone(currentTripTimezone(orderPlanStops(trip.stops)));
   const phase = computeTripPhase({ startDate: trip.startDate, endDate: trip.endDate, today });
 
-  // Taller on a phone than on desktop, deliberately: the hero spans the full
+  const coverProps = {
+    tripId,
+    name: trip.name,
+    hasCover: trip.coverImageKey != null,
+    stops: coverStops.map((s) => ({ lat: s.lat as number, lng: s.lng as number })),
+    home: trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null,
+    roundTrip: trip.roundTrip ?? false,
+    coverVersion: trip.coverImageKey,
+    focalX: trip.coverFocalX,
+    focalY: trip.coverFocalY,
+  };
+
+  // Sketching, Travelling and Past keep the full-width cover above the Phase.
+  // Taller on a phone than on desktop, deliberately: the band spans the full
   // content width, so on a wide screen extra height makes an enormous band,
   // while on a phone it is the only way a portrait cover gets real room.
   const cover = (
-    <div className="relative -mt-2 mb-2 h-56 w-full overflow-hidden rounded-2xl border border-border shadow-soft sm:h-48">
-      <TripCover
-        tripId={tripId}
-        name={trip.name}
-        hasCover={trip.coverImageKey != null}
-        stops={coverStops.map((s) => ({ lat: s.lat as number, lng: s.lng as number }))}
-        home={trip.homeLat != null && trip.homeLng != null ? { lat: trip.homeLat, lng: trip.homeLng } : null}
-        roundTrip={trip.roundTrip ?? false}
-        coverVersion={trip.coverImageKey}
-      />
-    </div>
+    <TripCoverCard className="mb-2 h-56 w-full sm:h-48">
+      <TripCover {...coverProps} />
+    </TripCoverCard>
+  );
+
+  // Planning/Final-prep: the cover is a tile in the Phase's grid (spec E2),
+  // beside the countdown hero. From lg its grid cell sets the size — the
+  // cover is pinned inside it (absolute) so the photo's own height never
+  // drives the row; below lg it keeps the phone band's height.
+  const coverTile = (
+    <TripCoverCard className="h-56 w-full sm:h-48 lg:h-auto lg:min-h-36">
+      <TripCover {...coverProps} variant="tile" className="lg:absolute lg:inset-0" />
+    </TripCoverCard>
   );
 
   // Reminders are a Trip's dated notes and belong on Home in *every* Phase —
@@ -95,27 +112,48 @@ export default async function TripHomePage({
   // started nobody could see or write one.
   const reminders = await listRemindersForTrip(tripId, today);
 
+  // Reminders join whichever Phase's own right column/aside, rather than a
+  // full-width row of their own below it (LA-029/045) — each phase component
+  // renders this node at the end of its aside (desktop) / single column
+  // (mobile).
+  const remindersEl = <RemindersCard tripId={tripId} reminders={reminders} today={today} />;
+
   const phaseEl = (() => {
     switch (phase) {
       case "sketching":
-        return <PhaseSketching tripId={tripId} tripName={trip.name} chaptersEnabled={trip.chaptersEnabled} />;
+        return (
+          <PhaseSketching
+            tripId={tripId}
+            tripName={trip.name}
+            chaptersEnabled={trip.chaptersEnabled}
+            reminders={remindersEl}
+          />
+        );
       case "travelling":
-        return <PhaseTravelling tripId={tripId} />;
+        return <PhaseTravelling tripId={tripId} reminders={remindersEl} />;
       case "past":
-        return <PhasePast tripId={tripId} trip={trip} />;
+        return <PhasePast tripId={tripId} trip={trip} reminders={remindersEl} />;
       default: // planning | final-prep
-        return <PhasePlanning tripId={tripId} trip={trip} today={today} phase={phase} />;
+        return (
+          <PhasePlanning
+            tripId={tripId}
+            trip={trip}
+            today={today}
+            phase={phase}
+            reminders={remindersEl}
+            reminderItems={reminders}
+            cover={coverTile}
+          />
+        );
     }
   })();
 
   return (
     <>
-      <WhatsNewBanner />
-      {cover}
+      <span hidden data-trip-phase={phase} />
+      <WhatsNewBanner className="mb-6" />
+      {phase === "planning" || phase === "final-prep" ? null : cover}
       {phaseEl}
-      <section className="mt-6 flex flex-col gap-1">
-        <RemindersCard tripId={tripId} reminders={reminders} today={today} />
-      </section>
     </>
   );
 }

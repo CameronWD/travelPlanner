@@ -49,7 +49,7 @@ vi.mock("@/components/trip/chapters-manager", () => ({
 }));
 
 const { getDigestSettings } = await import("@/server/actions/digest");
-const { default: SettingsPage } = await import("./page");
+const { default: SettingsPage, SETTINGS_GRID_CLASS } = await import("./page");
 
 const BASE_TRIP = {
   id: "trip-1",
@@ -123,6 +123,77 @@ describe("SettingsPage Digest card", () => {
       .getAllByRole("heading", { level: 3 })
       .map((h) => h.textContent);
     expect(titles.indexOf("Calendar feed")).toBe(titles.indexOf("Digest") + 1);
+  });
+});
+
+describe("Settings companion-column layout (LA-046)", () => {
+  it("settings cards sit in two columns from lg", () => {
+    expect(SETTINGS_GRID_CLASS).toContain("lg:grid-cols-2");
+    expect(SETTINGS_GRID_CLASS).not.toContain("max-w-2xl");
+  });
+
+  // Spec §3: "Below 1024px: one column, as today". The phone stack follows
+  // DOM order (the column wrappers are `display: contents` below lg), so the
+  // DOM must keep the pre-grid order — Driving estimates second to last.
+  it("keeps the original one-column card order in the DOM for phones (I-4)", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: true });
+    mockDb.chapter.findMany.mockResolvedValue([]);
+
+    await renderSettings();
+
+    const titles = screen
+      .getAllByRole("heading", { level: 3 })
+      .map((h) => h.textContent);
+    expect(titles).toEqual([
+      "Trip details",
+      "Chapters",
+      "Travellers",
+      "Digest",
+      "Calendar feed",
+      "Driving estimates",
+      "Danger zone",
+    ]);
+  });
+
+  it("places the cards into the two lg columns explicitly, not by DOM order (I-4)", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+
+    await renderSettings();
+
+    const cardOf = (title: string) =>
+      screen.getByRole("heading", { level: 3, name: title }).closest("[data-slot='settings-slot']")!;
+    expect(cardOf("Trip details").className).toContain("lg:col-start-1");
+    expect(cardOf("Driving estimates").className).toContain("lg:col-start-1");
+    expect(cardOf("Travellers").className).toContain("lg:col-start-2");
+    expect(cardOf("Danger zone").className).toContain("lg:col-start-2");
+    // Column wrappers dissolve below lg so the one-column stack is DOM order.
+    expect(cardOf("Trip details").className).toMatch(/(^| )contents( |$)/);
+    expect(cardOf("Travellers").className).toMatch(/(^| )contents( |$)/);
+  });
+
+  it("card body copy is capped to a reading measure (LA-051)", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+
+    await renderSettings();
+
+    const calendarCopy = screen.getByText(/Subscribe to this trip/);
+    expect(calendarCopy.className).toContain("max-w-reading");
+    const drivingCopy = screen.getByText(/Tune the offline estimates/);
+    expect(drivingCopy.className).toContain("max-w-reading");
+  });
+
+  // LA-050: the Travellers card is the scroll target for the trip header's
+  // avatar-stack link (#travellers), so it needs the anchor id and enough
+  // scroll-margin to clear the sticky app header.
+  it("gives the Travellers card id=\"travellers\" and scroll-mt-20", async () => {
+    mockDb.trip.findUnique.mockResolvedValue({ ...BASE_TRIP, chaptersEnabled: false });
+
+    await renderSettings();
+
+    const card = document.querySelector("#travellers")!;
+    expect(card).not.toBeNull();
+    expect(card.className).toContain("scroll-mt-20");
+    expect(card.textContent).toContain("Travellers");
   });
 });
 

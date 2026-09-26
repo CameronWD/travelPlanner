@@ -11,6 +11,9 @@ import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { PLAN_PLACEMENT_WHERE, WISHLIST_IDEA_WHERE, REAL_PLAN, type PlanId } from "@/lib/plan-scope";
 import { computePlanMetrics, diffMetrics, type PlanMetrics, type MetricDeltas } from "@/lib/compare";
 
+/** Why a Fork create/promote is refused on a trip with plan variants off. */
+const PLAN_VARIANTS_OFF_ERROR = "Plan variants are off for this trip. Turn them on in Settings.";
+
 // ---------------------------------------------------------------------------
 // listForks
 // ---------------------------------------------------------------------------
@@ -62,6 +65,7 @@ export async function createFork(
       id: true,
       startDate: true,
       endDate: true,
+      forksEnabled: true,
       // The trip's own clock, for the phase gate below. Same shape and same
       // filter as app/(app)/trips/[tripId]/layout.tsx, which decides whether
       // the fork switcher is even shown — the two must agree on what "today"
@@ -74,6 +78,12 @@ export async function createFork(
     },
   });
   if (!trip) return { success: false, error: "Trip not found" };
+
+  // Plan variants are opt-in per trip (spec B3) — the switcher is hidden when
+  // off; this is the server-side half of that gate.
+  if (!trip.forksEnabled) {
+    return { success: false, error: PLAN_VARIANTS_OFF_ERROR };
+  }
 
   // 3. Phase gate — forking is only allowed before departure
   try {
@@ -395,6 +405,7 @@ export interface ComparisonResult {
     homeCurrency: string;
     drivingWindingFactor: number;
     drivingAvgSpeedKph: number;
+    forksEnabled: boolean;
   };
   plans: ComparisonPlan[];
 }
@@ -419,6 +430,7 @@ export async function getComparison(tripId: string): Promise<ComparisonResult> {
         homeCurrency: true,
         drivingWindingFactor: true,
         drivingAvgSpeedKph: true,
+        forksEnabled: true,
       },
     }),
     db.fork.findMany({
@@ -751,6 +763,12 @@ export async function promoteFork(forkId: string): Promise<PromoteForkResult> {
   const { membership } = await requireTripAccess(tripId);
   if (!isTripOwnerOrAdmin(membership, user.email)) {
     return { success: false, error: "Only the trip owner can promote a Fork." };
+  }
+
+  // A dormant Fork (plan variants off, spec B3) can't be promoted — promoting
+  // discards the real plan, so it must never happen from a hidden variant.
+  if (!trip.forksEnabled) {
+    return { success: false, error: PLAN_VARIANTS_OFF_ERROR };
   }
 
   // 2. Phase gate

@@ -16,6 +16,8 @@ function renderFields(overrides = {}) {
     onPaidAmountChange: vi.fn(),
     paidAt: "",
     onPaidAtChange: vi.fn(),
+    settlement: "BEFORE",
+    onSettlementChange: vi.fn(),
     errors: {},
     ...overrides,
   };
@@ -53,6 +55,22 @@ describe("InlineCostFields", () => {
     expect(screen.getByText("Enter what you paid")).toBeInTheDocument();
   });
 
+  it("offers the Settlement as a choice: paid before you go or on the trip", async () => {
+    const user = userEvent.setup();
+    const props = renderFields();
+    const before = screen.getByRole("radio", { name: "Paid before you go" });
+    const onTrip = screen.getByRole("radio", { name: "Paid on the trip" });
+    expect(before).toHaveAttribute("aria-checked", "true");
+    expect(onTrip).toHaveAttribute("aria-checked", "false");
+    await user.click(onTrip);
+    expect(props.onSettlementChange).toHaveBeenCalledWith("ON_TRIP");
+  });
+
+  it("shows On the trip as chosen when the Settlement is ON_TRIP", () => {
+    renderFields({ settlement: "ON_TRIP" });
+    expect(screen.getByRole("radio", { name: "Paid on the trip" })).toHaveAttribute("aria-checked", "true");
+  });
+
   it("renders nothing when multiple costs exist", () => {
     const { container } = render(
       <InlineCostFields
@@ -67,6 +85,8 @@ describe("InlineCostFields", () => {
         onPaidAmountChange={vi.fn()}
         paidAt=""
         onPaidAtChange={vi.fn()}
+        settlement="BEFORE"
+        onSettlementChange={vi.fn()}
         errors={{}}
       />,
     );

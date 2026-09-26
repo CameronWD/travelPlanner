@@ -91,7 +91,7 @@ export function DrivingEstimatesPanel({
         />
       </Field>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="max-w-reading text-xs text-muted-foreground">
         These are rough offline estimates used to flag long driving days — not real ETAs or
         navigation guidance.
       </p>

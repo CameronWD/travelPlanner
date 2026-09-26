@@ -3,6 +3,7 @@ import { categorySchema } from "@/lib/categories";
 import { safeWebHref } from "@/lib/url";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
+import { costSettlementSchema } from "@/lib/enums";
 
 /** YYYY-MM-DD regex */
 const isoDate = z
@@ -67,6 +68,8 @@ export const itemSchema = z
     notes: z.string().trim().optional(),
     lat: z.number().optional(),
     lng: z.number().optional(),
+    /** CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller. Omitted = false. */
+    hiddenFromShares: z.boolean().optional(),
 
     // --- Inline cost fields (all optional) ---
 
@@ -99,6 +102,8 @@ export const itemSchema = z
 
     /** ISO date string for when the cost was paid. Optional. */
     paidAt: paidAtDateOnlySchema.nullable().optional(),
+    /** CONTEXT.md "Settlement" for the inline cost. Omitted = leave as is (BEFORE on create). */
+    settlement: costSettlementSchema.optional(),
   })
   // Drop times when no date is set
   .transform((data) => {

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -24,6 +24,7 @@ import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
+import { isOnTrip, type CostSettlement } from "@/lib/enums";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
 // ---------------------------------------------------------------------------
@@ -96,6 +97,7 @@ export function AccommodationFormDialog({
       onOpenChange={onOpenChange}
       title={accommodation ? `Edit ${accommodation.name}` : "Add Accommodation"}
       recordId={accommodation?.id ?? null}
+      size="lg"
     >
       <AccommodationForm
         tripId={tripId}
@@ -116,30 +118,6 @@ export function AccommodationFormDialog({
 // ---------------------------------------------------------------------------
 // Trigger buttons
 // ---------------------------------------------------------------------------
-
-export function AddAccommodationButton({
-  stopId,
-  stopDateRange,
-}: {
-  stopId: string;
-  stopDateRange: { arriveDate: string; departDate: string };
-}) {
-  const [open, setOpen] = React.useState(false);
-  return (
-    <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Plus className="size-4" aria-hidden="true" />
-        Add Accommodation
-      </Button>
-      <AccommodationFormDialog
-        stopId={stopId}
-        stopDateRange={stopDateRange}
-        open={open}
-        onOpenChange={setOpen}
-      />
-    </>
-  );
-}
 
 export function EditAccommodationButton({
   stopId,
@@ -246,6 +224,11 @@ function AccommodationForm({
   // ticked (ADR 0037). `paidAt` is the sole "is this paid" signal — a legacy
   // row with a paid amount but no date is NOT paid (see CONTEXT.md "Paid").
   const [paid, setPaid] = React.useState(Boolean(singleCost?.paidAt));
+  // Settlement (CONTEXT.md) — seeded from the existing cost; a new cost is
+  // Before you go until the Traveller says otherwise.
+  const [settlement, setSettlement] = React.useState<CostSettlement>(
+    isOnTrip(singleCost?.settlement) ? "ON_TRIP" : "BEFORE",
+  );
 
   // Soft warnings (reactive, non-blocking)
   const dateWarnings: string[] = [];
@@ -298,6 +281,7 @@ function AccommodationForm({
           // explicitly cleared.
           paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
           paidAt: hasPaidAmount ? paidAt || null : null,
+          settlement,
         }),
       };
 
@@ -310,7 +294,7 @@ function AccommodationForm({
   });
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-4">
+    <form onSubmit={onSubmit} className="flex flex-col gap-4 sm:grid sm:grid-cols-2 sm:gap-x-4">
       {/* Name */}
       <Field label="Accommodation name" required error={(errors as FormErrors).name?.[0]}>
         <Input
@@ -322,18 +306,29 @@ function AccommodationForm({
         />
       </Field>
 
-      {/* Address */}
-      <Field label="Address" error={(errors as FormErrors).address?.[0]}>
-        <Input
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          placeholder="e.g. 123 Main Street"
-          disabled={isPending}
-        />
-      </Field>
+      {/* Address + Booking confirmation — own sub-grid so they always pair. */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
+        <Field label="Address" error={(errors as FormErrors).address?.[0]}>
+          <Input
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="e.g. 123 Main Street"
+            disabled={isPending}
+          />
+        </Field>
 
-      {/* Dates */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Booking confirmation" error={(errors as FormErrors).confirmation?.[0]}>
+          <Input
+            value={confirmation}
+            onChange={(e) => setConfirmation(e.target.value)}
+            placeholder="e.g. BOOKING-ABC123"
+            disabled={isPending}
+          />
+        </Field>
+      </div>
+
+      {/* Dates — own sub-grid so they always pair. */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
         <DateField
           label="Check-in"
           required
@@ -353,8 +348,8 @@ function AccommodationForm({
         />
       </div>
 
-      {/* Times */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {/* Times — own sub-grid so they always pair. */}
+      <div className="sm:col-span-2 grid gap-4 sm:grid-cols-2">
         <Field label="Check-in time" error={(errors as FormErrors).checkInTime?.[0]}>
           <Input
             type="time"
@@ -375,7 +370,7 @@ function AccommodationForm({
 
       {/* Soft date warnings */}
       {dateWarnings.length > 0 && (
-        <div className="flex flex-col gap-1">
+        <div className="sm:col-span-2 flex flex-col gap-1">
           {dateWarnings.map((w) => (
             <Badge
               key={w}
@@ -389,18 +384,8 @@ function AccommodationForm({
         </div>
       )}
 
-      {/* Confirmation */}
-      <Field label="Booking confirmation" error={(errors as FormErrors).confirmation?.[0]}>
-        <Input
-          value={confirmation}
-          onChange={(e) => setConfirmation(e.target.value)}
-          placeholder="e.g. BOOKING-ABC123"
-          disabled={isPending}
-        />
-      </Field>
-
       {/* Notes */}
-      <Field label="Notes" error={(errors as FormErrors).notes?.[0]}>
+      <Field label="Notes" error={(errors as FormErrors).notes?.[0]} className="sm:col-span-2">
         <Textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -410,7 +395,7 @@ function AccommodationForm({
       </Field>
 
       {/* Attachments */}
-      <Field label="Attachments">
+      <Field label="Attachments" className="sm:col-span-2">
         {accommodation?.id && tripId ? (
           <AttachmentList
             tripId={tripId}
@@ -427,25 +412,31 @@ function AccommodationForm({
       </Field>
 
       {/* Inline cost — hidden when >1 costs exist (CostEditor is authoritative) */}
-      <InlineCostFields
-        hasMultipleCosts={hasMultipleCosts}
-        costAmount={costAmount}
-        onCostChange={setCostAmount}
-        currency={currency}
-        onCurrencyChange={setCurrency}
-        paid={paid}
-        onPaidChange={setPaid}
-        paidAmount={paidAmount}
-        onPaidAmountChange={setPaidAmount}
-        paidAt={paidAt}
-        onPaidAtChange={setPaidAt}
-        errors={errors}
-        disabled={isPending}
-      />
+      <div className="sm:col-span-2 flex flex-col gap-4">
+        <InlineCostFields
+          hasMultipleCosts={hasMultipleCosts}
+          costAmount={costAmount}
+          onCostChange={setCostAmount}
+          currency={currency}
+          onCurrencyChange={setCurrency}
+          paid={paid}
+          onPaidChange={setPaid}
+          paidAmount={paidAmount}
+          onPaidAmountChange={setPaidAmount}
+          paidAt={paidAt}
+          onPaidAtChange={setPaidAt}
+          settlement={settlement}
+          onSettlementChange={setSettlement}
+          errors={errors}
+          disabled={isPending}
+        />
+      </div>
 
-      <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      <div className="sm:col-span-2">
+        <FormError>{(errors as FormErrors)._form?.[0]}</FormError>
+      </div>
 
-      <DialogFooter>
+      <DialogFooter className="sm:col-span-2">
         <DialogClose asChild>
           <Button variant="outline" type="button" disabled={isPending}>
             Cancel

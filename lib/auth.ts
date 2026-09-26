@@ -124,7 +124,7 @@ export const authConfig: NextAuthConfig = {
           // own doc comment), so awaiting it here cannot fail this sign-in.
           await notifyAdmins(
             "New Traveller joined by invitation",
-            `${email} was admitted to TEEPEE via a Trip Invite.`,
+            `${email} was admitted to Teepee via a Trip Invite.`,
             "/admin",
           );
         }

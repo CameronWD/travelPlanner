@@ -1,53 +1,54 @@
 import { z } from "zod";
+import { type Hue, HUE_CLASSES, type HueClasses } from "@/lib/hues";
 
 /**
- * Item categories. Stored on `Item.category` as a `String` (no Prisma enum —
- * keeps the schema portable) and validated in app code via `categorySchema`.
+ * Item categories. Stored on `Item.category` as a `String` and validated via `categorySchema`.
  *
- * `color` is a Tailwind color *name* (e.g. "amber", "rose") used to build the
- * coloured pills / budget grouping. Concrete utility classes are derived from
- * the name at the call site so light/dark variants can be applied consistently.
+ * Playground: `color` keeps the legacy Tailwind name so un-migrated call sites still compile;
+ * new code reads `hue` / `categoryClasses()`. Once every `${color}-…` call site is gone, delete `color`.
  */
 export interface CategoryMeta {
   value: string;
   label: string;
+  /** @deprecated legacy Tailwind colour name. Use `hue`. */
   color: string;
+  hue: Hue;
+  /** lucide-react icon name, shown inside pins and pills (colour is never the only signal). */
+  icon: string;
 }
 
 export const CATEGORIES = [
-  { value: "SIGHTSEEING", label: "Sightseeing", color: "sky" },
-  { value: "FOOD", label: "Food & Drink", color: "amber" },
-  { value: "ACTIVITY", label: "Activity", color: "emerald" },
-  { value: "NIGHTLIFE", label: "Nightlife", color: "violet" },
-  { value: "SHOPPING", label: "Shopping", color: "rose" },
-  // Movement that does not change your base — day-trip buses, local trains,
-  // metro passes. An Item category, never the Transport entity (CONTEXT.md).
-  { value: "GETTING_AROUND", label: "Getting around", color: "indigo" },
-  { value: "OTHER", label: "Other", color: "stone" },
+  { value: "SIGHTSEEING", label: "Sightseeing", color: "sky", hue: "sky", icon: "landmark" },
+  { value: "FOOD", label: "Food & Drink", color: "amber", hue: "sun", icon: "utensils" },
+  { value: "ACTIVITY", label: "Activity", color: "emerald", hue: "leaf", icon: "footprints" },
+  { value: "NIGHTLIFE", label: "Nightlife", color: "violet", hue: "lilac", icon: "moon-star" },
+  { value: "SHOPPING", label: "Shopping", color: "rose", hue: "pink", icon: "shopping-bag" },
+  // Movement that does not change your base. An Item category, never the Transport entity (CONTEXT.md).
+  { value: "GETTING_AROUND", label: "Getting around", color: "indigo", hue: "indigo", icon: "tram-front" },
+  // Somewhere to go rather than something to do — a city, town, region or island, before it becomes a Stop (CONTEXT.md "Place").
+  { value: "PLACE", label: "Place", color: "teal", hue: "teal", icon: "map-pin" },
+  { value: "OTHER", label: "Other", color: "stone", hue: "stone", icon: "circle-dot" },
 ] as const satisfies readonly CategoryMeta[];
 
 export type Category = (typeof CATEGORIES)[number]["value"];
 
-export const CATEGORY_VALUES = CATEGORIES.map((c) => c.value) as [
-  Category,
-  ...Category[],
-];
+export const CATEGORY_VALUES = CATEGORIES.map((c) => c.value) as [Category, ...Category[]];
 
-/** Zod schema accepting only known category values. */
 export const categorySchema = z.enum(CATEGORY_VALUES);
 
-const BY_VALUE = new Map<string, CategoryMeta>(
-  CATEGORIES.map((c) => [c.value, c]),
-);
+const BY_VALUE = new Map<string, CategoryMeta>(CATEGORIES.map((c) => [c.value, c]));
 
-/** Full metadata (label + color) for a category value. */
 export function categoryMeta(value: Category): CategoryMeta {
   const meta = BY_VALUE.get(value);
   if (!meta) throw new Error(`Unknown category: ${value}`);
   return meta;
 }
 
-/** Human-readable label for a category value. */
 export function categoryLabel(value: Category): string {
   return categoryMeta(value).label;
+}
+
+/** Full class set for a category. Unknown values fall back to OTHER. */
+export function categoryClasses(value: string): HueClasses {
+  return HUE_CLASSES[(BY_VALUE.get(value) ?? BY_VALUE.get("OTHER")!).hue];
 }

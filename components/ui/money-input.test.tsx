@@ -75,15 +75,21 @@ describe("MoneyInput", () => {
     expect(screen.getByLabelText("Amount")).toHaveClass("min-w-0");
   });
 
-  it("currency trigger has w-20 class for the narrower picker width on mobile", () => {
+  it("currency trigger is wide enough to fit a 3-letter code on mobile (LA-033)", () => {
     render(<MoneyInput currency="EUR" amount="" onValueChange={() => {}} />);
-    expect(screen.getByLabelText("Currency")).toHaveClass("w-20");
+    expect(screen.getByLabelText("Currency")).toHaveClass("w-[5.5rem]");
   });
 
-  it("currency trigger has responsive width classes: w-20 mobile, sm:w-24 desktop", () => {
+  it("currency trigger has responsive width classes: w-[5.5rem] mobile, sm:w-24 desktop", () => {
     render(<MoneyInput currency="EUR" amount="" onValueChange={() => {}} />);
     const trigger = screen.getByLabelText("Currency");
-    expect(trigger.className).toContain("w-20");
+    expect(trigger.className).toContain("w-[5.5rem]");
     expect(trigger.className).toContain("sm:w-24");
+  });
+
+  it("currency trigger fits a 3-letter code (LA-033)", () => {
+    render(<MoneyInput currency="AUD" amount="" onValueChange={() => {}} />);
+    const trigger = screen.getByRole("combobox");
+    expect(trigger.className).toContain("w-[5.5rem]");
   });
 });

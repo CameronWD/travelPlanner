@@ -325,6 +325,7 @@ describe("AccommodationFormDialog", () => {
         rateToHome: 1,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         label: null,
         category: null,
       },
@@ -338,6 +339,7 @@ describe("AccommodationFormDialog", () => {
         rateToHome: 1,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         label: null,
         category: null,
       },
@@ -372,6 +374,7 @@ describe("AccommodationFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         label: null,
         category: null,
       },
@@ -406,6 +409,7 @@ describe("AccommodationFormDialog", () => {
         rateToHome: 0.6,
         paidAt: new Date("2026-07-02"),
         dueDate: null,
+        settlement: "BEFORE",
         label: null,
         category: null,
       },
@@ -451,6 +455,19 @@ describe("AccommodationFormDialog", () => {
     );
   });
 
+  it("sends the chosen Settlement with the inline cost", async () => {
+    const user = userEvent.setup();
+    render(<AccommodationFormDialog {...baseProps} homeCurrency="AUD" />);
+    await user.type(screen.getByPlaceholderText(/hilton garden inn/i), "My Hotel");
+    await user.type(screen.getByRole("textbox", { name: /^cost amount$/i }), "150.00");
+    await user.click(screen.getByRole("radio", { name: "Paid on the trip" }));
+    await user.click(screen.getByRole("button", { name: /add accommodation/i }));
+    expect(createAccommodation).toHaveBeenCalledWith(
+      expect.objectContaining({ costMinor: 15000, settlement: "ON_TRIP" }),
+      undefined,
+    );
+  });
+
   // -------------------------------------------------------------------------
   // Case 15b: un-ticking Paid on an already-paid cost clears the paid date
   // but must NEVER clear the paid amount — it survives as history so
@@ -471,6 +488,7 @@ describe("AccommodationFormDialog", () => {
         rateToHome: 0.6,
         paidAt: new Date("2026-07-02"),
         dueDate: null,
+        settlement: "BEFORE",
         label: null,
         category: null,
       },
@@ -615,6 +633,7 @@ describe("AccommodationFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         label: null,
         category: null,
       },
@@ -653,6 +672,7 @@ describe("AccommodationFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         label: null,
         category: null,
       },

@@ -11,8 +11,20 @@ export interface DayNavProps {
 }
 
 /**
+ * Kit IconButton shape (secondary, 44px): 2px outline, hard shadow that lifts on
+ * hover and collapses on press. Written out here because DayNav is a Server
+ * Component and `buttonVariants` lives in a client module.
+ */
+const NAV_BUTTON =
+  "pressable inline-grid size-11 shrink-0 place-items-center rounded-md border-2 border-border bg-card text-foreground shadow-hard-1 hover:shadow-hard-2";
+
+/** Boundary placeholder: same footprint, no shadow, faded — not a control. */
+const NAV_BUTTON_OFF =
+  "inline-grid size-11 shrink-0 place-items-center rounded-md border-2 border-border-soft text-muted-foreground opacity-45 select-none";
+
+/**
  * Previous / next day navigation for the Day view.
- * Shows disabled-looking links at the trip boundaries and a "Back to calendar" link.
+ * Shows faded placeholders at the trip boundaries and a "Days" (back to calendar) link.
  */
 export function DayNav({
   tripId,
@@ -42,33 +54,27 @@ export function DayNav({
       {prevDate ? (
         <Link
           href={`${base}/day/${prevDate}`}
-          className={cn(
-            "flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-foreground transition-colors hover:bg-muted",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          )}
+          className={cn(NAV_BUTTON, "min-h-11 min-w-11")}
           aria-label={`Go to ${prevDate}`}
         >
-          <ChevronLeft className="size-4 shrink-0" aria-hidden="true" />
+          <ChevronLeft className="size-5" strokeWidth={2.5} aria-hidden="true" />
         </Link>
       ) : (
-        <span className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground/40 cursor-not-allowed select-none">
-          <ChevronLeft className="size-4 shrink-0" aria-hidden="true" />
+        <span className={NAV_BUTTON_OFF} aria-hidden="true">
+          <ChevronLeft className="size-5" strokeWidth={2.5} />
         </span>
       )}
 
-      {/* Centre: day count + back to calendar */}
-      <div className="flex min-w-0 flex-1 flex-col items-center gap-0.5">
-        <span className="rounded-full bg-muted px-3 py-1 text-xs font-bold text-muted-foreground">
+      {/* Centre: day count (kit Today label) + back to calendar */}
+      <div className="flex min-w-0 flex-1 flex-col items-center gap-1">
+        <span aria-current="date" className="text-label text-muted-foreground">
           Day {dayNumber} of {totalDays}
         </span>
         <Link
           href={calendarHref}
-          className={cn(
-            "text-xs text-muted-foreground hover:underline transition-colors",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded",
-          )}
+          className="relative rounded-sm text-xs font-extrabold text-foreground underline decoration-2 underline-offset-4 hover:decoration-coral pointer-coarse:after:absolute pointer-coarse:after:-inset-x-3 pointer-coarse:after:-inset-y-3.5 pointer-coarse:after:content-['']"
         >
-          Calendar
+          Days
         </Link>
       </div>
 
@@ -76,17 +82,14 @@ export function DayNav({
       {nextDate ? (
         <Link
           href={`${base}/day/${nextDate}`}
-          className={cn(
-            "flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-foreground transition-colors hover:bg-muted",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          )}
+          className={cn(NAV_BUTTON, "min-h-11 min-w-11")}
           aria-label={`Go to ${nextDate}`}
         >
-          <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
+          <ChevronRight className="size-5" strokeWidth={2.5} aria-hidden="true" />
         </Link>
       ) : (
-        <span className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl border border-border bg-card text-muted-foreground/40 cursor-not-allowed select-none">
-          <ChevronRight className="size-4 shrink-0" aria-hidden="true" />
+        <span className={NAV_BUTTON_OFF} aria-hidden="true">
+          <ChevronRight className="size-5" strokeWidth={2.5} />
         </span>
       )}
     </nav>

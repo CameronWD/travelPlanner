@@ -154,7 +154,7 @@ npx web-push generate-vapid-keys     # VAPID public + private pair
 | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | same as `VAPID_PUBLIC_KEY` |
 | `VAPID_SUBJECT` | `mailto:you@yourdomain.com` |
 | `CRON_SECRET` | step 0 |
-| `NEXT_PUBLIC_APP_NAME` | e.g. `TEEPEE` |
+| `NEXT_PUBLIC_APP_NAME` | e.g. `Teepee` |
 | `NEXT_PUBLIC_CARTO_API_KEY` | optional, from [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) |
 
 `NEXT_PUBLIC_CARTO_API_KEY` is optional — without it map tiles still work, just watermarked. **`NEXT_PUBLIC_*` values are inlined at build time**, so adding it to an already-deployed project does nothing until you redeploy.

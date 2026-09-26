@@ -11,6 +11,15 @@ describe("TermsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses the Playground legal layout", async () => {
+    const { container } = render(await TermsPage());
+    expect(container.querySelector("[data-legal-page]")).not.toBeNull();
+    expect(screen.getByRole("link", { name: /teepee/i })).toHaveAttribute(
+      "href",
+      "/signin",
+    );
+  });
+
   it("states TEEPEE is provided without warranty", async () => {
     render(await TermsPage());
     expect(screen.getByText(/without warranty/i)).toBeInTheDocument();
@@ -21,5 +30,16 @@ describe("TermsPage", () => {
     expect(
       screen.getByText(/revoke access at any time/i),
     ).toBeInTheDocument();
+  });
+
+  // LA-054: the inline "Privacy" link (in the Questions section, distinct
+  // from the header's companion link of the same name) gets a 44px
+  // coarse-pointer tap target.
+  it("gives the inline Privacy link a 44px tap target", async () => {
+    render(await TermsPage());
+    const inlineLink = screen
+      .getAllByRole("link", { name: "Privacy" })
+      .find((el) => el.className.includes("tap-target"));
+    expect(inlineLink).toBeDefined();
   });
 });

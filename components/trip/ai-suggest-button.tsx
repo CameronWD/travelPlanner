@@ -41,7 +41,7 @@ export function AiSuggestButton({
       disabled={disabled}
       title={title}
       className={cn(
-        "gap-1.5 text-violet-600 hover:text-violet-700 hover:border-violet-300 dark:text-violet-400 dark:hover:text-violet-300",
+        "gap-1.5 text-hue-lilac-text hover:border-hue-lilac",
         !aiConfigured && "cursor-not-allowed opacity-50",
         className,
       )}

@@ -1,8 +1,9 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Wallet, AlertTriangle } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
-import { planScope, firstSearchParam } from "@/lib/plan-scope";
+import { planScope, resolvePlan } from "@/lib/plan-scope";
 import { VariantBanner } from "@/components/trip/variant-banner";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -18,7 +19,8 @@ import { buildBudget } from "@/lib/budget";
 import { isRateStale } from "@/lib/fx";
 import type { RateEntry } from "@/components/trip/rates-panel";
 import { ChapterChip } from "@/components/trip/chapter-chip";
-import type { BudgetCost, BudgetStopWithDates, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
+import type { BudgetCost, BudgetStopWithDates, BudgetItem, BudgetAccommodation, BudgetTransport, BudgetTotals } from "@/lib/budget";
+import { formatMoney } from "@/lib/money";
 import { buildSpendSoFar, legacyPaidCount } from "@/lib/spend-so-far";
 import type { SpendCost } from "@/lib/spend-so-far";
 import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
@@ -28,7 +30,10 @@ import { BudgetHeroRow } from "@/components/trip/budget-hero-row";
 import { CostChecklist, type CostChecklistRow } from "@/components/trip/cost-checklist";
 import { buildCostLabelMap } from "@/lib/cost-labels";
 import { buildUpcomingPayments } from "@/lib/upcoming-payments";
+import { cn } from "@/lib/cn";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
+
+export const metadata: Metadata = { title: "Money" };
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -46,6 +51,7 @@ const COST_SELECT = {
   ownerId: true,
   label: true,
   category: true,
+  settlement: true,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -54,6 +60,71 @@ const COST_SELECT = {
 
 export const BUDGET_DESKTOP_GRID_CLASS =
   "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start";
+
+/*
+ * Breakdown rows (M-7): one grid track per child, because an empty track
+ * still costs a column gap and pushes the amounts off the right edge. Below
+ * `sm` the amounts wrap to their own full-width line (`col-span-2`).
+ */
+/** By category: label · % of cost · amounts. */
+export const BUDGET_CATEGORY_ROW_CLASS =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,1fr)_auto_auto]";
+/** By destination and the chapter reconciliation rows: label · amounts. */
+export const BUDGET_AMOUNT_ROW_CLASS =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1";
+
+// ---------------------------------------------------------------------------
+// Settlement split (exported for unit tests)
+// ---------------------------------------------------------------------------
+
+/**
+ * The two Settlement kinds side by side (CONTEXT.md "Settlement"): what is
+ * paid before you go and what gets paid on the trip, each with its own
+ * headline total and — on the real plan — what has been paid of it.
+ */
+export function SettlementSplit({
+  totals,
+  homeCurrency,
+  showPaid,
+}: {
+  totals: BudgetTotals;
+  homeCurrency: string;
+  showPaid: boolean;
+}) {
+  const kinds = [
+    { id: "before", title: "Before you go", cost: totals.beforeTotalMinor, paid: totals.beforePaidMinor },
+    { id: "on-trip", title: "On the trip", cost: totals.onTripTotalMinor, paid: totals.onTripPaidMinor },
+  ];
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="settlement-split">
+      {kinds.map((k) => (
+        <section
+          key={k.id}
+          aria-labelledby={`settlement-${k.id}`}
+          className="@container min-w-0 rounded-2xl border border-border bg-card p-4 flex flex-col gap-1"
+        >
+          <h3
+            id={`settlement-${k.id}`}
+            className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground"
+          >
+            {k.title}
+          </h3>
+          <p className="font-display text-lg @[12rem]:text-2xl font-semibold tabular-nums tracking-tight whitespace-nowrap">
+            {formatMoney(k.cost, homeCurrency)}
+          </p>
+          {showPaid && (
+            <p className="text-xs tabular-nums text-muted-foreground">
+              <span className={k.paid > 0 ? "text-teal-text" : undefined}>
+                {formatMoney(k.paid, homeCurrency)}
+              </span>{" "}
+              paid
+            </p>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Page component
@@ -68,20 +139,21 @@ export default async function BudgetPage({
 }) {
   const { tripId } = await params;
   const { plan } = await searchParams;
-  const selectedForkId = firstSearchParam(plan);
   await requireTripAccess(tripId);
 
-  // Validate the fork exists for this trip; fall back to real plan if not.
+  const trip = await db.trip.findUnique({
+    where: { id: tripId },
+    select: { homeCurrency: true, startDate: true, endDate: true, chaptersEnabled: true, forksEnabled: true },
+  });
+  if (!trip) notFound();
+
+  // Plan variants off (spec B3) → `?plan=` is ignored and this is the real plan.
+  // Otherwise validate the fork exists for this trip; fall back to real plan if not.
+  const selectedForkId = resolvePlan({ plan, forksEnabled: trip.forksEnabled });
   const activeFork = selectedForkId
     ? await db.fork.findFirst({ where: { id: selectedForkId, tripId }, select: { id: true, name: true } })
     : null;
   const activeForkId = activeFork ? activeFork.id : null;
-
-  const trip = await db.trip.findUnique({
-    where: { id: tripId },
-    select: { homeCurrency: true, startDate: true, endDate: true, chaptersEnabled: true },
-  });
-  if (!trip) notFound();
   // The budget roll-up enumerates every trip day; a date-less trip has no
   // dated window to spread costs across yet.
   if (!trip.startDate || !trip.endDate) {
@@ -175,6 +247,7 @@ export default async function BudgetPage({
     ownerId: c.ownerId,
     label: c.label,
     category: c.category,
+    settlement: c.settlement,
   }));
 
   // Non-null at runtime: the query filters rough (date-less) stops out.
@@ -336,7 +409,7 @@ export default async function BudgetPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="sr-only">Budget</h2>
+      <h2 className="sr-only">Money</h2>
 
       {activeFork && (
         <>
@@ -349,13 +422,13 @@ export default async function BudgetPage({
 
       {/* Missing rates warning */}
       {budget.hasMissingRates && (
-        <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-3">
-          <AlertTriangle className="size-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+        <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3">
+          <AlertTriangle className="size-4 shrink-0 mt-0.5 text-sun-text" aria-hidden="true" />
           <div className="flex-1 text-sm">
-            <p className="font-medium text-amber-800 dark:text-amber-300">
+            <p className="font-medium text-sun-text">
               Some costs are missing exchange rates
             </p>
-            <p className="mt-0.5 text-amber-700 dark:text-amber-400">
+            <p className="mt-0.5 text-sun-text">
               {budget.missingRates.join(", ")} — costs in these currencies are excluded from totals.
               Set rates in the <strong>Exchange Rates</strong> section below.
             </p>
@@ -378,7 +451,7 @@ export default async function BudgetPage({
       {/* Legend for the cost-vs-paid columns shown in the sections below */}
       <div className="flex items-center justify-end gap-4 px-1 text-xs text-muted-foreground">
         <span>Cost</span>
-        <span className="text-emerald-600 dark:text-emerald-400">Paid</span>
+        <span className="text-teal-text">Paid</span>
       </div>
 
       {/* Two-column grid: main roll-up | right rail (rates + other costs) */}
@@ -389,9 +462,9 @@ export default async function BudgetPage({
 
           {/* Legacy paid-without-date costs notice */}
           {!activeFork && legacyCount > 0 && (
-            <div className="flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 px-4 py-3 text-sm">
-              <AlertTriangle className="size-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
-              <p className="text-amber-800 dark:text-amber-300">
+            <div className="flex items-start gap-3 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+              <AlertTriangle className="size-4 shrink-0 mt-0.5 text-sun-text" aria-hidden="true" />
+              <p className="text-sun-text">
                 {legacyCount} {legacyCount === 1 ? "cost has" : "costs have"} a recorded payment but no date —
                 tick {legacyCount === 1 ? "it" : "them"} off below to confirm; the amount you paid is offered back.
               </p>
@@ -413,6 +486,13 @@ export default async function BudgetPage({
             </Card>
           )}
 
+          {/* Settlement split — Before you go / On the trip (CONTEXT.md) */}
+          <SettlementSplit
+            totals={budget.grandTotal}
+            homeCurrency={homeCurrency}
+            showPaid={!activeFork}
+          />
+
           {/* By category */}
           {budget.byCategory.length > 0 && (
             <Card>
@@ -428,32 +508,33 @@ export default async function BudgetPage({
                         : 0;
                     return (
                       <div key={cat.category} className="flex flex-col gap-1">
-                        <div className="flex items-center justify-between gap-2 text-sm">
+                        <div className={cn(BUDGET_CATEGORY_ROW_CLASS, "text-sm")}>
                           <span className="flex items-center gap-1.5 min-w-0">
-                            <span className="truncate font-medium">{cat.category}</span>
+                            <span className="min-w-0 break-words font-medium">{cat.category}</span>
                             {categoriesWithMissingRates.has(cat.category) && (
                               <span
                                 title="Some costs in this category are excluded — missing exchange rate"
                                 aria-label="Missing rate"
-                                className="shrink-0 inline-flex items-center gap-0.5 rounded-sm bg-amber-100 dark:bg-amber-900/40 px-1 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-400"
+                                className="shrink-0 inline-flex items-center gap-0.5 rounded-sm bg-warning/20 px-1 py-0.5 text-[10px] font-medium text-sun-text"
                               >
                                 <AlertTriangle className="size-2.5" aria-hidden="true" />
                                 No rate
                               </span>
                             )}
                           </span>
-                          <div className="flex items-center gap-3 tabular-nums text-right">
-                            <span className="text-muted-foreground text-xs" title="% of cost">{pct}% cost</span>
-                            <CostAmounts
-                              costTotalMinor={cat.costTotalMinor}
-                              // Aggregate: 0 genuinely means nothing paid, so keep the
-                              // placeholder rather than letting the component's zero
-                              // guard (which now only exists for a real per-item paid
-                              // amount) show $0.00 here (CP-17 / OPS-05).
-                              paidTotalMinor={cat.paidTotalMinor > 0 ? cat.paidTotalMinor : null}
-                              currency={homeCurrency}
-                            />
-                          </div>
+                          <span className="shrink-0 text-right text-xs tabular-nums text-muted-foreground" title="% of cost">
+                            {pct}% cost
+                          </span>
+                          <CostAmounts
+                            costTotalMinor={cat.costTotalMinor}
+                            // Aggregate: 0 genuinely means nothing paid, so keep the
+                            // placeholder rather than letting the component's zero
+                            // guard (which now only exists for a real per-item paid
+                            // amount) show $0.00 here (CP-17 / OPS-05).
+                            paidTotalMinor={cat.paidTotalMinor > 0 ? cat.paidTotalMinor : null}
+                            currency={homeCurrency}
+                            className="col-span-2 justify-between sm:col-span-1"
+                          />
                         </div>
                         <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
                           <div
@@ -481,13 +562,14 @@ export default async function BudgetPage({
                   {budget.byStop.map((stop) => (
                     <div
                       key={stop.stopId ?? "tripwide"}
-                      className="flex items-center justify-between py-2.5 gap-2"
+                      className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}
                     >
-                      <span className="min-w-0 truncate text-sm font-medium">{stop.stopName}</span>
+                      <span className="min-w-0 break-words text-sm font-medium">{stop.stopName}</span>
                       <CostAmounts
                         costTotalMinor={stop.costTotalMinor}
                         paidTotalMinor={stop.paidTotalMinor > 0 ? stop.paidTotalMinor : null}
                         currency={homeCurrency}
+                        className="col-span-2 justify-between sm:col-span-1"
                       />
                     </div>
                   ))}
@@ -520,8 +602,8 @@ export default async function BudgetPage({
                   {/* Reconciliation rows — shown only when non-zero */}
                   {(budget.chapterReconciliation.ungrouped.costTotalMinor > 0 ||
                     budget.chapterReconciliation.ungrouped.paidTotalMinor > 0) && (
-                    <div className="flex items-center justify-between py-2.5 gap-2">
-                      <span className="min-w-0 truncate text-sm text-muted-foreground">Ungrouped</span>
+                    <div className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}>
+                      <span className="min-w-0 break-words text-sm text-muted-foreground">Ungrouped</span>
                       <CostAmounts
                         costTotalMinor={budget.chapterReconciliation.ungrouped.costTotalMinor}
                         paidTotalMinor={
@@ -530,14 +612,14 @@ export default async function BudgetPage({
                             : null
                         }
                         currency={homeCurrency}
-                        className="text-muted-foreground"
+                        className="col-span-2 justify-between text-muted-foreground sm:col-span-1"
                       />
                     </div>
                   )}
                   {(budget.chapterReconciliation.betweenLegs.costTotalMinor > 0 ||
                     budget.chapterReconciliation.betweenLegs.paidTotalMinor > 0) && (
-                    <div className="flex items-center justify-between py-2.5 gap-2">
-                      <span className="min-w-0 truncate text-sm text-muted-foreground">Between legs</span>
+                    <div className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}>
+                      <span className="min-w-0 break-words text-sm text-muted-foreground">Between legs</span>
                       <CostAmounts
                         costTotalMinor={budget.chapterReconciliation.betweenLegs.costTotalMinor}
                         paidTotalMinor={
@@ -546,14 +628,14 @@ export default async function BudgetPage({
                             : null
                         }
                         currency={homeCurrency}
-                        className="text-muted-foreground"
+                        className="col-span-2 justify-between text-muted-foreground sm:col-span-1"
                       />
                     </div>
                   )}
                   {(budget.chapterReconciliation.otherCosts.costTotalMinor > 0 ||
                     budget.chapterReconciliation.otherCosts.paidTotalMinor > 0) && (
-                    <div className="flex items-center justify-between py-2.5 gap-2">
-                      <span className="min-w-0 truncate text-sm text-muted-foreground">Other costs</span>
+                    <div className={cn(BUDGET_AMOUNT_ROW_CLASS, "py-2.5")}>
+                      <span className="min-w-0 break-words text-sm text-muted-foreground">Other costs</span>
                       <CostAmounts
                         costTotalMinor={budget.chapterReconciliation.otherCosts.costTotalMinor}
                         paidTotalMinor={
@@ -562,7 +644,7 @@ export default async function BudgetPage({
                             : null
                         }
                         currency={homeCurrency}
-                        className="text-muted-foreground"
+                        className="col-span-2 justify-between text-muted-foreground sm:col-span-1"
                       />
                     </div>
                   )}

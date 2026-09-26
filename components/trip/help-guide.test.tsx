@@ -1,7 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { HelpGuide, HELP_PRINT_STYLE } from "./help-guide";
+import { HelpGuide, HELP_PRINT_STYLE, TOPIC_GRID } from "./help-guide";
 import { HELP_SECTIONS, sectionsInGroup, type HelpGroup } from "@/lib/help-guide";
+
+// trip-nav.tsx is a client component that imports next/navigation at module
+// scope; stub it so the pure primaryNav/moreNav exports can be imported here
+// (same defensive stub lib/help-guide.test.ts uses for the same reason).
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/trips/t1",
+  useSearchParams: () => new URLSearchParams(),
+}));
+
+import { primaryNav, moreNav } from "@/components/trip/trip-nav";
 
 /** Minimum body text for a section to count as written rather than stubbed. */
 const MIN_BODY_CHARS = 200;
@@ -80,13 +90,15 @@ describe("HelpGuide", () => {
     expect(screen.getByText("Buttons you’ll tap")).toBeTruthy();
   });
 
-  it("warns prominently that an undated thing to do stays off the calendar", () => {
+  it("warns prominently that an undated thing to do stays off Days", () => {
     // ADR 0022: a thing to do with no date appears in NO dated view. Without
-    // this callout it reads as a bug.
+    // this callout it reads as a bug. "Days" is the nav tab's real label
+    // (trip-nav.tsx's primaryNav) — the dated view used to be called
+    // "Calendar" before task 7's Playground rail rename.
     render(<HelpGuide tripId="t1" />);
     const callout = screen.getByTestId("undated-callout");
     expect(callout.textContent).toMatch(/won't show up|won’t show up/i);
-    expect(callout.textContent).toMatch(/calendar/i);
+    expect(callout.textContent).toMatch(/Days/);
   });
 
   it("deep-links into the trip when a tripId is given", () => {
@@ -279,7 +291,7 @@ describe("HelpGuide", () => {
     // always follow the real plan.
     const { container } = render(<HelpGuide tripId="t1" />);
     const body = container.querySelector("details#forks")?.textContent ?? "";
-    expect(body).toContain("the Plan, the Budget and the Wishlist");
+    expect(body).toContain("the Plan, Money and the Wishlist");
   });
 
   it("does not claim the Wishlist is a screen a variant can change", () => {
@@ -401,5 +413,222 @@ describe("HELP_PRINT_STYLE", () => {
     // overriding the children's `display` is a no-op. Both rules are required.
     expect(HELP_PRINT_STYLE).toContain("::details-content");
     expect(HELP_PRINT_STYLE).toContain("content-visibility: visible");
+  });
+});
+
+describe("drift guard: <Go> link text matches the real nav label", () => {
+  // lib/help-guide.test.ts's nav-label guard checks primaryNav/moreNav's
+  // OWN output against GUIDE_NAV_LABELS — it never reads this file's prose,
+  // so a rename that renamed the data source correctly (as task 7's Days/
+  // Money rename did) could still leave a stale label sitting inside a <Go>
+  // here, and nothing would fail. This guard reads the actual rendered
+  // <Go> links instead: every one of them is a real navigable link into the
+  // trip (guideTripHref), so its visible text SHOULD be exactly whatever
+  // primaryNav/moreNav currently calls that route. A structural check on
+  // <Go>'s own children, rather than a scan of the whole file's prose for
+  // risky words — deliberately, so it can never flag "calendar feed", a
+  // lowercase "calendar button", or CalendarSkeleton: none of those are
+  // inside a <Go>.
+  it("every <Go> link's visible text matches primaryNav/moreNav's current label for that route", () => {
+    const bySegment = new Map<string, string>();
+    for (const item of [...primaryNav("t1"), ...moreNav("t1")]) {
+      const path = item.href.split("?")[0];
+      bySegment.set(path.split("/").pop()!, item.label);
+    }
+
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const tripLinks = Array.from(
+      container.querySelectorAll<HTMLAnchorElement>('a[href^="/trips/t1/"]'),
+    );
+    // If this is ever 0, the guard below is vacuously true — guard the guard.
+    expect(tripLinks.length).toBeGreaterThan(0);
+
+    for (const link of tripLinks) {
+      const segment = link.getAttribute("href")!.split("?")[0].split("/").pop()!;
+      const expected = bySegment.get(segment);
+      if (!expected) continue; // a route <Go> doesn't cover (none today) — not this guard's job
+      expect(
+        link.textContent,
+        `<Go segment="${segment}"> says "${link.textContent}" but the real nav calls this route "${expected}"`,
+      ).toBe(expected);
+    }
+  });
+});
+
+// ── Playground kit restyle (phase 3, Task 18) ──
+// Kit: design_handoff/playground-2/reference/ui_kits/shared/admin.jsx `Help`.
+describe("HelpGuide — Playground kit shape", () => {
+  /** Every heading in document order as [level, text]. */
+  function outline(container: HTMLElement): Array<[number, string]> {
+    return Array.from(container.querySelectorAll("h1, h2, h3, h4, h5, h6")).map(
+      (h) => [Number(h.tagName[1]), (h.textContent ?? "").trim()],
+    );
+  }
+
+  it("titles every section with a real heading inside its summary, in order", () => {
+    const { container } = render(<HelpGuide tripId="t1" />);
+    const titles = Array.from(container.querySelectorAll("details > summary h3")).map(
+      (h) => h.textContent,
+    );
+    expect(titles).toEqual(HELP_SECTIONS.map((s) => s.title));
+  });
+
+  it("never skips a heading level under the page's h1", () => {
+    const { container } = render(<HelpGuide />);
+    let previous = 1;
+    for (const [level, text] of outline(container)) {
+      expect(level, `"${text}" jumps from h${previous} to h${level}`).toBeLessThanOrEqual(
+        previous + 1,
+      );
+      previous = level;
+    }
+  });
+
+  it("shifts the whole outline down one level when the page already owns an h2", () => {
+    // The trip route: layout h1 (trip name) → page h2 → guide h3/h4.
+    const { container } = render(<HelpGuide tripId="t1" level={3} />);
+    expect(container.querySelector("h2")).toBeNull();
+    expect(
+      container.querySelector("section[aria-labelledby='help-everyday-heading'] > h3")
+        ?.textContent,
+    ).toBe("Using it day to day");
+    const titles = Array.from(container.querySelectorAll("details > summary h4")).map(
+      (h) => h.textContent,
+    );
+    expect(titles).toEqual(HELP_SECTIONS.map((s) => s.title));
+    let previous = 2;
+    for (const [level, text] of outline(container)) {
+      expect(level, `"${text}" jumps from h${previous} to h${level}`).toBeLessThanOrEqual(
+        previous + 1,
+      );
+      previous = level;
+    }
+  });
+
+  it("draws each section as a kit Card: 2px outline and a hard shadow", () => {
+    const { container } = render(<HelpGuide />);
+    for (const d of Array.from(container.querySelectorAll("details"))) {
+      expect(d.className, d.id).toMatch(/\bborder-2\b/);
+      expect(d.className, d.id).toMatch(/\bshadow-hard-2\b/);
+      expect(d.className, d.id).not.toMatch(/\brounded-xl border border-border\b/);
+    }
+  });
+
+  it("gives every section summary the kit's accent icon tile, hidden from readers", () => {
+    const { container } = render(<HelpGuide />);
+    for (const s of HELP_SECTIONS) {
+      const tile = container.querySelector(`details#${s.id} > summary [data-slot='help-tile']`);
+      expect(tile, `no tile on ${s.id}`).toBeTruthy();
+      expect(tile?.getAttribute("aria-hidden")).toBe("true");
+      expect(tile?.className).toMatch(/\bborder-2\b/);
+      expect(tile?.querySelector("svg")).toBeTruthy();
+    }
+  });
+
+  it("lays collapsed sections out as the kit's three-up grid, an open one spanning the row", () => {
+    const { container } = render(<HelpGuide />);
+    const grid = container.querySelector(
+      "section[aria-labelledby='help-everyday-heading'] > div",
+    );
+    expect(grid?.className).toMatch(/\blg:grid-cols-3\b/);
+    for (const d of Array.from(container.querySelectorAll("details"))) {
+      expect(d.className).toMatch(/\bopen:col-span-full\b/);
+    }
+  });
+
+  it("prints every section full width in one column, since print opens bodies without [open]", () => {
+    // HELP_PRINT_STYLE forces closed bodies visible in print, so open:col-span-full
+    // never matches there; without these, bodies print in half-width columns.
+    const { container } = render(<HelpGuide />);
+    for (const id of ["help-everyday-heading", "help-advanced-heading", "help-reference-heading"]) {
+      const grid = container.querySelector(`section[aria-labelledby='${id}'] > div`);
+      expect(grid?.className, id).toMatch(/\bprint:grid-cols-1\b/);
+    }
+    for (const d of Array.from(container.querySelectorAll("details"))) {
+      expect(d.className, d.id).toMatch(/\bprint:col-span-full\b/);
+    }
+  });
+
+  it("spaces wrapped contents rows so the chips' 44px hit areas never overlap", () => {
+    // Chips are 28px (min-h-7) with a 44px ::after, i.e. 8px spill above and
+    // below: rows need at least 16px between them.
+    const { container } = render(<HelpGuide />);
+    const list = container.querySelector('nav[aria-label="Contents"] ol');
+    expect(list?.className).toMatch(/\bgap-y-4\b/);
+    expect(list?.className).not.toMatch(/(^|\s)gap-2(\s|$)/);
+    const chip = list?.querySelector("a");
+    expect(chip?.className).toMatch(/\bmin-h-7\b/);
+    expect(chip?.className).toMatch(/\bafter:h-11\b/);
+  });
+
+  it("lets only the 60-second section's body use the full row it just claimed, keeping its own paragraphs at a readable measure", () => {
+    // LA-026/027: the 60-second body opts out of the reading-measure cap
+    // (bodyUnconstrained) because its <ol> reflows into lg:columns-2 and
+    // wants the whole row open:col-span-full gives it. Its standalone
+    // paragraphs still opt into max-w-reading individually so the prose
+    // doesn't run edge to edge.
+    const { container } = render(<HelpGuide />);
+    const body = container.querySelector("details#sixty-seconds > summary + div > div");
+    expect(body?.className).not.toMatch(/\bmax-w-prose\b/);
+    expect(body?.className).not.toMatch(/\bmax-w-reading\b/);
+    const paragraphs = Array.from(body?.querySelectorAll("p") ?? []);
+    expect(paragraphs.length).toBeGreaterThanOrEqual(2);
+    for (const p of paragraphs) {
+      expect(p.className).toMatch(/\bmax-w-reading\b/);
+    }
+  });
+
+  it("keeps every other section's body at a readable measure — only the 60-second card opts out (fix round 1)", () => {
+    // The shared Section body div defaults to max-w-reading; only the
+    // sixty-seconds instance passes bodyUnconstrained to drop it. Every one
+    // of the other 20 topics must keep the cap, since each one also spans
+    // the full row via open:col-span-full once the reader opens it.
+    const { container } = render(<HelpGuide />);
+    for (const s of HELP_SECTIONS) {
+      if (s.id === "sixty-seconds") continue;
+      const body = container.querySelector(`details#${s.id} > summary + div > div`);
+      expect(body?.className, `section ${s.id} lost its reading-measure cap`).toMatch(
+        /\bmax-w-reading\b/,
+      );
+    }
+  });
+
+  it("60-second steps reflow into two columns when the card is wide", () => {
+    render(<HelpGuide />);
+    expect(screen.getByRole("list", { name: /60-second/i }).className).toContain(
+      "lg:columns-2",
+    );
+  });
+
+  // M-5: at lg the list drops flex's gap-2 for columns-2, so each step
+  // carries its own 8px bottom margin instead (margin-bottom, not space-y's
+  // margin-top, so the second column's first step still lines up at the top).
+  it("60-second steps keep their 8px spacing in the two-column layout", () => {
+    render(<HelpGuide />);
+    const list = screen.getByRole("list", { name: /60-second/i });
+    expect(list.className).toContain("lg:[&>li]:mb-2");
+    expect(list.className).toContain("[&>li]:break-inside-avoid");
+  });
+
+  it("the open 60-second card doesn't change the grid's column count", () => {
+    expect(TOPIC_GRID).toContain("lg:grid-cols-3");
+    expect(TOPIC_GRID).toContain("grid-flow-row-dense");
+    expect(TOPIC_GRID).not.toContain("auto-rows-fr");
+  });
+
+  it("a lone last card (odd count, e.g. the 11-card everyday grid) spans both columns at sm/768, back to one at lg's 3 columns (LA-027)", () => {
+    expect(TOPIC_GRID).toContain("sm:[&>*:last-child:nth-child(odd)]:col-span-2");
+    expect(TOPIC_GRID).toContain("lg:[&>*:last-child:nth-child(odd)]:col-span-1");
+  });
+
+  it("puts the contents list and the key in kit Cards", () => {
+    const { container } = render(<HelpGuide />);
+    const nav = container.querySelector('nav[aria-label="Contents"]');
+    expect(nav?.className).toMatch(/\bborder-2\b/);
+    expect(nav?.className).toMatch(/\bshadow-hard-2\b/);
+    const legend = container.querySelector(
+      "section[aria-labelledby='help-legend-heading'] [data-slot='help-legend']",
+    );
+    expect(legend?.closest("[class*='shadow-hard-2']")).toBeTruthy();
   });
 });

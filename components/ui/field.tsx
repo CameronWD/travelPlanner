@@ -69,7 +69,7 @@ const Field = React.forwardRef<HTMLDivElement, FieldProps>(
 
     return (
       <FieldContext.Provider value={value}>
-        <div ref={ref} className={cn("flex flex-col gap-1.5", className)}>
+        <div ref={ref} data-slot="field" className={cn("flex flex-col gap-1.5", className)}>
           <Label htmlFor={controlId}>
             {label}
             {required ? (

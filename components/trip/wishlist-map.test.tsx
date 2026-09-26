@@ -14,6 +14,11 @@ vi.mock("@/components/ui/theme-provider", () => ({
 
 import { WishlistMap } from "./wishlist-map";
 
+/** The mock's `divIcon` returns its options verbatim, untyped; narrow just the `html` we assert on. */
+function iconHtml(marker: { options: Record<string, unknown> }): string {
+  return (marker.options.icon as { html: string }).html;
+}
+
 const ITEMS = [
   { id: "a", title: "Tokyo Tower", category: "SIGHTSEEING", lat: 35.65, lng: 139.74 },
   { id: "b", title: "Ramen", category: "FOOD", lat: 35.69, lng: 139.7 },
@@ -62,6 +67,38 @@ describe("WishlistMap theme handling", () => {
     );
     expect(mapInstance.remove).not.toHaveBeenCalled();
     expect(hoisted.leaflet!.maps).toHaveLength(1);
+  });
+
+  it("recolours markers in place (setIcon) when the theme flips, rather than rebuilding the map", async () => {
+    const { rerender } = render(<WishlistMap items={ITEMS} onSelect={vi.fn()} />);
+    await waitFor(() => expect(hoisted.leaflet!.markers).toHaveLength(ITEMS.length));
+    const mapInstance = hoisted.leaflet!.maps[0];
+    const [markerA, markerB] = hoisted.leaflet!.markers;
+
+    // Light-mode fill baked into the icon at creation time (sky/sun hues).
+    expect(iconHtml(markerA)).toContain("#8AD6F5");
+    expect(iconHtml(markerB)).toContain("#FFD166");
+
+    hoisted.theme = "dark";
+    rerender(<WishlistMap items={ITEMS} onSelect={vi.fn()} />);
+
+    await waitFor(() => expect(markerA.setIcon).toHaveBeenCalled());
+    await waitFor(() => expect(markerB.setIcon).toHaveBeenCalled());
+
+    // The new icon passed to setIcon carries the dark-mode hue.
+    expect(markerA.setIcon).toHaveBeenLastCalledWith(
+      expect.objectContaining({ html: expect.stringContaining("#8CC0D6") }),
+    );
+    expect(markerB.setIcon).toHaveBeenLastCalledWith(
+      expect.objectContaining({ html: expect.stringContaining("#E6C57A") }),
+    );
+
+    // Recoloured in place: no map rebuild, no new markers created, and the
+    // popup a live toggle should never disturb was never touched.
+    expect(mapInstance.remove).not.toHaveBeenCalled();
+    expect(hoisted.leaflet!.markers).toHaveLength(ITEMS.length);
+    expect(markerA.remove).not.toHaveBeenCalled();
+    expect(markerB.remove).not.toHaveBeenCalled();
   });
 
   it("still rebuilds when the plotted items actually change", async () => {

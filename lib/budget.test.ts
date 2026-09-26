@@ -685,6 +685,47 @@ describe("buildBudget", () => {
 // buildBudget — byChapter
 // ---------------------------------------------------------------------------
 
+describe("buildBudget — Settlement", () => {
+  const base: Omit<BuildBudgetInput, "costs"> = {
+    homeCurrency: "AUD",
+    stops: [],
+    items: [],
+    accommodations: [],
+    transports: [],
+    tripStart: "2026-06-01",
+    tripEnd: "2026-06-03",
+  };
+
+  it("rolls Before you go and On the trip up separately; a missing settlement counts as Before you go", () => {
+    const result = buildBudget({
+      ...base,
+      costs: [
+        makeCost({ id: "b", costMinor: 100, settlement: "BEFORE" }),
+        makeCost({ id: "o", costMinor: 40, settlement: "ON_TRIP" }),
+        makeCost({ id: "u", costMinor: 5, settlement: undefined }),
+      ],
+    });
+    const totals = result.grandTotal;
+    expect(totals.beforeTotalMinor).toBe(105);
+    expect(totals.onTripTotalMinor).toBe(40);
+    expect(totals.costTotalMinor).toBe(145);
+  });
+
+  it("splits the paid amounts the same way; an unknown settlement counts as Before you go", () => {
+    const result = buildBudget({
+      ...base,
+      costs: [
+        makeCost({ id: "b", costMinor: 100, paidMinor: 90, paidAt: "2026-05-01", settlement: "BEFORE" }),
+        makeCost({ id: "o", costMinor: 40, paidMinor: 35, paidAt: "2026-06-02", settlement: "ON_TRIP" }),
+        makeCost({ id: "x", costMinor: 7, paidMinor: 7, paidAt: "2026-05-02", settlement: "SOMETHING_NEW" }),
+      ],
+    });
+    expect(result.grandTotal.beforePaidMinor).toBe(97);
+    expect(result.grandTotal.onTripPaidMinor).toBe(35);
+    expect(result.grandTotal.beforeTotalMinor).toBe(107);
+  });
+});
+
 describe("buildBudget — byChapter", () => {
   // Chapters: Finland (2026-06-26..2026-07-02), Italy (2026-07-10..2026-07-18)
   // Gap between them: 2026-07-03..2026-07-09

@@ -63,7 +63,7 @@ vi.mock("@/lib/storage", async (importOriginal) => {
   };
 });
 
-import { setTripCover, removeTripCover } from "./cover";
+import { setTripCover, removeTripCover, setCoverFocal } from "./cover";
 
 const TRIP_ID = "t1";
 
@@ -141,6 +141,16 @@ describe("setTripCover", () => {
     );
   });
 
+  it("resets the focal point when a new cover is uploaded", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/old" });
+    await setTripCover(makeFormData());
+    expect(tripUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ coverFocalX: null, coverFocalY: null }),
+      }),
+    );
+  });
+
   it("replacing an existing cover schedules the old blob for retention (ARCH-DAT-3)", async () => {
     tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/old" });
     const fd = makeFormData({
@@ -198,11 +208,52 @@ describe("removeTripCover", () => {
     );
   });
 
+  it("resets the focal point when the cover is removed", async () => {
+    tripFindUniqueMock.mockResolvedValue({ coverImageKey: "trips/t1/old" });
+    await removeTripCover(TRIP_ID);
+    expect(tripUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: TRIP_ID },
+        data: { coverImageKey: null, coverFocalX: null, coverFocalY: null },
+      }),
+    );
+  });
+
   it("is a no-op success when the trip has no cover", async () => {
     tripFindUniqueMock.mockResolvedValue({ coverImageKey: null });
     const result = await removeTripCover(TRIP_ID);
     expect(result.success).toBe(true);
     expect(storageDeleteMock).not.toHaveBeenCalled();
     expect(scheduleBlobDeletionMock).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setCoverFocal (spec E2)
+// ---------------------------------------------------------------------------
+
+describe("setCoverFocal", () => {
+  it("stores the focal point on the Trip after the access check", async () => {
+    const result = await setCoverFocal(TRIP_ID, 0.25, 0.75);
+    expect(result.success).toBe(true);
+    expect(tripUpdateMock).toHaveBeenCalledWith({
+      where: { id: TRIP_ID },
+      data: { coverFocalX: 0.25, coverFocalY: 0.75 },
+    });
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
+  });
+
+  it("clamps a point outside the photo to its edge", async () => {
+    await setCoverFocal(TRIP_ID, -0.2, 1.4);
+    expect(tripUpdateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { coverFocalX: 0, coverFocalY: 1 } }),
+    );
+  });
+
+  it("rejects a non-number without writing", async () => {
+    const result = await setCoverFocal(TRIP_ID, Number.NaN, 0.5);
+    expect(result.success).toBe(false);
+    expect(tripUpdateMock).not.toHaveBeenCalled();
   });
 });

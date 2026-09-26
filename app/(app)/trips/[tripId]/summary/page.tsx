@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   MapPin,
@@ -20,7 +21,6 @@ import { homeMapPoint } from "@/lib/route-map";
 import { getTripProjection } from "@/server/actions/stops";
 import { groupStopsByChapter, chapterForStop } from "@/lib/chapters";
 import { orderPlanStops } from "@/lib/plan-order";
-import { chapterColourSwatch } from "@/lib/chapter-colours";
 import { ChapterChip } from "@/components/trip/chapter-chip";
 import { CostAmounts } from "@/components/trip/cost-amounts";
 import type {
@@ -49,6 +49,8 @@ import { RouteMapLoader as RouteMap } from "@/components/trip/route-map-loader";
 import type { RouteMapStop } from "@/components/trip/route-map";
 import type { FitStop } from "@/lib/make-it-fit";
 
+export const metadata: Metadata = { title: "Summary" };
+
 // ---------------------------------------------------------------------------
 // Selects
 // ---------------------------------------------------------------------------
@@ -64,6 +66,7 @@ const COST_SELECT = {
   ownerId: true,
   label: true,
   category: true,
+  settlement: true,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -418,8 +421,9 @@ export default async function SummaryPage({
   // Group stops by chapter for the itinerary section
   const stopGroups = groupStopsByChapter(datedStops, datedChapters);
 
-  // Route map stops — resolve chapter colour hex here (server side) so the
-  // client map component stays dumb and receives only a plain hex string.
+  // Route map stops — coloured by the Stop's own sortOrder (lib/stop-colours),
+  // the same rule Days and the plan editor use; the map resolves the hex
+  // client-side.
   const mapStops: RouteMapStop[] = datedStops.map((s) => {
     const ch = chapterForStop(s, datedChapters);
     return {
@@ -429,7 +433,7 @@ export default async function SummaryPage({
       lng: s.lng,
       arriveDate: s.arriveDate,
       departDate: s.departDate,
-      chapterColour: ch ? chapterColourSwatch(ch.colour) : null,
+      sortOrder: s.sortOrder,
       chapterName: ch?.name ?? null,
     };
   });
@@ -711,7 +715,7 @@ export default async function SummaryPage({
                   />
                 )}
                 {budget.hasMissingRates && (
-                  <p className="w-full text-xs text-amber-600">
+                  <p className="w-full text-xs text-sun-text">
                     ⚠ Some costs in {budget.missingRates.join(", ")} are excluded
                     (no FX rate available).
                   </p>

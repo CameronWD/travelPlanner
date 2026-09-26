@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { MapPin, MoreVertical, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { CardTitle, cardVariants } from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -15,6 +16,7 @@ import type { PhaseDescription, TripPhase } from "@/lib/trip-phase";
 import { TripCover } from "./trip-cover";
 import type { LatLng } from "@/lib/route-render";
 import { DuplicateTripDialog } from "./duplicate-trip-dialog";
+import { HUE_CLASSES } from "@/lib/hues";
 
 /**
  * Format a YYYY-MM-DD date range into a friendly string like "1 Jul – 12 Jul".
@@ -48,15 +50,36 @@ export interface TripCardProps {
   home?: LatLng | null;
   roundTrip?: boolean;
   coverVersion?: string | null;
+  /** Trip.coverFocalX / coverFocalY — where the cover photo's crop centres (spec E2); null = centre. */
+  focalX?: number | null;
+  focalY?: number | null;
+  /** The single "up next" card in the grid — kit's `NEXT UP` treatment: spans 2 columns, bigger heading. */
+  featured?: boolean;
+  /**
+   * Extra detail shown only on the featured card, in a details column beside
+   * the cover at `lg+` (the card stacks like every other card below `lg`).
+   */
+  featuredDetails?: {
+    /** Big display-font countdown value, e.g. "26", "5", "Not dated". */
+    countdown: string;
+    /** Small stacked unit beside the countdown, e.g. "DAYS TO GO"; null when it stands alone. */
+    unit: string | null;
+    /** "first Stop → last Stop" (or a single Stop's name; "" when there are none). */
+    routeSummary: string;
+    /** e.g. "3 stops · 9 nights". */
+    stopsAndNights: string;
+    /** The Home's next step for this trip, or null when there isn't one. */
+    nextStep: string | null;
+  };
 }
 
 /** Dot colour class per trip phase, matching the design tokens. */
 const PHASE_DOT_CLASS: Record<TripPhase, string> = {
   planning: "bg-primary",
   "final-prep": "bg-primary",
-  sketching: "bg-amber-500",
-  travelling: "bg-teal-500",
-  past: "bg-stone-400",
+  sketching: HUE_CLASSES.sun.fill,
+  travelling: HUE_CLASSES.teal.fill,
+  past: HUE_CLASSES.stone.fill,
 };
 
 /**
@@ -78,52 +101,76 @@ export function TripCard({
   home,
   roundTrip,
   coverVersion,
+  focalX,
+  focalY,
+  featured,
+  featuredDetails,
 }: TripCardProps) {
   const dateRange =
     startDate && endDate ? formatDateRange(startDate, endDate) : "No dates yet";
 
   const [duplicateOpen, setDuplicateOpen] = React.useState(false);
 
+  // Never boil the "up next" card down to a single letter: when it has no
+  // photo and no located Stops (so TripCover would otherwise fall back to
+  // the monogram), show the trip name instead.
+  const coverVariant: "initial" | "name" =
+    featured && !hasCover && coverStops.length === 0 ? "name" : "initial";
+
+  const showFeaturedDetails = Boolean(featured && featuredDetails);
+
   return (
     // Outer wrapper is `relative group` so the absolutely-positioned menu sits correctly
     // and is a SIBLING of the Link (not a descendant), preventing navigation on click.
     // `group` here powers the opacity-0 / group-hover:opacity-100 on the ⋯ trigger.
-    <div className="relative group">
+    <div className="relative group h-full">
       <Link
         href={`/trips/${id}`}
         className={cn(
-          "relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-soft",
-          "transition-all duration-200 hover:shadow-soft-lg hover:-translate-y-0.5 motion-safe:active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+          cardVariants({ tone: "white", radius: "xl", shadow: featured ? 3 : 2, interactive: true }),
+          "flex h-full flex-col overflow-hidden",
+          showFeaturedDetails && "lg:flex-row",
         )}
       >
-        {/* Cover */}
-        <div className="relative h-36 w-full overflow-hidden">
-          <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} home={home} roundTrip={roundTrip} coverVersion={coverVersion} />
+        {/* Cover — kit shows a flat accent fill here; our real photo/route-render/monogram
+            cover (components/trip/trip-cover.tsx) already carries per-trip visual variety,
+            so the card body stays a neutral `white` tone rather than layering a decorative
+            tone fill behind it. */}
+        <div
+          className={cn(
+            "relative w-full overflow-hidden",
+            featured ? "h-48" : "h-36",
+            showFeaturedDetails && "lg:h-full lg:w-1/2 lg:shrink-0",
+          )}
+        >
+          <TripCover tripId={id} name={name} hasCover={hasCover} stops={coverStops} home={home} roundTrip={roundTrip} coverVersion={coverVersion} focalX={focalX} focalY={focalY} variant={coverVariant} />
           {phase && (
-            <span className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-background/90 px-2.5 py-1 text-xs font-medium text-foreground shadow-soft">
+            <Badge
+              caps
+              className="absolute left-3 top-3 max-w-[calc(100%-1.5rem)] gap-1.5 whitespace-normal text-left leading-tight"
+            >
               <span
                 data-testid="phase-dot"
                 aria-hidden="true"
                 className={cn("size-2 shrink-0 rounded-full", PHASE_DOT_CLASS[phase.phase])}
               />
               {phase.phase === "travelling" || phase.phase === "past" ? phase.countdown : `${phase.label} · ${phase.countdown}`}
-            </span>
+            </Badge>
           )}
           {unreadCount != null && unreadCount > 0 && (
-            <span
-              aria-label={`${unreadCount} new`}
-              className="absolute right-3 top-3 rounded-full bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground shadow-soft"
-            >
+            <Badge variant="accent" aria-label={`${unreadCount} new`} className="absolute right-3 top-3">
               {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
+            </Badge>
           )}
         </div>
 
-        {/* Card body */}
-        <div className="flex flex-col gap-2 p-5 pt-4">
-          <h3 className="font-display text-xl font-semibold leading-tight tracking-tight">
+        {/* Card body — stacked layout, used by every card at every width, and
+            by the featured card below `lg` (kept for phone: "the 2-column
+            grid and card stack unchanged"). */}
+        <div className={cn("flex flex-col gap-2 p-5 pt-4", showFeaturedDetails && "lg:hidden")}>
+          <CardTitle className={featured ? "text-2xl sm:text-3xl" : "text-xl"}>
             {name}
-          </h3>
+          </CardTitle>
 
           <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
             <span>{dateRange}</span>
@@ -134,18 +181,51 @@ export function TripCard({
             </Badge>
           </div>
         </div>
+
+        {/* Featured details column — "Next up" earns its width: a richer
+            right-hand column replaces the stacked body at `lg+` only. */}
+        {showFeaturedDetails && (
+          <div className="hidden flex-col justify-center gap-2 p-5 lg:flex lg:flex-1">
+            <CardTitle className="text-2xl sm:text-3xl">{name}</CardTitle>
+
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-display text-4xl font-extrabold tracking-[-0.03em]">
+                {featuredDetails!.countdown}
+              </span>
+              {featuredDetails!.unit && (
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {featuredDetails!.unit}
+                </span>
+              )}
+            </div>
+
+            {featuredDetails!.routeSummary && (
+              <p className="text-sm text-muted-foreground">{featuredDetails!.routeSummary}</p>
+            )}
+
+            <p className="text-sm text-muted-foreground">{featuredDetails!.stopsAndNights}</p>
+
+            {featuredDetails!.nextStep && (
+              <p data-testid="featured-next-step" className="text-sm font-semibold text-foreground">
+                {featuredDetails!.nextStep}
+              </p>
+            )}
+          </div>
+        )}
       </Link>
 
       {/* ⋯ menu — absolutely positioned as a sibling of the Link, so clicks here
-          never trigger card navigation. z-10 to sit above the card hover states. */}
+          never trigger card navigation. z-10 to sit above the card hover states.
+          size-11 (44px) meets the touch-target minimum; opaque bg-card + 2px
+          border match the kit's solid chip surfaces (no translucency/blur). */}
       <div className="absolute right-2 top-2 z-10">
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label="Trip actions"
             onClick={(e) => e.stopPropagation()}
             className={cn(
-              "flex size-7 items-center justify-center rounded-full bg-background/80 text-foreground shadow-soft backdrop-blur-sm",
-              "hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+              "flex size-11 items-center justify-center rounded-full border-2 border-border bg-card text-foreground shadow-hard-1",
+              "hover:bg-muted",
               "transition-opacity opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
             )}
           >

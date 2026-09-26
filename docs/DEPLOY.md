@@ -46,6 +46,7 @@ npx web-push generate-vapid-keys   # VAPID public/private pair
    |---|---|
    | `DATABASE_URL` | Neon **pooled** URL |
    | `DIRECT_URL` | Neon **direct** URL |
+   | `APP_URL` | `https://<your-vercel-domain>` (no trailing slash — same value as the GitHub Actions variable in §5). Resolves absolute `og:image` URLs (`lib/site-url.ts`). Without it they fall back to Vercel's `VERCEL_PROJECT_PRODUCTION_URL` (when Vercel exposes system env vars), then `http://localhost:3000`; set it when you use a custom domain. |
    | `AUTH_SECRET` | from step 0 |
    | `AUTH_GOOGLE_ID` | from step 3 |
    | `AUTH_GOOGLE_SECRET` | from step 3 |

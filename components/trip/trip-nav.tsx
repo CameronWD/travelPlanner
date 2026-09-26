@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { cn } from "@/lib/cn";
-import { NavMoreMenu } from "@/components/trip/nav-more-menu";
+import { useSearchParams } from "next/navigation";
+import { Dock, type DockItem } from "@/components/ui/dock";
 
 export interface NavItem {
   label: string;
@@ -11,14 +9,22 @@ export interface NavItem {
 }
 
 // Plan-scoped surfaces keep the active variant (?plan=); dated views always follow the real plan.
+//
+// "Days" and "Money" (not "Calendar"/"Budget") — the Playground kit's rail
+// ordering (task-7 brief, Step 5) names these tabs Days and Money, and the
+// label lives here, not as a display-only rename in the wrappers, so that
+// lib/help-guide.test.ts's nav-label drift guard actually covers it: it
+// checks these functions' output, so a future rename fails the guide and the
+// ⌘K palette instead of silently drifting past them. The route segments
+// (/calendar, /budget) are unchanged — only the label moved.
 export function primaryNav(tripId: string, planParam?: string | null): NavItem[] {
   const base = `/trips/${tripId}`;
   const plan = planParam ? `?plan=${encodeURIComponent(planParam)}` : "";
   return [
     { label: "Home", href: base },
     { label: "Plan", href: `${base}/plan${plan}` },
-    { label: "Calendar", href: `${base}/calendar` },
-    { label: "Budget", href: `${base}/budget${plan}` },
+    { label: "Days", href: `${base}/calendar` },
+    { label: "Money", href: `${base}/budget${plan}` },
     { label: "Summary", href: `${base}/summary` },
   ];
 }
@@ -49,55 +55,74 @@ export function isNavActive(
   return pathname === path || pathname.startsWith(path + "/");
 }
 
+/**
+ * Days is the calendar route AND every single-day page: /trips/:id/day/:date
+ * is one day of the Days view, so the rail keeps Days lit there.
+ */
+export function isDaysActive(daysHref: string, pathname: string, base: string): boolean {
+  if (isNavActive(daysHref, pathname, base)) return true;
+  const dayBase = `${base}/day`;
+  return pathname === dayBase || pathname.startsWith(dayBase + "/");
+}
+
 interface TripNavProps {
   tripId: string;
 }
 
 /**
- * Horizontal navigation bar for a trip's sections (desktop only).
- * Primary tabs are always visible; overflow items live in the "More" dropdown.
- * Active tab is highlighted with a coral underline using design tokens.
+ * Left rail for a trip's sections (md+ — see components/ui/dock.tsx for the
+ * mobile-hidden breakpoint). Replaces the old horizontal TripNav bar.
+ *
+ * primaryNav/moreNav stay the source of truth for nav data and the ?plan=
+ * fork threading (ADR 0020); this component only reshapes their output into
+ * the kit's rail ordering (Home, Plan, Days, Money, Wishlist, More, then the
+ * muted app-scoped Trips/Globe/You) and supplies each item's active check via
+ * isNavActive so Home's exact-match rule and query-string hrefs both work —
+ * Dock's own default (path.startsWith(href)) would over-match both of those.
+ *
+ * No Today slot — ADR 0010: the Today view is the Travelling-phase Home.
  */
 export function TripNav({ tripId }: TripNavProps) {
-  const pathname = usePathname();
   const planParam = useSearchParams().get("plan");
   const base = `/trips/${tripId}`;
-  const items = primaryNav(tripId, planParam);
+
+  const nav = primaryNav(tripId, planParam); // Home, Plan, Days, Money, Summary
+  const more = moreNav(tripId, planParam); // Wishlist, Journal, Checklists, Files, Activity, Settings, Help
+  const byLabel = (label: string) =>
+    [...nav, ...more].find((i) => i.label === label)!;
+
+  // Wishlist gets its own rail slot in the kit's ordering; the rest of
+  // moreNav (plus Summary, which the rail has no slot for) live on the More
+  // page (/trips/:id/more), so More stays lit on any of them and on /more.
+  const moreItems = [
+    byLabel("Summary"),
+    ...more.filter((item) => item.label !== "Wishlist"),
+    { label: "More", href: `${base}/more` },
+  ];
+  const isMoreActive = (p: string) => moreItems.some((item) => isNavActive(item.href, p, base));
+
+  const items: DockItem[] = [
+    { href: byLabel("Home").href, label: "Home", match: (p) => isNavActive(byLabel("Home").href, p, base) },
+    { href: byLabel("Plan").href, label: "Plan", match: (p) => isNavActive(byLabel("Plan").href, p, base) },
+    { href: byLabel("Days").href, label: "Days", match: (p) => isDaysActive(byLabel("Days").href, p, base) },
+    { href: byLabel("Money").href, label: "Money", match: (p) => isNavActive(byLabel("Money").href, p, base) },
+    { href: byLabel("Wishlist").href, label: "Wishlist", match: (p) => isNavActive(byLabel("Wishlist").href, p, base) },
+    { href: `${base}/more`, label: "More", match: isMoreActive },
+    { href: "/trips", label: "Trips", muted: true, match: (p) => p === "/trips" },
+    { href: "/globe", label: "Globe", muted: true },
+    { href: "/account", label: "You", muted: true },
+  ];
 
   return (
-    <nav
+    <Dock
+      items={items}
       aria-label="Trip sections"
-      className="hidden border-b border-border md:flex"
-    >
-      <div className="flex overflow-x-auto scrollbar-none gap-0">
-        {items.map((item) => {
-          const active = isNavActive(item.href, pathname, base);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "relative shrink-0 px-4 py-3 text-sm font-medium transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                active
-                  ? "text-primary"
-                  : "text-muted-foreground hover:text-foreground/80",
-              )}
-              aria-current={active ? "page" : undefined}
-            >
-              {item.label}
-              {/* Active indicator: coral underline */}
-              {active && (
-                <span
-                  aria-hidden="true"
-                  className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-primary"
-                />
-              )}
-            </Link>
-          );
-        })}
-        <NavMoreMenu tripId={tripId} />
-      </div>
-    </nav>
+      // Sticky at md+ so the rail survives scrolling past the app header
+      // (h-14 = 3.5rem, plus its safe-area-inset-top padding and 1px
+      // border-b — app/(app)/layout.tsx) instead of scrolling away with the
+      // page like an ordinary flex child. Below md this is inert (Dock
+      // itself is display:none there).
+      className="md:sticky md:top-[calc(3.5rem+env(safe-area-inset-top)+1px)] md:self-start md:h-[calc(100dvh-3.5rem-env(safe-area-inset-top)-1px)]"
+    />
   );
 }

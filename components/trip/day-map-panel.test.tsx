@@ -81,3 +81,13 @@ describe("DayMapPanel", () => {
     expect(screen.getByRole("button")).toHaveAttribute("aria-expanded", "false");
   });
 });
+
+describe("DayMapPanel Playground kit restyle (Task 10b)", () => {
+  it("sits in a kit Card with a ≥44px toggle", () => {
+    const { container } = render(<DayMapPanel tripId="trip-1" model={nonEmptyModel} />);
+    const card = container.firstChild as HTMLElement;
+    expect(card.className).toMatch(/\bborder-2\b/);
+    expect(card.className).toMatch(/\bshadow-hard-\d\b/);
+    expect(screen.getByRole("button", { name: "Show day map" }).className).toMatch(/\bmin-h-11\b/);
+  });
+});

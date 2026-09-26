@@ -148,4 +148,23 @@ describe("CalendarFeedPanel", () => {
       screen.getByText(/iOS strips alarms from subscribed calendars by default/),
     ).toBeInTheDocument();
   });
+
+  // LA-051: this card's body copy is prose, not a label — it needs the same
+  // reading-measure cap as the rest of Settings, or it runs the full width
+  // of the (now two-column) card on a wide screen.
+  describe("reading-measure cap (LA-051)", () => {
+    it("caps the no-feed-yet copy", () => {
+      render(<CalendarFeedPanel tripId="trip-1" initialToken={null} />);
+      expect(screen.getByText(/No calendar feed active/).className).toContain("max-w-reading");
+    });
+
+    it("caps the iOS instructions and the one-way explainer", () => {
+      render(<CalendarFeedPanel tripId="trip-1" initialToken="tok-abc" />);
+      const iosParagraph = screen.getByText(/On iPhone, do this once:/).closest("p");
+      expect(iosParagraph?.className).toContain("max-w-reading");
+      expect(screen.getByText(/One-way: your itinerary publishes/).className).toContain(
+        "max-w-reading",
+      );
+    });
+  });
 });

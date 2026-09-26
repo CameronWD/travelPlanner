@@ -222,7 +222,7 @@ function PromoteForkDialogInner({
                 <span className="shrink-0 rounded bg-destructive/15 px-1.5 py-0.5 text-xs font-medium text-destructive">
                   {KIND_LABELS[item.kind]}
                 </span>
-                <span className="min-w-0 truncate text-foreground">{item.label}</span>
+                <span className="min-w-0 text-foreground [overflow-wrap:anywhere]">{item.label}</span>
               </li>
             ))}
           </ul>

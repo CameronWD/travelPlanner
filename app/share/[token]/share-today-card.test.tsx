@@ -1,15 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/weather", () => ({
-  getDayWeather: vi.fn(async () => ({
-    source: "forecast",
-    highC: 3,
-    lowC: -2,
-    code: 71,
-    label: "Snow",
-  })),
-}));
+vi.mock("@/lib/weather", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/weather")>();
+  return {
+    ...actual,
+    getDayWeather: vi.fn(async () => ({
+      source: "forecast",
+      highC: 3,
+      lowC: -2,
+      code: 71,
+      label: "Snow",
+    })),
+  };
+});
 
 import { ShareTodayCard } from "./share-today-card";
 import type { DayPlan } from "@/lib/itinerary";
@@ -93,5 +97,25 @@ describe("ShareTodayCard", () => {
       }),
     );
     expect(screen.getByText(/Snow/)).toBeInTheDocument();
+  });
+
+  it("is a kit Card (2px outline, hard shadow) with the countdown as a coral-text label", async () => {
+    const { container } = render(
+      await ShareTodayCard({
+        ...baseProps,
+        day: emptyDay("2026-12-10"),
+        stay: { name: "Hôtel Gutenberg", address: null },
+      }),
+    );
+    const card = screen.getByRole("region", { name: /Strasbourg/ });
+    expect(card.className).toMatch(/\bborder-2\b/);
+    expect(card.className).toMatch(/\bshadow-hard-3\b/);
+    expect(screen.getByText("Day 5 of 14").className).toMatch(/\btext-coral-text\b/);
+    // No pre-reskin 1px borders or translucent primary tints.
+    const old = Array.from(container.querySelectorAll("[class]")).filter((el) => {
+      const cls = (el.getAttribute("class") ?? "").split(/\s+/);
+      return cls.includes("border") || cls.some((c) => /^(bg|border)-primary\//.test(c));
+    });
+    expect(old).toEqual([]);
   });
 });

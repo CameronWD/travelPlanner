@@ -82,16 +82,29 @@ export function DispatcherHealth({
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5 border-t-2 border-border-soft pt-3">
       <p
         className={
-          stale ? "text-xs text-destructive" : "text-xs text-muted-foreground"
+          stale
+            ? "flex items-center gap-2 text-xs font-semibold text-destructive"
+            : "flex items-center gap-2 text-xs font-semibold text-muted-foreground"
         }
       >
-        Digest service — {formatLastRun(lastRunAt, now)}
+        {/* Status, not identity: the dot uses the status tokens. The text
+            beside it carries the meaning, so the dot is decorative. */}
+        <span
+          aria-hidden="true"
+          data-testid="dispatcher-status-dot"
+          className={
+            stale
+              ? "size-2.5 shrink-0 rounded-full border-2 border-border bg-destructive"
+              : "size-2.5 shrink-0 rounded-full border-2 border-border bg-success"
+          }
+        />
+        <span>Digest service — {formatLastRun(lastRunAt, now)}</span>
       </p>
       {warning && (
-        <p className="flex items-start gap-2 text-xs text-destructive">
+        <p className="flex items-start gap-2 text-xs font-medium text-destructive">
           <TriangleAlert
             className="mt-0.5 size-3.5 shrink-0"
             aria-hidden="true"

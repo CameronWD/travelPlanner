@@ -1,4 +1,5 @@
-import { FolderOpen } from "lucide-react";
+import type { Metadata } from "next";
+import { Paperclip } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -9,17 +10,23 @@ import {
 import type { TargetType } from "@/lib/enums";
 import { TARGET_TYPES } from "@/lib/enums";
 
+export const metadata: Metadata = { title: "Files" };
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Tailwind classes for the entity-group section-header label.
- * Space-Grotesk (font-display) bold, matching the Bold Modular mock.
+ * Tailwind classes for the entity-group section-header label — kit Label
+ * (`text-label`: 11px, uppercase, 0.08em) in the display face.
  * Exported so the page test can assert the class is present.
  */
 export const FILES_SECTION_HEADER_CLASS =
-  "font-display font-bold text-xs uppercase tracking-[0.06em] text-muted-foreground";
+  "font-display font-bold text-label text-muted-foreground";
+
+/** Kit display title (same as Activity / Checklists). Exported for tests. */
+export const FILES_TITLE_CLASS =
+  "font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl";
 
 const TARGET_TYPE_LABELS: Record<TargetType, string> = {
   TRIP: "Trip-level",
@@ -82,11 +89,9 @@ export default async function FilesPage({
   const hasAny = rows.length > 0;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3 sm:gap-[18px]">
       {/* ── Page heading ── */}
-      <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">
-        Files
-      </h2>
+      <h2 className={FILES_TITLE_CLASS}>Files</h2>
 
       {/* ── Trip-level files (first, no group header) ── */}
       <AttachmentList
@@ -100,12 +105,12 @@ export default async function FilesPage({
         Array.from(grouped.entries()) as Array<[TargetType, AttachmentView[]]>
       ).map(([type, items]) => (
         <div key={type} className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 px-1">
-            <span className={FILES_SECTION_HEADER_CLASS}>
+          <div className="flex items-center gap-2 pt-2">
+            <h3 className={FILES_SECTION_HEADER_CLASS}>
               {TARGET_TYPE_LABELS[type]}
-            </span>
-            <span className="text-xs text-muted-foreground">{items.length}</span>
-            <span className="h-px flex-1 bg-border" />
+            </h3>
+            <span className="text-xs font-semibold tabular-nums text-muted-foreground">{items.length}</span>
+            <span aria-hidden="true" className="h-px flex-1 bg-border-soft" />
           </div>
           <AttachmentList
             tripId={tripId}
@@ -119,7 +124,8 @@ export default async function FilesPage({
       {/* ── Empty state when there are no files at all ── */}
       {!hasAny ? (
         <EmptyState
-          icon={FolderOpen}
+          icon={Paperclip}
+          tone="sun"
           title="No files yet"
           description="Keep tickets, confirmations and passport scans here — upload your first file above."
         />

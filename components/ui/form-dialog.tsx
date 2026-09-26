@@ -18,6 +18,8 @@ export interface FormDialogProps {
    * props whenever the dialog opens or the target record changes.
    */
   recordId?: string | null;
+  /** `lg` widens the dialog for a two-column form (Item, Transport, Accommodation). Defaults to the standard width. */
+  size?: "md" | "lg";
   children: React.ReactNode;
 }
 
@@ -32,12 +34,13 @@ export function FormDialog({
   onOpenChange,
   title,
   recordId,
+  size,
   children,
 }: FormDialogProps) {
   const formKey = open ? `${recordId ?? "new"}-open` : "closed";
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent size={size}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>

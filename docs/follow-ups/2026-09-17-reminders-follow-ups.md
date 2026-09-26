@@ -110,6 +110,14 @@ The push handler sets `icon: '/icons/icon-192.png'` and the same path as
 `/icon` and `/apple-icon`. Pre-existing, but this branch is what puts the push
 path into service for the first time.
 
+> **Correction, 2026-09-23 (ADR 0060):** the sentence above is now wrong and
+> must not be followed. `feat/playground-visual-system` deleted both the
+> `/icon` and `/apple-icon` routes and replaced them with static files under
+> `public/icons/`, which now exists and is populated. `public/sw.js`'s
+> `icon: '/icons/icon-192.png'` / `badge: '/icons/push-badge-96.png'` paths
+> are the correct, currently-served ones — do not "fix" them back to
+> `/icon`. See ADR 0060 for the full rename/asset history.
+
 ## 6. Nothing notices if GitHub disables the schedule
 
 **Where:** `.github/workflows/reminders-cron.yml`

@@ -192,6 +192,7 @@ import {
   setTripHardEndDate,
   duplicateTrip,
   setChaptersEnabled,
+  setForksEnabled,
   removeTripMember,
   leaveTrip,
 } from "./trips";
@@ -1032,6 +1033,59 @@ describe("setChaptersEnabled", () => {
 
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`);
     expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}/plan`);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setForksEnabled
+// ---------------------------------------------------------------------------
+
+describe("setForksEnabled", () => {
+  it("is access-checked — calls requireTripAccess with the tripId", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    await setForksEnabled(TRIP_ID, true);
+
+    expect(requireTripAccessMock).toHaveBeenCalledOnce();
+    expect(requireTripAccessMock).toHaveBeenCalledWith(TRIP_ID);
+    expectAccessCheckedBeforeWrite(requireTripAccessMock, tripUpdateMock);
+  });
+
+  it("enabling: flips the flag, logs 'Turned plan variants on', revalidates the trip", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    const result = await setForksEnabled(TRIP_ID, true);
+
+    expect(result.success).toBe(true);
+    expect(tripUpdateMock).toHaveBeenCalledWith({
+      where: { id: TRIP_ID },
+      data: { forksEnabled: true },
+    });
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tripId: TRIP_ID,
+        entityType: "FORK",
+        changes: { summary: "Turned plan variants on" },
+      }),
+    );
+    expect(revalidatePathMock).toHaveBeenCalledWith(`/trips/${TRIP_ID}`, "layout");
+  });
+
+  it("disabling: only flips the flag — existing Forks are left untouched", async () => {
+    tripUpdateMock.mockResolvedValue({});
+
+    const result = await setForksEnabled(TRIP_ID, false);
+
+    expect(result.success).toBe(true);
+    expect(tripUpdateMock).toHaveBeenCalledWith({
+      where: { id: TRIP_ID },
+      data: { forksEnabled: false },
+    });
+    expect(forkFindManyMock).not.toHaveBeenCalled();
+    expect(recomputeChapterSpansMock).not.toHaveBeenCalled();
+    expect(recordActivityMock).toHaveBeenCalledWith(
+      expect.objectContaining({ changes: { summary: "Turned plan variants off" } }),
+    );
   });
 });
 

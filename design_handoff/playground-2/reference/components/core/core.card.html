@@ -1,0 +1,27 @@
+<!-- @dsCard group="Components" viewport="700x420" subtitle="Logo, Button, IconButton, Chip, Badge, Card, StatCard, ProgressBar, Avatar" name="Core" -->
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<style>body{margin:0;background:var(--surface-page);color:var(--text-primary);font:var(--type-body);padding:20px;box-sizing:border-box} *{box-sizing:border-box}</style><script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="../../assets/dev-loader.js" data-root="../../"></script></head><body>
+<div id="root"></div>
+<script type="text/babel">
+TeepeeDS.ready.then(() => { const { Logo, Icon, Button, IconButton, Chip, Badge, Card, ProgressBar, StatCard, Avatar, AvatarStack, Input, Select, Stepper, Toggle, Checkbox, Segmented, TabBar, Dock, TopBar, ListRow, Sheet, Toast, Tooltip, EmptyState } = TeepeeDS;
+const Row = ({children}) => <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>{children}</div>;
+  ReactDOM.createRoot(document.getElementById('root')).render(<div style={{display:'flex',flexDirection:'column',gap:16}}>
+    <Row><Logo /><Logo variant="mark" size={40} /><Logo variant="wordmark" size={22} /></Row>
+    <Row><Button>+ Add a place</Button><Button variant="secondary">Wishlist</Button><Button variant="accent">Let's go</Button><Button variant="ghost">Skip</Button><Button variant="dashed">+ Start a new trip</Button><Button disabled>Saving…</Button><Button size="s" variant="secondary">Small</Button><Button size="l">Large</Button></Row>
+    <Row><IconButton label="Back">‹</IconButton><IconButton tone="ink" label="Add"><Icon name="plus" color="var(--text-inverse)" /></IconButton><IconButton tone="accent" label="Fav"><Icon name="heart" /></IconButton><IconButton tone="ghost" label="More">⋮</IconButton>
+      <Chip>12 nights ✓</Chip><Chip tone="lilac">Zz Nohga Ueno ✓</Chip><Chip tone="sun">→ Romancecar · 09:00</Chip><Chip tone="coral">No bed yet — add one</Chip><Chip tone="teal" uppercase size="s">Kanto</Chip><Chip tone="ink">let's go</Chip><Chip dashed>+ chapter</Chip><Chip selected tone="teal">Selected</Chip>
+      <Badge count={2} /><Badge count="✓" tone="teal" /><Badge count={12} tone="ink" /></Row>
+    <div style={{display:'grid',gridTemplateColumns:'1.2fr 1fr 1fr 1fr',gap:14}}>
+      <Card tone="coral" shadow={3} radius="xl" padding={16}><Chip size="s" uppercase>Planning</Chip><div style={{font:'var(--type-h3)',letterSpacing:'-.03em',marginTop:10}}>Japan in Autumn</div><div style={{display:'flex',alignItems:'baseline',gap:6}}><span style={{font:'var(--type-display-l)',letterSpacing:'-.05em'}}>26</span><span style={{font:'var(--type-h5)'}}>sleeps<br/>to go</span></div></Card>
+      <StatCard label="Spent" value="¥184k" progress={59} sub="of ¥312k est" />
+      <Card sticker={<Chip tone="teal" uppercase size="s">Kanto</Chip>}><div style={{font:'var(--type-h4)',marginTop:4}}>Tokyo</div><div style={{font:'var(--type-caption)',color:'var(--text-muted)'}}>Oct 13 – 17 · 4 nights</div><div style={{marginTop:10}}><ProgressBar value={80} /></div></Card>
+      <Card dashed style={{display:'grid',placeItems:'center',color:'var(--text-muted)',font:'var(--type-button)'}}>+ Add a stop</Card>
+    </div>
+    <Row><Avatar initials="CW" /><Avatar initials="JM" tone="sun" /><Avatar initials="AL" tone="lilac" square /><AvatarStack people={[{initials:'CW'},{initials:'JM',tone:'sun'},{initials:'AL',tone:'lilac'},{initials:'BK',tone:'coral'},{initials:'X'}]} /></Row>
+  </div>);
+});
+</script>
+</body></html>

@@ -68,15 +68,18 @@ export function QuickAddStops({ tripId, chapterId, forkId, afterStopId }: QuickA
         className="flex-1"
       />
       <div className="flex items-center gap-2">
-        <Input
-          type="number"
-          min={0}
-          value={nights}
-          onChange={(e) => setNights(e.target.value)}
-          aria-label="Nights"
-          disabled={isPending}
-          className="w-full sm:w-20"
-        />
+        <div className="flex items-center gap-1.5">
+          <Input
+            type="number"
+            min={0}
+            value={nights}
+            onChange={(e) => setNights(e.target.value)}
+            aria-label="Nights"
+            disabled={isPending}
+            className="w-full sm:w-20"
+          />
+          <span className="text-xs font-semibold text-muted-foreground">nights</span>
+        </div>
         <Button type="submit" variant="outline" size="md" loading={isPending}>
           <Plus className="size-4" aria-hidden="true" />
           Add

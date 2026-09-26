@@ -265,6 +265,41 @@ A future reviewer may choose to inline them if a third usage does not materialis
 These conventions were established during the `refactor/ui-refinement-consistency-pass`
 branch and are now the project standard. See **ADR 0029** for the authoritative record.
 
+### Page widths
+
+Pages use one of three shared widths, never an ad-hoc `max-w-*` on a page container:
+`max-w-page-wide` (~1600px — the app shell caps content here; grids step 1 → 2 → 3 columns),
+`max-w-reading` (`38em` — prose; `em`, not `ch`, so the cap scales with the text's own font-size —
+put it on the element that carries the font-size class), `max-w-dialog` (480px — the centred dialog).
+A prose or form page that would be a narrow island on a wide screen gets a **companion column** at
+`lg` (a sticky table of contents, a release list, a second card column) rather than stretched text.
+Component-internal caps (menus, popovers, chips, a page intro line such as Help's `max-w-[60ch]`
+subtitle) are not page widths. One documented exception: the New trip page caps its two-column form
+at `max-w-[64rem]`, since a form spread across `max-w-page-wide` loses the label→field reading line.
+(ADR 0062)
+
+Below `lg` a companion-column page keeps its one-column **DOM order** (spec §3 "one column, as
+today"); place the pieces into the `lg` columns explicitly (`lg:col-start-*` / `lg:row-start-*`, with
+multi-item groups `contents lg:flex`), never by reordering the DOM or with `order-*` (which splits
+visual from focus order). See Settings and New trip.
+
+### Truncation
+
+1. Wrap by default — names, titles, addresses, cost names, labels.
+2. `line-clamp-2` only in dense grids/asides where rows must stay even, and only when the item links
+   to a view with the full text. A hover `title` alone doesn't count (nothing on a phone).
+3. Short fixed labels (status badges, currency codes, fork names, segmented tabs) never clip — give them room.
+4. Single-line `truncate` only where the same text is fully visible nearby, and then with `title`.
+IDs and URLs use `[overflow-wrap:anywhere]` so they wrap inside their card.
+
+### Tap targets
+
+Small controls keep their look and get `tap-target` — an invisible ≥44×44 `::before` on coarse
+pointers. Where two targets sit closer than 44px apart, add spacing too. Prefer making a whole row the
+target when the row has one action — and then give the row a real `pointer-coarse:min-h-11` instead of
+`tap-target`: stacked full-width rows have no gap, so a centred 44px `::before` reaches into the row
+above and steals its taps (the Plan day rows, I-1).
+
 ### Icon-button size standard
 
 All icon buttons: `size-8` (`2rem / 32 px`). Use `<Button size="icon" className="size-8">`

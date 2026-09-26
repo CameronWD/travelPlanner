@@ -4,8 +4,8 @@ import { render, screen } from "@testing-library/react";
 const requireTripAccess = vi.fn();
 vi.mock("@/lib/guards", () => ({ requireTripAccess: (id: string) => requireTripAccess(id) }));
 vi.mock("@/components/trip/help-guide", () => ({
-  HelpGuide: ({ tripId }: { tripId?: string }) => (
-    <div data-testid="guide" data-trip-id={tripId ?? ""} />
+  HelpGuide: ({ tripId, level }: { tripId?: string; level?: number }) => (
+    <div data-testid="guide" data-trip-id={tripId ?? ""} data-level={level ?? ""} />
   ),
 }));
 
@@ -28,7 +28,7 @@ describe("trip-scoped help page", () => {
     render(ui);
     expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
     expect(screen.getByRole("heading", { level: 2 }).textContent).toBe(
-      "How to use TEEPEE",
+      "How to use Teepee",
     );
   });
 
@@ -36,5 +36,19 @@ describe("trip-scoped help page", () => {
     const ui = await TripHelpPage({ params: Promise.resolve({ tripId: "t1" }) });
     render(ui);
     expect(screen.getByTestId("guide").getAttribute("data-trip-id")).toBe("t1");
+  });
+
+  it("drops the guide's outline one level so it nests under this page's h2", async () => {
+    const ui = await TripHelpPage({ params: Promise.resolve({ tripId: "t1" }) });
+    render(ui);
+    expect(screen.getByTestId("guide").getAttribute("data-level")).toBe("3");
+  });
+
+  it("styles its h2 as the kit display title", async () => {
+    const ui = await TripHelpPage({ params: Promise.resolve({ tripId: "t1" }) });
+    const { container } = render(ui);
+    const h2 = screen.getByRole("heading", { level: 2 });
+    expect(h2.className).toMatch(/\bfont-extrabold\b/);
+    expect(container.innerHTML).not.toContain("max-w-3xl");
   });
 });

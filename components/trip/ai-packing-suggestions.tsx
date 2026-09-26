@@ -5,6 +5,7 @@ import { useTransition } from "react";
 import { Plus, AlertCircle } from "lucide-react";
 import { AiSuggestButton } from "./ai-suggest-button";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/cn";
 import { aiDraftPackingList } from "@/server/actions/ai";
 import { addChecklistItem } from "@/server/actions/checklists";
@@ -25,7 +26,7 @@ interface AiPackingSuggestionsProps {
 /**
  * AI-powered packing list draft panel.
  *
- * - Shows a "✨ Draft packing list" button.
+ * - Shows a "Draft packing list" AiSuggestButton.
  * - On click calls the server action; shows the returned items.
  * - "Add all" and per-item "Add" buttons call addChecklistItem (kind PACKING).
  */
@@ -103,7 +104,7 @@ export function AiPackingSuggestions({
             onClick={handleAddAll}
             disabled={addPending || fetchPending}
             loading={addPending}
-            className="text-xs"
+            className="relative pointer-coarse:after:absolute pointer-coarse:after:-inset-y-1 pointer-coarse:after:inset-x-0 pointer-coarse:after:content-['']"
           >
             <Plus className="size-3.5" aria-hidden="true" />
             Add all ({notYetAdded.length})
@@ -112,26 +113,25 @@ export function AiPackingSuggestions({
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+        <div role="alert" className="flex items-center gap-2.5 rounded-md border-2 border-destructive bg-card px-3 py-2.5 text-sm font-medium text-foreground">
+          <AlertCircle className="size-[18px] shrink-0 text-destructive" aria-hidden="true" />
           {error}
         </div>
       )}
 
       {hasItems && (
-        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-3 dark:border-violet-800 dark:bg-violet-950/30">
-          <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mb-2">
+        <Card tone="lilac" className="p-3.5 sm:p-[18px]">
+          <p className="text-label mb-2">
             AI suggested packing items
           </p>
-          <ul className="flex flex-col gap-1">
+          <ul className="flex flex-col">
             {items.map((item) => {
               const added = addedItems.has(item);
               return (
                 <li
                   key={item}
                   className={cn(
-                    "flex items-center justify-between gap-3 rounded-xl px-2.5 py-1.5 text-sm",
-                    "bg-white/70 dark:bg-black/20",
+                    "flex min-h-11 items-center justify-between gap-3 border-t border-border-soft py-1 text-sm font-semibold first:border-t-0",
                     added && "opacity-60",
                   )}
                 >
@@ -142,7 +142,7 @@ export function AiPackingSuggestions({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="shrink-0 h-7 px-2 text-xs"
+                    className="shrink-0 bg-card relative pointer-coarse:after:absolute pointer-coarse:after:-inset-y-1 pointer-coarse:after:inset-x-0 pointer-coarse:after:content-['']"
                     disabled={added || addPending}
                     onClick={() => handleAdd(item)}
                     title={added ? "Already added" : `Add "${item}" to packing list`}
@@ -158,7 +158,7 @@ export function AiPackingSuggestions({
               );
             })}
           </ul>
-        </div>
+        </Card>
       )}
     </div>
   );

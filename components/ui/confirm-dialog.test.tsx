@@ -33,4 +33,15 @@ describe("useConfirm", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(onResult).toHaveBeenCalledWith(false));
   });
+
+  it("wraps the footer's Cancel/confirm buttons instead of overflowing a narrow sheet (LA-014)", async () => {
+    const onResult = vi.fn();
+    render(<Harness onResult={onResult} />);
+    await userEvent.click(screen.getByText("open"));
+    const confirmButton = await screen.findByRole("button", { name: "Delete" });
+
+    const footer = confirmButton.closest("div")!;
+    expect(footer.className).toContain("flex-wrap");
+    expect(footer.className).toContain("[&>*]:min-w-[8rem]");
+  });
 });

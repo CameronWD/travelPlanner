@@ -85,3 +85,22 @@ describe("NearbyWishlist", () => {
     expect(screen.getByText("1.3 km")).toBeInTheDocument();
   });
 });
+
+describe("NearbyWishlist Playground kit restyle (Task 10b)", () => {
+  it("sits in a kit Card; rows use the 2px outline and named ≥44px add buttons", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <NearbyWishlist tripId="trip-1" date="2026-07-01" items={nonEmptyItems} />,
+    );
+    const card = container.firstChild as HTMLElement;
+    expect(card.className).toMatch(/\bborder-2\b/);
+    expect(card.className).toMatch(/\bshadow-hard-\d\b/);
+    const toggle = screen.getByRole("button", { name: /nearby wishlist items/i });
+    expect(toggle.className).toMatch(/\bmin-h-11\b/);
+    await user.click(toggle);
+    const add = screen.getByRole("button", { name: "Add Senso-ji Temple to today" });
+    expect(add.className).toMatch(/\bh-11\b/);
+    expect(add.closest("li")!.className).toMatch(/\bborder-2\b/);
+    expect(container.innerHTML).not.toMatch(/rounded-lg border border-border/);
+  });
+});

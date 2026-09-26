@@ -11,6 +11,7 @@ const baseCost: CostRow = {
   rateToHome: null,
   paidAt: null,
   dueDate: null,
+  settlement: "BEFORE",
   ownerType: "OTHER",
   ownerId: null,
   label: null,

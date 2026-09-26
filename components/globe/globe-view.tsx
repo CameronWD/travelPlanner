@@ -8,7 +8,11 @@ import { MarkerFilters } from "./marker-filters";
 import { MarkerForm } from "./marker-form";
 import { GlobeInviteButton } from "./globe-invite-button";
 import { filterMarkers, distinctCountries, type MarkerFilter } from "@/lib/globe-list";
+import { Plus, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { deleteMarker } from "@/server/actions/globe";
 import type { MarkerView, GlobeMemberView } from "./types";
@@ -56,21 +60,35 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId }: 
     router.refresh();
   };
 
+  const countryCount = countries.length;
+  const hiddenByFilters = markers.length > 0 && filtered.length === 0;
+
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-muted-foreground">
-          Everywhere you want to go. Tap the map to drop a pin, or use{" "}
-          <span className="font-medium text-foreground">Add marker</span> to search for a place.
-        </p>
+    <div className="flex flex-col gap-4 lg:gap-[18px]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl">
+          Your globe
+        </h1>
         <div className="flex items-center gap-2">
           <GlobeInviteButton members={members} />
-          <Button onClick={openAdd}>Add Marker</Button>
+          <Button onClick={openAdd}>
+            <Plus aria-hidden="true" strokeWidth={3} />
+            Add marker
+          </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_330px] lg:items-start">
-        <div className="min-w-0">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Badge variant="lilac" className="min-h-7 px-2.5 py-1 text-[11px]">
+          {countryCount} {countryCount === 1 ? "country" : "countries"}
+        </Badge>
+        <Badge variant="coral" className="min-h-7 px-2.5 py-1 text-[11px]">
+          {markers.length} {markers.length === 1 ? "marker" : "markers"}
+        </Badge>
+      </div>
+
+      <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:gap-[18px]">
+        <div className="flex min-w-0 flex-col gap-2 lg:sticky lg:top-20">
           <GlobeMapLoader
             markers={filtered}
             selectedId={selectedId}
@@ -80,20 +98,30 @@ export function GlobeView({ markers, members, globeId, attachmentsByMarkerId }: 
             onMapClick={openDrop}
             attachmentsByMarkerId={attachmentsByMarkerId}
           />
+          <p className="text-right text-xs font-medium text-muted-foreground">Tap the map to drop a marker</p>
         </div>
 
-        <div className="flex flex-col gap-3">
+        <Card data-testid="globe-panel" className="flex min-w-0 flex-col gap-3 p-3.5 lg:p-[18px]">
           <MarkerFilters filter={filter} countries={countries} onChange={setFilter} />
-          <MarkerList
-            markers={filtered}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onEdit={openEdit}
-            onDelete={handleDelete}
-            globeId={globeId}
-            attachmentsByMarkerId={attachmentsByMarkerId}
-          />
-        </div>
+          {hiddenByFilters ? (
+            <EmptyState
+              icon={SearchX}
+              tone="teal"
+              title="Nothing matches"
+              description="Try another place, country or category."
+            />
+          ) : (
+            <MarkerList
+              markers={filtered}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+              globeId={globeId}
+              attachmentsByMarkerId={attachmentsByMarkerId}
+            />
+          )}
+        </Card>
       </div>
 
       <MarkerForm

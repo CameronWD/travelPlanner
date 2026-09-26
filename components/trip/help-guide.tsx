@@ -1,5 +1,28 @@
 import * as React from "react";
-import { ChevronRight } from "lucide-react";
+import {
+  BedDouble,
+  BookOpen,
+  CalendarClock,
+  CalendarDays,
+  ChevronRight,
+  CircleAlert,
+  Clock,
+  Copy,
+  Globe,
+  Heart,
+  List,
+  ListChecks,
+  Pin,
+  Plus,
+  Route,
+  Search,
+  Settings,
+  Timer,
+  Users,
+  Wallet,
+  type LucideIcon,
+} from "lucide-react";
+import { cn } from "@/lib/cn";
 import { HelpLegend } from "@/components/trip/help-legend";
 import { HelpExpandAll } from "@/components/trip/help-expand-all";
 import { HelpHashOpen } from "@/components/trip/help-hash-open";
@@ -106,36 +129,114 @@ function GlobeLink({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** One collapsible section. */
+/** Heading levels the guide can start at: h2 on /help, h3 under a trip page's h2. */
+type GuideLevel = 2 | 3;
+type HeadingTag = "h2" | "h3" | "h4";
+
+/** Kit topic-card tile tones (admin.jsx `Help`): accent fill, on-accent glyph. */
+const TILE_TONE = {
+  coral: "bg-coral text-on-accent",
+  sun: "bg-sun text-on-accent",
+  teal: "bg-teal text-on-accent",
+  lilac: "bg-lilac text-on-accent",
+  white: "bg-card text-foreground",
+} as const;
+
+/**
+ * Presentation only: the icon tile each section wears, as on the kit's Help
+ * topic cards. Keyed by section id; lib/help-guide.ts stays pure data.
+ */
+const SECTION_TILES: Record<string, { icon: LucideIcon; tone: keyof typeof TILE_TONE }> = {
+  "sixty-seconds": { icon: Timer, tone: "coral" },
+  "trip-shape": { icon: Route, tone: "teal" },
+  "things-to-do": { icon: Plus, tone: "coral" },
+  "giving-a-day": { icon: CalendarDays, tone: "sun" },
+  undecided: { icon: Heart, tone: "lilac" },
+  "sleeping-moving": { icon: BedDouble, tone: "lilac" },
+  money: { icon: Wallet, tone: "sun" },
+  "getting-ready": { icon: ListChecks, tone: "teal" },
+  together: { icon: Users, tone: "lilac" },
+  search: { icon: Search, tone: "teal" },
+  away: { icon: Clock, tone: "sun" },
+  "something-off": { icon: CircleAlert, tone: "coral" },
+  chapters: { icon: List, tone: "lilac" },
+  "dates-and-pins": { icon: Pin, tone: "sun" },
+  "make-it-fit": { icon: CalendarClock, tone: "sun" },
+  forks: { icon: Copy, tone: "coral" },
+  globe: { icon: Globe, tone: "teal" },
+  "trip-settings": { icon: Settings, tone: "white" },
+  "word-list": { icon: BookOpen, tone: "lilac" },
+};
+
+/**
+ * One collapsible section, drawn as the kit's Help topic card: icon tile,
+ * h5-type title, body-s blurb. Collapsed cards tile three-up like the kit;
+ * an open one spans the row so its body has room.
+ */
 function Section({
   section,
   open,
+  heading: Title,
+  /**
+   * Only the 60-second section sets this: its `<ol>` reflows into
+   * `lg:columns-2` and needs the full row `open:col-span-full` gives it, so
+   * it opts out of the reading-measure cap every other section's body keeps
+   * (fix round 1: that cap was dropped for everyone, which let all 20 other
+   * topics' prose run edge-to-edge once opened at `lg`).
+   */
+  bodyUnconstrained,
   children,
 }: {
   section: HelpSection;
   open?: boolean;
+  /** One level below the group heading (a server component: no context). */
+  heading: HeadingTag;
+  bodyUnconstrained?: boolean;
   children: React.ReactNode;
 }) {
+  const tile = SECTION_TILES[section.id];
+  if (!tile) throw new Error(`No help tile for section: ${section.id}`);
+  const TileIcon = tile.icon;
   return (
     <details
       id={section.id}
       open={open}
-      className="group rounded-xl border border-border bg-card px-4 py-3"
+      className="group rounded-lg border-2 border-border bg-card p-4 text-card-foreground shadow-hard-2 open:col-span-full target:col-span-full print:col-span-full"
     >
-      <summary className="flex cursor-pointer list-none items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background">
+      <summary className="flex cursor-pointer list-none items-start gap-2.5 rounded-sm focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card">
+        <span
+          data-slot="help-tile"
+          aria-hidden="true"
+          className={cn(
+            "grid size-[34px] shrink-0 place-items-center rounded-sm border-2 border-border",
+            TILE_TONE[tile.tone],
+          )}
+        >
+          <TileIcon className="size-4" strokeWidth={2.5} />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <Title className="font-display text-base font-bold leading-tight text-foreground">
+            {section.title}
+          </Title>
+          <span className="text-[13px] font-medium leading-snug text-muted-foreground">
+            {section.blurb}
+          </span>
+        </span>
         <ChevronRight
           aria-hidden="true"
-          className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
+          className="mt-2 size-[18px] shrink-0 text-muted-foreground transition-transform group-open:rotate-90"
+          strokeWidth={2.5}
         />
-        <span className="flex min-w-0 flex-col">
-          <span className="font-display text-base font-semibold text-foreground">
-            {section.title}
-          </span>
-          <span className="text-sm text-muted-foreground">{section.blurb}</span>
-        </span>
       </summary>
-      <div className="mt-3 flex flex-col gap-3 border-t border-border/60 pt-3 text-sm leading-relaxed text-foreground">
-        {children}
+      <div className="mt-3.5 border-t-2 border-border-soft pt-3.5">
+        <div
+          className={cn(
+            "flex flex-col gap-3 text-sm leading-relaxed text-foreground",
+            !bodyUnconstrained && "max-w-reading",
+          )}
+        >
+          {children}
+        </div>
       </div>
     </details>
   );
@@ -151,7 +252,42 @@ function sectionById(id: string): HelpSection {
 /** Shared list styling — kept in one place so every section reads the same. */
 const LIST_CLASS = "flex flex-col gap-2 pl-5";
 
-export function HelpGuide({ tripId }: { tripId?: string }) {
+/** Group-heading type: the kit's h3 (24/800, tight). */
+const GROUP_HEADING = "font-display text-2xl font-extrabold leading-tight tracking-[-0.03em] text-foreground";
+/** The kit's topic grid: one column on phone, three-up on desktop. Print is one
+ *  column: HELP_PRINT_STYLE opens bodies without setting [open], so
+ *  open:col-span-full can't widen them there. `grid-flow-row-dense` backfills
+ *  the gap an `open:col-span-full` card would otherwise leave beside it in the
+ *  row above, without changing the column count itself (no `auto-rows-fr`:
+ *  that would stretch every row to the expanded card's height). */
+// LA-027: a lone last card in an otherwise-full grid spans the row instead of
+// leaving a blank half/third-width gap beside it. Two rules, because the
+// everyday grid's first card (the 60-second version) opens by default and
+// spans the whole row (`open:col-span-full` below) — while it's open, the
+// OTHER 11 cards fill the grid on their own, so it's the *even* DOM position
+// that lands alone (12th child, 11th "real" card); if a reader closes that
+// hero card by hand, all 12 cards become uniform again and land evenly with
+// no orphan, so the even-position rule is scoped with `:has()` to only the
+// hero-open shape — it must not also fire once the hero is closed, which
+// would strand the second-to-last card instead. The plain odd-position rule
+// covers every TOPIC_GRID list with no such hero (Advanced, Reference).
+export const TOPIC_GRID =
+  "grid grid-cols-1 items-start gap-3 sm:grid-cols-2 lg:grid-cols-3 print:grid-cols-1 grid-flow-row-dense sm:[&>*:last-child:nth-child(odd)]:col-span-2 lg:[&>*:last-child:nth-child(odd)]:col-span-1 sm:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-2 lg:[&:has(>*:first-child[open])>*:last-child:nth-child(even)]:col-span-1";
+
+export function HelpGuide({
+  tripId,
+  level = 2,
+}: {
+  tripId?: string;
+  /**
+   * Heading level for the guide's group headings. 2 under a page <h1>
+   * (/help); 3 under a trip page's <h2>, since the trip layout owns the <h1>.
+   * Sections and the key's blocks sit one level below.
+   */
+  level?: GuideLevel;
+}) {
+  const Group = `h${level}` as HeadingTag;
+  const Sub = `h${level + 1}` as HeadingTag;
   return (
     <div className="flex flex-col gap-8">
       <style>{HELP_PRINT_STYLE}</style>
@@ -163,20 +299,22 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
           again; without script, the :target rules above still open it. */}
       <nav
         aria-label="Contents"
-        className="help-print-hide rounded-xl border border-border bg-muted/40 px-4 py-3"
+        className="help-print-hide rounded-lg border-2 border-border bg-background p-[18px] text-card-foreground shadow-hard-2"
       >
-        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-display text-base font-semibold text-foreground">
+        <div className="mb-3.5 flex flex-wrap items-center justify-between gap-2">
+          <Group className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
             What&rsquo;s in here
-          </h2>
+          </Group>
           <HelpExpandAll />
         </div>
-        <ol className="flex flex-col gap-1">
+        {/* gap-y-4: chips are 28px with a 44px ::after (8px spill each side),
+            so 16px between rows keeps neighbouring hit areas from overlapping. */}
+        <ol className="flex flex-wrap gap-x-2 gap-y-4">
           {HELP_SECTIONS.map((s) => (
             <li key={s.id}>
               <a
                 href={`#${s.id}`}
-                className="text-sm text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+                className="relative inline-flex min-h-7 items-center rounded-full border-2 border-border bg-card px-2.5 py-1 text-[11px] font-extrabold leading-tight text-foreground transition-[transform,box-shadow] duration-[var(--dur-fast)] ease-pop after:absolute after:inset-x-0 after:top-1/2 after:h-11 after:-translate-y-1/2 hover:-translate-x-px hover:-translate-y-px hover:shadow-hard-1 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
               >
                 {s.title}
               </a>
@@ -187,30 +325,29 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
 
       {/* ── Always-visible key ── */}
       <section aria-labelledby="help-legend-heading">
-        <h2
-          id="help-legend-heading"
-          className="mb-4 font-display text-xl font-bold text-foreground"
-        >
+        <Group id="help-legend-heading" className={cn("mb-3.5", GROUP_HEADING)}>
           What the buttons mean
-        </h2>
-        <HelpLegend />
+        </Group>
+        <div className="rounded-lg border-2 border-border bg-card p-[18px] text-card-foreground shadow-hard-2">
+          <HelpLegend headingLevel={level + 1 as 3 | 4} />
+        </div>
       </section>
 
       {/* ── Everyday sections ── */}
       <section aria-labelledby="help-everyday-heading">
-        <h2
-          id="help-everyday-heading"
-          className="mb-4 font-display text-xl font-bold text-foreground"
-        >
+        <Group id="help-everyday-heading" className={cn("mb-3.5", GROUP_HEADING)}>
           Using it day to day
-        </h2>
-        <div className="flex flex-col gap-3">
+        </Group>
+        <div className={TOPIC_GRID}>
           {/* One <Section> per everyday id, in HELP_SECTIONS order. */}
-          <Section section={sectionById("sixty-seconds")} open>
-            <p>
+          <Section heading={Sub} section={sectionById("sixty-seconds")} open bodyUnconstrained>
+            <p className="max-w-reading">
               The whole app is one loop. Six steps, and you have a planned trip.
             </p>
-            <ol className={`list-decimal ${LIST_CLASS}`}>
+            <ol
+              aria-label="The 60-second version"
+              className="flex flex-col gap-2 pl-5 list-decimal lg:block lg:columns-2 lg:gap-8 lg:[&>li]:mb-2 [&>li]:break-inside-avoid"
+            >
               <li>
                 Open{" "}
                 <Go tripId={tripId} segment="plan">
@@ -227,9 +364,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 until you decide when.
               </li>
               <li>
-                Give each one a day on the{" "}
+                Give each one a day on{" "}
                 <Go tripId={tripId} segment="calendar">
-                  Calendar
+                  Days
                 </Go>
                 . This is the step everyone forgets — the next two sections are
                 all about it.
@@ -238,7 +375,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 Put a number against anything that costs money, then watch the
                 running total on{" "}
                 <Go tripId={tripId} segment="budget">
-                  Budget
+                  Money
                 </Go>
                 .
               </li>
@@ -251,14 +388,14 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 missing.
               </li>
             </ol>
-            <p>
+            <p className="max-w-reading">
               You can stop anywhere in that loop and come back later. Nothing has
               to be finished, everything saves as you go, and the other one of you
               picks up your changes the next time they open the screen.
             </p>
           </Section>
 
-          <Section section={sectionById("trip-shape")}>
+          <Section heading={Sub} section={sectionById("trip-shape")}>
             <p>
               Everything about your trip hangs off one screen:{" "}
               <Go tripId={tripId} segment="plan">
@@ -311,7 +448,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
-          <Section section={sectionById("things-to-do")}>
+          <Section heading={Sub} section={sectionById("things-to-do")}>
             {/* The main flow: Plan → a Stop → "Add Thing to Do". */}
             <p>
               This is the one you&rsquo;ll use most. Go to{" "}
@@ -332,7 +469,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               <li>
                 <strong className="font-semibold">Category</strong> — what kind
                 of thing it is: sightseeing, food and drink, and so on. It sets
-                the colour it shows in and how it&rsquo;s grouped on the Budget.
+                the colour it shows in and how it&rsquo;s grouped on Money.
               </li>
               <li>
                 <strong className="font-semibold">Stop</strong> — which place it
@@ -375,12 +512,12 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             {/* MUST include the callout below, exactly this testid. */}
             <p
               data-testid="undated-callout"
-              className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-2"
+              className="island rounded-md border-2 border-border bg-warning px-3 py-2 text-foreground"
             >
               <strong className="font-semibold">Worth knowing:</strong> a thing
-              to do won&rsquo;t show up on the{" "}
+              to do won&rsquo;t show up on{" "}
               <Go tripId={tripId} segment="calendar">
-                Calendar
+                Days
               </Go>{" "}
               until you give it a day. That&rsquo;s on purpose — it&rsquo;s
               parked against the place, waiting for you to decide when. Giving
@@ -392,11 +529,11 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
-          <Section section={sectionById("giving-a-day")}>
+          <Section heading={Sub} section={sectionById("giving-a-day")}>
             <p>
-              Giving something a day is what puts it on the{" "}
+              Giving something a day is what puts it on{" "}
               <Go tripId={tripId} segment="calendar">
-                Calendar
+                Days
               </Go>
               , on that day&rsquo;s own page, and on the screen you&rsquo;ll live
               off while you&rsquo;re travelling. Two routes work on something
@@ -411,7 +548,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 whole job.
               </li>
               <li>
-                <strong className="font-semibold">From the Calendar.</strong> The
+                <strong className="font-semibold">From Days.</strong> The
                 toggle at the top switches between{" "}
                 <strong className="font-semibold">Month</strong> — a grid of the
                 whole month — and{" "}
@@ -459,7 +596,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
-          <Section section={sectionById("undecided")}>
+          <Section heading={Sub} section={sectionById("undecided")}>
             <p>
               Not every idea is ready for a day.{" "}
               <Go tripId={tripId} segment="wishlist">
@@ -491,7 +628,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               takes it off the board. Every route does the same thing —{" "}
               <strong className="font-semibold">Schedule this</strong> on an
               idea&rsquo;s card, the little calendar button on the Wishlist
-              column beside the Calendar, and dragging an idea straight onto a
+              column beside Days, and dragging an idea straight onto a
               day all put a <strong className="font-semibold">copy</strong> on
               the day you pick. The idea itself stays on the board, now with a
               tick and &ldquo;in this plan&rdquo; beside it. That&rsquo;s
@@ -501,18 +638,18 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
-          <Section section={sectionById("sleeping-moving")}>
+          <Section heading={Sub} section={sectionById("sleeping-moving")}>
             <p>
               Two more things hang off the{" "}
               <Go tripId={tripId} segment="plan">
                 Plan
               </Go>
-              , and both live on the Stop cards rather than the Calendar.
+              , and both live on the Stop cards rather than Days.
             </p>
             <p>
               <strong className="font-semibold">Accommodation</strong> is where
               you sleep. Tap{" "}
-              <strong className="font-semibold">Add Accommodation</strong> on a
+              <strong className="font-semibold">Add accommodation</strong> on a
               place&rsquo;s card and fill in the check-in and check-out dates,
               the address, and the{" "}
               <strong className="font-semibold">Booking confirmation</strong>{" "}
@@ -541,12 +678,12 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
-          <Section section={sectionById("money")}>
+          <Section heading={Sub} section={sectionById("money")}>
             <p>
               Anything that costs money carries two numbers, and they mean
               different things. Getting this straight makes the whole of{" "}
               <Go tripId={tripId} segment="budget">
-                Budget
+                Money
               </Go>{" "}
               read properly.
             </p>
@@ -576,7 +713,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
             <p>
               <Go tripId={tripId} segment="budget">
-                Budget
+                Money
               </Go>{" "}
               is where it all adds up: a row of totals along the top — what the
               trip costs, what you&rsquo;ve paid, what&rsquo;s still to pay and
@@ -605,7 +742,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
-          <Section section={sectionById("getting-ready")}>
+          <Section heading={Sub} section={sectionById("getting-ready")}>
             <p>
               <Go tripId={tripId} segment="checklists">
                 Checklists
@@ -626,17 +763,17 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               </Go>{" "}
               is where tickets, confirmations and passport scans go. Upload them
               here and they&rsquo;re grouped by what they belong to. You can also
-              attach a file without coming here. A place, and the bookings on
-              it, carry a paperclip button on a wide screen — on a phone, look
-              under the card&rsquo;s ⋯ menu. Either way, the number beside it
-              tells you something&rsquo;s attached. A thing to do is the
+              attach a file without coming here. On a place, look under its
+              card&rsquo;s ⋯ menu; the bookings on it carry a paperclip button
+              on a wide screen — on a phone, look under their ⋯ menu. Either
+              way, the number beside it tells you something&rsquo;s attached. A thing to do is the
               exception: it takes its files in its own form, once you&rsquo;ve
               saved it. Whichever way you attach something, it turns up here as
               well.
             </p>
           </Section>
 
-          <Section section={sectionById("together")}>
+          <Section heading={Sub} section={sectionById("together")}>
             <p>
               There are two of you in here, and the app assumes you&rsquo;re
               rarely looking at it at the same moment.
@@ -650,9 +787,10 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               </Go>
               , and what you write stays attached to it — so &ldquo;the 6am one
               is cheaper but brutal&rdquo; sits next to the flight it&rsquo;s
-              about instead of scrolling away in a chat. On a wide screen the
-              speech-bubble button is on the card itself; on a phone, look under
-              the card&rsquo;s ⋯ menu. A thing to do parked under a place has no
+              about instead of scrolling away in a chat. On a place, Notes is
+              in its card&rsquo;s ⋯ menu; on a booking, the speech-bubble
+              button is on the card itself on a wide screen, and under its ⋯
+              menu on a phone. A thing to do parked under a place has no
               speech bubble of its own — it has the plain{" "}
               <strong className="font-semibold">Notes</strong> box in its own
               form, and it&rsquo;s ideas on the Wishlist that take the
@@ -681,7 +819,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
-          <Section section={sectionById("search")}>
+          <Section heading={Sub} section={sectionById("search")}>
             <p>
               Once a trip has a few weeks in it, scrolling to find one booking
               gets old. There&rsquo;s one box that solves it, and it&rsquo;s
@@ -696,9 +834,9 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             <ul className={`list-disc ${LIST_CLASS}`}>
               <li>
                 <strong className="font-semibold">Go to</strong> — every screen
-                in this trip, so &ldquo;bud&rdquo; is enough to land on{" "}
+                in this trip, so &ldquo;mon&rdquo; is enough to land on{" "}
                 <Go tripId={tripId} segment="budget">
-                  Budget
+                  Money
                 </Go>
                 . Your other trips are in here too, marked{" "}
                 <strong className="font-semibold">Switch →</strong>, which is
@@ -735,7 +873,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
-          <Section section={sectionById("away")}>
+          <Section heading={Sub} section={sectionById("away")}>
             <p>
               Once you&rsquo;re travelling, the trip&rsquo;s{" "}
               <strong className="font-semibold text-foreground">Home</strong>{" "}
@@ -773,7 +911,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
-          <Section section={sectionById("something-off")}>
+          <Section heading={Sub} section={sectionById("something-off")}>
             <p>
               You don&rsquo;t have to spot the problems yourself. The app reads
               the plan and raises a{" "}
@@ -828,19 +966,16 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
 
       {/* ── Advanced ── */}
       <section aria-labelledby="help-advanced-heading">
-        <h2
-          id="help-advanced-heading"
-          className="mb-2 font-display text-xl font-bold text-foreground"
-        >
+        <Group id="help-advanced-heading" className={GROUP_HEADING}>
           Going deeper
-        </h2>
-        <p className="mb-4 text-sm text-muted-foreground">
+        </Group>
+        <p className="mb-3.5 mt-1 text-[13px] font-medium text-muted-foreground">
           None of this is needed to plan a trip. Come back when you&rsquo;re
           curious.
         </p>
-        <div className="flex flex-col gap-3">
+        <div className={TOPIC_GRID}>
           {/* One <Section> per advanced id. */}
-          <Section section={sectionById("chapters")}>
+          <Section heading={Sub} section={sectionById("chapters")}>
             <p>
               Chapters are off to begin with, so if you&rsquo;ve never turned
               them on this whole section is about something you won&rsquo;t see
@@ -864,7 +999,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
               band over a stretch of dates. It gives you something to group by:
               the plan, the{" "}
               <Go tripId={tripId} segment="budget">
-                Budget
+                Money
               </Go>{" "}
               and the{" "}
               <Go tripId={tripId} segment="summary">
@@ -912,7 +1047,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             <p>
               A leg that crosses from one Chapter into the next belongs to
               neither. You&rsquo;ll find it on the card of the place it leaves
-              from, and on the Budget it sits on its own{" "}
+              from, and on Money it sits on its own{" "}
               <strong className="font-semibold">Between legs</strong> line rather
               than being counted inside either band&rsquo;s total.
             </p>
@@ -923,7 +1058,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
-          <Section section={sectionById("dates-and-pins")}>
+          <Section heading={Sub} section={sectionById("dates-and-pins")}>
             <p>
               Every place is in one of two states.{" "}
               <strong className="font-semibold">Rough</strong> means a place and
@@ -969,15 +1104,13 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
             <p>
               The reverse of firming up makes a place rough again so you can go
-              back to sketching it. On a wide screen it&rsquo;s the{" "}
-              <strong className="font-semibold">Clear dates</strong> button on
-              the place&rsquo;s card; on a phone it&rsquo;s{" "}
-              <strong className="font-semibold">Make rough</strong> in that
-              card&rsquo;s ⋯ menu. Same thing either way.
+              back to sketching it: it&rsquo;s{" "}
+              <strong className="font-semibold">Make rough</strong> in the
+              place&rsquo;s ⋯ menu, which clears its dates.
             </p>
           </Section>
 
-          <Section section={sectionById("make-it-fit")}>
+          <Section heading={Sub} section={sectionById("make-it-fit")}>
             <p>
               If you&rsquo;ve told the app the day you have to be home, it keeps
               checking the plan against it. When the plan runs past that day, it
@@ -1013,16 +1146,18 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
-          <Section section={sectionById("forks")}>
+          <Section heading={Sub} section={sectionById("forks")}>
             <p>
               A <strong className="font-semibold">variant</strong> is a second
               version of the plan, kept beside the real one. Italy first, or
-              Switzerland bolted on the end? Up in the trip header, next to the
+              Switzerland bolted on the end? Variants are off by default: turn
+              on <strong className="font-semibold">Plan variants</strong> in
+              the trip&rsquo;s Settings first. Then, up in the trip header, next to the
               member avatars and the notification bell, there&rsquo;s a dropdown
               for this — open it and tap{" "}
               <strong className="font-semibold">New variant</strong> to get one
               of each to look at side by side instead of arguing in the
-              abstract. It stays with you across the Plan, the Budget and the
+              abstract. It stays with you across the Plan, Money and the
               Wishlist — the screens that follow the variant you&rsquo;re
               editing. Everywhere else,
               including every dated screen, keeps showing the real plan, and the
@@ -1070,7 +1205,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
-          <Section section={sectionById("globe")}>
+          <Section heading={Sub} section={sectionById("globe")}>
             <p>
               Everything else in here belongs to one trip. Your{" "}
               <GlobeLink>Globe</GlobeLink> doesn&rsquo;t. It&rsquo;s the map of
@@ -1112,14 +1247,16 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
             </p>
           </Section>
 
-          <Section section={sectionById("trip-settings")}>
+          <Section heading={Sub} section={sectionById("trip-settings")}>
             <p>
               <Go tripId={tripId} segment="settings">
                 Settings
               </Go>{" "}
               is the housekeeping — you&rsquo;ll open it a handful of times and
-              then forget it exists. It&rsquo;s in the{" "}
-              <strong className="font-semibold">More</strong> menu.
+              then forget it exists. It&rsquo;s under{" "}
+              <strong className="font-semibold">More</strong> — on a computer
+              that opens a page of section tiles, Settings among them; on a
+              phone it&rsquo;s in the More sheet.
             </p>
             <p>
               <strong className="font-semibold">Travellers</strong> is who can
@@ -1196,15 +1333,12 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
 
       {/* ── Reference ── */}
       <section aria-labelledby="help-reference-heading">
-        <h2
-          id="help-reference-heading"
-          className="mb-4 font-display text-xl font-bold text-foreground"
-        >
+        <Group id="help-reference-heading" className={cn("mb-3.5", GROUP_HEADING)}>
           Looking something up
-        </h2>
-        <div className="flex flex-col gap-3">
+        </Group>
+        <div className={TOPIC_GRID}>
           {/* The word-list section. */}
-          <Section section={sectionById("word-list")}>
+          <Section heading={Sub} section={sectionById("word-list")}>
             <p>
               The app is fussy about its words, because two of you are reading
               the same screens. Here&rsquo;s the lot, in plain English.
@@ -1236,7 +1370,7 @@ export function HelpGuide({ tripId }: { tripId?: string }) {
                 <dt className="font-semibold text-foreground">Thing to do</dt>
                 <dd className="text-muted-foreground">
                   Something you want to see, eat or do. It can sit under a place
-                  with no date yet, or be given a day and land on the Calendar.
+                  with no date yet, or be given a day and land on Days.
                 </dd>
               </div>
               <div>

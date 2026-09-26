@@ -797,7 +797,7 @@ deliberately kept) and reports no errors.
   into "finds out same day".
 
 ### ARCH-OBS-2 · The app's own error boundaries log client-side only
-**CLOSED 2026-09-23** — `feat/rollout-gate`. `/api/client-error` — unauthenticated by design, because a boundary can fire on the sign-in page — plus all three error boundaries, surfaced in `/admin`. Client-sourced reports record but never push. See **ADR 0059**.
+**CLOSED 2026-09-23** — `feat/rollout-gate`. `/api/client-error` — unauthenticated by design, because a boundary can fire on the sign-in page — plus every error boundary (one per route under `app/(app)/` since Task 6 of the Playground reskin, plus the root `global-error.tsx`), surfaced in `/admin`. Client-sourced reports record but never push. See **ADR 0059**.
 - **Severity: P1** · **Blocks rollout: yes** *(orchestrator override, same reasoning —
   and stronger: OBS-1 is "you must go looking", this is "there is nothing to find")*
 - **Evidence:** `app/(app)/error.tsx:1, 20-22`, `app/(app)/trips/[tripId]/error.tsx:20-22`

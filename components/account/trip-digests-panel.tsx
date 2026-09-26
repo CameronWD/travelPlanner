@@ -1,7 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { BellRing } from "lucide-react";
 import { setDigestEnabled, type TripDigestSetting } from "@/server/actions/digest";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Switch } from "@/components/ui/switch";
 
 export interface TripDigestsPanelProps {
   initial: TripDigestSetting[];
@@ -54,32 +57,37 @@ export function TripDigestsPanel({ initial }: TripDigestsPanelProps) {
 
   if (trips.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground">
-        You&rsquo;re not on any trips yet.
-      </p>
+      <EmptyState
+        icon={BellRing}
+        tone="sun"
+        title="No trips yet"
+        description={<>You&rsquo;re not on any trips yet. Each trip you join gets its own switch here.</>}
+      />
     );
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-1">
       {trips.map((trip) => {
         const inputId = `trip-digest-${trip.tripId}`;
         return (
           <div key={trip.tripId} className="flex flex-col gap-1">
-            <div className="flex items-center justify-between gap-3">
+            {/* Kit ListRow shape with a Switch at the end. The Switch sits beside
+                the row, not in ListRow's `trailing` slot, because that slot is
+                aria-hidden (it's meant for a decorative chevron). */}
+            <div data-slot="digest-row" className="flex min-h-11 items-center justify-between gap-3">
               <label
                 htmlFor={inputId}
-                className="min-w-0 truncate text-sm text-foreground"
+                className="min-w-0 flex-1 break-words text-sm font-semibold text-foreground"
               >
                 {trip.tripName}
               </label>
-              <input
+              <Switch
                 id={inputId}
-                type="checkbox"
-                className="size-4 shrink-0 accent-primary"
                 checked={trip.enabled}
                 disabled={pendingId === trip.tripId}
-                onChange={(e) => handleToggle(trip.tripId, e.target.checked)}
+                onCheckedChange={(next) => handleToggle(trip.tripId, next)}
+                className="disabled:opacity-45"
               />
             </div>
             {errors[trip.tripId] && (

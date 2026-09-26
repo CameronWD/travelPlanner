@@ -17,7 +17,7 @@ import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import type { CostOwnerType } from "@/lib/enums";
+import { isOnTrip, type CostOwnerType, type CostSettlement } from "@/lib/enums";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
@@ -61,6 +61,8 @@ interface FormState {
   paidAmount: string;
   paidAt: string;
   dueDate: string;
+  /** CONTEXT.md "Settlement". */
+  settlement: CostSettlement;
 }
 
 function defaultFormState(defaultCurrency: string): FormState {
@@ -71,6 +73,7 @@ function defaultFormState(defaultCurrency: string): FormState {
     paidAmount: "",
     paidAt: "",
     dueDate: "",
+    settlement: "BEFORE",
   };
 }
 
@@ -90,6 +93,7 @@ function costToFormState(cost: CostRow): FormState {
       ? new Date(cost.paidAt).toISOString().slice(0, 10)
       : "",
     dueDate: cost.dueDate ?? "",
+    settlement: isOnTrip(cost.settlement) ? "ON_TRIP" : "BEFORE",
   };
 }
 
@@ -163,13 +167,17 @@ function CostDialogForm({
             onPaidAmountChange={(v) => setForm((f) => ({ ...f, paidAmount: v }))}
             paidAt={form.paidAt}
             onPaidAtChange={(v) => setForm((f) => ({ ...f, paidAt: v }))}
+            settlement={form.settlement}
+            onSettlementChange={(v) => setForm((f) => ({ ...f, settlement: v }))}
             errors={errors}
             disabled={submitting}
           />
 
           {/* Due date — money committed but not yet taken (CONTEXT.md "Due
               date"); only meaningful while the cost is unpaid. */}
-          {!form.paid && (
+          {/* An On the trip cost is never an upcoming payment (CONTEXT.md
+              "Settlement"), so it takes no Due date. */}
+          {!form.paid && !isOnTrip(form.settlement) && (
             <DateField
               label="Due date (optional)"
               value={form.dueDate}
@@ -267,7 +275,8 @@ export function CostEditor({
       paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
       currency: form.currency,
       paidAt: hasPaidAmount ? form.paidAt || undefined : undefined,
-      ...(form.dueDate && !form.paid ? { dueDate: form.dueDate } : {}),
+      ...(form.dueDate && !form.paid && !isOnTrip(form.settlement) ? { dueDate: form.dueDate } : {}),
+      settlement: form.settlement,
       ownerType,
       ownerId,
     };
@@ -348,7 +357,7 @@ export function CostEditor({
             <AnimatedItem
               key={cost.id}
               className={cn(
-                "flex items-center justify-between gap-2 rounded-lg px-3 py-2 bg-muted/40 border border-border/50",
+                "flex items-center justify-between gap-2 rounded-md border-2 border-border bg-background px-3 py-2",
                 pendingDeleteId === cost.id && "opacity-50 pointer-events-none",
               )}
             >
@@ -358,11 +367,11 @@ export function CostEditor({
                 className="flex-1 min-w-0"
               />
 
-              <div className="flex shrink-0 items-center gap-0.5">
+              <div className="flex shrink-0 items-center gap-2">
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8"
+                  className="tap-target size-8"
                   onClick={() => {
                     setErrors({});
                     setEditingCost(cost);
@@ -375,7 +384,7 @@ export function CostEditor({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  className="tap-target size-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
                   onClick={() => handleDelete(cost.id)}
                   aria-label="Delete Cost"
                   title="Delete"

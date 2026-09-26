@@ -1,16 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/server/actions/items", () => ({
   createItem: vi.fn().mockResolvedValue({ success: true }),
   updateItem: vi.fn().mockResolvedValue({ success: true }),
+  deleteItem: vi.fn().mockResolvedValue({ success: true }),
 }));
 vi.mock("@/server/actions/attachments", () => ({
   uploadAttachment: vi.fn(),
   deleteAttachment: vi.fn(),
 }));
-import { createItem, updateItem } from "@/server/actions/items";
+import { createItem, updateItem, deleteItem } from "@/server/actions/items";
 
 import { ItemFormDialog, AddItemButton, EditItemButton } from "./item-form-dialog";
 import type { ItemCardItem } from "./item-card";
@@ -46,6 +47,21 @@ const existingItem: ItemCardItem = {
 
 describe("ItemFormDialog", () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it("lays out fields in two columns from sm", () => {
+    render(<ItemFormDialog {...baseProps} />);
+    const form = document.querySelector("form");
+    expect(form?.className).toContain("sm:grid-cols-2");
+  });
+
+  it("keeps Start time and End time paired even with no Stops on the trip (baseProps has stops: [])", () => {
+    render(<ItemFormDialog {...baseProps} />);
+    const startTime = screen.getByLabelText(/start time/i);
+    const endTime = screen.getByLabelText(/end time/i);
+    const pair = startTime.closest("div.sm\\:col-span-2");
+    expect(pair).not.toBeNull();
+    expect(pair).toContainElement(endTime);
+  });
 
   // -------------------------------------------------------------------------
   // Case 1: empty title — no client-side guard; the server action IS called
@@ -128,6 +144,56 @@ describe("ItemFormDialog", () => {
       }),
       undefined,
     );
+  });
+
+  // -------------------------------------------------------------------------
+  // Task 9: "Hide from shared links" checkbox
+  // -------------------------------------------------------------------------
+  describe("Hide from shared links (Task 9)", () => {
+    it("defaults to unchecked and sends hiddenFromShares: false on create", async () => {
+      const user = userEvent.setup();
+      render(<ItemFormDialog {...baseProps} />);
+
+      expect(screen.getByRole("checkbox", { name: /hide from shared links/i })).not.toBeChecked();
+
+      const titleInput = screen.getByPlaceholderText(/visit the night market/i);
+      await user.type(titleInput, "Eiffel Tower");
+      await user.click(screen.getByRole("button", { name: /add item/i }));
+
+      expect(createItem).toHaveBeenCalledWith(
+        "trip-1",
+        expect.objectContaining({ hiddenFromShares: false }),
+        undefined,
+      );
+    });
+
+    it("ticking the checkbox sends hiddenFromShares: true to createItem", async () => {
+      const user = userEvent.setup();
+      render(<ItemFormDialog {...baseProps} />);
+
+      const titleInput = screen.getByPlaceholderText(/visit the night market/i);
+      await user.type(titleInput, "Eiffel Tower");
+      await user.click(screen.getByRole("checkbox", { name: /hide from shared links/i }));
+      await user.click(screen.getByRole("button", { name: /add item/i }));
+
+      expect(createItem).toHaveBeenCalledWith(
+        "trip-1",
+        expect.objectContaining({ hiddenFromShares: true }),
+        undefined,
+      );
+    });
+
+    it("pre-checks the checkbox when editing an Item already hidden from shares", () => {
+      render(
+        <ItemFormDialog {...baseProps} item={{ ...existingItem, hiddenFromShares: true }} />,
+      );
+      expect(screen.getByRole("checkbox", { name: /hide from shared links/i })).toBeChecked();
+    });
+
+    it("shows help text clarifying the Item stays visible to every Traveller", () => {
+      render(<ItemFormDialog {...baseProps} />);
+      expect(screen.getByText("Still visible to everyone on the trip.")).toBeInTheDocument();
+    });
   });
 
   // -------------------------------------------------------------------------
@@ -236,6 +302,18 @@ describe("ItemFormDialog", () => {
   });
 
   // -------------------------------------------------------------------------
+  // LA-049: category chips get an invisible 44px coarse-pointer tap target.
+  // -------------------------------------------------------------------------
+  it("gives every category chip a 44px tap target", async () => {
+    render(<ItemFormDialog {...baseProps} />);
+
+    const categoryGroup = screen.getByRole("group", { name: "Category" });
+    const chips = within(categoryGroup).getAllByRole("button");
+    expect(chips.length).toBeGreaterThan(0);
+    for (const chip of chips) expect(chip.className).toContain("tap-target");
+  });
+
+  // -------------------------------------------------------------------------
   // Case 8: end-time field shows "Set a start time first" hint when date is
   //          set but start time is empty
   // -------------------------------------------------------------------------
@@ -285,6 +363,20 @@ describe("ItemFormDialog", () => {
     );
   });
 
+  it("sends the chosen Settlement with the inline cost", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} homeCurrency="AUD" />);
+    await user.type(screen.getByPlaceholderText(/visit the night market/i), "Dinner");
+    await user.type(screen.getByLabelText(/^cost amount$/i), "80.00");
+    await user.click(screen.getByRole("radio", { name: "Paid on the trip" }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    expect(createItem).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 8000, settlement: "ON_TRIP" }),
+      undefined,
+    );
+  });
+
   // -------------------------------------------------------------------------
   // Case 11: no costMinor when amount field is empty
   // -------------------------------------------------------------------------
@@ -317,6 +409,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -350,6 +443,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: new Date("2026-07-02"),
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -387,6 +481,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: new Date("2026-07-02"),
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -527,6 +622,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -565,6 +661,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -605,6 +702,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 1,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -618,6 +716,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 1,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -635,6 +734,103 @@ describe("ItemFormDialog", () => {
     );
 
     expect(screen.queryByLabelText(/^cost amount$/i)).not.toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 14: Delete — offered only in edit mode, confirmed, then deletes.
+  // -------------------------------------------------------------------------
+  it("offers Delete only when editing an existing item", () => {
+    const { unmount } = render(<ItemFormDialog {...baseProps} item={existingItem} />);
+    expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument();
+    unmount();
+    render(<ItemFormDialog {...baseProps} />);
+    expect(screen.queryByRole("button", { name: /delete/i })).toBeNull();
+  });
+
+  it("asks before deleting, then deletes and closes", async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} item={existingItem} />);
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
+    expect(deleteItem).toHaveBeenCalledWith("item-99");
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("does nothing when the confirmation is cancelled", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={existingItem} />);
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    await user.click(within(confirmDialog).getByRole("button", { name: /cancel/i }));
+    expect(deleteItem).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Case 15: Save/Delete stay disabled while busy, so a double-click (or a
+  // second Enter/confirm) can't fire the action twice.
+  // -------------------------------------------------------------------------
+  it("disables the Save/Add button while createItem is pending", async () => {
+    let resolveCreate!: (v: { success: true }) => void;
+    const pendingPromise = new Promise<{ success: true }>((res) => {
+      resolveCreate = res;
+    });
+    (createItem as ReturnType<typeof vi.fn>).mockReturnValueOnce(pendingPromise);
+
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} />);
+    const saveButton = screen.getByRole("button", { name: /add item/i });
+    expect(saveButton).not.toBeDisabled();
+
+    await user.click(saveButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /add item/i })).toBeDisabled();
+    });
+
+    resolveCreate({ success: true });
+    await waitFor(() => {
+      expect(createItem).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("disables both Delete and Save while a delete is pending", async () => {
+    let resolveDelete!: (v: { success: true }) => void;
+    const pendingPromise = new Promise<{ success: true }>((res) => {
+      resolveDelete = res;
+    });
+    (deleteItem as ReturnType<typeof vi.fn>).mockReturnValueOnce(pendingPromise);
+
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} item={existingItem} />);
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^delete$/i })).toBeDisabled();
+    });
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeDisabled();
+
+    resolveDelete({ success: true });
+    await waitFor(() => {
+      expect(deleteItem).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("keeps the dialog open and shows an error when deleteItem rejects", async () => {
+    (deleteItem as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("not found"));
+
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(<ItemFormDialog {...baseProps} onOpenChange={onOpenChange} item={existingItem} />);
+    await user.click(screen.getByRole("button", { name: /^delete$/i }));
+    const confirmDialog = await screen.findByRole("dialog", { name: /delete "museum visit"\?/i });
+    await user.click(within(confirmDialog).getByRole("button", { name: /^delete$/i }));
+
+    await screen.findByText(/couldn't delete this item/i);
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
   });
 });
 
@@ -729,6 +925,7 @@ describe("EditItemButton — homeCurrency + costs forwarding", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM" as const,
         ownerId: "item-99",
         label: null,
@@ -790,5 +987,56 @@ describe("defaultDate prop", () => {
       />,
     );
     expect(screen.getByLabelText(/^date$/i)).toHaveValue("2026-12-07");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stop arrive-date defaults (scheduled create defaults to the Stop's date)
+// ---------------------------------------------------------------------------
+
+describe("Stop arrive-date defaults", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const STOPS = [
+    { id: "stop-a", name: "Denpasar", arriveDate: "2026-12-04" },
+    { id: "stop-b", name: "Munich", arriveDate: "2026-12-08" },
+  ];
+
+  it("scheduled create defaults the date to the pre-selected Stop's arrive date", () => {
+    render(
+      <ItemFormDialog {...baseProps} stops={STOPS} defaultUnscheduled={false} defaultStopId="stop-a" tripStartDate="2026-12-01" />,
+    );
+    expect(screen.getByLabelText(/^date/i)).toHaveValue("2026-12-04");
+  });
+
+  it("scheduled create with no Stop falls back to the trip start", () => {
+    render(<ItemFormDialog {...baseProps} stops={STOPS} defaultUnscheduled={false} tripStartDate="2026-12-01" />);
+    expect(screen.getByLabelText(/^date/i)).toHaveValue("2026-12-01");
+  });
+
+  it("unscheduled create keeps the date blank even under a Stop", () => {
+    render(<ItemFormDialog {...baseProps} stops={STOPS} defaultUnscheduled defaultStopId="stop-a" />);
+    expect(screen.getByLabelText(/^date/i)).toHaveValue("");
+  });
+
+  it("changing the Stop re-defaults an untouched date, but never a date the Traveller typed", async () => {
+    const user = userEvent.setup();
+    render(
+      <ItemFormDialog {...baseProps} stops={STOPS} defaultUnscheduled={false} defaultStopId="stop-a" tripStartDate="2026-12-01" />,
+    );
+    const date = screen.getByLabelText(/^date/i);
+    // Pick Munich via the Stop Select (Radix). The trigger carries no
+    // accessible name of its own (unlike the Currency combobox, which has
+    // aria-label="Currency"), so with a Stop present there are two
+    // comboboxes on the page — the Stop trigger is the first in DOM order.
+    const stopSelect = () => screen.getAllByRole("combobox")[0];
+    await user.click(stopSelect());
+    await user.click(await screen.findByRole("option", { name: "Munich" }));
+    expect(date).toHaveValue("2026-12-08");
+    await user.clear(date);
+    await user.type(date, "2026-12-09");
+    await user.click(stopSelect());
+    await user.click(await screen.findByRole("option", { name: "Denpasar" }));
+    expect(date).toHaveValue("2026-12-09");
   });
 });

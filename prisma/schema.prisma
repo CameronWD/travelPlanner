@@ -112,6 +112,8 @@ model Trip {
   endDate      String? // "YYYY-MM-DD" — soft; auto-extends to cover scheduled stops
   hardEndDate  String? // "YYYY-MM-DD" — optional traveller-set ceiling; never auto-extends (see ADR 0013)
   coverImageKey String? // storage key of the uploaded cover photo; null = use the route-render/monogram fallback
+  coverFocalX  Float? // 0–1 across the cover photo: where its object-cover crop centres (spec E2); null = centre
+  coverFocalY  Float? // 0–1 down the cover photo; null = centre
   homeCurrency String // ISO 4217, e.g. "AUD"
 
   // Home base — the trip's origin (see ADR 0030). Not a Stop; never feeds the
@@ -126,6 +128,11 @@ model Trip {
   // Chapters are opt-in per trip (spec 2026-08-24): off by default; the
   // migration backfills true for trips that already have chapters.
   chaptersEnabled Boolean @default(false)
+
+  // Plan variants (Forks) are opt-in per trip (spec 2026-09-26 B3): off by
+  // default; the migration backfills true for trips that already have a Fork.
+  // Off leaves existing Forks dormant — they return when it is turned back on.
+  forksEnabled Boolean @default(false)
 
   // Per-trip driving-estimate settings (used by drive-time hints + the
   // "long driving day" flag). Defaults suit mixed/winding roads.
@@ -252,6 +259,7 @@ model Stop {
   fromTransports   Transport[]     @relation("TransportFromStop")
   toTransports     Transport[]     @relation("TransportToStop")
   anchorTransports Transport[]     @relation("TransportAnchorStop")
+  reminders        Reminder[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -367,6 +375,7 @@ model Item {
   sortOrder      Int     @default(0)
   sourceItemId   String?
   sourceMarkerId String?
+  hiddenFromShares Boolean @default(false) // CONTEXT.md "Share link" — never leaves via a share link (ADR 0051 floor); still fully visible to every Traveller
 
   trip         Trip    @relation(fields: [tripId], references: [id], onDelete: Cascade)
   fork         Fork?   @relation(fields: [forkId], references: [id], onDelete: Cascade)
@@ -396,6 +405,7 @@ model Cost {
   rateToHome     Float? // snapshotted FX rate at entry, or null if same currency
   paidAt         DateTime?
   dueDate        String? // "YYYY-MM-DD" — when an unpaid cost's money leaves the account (CONTEXT.md "Due date")
+  settlement     String    @default("BEFORE") // lib/enums.ts COST_SETTLEMENTS — BEFORE | ON_TRIP; which side of departure it's paid (CONTEXT.md "Settlement")
   ownerType      String // lib/enums.ts COST_OWNER_TYPES
   ownerId        String? // null when ownerType == OTHER
   label          String? // names an OTHER cost (e.g. "Travel insurance")
@@ -523,18 +533,26 @@ model PackingTemplate {
 /// a time: TEEPEE dispatches at a few fixed hours, so a promised 14:30 would
 /// be a lie — an Alarm is what fires precisely. Surfaces in that day's Digest
 /// and on Home. See ADR 0047.
+///
+/// `stopId` (Task 7): a Reminder may be about a Stop. NULL means "about the
+/// Trip as a whole" — every Reminder before this column existed reads that
+/// way. Deleting the Stop does not delete the Reminder (onDelete: SetNull):
+/// the note the Traveller wrote still matters even once its Stop is gone.
 model Reminder {
-  id     String @id @default(cuid())
+  id     String  @id @default(cuid())
   tripId String
+  stopId String?
   title  String
   date   String // "YYYY-MM-DD"
 
-  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  trip Trip  @relation(fields: [tripId], references: [id], onDelete: Cascade)
+  stop Stop? @relation(fields: [stopId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
   @@index([tripId])
   @@index([date])
+  @@index([stopId])
 }
 
 model ShareLink {

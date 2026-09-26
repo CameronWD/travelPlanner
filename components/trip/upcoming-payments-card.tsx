@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { cn } from "@/lib/cn";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { formatMoney } from "@/lib/money";
 import type { UpcomingPayment } from "@/lib/upcoming-payments";
 
@@ -26,36 +27,42 @@ export function UpcomingPaymentsCard({ payments, tripId }: UpcomingPaymentsCardP
   const href = `/trips/${tripId}/budget`;
 
   return (
-    <section className="rounded-2xl border border-border bg-card p-5" aria-labelledby="upcoming-payments-heading">
-      <h3 id="upcoming-payments-heading" className="font-display text-base font-bold text-foreground">
+    <Card
+      role="region"
+      className="p-4"
+      aria-labelledby="upcoming-payments-heading"
+    >
+      <h3 id="upcoming-payments-heading" className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
         Upcoming payments
       </h3>
-      <ul className="mt-3 flex flex-col divide-y divide-border">
+      <ul className="mt-2 flex flex-col divide-y divide-border-soft">
         {payments.map((payment) => {
           const overdue = payment.daysUntil < 0;
           return (
             <li key={payment.costId}>
               <Link
                 href={href}
-                className="flex items-center gap-3 py-2 text-sm transition-colors hover:bg-muted/40"
+                className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-1 py-2 text-[13px] transition-colors hover:bg-muted/40"
               >
-                <span className="min-w-0 flex-1 truncate text-foreground">{payment.label}</span>
-                <span className="shrink-0 tabular-nums font-medium text-foreground">
+                <span className="min-w-0 flex-1 truncate font-extrabold text-foreground">{payment.label}</span>
+                <span className="shrink-0 tabular-nums font-extrabold text-foreground">
                   {formatMoney(payment.costMinor, payment.currency)}
                 </span>
-                <span
-                  className={cn(
-                    "shrink-0 text-xs",
-                    overdue ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground",
-                  )}
-                >
-                  {timingPhrase(payment.daysUntil)}
-                </span>
+                {/* Overdue is a state, so it takes the status token, not an accent hue. */}
+                {overdue ? (
+                  <Badge variant="destructive" className="shrink-0">
+                    {timingPhrase(payment.daysUntil)}
+                  </Badge>
+                ) : (
+                  <span className="shrink-0 text-xs font-semibold text-muted-foreground">
+                    {timingPhrase(payment.daysUntil)}
+                  </span>
+                )}
               </Link>
             </li>
           );
         })}
       </ul>
-    </section>
+    </Card>
   );
 }

@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { requireTripAccess } from "@/lib/guards";
 import { formatDateRange } from "@/lib/dates";
+import { tripTitle } from "@/lib/page-title";
 import { todayISOInZone, currentTripTimezone } from "@/lib/tz";
 import { tripOfflinePaths } from "@/lib/offline";
 import { Badge } from "@/components/ui/badge";
@@ -30,6 +33,18 @@ function initials(name?: string | null): string {
     .join("");
 }
 
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ tripId: string }>;
+}): Promise<Metadata> {
+  const { tripId } = await params;
+  await requireTripAccess(tripId);
+  const trip = await db.trip.findUnique({ where: { id: tripId }, select: { name: true } });
+  if (!trip) return {};
+  return { title: tripTitle(trip.name) };
+}
+
 export default async function TripLayout({
   children,
   params,
@@ -54,6 +69,7 @@ export default async function TripLayout({
       startDate: true,
       endDate: true,
       homeCurrency: true,
+      forksEnabled: true,
       members: {
         select: {
           user: {
@@ -76,7 +92,8 @@ export default async function TripLayout({
   const [unreadCount, recent, forks, warmAttachments] = await Promise.all([
     getUnreadActivityCount(tripId),
     getRecentActivity(tripId, 10),
-    listForks(tripId),
+    // Plan variants off (spec B3): no switcher, so no need to list Forks.
+    trip.forksEnabled ? listForks(tripId) : Promise.resolve([]),
     db.attachment.findMany({
       where: { tripId },
       select: { url: true, size: true },
@@ -90,8 +107,9 @@ export default async function TripLayout({
     today,
   });
 
-  // Forking is allowed in sketching / planning / final-prep (not travelling/past)
-  const showForkSwitcher = tripPhase !== "travelling" && tripPhase !== "past";
+  // Forking is opt-in per trip (spec B3) and allowed in sketching / planning /
+  // final-prep (not travelling/past).
+  const showForkSwitcher = trip.forksEnabled && tripPhase !== "travelling" && tripPhase !== "past";
 
   // A date-less trip shows a placeholder instead of a range.
   const dateRange =
@@ -102,71 +120,88 @@ export default async function TripLayout({
   const offlinePaths = tripOfflinePaths(tripId, trip.startDate, trip.endDate, warmAttachments);
 
   return (
-    <div className="flex flex-col gap-0">
-      {/* ── Trip header ── */}
-      <div className="pb-4 pt-2">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex flex-col gap-1">
-            <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">
-              {trip.name}
-            </h1>
-            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <span>{dateRange}</span>
-              <Badge variant="outline" className="font-mono text-xs">
-                {trip.homeCurrency}
-              </Badge>
+    // md+: the rail (TripNav → Dock) sits left of the header+content column,
+    // matching the desktop kit's Shell. Below md the rail is hidden (Dock's
+    // own "hidden ... md:flex") and MobileTabBar takes over instead.
+    //
+    // ADR 0062: data-trip-shell lets app/(app)/layout.tsx's <main> detect a
+    // trip page (via the has-[[data-trip-shell]] variant) and go full-bleed,
+    // so the rail can sit flush against the viewport's left edge instead of
+    // being capped by the app shell's own max-width.
+    <div data-trip-shell className="flex flex-col gap-0 md:flex-row">
+      <TripNav tripId={tripId} />
+
+      <div data-trip-content className="flex min-w-0 flex-1 flex-col px-4 pt-6 sm:px-6 md:px-8">
+        <div className="mx-auto flex w-full max-w-page-wide flex-col">
+          {/* ── Trip header ── (data-trip-header: hook the print route hides) */}
+          <div data-trip-header className="pb-4 pt-2">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex flex-col gap-1">
+                <h1 className="font-display text-2xl sm:text-3xl font-semibold leading-tight tracking-tight text-foreground break-words">
+                  {trip.name}
+                </h1>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                  <span>{dateRange}</span>
+                  <Badge variant="outline" className="font-mono text-xs">
+                    {trip.homeCurrency}
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Member avatars + fork switcher + notification bell */}
+              <div className="flex items-center gap-2">
+                {trip.members.length > 0 && (
+                  <Link
+                    href={`/trips/${tripId}/settings#travellers`}
+                    aria-label={`Trip members (${trip.members.length})`}
+                    className="inline-flex min-h-11 items-center rounded-full px-1 focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  >
+                    <div className="flex -space-x-2">
+                      {trip.members.slice(0, 6).map(({ user }) => (
+                        <Avatar
+                          key={user.id}
+                          className="size-8 ring-2 ring-background"
+                          title={user.name ?? undefined}
+                        >
+                          {user.image ? (
+                            <AvatarImage src={user.image} alt={user.name ?? "Member"} />
+                          ) : null}
+                          <AvatarFallback className="text-xs">
+                            {initials(user.name)}
+                          </AvatarFallback>
+                        </Avatar>
+                      ))}
+                      {trip.members.length > 6 && (
+                        <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">
+                          +{trip.members.length - 6}
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                )}
+                {showForkSwitcher && (
+                  <ForkSwitcher
+                    tripId={tripId}
+                    forks={forks}
+                    phase={tripPhase}
+                  />
+                )}
+                <NotificationBell
+                  tripId={tripId}
+                  unreadCount={unreadCount}
+                  recent={recent}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Member avatars + fork switcher + notification bell */}
-          <div className="flex items-center gap-2">
-            {trip.members.length > 0 && (
-              <div className="flex -space-x-2" aria-label="Trip members">
-                {trip.members.slice(0, 6).map(({ user }) => (
-                  <Avatar
-                    key={user.id}
-                    className="size-8 ring-2 ring-background"
-                    title={user.name ?? undefined}
-                  >
-                    {user.image ? (
-                      <AvatarImage src={user.image} alt={user.name ?? "Member"} />
-                    ) : null}
-                    <AvatarFallback className="text-xs">
-                      {initials(user.name)}
-                    </AvatarFallback>
-                  </Avatar>
-                ))}
-                {trip.members.length > 6 && (
-                  <div className="flex size-8 items-center justify-center rounded-full bg-muted ring-2 ring-background text-xs font-medium text-muted-foreground">
-                    +{trip.members.length - 6}
-                  </div>
-                )}
-              </div>
-            )}
-            {showForkSwitcher && (
-              <ForkSwitcher
-                tripId={tripId}
-                forks={forks}
-                phase={tripPhase}
-              />
-            )}
-            <NotificationBell
-              tripId={tripId}
-              unreadCount={unreadCount}
-              recent={recent}
-            />
+          {/* ── Page content ── */}
+          <div className="py-6 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] md:pb-6">
+            <OfflineWarmer paths={offlinePaths} />
+            <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
+            {children}
           </div>
         </div>
-      </div>
-
-      {/* ── Trip nav ── */}
-      <TripNav tripId={tripId} />
-
-      {/* ── Page content ── */}
-      <div className="py-6 pb-[calc(var(--tp-tab-bar-h)+1rem+env(safe-area-inset-bottom))] md:pb-6">
-        <OfflineWarmer paths={offlinePaths} />
-        <FeedbackTripMarker tripId={tripId} tripName={trip.name} />
-        {children}
       </div>
 
       {/* ── Mobile bottom tab bar ── */}

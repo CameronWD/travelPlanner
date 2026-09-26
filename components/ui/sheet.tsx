@@ -28,18 +28,21 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const sheetVariants = cva(
-  "fixed z-50 flex flex-col border-border bg-card text-card-foreground shadow-soft-lg",
+  "fixed z-50 flex flex-col border-border bg-background text-foreground",
   {
     variants: {
       side: {
         bottom:
-          "inset-x-0 bottom-0 max-h-[90dvh] overflow-hidden rounded-t-2xl border-t data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
+          "inset-x-0 bottom-0 max-h-[90dvh] overflow-hidden rounded-t-2xl border-t-2 data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down",
         right:
-          "inset-y-0 right-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden border-l data-[state=open]:tp-slide-in-right data-[state=closed]:tp-slide-out-right",
-        left: "inset-y-0 left-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden border-r data-[state=open]:tp-slide-in-left data-[state=closed]:tp-slide-out-left",
+          "inset-y-0 right-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden border-l-2 data-[state=open]:tp-slide-in-right data-[state=closed]:tp-slide-out-right",
+        left: "inset-y-0 left-0 h-full w-[calc(100%-2rem)] max-w-sm overflow-hidden border-r-2 data-[state=open]:tp-slide-in-left data-[state=closed]:tp-slide-out-left",
+        // Below md: a bottom sheet that grows with its content up to 90dvh
+        // (LA-023 mobile). md+: the floating card beside a usable page, sized
+        // to content; its cap keeps the FP-13 16rem floor on short windows.
         docked:
-          "gap-4 p-6 inset-0 h-full w-full rounded-none border-0 data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down " +
-          "md:inset-auto md:bottom-[5.25rem] md:right-4 md:h-[min(37.5rem,max(16rem,calc(100vh-9rem)))] md:w-[560px] md:max-w-[calc(100vw-2rem)] md:rounded-2xl md:border",
+          "gap-4 p-6 inset-x-0 bottom-0 h-auto max-h-[90dvh] w-full rounded-t-2xl border-t-2 data-[state=open]:tp-slide-up data-[state=closed]:tp-slide-down " +
+          "md:inset-auto md:bottom-[5.25rem] md:right-4 md:h-auto md:max-h-[min(37.5rem,max(16rem,calc(100vh-9rem)))] md:w-[560px] md:max-w-[calc(100vw-2rem)] md:rounded-2xl md:border-2 md:shadow-hard-5",
       },
     },
     defaultVariants: {
@@ -82,7 +85,7 @@ const SheetContent = React.forwardRef<
           {side === "bottom" ? (
             <div
               aria-hidden="true"
-              className="mx-auto mt-1 h-1.5 w-10 shrink-0 rounded-full bg-muted-foreground/30"
+              className="mx-auto mt-3.5 h-[5px] w-11 shrink-0 rounded-full bg-border"
             />
           ) : null}
           {/* Scrollable body — the frame never scrolls, so the ✕ and handle stay put (mirrors dialog.tsx). */}
@@ -94,11 +97,10 @@ const SheetContent = React.forwardRef<
       {!hideClose ? (
         <DialogPrimitive.Close
           className={cn(
-            "absolute right-4 top-4 z-20 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+            "absolute right-4 top-4 z-20 grid size-11 place-items-center rounded-sm border-2 border-border bg-card text-foreground",
           )}
         >
-          <X className="size-4" aria-hidden="true" />
+          <X className="size-5" strokeWidth={2.5} aria-hidden="true" />
           <span className="sr-only">Close</span>
         </DialogPrimitive.Close>
       ) : null}
@@ -137,7 +139,7 @@ const SheetTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      "font-display text-xl font-semibold leading-tight tracking-tight",
+      "font-display text-2xl font-extrabold leading-tight tracking-[-0.03em]",
       className,
     )}
     {...props}
@@ -151,7 +153,7 @@ const SheetDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
+    className={cn("text-[13px] font-medium text-muted-foreground", className)}
     {...props}
   />
 ));
@@ -168,4 +170,5 @@ export {
   SheetFooter,
   SheetTitle,
   SheetDescription,
+  sheetVariants,
 };

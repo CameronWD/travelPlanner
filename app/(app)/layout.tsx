@@ -6,6 +6,7 @@ import { acceptPendingInvitesForUser } from "@/lib/invites";
 import { acceptPendingGlobeInvitesForUser } from "@/lib/globe-invites";
 import { isAdminEmail } from "@/lib/admin";
 import { listAccessRequests } from "@/server/actions/access-requests";
+import { Logo } from "@/components/ui/logo";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ import { CommandPaletteMount } from "@/components/command-palette-mount";
 import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
 import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
 import { DeviceSync } from "@/components/account/device-sync";
+import { AppRail } from "@/components/app-rail";
 
 export async function generateMetadata(): Promise<Metadata> { return {}; }
 
@@ -44,6 +46,7 @@ function initials(name?: string | null): string {
  *
  * Keeps the server-side auth gate from the stub layout and adds:
  *   - A sticky top bar with the wordmark + theme toggle + traveller avatar dropdown
+ *   - The md+ rail (AppRail) outside a Trip
  *   - A centered, padded content area
  */
 export default async function AppLayout({
@@ -90,49 +93,37 @@ export default async function AppLayout({
       <FeedbackLauncher />
       {/* ── Top bar ── */}
       <header className="sticky top-0 z-40 border-b border-border bg-background/95 pt-[env(safe-area-inset-top)] backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="mx-auto flex h-14 max-w-5xl lg:max-w-6xl 2xl:max-w-7xl items-center justify-between px-4 sm:px-6">
+        <div className="flex h-14 items-center justify-between px-4 sm:px-6">
           {/* Wordmark */}
           <Link
             href="/trips"
-            className="flex items-center gap-1.5 font-display text-lg font-semibold tracking-tight text-foreground hover:text-foreground/80 transition-colors"
-            aria-label="TEEPEE — go to your trips"
+            className="flex items-center gap-1.5"
+            aria-label="Teepee — go to your trips"
           >
-            <>
-              <svg
-                data-testid="tent-icon"
-                aria-hidden="true"
-                xmlns="http://www.w3.org/2000/svg"
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="size-6 text-primary"
-              >
-                <path d="M12 3 4 21M12 3l8 18M8.5 12h7M10 21l2-5 2 5" />
-              </svg>
-              TEEPEE
-            </>
+            <Logo variant="lockup" />
           </Link>
 
-          {/* Right-hand controls */}
-          <div className="flex items-center gap-1">
+          {/*
+            Right-hand controls. From md up the rail (AppRail / the trip rail)
+            carries Globe; below md there is no rail and the phone tab bar has
+            no Globe, so phones keep this header link — hidden from md so
+            desktop doesn't show Globe twice.
+          */}
+          <div className="flex items-center gap-1 sm:gap-2">
             <CommandPaletteTrigger />
             <Link
               href="/globe"
-              className="rounded-md px-2 py-1 text-sm font-medium text-foreground/80 hover:text-foreground transition-colors"
+              className="inline-flex min-h-11 items-center rounded-md px-2 text-sm font-medium text-foreground/80 transition-colors hover:text-foreground md:hidden"
             >
               Globe
             </Link>
             <ThemeToggle />
 
-            {/* Traveller avatar dropdown */}
+            {/* Traveller avatar dropdown. A real 44px box around the 36px
+                avatar — tap-target's ::before poked 4px past a 360px screen. */}
             <DropdownMenu>
               <DropdownMenuTrigger
-                className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                className="grid size-11 place-items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                 aria-label="Open traveller menu"
               >
                 <Avatar className="size-9">
@@ -158,7 +149,7 @@ export default async function AppLayout({
                 <DropdownMenuSeparator />
 
                 <DropdownMenuItem asChild>
-                  <Link href="/help">How to use TEEPEE</Link>
+                  <Link href="/help">How to use Teepee</Link>
                 </DropdownMenuItem>
 
                 <DropdownMenuItem asChild>
@@ -195,10 +186,22 @@ export default async function AppLayout({
       </header>
 
       {/* ── Content area ── */}
-      {/* Deliberately wider than the mocks' 1024px: they were framed at 1360px; real monitors need more. */}
-      <main data-testid="app-main" className="mx-auto w-full max-w-5xl lg:max-w-6xl 2xl:max-w-7xl flex-1 px-4 py-8 sm:px-6">
-        {children}
-      </main>
+      {/* md+: the rail sits left of <main> on every non-trip page (AppRail renders
+          nothing inside a Trip, whose layout mounts TripNav's rail instead).
+          ADR 0062: non-trip pages cap at the shared wide width, centred right of
+          the rail; a trip page (which renders [data-trip-shell]) goes full-bleed
+          so its rail sits on the viewport's left edge. A boundary above the trip
+          layout that supplies its own rail ([data-rail-shell], see
+          TripBoundaryRailShell) goes full-bleed the same way. */}
+      <div className="flex flex-1 flex-col md:flex-row">
+        <AppRail />
+        <main
+          data-testid="app-main"
+          className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 py-8 sm:px-6 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0 has-[[data-rail-shell]]:max-w-none has-[[data-rail-shell]]:p-0"
+        >
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

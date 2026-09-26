@@ -41,9 +41,21 @@ vi.mock("@/lib/db", () => ({
     journalEntry: { count: journalEntryCountMock },
   },
 }));
-vi.mock("@/lib/dates", () => ({ nightsBetween: vi.fn() }));
-vi.mock("@/lib/money", () => ({ formatMoney: vi.fn() }));
-vi.mock("@/lib/budget", () => ({ buildBudget: buildBudgetMock, applyFxRatesToCosts: vi.fn() }));
+// Keep the real date helpers (the FX-consistency test below runs the real
+// budget/spend builders, which need daysBetween); only nightsBetween is stubbed.
+vi.mock("@/lib/dates", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/dates")>()),
+  nightsBetween: vi.fn(),
+}));
+vi.mock("@/lib/money", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/money")>()),
+  formatMoney: vi.fn(),
+}));
+vi.mock("@/lib/budget", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/budget")>()),
+  buildBudget: buildBudgetMock,
+  applyFxRatesToCosts: vi.fn(),
+}));
 vi.mock("@/lib/spend-so-far", () => ({ buildSpendSoFar: buildSpendSoFarMock }));
 vi.mock("@/lib/chapters", () => ({ chapterForStop: vi.fn() }));
 vi.mock("@/lib/chapter-colours", () => ({ chapterColourSwatch: vi.fn() }));
@@ -291,3 +303,194 @@ describe("PhasePast chapter gating (Task 13)", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Playground kit restyle (Task 10b) — kit shared/onthego.jsx "Summary"
+// ---------------------------------------------------------------------------
+
+describe("PhasePast Playground kit restyle (Task 10b)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    chaptersEnabled: false,
+  };
+  const STOPS = [
+    { id: "rome", name: "Rome", lat: 41.9, lng: 12.5, timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-10", sortOrder: 0 },
+  ];
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue(STOPS);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    journalEntryCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 100000, paidTotalMinor: 60000 } });
+    buildSpendSoFarMock.mockReturnValue({
+      costTotalMinor: 100000,
+      paidSoFarMinor: 60000,
+      paidCostMinor: 65000,
+      varianceMinor: -5000,
+      costRemainingMinor: 40000,
+      tripElapsedPct: 100,
+    });
+    const dates = await import("@/lib/dates");
+    vi.mocked(dates.nightsBetween).mockReturnValue(9);
+    const money = await import("@/lib/money");
+    vi.mocked(money.formatMoney).mockImplementation((m: number) => `£${(m / 100).toFixed(2)}`);
+  });
+
+  const render = () => PhasePast({ tripId: "trip-1", trip: baseTrip });
+  async function dom() {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup((await render()) as Parameters<typeof renderToStaticMarkup>[0]);
+    return div;
+  }
+
+  it("leads with the 'That's a wrap' heading and the kit Summary stat row (teal nights · sun cost · lilac paid)", async () => {
+    const div = await dom();
+    expect(div.querySelector("h2")?.textContent).toBe("That's a wrap");
+    const statCard = (label: string) =>
+      [...div.querySelectorAll(".text-label")].find((el) => el.textContent === label)!.parentElement!;
+    expect(statCard("Nights").className).toMatch(/\bbg-teal\b/);
+    expect(statCard("Nights").textContent).toContain("9");
+    expect(statCard("Trip cost").className).toMatch(/\bbg-sun\b/);
+    expect(statCard("Trip cost").textContent).toContain("£1000.00");
+    expect(statCard("Paid so far").className).toMatch(/\bbg-lilac\b/);
+    expect(statCard("Paid so far").textContent).toContain("£600.00");
+    for (const l of ["Nights", "Trip cost", "Paid so far"]) {
+      expect(statCard(l).className).toMatch(/\bborder-2\b/);
+      expect(statCard(l).className).toMatch(/\bshadow-hard-\d\b/);
+    }
+    expect(div.querySelector('[role="progressbar"]')?.getAttribute("aria-valuenow")).toBe("60");
+  });
+
+  it("shows under/over as a status chip, not an accent", async () => {
+    let div = await dom();
+    const under = [...div.querySelectorAll("span")].filter((s) => /under$/.test(s.textContent ?? "")).pop()!;
+    // The status token itself — Badge variant="success" still resolves to bg-teal (a hue).
+    expect(under.className).toMatch(/\bbg-success\b/);
+    expect(under.className).toMatch(/\btext-success-foreground\b/);
+    expect(under.className).not.toMatch(/\bbg-teal\b/);
+    buildSpendSoFarMock.mockReturnValue({
+      costTotalMinor: 100000, paidSoFarMinor: 60000, paidCostMinor: 50000, varianceMinor: 10000, costRemainingMinor: 40000, tripElapsedPct: 100,
+    });
+    div = await dom();
+    const over = [...div.querySelectorAll("span")].filter((s) => /over$/.test(s.textContent ?? "")).pop()!;
+    expect(over.className).toMatch(/\bbg-destructive\b/);
+  });
+
+  it("renders the route map bare (it draws its own kit frame) and keeps money a shared pot", async () => {
+    const { Card } = await import("@/components/ui/card");
+    const tree = await render();
+    expect(findElementByType(tree, RouteMapLoader)).not.toBeNull();
+    // No Card around the map: the map's own 2px outline + hard shadow is the frame.
+    expect(findParent(tree, RouteMapLoader)?.type).not.toBe(Card);
+    const div = await dom();
+    expect(div.textContent).toContain("shared pot");
+    expect(div.textContent).not.toMatch(/per person|each owes|split/i);
+    expect(div.innerHTML).not.toMatch(/rounded-2xl border border-border|shadow-soft|hsl\(/);
+  });
+
+  it("reads 'Trip cost' and 'of X cost' from one FX source — a foreign cost priced only by the rate table counts in both", async () => {
+    const actualBudget = await vi.importActual<typeof import("@/lib/budget")>("@/lib/budget");
+    const actualSpend = await vi.importActual<typeof import("@/lib/spend-so-far")>("@/lib/spend-so-far");
+    const budgetMod = await import("@/lib/budget");
+    buildBudgetMock.mockImplementation(actualBudget.buildBudget);
+    vi.mocked(budgetMod.applyFxRatesToCosts).mockImplementation(actualBudget.applyFxRatesToCosts);
+    buildSpendSoFarMock.mockImplementation(actualSpend.buildSpendSoFar);
+    costFindManyMock.mockResolvedValue([
+      // £100 home-currency cost, paid.
+      { id: "c1", costMinor: 10000, paidMinor: 10000, currency: "GBP", rateToHome: null, paidAt: new Date("2026-01-02"), ownerType: "OTHER", ownerId: null, label: "Hotel", category: "OTHER" },
+      // €200 with no stored rateToHome — only the trip's rate table prices it (EUR→GBP 0.5 = £100).
+      { id: "c2", costMinor: 20000, paidMinor: null, currency: "EUR", rateToHome: null, paidAt: null, ownerType: "OTHER", ownerId: null, label: "Tour", category: "OTHER" },
+    ]);
+    exchangeRateFindManyMock.mockResolvedValue([{ base: "EUR", quote: "GBP", rate: 0.5 }]);
+
+    const div = await dom();
+    const statCard = (label: string) =>
+      [...div.querySelectorAll(".text-label")].find((el) => el.textContent === label)!.parentElement!;
+    expect(statCard("Trip cost").textContent).toContain("£200.00");
+    expect(statCard("Paid so far").textContent).toContain("of £200.00 cost");
+  });
+
+  it("renders the kit empty treatment in place of the route map when no stop has dates", async () => {
+    stopFindManyMock.mockResolvedValue([]);
+    const { EmptyState } = await import("@/components/ui/empty-state");
+    const empty = findElementByType(await render(), EmptyState);
+    expect(empty).not.toBeNull();
+    expect(empty!.props.title).toBe("No stops yet");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reminders slot (Task 5 — LA-029/045)
+// ---------------------------------------------------------------------------
+
+describe("PhasePast reminders slot (LA-029/045)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    chaptersEnabled: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    journalEntryCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+    buildSpendSoFarMock.mockReturnValue({
+      costTotalMinor: 0,
+      paidSoFarMinor: 0,
+      paidCostMinor: 0,
+      varianceMinor: 0,
+      costRemainingMinor: 0,
+      tripElapsedPct: 100,
+    });
+  });
+
+  it("renders reminders inside the right column, not as a full-width row", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const tree = await PhasePast({
+      tripId: "trip-1",
+      trip: baseTrip,
+      reminders: React.createElement("div", { "data-testid": "reminders" }),
+    });
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+    const marker = div.querySelector('[data-testid="reminders"]');
+    expect(marker).not.toBeNull();
+    expect(marker!.closest("[data-home-aside]")).not.toBeNull();
+  });
+});
+
+function findParent(node: unknown, type: unknown): { type?: unknown } | null {
+  if (node == null || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const f = findParent(n, type);
+      if (f) return f;
+    }
+    return null;
+  }
+  const el = node as { type?: unknown; props?: { children?: unknown } };
+  const kids = ([] as unknown[]).concat(el.props?.children ?? []);
+  if (kids.some((k) => k && typeof k === "object" && (k as { type?: unknown }).type === type)) return el;
+  return findParent(el.props?.children, type);
+}

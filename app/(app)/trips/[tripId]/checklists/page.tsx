@@ -1,17 +1,21 @@
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { isAiConfigured } from "@/lib/ai";
 import { sortChecklist } from "@/lib/checklists";
 import { listTemplates } from "@/server/actions/checklists";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checklist } from "@/components/trip/checklist";
 import { PackingTemplatesBar } from "@/components/trip/packing-templates-bar";
 import { AiPackingSuggestions } from "@/components/trip/ai-packing-suggestions";
 import { AiBookingParser } from "@/components/trip/ai-booking-parser";
+import { ChecklistsLayout } from "./checklists-layout";
 import type { ChecklistKind } from "@/lib/enums";
 
-/** Reading-width wrapper applied to the tabs+content column. Exported for tests. */
-export const CHECKLISTS_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
+export const metadata: Metadata = { title: "Checklists" };
+
+/** Kit display title (same as Activity / Wishlist). Exported for tests. */
+export const CHECKLISTS_TITLE_CLASS =
+  "font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl";
 
 export default async function ChecklistsPage({
   params,
@@ -76,74 +80,77 @@ export default async function ChecklistsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">Checklists</h2>
+      <h2 className={CHECKLISTS_TITLE_CLASS}>Checklists</h2>
 
-      <div className={CHECKLISTS_READING_WIDTH_CLASS}>
-      <Tabs defaultValue="pretrip" className="w-full">
-        <TabsList className="h-auto w-full justify-start gap-6 rounded-none border-b border-border bg-transparent p-0">
-          <TabsTrigger value="pretrip" className="rounded-none border-b-2 border-transparent px-0 py-2.5 font-semibold text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-bold data-[state=active]:text-primary data-[state=active]:shadow-none">
-            Pre-trip
-            {pretripItems.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
-                {pretripItems.filter((i) => !i.done).length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="packing" className="rounded-none border-b-2 border-transparent px-0 py-2.5 font-semibold text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-bold data-[state=active]:text-primary data-[state=active]:shadow-none">
-            Packing
-            {packingItems.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-xs font-medium tabular-nums">
-                {packingItems.filter((i) => !i.done).length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="booking" className="rounded-none border-b-2 border-transparent px-0 py-2.5 font-semibold text-muted-foreground shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-bold data-[state=active]:text-primary data-[state=active]:shadow-none">
-            Booking parser
-          </TabsTrigger>
-        </TabsList>
+      <ChecklistsLayout
+        panels={[
+          {
+            value: "pretrip",
+            label: (
+              <>
+                Pre-trip
+                {pretripItems.length > 0 && (
+                  <span className="rounded-full bg-muted px-1.5 text-[11px] font-bold tabular-nums text-foreground">
+                    {pretripItems.filter((i) => !i.done).length}
+                  </span>
+                )}
+              </>
+            ),
+            content: (
+              <div className="flex flex-col gap-4">
+                <Checklist
+                  tripId={tripId}
+                  kind="PRETRIP"
+                  items={typedPretripItems}
+                  members={memberList}
+                  showDueDate
+                  showAssignee
+                />
+              </div>
+            ),
+          },
+          {
+            value: "packing",
+            label: (
+              <>
+                Packing
+                {packingItems.length > 0 && (
+                  <span className="rounded-full bg-muted px-1.5 text-[11px] font-bold tabular-nums text-foreground">
+                    {packingItems.filter((i) => !i.done).length}
+                  </span>
+                )}
+              </>
+            ),
+            content: (
+              <div className="flex flex-col gap-4">
+                {/* AI packing list suggestions */}
+                <AiPackingSuggestions tripId={tripId} aiConfigured={aiConfigured} />
 
-        {/* ── Pre-trip tab ── */}
-        <TabsContent value="pretrip">
-          <div className="flex flex-col gap-4">
-            <Checklist
-              tripId={tripId}
-              kind="PRETRIP"
-              items={typedPretripItems}
-              members={memberList}
-              showDueDate
-              showAssignee
-            />
-          </div>
-        </TabsContent>
+                {/* Templates bar — above the list */}
+                <PackingTemplatesBar tripId={tripId} templates={templates} />
 
-        {/* ── Packing tab ── */}
-        <TabsContent value="packing">
-          <div className="flex flex-col gap-4">
-            {/* AI packing list suggestions */}
-            <AiPackingSuggestions tripId={tripId} aiConfigured={aiConfigured} />
-
-            {/* Templates bar — above the list */}
-            <PackingTemplatesBar tripId={tripId} templates={templates} />
-
-            <Checklist
-              tripId={tripId}
-              kind="PACKING"
-              items={typedPackingItems}
-              members={memberList}
-              showDueDate={false}
-              showAssignee={false}
-            />
-          </div>
-        </TabsContent>
-
-        {/* ── Booking parser tab ── */}
-        <TabsContent value="booking">
-          <div className="flex flex-col gap-4">
-            <AiBookingParser tripId={tripId} aiConfigured={aiConfigured} />
-          </div>
-        </TabsContent>
-      </Tabs>
-      </div>
+                <Checklist
+                  tripId={tripId}
+                  kind="PACKING"
+                  items={typedPackingItems}
+                  members={memberList}
+                  showDueDate={false}
+                  showAssignee={false}
+                />
+              </div>
+            ),
+          },
+          {
+            value: "booking",
+            label: "Booking parser",
+            content: (
+              <div className="flex flex-col gap-4">
+                <AiBookingParser tripId={tripId} aiConfigured={aiConfigured} />
+              </div>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

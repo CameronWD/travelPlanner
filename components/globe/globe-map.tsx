@@ -15,7 +15,7 @@ import type { MarkerView } from "@/components/globe/types";
 import { useTheme } from "@/components/ui/theme-provider";
 import { cartoTiles } from "@/lib/map-tiles";
 import { escapeHtml } from "@/lib/escape-html";
-import { pinHex } from "@/lib/map-pins";
+import { pinHex, pinHtml, pinSize } from "@/lib/map-pins";
 import { applyLeafletIconDefaults } from "@/lib/map-icons";
 
 export interface GlobeMapProps {
@@ -28,25 +28,25 @@ export interface GlobeMapProps {
   attachmentsByMarkerId?: Record<string, { id: string }[]>;
 }
 
-function categoryIcon(L: typeof import("leaflet"), category: string): import("leaflet").DivIcon {
-  const hex = pinHex(category);
+function categoryIcon(L: typeof import("leaflet"), category: string, dark: boolean): import("leaflet").DivIcon {
+  const size = pinSize("category");
   return L.divIcon({
-    html: `<div style="width:24px;height:24px;border-radius:50%;background:${hex};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)">●</div>`,
+    html: pinHtml({ variant: "category", fill: pinHex(category, dark), dark }),
     className: "",
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    popupAnchor: [0, -14],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -(size / 2 + 2)],
   });
 }
 
-function selectedIcon(L: typeof import("leaflet"), category: string): import("leaflet").DivIcon {
-  const hex = pinHex(category);
+function selectedIcon(L: typeof import("leaflet"), category: string, dark: boolean): import("leaflet").DivIcon {
+  const size = pinSize("category");
   return L.divIcon({
-    html: `<div style="width:34px;height:34px;border-radius:50%;background:${hex};color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;border:3px solid #fff;box-shadow:0 0 0 2px ${hex},0 4px 12px rgba(0,0,0,0.4)">●</div>`,
+    html: pinHtml({ variant: "category", fill: pinHex(category, dark), dark, selected: true }),
     className: "",
-    iconSize: [34, 34],
-    iconAnchor: [17, 17],
-    popupAnchor: [0, -19],
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -(size / 2 + 2)],
   });
 }
 
@@ -72,6 +72,9 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
     onEditRef.current = onEdit;
     onDeleteRef.current = onDelete;
   });
+
+  // The not-yet-fired "open the selected popup after the fly-to" moveend listener, if any.
+  const pendingOpenRef = useRef<(() => void) | null>(null);
 
   // Ref map: markerId → Leaflet Marker instance, for fly-to / highlight / popup.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -141,7 +144,11 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
     tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
   }, [isDark]);
 
-  // Re-render markers whenever the located set changes.
+  // Re-render markers whenever the located set changes. `isDark` is
+  // deliberately NOT a dependency here: this effect clears and recreates every
+  // marker (and its popup binding), so depending on the theme would close any
+  // currently-open popup on every toggle. The separate recolour effect below
+  // uses `setIcon` in place instead, matching wishlist-map.tsx/day-map.tsx.
   useEffect(() => {
     const map = leafletMapRef.current;
     if (!map || !ready) return;
@@ -156,23 +163,27 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
 
       for (const mk of located) {
         const isSelected = mk.id === selectedId;
-        const icon = isSelected ? selectedIcon(L, mk.category) : categoryIcon(L, mk.category);
+        const icon = isSelected ? selectedIcon(L, mk.category, isDark) : categoryIcon(L, mk.category, isDark);
         const attachCount = attachmentsByMarkerId?.[mk.id]?.length ?? 0;
+        // A <span>, not a <p>: leaflet.css's unlayered `.leaflet-popup-content p { margin: 1.3em 0 }`
+        // beats Tailwind's layered margin utilities.
         const attachLine = attachCount > 0
-          ? `<p style="font-size:12px;color:#6b7280;margin:0 0 4px">📎 ${attachCount}</p>`
+          ? `<span class="mb-1 block text-xs font-semibold text-muted-foreground">${attachCount} ${attachCount === 1 ? "file" : "files"}</span>`
           : "";
+        // Token classes only (Tailwind scans this file), so the popup follows the theme;
+        // the shell (.tp-map-popup in globals.css) gives it the kit outline + hard shadow.
         const popupHtml = `
-          <div style="min-width:min(140px,80vw);max-width:min(240px,90vw);line-height:1.5">
-            <strong style="font-size:13px;display:block;margin-bottom:6px">${escapeHtml(mk.title)}</strong>
+          <div class="min-w-[min(140px,80vw)] max-w-[min(240px,90vw)] leading-normal">
+            <strong class="mb-1.5 block font-display text-sm font-extrabold">${escapeHtml(mk.title)}</strong>
             ${attachLine}
-            <div style="display:flex;gap:6px;margin-top:4px">
-              <button data-edit="${escapeHtml(mk.id)}" style="font-size:12px;padding:2px 8px;border:1px solid #d1d5db;border-radius:4px;cursor:pointer;background:#fff">Edit</button>
-              <button data-delete="${escapeHtml(mk.id)}" style="font-size:12px;padding:2px 8px;border:1px solid #fca5a5;border-radius:4px;cursor:pointer;background:#fff;color:#dc2626">Delete</button>
+            <div class="mt-1 flex gap-1.5">
+              <button type="button" data-edit="${escapeHtml(mk.id)}" class="h-11 cursor-pointer rounded-full border-2 border-border bg-card px-4 text-xs font-extrabold text-foreground shadow-hard-1">Edit</button>
+              <button type="button" data-delete="${escapeHtml(mk.id)}" class="h-11 cursor-pointer rounded-full border-2 border-border bg-destructive px-4 text-xs font-extrabold text-destructive-foreground shadow-hard-1">Delete</button>
             </div>
           </div>`;
         const marker = L.marker([mk.lat, mk.lng], { icon })
           .addTo(map)
-          .bindPopup(popupHtml);
+          .bindPopup(popupHtml, { className: "tp-map-popup" });
         if (isSelected) marker.setZIndexOffset(1000);
         marker.on("click", () => onSelectRef.current(mk.id));
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -196,36 +207,84 @@ export function GlobeMap({ markers, selectedId, onSelect, onEdit, onDelete, onMa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, located.map((m) => `${m.id}:${m.lat},${m.lng}:${m.category}`).join("|"), JSON.stringify(attachmentsByMarkerId ? Object.fromEntries(Object.entries(attachmentsByMarkerId).map(([k, v]) => [k, v.length])) : null)]);
 
-  // Fly to + highlight the selected marker whenever selectedId changes.
+  // Recolour existing markers in place when the theme flips. Uses `setIcon`
+  // rather than remove-and-recreate (unlike the effect above, which only
+  // rebuilds when the marker *set* changes), so a currently-open popup and
+  // the viewport (pan/zoom) are both left alone. Reads `selectedId` so the
+  // selected marker keeps its `selectedIcon` (lift + ring) rather than
+  // dropping back to the plain `categoryIcon` on a toggle.
   useEffect(() => {
     const map = leafletMapRef.current;
     if (!map) return;
     import("leaflet").then((leaflet) => {
+      const L = leaflet.default ?? leaflet;
+      for (const mk of located) {
+        const instance = markerInstancesRef.current.get(mk.id);
+        if (!instance) continue;
+        const isSelected = mk.id === selectedId;
+        instance.setIcon(isSelected ? selectedIcon(L, mk.category, isDark) : categoryIcon(L, mk.category, isDark));
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDark, located.map((m) => `${m.id}:${m.category}`).join("|")]);
+
+  // Fly to + highlight the selected marker whenever selectedId changes.
+  useEffect(() => {
+    const map = leafletMapRef.current;
+    if (!map) return;
+    // Set by the cleanup, so a fly started by an import() that resolves after this
+    // effect was torn down (unmount / next selection) never registers a listener.
+    let cancelled = false;
+    import("leaflet").then((leaflet) => {
+      if (cancelled) return;
       const L = leaflet.default ?? leaflet;
       // Restyle all markers to reflect new selection.
       for (const mk of located) {
         const instance = markerInstancesRef.current.get(mk.id);
         if (!instance) continue;
         const isSelected = mk.id === selectedId;
-        instance.setIcon(isSelected ? selectedIcon(L, mk.category) : categoryIcon(L, mk.category));
+        instance.setIcon(isSelected ? selectedIcon(L, mk.category, isDark) : categoryIcon(L, mk.category, isDark));
         instance.setZIndexOffset(isSelected ? 1000 : 0);
       }
       // Fly to + open popup of the newly selected marker.
       if (!selectedId) return;
       const mk = located.find((m) => m.id === selectedId);
       if (!mk) return;
-      const instance = markerInstancesRef.current.get(selectedId);
-      if (!instance) return;
+      if (!markerInstancesRef.current.has(selectedId)) return;
+      // Open the popup only once the fly-to has landed: opening it mid-flight lets the
+      // fly's final centring undo Leaflet's pan-to-fit, clipping the popup's top on the
+      // 260px phone map. Any still-pending open from an earlier selection is dropped
+      // first, and whatever popup is open closes, so a mid-flight re-select can't leave
+      // the first marker's popup open.
+      if (pendingOpenRef.current) map.off("moveend", pendingOpenRef.current);
+      map.closePopup();
+      const id = selectedId;
+      const openWhenLanded = () => {
+        map.off("moveend", openWhenLanded);
+        if (pendingOpenRef.current === openWhenLanded) pendingOpenRef.current = null;
+        // Look the marker up now, not at select time: the replot effect recreates every
+        // instance (e.g. when attachments change), and can do so during the fly. If the
+        // marker is gone, there is nothing to open.
+        markerInstancesRef.current.get(id)?.openPopup();
+      };
+      pendingOpenRef.current = openWhenLanded;
+      map.on("moveend", openWhenLanded);
       map.flyTo([mk.lat, mk.lng], Math.max(map.getZoom(), 9), { duration: 0.6 });
-      instance.openPopup();
     });
+    return () => {
+      cancelled = true;
+      if (pendingOpenRef.current) {
+        map.off("moveend", pendingOpenRef.current);
+        pendingOpenRef.current = null;
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
   return (
     <div
       ref={mapRef}
-      className="w-full h-56 sm:h-[440px] rounded-2xl overflow-hidden border border-border shadow-sm"
+      className="tp-map h-[260px] w-full overflow-hidden rounded-lg border-2 border-border lg:h-[460px]"
       aria-label="Globe map"
     />
   );

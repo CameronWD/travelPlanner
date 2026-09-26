@@ -10,11 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
  * may only drop to text-sm (14px) from sm up.
  */
 describe("form controls are ≥16px on mobile (iOS zoom guard)", () => {
-  it("Input is text-base on mobile, text-sm from sm up", () => {
+  it("Input is text-base on mobile, text-[15px] from sm up", () => {
     render(<Input aria-label="name" />);
     const el = screen.getByRole("textbox", { name: "name" });
     expect(el.className).toContain("text-base");
-    expect(el.className).toContain("sm:text-sm");
+    expect(el.className).toContain("sm:text-[15px]");
     expect(el.className.split(" ")).not.toContain("text-sm");
   });
 

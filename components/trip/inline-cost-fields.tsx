@@ -7,6 +7,8 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { todayLocalISO } from "@/lib/dates";
 import type { FieldErrors } from "@/lib/action-result";
+import type { CostSettlement } from "@/lib/enums";
+import { SettlementChoice } from "@/components/trip/settlement-choice";
 
 export interface InlineCostFieldsProps {
   /** When true the CostEditor is authoritative — render nothing here. */
@@ -21,6 +23,12 @@ export interface InlineCostFieldsProps {
   onPaidAmountChange: (v: string) => void;
   paidAt: string;
   onPaidAtChange: (v: string) => void;
+  /**
+   * CONTEXT.md "Settlement" — BEFORE (Before you go) or ON_TRIP (On the
+   * trip). Anything else shows as Before you go.
+   */
+  settlement: string;
+  onSettlementChange: (v: CostSettlement) => void;
   errors: FieldErrors;
   disabled?: boolean;
 }
@@ -43,6 +51,8 @@ export function InlineCostFields({
   onPaidAmountChange,
   paidAt,
   onPaidAtChange,
+  settlement,
+  onSettlementChange,
   errors,
   disabled,
 }: InlineCostFieldsProps): React.ReactElement | null {
@@ -80,6 +90,9 @@ export function InlineCostFields({
 
       {costAmount.trim() && (
         <>
+          {/* Settlement — a plain choice, never derived from dates. */}
+          <SettlementChoice value={settlement} onChange={onSettlementChange} disabled={disabled} />
+
           <label className="flex items-center gap-2 text-sm font-medium">
             <input
               type="checkbox"

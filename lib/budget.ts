@@ -8,6 +8,7 @@
  */
 
 import { convertMinor } from "@/lib/money";
+import { isOnTrip } from "@/lib/enums";
 import { categoryLabel } from "@/lib/categories";
 import { addDays, daysBetween, nightsBetween } from "@/lib/dates";
 import { enumerateTripDays } from "@/lib/itinerary";
@@ -38,6 +39,12 @@ export interface BudgetCost {
   label: string | null;
   /** For OTHER costs — optional category label (free-text). */
   category: string | null;
+  /**
+   * CONTEXT.md "Settlement" — "BEFORE" (Before you go) or "ON_TRIP" (On the
+   * trip). Missing or unknown (an old build during the migrate window) counts
+   * as BEFORE.
+   */
+  settlement?: string;
 }
 
 export interface BudgetStop {
@@ -86,9 +93,21 @@ export interface BudgetTransport {
 // Output shapes
 // ---------------------------------------------------------------------------
 
-export interface BudgetTotals {
+/** A cost total and what has been paid of it, in home minor units. */
+export interface BudgetCostPaid {
   costTotalMinor: number;
   paidTotalMinor: number;
+}
+
+/**
+ * The grand total, also split by Settlement (CONTEXT.md): before + onTrip
+ * always sum to the cost / paid totals.
+ */
+export interface BudgetTotals extends BudgetCostPaid {
+  beforeTotalMinor: number;
+  onTripTotalMinor: number;
+  beforePaidMinor: number;
+  onTripPaidMinor: number;
 }
 
 export interface BudgetByCategory {
@@ -147,11 +166,11 @@ export interface BudgetResult {
    */
   chapterReconciliation: {
     /** Costs on stops (or items/dates) that fall outside all chapter date ranges. */
-    ungrouped: BudgetTotals;
+    ungrouped: BudgetCostPaid;
     /** Transport costs that cross chapter boundaries. */
-    betweenLegs: BudgetTotals;
+    betweenLegs: BudgetCostPaid;
     /** ownerType === "OTHER" costs (always trip-wide). */
-    otherCosts: BudgetTotals;
+    otherCosts: BudgetCostPaid;
   };
 }
 
@@ -210,6 +229,7 @@ export interface RawCostInput {
   id: string; costMinor: number; paidMinor: number | null; currency: string;
   rateToHome: number | null; ownerType: string; ownerId: string | null;
   label: string | null; category: string | null; paidAt: Date | string | null;
+  settlement?: string;
 }
 
 /**
@@ -491,6 +511,9 @@ export function buildBudget({
   // Grand totals
   let grandCost = 0;
   let grandPaid = 0;
+  // Settlement split (CONTEXT.md "Settlement")
+  let onTripCost = 0;
+  let onTripPaid = 0;
 
   // Chapter accumulators (keyed by chapter id or sentinel)
   const chapterAccEstimated: Record<string, number> = {};
@@ -516,6 +539,10 @@ export function buildBudget({
     // Grand total
     grandCost += costHome;
     grandPaid += actualVal;
+    if (isOnTrip(cost.settlement)) {
+      onTripCost += costHome;
+      onTripPaid += actualVal;
+    }
 
     // Category breakdown
     const cat = effectiveCategory(cost, itemCategoryById);
@@ -630,6 +657,10 @@ export function buildBudget({
     grandTotal: {
       costTotalMinor: grandCost,
       paidTotalMinor: grandPaid,
+      beforeTotalMinor: grandCost - onTripCost,
+      onTripTotalMinor: onTripCost,
+      beforePaidMinor: grandPaid - onTripPaid,
+      onTripPaidMinor: onTripPaid,
     },
     byCategory,
     byStop,

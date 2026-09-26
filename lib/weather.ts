@@ -12,18 +12,53 @@ const FORECAST_WINDOW_DAYS = 16;
 const cache = new Map<string, DayWeather | null>();
 const round = (n: number) => Math.round(n * 10) / 10; // ~11km grid for cache key
 
+/**
+ * WMO weather code → coarse condition bucket. This is the single cascading
+ * `<=` ladder both `weatherLabel` and `lib/weather-tone.ts`'s `weatherTone`
+ * read from, so a label and a tone/icon can never disagree about the same
+ * code — including "gap" codes the WMO table skips (e.g. 4-44, 68-70) that
+ * would otherwise fall through a range-based lookup to a wrong default.
+ */
+export type WeatherBucket =
+  | "clear"
+  | "partly"
+  | "overcast"
+  | "fog"
+  | "rain"
+  | "snow"
+  | "showers"
+  | "snow-showers"
+  | "storm";
+
+export function weatherBucket(code: number | null): WeatherBucket | null {
+  if (code == null) return null;
+  if (code === 0) return "clear";
+  if (code <= 2) return "partly";
+  if (code === 3) return "overcast";
+  if (code <= 48) return "fog";
+  if (code <= 67) return "rain";
+  if (code <= 77) return "snow";
+  if (code <= 82) return "showers";
+  if (code <= 86) return "snow-showers";
+  return "storm";
+}
+
+const WEATHER_LABEL_BY_BUCKET: Record<WeatherBucket, string> = {
+  clear: "Clear",
+  partly: "Partly cloudy",
+  overcast: "Overcast",
+  fog: "Fog",
+  rain: "Rain",
+  snow: "Snow",
+  showers: "Showers",
+  "snow-showers": "Snow showers",
+  storm: "Thunderstorm",
+};
+
 /** WMO weather code → short label. */
 export function weatherLabel(code: number | null): string {
-  if (code == null) return "—";
-  if (code === 0) return "Clear";
-  if (code <= 2) return "Partly cloudy";
-  if (code === 3) return "Overcast";
-  if (code <= 48) return "Fog";
-  if (code <= 67) return "Rain";
-  if (code <= 77) return "Snow";
-  if (code <= 82) return "Showers";
-  if (code <= 86) return "Snow showers";
-  return "Thunderstorm";
+  const bucket = weatherBucket(code);
+  return bucket == null ? "—" : WEATHER_LABEL_BY_BUCKET[bucket];
 }
 
 export async function getDayWeather(args: {

@@ -1,0 +1,19 @@
+<!-- @dsCard group="Components" viewport="700x300" subtitle="Input, Select, Stepper, Toggle, Checkbox, Segmented" name="Forms" -->
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css">
+<style>body{margin:0;background:var(--surface-page);color:var(--text-primary);font:var(--type-body);padding:20px;box-sizing:border-box} *{box-sizing:border-box}</style><script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script src="../../assets/dev-loader.js" data-root="../../"></script></head><body>
+<div id="root"></div>
+<script type="text/babel">
+TeepeeDS.ready.then(() => { const { Logo, Icon, Button, IconButton, Chip, Badge, Card, ProgressBar, StatCard, Avatar, AvatarStack, Input, Select, Stepper, Toggle, Checkbox, Segmented, TabBar, Dock, TopBar, ListRow, Sheet, Toast, Tooltip, EmptyState } = TeepeeDS;
+function Demo(){ const [v,setV]=React.useState('Japan'); const [n,setN]=React.useState(4); const [on,setOn]=React.useState(true); const [c,setC]=React.useState(true); const [seg,setSeg]=React.useState('Month'); const [sel,setSel]=React.useState('Real plan');
+  return <div style={{display:'flex',flexDirection:'column',gap:16}}>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:14,alignItems:'end'}}><Input label="Where to?" value={v} onChange={setV} hint="City, region or vibe" /><Input placeholder="Somewhere warm?" size="l" /><Select label="Currency" value="JPY" options={['JPY','AUD','USD']} /></div>
+    <div style={{display:'flex',gap:18,alignItems:'center',flexWrap:'wrap'}}><Stepper value={n} onChange={setN} unit="n" /><Toggle checked={on} onChange={setOn} label="Show costs in AUD" /><Toggle checked={false} label="Off" /><Checkbox checked={c} onChange={setC} label="Book Hakone bed" /><Checkbox checked={false} label="Pick a train" /></div>
+    <div style={{display:'flex',gap:18,alignItems:'center',flexWrap:'wrap'}}><Segmented options={['Month','Week']} value={seg} onChange={setSeg} /><Segmented options={['Real plan','Slow Kyoto']} value="Real plan" tone="ink" /><Select size="s" value={sel} onChange={setSel} options={['Real plan','Slow Kyoto','Budget version']} /></div>
+  </div>; }
+  ReactDOM.createRoot(document.getElementById('root')).render(<Demo />);
+});
+</script>
+</body></html>

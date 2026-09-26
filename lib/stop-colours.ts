@@ -1,23 +1,45 @@
+import { HUE_CLASSES, LEGACY_TO_HUE, type Hue } from "@/lib/hues";
+import { hueHex } from "@/lib/map-palette";
+
 /**
  * Per-stop colour bands, keyed by stop.sortOrder. Shared by MonthGrid and the
  * plan editor's StopCard so a stop reads the same hue on the calendar and the
- * itinerary. Static strings keep Tailwind's content scanner happy.
+ * itinerary. Routed through the Playground hue ramp (lib/hues.ts) via the
+ * same LEGACY_TO_HUE mapping chapter colours use, so a stop and a chapter
+ * that "look like sky" really are the same hue.
  */
-const STOP_HUES = ["sky", "amber", "emerald", "violet", "rose", "teal"] as const;
+const STOP_LEGACY = ["sky", "amber", "emerald", "violet", "rose", "teal"] as const;
+const STOP_HUES: readonly Hue[] = STOP_LEGACY.map((legacy) => LEGACY_TO_HUE[legacy]);
 
-const BORDER = ["border-l-sky-400", "border-l-amber-400", "border-l-emerald-400", "border-l-violet-400", "border-l-rose-400", "border-l-teal-400"];
-const DOT = ["bg-sky-400", "bg-amber-400", "bg-emerald-400", "bg-violet-400", "bg-rose-400", "bg-teal-400"];
-const PILL = [
-  "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300",
-  "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-  "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300",
-  "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
-  "bg-teal-100 text-teal-700 dark:bg-teal-950 dark:text-teal-300",
+// Left-border rail class. The ramp has no dedicated "border" variant, so this
+// borrows the same --color-hue-* token the fill/dot/chip classes already use
+// (bg-hue-sky etc., defined in app/globals.css) via Tailwind v4's border-side
+// utilities, which read off the same colour namespace. Written out in full,
+// one per STOP_LEGACY/STOP_HUES entry in order, so Tailwind's text-based
+// scanner sees each class literally (no `border-l-hue-${hue}` template).
+const BORDER: readonly string[] = [
+  "border-l-hue-sky",   // sky
+  "border-l-hue-sun",   // amber -> sun
+  "border-l-hue-leaf",  // emerald -> leaf
+  "border-l-hue-lilac", // violet -> lilac
+  "border-l-hue-pink",  // rose -> pink
+  "border-l-hue-teal",  // teal
 ];
+const DOT: readonly string[] = STOP_HUES.map((hue) => HUE_CLASSES[hue].dot);
+// Soft tinted pill + neutral foreground text (no ink border) — a pastel
+// pill, not the heavier bordered chip. Text is deliberately the ramp's
+// `onSoft` (neutral foreground), not `text` (the hue's own -text token):
+// the latter is tuned for paper/card, and on a `soft` tint of the same hue
+// it fails contrast in dark mode (see HueClasses.onSoft's docblock).
+const PILL: readonly string[] = STOP_HUES.map((hue) => `${HUE_CLASSES[hue].soft} ${HUE_CLASSES[hue].onSoft}`);
 
 const idx = (i: number) => ((i % STOP_HUES.length) + STOP_HUES.length) % STOP_HUES.length;
 
 export function stopBandBorderClass(index: number): string { return BORDER[idx(index)]; }
 export function stopDotClass(index: number): string { return DOT[idx(index)]; }
 export function stopPillClass(index: number): string { return PILL[idx(index)]; }
+
+/** The Stop's hue on the ramp, by its position — the same cycle MonthGrid and StopCard paint. */
+export function stopHue(index: number): Hue { return STOP_HUES[idx(index)]; }
+/** Leaflet hex for the Stop's hue (divIcon HTML and polylines can't take Tailwind classes). */
+export function stopHex(index: number, dark = false): string { return hueHex(stopHue(index), dark); }

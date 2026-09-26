@@ -12,6 +12,7 @@ import {
   type ItineraryItem,
   type ItineraryTransport,
   type ItineraryAccommodation,
+  type DayPlan,
 } from "./itinerary";
 
 // ---------------------------------------------------------------------------
@@ -827,6 +828,78 @@ describe("orderDayEntries", () => {
       "item",
       "accommodation-checkin",
     ]);
+  });
+
+  it("slots a timed transport among timed items by its departure time (breakfast 09:00 before a 14:00 train)", () => {
+    const plans = buildItinerary({
+      ...BASE,
+      items: [
+        makeItem({ id: "item-bfast", date: "2026-07-05", startTime: "09:00", title: "Breakfast" }),
+        makeItem({ id: "item-dinner", date: "2026-07-05", startTime: "20:00", title: "Dinner" }),
+      ],
+      transports: [
+        makeTransport({
+          id: "t-train",
+          mode: "TRAIN",
+          fromStopId: "stop-paris",
+          toStopId: "stop-rome",
+          depAt: new Date("2026-07-05T12:00:00Z"), // 14:00 Europe/Paris
+        }),
+      ],
+      accommodations: [],
+    });
+    const day = plans.find((d) => d.dateISO === "2026-07-05")!;
+    const order = orderDayEntries(day).entries.map((e) =>
+      e.kind === "item" ? e.item.id : e.kind,
+    );
+    expect(order).toEqual(["item-bfast", "transport-departure", "item-dinner"]);
+  });
+
+  it("keeps an untimed check-in right after the day's transport even when that transport is timed", () => {
+    const plans = buildItinerary({
+      ...BASE,
+      items: [
+        makeItem({ id: "item-bfast", date: "2026-07-05", startTime: "09:00", title: "Breakfast" }),
+        makeItem({ id: "item-dinner", date: "2026-07-05", startTime: "20:00", title: "Dinner" }),
+      ],
+      transports: [
+        makeTransport({
+          id: "t-train",
+          mode: "TRAIN",
+          fromStopId: "stop-paris",
+          toStopId: "stop-rome",
+          depAt: new Date("2026-07-05T12:00:00Z"),
+        }),
+      ],
+      accommodations: [
+        makeAccom({ id: "acc-in", stopId: "stop-rome", checkIn: "2026-07-05", checkOut: "2026-07-10", checkInTime: null }),
+      ],
+    });
+    const day = plans.find((d) => d.dateISO === "2026-07-05")!;
+    const kinds = orderDayEntries(day).entries.map((e) => (e.kind === "item" ? e.item.id : e.kind));
+    expect(kinds).toEqual(["item-bfast", "transport-departure", "accommodation-checkin", "item-dinner"]);
+  });
+
+  it("leaves a transport with no time label in the top-of-day block", () => {
+    // Build a day by hand: a departure entry whose depTimeLabel is undefined.
+    const day: DayPlan = {
+      dateISO: "2026-07-05",
+      stop: null,
+      timedItems: [
+        { kind: "item", item: { id: "item-a", title: "A", category: "OTHER", date: "2026-07-05", startTime: "09:00" } },
+      ],
+      untimedItems: [],
+      transportEntries: [
+        {
+          kind: "transport-departure",
+          transport: { id: "t-x", mode: "BUS" },
+          arrivesSameDay: false,
+        },
+      ],
+      accommodationEntries: [],
+    };
+    const kinds = orderDayEntries(day).entries.map((e) => (e.kind === "item" ? e.item.id : e.kind));
+    expect(kinds).toEqual(["transport-departure", "item-a"]);
   });
 });
 

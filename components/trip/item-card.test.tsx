@@ -112,8 +112,11 @@ describe("ItemCard — AttachmentPopover guard symmetry", () => {
 // Bold-Modular: full-width coral Schedule button (wishlist mode)
 // ---------------------------------------------------------------------------
 
-describe("ItemCard — Bold-Modular Schedule button", () => {
-  it("renders a full-width coral Schedule button in wishlist mode", () => {
+describe("ItemCard — Playground kit Schedule button", () => {
+  // Task 11 (phase 3): the full-width ink bar became the kit's secondary pill
+  // (DWishlist "Add to a stop" treatment), left-aligned, 44px tall. Copy stays
+  // "Schedule this" — the dialog schedules to a date, not to a stop.
+  it("renders the Schedule action as a kit secondary button, not a full-width bar", () => {
     const onSchedule = vi.fn();
     render(
       <ItemCard
@@ -124,9 +127,75 @@ describe("ItemCard — Bold-Modular Schedule button", () => {
         onSchedule={onSchedule}
       />,
     );
-    const btn = screen.getByRole("button", { name: /schedule/i });
-    expect(btn.className).toMatch(/w-full/);
-    expect(btn.className).toMatch(/bg-primary/);
+    const btn = screen.getByRole("button", { name: "Schedule Eiffel Tower" });
+    expect(btn).toHaveTextContent("Schedule this");
+    expect(btn.className).not.toMatch(/\bw-full\b/);
+    expect(btn.className).toMatch(/\bbg-card\b/);
+    expect(btn.className).toMatch(/\bh-11\b/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task 11 (phase 3): wishlist card to the Playground kit (DWishlist/Wishlist)
+// ---------------------------------------------------------------------------
+
+describe("ItemCard — Playground kit wishlist card", () => {
+  it("is a kit Card: 2px outline + hard shadow, not the old soft rounded-3xl card", () => {
+    render(<ItemCard item={baseItem} mode="wishlist" />);
+    const card = screen.getByTestId("item-card-item-1");
+    expect(card.className).toMatch(/\bborder-2\b/);
+    expect(card.className).toMatch(/\bshadow-hard-2\b/);
+    expect(card.className).not.toMatch(/rounded-3xl|shadow-soft/);
+    expect(card.className).toMatch(/\bbg-card\b/);
+  });
+
+  it("titles the idea with a kit display heading", () => {
+    render(<ItemCard item={baseItem} mode="wishlist" />);
+    const h = screen.getByRole("heading", { name: "Eiffel Tower" });
+    expect(h.className).toMatch(/\bfont-extrabold\b/);
+    expect(h.className).toMatch(/\bfont-display\b/);
+  });
+
+  it("shows the category as a CategoryPill on its ramp hue, not raw palette", () => {
+    render(<ItemCard item={{ ...baseItem, category: "FOOD" }} mode="wishlist" />);
+    const pill = screen.getByText("Food & Drink");
+    expect(pill.className).toMatch(/\bbg-hue-sun\b/);
+    expect(pill.className).not.toMatch(/\b(amber|stone|slate|emerald)-\d/);
+  });
+
+  it("takes the kit's sun tone as an island when asked", () => {
+    render(<ItemCard item={baseItem} mode="wishlist" tone="sun" />);
+    const card = screen.getByTestId("item-card-item-1");
+    expect(card.className).toMatch(/\bisland\b/);
+    expect(card.className).toMatch(/\bbg-sun\b/);
+  });
+
+  it("marks a placed idea with a success fill and an 'in this plan' status chip inside the card", () => {
+    render(<ItemCard item={baseItem} mode="wishlist" tone="sun" placed />);
+    const card = screen.getByTestId("item-card-item-1");
+    // Status, not identity: the kit's teal "in plan" card is --success here.
+    expect(card.className).toMatch(/\bbg-success\b/);
+    expect(card.className).not.toMatch(/\bbg-sun\b/);
+    const marker = screen.getByTestId("placed-marker-item-1");
+    expect(card).toContainElement(marker);
+    expect(marker).toHaveTextContent("in this plan");
+  });
+
+  it("gives every icon-only action an accessible name", () => {
+    render(
+      <ItemCard
+        item={baseItem}
+        mode="wishlist"
+        tripId="t1"
+        currentUserId="u1"
+        notes={[]}
+        onEdit={() => {}}
+        onDelete={() => {}}
+      />,
+    );
+    expect(screen.getByRole("button", { name: "Edit Eiffel Tower" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete Eiffel Tower" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "More actions for Eiffel Tower" })).toBeInTheDocument();
   });
 });
 

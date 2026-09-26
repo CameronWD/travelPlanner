@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+// React import needed for JSX in the reminders-slot test below.
+import React from "react";
+import { render } from "@testing-library/react";
 
 // phase-planning.tsx is a heavy async server component with DB calls.
 // We test the desktop grid className via an exported constant so we can assert
@@ -61,8 +64,38 @@ vi.mock("@/components/trip/home/budget-glance", () => ({ BudgetGlance: () => nul
 vi.mock("@/components/trip/home/quick-actions", () => ({ QuickActions: () => null }));
 vi.mock("@/components/trip/route-map-loader", () => ({ RouteMapLoader: () => null }));
 vi.mock("@/components/trip/upcoming-payments-card", () => ({ UpcomingPaymentsCard: () => null }));
+// Task 16 (spec H4): the tile grids are wrapped in AnimatedList/AnimatedItem
+// for a staggered mount. Real (unmocked) passthroughs here so the tree-walk
+// helpers below still find the wrapped elements and the renderToStaticMarkup
+// tests still see the forwarded className/data-testid — mirrors the mock in
+// app/(app)/trips/page.test.tsx, but forwards props (via ...rest) since this
+// file's tests query on data-testid/className.
+vi.mock("@/components/ui/animated-list", () => ({
+  AnimatedList: ({
+    children,
+    className,
+    // Dropped rather than spread onto the DOM node — it's a boolean prop,
+    // not a valid HTML attribute.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    staggerOnMount,
+    ...rest
+  }: { children?: React.ReactNode; className?: string; staggerOnMount?: boolean } & Record<string, unknown>) => (
+    <div className={className} {...rest}>{children}</div>
+  ),
+  AnimatedItem: ({
+    children,
+    className,
+    as = "div",
+  }: {
+    children?: React.ReactNode;
+    className?: string;
+    as?: string;
+    index?: number;
+  }) => React.createElement(as, { className }, children),
+}));
 
 const { PLANNING_DESKTOP_GRID_CLASS, PhasePlanning } = await import("./phase-planning");
+const { AnimatedItem } = await import("@/components/ui/animated-list");
 const { RouteMapLoader } = await import("@/components/trip/route-map-loader");
 const { UpcomingPaymentsCard } = await import("@/components/trip/upcoming-payments-card");
 
@@ -84,9 +117,11 @@ function findElementByType(node: unknown, type: unknown): { props: Record<string
   return findElementByType(children, type);
 }
 
-describe("PhasePlanning desktop rail width", () => {
-  it("desktop grid uses 21.25rem rail (340 px) matching the mockup spec", () => {
-    expect(PLANNING_DESKTOP_GRID_CLASS).toContain("21.25rem");
+describe("PhasePlanning desktop tile grid (spec E1)", () => {
+  it("uses the kit DHome three-column grid, two rows of tiles beside the hero", () => {
+    expect(PLANNING_DESKTOP_GRID_CLASS).toBe(
+      "grid grid-cols-1 gap-3.5 lg:grid-cols-3 lg:grid-rows-[auto_auto] lg:items-stretch",
+    );
   });
 });
 
@@ -405,5 +440,398 @@ describe("PhasePlanning upcoming payments mount", () => {
     const el = findElementByType(tree, UpcomingPaymentsCard);
     expect(el).not.toBeNull();
     expect(el!.props.payments).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Playground kit restyle (Task 10b) — kit DHome.jsx / Home.jsx "Planning"
+// ---------------------------------------------------------------------------
+
+describe("PhasePlanning Playground kit restyle (Task 10b)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    drivingWindingFactor: 1.3,
+    drivingAvgSpeedKph: 80,
+    homeName: null,
+    homeLat: null,
+    homeLng: null,
+    homeCountryCode: null,
+    roundTrip: false,
+    chaptersEnabled: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    stopCountMock.mockResolvedValue(0);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCountMock.mockResolvedValue(0);
+    checklistItemCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
+  });
+
+  const render = () =>
+    PhasePlanning({ tripId: "trip-1", trip: baseTrip, today: "2025-12-01", phase: "planning" });
+
+  const DATED = [
+    { id: "a", name: "Rome", country: "Italy", lat: 41.9, lng: 12.5, timezone: "Europe/Rome", arriveDate: "2026-01-01", departDate: "2026-01-05", sortOrder: 0 },
+  ];
+
+  it("leads the tile grid with the countdown hero, the cover tile beside it (kit DHome grid)", async () => {
+    const { CountdownHero } = await import("@/components/trip/home/countdown-hero");
+    const tree = await PhasePlanning({
+      tripId: "trip-1",
+      trip: baseTrip,
+      today: "2025-12-01",
+      phase: "planning",
+      cover: <div data-testid="cover-tile" />,
+    });
+    const g = findByTestId(tree, "planning-desktop-grid")!;
+    const kids = ([] as unknown[]).concat(g.props.children).filter(Boolean) as {
+      type: unknown;
+      props: { children?: unknown };
+    }[];
+    // Task 16: every tile is now wrapped in an AnimatedItem for the mount stagger.
+    expect(kids[0].type).toBe(AnimatedItem);
+    expect((kids[0].props.children as { type: unknown }).type).toBe(CountdownHero);
+    expect(kids[1].type).toBe(AnimatedItem);
+    expect((kids[1].props.children as { props: Record<string, unknown> }).props["data-testid"]).toBe(
+      "cover-tile",
+    );
+  });
+
+  it("wraps the desktop tile grid and the tile row in AnimatedList with staggerOnMount (spec H4)", async () => {
+    const { AnimatedList } = await import("@/components/ui/animated-list");
+    const tree = await render();
+    const grid = findByTestId(tree, "planning-desktop-grid")!;
+    const row = findByTestId(tree, "planning-tile-row")!;
+    expect((grid as unknown as { type: unknown }).type).toBe(AnimatedList);
+    expect((grid.props as Record<string, unknown>).staggerOnMount).toBe(true);
+    expect((row as unknown as { type: unknown }).type).toBe(AnimatedList);
+    expect((row.props as Record<string, unknown>).staggerOnMount).toBe(true);
+  });
+
+  it("renders three StatTiles beside the hero: Cost so far, Next payment, Reminders", async () => {
+    const { StatTile } = await import("@/components/trip/home/stat-tile");
+    const tree = await render();
+    const g = findByTestId(tree, "planning-desktop-grid")!;
+    const tiles = findAllByType(g, StatTile);
+    expect(tiles.map((t) => t.props.label)).toEqual(["Cost so far", "Next payment", "Reminders"]);
+  });
+
+  it("feeds the stat tiles from the data the home already loads (budget, upcoming payments, reminders)", async () => {
+    const { StatTile } = await import("@/components/trip/home/stat-tile");
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 120000, paidTotalMinor: 30000 } });
+    costFindManyMock.mockResolvedValue([
+      {
+        id: "c1", costMinor: 5000, currency: "GBP", paidAt: null, dueDate: "2025-12-08",
+        ownerType: "OTHER", ownerId: null, label: "Deposit",
+      },
+    ]);
+    const tree = await PhasePlanning({
+      tripId: "trip-1",
+      trip: baseTrip,
+      today: "2025-12-01",
+      phase: "planning",
+      reminderItems: [
+        { id: "r1", title: "Book the ferry", date: "2025-12-03", stopId: null, stopName: null },
+        { id: "r2", title: "Renew passport", date: "2025-12-09", stopId: null, stopName: null },
+      ],
+    });
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const [cost, next, rem] = findAllByType(tree, StatTile);
+    const html = (el: unknown) => renderToStaticMarkup(el as Parameters<typeof renderToStaticMarkup>[0]);
+    expect(html(cost)).toMatch(/1,200|1\.2k/);
+    expect(html(next)).toContain("Deposit");
+    expect(html(rem)).toContain(">2<");
+    expect(html(rem)).toContain("Book the ferry");
+  });
+
+  it("draws the home map at a 4/3 tile aspect, not a fixed full-width height", async () => {
+    stopFindManyMock.mockImplementation((args: { select?: { lat?: boolean } }) =>
+      Promise.resolve(args.select?.lat ? DATED : [{ id: "a", name: "Rome", sortOrder: 0 }]),
+    );
+    const map = findElementByType(await render(), RouteMapLoader);
+    expect(map).not.toBeNull();
+    expect(map!.props.aspect).toBe("4/3");
+    expect(map!.props.height).toBeUndefined();
+  });
+
+  it("keeps the phone order: cover, hero, route, next steps, money, actions, reminders", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { NextStepsCard } = await import("@/components/trip/home/next-steps-card");
+    const { BudgetGlance } = await import("@/components/trip/home/budget-glance");
+    const { QuickActions } = await import("@/components/trip/home/quick-actions");
+    const { CountdownHero } = await import("@/components/trip/home/countdown-hero");
+    stopFindManyMock.mockImplementation((args: { select?: { lat?: boolean } }) =>
+      Promise.resolve(args.select?.lat ? DATED : [{ id: "a", name: "Rome", sortOrder: 0 }]),
+    );
+    const tree = await PhasePlanning({
+      tripId: "trip-1",
+      trip: baseTrip,
+      today: "2025-12-01",
+      phase: "planning",
+      cover: <div data-testid="cover-tile" />,
+      reminders: <div data-testid="reminders" />,
+    });
+    // Visible-on-phone order = DOM order minus the lg-only stat tiles.
+    const order = flattenTypes(tree);
+    const idx = (t: unknown) => order.indexOf(t);
+    // DOM order is hero, cover (the lg grid order); the cover's grid item
+    // carries -order-1 below lg so a phone shows it above the hero.
+    expect(idx(CountdownHero)).toBeLessThan(idx("cover-tile"));
+    expect(idx("cover-tile")).toBeLessThan(idx(RouteMapLoader));
+    expect(idx(RouteMapLoader)).toBeLessThan(idx(NextStepsCard));
+    expect(idx(NextStepsCard)).toBeLessThan(idx(BudgetGlance));
+    expect(idx(BudgetGlance)).toBeLessThan(idx(QuickActions));
+    expect(idx(QuickActions)).toBeLessThan(idx("reminders"));
+    // The stat tiles are the desktop's money; on a phone the money cards keep their slot.
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+    for (const tile of Array.from(div.querySelectorAll("[data-stat-tile]"))) {
+      expect(tile.className).toMatch(/(^|\s)hidden(\s|$)/);
+      expect(tile.className.split(/\s+/)).toContain("lg:flex");
+      expect(tile.className).not.toContain("lg:block");
+    }
+    expect(div.querySelector("[data-home-money]")!.className).toContain("lg:hidden");
+  });
+
+  it("puts the cover band above the hero on a phone and back in grid order at lg", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const tree = await PhasePlanning({
+      tripId: "trip-1",
+      trip: baseTrip,
+      today: "2025-12-01",
+      phase: "planning",
+      cover: <div data-testid="cover-tile" />,
+    });
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+    const grid = div.querySelector('[data-testid="planning-desktop-grid"]')!;
+    const coverItem = div.querySelector('[data-testid="cover-tile"]')!.parentElement!;
+    expect(coverItem.parentElement).toBe(grid);
+    const classes = coverItem.className.split(/\s+/);
+    expect(classes).toContain("-order-1");
+    expect(classes).toContain("lg:order-none");
+  });
+
+  it("renders the route map bare — it draws its own kit frame, so no Card doubles the outline", async () => {
+    stopFindManyMock.mockImplementation((args: { select?: { lat?: boolean } }) =>
+      Promise.resolve(args.select?.lat ? DATED : [{ id: "a", name: "Rome", sortOrder: 0 }]),
+    );
+    const { Card } = await import("@/components/ui/card");
+    const tree = await render();
+    expect(findElementByType(tree, RouteMapLoader)).not.toBeNull();
+    const parent = findParentOf(tree, RouteMapLoader);
+    expect(parent?.type).not.toBe(Card);
+  });
+
+  it("renders the kit empty treatment in place of the route map when no stop has dates", async () => {
+    const { EmptyState } = await import("@/components/ui/empty-state");
+    const empty = findElementByType(await render(), EmptyState);
+    expect(empty).not.toBeNull();
+    expect(empty!.props.title).toBe("No stops yet");
+    expect(findElementByType(await render(), RouteMapLoader)).toBeNull();
+  });
+
+  it("never frames money per person — shared pot only", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const html = renderToStaticMarkup((await render()) as Parameters<typeof renderToStaticMarkup>[0]);
+    expect(html).not.toMatch(/per person|each owes|split/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reminders slot (Task 5 — LA-029/045)
+// ---------------------------------------------------------------------------
+
+describe("PhasePlanning reminders slot (LA-029/045)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    drivingWindingFactor: 1.3,
+    drivingAvgSpeedKph: 80,
+    homeName: null,
+    homeLat: null,
+    homeLng: null,
+    homeCountryCode: null,
+    roundTrip: false,
+    chaptersEnabled: true,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    stopCountMock.mockResolvedValue(0);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCountMock.mockResolvedValue(0);
+    checklistItemCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
+  });
+
+  it("renders the Reminders card last, full width below the tile grids (spec E1)", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const tree = await PhasePlanning({
+      tripId: "trip-1",
+      trip: baseTrip,
+      today: "2026-01-05",
+      phase: "planning",
+      reminders: <div data-testid="reminders" />,
+    });
+    const div = document.createElement("div");
+    div.innerHTML = renderToStaticMarkup(tree as Parameters<typeof renderToStaticMarkup>[0]);
+    const marker = div.querySelector('[data-testid="reminders"]');
+    expect(marker).not.toBeNull();
+    expect(marker!.closest("[data-testid='planning-desktop-grid']")).toBeNull();
+    expect(marker!.closest("[data-testid='planning-tile-row']")).toBeNull();
+    expect(marker!.parentElement!.lastElementChild).toBe(marker);
+  });
+});
+
+function findByTestId(node: unknown, id: string): { props: Record<string, unknown> } | null {
+  if (node == null || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const f = findByTestId(n, id);
+      if (f) return f;
+    }
+    return null;
+  }
+  const el = node as { props?: Record<string, unknown> };
+  if (el.props?.["data-testid"] === id) return el as { props: Record<string, unknown> };
+  return findByTestId(el.props?.children, id);
+}
+
+/** The nearest element whose direct children include an element of `type`. */
+function findParentOf(node: unknown, type: unknown): { type?: unknown } | null {
+  if (node == null || typeof node !== "object") return null;
+  if (Array.isArray(node)) {
+    for (const n of node) {
+      const f = findParentOf(n, type);
+      if (f) return f;
+    }
+    return null;
+  }
+  const el = node as { type?: unknown; props?: { children?: unknown } };
+  const kids = ([] as unknown[]).concat(el.props?.children ?? []);
+  if (kids.some((k) => k && typeof k === "object" && (k as { type?: unknown }).type === type)) return el;
+  return findParentOf(el.props?.children, type);
+}
+
+function findAllByType(node: unknown, type: unknown): { props: Record<string, unknown> }[] {
+  if (node == null || typeof node !== "object") return [];
+  if (Array.isArray(node)) return node.flatMap((n) => findAllByType(n, type));
+  const el = node as { type?: unknown; props?: { children?: unknown } };
+  if (el.type === type) return [node as { props: Record<string, unknown> }];
+  return findAllByType(el.props?.children, type);
+}
+
+/** Depth-first element order: component types, plus data-testid markers. */
+function flattenTypes(node: unknown): unknown[] {
+  if (node == null || typeof node !== "object") return [];
+  if (Array.isArray(node)) return node.flatMap(flattenTypes);
+  const el = node as { type?: unknown; props?: Record<string, unknown> };
+  const self: unknown[] = [];
+  if (typeof el.type === "function" || (typeof el.type === "object" && el.type !== null)) self.push(el.type);
+  const tid = el.props?.["data-testid"];
+  if (typeof tid === "string") self.push(tid);
+  return [...self, ...flattenTypes(el.props?.children)];
+}
+
+// ---------------------------------------------------------------------------
+// Grid-item classes stay on the animated wrapper (Task 16 fix — review found
+// that AnimatedItem is now the *actual* CSS grid item, so any row-span/
+// col-span/hidden class that used to live on the tile's own root element has
+// no effect there anymore; it has to be repeated on the AnimatedItem).
+// ---------------------------------------------------------------------------
+
+describe("PhasePlanning grid-item classes stay on the animated wrapper (Task 16 fix)", () => {
+  const baseTrip = {
+    id: "trip-1",
+    name: "Test Trip",
+    startDate: "2026-01-01",
+    endDate: "2026-01-10",
+    homeCurrency: "GBP",
+    drivingWindingFactor: 1.3,
+    drivingAvgSpeedKph: 80,
+    homeName: null,
+    homeLat: null,
+    homeLng: null,
+    homeCountryCode: null,
+    roundTrip: false,
+    chaptersEnabled: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stopFindManyMock.mockResolvedValue([]);
+    stopCountMock.mockResolvedValue(0);
+    transportFindManyMock.mockResolvedValue([]);
+    accommodationFindManyMock.mockResolvedValue([]);
+    itemFindManyMock.mockResolvedValue([]);
+    costFindManyMock.mockResolvedValue([]);
+    exchangeRateFindManyMock.mockResolvedValue([]);
+    chapterFindManyMock.mockResolvedValue([]);
+    chapterCountMock.mockResolvedValue(0);
+    checklistItemCountMock.mockResolvedValue(0);
+    buildBudgetMock.mockReturnValue({ grandTotal: { costTotalMinor: 0, paidTotalMinor: 0 } });
+    getTripProjectionMock.mockResolvedValue({ projectedEnd: null, hardEndDate: null });
+  });
+
+  // No `cover` passed, so the desktop grid's direct children are, in order:
+  // [hero, stat-tile, stat-tile, stat-tile].
+  async function renderGrid() {
+    const tree = await PhasePlanning({
+      tripId: "trip-1",
+      trip: baseTrip,
+      today: "2025-12-01",
+      phase: "planning",
+    });
+    return render(tree as React.ReactElement);
+  }
+
+  it("keeps lg:row-span-2 on the hero's direct grid-item element, not a nested descendant", async () => {
+    const { container } = await renderGrid();
+    const grid = container.querySelector('[data-testid="planning-desktop-grid"]') as HTMLElement;
+    const heroItem = grid.children[0] as HTMLElement;
+    expect(heroItem.className).toContain("lg:row-span-2");
+  });
+
+  it("keeps hidden + lg:flex on each stat tile's direct grid-item element", async () => {
+    const { container } = await renderGrid();
+    const grid = container.querySelector('[data-testid="planning-desktop-grid"]') as HTMLElement;
+    const statItems = Array.from(grid.children).slice(1) as HTMLElement[];
+    expect(statItems).toHaveLength(3);
+    for (const item of statItems) {
+      expect(item.className.split(/\s+/)).toContain("hidden");
+      expect(item.className.split(/\s+/)).toContain("lg:flex");
+    }
+  });
+
+  it("keeps lg:hidden on the money tile's direct grid-item element in the tile row", async () => {
+    const { container } = await renderGrid();
+    const row = container.querySelector('[data-testid="planning-tile-row"]') as HTMLElement;
+    // route, next-steps, money, actions — money is index 2.
+    const moneyItem = row.children[2] as HTMLElement;
+    expect(moneyItem.className.split(/\s+/)).toContain("lg:hidden");
   });
 });

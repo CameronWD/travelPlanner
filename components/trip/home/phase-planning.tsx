@@ -1,10 +1,9 @@
+import type { ReactNode } from "react";
 import { db } from "@/lib/db";
 import { REAL_PLAN } from "@/lib/plan-scope";
 import { daysBetween } from "@/lib/dates";
 import { describePhase, type TripPhase } from "@/lib/trip-phase";
 import {
-  detectFlags,
-  type FlagStop,
   type FlagTransport,
   type FlagAccommodation,
   type FlagItem,
@@ -17,11 +16,12 @@ import {
   type BudgetAccommodation,
   type BudgetTransport,
 } from "@/lib/budget";
-import { buildNextSteps } from "@/lib/next-steps";
-import { tripHomeBase, hasOutboundLeg, hasReturnLeg } from "@/lib/home-base";
+import { buildTripNextSteps } from "@/lib/next-steps-builder";
+import { tripHomeBase } from "@/lib/home-base";
 import { getTripProjection } from "@/server/actions/stops";
 import { chapterForStop } from "@/lib/chapters";
-import { chapterColourSwatch } from "@/lib/chapter-colours";
+import { Route } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { CountdownHero } from "@/components/trip/home/countdown-hero";
 import { NextStepsCard } from "@/components/trip/home/next-steps-card";
 import { BudgetGlance } from "@/components/trip/home/budget-glance";
@@ -32,6 +32,10 @@ import { orderPlanStops } from "@/lib/plan-order";
 import { buildCostLabelMap } from "@/lib/cost-labels";
 import { buildUpcomingPayments } from "@/lib/upcoming-payments";
 import { UpcomingPaymentsCard } from "@/components/trip/upcoming-payments-card";
+import { StatTile } from "@/components/trip/home/stat-tile";
+import { formatMoneyCompact } from "@/lib/money";
+import type { ReminderItem } from "@/server/actions/reminders";
+import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
 
 const COST_SELECT = {
   id: true,
@@ -45,6 +49,7 @@ const COST_SELECT = {
   ownerId: true,
   label: true,
   category: true,
+  settlement: true,
 } as const;
 
 interface PhasePlanningProps {
@@ -66,20 +71,37 @@ interface PhasePlanningProps {
   };
   today: string;
   phase: TripPhase; // "planning" | "final-prep"
+  /** The trip Home's Reminders card, rendered by the page for every Phase —
+   * this phase places it last, full width below the tile grids. */
+  reminders?: ReactNode;
+  /** The Reminders the page already listed for that card — summarised in the
+   * "Reminders" stat tile (count + next), so no second query. */
+  reminderItems?: ReminderItem[];
+  /** The cover as a grid tile (spec E2), rendered by the page — it sits beside
+   * the countdown hero here instead of full width above the Phase. */
+  cover?: ReactNode;
 }
 
 /** Exported for className assertion in tests — must match the JSX below. */
 export const PLANNING_DESKTOP_GRID_CLASS =
-  "grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_21.25rem] lg:items-start";
+  "grid grid-cols-1 gap-3.5 lg:grid-cols-3 lg:grid-rows-[auto_auto] lg:items-stretch";
+
+/** The second row of tiles (map, next steps, quick actions) at tile widths. */
+const PLANNING_TILE_ROW_CLASS = "grid grid-cols-1 gap-3.5 lg:grid-cols-3 lg:items-start";
 
 export async function PhasePlanning({
   tripId,
   trip,
   today,
   phase,
+  reminders,
+  reminderItems = [],
+  cover,
 }: PhasePlanningProps) {
   // This phase only renders for dated trips; bail safely if called otherwise.
-  if (!trip.startDate) return null;
+  // Reminders still need a home even in this defensive branch, since the
+  // page passes them in regardless of phase.
+  if (!trip.startDate) return <>{reminders}</>;
 
   const base = `/trips/${tripId}`;
   const startDate = trip.startDate!;
@@ -261,50 +283,33 @@ export async function PhasePlanning({
   const upcomingPayments = buildUpcomingPayments({ costs, ownerNames, today });
 
   // ---------------------------------------------------------------------------
-  // Detect flags (mirrors summary/page.tsx)
+  // Detect flags + build next steps — shared with the trips list's featured
+  // card (lib/next-steps-builder.ts's `buildTripNextSteps`), so the two never
+  // drift apart. This page already has all the data that pure combiner needs
+  // (fetched above for the budget/route/etc), so it's passed in directly
+  // rather than re-fetched.
   // ---------------------------------------------------------------------------
-  const flagStops: FlagStop[] = datedStops.map((s) => ({ ...s, timezone: s.timezone ?? "UTC" }));
   const projection = await getTripProjection(tripId);
-  const flags = detectFlags({
-    stops: flagStops,
+  const steps = buildTripNextSteps({
+    tripBasePath: base,
+    phase,
+    tripStart: startDate,
+    tripEnd: endDate,
+    roundTrip: trip.roundTrip,
+    home: tripHomeBase(trip),
+    datedStops: datedStops.map((s) => ({ ...s, timezone: s.timezone ?? "UTC" })),
+    roughStopCount: roughStops,
+    allStops: allStopsRaw, // already ordered by sortOrder asc
     transports: transports as FlagTransport[],
     accommodations: accommodations as FlagAccommodation[],
     items: items as FlagItem[],
-    tripStart: startDate,
-    tripEnd: endDate,
-    roughStopCount: roughStops,
     projectedEnd: projection.projectedEnd,
     hardEndDate: projection.hardEndDate,
     drivingWindingFactor: trip.drivingWindingFactor,
     drivingAvgSpeedKph: trip.drivingAvgSpeedKph,
-  });
-
-  // ---------------------------------------------------------------------------
-  // Build next steps
-  // ---------------------------------------------------------------------------
-  const sortedStops = allStopsRaw; // already ordered by sortOrder asc
-  const home = tripHomeBase(trip);
-  const firstStop = sortedStops[0] ?? null;
-  const lastStop = sortedStops[sortedStops.length - 1] ?? null;
-
-  const steps = buildNextSteps({
-    flags,
-    phase,
-    nudges: {
-      hasDates: true, // we only render PhasePlanning when dates exist
-      undatedChapterCount,
-      hasPackingList: packingCount > 0,
-      hasPretripList: pretripCount > 0,
-      unbookedTransportCount: transports.filter((t) => !t.depAt).length,
-      hasHomeBase: !!home,
-      hasOutboundLeg: hasOutboundLeg(transports, firstStop?.id ?? null),
-      hasReturnLeg: hasReturnLeg(transports, lastStop?.id ?? null),
-      roundTrip: trip.roundTrip,
-      homeName: home?.name ?? null,
-      firstStopName: firstStop?.name ?? null,
-      lastStopName: lastStop?.name ?? null,
-    },
-    tripBasePath: base,
+    undatedChapterCount,
+    hasPackingList: packingCount > 0,
+    hasPretripList: pretripCount > 0,
   });
 
   // ---------------------------------------------------------------------------
@@ -328,7 +333,7 @@ export async function PhasePlanning({
       lng: s.lng,
       arriveDate: s.arriveDate,
       departDate: s.departDate,
-      chapterColour: ch ? chapterColourSwatch(ch.colour) : null,
+      sortOrder: s.sortOrder,
       chapterName: ch?.name ?? null,
     };
   });
@@ -371,32 +376,127 @@ export async function PhasePlanning({
 
   const route =
     mapStops.length > 0 ? (
-      <section
+      // The map draws its own kit frame (2px outline, hard shadow) — no Card around it.
+      <RouteMap key="route" stops={mapStops} aspect="4/3" />
+    ) : (
+      // Kit shared/states.jsx "Plan" empty: the route has nothing to draw yet.
+      <EmptyState
         key="route"
-        className="overflow-hidden rounded-2xl border border-border bg-card p-0 shadow-soft"
-      >
-        <RouteMap stops={mapStops} height={280} />
-      </section>
-    ) : null;
+        icon={Route}
+        tone="teal"
+        title="No stops yet"
+        description={
+          allStopsRaw.length === 0
+            ? "Add the first place. We'll draw the route as you go."
+            : "Give your stops dates and we'll draw the route."
+        }
+      />
+    );
 
-  // Bold Modular desktop (D2): full-width hero, then a main column (route +
-  // next-steps) beside a right rail (budget + quick-actions). On mobile the
-  // grid collapses to one column, preserving the order hero → route →
-  // next-steps → budget → quick-actions.
+  // Stat tiles beside the hero (spec E1) — fed by what this page already
+  // built for BudgetGlance / UpcomingPaymentsCard and the page's Reminders.
+  const nextPayment = upcomingPayments[0] ?? null;
+  const nextReminder = reminderItems[0] ?? null;
+  // The tiles are the desktop's money + reminders summary; on a phone the
+  // full money cards keep their slot below Next steps instead (layout
+  // unchanged there), so the tiles only show from lg.
+  const statTiles = [
+    <StatTile
+      key="cost"
+      className="hidden lg:flex"
+      tone="sun"
+      label="Cost so far"
+      value={formatMoneyCompact(budget.grandTotal.costTotalMinor, homeCurrency)}
+      sub={<>{formatMoneyCompact(budget.grandTotal.paidTotalMinor, homeCurrency)} paid · shared pot</>}
+      href={`${base}/budget`}
+    />,
+    <StatTile
+      key="next-payment"
+      className="hidden lg:flex"
+      tone="teal"
+      label="Next payment"
+      value={nextPayment ? formatMoneyCompact(nextPayment.costMinor, nextPayment.currency) : "Nothing due"}
+      sub={nextPayment ? `${nextPayment.label} · ${paymentWhen(nextPayment.daysUntil)}` : "No unpaid cost has a due date"}
+      href={`${base}/budget`}
+    />,
+    <StatTile
+      key="reminders"
+      className="hidden lg:flex"
+      tone="lilac"
+      label="Reminders"
+      value={reminderItems.length}
+      sub={nextReminder ? `Next: ${nextReminder.title}` : "Nothing to remember yet"}
+    />,
+  ];
+
+  // Kit DHome.jsx grid (spec E1): the coral countdown hero spans two rows of
+  // the three-column grid, the cover tile and the stat tiles beside it; the
+  // map, next steps and quick actions follow at tile widths; Reminders last,
+  // full width. On a phone every grid collapses to one column in the order
+  // cover → hero → route → next steps → money → actions → reminders.
   return (
-    <div className="flex flex-col gap-6">
-      {hero}
-      <div className={PLANNING_DESKTOP_GRID_CLASS} data-testid="planning-desktop-grid">
-        <div className="flex flex-col gap-6">
-          {route}
-          {nextSteps}
-        </div>
-        <div className="flex flex-col gap-6">
-          {money}
-          {upcomingEl}
-          {actions}
-        </div>
-      </div>
+    <div className="flex flex-col gap-3.5">
+      {/* Spec H4: staggered entrance for the home tile grids on mount. */}
+      <AnimatedList
+        as="div"
+        className={PLANNING_DESKTOP_GRID_CLASS}
+        data-testid="planning-desktop-grid"
+        staggerOnMount
+      >
+        {/* Grid-placement/visibility classes that used to live on the tile's
+            own root element must be repeated on the AnimatedItem: it is now
+            the direct grid child, and row-span/col-span (and the stat tiles'
+            `hidden` at non-lg — an un-hidden empty grid cell would still eat
+            a track + gap) only take effect on the element that IS the grid
+            item, not a nested descendant of it. */}
+        <AnimatedItem key="hero" index={0} className="lg:row-span-2">{hero}</AnimatedItem>
+        {/* Phones keep the single-column Home unchanged: the cover band
+            sits ABOVE the hero (-order-1), and returns to grid order beside
+            the hero at lg. */}
+        {cover ? (
+          <AnimatedItem key="cover" index={1} className="-order-1 lg:order-none">
+            {cover}
+          </AnimatedItem>
+        ) : null}
+        {statTiles.map((tile, i) => (
+          <AnimatedItem
+            key={typeof tile.key === "string" ? tile.key : `stat-${i}`}
+            index={(cover ? 2 : 1) + i}
+            className="hidden lg:flex"
+          >
+            {tile}
+          </AnimatedItem>
+        ))}
+      </AnimatedList>
+      <AnimatedList
+        as="div"
+        className={PLANNING_TILE_ROW_CLASS}
+        data-testid="planning-tile-row"
+        staggerOnMount
+      >
+        <AnimatedItem key="route" index={0}>{route}</AnimatedItem>
+        <AnimatedItem key="next-steps" index={1}>{nextSteps}</AnimatedItem>
+        {/* This tile is lg:hidden itself (spec E1's desktop stat tiles take
+            over from lg) — repeated on the AnimatedItem grid item for the
+            same reason as the desktop grid above: an un-hidden empty grid
+            cell would still claim a track + gap at lg. */}
+        <AnimatedItem key="money" index={2} className="lg:hidden">
+          <div className="flex flex-col gap-3.5 lg:hidden" data-home-money>
+            {money}
+            {upcomingEl}
+          </div>
+        </AnimatedItem>
+        <AnimatedItem key="actions" index={3}>{actions}</AnimatedItem>
+      </AnimatedList>
+      {reminders}
     </div>
   );
+}
+
+/** The "Next payment" tile's timing, in the Upcoming payments card's words. */
+function paymentWhen(daysUntil: number): string {
+  if (daysUntil === 0) return "due today";
+  if (daysUntil === 1) return "due tomorrow";
+  if (daysUntil > 1) return `due in ${daysUntil} days`;
+  return "overdue";
 }

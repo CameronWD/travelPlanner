@@ -15,6 +15,17 @@ describe("PrivacyPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses the Playground legal layout", async () => {
+    const { container } = render(await PrivacyPage());
+    expect(container.querySelector("[data-legal-page]")).not.toBeNull();
+    // Exact name, not a /teepee/i substring match: the "On this page" contents
+    // column now also links a section titled "What Teepee collects", which
+    // would otherwise make this query ambiguous.
+    expect(
+      screen.getByRole("link", { name: "Teepee sign in" }),
+    ).toHaveAttribute("href", "/signin");
+  });
+
   it("names the third parties data is shared with", async () => {
     render(await PrivacyPage());
     expect(screen.getAllByText(/Google/).length).toBeGreaterThan(0);

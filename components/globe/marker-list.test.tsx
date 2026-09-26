@@ -71,6 +71,19 @@ describe("MarkerList", () => {
     expect(screen.getByText(/no markers yet/i)).toBeInTheDocument();
   });
 
+  it("the empty state is the kit EmptyState (heading + drop-a-marker hint)", () => {
+    render(<MarkerList markers={[]} {...defaultListProps} />);
+    expect(screen.getByRole("heading", { name: "No markers yet" })).toBeInTheDocument();
+    expect(screen.getByText(/tap the map to drop one/i)).toBeInTheDocument();
+  });
+
+  it("rows are kit list rows with named edit/delete actions", () => {
+    render(<MarkerList markers={markers} {...defaultListProps} />);
+    expect(screen.getByTestId("marker-row-1")).toHaveAttribute("data-slot", "list-row");
+    expect(screen.getByRole("button", { name: "Edit Eiffel Tower" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete Eiffel Tower" })).toBeInTheDocument();
+  });
+
   it("selects on row click, and edit/delete are separate buttons", async () => {
     const user = userEvent.setup();
     const onSelect = vi.fn(), onEdit = vi.fn(), onDelete = vi.fn();
@@ -127,6 +140,20 @@ describe("MarkerList", () => {
     );
     const rowButton = screen.getByTestId("marker-row-m1");
     expect(rowButton).toHaveAttribute("aria-current", "true");
+  });
+
+  it("LA-025: marker rows wrap title and subtitle instead of truncating", () => {
+    const longMarker = [
+      mkMarker({
+        id: "m2",
+        title: "Sahara overnight camp",
+        city: "Merzouga",
+        country: "Morocco",
+        category: "ACTIVITY",
+      }),
+    ];
+    render(<MarkerList markers={longMarker} {...defaultListProps} />);
+    expect(screen.getByText(/Sahara overnight/).className).not.toContain("truncate");
   });
 
   it("renders a paperclip badge with the attachment count when globeId and attachmentsByMarkerId are provided", () => {

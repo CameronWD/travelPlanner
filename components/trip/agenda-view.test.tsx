@@ -21,6 +21,9 @@ vi.mock("@/server/actions/items", () => ({
   scheduleItem: vi.fn(),
   rescheduleItem: vi.fn(),
 }));
+// Timeline imports the day page's DayEntryLink (edit dialogs → server actions
+// → db). The Agenda never passes an editor, so it is never rendered here.
+vi.mock("@/components/trip/day-entry-link", () => ({ DayEntryLink: () => null }));
 
 import { AgendaView } from "./agenda-view";
 import type { DayPlan } from "@/lib/itinerary";
@@ -45,6 +48,15 @@ function makeDayPlan(dateISO: string): DayPlan {
     accommodationEntries: [],
   };
 }
+
+const DAYS = [makeDayPlan("2026-07-01")];
+
+describe("AgendaView — reading width (Task 9)", () => {
+  it("centres the day cards at the Day page's reading width", () => {
+    const { container } = render(<AgendaView tripId="t1" days={DAYS} todayISO="2026-07-01" />);
+    expect(container.firstElementChild).toHaveClass("mx-auto", "max-w-3xl");
+  });
+});
 
 describe("AgendaView — today marker", () => {
   it("marks today's date section with aria-current='date'", () => {
@@ -74,5 +86,75 @@ describe("AgendaView — today marker", () => {
     const twoDays = [makeDayPlan("2026-07-13"), makeDayPlan("2026-07-14")];
     render(<AgendaView tripId="t1" days={twoDays} todayISO={twoDays[1].dateISO} />);
     expect(screen.getByText("Today")).toBeInTheDocument();
+  });
+});
+
+describe("AgendaView — kit day cards (Task 12b)", () => {
+  function withItem(dateISO: string): DayPlan {
+    return {
+      ...makeDayPlan(dateISO),
+      timedItems: [
+        {
+          kind: "item",
+          item: { id: "i1", title: "Louvre", category: "SIGHTSEEING", date: dateISO, startTime: "09:00", endTime: null, stopId: "s1" },
+        },
+      ],
+    } as DayPlan;
+  }
+
+  it("each day is a kit Card (2px outline + hard shadow), not a divided list", () => {
+    const { container } = render(<AgendaView tripId="t1" days={[makeDayPlan("2026-07-13"), makeDayPlan("2026-07-15")]} todayISO={FIXED_TODAY} />);
+    const sections = container.querySelectorAll("section");
+    expect(sections).toHaveLength(2);
+    for (const s of Array.from(sections)) {
+      expect(s.className).toMatch(/\bborder-2\b/);
+      expect(s.className).toMatch(/\bshadow-hard-\d\b/);
+    }
+    expect(container.innerHTML).not.toMatch(/divide-y|bg-primary\/5/);
+  });
+
+  it("the day heading links to the Day page and is named with the date", () => {
+    render(<AgendaView tripId="t1" days={[makeDayPlan("2026-07-13")]} todayISO={FIXED_TODAY} />);
+    const link = screen.getByRole("link", { name: /Mon 13 Jul 2026/ });
+    expect(link).toHaveAttribute("href", "/trips/t1/day/2026-07-13");
+    expect(screen.getByRole("heading", { name: /Mon 13 Jul 2026/ })).toBeInTheDocument();
+  });
+
+  it("today's card is lifted and carries the Today sticker", () => {
+    const { container } = render(<AgendaView tripId="t1" days={[makeDayPlan(FIXED_TODAY)]} todayISO={FIXED_TODAY} />);
+    const today = container.querySelector("section[aria-current='date']")!;
+    expect(today.className).toMatch(/\bshadow-hard-3\b/);
+    expect(screen.getByText("Today").className).toMatch(/\bborder-2\b/);
+  });
+
+  it("a travel day carries the Travel day chip as a sticker", () => {
+    const day = {
+      ...makeDayPlan("2026-07-13"),
+      transportEntries: [
+        {
+          kind: "transport-departure",
+          transport: { id: "t1", mode: "TRAIN", fromStopId: null, toStopId: null, depPlace: "Paris", arrPlace: "Lyon", depAt: null, arrAt: null, reference: null, notes: null },
+          depTimeLabel: "08:00",
+          arrTimeLabel: null,
+          arrivesSameDay: true,
+          arrivalDateISO: null,
+        },
+      ],
+    } as unknown as DayPlan;
+    render(<AgendaView tripId="t1" days={[day]} todayISO={FIXED_TODAY} />);
+    expect(screen.getByText("Travel day")).toBeInTheDocument();
+  });
+
+  it("a day's plan uses the kit Days rows (as on the Day page)", () => {
+    const { container } = render(<AgendaView tripId="t1" days={[withItem("2026-07-13")]} todayISO={FIXED_TODAY} />);
+    expect(container.querySelectorAll("[data-timeline-row]").length).toBe(1);
+    expect(screen.getByText("Louvre")).toBeInTheDocument();
+    // Read-only overview: no Unschedule control here.
+    expect(screen.queryByRole("button", { name: /unschedule/i })).not.toBeInTheDocument();
+  });
+
+  it("an empty day keeps a quiet one-liner", () => {
+    render(<AgendaView tripId="t1" days={[makeDayPlan("2026-07-13")]} todayISO={FIXED_TODAY} />);
+    expect(screen.getByText("Nothing planned.")).toBeInTheDocument();
   });
 });

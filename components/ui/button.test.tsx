@@ -23,14 +23,14 @@ describe("Button", () => {
   it("applies the outline variant", () => {
     render(<Button variant="outline">Outline</Button>);
     const btn = screen.getByRole("button");
-    expect(btn).toHaveClass("border-[1.5px]");
-    expect(btn).toHaveClass("bg-background");
+    expect(btn).toHaveClass("border-2");
+    expect(btn).toHaveClass("bg-transparent");
   });
 
-  it("applies a 1.5px border to the outline variant", () => {
+  it("applies a 2px border, the Playground outline weight", () => {
     render(<Button variant="outline">Outline</Button>);
     const btn = screen.getByRole("button");
-    expect(btn).toHaveClass("border-[1.5px]");
+    expect(btn).toHaveClass("border-2");
   });
 
   it("applies size classes", () => {
@@ -38,7 +38,7 @@ describe("Button", () => {
     expect(screen.getByRole("button")).toHaveClass("h-9");
 
     rerender(<Button size="lg">Large</Button>);
-    expect(screen.getByRole("button")).toHaveClass("h-12");
+    expect(screen.getByRole("button")).toHaveClass("h-[52px]");
 
     rerender(<Button size="icon">Icon</Button>);
     expect(screen.getByRole("button")).toHaveClass("size-11");
@@ -57,9 +57,9 @@ describe("Button", () => {
     expect(screen.queryByTestId("button-spinner")).not.toBeInTheDocument();
   });
 
-  it("includes press-feedback scale on the base, gated by motion-safe", () => {
+  it("carries the pressable utility, which owns hover-lift and press physics", () => {
     render(<Button>Press me</Button>);
-    expect(screen.getByRole("button")).toHaveClass("motion-safe:active:scale-[0.98]");
+    expect(screen.getByRole("button")).toHaveClass("pressable");
   });
 
   it("renders as a child element via asChild", () => {
@@ -91,8 +91,40 @@ describe("Button", () => {
     expect(screen.getByRole("button", { name: "Go" }).className).toContain("rounded-full");
   });
 
-  it("defaults to the rounded-md shape", () => {
+  it("defaults to the rounded-full shape", () => {
     render(<Button>Plain</Button>);
-    expect(screen.getByRole("button", { name: "Plain" }).className).toContain("rounded-md");
+    expect(screen.getByRole("button", { name: "Plain" }).className).toContain("rounded-full");
+  });
+
+  it("lets a caller's own gap override reach the flex container via gap-[inherit]", () => {
+    render(<Button className="gap-1">x</Button>);
+    const btn = screen.getByRole("button", { name: "x" });
+    expect(btn).toHaveClass("gap-1");
+    const wrapper = screen.getByText("x");
+    expect(wrapper).toHaveClass("gap-[inherit]");
+  });
+
+  it("keeps its label in flow (invisible) while loading, so the width never changes", () => {
+    render(<Button loading>Send</Button>);
+    const label = screen.getByText("Send");
+    expect(label).toBeInTheDocument();
+    expect(label).toHaveClass("inline-flex");
+    expect(label).toHaveClass("opacity-0");
+    expect(label).not.toHaveClass("contents");
+    const spinner = screen.getByTestId("button-spinner");
+    expect(spinner.parentElement).toHaveClass("absolute");
+    expect(screen.getByRole("button")).toHaveClass("relative");
+    expect(screen.getByRole("button", { name: "Send" })).toBeInTheDocument();
+  });
+
+  it("does not wrap the child of an asChild button (Slot needs exactly one child)", () => {
+    render(
+      <Button asChild loading>
+        <a href="/x">Go</a>
+      </Button>,
+    );
+    const link = screen.getByRole("link", { name: "Go" });
+    expect(link.querySelector("span")).toBeNull();
+    expect(screen.queryByTestId("button-spinner")).toBeNull();
   });
 });

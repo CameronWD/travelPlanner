@@ -169,7 +169,7 @@ export function InvitePanel({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-8 text-destructive hover:bg-destructive/5"
+                  className="tap-target size-8 text-destructive hover:bg-destructive/5"
                   onClick={() => handleRemove(m)}
                   disabled={removingUserId === m.userId}
                   aria-label={`Remove ${label} from this trip`}
@@ -200,7 +200,7 @@ export function InvitePanel({
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="size-8"
+                  className="tap-target size-8"
                   onClick={() => handleCancel(invite.id)}
                   disabled={cancelPending}
                   aria-label={`Cancel invite for ${invite.email}`}
@@ -217,7 +217,7 @@ export function InvitePanel({
       {canInvite && (
         <div>
           <h4 className="mb-1 text-sm font-medium text-foreground">Add a Traveller by email</h4>
-          <p className="mb-3 text-xs text-muted-foreground">
+          <p className="mb-3 max-w-reading text-xs text-muted-foreground">
             No email is sent. An Invite is created here, and access activates automatically the
             next time that person signs in with the matching email address.
           </p>
@@ -248,7 +248,7 @@ export function InvitePanel({
             </Button>
           </form>
           {inviteSuccess && (
-            <p role="status" className="mt-2 text-sm text-success">
+            <p role="status" className="mt-2 text-sm text-teal-text">
               Invite created — no email was sent. They&apos;ll join automatically the next time they sign in.
             </p>
           )}
@@ -260,7 +260,7 @@ export function InvitePanel({
           rather than pointed at a hand-over feature that does not exist. */}
       <div className="border-t border-border pt-4">
         {viewerIsOwner ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="max-w-reading text-xs text-muted-foreground">
             As the owner, you can&apos;t leave this trip — the Owner role can&apos;t be transferred
             to another Traveller yet.
           </p>

@@ -4,6 +4,8 @@ import * as React from "react";
 import { useTransition } from "react";
 import { BookmarkPlus, FolderOpen, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cardVariants } from "@/components/ui/card";
+import { cn } from "@/lib/cn";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
@@ -214,8 +216,13 @@ export function PackingTemplatesBar({
         }}
       />
 
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <div
+        className={cn(
+          cardVariants({ dashed: true }),
+          "flex flex-wrap items-center gap-2 p-3.5 sm:p-[18px]",
+        )}
+      >
+        <span className="text-label mr-1 w-full text-muted-foreground sm:w-auto">
           Templates
         </span>
 
@@ -224,8 +231,7 @@ export function PackingTemplatesBar({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
-                variant="outline"
-                size="sm"
+                variant="secondary"
                 loading={applyPending}
                 disabled={applyPending}
               >
@@ -251,7 +257,7 @@ export function PackingTemplatesBar({
                     type="button"
                     onClick={() => setDeleteTarget(t)}
                     aria-label={`Delete Template ${t.name}`}
-                    className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                    className="relative grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-ring pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
                   >
                     <Trash2 className="size-3.5" aria-hidden="true" />
                   </button>
@@ -263,8 +269,7 @@ export function PackingTemplatesBar({
 
         {/* Save current as template */}
         <Button
-          variant="outline"
-          size="sm"
+          variant="secondary"
           onClick={() => setSaveOpen(true)}
         >
           <BookmarkPlus className="size-4" aria-hidden="true" />
@@ -272,7 +277,7 @@ export function PackingTemplatesBar({
         </Button>
 
         {templates.length === 0 && (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs font-semibold text-muted-foreground">
             No templates yet — save your packing list to reuse it on future trips.
           </span>
         )}

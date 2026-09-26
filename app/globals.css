@@ -1,7 +1,18 @@
 @import "tailwindcss";
 
+/*
+ * design_handoff/ is committed reference material, not application code, but
+ * Tailwind v4 auto-discovers content and only skips gitignored paths — so
+ * without this it scans 300+ reference files and ships their utilities.
+ * Note this does not fully isolate us: the scanner reads prose too, so a class
+ * name written in any committed comment or doc stays in the bundle regardless.
+ */
+@source not "../design_handoff";
+
+/* Teepee · Playground. Generated from the design system (tokens/colors.css). */
 /* Class-based dark mode (Tailwind v4) */
-@custom-variant dark (&:where(.dark, .dark *));
+/* …except inside a forced-light subtree ([data-theme="light"], see the tokens below). */
+@custom-variant dark (&:where(.dark, .dark *):not(:where([data-theme="light"], [data-theme="light"] *)));
 
 /* ---------------------------------------------------------------------------
    Leaflet stacking-context containment
@@ -18,95 +29,212 @@
   isolation: isolate;
 }
 
+/* Kit popup shell for maps that opt in via bindPopup(html, { className: "tp-map-popup" })
+   (the Globe). Leaflet's default is a white card with a soft grey shadow in both themes;
+   this gives it the card surface, 2px ink outline and hard shadow, so it follows dark mode. */
+.tp-map-popup .leaflet-popup-content-wrapper,
+.tp-map-popup .leaflet-popup-tip {
+  background: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  border: 2px solid hsl(var(--border));
+  box-shadow: var(--shadow-1);
+}
+.tp-map-popup .leaflet-popup-content-wrapper {
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+}
+.tp-map-popup .leaflet-popup-content {
+  margin: 12px 24px 12px 16px; /* 24px right clears the close × */
+  font-size: 13px;
+}
+/* .leaflet-container prefix: leaflet.css (loaded later, with the map chunk) styles the close
+   button at the same specificity, so ours must be one class stronger to win. */
+.leaflet-container .tp-map-popup a.leaflet-popup-close-button {
+  color: hsl(var(--muted-foreground));
+}
+.leaflet-container .tp-map-popup a.leaflet-popup-close-button:hover,
+.leaflet-container .tp-map-popup a.leaflet-popup-close-button:focus {
+  color: hsl(var(--foreground));
+}
+
+/* Kit zoom control for maps whose frame carries .tp-map (the Globe): Leaflet's default is a
+   white box with a grey outline in both themes. 44px buttons, 2px ink outline, hard shadow. */
+.tp-map.leaflet-container .leaflet-bar {
+  border: 2px solid hsl(var(--border));
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+.tp-map.leaflet-container .leaflet-bar a,
+.tp-map.leaflet-container .leaflet-bar a:hover {
+  width: 44px;
+  height: 44px;
+  line-height: 44px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  border-bottom: 2px solid hsl(var(--border));
+  font-weight: 800;
+}
+.tp-map.leaflet-container .leaflet-bar a:hover { background: hsl(var(--muted)); }
+.tp-map.leaflet-container .leaflet-bar a:last-child { border-bottom: none; }
+.tp-map.leaflet-container .leaflet-bar a.leaflet-disabled { color: hsl(var(--muted-foreground)); background: hsl(var(--card)); }
+.tp-map.leaflet-container .leaflet-bar a:focus-visible { outline: 3px solid hsl(var(--ring)); outline-offset: -3px; }
+
 /* ---------------------------------------------------------------------------
-   Design tokens — warm & playful
-   Light + dark, expressed as HSL channels so utilities can apply opacity
-   (e.g. bg-success/10). Consumed via the @theme inline mapping below.
+   Design tokens. HSL channels (same convention as before) so bg-coral/20 etc. work.
+   Names kept from shadcn so existing components re-skin with no API change.
+   New: coral/sun/teal/lilac (+ -text for text on neutral surfaces), on-accent,
+   border-soft, canvas, hard shadows.
+   `[data-theme="light"]` re-declares the light palette on a subtree, so a page
+   that must stay light (the signed-out landing, app/landing/landing.tsx) wins
+   over `.dark` on <html>: custom properties inherit from the nearest element
+   that declares them.
 --------------------------------------------------------------------------- */
+[data-theme="light"],
 :root {
-  --background: 36 40% 97%;
-  --foreground: 24 14% 15%;
+  --background: 40 100% 98%; /* #FFFBF3 */
+  --foreground: 60 4% 11%; /* #1D1D1B */
+  --card: 0 0% 100%; /* #FFFFFF */
+  --card-foreground: 60 4% 11%; /* #1D1D1B */
+  --popover: 0 0% 100%; /* #FFFFFF */
+  --popover-foreground: 60 4% 11%; /* #1D1D1B */
+  --muted: 37 33% 91%; /* #EFE9DF */
+  --muted-foreground: 33 5% 40%; /* #6B6660 */
+  --border: 60 4% 11%; /* #1D1D1B */
+  --border-soft: 40 12% 76%; /* #C9C4BA */
+  --input: 60 4% 11%; /* #1D1D1B */
+  --ring: 60 4% 11%; /* #1D1D1B */
+  --primary: 60 4% 11%; /* #1D1D1B */
+  --primary-foreground: 40 100% 98%; /* #FFFBF3 */
+  --secondary: 0 0% 100%; /* #FFFFFF */
+  --secondary-foreground: 60 4% 11%; /* #1D1D1B */
+  --accent: 11 100% 65%; /* #FF6B4A */
+  --accent-foreground: 60 4% 11%; /* #1D1D1B */
+  --success: 179 44% 55%; /* #5BC0BE */
+  --success-foreground: 60 4% 11%; /* #1D1D1B */
+  --warning: 42 100% 70%; /* #FFD166 */
+  --warning-foreground: 60 4% 11%; /* #1D1D1B */
+  --destructive: 11 73% 42%; /* #B8391D */
+  --destructive-foreground: 0 0% 100%; /* #FFFFFF */
+  --over: 11 73% 42%; /* #B8391D */
+  --over-foreground: 0 0% 100%; /* #FFFFFF */
+  --coral: 11 100% 65%; /* #FF6B4A */
+  --sun: 42 100% 70%; /* #FFD166 */
+  --teal: 179 44% 55%; /* #5BC0BE */
+  --lilac: 264 100% 82%; /* #C7A2FF */
+  --coral-text: 11 73% 42%; /* #B8391D */
+  --sun-text: 43 79% 28%; /* #80600F */
+  --teal-text: 179 60% 27%; /* #1C706E */
+  --lilac-text: 262 47% 49%; /* #6D43B8 */
 
-  --card: 0 0% 100%;
-  --card-foreground: 24 14% 15%;
+  /* Categorical hue ramp: 8 hues + stone. Shared by item categories (lib/categories.ts) and chapter colours (lib/chapter-colours.ts).
+     fill = chip/pin/band fill, always with ink text + 2px ink outline. -text = the hue as text/icon on paper or card (>= 4.8:1). */
+  --hue-sky: 197 84% 75%; /* #8AD6F5 */
+  --hue-sky-text: 195 70% 35%; /* #1B7998 */
+  --hue-sun: 42 100% 70%; /* #FFD166 */
+  --hue-sun-text: 43 79% 28%; /* #80600F */
+  --hue-leaf: 88 59% 63%; /* #A6D96A */
+  --hue-leaf-text: 82 78% 27%; /* #527A0F */
+  --hue-lilac: 264 100% 82%; /* #C7A2FF */
+  --hue-lilac-text: 262 47% 49%; /* #6D43B8 */
+  --hue-pink: 336 100% 81%; /* #FF9EC4 */
+  --hue-pink-text: 335 37% 50%; /* #AD5077 */
+  --hue-teal: 179 44% 55%; /* #5BC0BE */
+  --hue-teal-text: 179 60% 27%; /* #1C706E */
+  --hue-coral: 11 100% 65%; /* #FF6B4A */
+  --hue-coral-text: 11 73% 42%; /* #B8391D */
+  --hue-indigo: 230 100% 75%; /* #7F94FF */
+  --hue-indigo-text: 232 58% 58%; /* #5566D2 */
+  --hue-stone: 39 20% 80%; /* #D6CFC2 */
+  --hue-stone-text: 39 21% 40%; /* #7C6D51 */
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 24 14% 15%;
+  --on-accent: 60 4% 11%; /* #1D1D1B */
+  --on-accent-muted: 34 8% 17%; /* #302D29 */
+  --canvas: 37 33% 91%; /* #EFE9DF */
+  --shadow-ink: 60 4% 11%; /* #1D1D1B */
 
-  --muted: 32 26% 93%;
-  --muted-foreground: 28 8% 42%;
+  --radius: 1.25rem; /* cards 20 · md 14 · sm 10 */
+  --border-w: 2px;
 
-  --border: 30 20% 87%;
-  --input: 30 20% 87%;
-  --ring: 12 84% 60%;
+  /* Hard offset shadows, no blur */
+  --shadow-1: 3px 3px 0 hsl(var(--shadow-ink));
+  --shadow-2: 4px 4px 0 hsl(var(--shadow-ink));
+  --shadow-3: 5px 5px 0 hsl(var(--shadow-ink));
+  --shadow-4: 6px 6px 0 hsl(var(--shadow-ink));
+  --shadow-5: 8px 8px 0 hsl(var(--shadow-ink));
+  --shadow-pressed: 1px 1px 0 hsl(var(--shadow-ink));
+  --shadow-cta: 4px 4px 0 hsl(var(--coral));
+  /* Legacy names → hard shadows, so existing shadow-soft usages restyle for free */
+  --shadow-soft: var(--shadow-2);
+  --shadow-soft-lg: var(--shadow-4);
 
-  --primary: 12 84% 60%;
-  --primary-foreground: 0 0% 100%;
-
-  --secondary: 32 32% 92%;
-  --secondary-foreground: 24 14% 18%;
-
-  --accent: 174 60% 38%;
-  --accent-foreground: 0 0% 100%;
-
-  --success: 152 52% 40%;
-  --success-foreground: 0 0% 100%;
-  --warning: 35 92% 52%;
-  --warning-foreground: 24 14% 15%;
-  --destructive: 2 75% 55%;
-  --destructive-foreground: 0 0% 100%;
-  --over: 350 78% 50%;
-  --over-foreground: 0 0% 100%;
-
-  --radius: 1rem;
-
-  /* Soft, slightly warm-tinted shadows */
-  --shadow-soft: 0 1px 2px hsl(24 30% 20% / 0.04),
-    0 4px 12px hsl(24 30% 20% / 0.06);
-  --shadow-soft-lg: 0 2px 6px hsl(24 30% 20% / 0.06),
-    0 12px 32px hsl(24 30% 20% / 0.10);
+  /* Motion */
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 320ms;
+  --dur-exit: 200ms;
 }
 
 .dark {
-  --background: 24 14% 9%;
-  --foreground: 36 30% 92%;
+  --background: 40 10% 12%; /* #211F1B */
+  --foreground: 40 37% 89%; /* #EDE6D8 */
+  --card: 38 10% 16%; /* #2C2924 */
+  --card-foreground: 40 37% 89%; /* #EDE6D8 */
+  --popover: 38 10% 16%; /* #2C2924 */
+  --popover-foreground: 40 37% 89%; /* #EDE6D8 */
+  --muted: 40 9% 20%; /* #37342E */
+  --muted-foreground: 38 11% 62%; /* #A9A193 */
+  --border: 39 8% 33%; /* #5A554C */
+  --border-soft: 38 8% 27%; /* #4A463F */
+  --input: 39 8% 47%; /* #827B6E */
+  --ring: 40 37% 89%; /* #EDE6D8 */
+  --primary: 40 37% 89%; /* #EDE6D8 */
+  --primary-foreground: 40 10% 12%; /* #211F1B */
+  --secondary: 38 10% 16%; /* #2C2924 */
+  --secondary-foreground: 40 37% 89%; /* #EDE6D8 */
+  --accent: 13 73% 67%; /* #E8866C */
+  --accent-foreground: 36 10% 10%; /* #1C1A17 */
+  --success: 177 34% 58%; /* #6FB8B4 */
+  --success-foreground: 36 10% 10%; /* #1C1A17 */
+  --warning: 42 68% 69%; /* #E6C57A */
+  --warning-foreground: 36 10% 10%; /* #1C1A17 */
+  --destructive: 13 73% 67%; /* #E8866C */
+  --destructive-foreground: 36 10% 10%; /* #1C1A17 */
+  --over: 13 73% 67%; /* #E8866C */
+  --over-foreground: 36 10% 10%; /* #1C1A17 */
+  --coral: 13 73% 67%; /* #E8866C */
+  --sun: 42 68% 69%; /* #E6C57A */
+  --teal: 177 34% 58%; /* #6FB8B4 */
+  --lilac: 259 53% 76%; /* #B5A0E2 */
+  --coral-text: 13 73% 67%; /* #E8866C */
+  --sun-text: 42 68% 69%; /* #E6C57A */
+  --teal-text: 177 34% 58%; /* #6FB8B4 */
+  --lilac-text: 259 53% 76%; /* #B5A0E2 */
 
-  --card: 24 12% 13%;
-  --card-foreground: 36 30% 92%;
+  /* Hue ramp, dark: fills desaturated to carry dark ink; -text = fill (>= 4.9:1 on card). */
+  --hue-sky: 198 47% 69%; /* #8CC0D6 */
+  --hue-sky-text: 198 47% 69%; /* #8CC0D6 */
+  --hue-sun: 42 68% 69%; /* #E6C57A */
+  --hue-sun-text: 42 68% 69%; /* #E6C57A */
+  --hue-leaf: 89 39% 63%; /* #A1C57A */
+  --hue-leaf-text: 89 39% 63%; /* #A1C57A */
+  --hue-lilac: 259 53% 76%; /* #B5A0E2 */
+  --hue-lilac-text: 259 53% 76%; /* #B5A0E2 */
+  --hue-pink: 338 58% 76%; /* #E6A0BA */
+  --hue-pink-text: 338 58% 76%; /* #E6A0BA */
+  --hue-teal: 177 34% 58%; /* #6FB8B4 */
+  --hue-teal-text: 177 34% 58%; /* #6FB8B4 */
+  --hue-coral: 13 73% 67%; /* #E8866C */
+  --hue-coral-text: 13 73% 67%; /* #E8866C */
+  --hue-indigo: 229 58% 69%; /* #8192DE */
+  --hue-indigo-text: 229 58% 69%; /* #8192DE */
+  --hue-stone: 39 9% 71%; /* #BCB7AE */
+  --hue-stone-text: 39 9% 71%; /* #BCB7AE */
 
-  --popover: 24 12% 13%;
-  --popover-foreground: 36 30% 92%;
-
-  --muted: 24 10% 18%;
-  --muted-foreground: 30 10% 64%;
-
-  --border: 24 10% 22%;
-  --input: 24 10% 22%;
-  --ring: 12 84% 63%;
-
-  --primary: 12 84% 63%;
-  --primary-foreground: 24 14% 10%;
-
-  --secondary: 24 10% 26%;
-  --secondary-foreground: 36 30% 92%;
-
-  --accent: 174 52% 46%;
-  --accent-foreground: 24 14% 10%;
-
-  --success: 152 48% 50%;
-  --success-foreground: 24 14% 10%;
-  --warning: 35 90% 60%;
-  --warning-foreground: 24 14% 10%;
-  --destructive: 2 72% 58%;
-  --destructive-foreground: 0 0% 100%;
-  --over: 350 80% 62%;
-  --over-foreground: 24 14% 10%;
-
-  /* Deeper shadows on dark surfaces */
-  --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.30),
-    0 4px 12px hsl(0 0% 0% / 0.36);
-  --shadow-soft-lg: 0 2px 6px hsl(0 0% 0% / 0.36),
-    0 12px 32px hsl(0 0% 0% / 0.48);
+  --on-accent: 36 10% 10%; /* #1C1A17 */
+  --on-accent-muted: 38 10% 21%; /* #3A362F */
+  --canvas: 36 12% 8%; /* #181613 */
+  --shadow-ink: 40 13% 5%; /* #0D0C0A */
 }
 
 /*
@@ -116,40 +244,33 @@
  * the toast viewport (components/ui/toast.tsx), and the trip layout's bottom
  * padding (app/(app)/trips/[tripId]/layout.tsx). Change it here and all four
  * move together.
+ *
+ * 4.75rem = the Playground TabBar's 10 + 44 + 22 px (top padding + h-11 tab +
+ * bottom padding) — see docs/adr/0060-playground-visual-system.md.
  */
 :root {
-  --tp-tab-bar-h: 4rem;
+  --tp-tab-bar-h: 4.75rem;
 }
 
-/* ---------------------------------------------------------------------------
-   Map tokens into Tailwind v4's theme so utilities resolve.
---------------------------------------------------------------------------- */
 @theme inline {
   --color-background: hsl(var(--background));
   --color-foreground: hsl(var(--foreground));
-
   --color-card: hsl(var(--card));
   --color-card-foreground: hsl(var(--card-foreground));
-
   --color-popover: hsl(var(--popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
-
   --color-muted: hsl(var(--muted));
   --color-muted-foreground: hsl(var(--muted-foreground));
-
   --color-border: hsl(var(--border));
+  --color-border-soft: hsl(var(--border-soft));
   --color-input: hsl(var(--input));
   --color-ring: hsl(var(--ring));
-
   --color-primary: hsl(var(--primary));
   --color-primary-foreground: hsl(var(--primary-foreground));
-
   --color-secondary: hsl(var(--secondary));
   --color-secondary-foreground: hsl(var(--secondary-foreground));
-
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
-
   --color-success: hsl(var(--success));
   --color-success-foreground: hsl(var(--success-foreground));
   --color-warning: hsl(var(--warning));
@@ -158,118 +279,179 @@
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-over: hsl(var(--over));
   --color-over-foreground: hsl(var(--over-foreground));
+  --color-coral: hsl(var(--coral));
+  --color-sun: hsl(var(--sun));
+  --color-teal: hsl(var(--teal));
+  --color-lilac: hsl(var(--lilac));
+  --color-coral-text: hsl(var(--coral-text));
+  --color-sun-text: hsl(var(--sun-text));
+  --color-teal-text: hsl(var(--teal-text));
+  --color-lilac-text: hsl(var(--lilac-text));
 
-  /* Fonts (provided by next/font in app/layout.tsx) */
+  /* Hue ramp: bg-hue-sky, text-hue-sky-text, border-hue-sky, bg-hue-sky/25 … */
+  --color-hue-sky: hsl(var(--hue-sky));
+  --color-hue-sky-text: hsl(var(--hue-sky-text));
+  --color-hue-sun: hsl(var(--hue-sun));
+  --color-hue-sun-text: hsl(var(--hue-sun-text));
+  --color-hue-leaf: hsl(var(--hue-leaf));
+  --color-hue-leaf-text: hsl(var(--hue-leaf-text));
+  --color-hue-lilac: hsl(var(--hue-lilac));
+  --color-hue-lilac-text: hsl(var(--hue-lilac-text));
+  --color-hue-pink: hsl(var(--hue-pink));
+  --color-hue-pink-text: hsl(var(--hue-pink-text));
+  --color-hue-teal: hsl(var(--hue-teal));
+  --color-hue-teal-text: hsl(var(--hue-teal-text));
+  --color-hue-coral: hsl(var(--hue-coral));
+  --color-hue-coral-text: hsl(var(--hue-coral-text));
+  --color-hue-indigo: hsl(var(--hue-indigo));
+  --color-hue-indigo-text: hsl(var(--hue-indigo-text));
+  --color-hue-stone: hsl(var(--hue-stone));
+  --color-hue-stone-text: hsl(var(--hue-stone-text));
+
+  --color-on-accent: hsl(var(--on-accent));
+  --color-on-accent-muted: hsl(var(--on-accent-muted));
+  --color-canvas: hsl(var(--canvas));
+
+  /* Fonts (next/font in app/layout.tsx) */
   --font-sans: var(--font-sans-google), ui-sans-serif, system-ui, sans-serif;
   --font-display: var(--font-display-google), ui-sans-serif, system-ui, sans-serif;
 
-  /* Generous radii */
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 0.35rem);
-  --radius-sm: calc(var(--radius) - 0.6rem);
+  --radius-xl: calc(var(--radius) + 0.25rem); /* 24 hero cards */
+  --radius-2xl: calc(var(--radius) + 0.5rem); /* 28 sheets, frames */
+  --radius-lg: var(--radius);                 /* 20 cards */
+  --radius-md: calc(var(--radius) - 0.375rem); /* 14 inputs, tabs */
+  --radius-sm: calc(var(--radius) - 0.625rem); /* 10 tiles */
 
-  /* Soft shadows as utilities (shadow-soft / shadow-soft-lg) */
+  --shadow-hard-1: var(--shadow-1);
+  --shadow-hard-2: var(--shadow-2);
+  --shadow-hard-3: var(--shadow-3);
+  --shadow-hard-4: var(--shadow-4);
+  --shadow-hard-5: var(--shadow-5);
+  --shadow-pressed: var(--shadow-pressed);
+  --shadow-cta: var(--shadow-cta);
   --shadow-soft: var(--shadow-soft);
   --shadow-soft-lg: var(--shadow-soft-lg);
+
+  --ease-pop: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  /* Shared page widths (ADR 0062, COMPONENTS.md "Page widths"). */
+  --container-page-wide: 100rem;
+  /* LA-051 / diagnosis G: `ch` is the width of the "0" glyph, not an average
+     character — for this body font that gap is large enough that 68ch
+     rendered ~92 real characters per line, well past the ~80-char ceiling.
+     Fix round 1: a fixed `rem` value held the column width steady but not
+     the character count — text set smaller than the root font (e.g. the
+     12px `text-xs` copy on Settings cards) still packed ~100 real
+     characters into that same width. `em` scales the cap with each
+     consuming element's OWN font-size instead of the root's, so the same
+     "38 characters of width" holds roughly steady across text sizes. This
+     only works when `max-w-reading` sits on the same element as the text's
+     font-size class (or inherits it unchanged) — see
+     components/legal/legal-page.tsx's LegalSection, fixed in the same
+     round to stop resolving against its 14px wrapper instead of its own
+     15px prose. */
+  --container-reading: 38em;
+  --container-dialog: 30rem;
+  /* Wide two-column entity dialogs (Item, Transport, Accommodation forms). */
+  --container-dialog-lg: 44rem;
+}
+
+/* Accent "island": anything on a coral/sun/teal/lilac fill re-scopes its text,
+   borders and inner surfaces so they stay ≥ 4.5:1 in both themes.
+   Usage: <Card tone="sun"> applies this; or className="island bg-sun".
+   --primary-foreground: --primary becomes on-accent (always dark ink), so its
+   foreground is pinned to the light-theme --primary-foreground (cream) — a
+   primary Button inside an island stays the kit's ink button with light text
+   in both themes (in dark the global value is dark, which went ink-on-ink). */
+@utility island {
+  --foreground: var(--on-accent);
+  --card-foreground: var(--on-accent);
+  --muted-foreground: var(--on-accent-muted);
+  --border: var(--on-accent);
+  --input: var(--on-accent);
+  --ring: var(--on-accent);
+  --primary: var(--on-accent);
+  --primary-foreground: 40 100% 98%;
+  --card: 40 100% 99% / 0.38;
+  --background: 40 100% 99% / 0.38;
+  color: hsl(var(--on-accent));
+}
+
+/* Press / hover physics for anything with a hard shadow */
+@utility pressable {
+  transition: transform var(--dur-fast) var(--ease-pop), box-shadow var(--dur-fast) var(--ease-pop);
+  @media (hover: hover) {
+    &:hover:not(:disabled) { transform: translate(-1px, -1px); }
+  }
+  &:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: var(--shadow-pressed); }
+}
+
+/* Invisible ≥44×44 hit area around a small control; the control looks the same.
+   Coarse pointers only, so desktop hover targets don't overlap neighbours.
+   See COMPONENTS.md "Tap targets". */
+@utility tap-target {
+  position: relative;
+  &::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 100%;
+    height: 100%;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    transform: translate(-50%, -50%);
+  }
+  @media (pointer: fine) {
+    &::before { content: none; }
+  }
 }
 
 /* ---------------------------------------------------------------------------
-   Animation primitives for Radix overlays (no external plugin).
-   Components apply these via data-[state=open]/closed variants.
+   Motion. See design system specs/motion.html
 --------------------------------------------------------------------------- */
-@keyframes tp-fade-in {
-  from {
-    opacity: 0;
-  }
-}
-@keyframes tp-fade-out {
-  to {
-    opacity: 0;
-  }
-}
-@keyframes tp-zoom-in {
-  from {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-}
-@keyframes tp-zoom-out {
-  to {
-    opacity: 0;
-    transform: scale(0.96);
-  }
-}
-@keyframes tp-slide-up {
-  from {
-    transform: translateY(100%);
-  }
-}
-@keyframes tp-slide-down {
-  to {
-    transform: translateY(100%);
-  }
-}
-@keyframes tp-slide-in-right {
-  from {
-    transform: translateX(100%);
-  }
-}
-@keyframes tp-slide-out-right {
-  to {
-    transform: translateX(100%);
-  }
-}
-@keyframes tp-slide-in-left {
-  from {
-    transform: translateX(-100%);
-  }
-}
-@keyframes tp-slide-out-left {
-  to {
-    transform: translateX(-100%);
-  }
-}
+@keyframes tp-fade-in { from { opacity: 0; } }
+@keyframes tp-fade-out { to { opacity: 0; } }
+@keyframes tp-zoom-in { from { opacity: 0; transform: translateY(16px) scale(0.97); } }
+@keyframes tp-zoom-out { to { opacity: 0; transform: scale(0.97); } }
+@keyframes tp-slide-up { from { transform: translateY(100%); } }
+@keyframes tp-slide-down { to { transform: translateY(100%); } }
+@keyframes tp-slide-in-right { from { transform: translateX(100%); } }
+@keyframes tp-slide-out-right { to { transform: translateX(100%); } }
+@keyframes tp-slide-in-left { from { transform: translateX(-100%); } }
+@keyframes tp-slide-out-left { to { transform: translateX(-100%); } }
+@keyframes tp-toast-in { from { opacity: 0; transform: translateY(24px) scale(0.9); } }
+@keyframes tp-toast-out { to { opacity: 0; transform: translateY(12px); } }
+@keyframes tp-rise-in { from { opacity: 0; transform: translateY(10px); } }
+@keyframes tp-pop { 40% { transform: scale(1.25); } }
+@keyframes tp-wiggle { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+@keyframes tp-pulse { from { opacity: 0.35; } to { opacity: 0.7; } }
 
-@utility tp-fade-in {
-  animation: tp-fade-in 150ms ease-out;
-}
-/* Paced to tp-slide-up (250ms), so a sheet's backdrop and its panel arrive
-   together. tp-fade-in stays at 150ms for dialogs, which have no
-   slide to keep step with. */
-@utility tp-fade-in-sheet {
-  animation: tp-fade-in 250ms ease-out;
-}
-@utility tp-fade-out {
-  animation: tp-fade-out 150ms ease-in;
-}
-@utility tp-pop-in {
-  animation: tp-zoom-in 150ms ease-out;
-}
-@utility tp-pop-out {
-  animation: tp-zoom-out 120ms ease-in;
-}
-@utility tp-slide-up {
-  animation: tp-slide-up 250ms cubic-bezier(0.32, 0.72, 0, 1);
-}
-@utility tp-slide-down {
-  animation: tp-slide-down 200ms ease-in;
-}
-@utility tp-slide-in-right {
-  animation: tp-slide-in-right 250ms cubic-bezier(0.32, 0.72, 0, 1);
-}
-@utility tp-slide-out-right {
-  animation: tp-slide-out-right 200ms ease-in;
-}
-@utility tp-slide-in-left {
-  animation: tp-slide-in-left 250ms cubic-bezier(0.32, 0.72, 0, 1);
-}
-@utility tp-slide-out-left {
-  animation: tp-slide-out-left 200ms ease-in;
-}
+@utility tp-fade-in { animation: tp-fade-in var(--dur-base) linear; }
+/* Paced to tp-slide-up (--dur-slow), so a sheet's backdrop and its panel arrive
+   together. tp-fade-in stays at --dur-base for dialogs, which have no slide
+   to keep step with. */
+@utility tp-fade-in-sheet { animation: tp-fade-in var(--dur-slow) linear; }
+@utility tp-fade-out { animation: tp-fade-out var(--dur-exit) var(--ease-exit); }
+@utility tp-pop-in { animation: tp-zoom-in var(--dur-slow) var(--ease-pop); }
+@utility tp-pop-out { animation: tp-zoom-out var(--dur-exit) var(--ease-exit); }
+@utility tp-slide-up { animation: tp-slide-up var(--dur-slow) var(--ease-pop); }
+@utility tp-slide-down { animation: tp-slide-down var(--dur-exit) var(--ease-exit); }
+@utility tp-slide-in-right { animation: tp-slide-in-right var(--dur-slow) var(--ease-pop); }
+@utility tp-slide-out-right { animation: tp-slide-out-right var(--dur-exit) var(--ease-exit); }
+@utility tp-slide-in-left { animation: tp-slide-in-left var(--dur-slow) var(--ease-pop); }
+@utility tp-slide-out-left { animation: tp-slide-out-left var(--dur-exit) var(--ease-exit); }
+@utility tp-toast-in { animation: tp-toast-in var(--dur-slow) var(--ease-bounce); }
+@utility tp-toast-out { animation: tp-toast-out var(--dur-exit) var(--ease-exit) forwards; }
+@utility tp-rise-in { animation: tp-rise-in var(--dur-slow) var(--ease-pop) both; }
+@utility tp-pop { animation: tp-pop var(--dur-base) var(--ease-bounce); }
+@utility tp-wiggle { animation: tp-wiggle var(--dur-base) var(--ease-pop); }
+@utility tp-pulse { animation: tp-pulse 1.2s ease-in-out infinite alternate; }
 
 /* ---------------------------------------------------------------------------
-   Base styles + typographic scale.
-   Headings use Space Grotesk (display), body uses Plus Jakarta Sans.
+   Base styles + type scale. Display: Bricolage Grotesque 800. Body: Plus Jakarta Sans.
 --------------------------------------------------------------------------- */
 @layer base {
   * {
@@ -280,62 +462,46 @@
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
     font-family: var(--font-sans);
-    line-height: 1.6;
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.4;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
-  h1,
-  h2,
-  h3,
-  h4 {
+  a { color: hsl(var(--foreground)); text-underline-offset: 3px; }
+  a:hover { color: hsl(var(--coral-text)); }
+
+  h1, h2, h3, h4 {
     font-family: var(--font-display);
-    font-weight: 600;
+    font-weight: 800;
     color: hsl(var(--foreground));
+    letter-spacing: -0.03em;
     text-wrap: balance;
   }
+  .text-display { font-family: var(--font-display); font-weight: 800; font-size: clamp(3rem, 5vw + 1rem, 4.75rem); line-height: 0.9; letter-spacing: -0.05em; }
+  h1 { font-size: 2.25rem; line-height: 1; }
+  h2 { font-size: 1.875rem; line-height: 1.05; }
+  h3 { font-size: 1.5rem; line-height: 1.1; }
+  h4 { font-size: 1.125rem; line-height: 1.2; }
+  .text-label { font-size: 11px; font-weight: 700; line-height: 1.2; letter-spacing: 0.08em; text-transform: uppercase; }
 
-  /* Hero / trip titles */
-  .text-display {
-    font-family: var(--font-display);
-    font-weight: 600;
-    font-size: clamp(2.5rem, 5vw + 1rem, 4rem);
-    line-height: 1.05;
-    letter-spacing: -0.02em;
-    font-optical-sizing: auto;
+  /* Keyboard focus: 3px ring, 3px gap */
+  :where(button, a, input, select, textarea, summary, [role="button"], [role="switch"], [role="checkbox"], [role="tab"], [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 3px solid hsl(var(--ring));
+    outline-offset: 3px;
   }
 
-  h1 {
-    font-size: clamp(2rem, 3vw + 1rem, 2.75rem);
-    line-height: 1.1;
-    letter-spacing: -0.02em;
-  }
-
-  h2 {
-    font-size: clamp(1.5rem, 2vw + 0.75rem, 2rem);
-    line-height: 1.2;
-    letter-spacing: -0.015em;
-  }
-
-  h3 {
-    font-size: clamp(1.25rem, 1.5vw + 0.5rem, 1.5rem);
-    line-height: 1.3;
-    letter-spacing: -0.01em;
-  }
-
-  h4 {
-    font-size: 1.125rem;
-    line-height: 1.4;
-  }
-
-  /* Respect reduced-motion preferences across animated primitives. */
   @media (prefers-reduced-motion: reduce) {
-    *,
-    *::before,
-    *::after {
+    :root { --dur-fast: 1ms; --dur-base: 1ms; --dur-slow: 1ms; --dur-exit: 1ms; }
+    *, *::before, *::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
     }
+  }
+  @media (forced-colors: active) {
+    :where(button, [role="button"], [role="switch"], [role="checkbox"]) { border: 2px solid ButtonText; }
   }
 }

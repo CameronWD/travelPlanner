@@ -222,6 +222,20 @@ describe("FeedbackLauncher", () => {
     await waitFor(() => expect(box).toHaveValue(""));
   });
 
+  it("LA-023: sizes the empty log to fill the panel instead of leaving a blank void below it", async () => {
+    listMock.mockResolvedValue({ success: true, notes: [] });
+    const user = userEvent.setup();
+    render(<FeedbackLauncher />);
+
+    await user.click(screen.getByRole("button", { name: /leave feedback/i }));
+
+    const empty = await screen.findByText(/no feedback yet/i);
+    const centred = empty.closest("div")!;
+    expect(centred.className).toContain("flex-1");
+    expect(centred.className).toContain("items-center");
+    expect(centred.className).toContain("justify-center");
+  });
+
   describe("the panel is non-modal from md up, so the page behind it can navigate mid-draft", () => {
     it("files a note against the page where typing began, not the page at send time", async () => {
       const user = userEvent.setup();
@@ -257,7 +271,7 @@ describe("FeedbackLauncher", () => {
       rerender(<FeedbackLauncher />);
 
       expect(
-        await screen.findByText(/You're on Budget/),
+        await screen.findByText(/You're on Money/),
       ).toBeInTheDocument();
     });
 
@@ -274,12 +288,12 @@ describe("FeedbackLauncher", () => {
       rerender(<FeedbackLauncher />);
 
       // The note is frozen to Plan editor and will be filed there, so the
-      // panel must not say "You're on Budget" — that promises the opposite of
+      // panel must not say "You're on Money" — that promises the opposite of
       // what the freeze guarantees.
       expect(
         await screen.findByText(/You're on Plan editor/),
       ).toBeInTheDocument();
-      expect(screen.queryByText(/You're on Budget/)).toBeNull();
+      expect(screen.queryByText(/You're on Money/)).toBeNull();
     });
 
     it("lets the next draft pick up the route after a previous one was sent", async () => {
@@ -301,7 +315,7 @@ describe("FeedbackLauncher", () => {
       await waitFor(() => expect(createMock).toHaveBeenCalledTimes(2));
       const secondInput = createMock.mock.calls[1][0];
       expect(secondInput.route).toBe("/trips/t1/budget");
-      expect(secondInput.pageLabel).toBe("Budget");
+      expect(secondInput.pageLabel).toBe("Money");
     });
   });
 
@@ -897,10 +911,10 @@ describe("FeedbackLauncher", () => {
     await user.click(screen.getByRole("button", { name: /leave feedback/i }));
 
     const done = await screen.findByText("Done");
-    expect(done.className).toContain("bg-success");
+    expect(done.className).toContain("bg-teal");
 
     const wontFix = screen.getByText("Won't fix");
-    expect(wontFix.className).not.toContain("bg-success");
+    expect(wontFix.className).not.toContain("bg-teal");
   });
 
   it("labels a note whose status it does not recognise instead of striking it out silently", async () => {

@@ -118,11 +118,10 @@ describe("public/sw.js — push", () => {
       expect.objectContaining({
         body: "A payment is due tomorrow",
         data: { url: "/trips/t1/budget" },
-        // `/icon` is served by app/manifest.ts (app/icon.tsx) — confirmed
-        // there is no `public/icons/` directory serving anything at all, so
-        // this is the one path that actually resolves.
-        icon: "/icon",
-        badge: "/icon",
+        // Static files under public/icons/, added when the generated `/icon`
+        // route was retired.
+        icon: "/icons/icon-192.png",
+        badge: "/icons/push-badge-96.png",
       }),
     );
   });
@@ -134,7 +133,7 @@ describe("public/sw.js — push", () => {
     dispatch("push", { data: { json: () => ({}) }, waitUntil });
 
     expect(showNotification).toHaveBeenCalledWith(
-      "Trip Planner",
+      "Teepee",
       expect.objectContaining({ body: "", data: { url: "/" } }),
     );
   });

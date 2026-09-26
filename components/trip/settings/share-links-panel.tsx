@@ -164,14 +164,14 @@ function LinkRow({
 
   return (
     <li className="rounded-2xl border border-border p-4 space-y-3">
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate font-medium text-foreground">{link.label}</p>
           <p className="text-xs text-muted-foreground">
             {scopeCaption(link)}
           </p>
         </div>
-        <div className="flex shrink-0 gap-1">
+        <div className="flex flex-wrap justify-end gap-1">
           <Button type="button" variant="ghost" size="sm" onClick={() => setEditing((v) => !v)} disabled={isPending}>
             <Pencil className="size-4" aria-hidden="true" />
             Edit
@@ -269,7 +269,7 @@ export function ShareLinksPanel({
         </Button>
       </div>
 
-      <p className="text-xs text-muted-foreground">
+      <p className="max-w-reading text-xs text-muted-foreground">
         One link per audience — each read-only, each scoped. Costs, notes and
         booking confirmations are never shared, whatever the dials.
       </p>
@@ -302,7 +302,7 @@ export function ShareLinksPanel({
       )}
 
       {links.length === 0 && !creating ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="max-w-reading text-sm text-muted-foreground">
           No share links yet. Create one to give family or friends a read-only
           view of the itinerary.
         </p>

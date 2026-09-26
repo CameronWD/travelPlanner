@@ -5,6 +5,8 @@ import { useTransition } from "react";
 import { AlertCircle } from "lucide-react";
 import { AiSuggestButton } from "./ai-suggest-button";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { aiParseBooking } from "@/server/actions/ai";
 import { MAX_BOOKING_TEXT_CHARS } from "@/lib/ai-limits";
 import type { ParseBookingOutput } from "@/lib/ai";
@@ -55,17 +57,18 @@ export function AiBookingParser({ tripId, aiConfigured }: AiBookingParserProps) 
   return (
     <div className="flex flex-col gap-3">
       <div>
-        <h3 className="font-display text-sm font-semibold text-foreground">
+        <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
           Parse a booking confirmation
         </h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
+        <p className="mt-1 text-[13px] font-medium text-muted-foreground">
           Paste confirmation text and the AI will extract the key details as a draft for you to review.
         </p>
       </div>
 
       <form onSubmit={handleParse} className="flex flex-col gap-2">
-        <textarea
-          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none min-h-[100px] sm:text-sm"
+        <Textarea
+          aria-label="Booking confirmation text"
+          className="min-h-[100px] resize-none"
           placeholder="Paste booking confirmation email or text here…"
           value={text}
           maxLength={MAX_BOOKING_TEXT_CHARS}
@@ -89,61 +92,61 @@ export function AiBookingParser({ tripId, aiConfigured }: AiBookingParserProps) 
       </form>
 
       {error && (
-        <div className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-          <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+        <div role="alert" className="flex items-center gap-2.5 rounded-md border-2 border-destructive bg-card px-3 py-2.5 text-sm font-medium text-foreground">
+          <AlertCircle className="size-[18px] shrink-0 text-destructive" aria-hidden="true" />
           {error}
         </div>
       )}
 
       {parsed && (
-        <div className="rounded-2xl border border-violet-200 bg-violet-50 p-4 dark:border-violet-800 dark:bg-violet-950/30">
-          <p className="text-xs font-medium text-violet-700 dark:text-violet-300 mb-3">
+        <Card tone="lilac" className="p-3.5 sm:p-[18px]">
+          <p className="text-label mb-3">
             Extracted draft — review and add manually
           </p>
 
           {parsed.kind === "unknown" && (
-            <p className="text-sm text-muted-foreground italic">
+            <p className="text-sm font-medium">
               Could not determine the booking type from this text.
             </p>
           )}
 
           {parsed.kind === "transport" && parsed.transport && (
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-              <dt className="font-medium text-muted-foreground">Type</dt>
+              <dt className="font-bold">Type</dt>
               <dd>Transport</dd>
-              <dt className="font-medium text-muted-foreground">Mode</dt>
+              <dt className="font-bold">Mode</dt>
               <dd>{parsed.transport.mode}</dd>
-              <dt className="font-medium text-muted-foreground">From</dt>
+              <dt className="font-bold">From</dt>
               <dd>{parsed.transport.from}</dd>
-              <dt className="font-medium text-muted-foreground">To</dt>
+              <dt className="font-bold">To</dt>
               <dd>{parsed.transport.to}</dd>
-              <dt className="font-medium text-muted-foreground">Departs</dt>
+              <dt className="font-bold">Departs</dt>
               <dd>{parsed.transport.dep}</dd>
-              <dt className="font-medium text-muted-foreground">Arrives</dt>
+              <dt className="font-bold">Arrives</dt>
               <dd>{parsed.transport.arr}</dd>
-              <dt className="font-medium text-muted-foreground">Reference</dt>
+              <dt className="font-bold">Reference</dt>
               <dd>{parsed.transport.reference}</dd>
             </dl>
           )}
 
           {parsed.kind === "accommodation" && parsed.accommodation && (
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
-              <dt className="font-medium text-muted-foreground">Type</dt>
+              <dt className="font-bold">Type</dt>
               <dd>Accommodation</dd>
-              <dt className="font-medium text-muted-foreground">Name</dt>
+              <dt className="font-bold">Name</dt>
               <dd>{parsed.accommodation.name}</dd>
-              <dt className="font-medium text-muted-foreground">Address</dt>
+              <dt className="font-bold">Address</dt>
               <dd>{parsed.accommodation.address}</dd>
-              <dt className="font-medium text-muted-foreground">Check-in</dt>
+              <dt className="font-bold">Check-in</dt>
               <dd>{parsed.accommodation.checkIn}</dd>
-              <dt className="font-medium text-muted-foreground">Check-out</dt>
+              <dt className="font-bold">Check-out</dt>
               <dd>{parsed.accommodation.checkOut}</dd>
-              <dt className="font-medium text-muted-foreground">Confirmation</dt>
+              <dt className="font-bold">Confirmation</dt>
               <dd>{parsed.accommodation.confirmation}</dd>
             </dl>
           )}
 
-          <p className="mt-3 text-xs text-muted-foreground">
+          <p className="mt-3 text-xs font-semibold">
             Use the details above to add the booking manually via the itinerary page.
           </p>
 
@@ -151,12 +154,12 @@ export function AiBookingParser({ tripId, aiConfigured }: AiBookingParserProps) 
             type="button"
             variant="outline"
             size="sm"
-            className="mt-2 text-xs"
+            className="mt-2 bg-card relative pointer-coarse:after:absolute pointer-coarse:after:-inset-y-1 pointer-coarse:after:inset-x-0 pointer-coarse:after:content-['']"
             onClick={() => { setParsed(null); setText(""); }}
           >
             Clear
           </Button>
-        </div>
+        </Card>
       )}
     </div>
   );

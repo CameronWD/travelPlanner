@@ -3,10 +3,8 @@
 import * as React from "react";
 import { useTransition } from "react";
 import {
-  CheckSquare,
-  Square,
-  Trash2,
-  Pencil,
+  Check,
+  Plus,
   ChevronUp,
   ChevronDown,
   CalendarClock,
@@ -34,6 +32,10 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Card, cardVariants } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ProgressBar } from "@/components/ui/progress-bar";
+import { RowActions } from "@/components/ui/row-actions";
 import {
   addChecklistItem,
   updateChecklistItem,
@@ -43,8 +45,6 @@ import {
 } from "@/server/actions/checklists";
 import type { ChecklistKind } from "@/lib/enums";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
-import { motion, useReducedMotion } from "motion/react";
-import { SPRING_POP } from "@/lib/motion";
 import { useDeleteWithConfirm } from "@/components/ui/use-delete-with-confirm";
 
 // ---------------------------------------------------------------------------
@@ -202,71 +202,85 @@ function AddItemForm({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex flex-col gap-3 rounded-2xl border border-dashed border-border/80 bg-muted/40 p-3 sm:flex-row sm:items-end"
-    >
-      <div className="flex-1 min-w-0">
-        <Field label="New item" error={error}>
-          <Input
-            placeholder={
-              kind === "PRETRIP" ? "e.g. Book airport taxi" : "e.g. Sunscreen"
-            }
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={pending}
-          />
-        </Field>
-      </div>
-
-      {showDueDate && (
-        <div className="w-full sm:w-40 shrink-0">
-          <Field label="Due date (optional)">
+    // `@container`: this form now also renders inside a Checklists grid card
+    // (LA-017), which is always narrower than the ~700px this row layout
+    // needs, regardless of viewport — a viewport-based `sm:` broke
+    // (input/date/assignee/button overlapped) whenever the form's own
+    // rendered width, not the viewport, was the narrow one. Querying the
+    // form's own box from this wrapper side-steps that (a container can't
+    // query itself, so the `@min-[700px]:` variants below live one level
+    // down): it stays stacked in a grid card at any desktop width, and still
+    // rows up in the full-width tab panel once there's actually room.
+    <div className="@container">
+      <form
+        onSubmit={handleSubmit}
+        aria-label={kind === "PRETRIP" ? "Add a pre-trip task" : "Add a packing item"}
+        className={cn(
+          cardVariants({ dashed: true }),
+          "flex flex-col gap-3 p-3.5 @min-[700px]:flex-row @min-[700px]:items-end @min-[700px]:p-[18px]",
+        )}
+      >
+        <div className="flex-1 min-w-0">
+          <Field label="New item" error={error}>
             <Input
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
+              placeholder={
+                kind === "PRETRIP" ? "e.g. Book airport taxi" : "e.g. Sunscreen"
+              }
+              value={text}
+              onChange={(e) => setText(e.target.value)}
               disabled={pending}
             />
           </Field>
         </div>
-      )}
 
-      {showAssignee && members && members.length > 0 && (
-        <div className="w-full sm:w-44 shrink-0">
-          <Field label="Assignee (optional)">
-            <Select
-              value={assignedToId}
-              onValueChange={setAssignedToId}
-              disabled={pending}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Anyone" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Anyone</SelectItem>
-                {members.map((m) => (
-                  <SelectItem key={m.id} value={m.id}>
-                    {m.name ?? "Unknown"}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        </div>
-      )}
+        {showDueDate && (
+          <div className="w-full @min-[700px]:w-40 shrink-0">
+            <Field label="Due date (optional)">
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                disabled={pending}
+              />
+            </Field>
+          </div>
+        )}
 
-      <Button
-        type="submit"
-        variant="primary"
-        size="sm"
-        shape="pill"
-        loading={pending}
-        className="shrink-0 self-end sm:self-auto"
-      >
-        Add
-      </Button>
-    </form>
+        {showAssignee && members && members.length > 0 && (
+          <div className="w-full @min-[700px]:w-44 shrink-0">
+            <Field label="Assignee (optional)">
+              <Select
+                value={assignedToId}
+                onValueChange={setAssignedToId}
+                disabled={pending}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Anyone" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Anyone</SelectItem>
+                  {members.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.name ?? "Unknown"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        )}
+
+        <Button
+          type="submit"
+          variant="primary"
+          loading={pending}
+          className="shrink-0 self-end @min-[700px]:self-auto"
+        >
+          <Plus aria-hidden="true" />
+          Add item
+        </Button>
+      </form>
+    </div>
   );
 }
 
@@ -443,7 +457,6 @@ function ChecklistRow({
   showAssignee?: boolean;
   today: string;
 }) {
-  const reduce = useReducedMotion();
   const [pending, startTransition] = useTransition();
   const [editOpen, setEditOpen] = React.useState(false);
   const { requestDelete, isPending: deleteIsPending, dialog: confirmDialog } = useDeleteWithConfirm({
@@ -485,68 +498,45 @@ function ChecklistRow({
       <AnimatedItem
         as="li"
         className={cn(
-          "group flex items-center gap-3 rounded-lg px-3.5 py-3 transition-colors",
-          "hover:bg-muted/40",
+          "group relative flex flex-wrap items-center gap-x-2 border-t border-border-soft first:border-t-0",
           (pending || deleteIsPending) && "opacity-60",
         )}
       >
-        {/* Checkbox */}
-        <button
-          type="button"
-          onClick={toggle}
+        {/* Checkbox primitive: native input, named by the item text; the
+            whole ≥44px label row toggles. */}
+        <Checkbox
+          checked={item.done}
+          onChange={toggle}
           disabled={pending}
-          aria-label={item.done ? "Mark incomplete" : "Mark complete"}
-          className="shrink-0 text-muted-foreground transition-colors hover:text-primary"
-        >
-          <motion.span
-            key={item.done ? "done" : "todo"}
-            initial={reduce ? false : { scale: 0.6 }}
-            animate={{ scale: 1 }}
-            transition={reduce ? { duration: 0 } : SPRING_POP}
-            className="inline-flex"
-          >
-            {item.done ? (
-              <CheckSquare className="size-5 text-primary" aria-hidden="true" />
-            ) : (
-              <Square className="size-5" aria-hidden="true" />
-            )}
-          </motion.span>
-        </button>
-
-        {/* Content */}
-        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-          <span
-            className={cn(
-              "text-sm leading-snug",
-              item.done && "text-muted-foreground line-through",
-            )}
-          >
-            {item.text}
-          </span>
-
-          {/* Due date hint */}
-          {showDueDate && status && (
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 text-xs font-semibold",
-                status.variant === "overdue" && "text-destructive",
-                status.variant === "soon" && "text-amber-700 dark:text-amber-400",
-                status.variant === "normal" && "text-muted-foreground",
+          className="min-w-0 flex-1 py-1 text-sm font-semibold leading-snug"
+          label={
+            <span className="flex min-w-0 flex-col gap-0.5">
+              <span className="break-words">{item.text}</span>
+              {/* Due date hint (never shown on a done item) */}
+              {showDueDate && status && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 text-xs font-semibold",
+                    status.variant === "overdue" && "text-destructive",
+                    status.variant === "soon" && "text-sun-text",
+                    status.variant === "normal" && "text-muted-foreground",
+                  )}
+                >
+                  {status.variant === "overdue" ? (
+                    <AlertTriangle className="size-3" aria-hidden="true" />
+                  ) : status.variant === "soon" ? (
+                    <Clock3 className="size-3" aria-hidden="true" />
+                  ) : (
+                    <CalendarClock className="size-3" aria-hidden="true" />
+                  )}
+                  {status.label}
+                </span>
               )}
-            >
-              {status.variant === "overdue" ? (
-                <AlertTriangle className="size-3" aria-hidden="true" />
-              ) : status.variant === "soon" ? (
-                <Clock3 className="size-3" aria-hidden="true" />
-              ) : (
-                <CalendarClock className="size-3" aria-hidden="true" />
-              )}
-              {status.label}
             </span>
-          )}
-        </div>
+          }
+        />
 
-        {/* Assignee avatar */}
+        {/* Assignee avatar (kit: 24px) */}
         {showAssignee && item.assignedTo && (
           <Avatar
             className="size-6 shrink-0"
@@ -558,24 +548,29 @@ function ChecklistRow({
                 alt={item.assignedTo.name ?? "Member"}
               />
             ) : null}
-            <AvatarFallback className="text-[10px]">
+            <AvatarFallback className="text-[9px]">
               {initials(item.assignedTo.name)}
             </AvatarFallback>
           </Avatar>
         )}
 
-        {/* Actions: visible on hover or focus */}
+        {/* Actions (ours; not in the kit). Mouse: overlaid on the row's right
+            edge on hover/focus, so the label keeps the full width. Touch (no
+            hover): always visible; on phones they drop to their own line so
+            the item text isn't squeezed. */}
         <div
           className={cn(
-            "flex shrink-0 items-center gap-0.5",
-            "opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
+            "flex shrink-0 items-center gap-1",
+            "pointer-fine:absolute pointer-fine:inset-y-0 pointer-fine:right-0 pointer-fine:bg-card pointer-fine:pl-2",
+            "pointer-fine:opacity-0 pointer-fine:transition-opacity pointer-fine:group-hover:opacity-100 pointer-fine:group-focus-within:opacity-100",
+            "pointer-coarse:max-sm:-mt-1 pointer-coarse:max-sm:mb-1 pointer-coarse:max-sm:basis-full pointer-coarse:max-sm:justify-end",
           )}
         >
           <Button
             type="button"
             variant="ghost"
             size="icon"
-            className="size-8"
+            className={ROW_ICON_BUTTON}
             onClick={() => move("up")}
             disabled={pending || isFirst}
             aria-label="Move up"
@@ -586,71 +581,40 @@ function ChecklistRow({
             type="button"
             variant="ghost"
             size="icon"
-            className="size-8"
+            className={ROW_ICON_BUTTON}
             onClick={() => move("down")}
             disabled={pending || isLast}
             aria-label="Move down"
           >
             <ChevronDown className="size-4" aria-hidden="true" />
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={() => setEditOpen(true)}
-            disabled={pending}
-            aria-label="Edit Item"
-          >
-            <Pencil className="size-4" aria-hidden="true" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="size-8 text-destructive hover:bg-destructive/10"
-            onClick={() => requestDelete(item.id)}
+          <RowActions
+            onEdit={() => setEditOpen(true)}
+            onDelete={() => requestDelete(item.id)}
+            editLabel="Edit Item"
+            deleteLabel="Delete Item"
             disabled={pending || deleteIsPending}
-            aria-label="Delete Item"
-          >
-            <Trash2 className="size-4" aria-hidden="true" />
-          </Button>
+          />
         </div>
       </AnimatedItem>
     </>
   );
 }
 
+/** 32px ghost icon button with a 44px touch hit area — same shape as RowActions. */
+const ROW_ICON_BUTTON =
+  "relative size-8 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']";
+
 // ---------------------------------------------------------------------------
-// Progress bar
+// Progress — kit "N of M done" + teal ProgressBar
 // ---------------------------------------------------------------------------
 
-function ProgressBar({
-  done,
-  total,
-}: {
-  done: number;
-  total: number;
-}) {
-  const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+function ChecklistProgress({ done, total }: { done: number; total: number }) {
+  const label = `${done} of ${total} done`;
   return (
-    <div className="flex items-center gap-3">
-      <div
-        className="h-2 flex-1 overflow-hidden rounded-full bg-muted"
-        role="progressbar"
-        aria-valuenow={pct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-label={`${done} of ${total} done`}
-      >
-        <div
-          className="h-full rounded-full bg-primary transition-all duration-300"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-      <span className="shrink-0 text-xs font-semibold text-muted-foreground">
-        {done} of {total} done
-      </span>
+    <div className="flex flex-col gap-2">
+      <p className="self-end text-xs font-semibold text-muted-foreground">{label}</p>
+      <ProgressBar value={total === 0 ? 0 : (done / total) * 100} label={label} fill="bg-teal" />
     </div>
   );
 }
@@ -681,8 +645,9 @@ export function Checklist({
     return (
       <div className="flex flex-col gap-4">
         <EmptyState
-          icon={CheckSquare}
-          title={kind === "PRETRIP" ? "No pre-trip tasks yet." : "No packing items yet."}
+          icon={Check}
+          tone="teal"
+          title={kind === "PRETRIP" ? "No pre-trip tasks yet" : "No packing items yet"}
           description={
             kind === "PRETRIP"
               ? "Add tasks like booking confirmations, paperwork, and anything to sort before you leave."
@@ -703,10 +668,12 @@ export function Checklist({
   return (
     <div className="flex flex-col gap-4">
       {/* Progress */}
-      <ProgressBar done={doneCount} total={items.length} />
+      <ChecklistProgress done={doneCount} total={items.length} />
 
-      {/* Items */}
-      <AnimatedList as="ul" className="flex flex-col divide-y divide-border/50 rounded-2xl border border-border bg-card">
+      {/* Items — one kit Card (the kit groups items into several cards;
+          we have no groups, see the phase-3 gaps log). */}
+      <Card data-slot="checklist-card" className="p-3.5 sm:p-[18px]">
+      <AnimatedList as="ul" className="flex flex-col">
         {items.map((item, idx) => (
           <ChecklistRow
             key={item.id}
@@ -720,6 +687,7 @@ export function Checklist({
           />
         ))}
       </AnimatedList>
+      </Card>
 
       {/* Add form */}
       <AddItemForm

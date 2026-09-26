@@ -100,7 +100,7 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
   },
   {
     group: "marker",
-    specimen: <Check className="size-4 text-success" />,
+    specimen: <Check className="size-4 text-teal-text" />,
     meaning: "Done, or already in this plan",
   },
   {
@@ -109,8 +109,9 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
     meaning: "Has a location, so it shows on the map",
   },
   {
-    // The paperclip button itself sits on every card. The NUMBER beside it is
-    // the actual signal, so the specimen carries one.
+    // Most cards carry a paperclip button; a Stop card folds it into its
+    // overflow menu, where the count rides in the label ("Attachments (2)").
+    // Either way the NUMBER is the actual signal, so the specimen carries one.
     group: "marker",
     specimen: (
       <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -118,11 +119,12 @@ export const LEGEND_ENTRIES: readonly LegendEntry[] = [
         <span className="font-medium">2</span>
       </span>
     ),
-    meaning: "A number beside the paperclip — that many files attached",
+    meaning:
+      "A number beside the paperclip — that many files attached (on a Stop card the count is in its menu: Attachments (2))",
   },
   {
     group: "marker",
-    specimen: <AlertTriangle className="size-4 text-warning" />,
+    specimen: <AlertTriangle className="size-4 text-sun-text" />,
     meaning: "Something needs your attention",
   },
   {
@@ -144,7 +146,7 @@ function Row({
       <span
         data-testid="legend-specimen"
         aria-hidden="true"
-        className="flex w-11 shrink-0 items-center justify-center"
+        className="flex w-24 shrink-0 items-center justify-center"
       >
         {specimen}
       </span>
@@ -168,30 +170,40 @@ function LegendRows({ group }: { group: LegendGroup }) {
   );
 }
 
-export function HelpLegend() {
+/** Kit h4 type (18/800, tight) for each block of the key. */
+const BLOCK_HEADING =
+  "mb-3 font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground";
+
+export function HelpLegend({
+  headingLevel = 3,
+}: {
+  /** 3 under the guide's h2 on /help; 4 on the trip route, one level deeper. */
+  headingLevel?: 3 | 4;
+}) {
+  const H = `h${headingLevel}` as "h3" | "h4";
   return (
-    <div className="flex flex-col gap-6">
+    <div data-slot="help-legend" className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-x-8">
       {/* ── Buttons you'll tap ── */}
       <div>
-        <h3 className="mb-3 font-display text-base font-semibold text-foreground">
+        <H className={BLOCK_HEADING}>
           Buttons you&rsquo;ll tap
-        </h3>
+        </H>
         <LegendRows group="button" />
       </div>
 
       {/* ── Little markers on things ── */}
       <div>
-        <h3 className="mb-3 font-display text-base font-semibold text-foreground">
+        <H className={BLOCK_HEADING}>
           Little markers you&rsquo;ll see
-        </h3>
+        </H>
         <LegendRows group="marker" />
       </div>
 
       {/* ── Colour-coded labels ── */}
       <div>
-        <h3 className="mb-3 font-display text-base font-semibold text-foreground">
+        <H className={BLOCK_HEADING}>
           Colour-coded labels
-        </h3>
+        </H>
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <CategoryPill category="FOOD" />
@@ -225,9 +237,9 @@ export function HelpLegend() {
 
       {/* ── Mobile tab bar ── */}
       <div>
-        <h3 className="mb-3 font-display text-base font-semibold text-foreground">
+        <H className={BLOCK_HEADING}>
           The bar along the bottom (on your phone)
-        </h3>
+        </H>
         {/* Icon/label pairs are hand-copied from the real tab bar —
             components/trip/mobile-tab-bar.tsx:17-22 (its icon map is
             module-private). Keep the two in step. */}
@@ -235,8 +247,8 @@ export function HelpLegend() {
           {[
             { icon: <Home className="size-5" />, label: "Home" },
             { icon: <Map className="size-5" />, label: "Plan" },
-            { icon: <CalendarDays className="size-5" />, label: "Calendar" },
-            { icon: <Wallet className="size-5" />, label: "Budget" },
+            { icon: <CalendarDays className="size-5" />, label: "Days" },
+            { icon: <Wallet className="size-5" />, label: "Money" },
             { icon: <Menu className="size-5" />, label: "More" },
           ].map(({ icon, label }) => (
             <li key={label} className="flex items-center gap-2">

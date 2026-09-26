@@ -63,8 +63,8 @@ describe("CommandPalette", () => {
       renderPalette();
       expect(await screen.findByText("Home")).toBeInTheDocument();
       expect(screen.getByText("Plan")).toBeInTheDocument();
-      expect(screen.getByText("Calendar")).toBeInTheDocument();
-      expect(screen.getByText("Budget")).toBeInTheDocument();
+      expect(screen.getByText("Days")).toBeInTheDocument();
+      expect(screen.getByText("Money")).toBeInTheDocument();
       expect(screen.getByText("Wishlist")).toBeInTheDocument();
     });
 
@@ -76,15 +76,15 @@ describe("CommandPalette", () => {
       expect(screen.queryByText("Plan")).not.toBeInTheDocument();
     });
 
-    it("filters 'Go to' pages by query — typing 'bud' shows only Budget", async () => {
+    it("filters 'Go to' pages by query — typing 'mon' shows only Money", async () => {
       const user = userEvent.setup();
       renderPalette();
       await screen.findByText("Home"); // wait for render
 
       const input = screen.getByRole("textbox", { name: /command search/i });
-      await user.type(input, "bud");
+      await user.type(input, "mon");
 
-      expect(screen.getByText("Budget")).toBeInTheDocument();
+      expect(screen.getByText("Money")).toBeInTheDocument();
       expect(screen.queryByText("Home")).not.toBeInTheDocument();
       expect(screen.queryByText("Plan")).not.toBeInTheDocument();
     });

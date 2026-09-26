@@ -1,6 +1,15 @@
 "use client";
 
 import * as React from "react";
+import { Button } from "@/components/ui/button";
+
+/**
+ * `Button size="sm"` is 36px to match the kit's small button; on a coarse
+ * pointer this invisible overlay grows the hit area to 44px (same technique as
+ * devices-panel / Segmented / RowActions — design-ask D1).
+ */
+const SM_HIT =
+  "relative pointer-coarse:after:absolute pointer-coarse:after:inset-x-0 pointer-coarse:after:-inset-y-1 pointer-coarse:after:content-['']";
 
 /**
  * Expand all / Collapse all for the guide's <details> sections.
@@ -29,23 +38,24 @@ export function HelpExpandAll() {
 
   return (
     <div className="help-print-hide flex items-center gap-2">
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="sm"
         onClick={() => setAll(true)}
-        className="text-sm font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+        className={SM_HIT}
       >
         Expand all
-      </button>
-      <span aria-hidden="true" className="text-muted-foreground">
-        ·
-      </span>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="secondary"
+        size="sm"
         onClick={() => setAll(false)}
-        className="text-sm font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+        className={SM_HIT}
       >
         Collapse all
-      </button>
+      </Button>
     </div>
   );
 }

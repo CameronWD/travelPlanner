@@ -1,0 +1,73 @@
+import { describe, expect, it } from "vitest";
+import { parseTripLinks, matchTrips, verifyPhases, missingToGaps, findTripId, parseShareToken, TRIP_NAMES } from "./trips";
+
+describe("parseTripLinks", () => {
+  it("keeps /trips/<id> links, drops /trips/new and sub-routes, dedupes by id", () => {
+    expect(parseTripLinks([
+      { href: "/trips/new", text: "New trip" },
+      { href: "/trips/abc", text: "  EU Christmas 2026  PLANNING · 73 days " },
+      { href: "/trips/abc", text: "Open" },
+      { href: "/trips/abc/plan", text: "Plan" },
+      { href: "/help", text: "Help" },
+    ])).toEqual([{ id: "abc", name: "EU Christmas 2026  PLANNING · 73 days" }]);
+  });
+});
+
+describe("matchTrips", () => {
+  it("matches by name and prefers the tightest match", () => {
+    const { found, missing } = matchTrips([
+      { id: "ai", name: "AI TRIP - EU Christmas" },
+      { id: "eu", name: "EU Christmas 2026 PLANNING" },
+      { id: "jp", name: "Japan someday" },
+    ]);
+    expect(found.deep).toBe("eu");
+    expect(found.sketching).toBe("jp");
+    expect(missing).toContain("past");
+    expect(missing).toContain("empty");
+  });
+  it("uses the literal names from the spec", () => expect(TRIP_NAMES.deep).toBe("EU Christmas 2026"));
+});
+
+describe("missingToGaps", () => {
+  it("excludes a not-yet-created 'empty' trip from gaps (expected bootstrap state, not a coverage gap)", () => {
+    const gaps = missingToGaps(["past", "empty"]);
+    expect(gaps.map((g) => g.key)).toEqual(["past"]);
+    expect(gaps[0].reason).toMatch(/no trip named "Spirit of Tassie" on \/trips/);
+  });
+  it("returns no gaps when only 'empty' is missing", () => {
+    expect(missingToGaps(["empty"])).toEqual([]);
+  });
+});
+
+describe("verifyPhases", () => {
+  it("passes matching phases and records drift as a gap", () => {
+    const r = verifyPhases([
+      { key: "travelling", tripId: "t", expected: "travelling", actual: "past" },
+      { key: "past", tripId: "p", expected: "past", actual: "past" },
+      { key: "sketching", tripId: "s", expected: "sketching", actual: null },
+    ]);
+    expect(r.ok).toEqual(["past"]);
+    expect(r.gaps.map((g) => g.key)).toEqual(["travelling", "sketching"]);
+    expect(r.gaps[0].reason).toMatch(/expected travelling.*past/);
+    expect(r.gaps[1].reason).toMatch(/no data-trip-phase marker/);
+  });
+});
+
+describe("findTripId", () => {
+  const links = [
+    { id: "ai", name: "AI TRIP - EU Christmas 2026" },
+    { id: "eu", name: "EU Christmas 2026 PLANNING" },
+  ];
+  it("prefers the tightest link containing the name (same rule as matchTrips)", () =>
+    expect(findTripId(links, "EU Christmas 2026")).toBe("eu"));
+  it("is undefined when no link contains the name", () =>
+    expect(findTripId(links, "Japan someday")).toBeUndefined());
+});
+
+describe("parseShareToken", () => {
+  const token = "014b029f-d13b-4e09-8648-5aef72f8c702";
+  it("reads the uuid out of a share URL anywhere in the text", () =>
+    expect(parseShareToken(`Copy link\nhttp://localhost:3000/share/${token}\nRevoke`)).toBe(token));
+  it("is undefined when the settings page shows no share link", () =>
+    expect(parseShareToken("Create a read-only link")).toBeUndefined());
+});

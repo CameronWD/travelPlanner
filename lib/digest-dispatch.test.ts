@@ -48,12 +48,13 @@ const {
     pushSubscription: [],
   };
 
-  /** Minimal Prisma `where` evaluator: equality, null, in/gte/lte/not, OR/AND. */
+  /** Minimal Prisma `where` evaluator: equality, null, in/gte/lte/not, OR/AND/NOT. */
   function matchesWhere(row: Row, where: unknown): boolean {
     if (!where || typeof where !== "object") return true;
     return Object.entries(where as Record<string, unknown>).every(([key, cond]) => {
       if (key === "OR") return (cond as unknown[]).some((w) => matchesWhere(row, w));
       if (key === "AND") return (cond as unknown[]).every((w) => matchesWhere(row, w));
+      if (key === "NOT") return !matchesWhere(row, cond);
       const value = row[key] as never;
       if (cond === null) return value === null || value === undefined;
       if (typeof cond === "object" && !(cond instanceof Date)) {
@@ -491,7 +492,7 @@ describe("dispatchDigest", () => {
     await dispatch({ force: true });
 
     const payload = JSON.parse(sendPushMock.mock.calls[0][1] as string);
-    expect(payload.title).toBe("Test · TEEPEE");
+    expect(payload.title).toBe("Test · Teepee");
     expect(payload.body).toBe(
       "Push is working. Your digest arrives in the evening when there's something to say.",
     );
@@ -816,6 +817,37 @@ describe("collectDigestInput", () => {
     // formatMoney's en-AU default renders a foreign currency by code, and
     // separates it with a non-breaking space.
     expect(input.payments[0].amountLabel.replace(/ /g, " ")).toBe("GBP 240.00");
+  });
+
+  it("leaves On the trip costs out of the payments — only Before you go costs are upcoming payments", async () => {
+    dbData.accommodation = [
+      { id: "acc-1", tripId: TRIP_ID, forkId: null, name: "Airbnb Vienna" },
+    ];
+    const base = {
+      tripId: TRIP_ID,
+      forkId: null,
+      paidAt: null,
+      dueDate: LOCAL_DATE,
+      costMinor: 1000,
+      currency: "GBP",
+      label: null,
+      ownerType: "ACCOMMODATION",
+      ownerId: "acc-1",
+    };
+    dbData.cost = [
+      { ...base, id: "cost-before", settlement: "BEFORE" },
+      { ...base, id: "cost-on-trip", settlement: "ON_TRIP" },
+      { ...base, id: "cost-unknown", settlement: "SOMETHING_NEW" },
+    ];
+
+    const input = await collect();
+
+    expect(input.payments.map((p) => p.id).sort()).toEqual(["cost-before", "cost-unknown"]);
+    expect(costFindManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ NOT: { settlement: "ON_TRIP" } }),
+      }),
+    );
   });
 
   it("labels a stop-linked transport cost through the trip's stop names", async () => {

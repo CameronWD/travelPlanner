@@ -78,14 +78,28 @@ describe("WeatherDaylightCard", () => {
     expect(screen.getByText(/05:30/)).toBeInTheDocument();
   });
 
-  it("renders the weather as a gradient card with white text", () => {
+  it("renders the weather as a Playground Card: island-scoped, ink border, hard shadow, solid hue fill", () => {
     const { container } = render(
       <WeatherDaylightCard weather={forecastWeather} daylight={baseDaylight} />,
     );
-    const card = container.querySelector(".bg-gradient-to-br");
+    // forecastWeather's code is 0 (clear) → weatherTone gives hue-sun.
+    const card = container.querySelector(".bg-hue-sun");
     expect(card).toBeTruthy();
-    expect(card?.className).toMatch(/from-sky-500/);
-    expect(card?.className).toMatch(/text-white/);
+    expect(card).toHaveClass("island");
+    // Card's own base classes — the 2px ink border and hard offset shadow
+    // are the Playground signature (see components/ui/card.tsx).
+    expect(card?.className).toMatch(/border-2/);
+    expect(card?.className).toMatch(/border-border/);
+    expect(card?.className).toMatch(/shadow-hard-4/);
+    expect(card?.className).toMatch(/text-on-accent/);
+    // Not the pre-Playground look: no gradient, no raw white text, no
+    // legacy soft-shadow name. background-image is also structurally
+    // unmeasurable by the contrast audit script (see
+    // scripts/contrast-audit.ts) — a solid fill is a real, checked ratio
+    // on every run instead of a one-time eyeball.
+    expect(card?.className).not.toMatch(/bg-gradient-to-br/);
+    expect(card?.className).not.toMatch(/text-white/);
+    expect(card?.className).not.toMatch(/shadow-soft-lg/);
   });
 
   it("compact variant does not stretch its blocks", () => {
@@ -96,7 +110,7 @@ describe("WeatherDaylightCard", () => {
         daylight={baseDaylight}
       />,
     );
-    const card = container.querySelector(".bg-gradient-to-br");
+    const card = container.querySelector(".bg-hue-sun");
     expect(card?.className).not.toMatch(/flex-1/);
     expect(container.innerHTML).not.toContain("flex-1");
   });
@@ -106,5 +120,24 @@ describe("WeatherDaylightCard", () => {
       <WeatherDaylightCard weather={forecastWeather} daylight={baseDaylight} />,
     );
     expect(container.innerHTML).toContain("flex-1");
+  });
+});
+
+describe("WeatherDaylightCard — tone and icon by condition (Task 15 H3)", () => {
+  it("code 61 (rain) → hue-sky fill and a named CloudRain icon", () => {
+    const rainy = { ...forecastWeather, code: 61 };
+    render(<WeatherDaylightCard weather={rainy} daylight={baseDaylight} />);
+    const icon = screen.getByTestId("weather-icon");
+    expect(icon).toHaveAttribute("data-icon", "cloud-rain");
+    expect(icon.closest(".bg-hue-sky")).toBeTruthy();
+  });
+
+  it("code 0 (clear) → hue-sun fill and a named Sun icon", () => {
+    render(
+      <WeatherDaylightCard weather={forecastWeather} daylight={baseDaylight} />,
+    );
+    const icon = screen.getByTestId("weather-icon");
+    expect(icon).toHaveAttribute("data-icon", "sun");
+    expect(icon.closest(".bg-hue-sun")).toBeTruthy();
   });
 });

@@ -54,7 +54,7 @@ ToastViewport.displayName = ToastPrimitive.Viewport.displayName;
 
 const toastVariants = cva(
   cn(
-    "group pointer-events-auto relative flex w-full items-start justify-between gap-3 overflow-hidden rounded-xl border p-4 shadow-soft-lg",
+    "group pointer-events-auto relative flex w-full items-start justify-between gap-3 overflow-hidden rounded-md border-2 border-border p-4 shadow-hard-2",
     // Gate slide/fade animations behind motion-safe so reduced-motion users get no animation.
     // Note: globals.css also has a prefers-reduced-motion rule that collapses all tp-* durations
     // to 0.01ms — this motion-safe: layer makes the intent explicit at the component level.
@@ -69,17 +69,28 @@ const toastVariants = cva(
     // selector each) the later, md: rule takes it whenever both its media
     // conditions (width and motion) hold — verified against the actual build
     // output rather than assumed.
-    "motion-safe:data-[state=open]:tp-slide-in-right md:motion-safe:data-[state=open]:tp-slide-in-left motion-safe:data-[state=closed]:tp-fade-out",
+    "motion-safe:data-[state=open]:tp-slide-in-right md:motion-safe:data-[state=open]:tp-slide-in-left motion-safe:data-[state=closed]:tp-toast-out",
     "data-[swipe=move]:translate-x-(--radix-toast-swipe-move-x) data-[swipe=cancel]:translate-x-0 motion-safe:data-[swipe=end]:tp-slide-out-right",
   ),
   {
     variants: {
       variant: {
-        default: "border-border bg-card text-card-foreground",
-        success:
-          "border-success/30 bg-card text-card-foreground",
+        // The design's single toast look: a neutral confirmation and a
+        // success read the same way, so these two collapse together.
+        default: "bg-teal island",
+        success: "bg-teal island",
+        // `island` is deliberately NOT used here: it rescopes --foreground /
+        // --muted-foreground / --border to the on-accent (ink) values, which
+        // are correct for teal but wrong for destructive's white-on-red
+        // (light) / near-black-on-salmon (dark) fill. Instead we rescope the
+        // same three variables straight to --destructive-foreground, so
+        // ToastTitle (inherits `color`), ToastDescription
+        // (`text-muted-foreground`), ToastAction's border (`border-border`)
+        // and ToastClose (`text-muted-foreground`, `hover:text-foreground`)
+        // all resolve legibly against bg-destructive without any of those
+        // components needing to know which variant they're in.
         destructive:
-          "border-destructive/40 bg-card text-card-foreground",
+          "bg-destructive text-destructive-foreground [--foreground:var(--destructive-foreground)] [--muted-foreground:var(--destructive-foreground)] [--border:var(--destructive-foreground)]",
       },
     },
     defaultVariants: {
@@ -132,7 +143,16 @@ const ToastAction = React.forwardRef<
   <ToastPrimitive.Action
     ref={ref}
     className={cn(
-      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-border bg-transparent px-3 text-sm font-medium transition-colors hover:bg-muted",
+      "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-border bg-transparent px-3 text-sm font-medium transition-colors",
+      // Hover background derives from --foreground (same variable the text
+      // colour comes from), not --muted: --muted is an unrescoped surface
+      // token, so on an accent-filled toast (island's ink, or destructive's
+      // white/near-black) a --muted patch and the on-top text would come from
+      // two different colour systems and could fail contrast against each
+      // other independently of the toast's own fill. Deriving both from
+      // --foreground means they can never drift apart on any current or
+      // future variant.
+      "hover:bg-foreground/10",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       className,
     )}
@@ -150,7 +170,12 @@ const ToastClose = React.forwardRef<
     aria-label="Close"
     className={cn(
       // p-3.5 (14px each side) + 16px icon = 44px total; meets the 44px touch target.
-      "shrink-0 rounded-md p-3.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+      "shrink-0 rounded-md p-3.5 text-muted-foreground transition-colors hover:text-foreground",
+      // Same reasoning as ToastAction: the hover patch derives from
+      // --foreground, the same variable hover:text-foreground reads, so the
+      // two can't drift apart on an accent-filled toast. Not --muted, which
+      // is never rescoped.
+      "hover:bg-foreground/10",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
       className,
     )}

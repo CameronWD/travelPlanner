@@ -33,6 +33,7 @@ const sampleCost: CostRow = {
   label: null,
   category: null,
   dueDate: null,
+  settlement: "BEFORE",
 };
 
 const labeledCost: CostRow = {
@@ -47,6 +48,7 @@ const labeledCost: CostRow = {
   label: "Train ticket",
   category: null,
   dueDate: null,
+  settlement: "BEFORE",
 };
 
 describe("CostEditor", () => {
@@ -76,6 +78,46 @@ describe("CostEditor", () => {
       }),
       undefined,
     );
+  });
+
+  it("add flow: choosing Paid on the trip sends settlement ON_TRIP; the default is BEFORE", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.type(screen.getByLabelText("Cost amount"), "12.50");
+    expect(screen.getByRole("radio", { name: "Paid before you go" })).toHaveAttribute("aria-checked", "true");
+    await user.click(screen.getByRole("radio", { name: "Paid on the trip" }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 1250, settlement: "ON_TRIP" }),
+      undefined,
+    );
+  });
+
+  it("hides the Due date for an On the trip cost and sends none", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} />);
+    await user.click(screen.getByRole("button", { name: /add cost/i }));
+    await user.type(screen.getByLabelText("Cost amount"), "12.50");
+    await user.type(screen.getByLabelText(/due date/i), "2026-11-20");
+    await user.click(screen.getByRole("radio", { name: "Paid on the trip" }));
+    expect(screen.queryByLabelText(/due date/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(createCost).toHaveBeenCalledWith(
+      "trip-1",
+      expect.not.objectContaining({ dueDate: expect.anything() }),
+      undefined,
+    );
+  });
+
+  it("edit flow: an On the trip cost opens as On the trip and keeps it on save", async () => {
+    const user = userEvent.setup();
+    render(<CostEditor {...baseProps} costs={[{ ...sampleCost, settlement: "ON_TRIP" }]} />);
+    await user.click(screen.getByRole("button", { name: /edit cost/i }));
+    expect(screen.getByRole("radio", { name: "Paid on the trip" })).toHaveAttribute("aria-checked", "true");
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateCost).toHaveBeenCalledWith("cost-1", expect.objectContaining({ settlement: "ON_TRIP" }));
   });
 
   it("typing both cost and paid amounts produces both as minor units in createCost payload", async () => {
@@ -265,6 +307,16 @@ describe("CostEditor", () => {
       expect.objectContaining({ costMinor: 1250 }),
       undefined,
     );
+  });
+
+  // -------------------------------------------------------------------------
+  // LA-037: the edit/delete icon buttons get an invisible 44px coarse-pointer
+  // tap target.
+  // -------------------------------------------------------------------------
+  it("gives the edit and delete cost buttons a 44px tap target", () => {
+    render(<CostEditor {...baseProps} costs={[labeledCost]} />);
+    expect(screen.getByRole("button", { name: /edit cost/i }).className).toContain("tap-target");
+    expect(screen.getByRole("button", { name: /delete cost/i }).className).toContain("tap-target");
   });
 
   it("ticking Paid on a cost with a stored due date clears it — updateCost is called with no dueDate key", async () => {

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Button } from "@/components/ui/button";
 import { Check } from "lucide-react";
 import {
   Dialog,
@@ -130,34 +131,36 @@ export function AddFromGlobeDialog({
                   return (
                     <li
                       key={marker.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2"
+                      className="flex items-center justify-between gap-3 rounded-md border-2 border-border bg-background py-1.5 pl-3 pr-1.5"
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-foreground">
+                        <p className="truncate text-[13px] font-extrabold text-foreground">
                           {marker.title}
                         </p>
                         {(marker.city ?? marker.country) && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-xs font-semibold text-muted-foreground">
                             {[marker.city, marker.country].filter(Boolean).join(", ")}
                           </p>
                         )}
                       </div>
 
                       {isAdded ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-200 bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                        <span className="mr-1.5 inline-flex shrink-0 items-center gap-1 rounded-full border-2 border-border bg-success px-2 py-0.5 text-[10px] font-extrabold leading-tight text-success-foreground">
                           <Check className="size-3" aria-hidden="true" />
                           Added
                         </span>
                       ) : (
-                        <button
+                        <Button
                           type="button"
+                          variant="secondary"
+                          size="md"
                           aria-label={`Add ${marker.title}`}
                           onClick={() => addMarker(marker.id, tripId)}
                           disabled={isPending}
-                          className="shrink-0 rounded-md border border-border bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                          className="shrink-0"
                         >
                           Add
-                        </button>
+                        </Button>
                       )}
                     </li>
                   );

@@ -45,14 +45,24 @@ export interface FakeMarker {
   remove: ReturnType<typeof vi.fn>;
 }
 
+export interface FakePolyline {
+  latlngs: unknown;
+  options: Record<string, unknown>;
+  addTo: ReturnType<typeof vi.fn>;
+  setStyle: ReturnType<typeof vi.fn>;
+}
+
 export interface FakeMap {
+  options: Record<string, unknown>;
   remove: ReturnType<typeof vi.fn>;
   fitBounds: ReturnType<typeof vi.fn>;
   setView: ReturnType<typeof vi.fn>;
   flyTo: ReturnType<typeof vi.fn>;
   getZoom: ReturnType<typeof vi.fn>;
+  setZoom: ReturnType<typeof vi.fn>;
   on: ReturnType<typeof vi.fn>;
   off: ReturnType<typeof vi.fn>;
+  closePopup: ReturnType<typeof vi.fn>;
 }
 
 export function createLeafletMock() {
@@ -60,15 +70,23 @@ export function createLeafletMock() {
   const tileLayers: FakeTileLayer[] = [];
   const markers: FakeMarker[] = [];
 
-  const map = vi.fn(() => {
+  // Overridable by a test (before `render`) via `setNextMapZoom`, to exercise
+  // post-`fitBounds` zoom-clamping logic. Defaults to 5 (a plausible "already
+  // fine" zoom) so existing tests that don't care about zoom are unaffected.
+  let nextMapZoom = 5;
+
+  const map = vi.fn((_el: unknown, options: Record<string, unknown> = {}) => {
     const instance: FakeMap = {
+      options,
       remove: vi.fn(),
       fitBounds: vi.fn(),
       setView: vi.fn(),
       flyTo: vi.fn(),
-      getZoom: vi.fn(() => 5),
+      getZoom: vi.fn(() => nextMapZoom),
+      setZoom: vi.fn(),
       on: vi.fn(),
       off: vi.fn(),
+      closePopup: vi.fn(),
     };
     maps.push(instance);
     return instance;
@@ -101,7 +119,16 @@ export function createLeafletMock() {
     return instance;
   });
 
-  const polyline = vi.fn(() => ({ addTo: vi.fn() }));
+  const polylines: FakePolyline[] = [];
+  const polyline = vi.fn((latlngs: unknown, options: Record<string, unknown>) => {
+    const instance = {} as FakePolyline;
+    instance.latlngs = latlngs;
+    instance.options = options;
+    instance.addTo = vi.fn(() => instance);
+    instance.setStyle = vi.fn();
+    polylines.push(instance);
+    return instance;
+  });
   const divIcon = vi.fn((opts: unknown) => opts);
   const latLngBounds = vi.fn((coords: unknown) => coords);
 
@@ -115,5 +142,16 @@ export function createLeafletMock() {
     Icon: { Default: { prototype: { _getIconUrl: () => "" }, mergeOptions: vi.fn() } },
   };
 
-  return { module: { default: L }, L, maps, tileLayers, markers };
+  return {
+    module: { default: L },
+    L,
+    maps,
+    tileLayers,
+    markers,
+    polylines,
+    /** Set the zoom the NEXT created map's `getZoom()` returns (default 5). */
+    setNextMapZoom: (zoom: number) => {
+      nextMapZoom = zoom;
+    },
+  };
 }

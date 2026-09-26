@@ -1,29 +1,47 @@
 import { z } from "zod";
+import { HUE_CLASSES, LEGACY_TO_HUE } from "@/lib/hues";
+import { hueHex } from "@/lib/map-palette";
 
+/**
+ * Chapter colours. The stored `value`s are unchanged (no migration); each maps onto the
+ * Playground hue ramp. Chapters always show their name next to the colour, so the 8 hues
+ * only need to be distinguishable side by side, not memorable.
+ */
 export interface ChapterColourMeta {
   value: string;
   label: string;
-  /** Tailwind classes for chips/headers (light + dark). */
+  /** Chip / header classes (light + dark come from the tokens). */
   chipClass: string;
-  /** Tailwind class for the leading hue dot inside a chip, e.g. "bg-sky-500". */
+  /** Leading dot inside a chip. */
   dotClass: string;
-  /** Hex for inline styles (Leaflet markers/polylines). */
+  /** Chapter band rail (8px) on the plan editor. */
+  railClass: string;
+  /** Hex for Leaflet, light theme. */
   swatch: string;
+  /** Hex for Leaflet, dark theme. */
+  swatchDark: string;
 }
 
-export const CHAPTER_COLOURS = [
-  { value: "sky",     label: "Sky",     swatch: "#0ea5e9", dotClass: "bg-sky-500",     chipClass: "border-sky-200 bg-sky-100 text-sky-700 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-300" },
-  { value: "amber",   label: "Amber",   swatch: "#f59e0b", dotClass: "bg-amber-500",   chipClass: "border-amber-200 bg-amber-100 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300" },
-  { value: "emerald", label: "Emerald", swatch: "#10b981", dotClass: "bg-emerald-500", chipClass: "border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" },
-  { value: "violet",  label: "Violet",  swatch: "#8b5cf6", dotClass: "bg-violet-500",  chipClass: "border-violet-200 bg-violet-100 text-violet-700 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-300" },
-  { value: "rose",    label: "Rose",    swatch: "#f43f5e", dotClass: "bg-rose-500",    chipClass: "border-rose-200 bg-rose-100 text-rose-700 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-300" },
-  { value: "teal",    label: "Teal",    swatch: "#14b8a6", dotClass: "bg-teal-500",    chipClass: "border-teal-200 bg-teal-100 text-teal-700 dark:border-teal-800 dark:bg-teal-950 dark:text-teal-300" },
-  { value: "orange",  label: "Orange",  swatch: "#f97316", dotClass: "bg-orange-500",  chipClass: "border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-800 dark:bg-orange-950 dark:text-orange-300" },
-  { value: "indigo",  label: "Indigo",  swatch: "#6366f1", dotClass: "bg-indigo-500",  chipClass: "border-indigo-200 bg-indigo-100 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300" },
-] as const satisfies readonly ChapterColourMeta[];
+const make = <V extends string>(value: V, label: string): ChapterColourMeta & { value: V } => {
+  const hue = LEGACY_TO_HUE[value];
+  const c = HUE_CLASSES[hue];
+  return { value, label, chipClass: c.chip, dotClass: c.dot, railClass: c.fill, swatch: hueHex(hue, false), swatchDark: hueHex(hue, true) };
+};
 
-export type ChapterColour = (typeof CHAPTER_COLOURS)[number]["value"];
-export const CHAPTER_COLOUR_VALUES = CHAPTER_COLOURS.map((c) => c.value) as [ChapterColour, ...ChapterColour[]];
+export const CHAPTER_COLOURS = [
+  make("sky", "Sky"),
+  make("amber", "Sun"),
+  make("emerald", "Leaf"),
+  make("violet", "Lilac"),
+  make("rose", "Pink"),
+  make("teal", "Teal"),
+  make("orange", "Coral"),
+  make("indigo", "Indigo"),
+] as const;
+
+const VALUES = ["sky", "amber", "emerald", "violet", "rose", "teal", "orange", "indigo"] as const;
+export type ChapterColour = (typeof VALUES)[number];
+export const CHAPTER_COLOUR_VALUES = [...VALUES] as [ChapterColour, ...ChapterColour[]];
 export const chapterColourSchema = z.enum(CHAPTER_COLOUR_VALUES);
 
 const BY_VALUE = new Map<string, ChapterColourMeta>(CHAPTER_COLOURS.map((c) => [c.value, c]));
@@ -31,13 +49,13 @@ const BY_VALUE = new Map<string, ChapterColourMeta>(CHAPTER_COLOURS.map((c) => [
 export function chapterColourMeta(value: string): ChapterColourMeta {
   return BY_VALUE.get(value) ?? CHAPTER_COLOURS[0];
 }
-export function chapterColourSwatch(value: string): string {
-  return chapterColourMeta(value).swatch;
+export function chapterColourSwatch(value: string, dark = false): string {
+  const m = chapterColourMeta(value);
+  return dark ? m.swatchDark : m.swatch;
 }
 
 /** First palette colour not already used; cycles to the first when all are used. */
 export function nextChapterColour(used: readonly string[]): ChapterColour {
   const usedSet = new Set(used);
-  const free = CHAPTER_COLOUR_VALUES.find((v) => !usedSet.has(v));
-  return free ?? CHAPTER_COLOUR_VALUES[0];
+  return CHAPTER_COLOUR_VALUES.find((v) => !usedSet.has(v)) ?? CHAPTER_COLOUR_VALUES[0];
 }

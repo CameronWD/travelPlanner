@@ -1,14 +1,36 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import { db } from "@/lib/db";
 import { requireTripAccess } from "@/lib/guards";
 import { formatLongDate } from "@/lib/dates";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Card } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { AttachmentLink } from "@/components/trip/attachment-link";
 import { JournalEntryView } from "@/components/trip/journal-entry-view";
 
-/** Reading-width wrapper applied to the entries column. Exported for tests. */
-export const JOURNAL_READING_WIDTH_CLASS = "mx-auto w-full max-w-3xl";
+export const metadata: Metadata = { title: "Journal" };
+
+/**
+ * Kit day-card grid: one reading-width column on phones, two from md (each
+ * column stays well under 80ch). Exported for tests.
+ */
+export const JOURNAL_READING_WIDTH_CLASS =
+  "mx-auto grid w-full max-w-3xl grid-cols-1 items-start gap-3 md:max-w-none md:grid-cols-2 md:gap-[18px]";
+
+/** Kit photo grid: up to three across; a lone photo gets the tall tile. */
+const PHOTO_COLS = ["", "grid-cols-1", "grid-cols-2", "grid-cols-3"] as const;
+
+/** First two initials of a name, for the avatar fallback. */
+function initials(name: string | null): string {
+  return (name ?? "?")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
+}
 
 export default async function JournalPage({
   params,
@@ -60,6 +82,7 @@ export default async function JournalPage({
     return (
       <EmptyState
         icon={BookOpen}
+        tone="lilac"
         title="No journal entries yet"
         description="Capture the trip as you go — notes and photos, day by day."
       />
@@ -82,72 +105,96 @@ export default async function JournalPage({
     entriesByDate.set(entry.date, existing);
   }
 
+  const entryCount = entries.length === 1 ? "1 entry" : `${entries.length} entries`;
+  const photoCount =
+    photos.length === 0 ? null : photos.length === 1 ? "1 photo" : `${photos.length} photos`;
+
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">
+    <div className="flex flex-col gap-6">
+      {/* Header — kit: display title + "N entries · N photos" */}
+      <div className="flex flex-col gap-1.5">
+        <h2 className="font-display text-[28px] font-extrabold leading-none tracking-[-0.035em] text-foreground sm:text-4xl">
           Journal
         </h2>
-        <p className="text-sm text-muted-foreground">
-          {entries.length === 1
-            ? "1 entry"
-            : `${entries.length} entries`}
+        <p className="text-xs font-semibold text-muted-foreground">
+          {photoCount ? `${entryCount} · ${photoCount}` : entryCount}
         </p>
       </div>
 
-      <div className={`${JOURNAL_READING_WIDTH_CLASS} flex flex-col gap-10`}>
-        {sortedDates.map((date) => {
+      <div className={JOURNAL_READING_WIDTH_CLASS}>
+        {sortedDates.map((date, i) => {
           const dayEntries = entriesByDate.get(date) ?? [];
           const dayPhotos = photosByDate.get(date) ?? [];
+          const authors = Array.from(
+            new Map(dayEntries.map((e) => [e.author.id, e.author])).values(),
+          );
 
           return (
-            <article key={date} className="flex flex-col gap-4">
-              {/* Date heading — links to the day view */}
-              <div className="flex items-center gap-2">
-                <Link
-                  href={`/trips/${tripId}/day/${date}`}
-                  className="font-display text-sm font-bold text-foreground hover:opacity-80"
-                >
-                  {formatLongDate(date)}
-                </Link>
-                <span className="h-px flex-1 bg-border" aria-hidden="true" />
+            <Card
+              key={date}
+              data-slot="journal-day"
+              shadow={i === 0 ? 3 : 2}
+              className="flex flex-col gap-3 p-3.5 sm:p-[18px]"
+            >
+              {/* Date heading — links to the day view; who wrote, right */}
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="font-display text-lg font-extrabold leading-tight tracking-[-0.03em] text-foreground">
+                  <Link
+                    href={`/trips/${tripId}/day/${date}`}
+                    className="rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+                  >
+                    {formatLongDate(date)}
+                  </Link>
+                </h3>
+                {authors.length > 0 ? (
+                  <div className="flex shrink-0 -space-x-2" aria-hidden="true">
+                    {authors.map((a) => (
+                      <Avatar key={a.id} className="size-[30px]">
+                        <AvatarFallback className="text-[11px]">{initials(a.name)}</AvatarFallback>
+                      </Avatar>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-
-              {/* Body — every Traveller's entry for this date */}
-              {dayEntries.length > 0 ? (
-                <div className="flex flex-col gap-3">
-                  {dayEntries.map((entry) => (
-                    <JournalEntryView
-                      key={entry.id}
-                      body={entry.body}
-                      updatedAt={entry.updatedAt}
-                      authorName={entry.author.name}
-                    />
-                  ))}
-                </div>
-              ) : null}
 
               {/* Photo grid */}
               {dayPhotos.length > 0 ? (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <div className={`grid gap-2 ${PHOTO_COLS[Math.min(dayPhotos.length, 3)]}`}>
                   {dayPhotos.map((photo) => (
                     <AttachmentLink
                       key={photo.id}
                       href={photo.url}
                       mime={photo.mime}
                       label={`View photo ${photo.filename}`}
+                      className="block rounded-md focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={photo.url}
                         alt={photo.filename}
-                        className="h-24 w-full rounded-xl object-cover transition-opacity hover:opacity-80"
+                        className={`${dayPhotos.length === 1 ? "h-[180px]" : "h-[110px]"} w-full rounded-md border-2 border-border object-cover transition-opacity hover:opacity-80`}
                       />
                     </AttachmentLink>
                   ))}
                 </div>
               ) : null}
-            </article>
+
+              {/* Body — every Traveller's entry for this date */}
+              {dayEntries.length > 0 ? (
+                <div className="flex flex-col divide-y divide-border-soft">
+                  {dayEntries.map((entry) => (
+                    <div key={entry.id} className="py-2.5 first:pt-0 last:pb-0">
+                      <JournalEntryView
+                        body={entry.body}
+                        updatedAt={entry.updatedAt}
+                        authorName={entry.author.name}
+                        framed={false}
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </Card>
           );
         })}
       </div>

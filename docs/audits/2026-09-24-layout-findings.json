@@ -1,0 +1,1735 @@
+[
+  {
+    "id": "LA-001",
+    "route": "/trips/{id}/compare",
+    "screen": "Compare",
+    "widths": [
+      360,
+      375,
+      390,
+      768
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Broken",
+    "title": "Country-list line under each plan's stop list is cut off, unreadable",
+    "what": "Below the stop list on every plan card (Real plan and each fork), a summary line like \"Finland · Germany · United Kingdom · Ireland · Fran…\" is clipped mid-word by the card's fixed width. There is no title/aria-label/tooltip, so a Traveller has no way to see the rest of the list.",
+    "where": "[data-testid=\"plan-card\"] > section.mt-3 > p.mt-1.5 (country/stop summary line)",
+    "suggestedFix": "Either wrap the line (allow it to take two lines) or truncate with a real ellipsis plus a title attribute / tooltip showing the full list.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/compare/deep/390-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 1140,
+        "w": 780,
+        "h": 220
+      }
+    },
+    "sources": [
+      "compare-print-1"
+    ]
+  },
+  {
+    "id": "LA-002",
+    "route": "/trips/cmueo57tc000lq1lohzz8hwc1/compare",
+    "screen": "Compare",
+    "widths": [
+      360,
+      390,
+      1440
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Broken",
+    "title": "Promote-fork dialog: warning paragraph overlaps the 'Changes vs current plan' heading",
+    "what": "The 'This will replace your current plan with this fork... This cannot be undone.' paragraph renders on top of the 'Changes vs current plan:' heading directly beneath it, producing garbled, overlapping text at every width (360, 390, 1440) — confirmed by the overlap check.",
+    "where": "Promote fork dialog, intro paragraph / 'Changes vs current plan' section heading",
+    "suggestedFix": "Give the intro paragraph a margin-bottom (or the heading a margin-top) sized for its actual wrapped line count so it can't collide with the heading below it.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/overlay/promote-fork/360-light.png",
+      "crop": {
+        "x": 0,
+        "y": 280,
+        "w": 720,
+        "h": 220
+      }
+    },
+    "sources": [
+      "overlays-shell-6"
+    ]
+  },
+  {
+    "id": "LA-003",
+    "route": "/trips/{id}/compare",
+    "screen": "Compare",
+    "widths": [
+      768
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Broken",
+    "title": "Trip-cost value overlaps the stops count at 768px on every plan card",
+    "what": "At 768px the compare grid becomes two narrow columns. In each plan card's stat row, the long money value (e.g. \"$30,558.38\") runs into the STOPS column and its digit render on top of the stops number, so both are unreadable (looks like \"$30,558.386\"). This happens on the Real plan card, the purple fork card, and the teal fork card alike.",
+    "where": "Plan card stats grid (NIGHTS / TRIP COST / STOPS row), 768px breakpoint only",
+    "suggestedFix": "Give the stat grid a narrower column count (e.g. 2 columns) below ~900px, or let TRIP COST wrap/shrink instead of overflowing into the next column.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/compare/deep/768-light.png",
+      "crop": {
+        "x": 0,
+        "y": 560,
+        "w": 768,
+        "h": 160
+      }
+    },
+    "sources": [
+      "compare-print-2"
+    ]
+  },
+  {
+    "id": "LA-004",
+    "route": "/trips/{id}/calendar",
+    "screen": "Days",
+    "widths": [
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Broken",
+    "title": "Wishlist item names in the calendar aside are cut off with no way to read them",
+    "what": "Every item in the 'Wishlist (7)' card on the right of the Days/Calendar page truncates to a fixed ~152px title column ('Overnight at the Sno…', 'Zugspitze cable car (…', 'Afternoon tea at The …', etc.), even at 2560px where the card has ample room to grow. There is no title/aria-label/aria-describedby on the truncated span, so a Traveller has no way to see the full item name short of guessing or opening it — this happens at every width and in both themes.",
+    "where": "Wishlist card on the Calendar page, item title `span.min-w-0` inside `ul.mt-1` rows",
+    "suggestedFix": "Let the item title wrap to two lines instead of truncating, or widen the title column (the aside doesn't need to stay this narrow at wide widths); at minimum add a native `title` attribute so the full name is reachable on hover/focus.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/calendar/deep/1440-light.png",
+      "crop": {
+        "x": 1000,
+        "y": 270,
+        "w": 290,
+        "h": 430
+      }
+    },
+    "sources": [
+      "calendar-wide-1"
+    ]
+  },
+  {
+    "route": "/trips/cmueo57tc000lq1lohzz8hwc1/checklists",
+    "screen": "Dialogs (desktop)",
+    "grade": "Broken",
+    "title": "Dialogs on desktop clip the first field's label under its input",
+    "widths": [
+      1440
+    ],
+    "themes": [
+      "light"
+    ],
+    "what": "In the centred desktop dialog, the first field's label (\"Text *\", \"Title *\", \"Description *\") is cut off by the input below it. Seen in Checklists → Edit item, Wishlist → Add item and Money → Add other cost; it looks like the shared form dialog, so every form dialog is likely affected.",
+    "where": "Edit Item dialog, first field label (\"Text *\") — likely a shared Sheet/Dialog form component whose desktop variant loses the label/heading margin. The same clipped-label pattern repeats identically in the Wishlist \"Add Item\" and Budget \"Add Other Cost\" dialogs at 1440 (see overlays-other-2 and overlays-other-3), which points to one shared component bug rather than three separate ones.; Add Item di",
+    "suggestedFix": "Restore margin-top (or margin-bottom on the preceding heading) between the dialog heading and the first field label at desktop widths; fix once in the shared form/dialog component so all three affected overlays pick it up. Same fix as overlays-other-1: restore spacing between heading and first field label at desktop widths in the shared dialog component. Same fix as overlays-other-1/2: this is the third occurrence of one shared-component bug — fix the heading-to-first-label spacing once, centrally.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/overlay/checklist-edit/1440-light.png",
+      "crop": {
+        "x": 440,
+        "y": 220,
+        "w": 560,
+        "h": 220
+      }
+    },
+    "sources": [
+      "overlays-other-1",
+      "overlays-other-2",
+      "overlays-other-3"
+    ],
+    "id": "LA-005"
+  },
+  {
+    "route": "/trips/{id}/budget",
+    "screen": "Money",
+    "grade": "Broken",
+    "title": "Cost names are truncated and can't be read in full",
+    "widths": [
+      360,
+      375,
+      390,
+      430,
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "what": "In \"Mark off what you've paid\" almost every longer item name (\"Flight · Rovaniemi (Lapland) → Munich\", \"The Bloomsbury Hotel\", \"Arktikum — Arctic science & Lapland museum\", \"Colosseum, Roman Forum & Palatine guided tour\", etc. — 30+ rows) is clipped to a single line with no title/aria-label, tooltip or way to expand it, so a Traveller can never see what the cost actually is beyond the truncated fragment and price. The same truncation hits the \"Other costs\" cards' names (\"Travel insurance (winter-sp…\", \"Spending money / meals bu…\", \"Christmas gifts for each ot…\"), though those at least have an edit pencil that may reveal the full text. In the \"Other costs\" list, several item names are clipped with an ellipsis — \"Travel insurance (winter-s…\", \"Airport transfers & local tr…\", \"Spending money / meals b…\", \"Christmas gifts for each o…\" — and none carry a title/aria-label, so a Traveller has no way to see the rest of the name short of opening the edit form. This is present at every width tested (1024–2560, light and dark) since the card's column width doesn't grow with the viewport.",
+    "where": "[data-testid=\"budget-grid\"] li span.flex-1 (checklist rows); [data-testid=\"other-cost-list\"] name spans; Budget page \"Other costs\" card, cost-name label (`other-cost-list` rows)",
+    "suggestedFix": "Let the name wrap to two lines instead of truncating, or add a title/aria-label and a tap-to-expand affordance so the full name is always reachable. Wrap the label instead of truncating (the card has vertical room), or add a native `title` attribute so the full name is at least recoverable on hover.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/budget/deep/360-light-part2.png",
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "w": 720,
+        "h": 700
+      }
+    },
+    "sources": [
+      "budget-narrow-1",
+      "budget-wide-2"
+    ],
+    "id": "LA-006"
+  },
+  {
+    "id": "LA-007",
+    "route": "/trips/cmueo57tc000lq1lohzz8hwc1/plan",
+    "screen": "Plan",
+    "widths": [
+      360,
+      390
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Broken",
+    "title": "'Group into chapters…' prompt is clipped off the left edge",
+    "what": "At the bottom of the Plan page's stop list, the dashed 'Group into chapters…' suggestion box sits flush against the left edge of the screen with a hard-cut (non-rounded) left border instead of the rounded corner every other card has — it is wider than its container and gets clipped off-canvas. At 1440 the same control renders fully inline with no clipping.",
+    "where": "Plan page, chapters suggestion (near the 'Chapters' / 'Add Stop' row)",
+    "suggestedFix": "Constrain the suggestion box to the same max-width/padding as its sibling cards so it can't overflow its container at narrow widths.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/overlay/chapters-menu/360-light.png",
+      "crop": {
+        "x": 0,
+        "y": 1280,
+        "w": 500,
+        "h": 300
+      }
+    },
+    "sources": [
+      "overlays-shell-1"
+    ]
+  },
+  {
+    "id": "LA-008",
+    "route": "/trips/{id}/plan",
+    "screen": "Plan",
+    "widths": [
+      375,
+      768
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Broken",
+    "title": "\"Add Stop\" is pushed off-screen when a trip still has rough (undated) stops",
+    "what": "On a trip that still needs dates (e.g. 'sketching' phase), the bottom action row grows a third pill, 'Firm up the whole trip', alongside 'Chapters' and 'Add Stop'. Together they no longer fit the viewport: at 375px only a sliver of Add Stop's rounded left edge is visible at the very right of the screen — its '+' icon and label are entirely off-screen, so the primary action for adding a stop can't be tapped without scrolling the page sideways (no visible affordance suggests it can). At 768px the same row is still cut, clipping about 20px off the button's right edge.",
+    "where": "bottom stop-list action row: '+ Firm up the whole trip' / 'Chapters' / '+ Add Stop'",
+    "suggestedFix": "Let this row wrap onto a second line (flex-wrap) below ~480px, or shorten the firm-up label ('Firm up' instead of 'Firm up the whole trip') so all three controls fit without overflow.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/phase/plan/sketching/375-light-part3.png",
+      "crop": {
+        "x": 0,
+        "y": 90,
+        "w": 750,
+        "h": 220
+      }
+    },
+    "sources": [
+      "plan-narrow-2"
+    ]
+  },
+  {
+    "id": "LA-009",
+    "route": "/trips/cmueo57tc000lq1lohzz8hwc1/plan",
+    "screen": "Plan",
+    "widths": [
+      360,
+      390,
+      1440
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Broken",
+    "title": "Fork name truncated to '+ Switz…' with no way to read the full name",
+    "what": "In the fork-switcher dropdown, the second custom fork's name is cut to '+ Switz…' with an ellipsis and no title/aria-label, at every width including 1440 where there is plenty of spare horizontal room. A traveller can't tell which fork this is without guessing.",
+    "where": "Fork switcher dropdown, fork list row label",
+    "suggestedFix": "Let the row's label wrap to a second line or add a title attribute/tooltip so the full fork name is available; widen the fixed label column on desktop where space allows.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/overlay/fork-switcher/1440-light.png",
+      "crop": {
+        "x": 985,
+        "y": 150,
+        "w": 260,
+        "h": 150
+      }
+    },
+    "sources": [
+      "overlays-shell-4"
+    ]
+  },
+  {
+    "id": "LA-010",
+    "route": "/trips/cmueo57tc000lq1lohzz8hwc1/plan",
+    "screen": "Plan",
+    "widths": [
+      360,
+      390,
+      1440
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Broken",
+    "title": "Last notification's timestamp is hidden behind the sticky 'See all activity' footer",
+    "what": "The fifth notification row ('You left a note') has its date clipped by the sticky 'See all activity' button beneath the list, at every width tested — confirmed by the overlap check (~340×22px). The date is not readable without scrolling the sliver of gap between them.",
+    "where": "Notifications panel, list bottom / sticky footer",
+    "suggestedFix": "Add bottom padding to the scrollable list (or fade instead of hard-covering with the sticky footer) so the last row's full content clears the 'See all activity' button.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/overlay/notifications/360-light.png",
+      "crop": {
+        "x": 0,
+        "y": 1150,
+        "w": 720,
+        "h": 220
+      }
+    },
+    "sources": [
+      "overlays-shell-5"
+    ]
+  },
+  {
+    "id": "LA-011",
+    "route": "/trips/cmueo57tc000lq1lohzz8hwc1/plan",
+    "screen": "Plan",
+    "widths": [
+      360,
+      390
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Broken",
+    "title": "Sticky footer hides the last field in several Plan overlay forms",
+    "what": "In Add Accommodation, Add Item, Add Stop, Edit Stop, Add Transport and Edit Transport, the sheet's fixed Cancel/Save footer sits on top of the last field once the sheet is scrolled to its natural end, with no further scrolling possible to clear it. Add Accommodation's 'Booking confirmation' input and Edit Transport's 'Booking reference / number' input disappear completely behind the footer (only the label shows); Add Stop's 'Attachments' hint, Edit Stop's and Add Transport's 'Notes' textarea, and Add Item's 'Stop'/'Date'/'End time' controls are likewise clipped or fully covered. It reproduces with and without the on-screen keyboard open, so it isn't just a keyboard-avoidance gap.",
+    "where": "Shared bottom-sheet/dialog footer (sticky Cancel + primary-action row) used across the Plan 'Add/Edit' overlay forms — the scrollable form body doesn't reserve bottom padding for the footer's height.",
+    "suggestedFix": "Add scroll-padding-bottom (or an explicit spacer) to the form's scrollable body equal to the sticky footer's rendered height, so the last field can always scroll clear of it.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/overlay/transport-edit/390-light.png",
+      "crop": {
+        "x": 0,
+        "y": 1150,
+        "w": 780,
+        "h": 450
+      }
+    },
+    "sources": [
+      "overlays-plan-1"
+    ]
+  },
+  {
+    "route": "/share/8d66c30d-f9e6-4a35-a660-f54c55646299",
+    "screen": "Public link",
+    "grade": "Broken",
+    "title": "Addresses and activity titles are cut off with no way to read them",
+    "widths": [
+      360,
+      375,
+      390,
+      430
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "what": "In \"The route\" card, longer accommodation addresses (Munich, London, Paris) are cut to a single line with an ellipsis, e.g. \"Sparkassenstraße 10, 80331 München, …\" and \"16–22 Great Russell St, London WC1B …\". There is no title/aria-label and nothing to tap or hover, so a Traveller can never see the rest of the address at these widths. Confirmed by the automatic clipped-text check (12 hits across 360/375/390/390-dark) and visually at 430 as well. It resolves at 768px, where every address fits on one line, so it's a narrow-viewport regression, not a content problem. Nearly every plan item with a moderately long name is cut to one line with \"…\" throughout the whole \"Day by day\" agenda — e.g. \"Glockenspiel, Viktualienmarkt & Fra…\", \"Christmas gift shopping — Kaufinger…\", \"St Peter's Basilica & the do…\", \"Piazza Navona — La Befan…\". This happens on dozens of cards down the entire page at 360/375/390/430, with no tooltip or expand affordance, so a Traveller reading the shared itinerary loses the second half of many activity names. At 768px every one of the same titles renders in full on one line, confirming this is a narrow-width truncation bug rather than deliberate copy.",
+    "where": "Route card > stop > accommodation address paragraph (p.truncate, e.g. under \"Platzl Hotel\"); Day by day > plan-item title paragraph (same truncate pattern repeated per card)",
+    "suggestedFix": "Let the address line wrap to a second line instead of single-line truncating, or add a title/aria-label so the full address is still reachable at phone widths. Allow the activity title to wrap onto a second line within the card instead of forcing single-line ellipsis truncation at phone widths.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/share/none/430-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 970,
+        "w": 860,
+        "h": 230
+      }
+    },
+    "sources": [
+      "share-narrow-1",
+      "share-narrow-2"
+    ],
+    "id": "LA-012"
+  },
+  {
+    "id": "LA-014",
+    "route": "/trips/cmueo57tc000lq1lohzz8hwc1/settings",
+    "screen": "Trip settings",
+    "widths": [
+      360
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Broken",
+    "title": "Delete-trip and Duplicate-trip confirm sheets overflow the viewport at 360px",
+    "what": "Both danger-zone bottom sheets render wider than the 360px viewport: the top-right Close (X) button is cut off by the right edge of the screen (confirmed by the sideways-scroll check, document scrollWidth 409 vs 360 viewport), and the Delete forever / Duplicate action buttons already sit below the visible viewport even before the on-screen keyboard opens, with no visible cue that the sheet scrolls. Probably a knock-on of LA-015: Settings is 409px wide at 360, so the page is zoomed out behind the sheet.",
+    "where": "Shared confirm-dialog/sheet component used by Delete trip and Duplicate trip (Settings page)",
+    "suggestedFix": "Cap the sheet's width to 100% of the viewport (check for a fixed/min-width leaking through) and pin the primary action in a sticky footer so it's reachable without relying on scroll.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/overlay/delete-trip/360-light.png",
+      "crop": {
+        "x": 0,
+        "y": 1180,
+        "w": 720,
+        "h": 380
+      }
+    },
+    "sources": [
+      "overlays-shell-2"
+    ]
+  },
+  {
+    "id": "LA-015",
+    "route": "/trips/{id}/settings",
+    "screen": "Trip settings",
+    "widths": [
+      360,
+      375,
+      390,
+      430
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Broken",
+    "title": "Share-link action row overflows the screen, clipping \"Revoke\"",
+    "what": "In the Share links card, the Full itinerary row's Edit / Regenerate / Revoke actions don't wrap or shrink at phone widths — the row is wider than the viewport, so the card scrolls sideways and the Revoke label (with its icon) is cut off past the right edge with no visual hint that more content exists. This overflow makes the whole Settings page 409px wide on phones, so the browser zooms it out. That is also why the audit could not tap “Delete trip” at 390px: the tap landed on the Danger zone heading. The Danger zone buttons are not under the tab bar; they clear it by 70px.",
+    "where": "Trip settings > Share links > share link row actions (Edit/Regenerate/Revoke buttons)",
+    "suggestedFix": "Wrap the action buttons onto a second line (flex-wrap) or move them into an overflow/kebab menu below ~430px instead of forcing a single row.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/settings/deep/390-light-part2.png",
+      "crop": {
+        "x": 0,
+        "y": 1850,
+        "w": 780,
+        "h": 150
+      }
+    },
+    "sources": [
+      "settings-1"
+    ]
+  },
+  {
+    "id": "LA-016",
+    "route": "/trips",
+    "screen": "Trips",
+    "widths": [
+      360,
+      375,
+      390,
+      430
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Broken",
+    "title": "Trip status badge text clipped at phone widths",
+    "what": "On the trip cards' status pill (top-left of each cover image), longer status strings are hard-clipped by the card's rounded corner instead of wrapping or shrinking: \"PLANNING · IN 72 DAYS\" reads as \"PLANNING · IN 72 DAY\", \"SKETCHING · NOT DATED YET\" as \"SKETCHING · NOT DAT\", \"FINAL PREP · TOMORROW\" as \"FINAL PREP · TOMORROW\" cut mid-word. A Traveller can't read the full status and there's no way to reveal the rest (no wrap, no truncation ellipsis, no tap-to-expand). Confirmed in both light and dark at 360/375/390/430; matches the automatic \"spill\" hits (31 occurrences, ~49px overflow) grouped in this batch.",
+    "where": "trip card status badge component (span.inline-flex inside the card's relative wrapper), used on every /trips card",
+    "suggestedFix": "Let the badge wrap to a second line or shrink its font at narrow widths, or truncate with an ellipsis instead of a hard clip so at minimum the visible text isn't ambiguous mid-word.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/trips/none/390-light-part2.png",
+      "crop": {
+        "x": 0,
+        "y": 380,
+        "w": 780,
+        "h": 200
+      }
+    },
+    "sources": [
+      "trips-1"
+    ]
+  },
+  {
+    "id": "LA-017",
+    "route": "/trips/{id}/checklists",
+    "screen": "Checklists",
+    "widths": [
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Checklist card stays ~770px wide, ignoring available width",
+    "what": "From 1280px up to 2560px the single Pre-trip/Packing/Booking-parser list card holds at roughly 770px wide (close to Tailwind's max-w-3xl) instead of growing with the content column. At 1440 that leaves about 500px of blank space beside it; at 2560 well over 1000px, a very obvious empty void next to a narrow island of rows. This is a page-internal cap on the card itself, not the overall shell centring (which is already scheduled to change), so the new shell width would not fix it on its own.",
+    "where": "Checklists list card container (single Card holding all items + the New item form)",
+    "suggestedFix": "Let the list card's max-width scale with the content column (e.g. clamp toward ~1000-1100px) instead of a fixed ~768px cap, or use the freed width for a second panel (e.g. move the New item form beside the list) once the container itself grows per ADR 0062.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/checklists/deep/2560-light.png",
+      "crop": {
+        "x": 400,
+        "y": 140,
+        "w": 2160,
+        "h": 700
+      }
+    },
+    "sources": [
+      "checklists-files-1"
+    ]
+  },
+  {
+    "id": "LA-018",
+    "route": "/trips/{id}/compare",
+    "screen": "Compare",
+    "widths": [
+      768,
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Compare grid caps at 2 columns, leaving the 3rd plan orphaned and the page mostly blank on wide screens",
+    "what": "With three plans (Real plan + 2 forks), the grid always lays out 2 columns, so the 3rd (fork) card sits alone in its own row at half width. The grid never grows past 2 columns even at 1920/2560px, where more than half the page beside/below the cards is empty white space — this is on top of, and separate from, the already-decided rail/container centring (ADR 0062).",
+    "where": "Compare page plan-cards grid",
+    "suggestedFix": "Let the grid add a 3rd (and further) column as width allows, or cap card width and wrap to a new row that fills width, instead of a fixed 2-column grid with a stranded last card.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/compare/deep/2560-light.png",
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "w": 2560,
+        "h": 1400
+      }
+    },
+    "sources": [
+      "compare-print-4"
+    ]
+  },
+  {
+    "id": "LA-019",
+    "route": "/trips/{id}/compare",
+    "screen": "Compare",
+    "widths": [
+      768
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Ugly",
+    "title": "Fork card title \"Switzerland\" breaks mid-word at 768px",
+    "what": "In the third (teal) fork card at 768px, the card is narrow enough that the title \"+ Switzerland\" can't fit next to the reorder arrows and FORK badge, so it wraps to three lines and splits the word itself: \"Switzerl\" / \"and\". At every other tested width the same title sits on one line.",
+    "where": "Fork card header (title + reorder chevrons + FORK badge row)",
+    "suggestedFix": "Let the header wrap as a whole (badge/arrows drop to their own line) instead of breaking inside the title word, or reserve less width for the arrows/badge at this breakpoint.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/compare/deep/768-light.png",
+      "crop": {
+        "x": 140,
+        "y": 915,
+        "w": 560,
+        "h": 150
+      }
+    },
+    "sources": [
+      "compare-print-3"
+    ]
+  },
+  {
+    "id": "LA-020",
+    "route": "/trips/cmueo57tc000lq1lohzz8hwc1/compare",
+    "screen": "Compare",
+    "widths": [
+      360,
+      390
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Ugly",
+    "title": "Promote-fork 'committed things' list truncates item labels with no way to read them",
+    "what": "Several rows in the discard list clip their label to a fixed column width with an ellipsis and no title/tooltip — raw cost IDs like 'Cost cmueo57u50012q1lof…' and names like 'The Bloomsbury …' or 'FLIGHT ref: QF / AY (via HEL)' lose their identifying text, so a traveller can't tell exactly what's being discarded.",
+    "where": "Promote fork dialog, 'committed things' list rows",
+    "suggestedFix": "Allow the label to wrap to a second line, or add a title attribute so the full text is available on hover/long-press.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/overlay/promote-fork/390-light.png",
+      "crop": {
+        "x": 0,
+        "y": 600,
+        "w": 780,
+        "h": 400
+      }
+    },
+    "sources": [
+      "overlays-shell-7"
+    ]
+  },
+  {
+    "id": "LA-021",
+    "route": "/trips/{id}/calendar",
+    "screen": "Days",
+    "widths": [
+      360,
+      375,
+      390,
+      430
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Agenda item titles clip to one line with an ellipsis instead of wrapping",
+    "what": "In the Agenda view, most itinerary item titles longer than ~20 characters are cut off mid-word with '…' (e.g. \"Check-in — Arctic Glasslgloo (…\", \"Vatican Museums & Sistine …\", \"Harry Potter Warner Bros. S…\", \"Sacré-Cœur & Montmartre…\"). Each row has a badge/time line directly beneath the title with plenty of vertical room in the card, so a second line would fit without breaking the layout — the title is forced onto a single line regardless. A Traveller can't tell what several of the day's bookings and activities actually are without opening them.",
+    "where": "Agenda day-card item row title (single-line truncate, e.g. component rendering `[data-testid=\"app-main\"] section.relative > ... > a.flex` item rows)",
+    "suggestedFix": "Allow the item title to wrap to 2 lines (or at least show the full text via wrapping) instead of a single-line ellipsis truncation; reserve the vertical space that's already unused below the title.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/calendar/deep/360-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 1280,
+        "w": 720,
+        "h": 160
+      }
+    },
+    "sources": [
+      "calendar-narrow-1"
+    ]
+  },
+  {
+    "id": "LA-022",
+    "route": "/trips/{id}/calendar",
+    "screen": "Days",
+    "widths": [
+      768
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Ugly",
+    "title": "Month-grid day cells too narrow for stop/country labels and item-count badge",
+    "what": "At 768px, almost every populated day cell truncates its place name and country with an ellipsis (\"Rovaniemi\" → \"ROVA…\", \"Germany\" → \"Germa…\", \"United Kingdom\" → \"United …\"), and the automatic checks confirm the \"N things\" count badge and a secondary label span overflow their cell by 3–12px on more than a dozen cells across the grid (e.g. every cell in the Munich/London/Dublin rows). This is systemic to the grid, not a one-off — real trip data with normal city/country name lengths won't fit the current cell width at this breakpoint.",
+    "where": "Month grid day cell, `[data-testid=\"app-main\"] div.grid a.flex` (city/country label + `span.items-center` item-count badge)",
+    "suggestedFix": "Either drop the country line at this width (city + night count is enough, as the kit does), or size/wrap the badge and labels so they never exceed the cell, instead of letting them ellipsis or spill a few pixels past the edge.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/calendar/deep/768-light.png",
+      "crop": {
+        "x": 0,
+        "y": 395,
+        "w": 768,
+        "h": 210
+      }
+    },
+    "sources": [
+      "calendar-narrow-2"
+    ]
+  },
+  {
+    "id": "LA-023",
+    "route": "/trips",
+    "screen": "Feedback",
+    "widths": [
+      360,
+      390,
+      1440
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Ugly",
+    "title": "Feedback panel leaves a huge blank area below the compose box",
+    "what": "The Feedback overlay is sized full-height on mobile (and to a tall fixed card on desktop), but with no message history the title, subtitle, prompt, textarea and Send button only occupy the top ~35-40% of it, leaving a large empty cream void below on every width tested.",
+    "where": "Feedback overlay/dialog, empty state",
+    "suggestedFix": "Size the panel to its content (collapse the empty conversation area) or centre a placeholder/illustration in the empty space instead of reserving full/fixed height that goes unused.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/overlay/feedback/360-light.png",
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "w": 720,
+        "h": 1200
+      }
+    },
+    "sources": [
+      "overlays-shell-3"
+    ]
+  },
+  {
+    "id": "LA-024",
+    "route": "/globe",
+    "screen": "Globe",
+    "widths": [
+      1440
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Ugly",
+    "title": "Desktop dialog: intro text crowds straight into \"CURRENT MEMBERS\"",
+    "what": "At 1440 the \"Invite someone to view and add markers to your Globe.\" paragraph has almost no gap before the \"CURRENT MEMBERS\" eyebrow underneath it — the two lines visually touch/overlap by a few pixels. Both stay readable, so this is a spacing squeeze rather than clipping, but at 360/390 there's a normal gap, so it's another desktop-only regression in the same family as the label-clipping bugs above.",
+    "where": "Share your Globe dialog, gap between intro paragraph and \"CURRENT MEMBERS\" label — same dialog component family as overlays-other-1..3.",
+    "suggestedFix": "Add back the vertical margin between the intro paragraph and the following section eyebrow at desktop widths.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/overlay/globe-share/1440-light.png",
+      "crop": {
+        "x": 480,
+        "y": 380,
+        "w": 500,
+        "h": 140
+      }
+    },
+    "sources": [
+      "overlays-other-4"
+    ]
+  },
+  {
+    "id": "LA-025",
+    "route": "/globe",
+    "screen": "Globe",
+    "widths": [
+      360,
+      375,
+      390,
+      1024
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Marker list title/subtitle truncates unevenly across breakpoints",
+    "what": "In the marker list below the map, longer marker titles and their subtitle line (place · category · date) get cut off mid-word with an ellipsis and no title/aria-label to reveal the rest — e.g. \"Sahara overnight c…\", \"Munich · Food & Drink · lat…\", \"Edinburgh Hogm…\" / \"Edinburgh · Nightlife · 3…\", \"Ring Road, Icel…\". The odd part is the breakpoint behaviour: it's clipped at 360-390px, fully readable again at 430-768px, clipped again at 1024px (where the page switches to the map+list two-column layout and the list column narrows to about the same width as a phone), then fully readable again from 1280px up. A Traveller resizing the window sees the same row's text appear and disappear repeatedly, and at the widths where it's clipped there is no way to read the full label short of opening the row's edit form.",
+    "where": "marker-row list, `[data-testid=\"marker-row-*\"]` (confirmed by the auto-check's clipped-text hits on this selector family)",
+    "suggestedFix": "Give the marker-row title and subtitle a `title` attribute (or a proper tooltip) so the full text is reachable everywhere it can truncate, and re-check the flex/min-width rules on the row so the 1024px aside column doesn't re-trigger the same truncation the phone widths hit.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/globe/none/360-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 1440,
+        "w": 720,
+        "h": 420
+      }
+    },
+    "sources": [
+      "globe-wishlist-1"
+    ]
+  },
+  {
+    "id": "LA-026",
+    "route": "/trips/{id}/help",
+    "screen": "Help",
+    "widths": [
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "'60-second version' card leaves a large blank gap beside its text",
+    "what": "When the 'The 60-second version' disclosure is expanded, its intro paragraph, six numbered steps and closing paragraph stay pinned to a narrow ~650px-wide column while the card itself stretches to the full content width (which keeps growing with the viewport). From 1024px up this leaves a large blank rectangle on the right of the card — at 2560px it's roughly half the card. Every sibling on the page (the 'Buttons you'll tap / Little markers' two-column card, the topic-card grids) fills the available card width; only this one accordion body doesn't. The automatic check's 'line-too-long' hits on this same paragraph are a symptom of the same cause, not a separate issue. Confirmed in both light and dark, and on both the 'deep' and 'empty' trips.",
+    "where": "Help page, 'Using it day to day' → 'The 60-second version' expanded disclosure body",
+    "suggestedFix": "Cap the disclosure body's text measure (e.g. ~650-720px) independent of the card's outer width, or let the numbered list reflow into two columns once the card is wider than the surrounding content needs.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/trip-help/deep/2560-light-part1.png",
+      "crop": {
+        "x": 580,
+        "y": 1310,
+        "w": 1860,
+        "h": 600
+      }
+    },
+    "sources": [
+      "trip-help-2"
+    ]
+  },
+  {
+    "route": "/help",
+    "screen": "Help",
+    "grade": "Ugly",
+    "title": "Help topic-card grids misalign or leave an orphan card at 768–1024",
+    "widths": [
+      768,
+      1024
+    ],
+    "themes": [
+      "light"
+    ],
+    "what": "At 1024px the six 'everyday' topic cards (The shape of your trip ... When something looks off) render in 2 columns, but the 'Going deeper' cards further down render in 3 columns — the same card component switches column count mid-page at one width. Both groups agree at 768px (2 columns) and at 1280px+ (3 columns), so 1024 is the odd one out. Within that 3-column 'Going deeper' grid, 'Variants and comparing plans' wraps its heading to two lines while its row neighbours ('Your Globe', 'Your trip's settings') stay on one line, and the row isn't height-equalised, so that card's bottom edge sits visibly lower than its neighbours. The 'everyday' topics grid (11 cards after the expanded 60-second-version accordion) wraps to 2 columns at 768px. 11 is odd, so 'When something looks off' ends up alone in the last row with a blank half-width gap beside it, while every other row is a filled pair.",
+    "where": "Help page topic-card grids: 'everyday' list vs 'Going deeper' list (differing responsive grid-column breakpoints on what looks like the same card-grid component); Help page, topic-card grid, card 'When something looks off' (last card of the first group)",
+    "suggestedFix": "Give both topic-card lists the same grid-column breakpoints, and equalise row height (items-stretch / grid-auto-rows) so a two-line heading doesn't leave a gap under shorter siblings. At the 2-column breakpoint, either let that last card span the full row width, or move to a 3-column (or single-column) layout at 768px so the group doesn't leave a lone card.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/help/none/1024-light-part2.png",
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "w": 1024,
+        "h": 320
+      }
+    },
+    "sources": [
+      "help-3",
+      "trip-help-1"
+    ],
+    "id": "LA-027"
+  },
+  {
+    "id": "LA-028",
+    "route": "/trips/{id}",
+    "screen": "Home",
+    "widths": [
+      430,
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Cover photo leaves a blank gap instead of filling its card",
+    "what": "The trip cover image is meant to fill its rounded card edge-to-edge (the app's own \"What's new\" note even brags 'Cover photos taken in portrait now fill the space instead of sitting in a grey box'). At 430px and at every desktop width from 1024px up, it stops short of the right edge and leaves a plain background-coloured strip (roughly a fifth to a third of the card) instead of photo. It fills correctly at 375, 390 and 768. Confirmed across the planning, sketching, final-prep and past-phase trips, and in dark mode.",
+    "where": "trip-cover.tsx",
+    "suggestedFix": "Force the cover <img>/background to width:100%; height:100% with object-fit: cover inside its card, instead of letting it size to the asset's intrinsic width, so no background shows through at any viewport.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/home/deep/1440-light.png",
+      "crop": {
+        "x": 250,
+        "y": 300,
+        "w": 1050,
+        "h": 280
+      }
+    },
+    "sources": [
+      "home-1"
+    ]
+  },
+  {
+    "id": "LA-029",
+    "route": "/trips/{id}",
+    "screen": "Home",
+    "widths": [
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Reminders card ignores the two-column grid above it",
+    "what": "On desktop widths, the cover/days-to-go/map/next-steps content sits in a narrower main column next to a paid-so-far/buttons aside, but the Reminders card below breaks that pattern and stretches full width, so its right edge lands well past the right edge of every card above it. Seen on the planning, sketching, final-prep and past-phase trips at every desktop width captured.",
+    "where": "reminders-card.tsx",
+    "suggestedFix": "Either cap Reminders to the main column's width to match the cards above it, or give it an aside partner, so its right edge lines up with the rest of the two-column grid.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/home/deep/1440-light.png",
+      "crop": {
+        "x": 250,
+        "y": 1120,
+        "w": 1050,
+        "h": 300
+      }
+    },
+    "sources": [
+      "home-4"
+    ]
+  },
+  {
+    "id": "LA-030",
+    "route": "/trips/{id}/budget",
+    "screen": "Money",
+    "widths": [
+      360,
+      375,
+      390,
+      430
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "\"By category\"/\"By destination\" labels truncate even short words",
+    "what": "The category and destination summary rows cram a label plus three numeric columns into the phone width, so even short labels like \"Accommodation\" and \"Transport\" clip to \"Accomm…\" and \"Transp…\", and \"Rovaniemi (Lapland)\" clips too. The words are still guessable, but it reads as a cramped, badly-proportioned table rather than a deliberate summary.",
+    "where": "[data-testid=\"budget-grid\"] \"By category\" / \"By destination\" rows, span.truncate labels",
+    "suggestedFix": "Give the label column more of the row width (shrink or stack the two dollar columns below the percentage on phones) so common category names fit without clipping.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/budget/deep/360-light-part3.png",
+      "crop": {
+        "x": 0,
+        "y": 1280,
+        "w": 720,
+        "h": 380
+      }
+    },
+    "sources": [
+      "budget-narrow-2"
+    ]
+  },
+  {
+    "route": "/trips/{id}/budget",
+    "screen": "Money",
+    "grade": "Ugly",
+    "title": "\"Cost / day\" stat card sits alone in its row",
+    "widths": [
+      360,
+      375,
+      390,
+      430,
+      768,
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "what": "The stat cards are Cost total (full width), then Paid + Still to pay side by side, then Cost/day alone on the next row with a large empty gap beside it (most pronounced at 768 where the empty space is roughly half the row). It reads as an unfinished grid rather than a deliberate layout. The top summary row (Cost total / Paid / Still to pay) fills one row, then \"Cost / day\" wraps to a second row by itself. At every width from 1024 to 2560 (light and dark) this leaves a large blank rectangle beside it, roughly two-thirds of the row's width, instead of the card resizing or the row reflowing to fit all four stats.",
+    "where": "Money page stat-card grid; Budget page stat-card grid (Cost total / Paid / Still to pay / Cost per day), above \"Spend so far\"",
+    "suggestedFix": "Either add a fourth stat to fill the row, or let Cost/day span the row (or sit inline with the other two as a 3-up grid on phones too). Either give the stat grid a fixed 4-column template so all four cards sit on one row (the first card can still span 2 columns for its progress bar), or make \"Cost / day\" grow to fill the remaining row width when it wraps.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/budget/deep/360-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 780,
+        "w": 720,
+        "h": 420
+      }
+    },
+    "sources": [
+      "budget-narrow-4",
+      "budget-wide-1"
+    ],
+    "id": "LA-031"
+  },
+  {
+    "id": "LA-032",
+    "route": "/trips/{id}/budget",
+    "screen": "Money",
+    "widths": [
+      768
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Ugly",
+    "title": "\"Paid\"/\"Still to pay\" figures wrap mid-number at 768",
+    "what": "At 768px the Paid and Still-to-pay stat cards become narrower (three-across instead of the phone's two-across layout), and the dollar values wrap onto a second line splitting the digits (\"$18,795.6\" / \"3\", \"$11,762.\" / \"75\"). At every phone width in this batch the same values sit on one line, so widening to tablet actually made the numbers break.",
+    "where": "Money stat-card row, \"Paid\" / \"Still to pay\" cards",
+    "suggestedFix": "Give the stat cards a min-width or reduce the value font size at this breakpoint so the number never wraps.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/budget/deep/768-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 440,
+        "w": 768,
+        "h": 300
+      }
+    },
+    "sources": [
+      "budget-narrow-3"
+    ]
+  },
+  {
+    "id": "LA-033",
+    "route": "/trips/cmueo57tc000lq1lohzz8hwc1/budget",
+    "screen": "Money",
+    "widths": [
+      360,
+      390
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Ugly",
+    "title": "Currency code \"AUD\" clipped to look like \"AUC\" on phone widths",
+    "what": "The currency selector next to the Cost field is too narrow for its own label at 360/390: the closing \"D\" of \"AUD\" is cut off by the control's edge, so it reads as \"AUC\" at a glance. Happens in both the resting and keyboard-open captures. At 1440 the same control has enough width and \"AUD\" renders in full.",
+    "where": "Add Other Cost dialog, Cost row — currency `<select>`/badge beside the amount input.",
+    "suggestedFix": "Give the currency control a little more inline padding/min-width (or shrink the chevron's hit area) so the full 3-letter code clears the border at phone widths.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/overlay/other-cost-add/390-light.png",
+      "crop": {
+        "x": 500,
+        "y": 1150,
+        "w": 280,
+        "h": 200
+      }
+    },
+    "sources": [
+      "overlays-other-5"
+    ]
+  },
+  {
+    "id": "LA-034",
+    "route": "/trips/new",
+    "screen": "New trip",
+    "widths": [
+      768,
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "New trip form stuck in a ~586px island on wide screens",
+    "what": "The New trip form is capped and centred at a fixed ~586px width at every width from 768px up to 2560px (measured: content box is 586px wide and perfectly centred at all six desktop widths tested). At 2560px that leaves roughly 1000px of blank margin on each side of a form that fills only 23% of the viewport — a textbook narrow island of content on a wide screen. This is a cap on the form itself, separate from the shell's max-w-5xl/6xl/7xl container, so widening the shell (ADR 0062) will not fix it.",
+    "where": "the /trips/new form wrapper (page.tsx for the New trip route) — looks like a max-w-xl applied directly to the form container",
+    "suggestedFix": "Either widen the form's max-width to something that scales with the shell (e.g. match the shell's content cap, or step to a two-column field layout above ~1024px), or intentionally keep it narrow but center it with a visibly-designed side treatment rather than bare blank space.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/new-trip/none/2560-light.png",
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "w": 2560,
+        "h": 900
+      }
+    },
+    "sources": [
+      "trips-2"
+    ]
+  },
+  {
+    "id": "LA-035",
+    "route": "/trips/{id}/plan",
+    "screen": "Plan",
+    "widths": [
+      360,
+      375,
+      390,
+      430,
+      768
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Bare \"2\" number field next to \"Add a place…\" has no visible label",
+    "what": "The new-stop form at the bottom of every stop list (including the empty-trip state) shows 'Add a place…' followed by a second, unlabelled text box pre-filled with '2' and an 'Add' button. Nothing on screen indicates this is a nights count — at a glance it reads as stray leftover data or a bug, on every width tested and in both themes.",
+    "where": "new-stop form: nights input beside the 'Add a place…' field, before the 'Add' button",
+    "suggestedFix": "Add a small 'nights' caption or inline unit (e.g. a trailing 'n' suffix like the kit's stepper, or a placeholder/label above the box) so its purpose is clear without prior context.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/plan/deep/360-light-part7.png",
+      "crop": {
+        "x": 0,
+        "y": 300,
+        "w": 720,
+        "h": 350
+      }
+    },
+    "sources": [
+      "plan-narrow-3"
+    ]
+  },
+  {
+    "route": "/trips/{id}/plan",
+    "screen": "Plan",
+    "grade": "Ugly",
+    "title": "Day-list, stay and to-do labels truncate to fragments",
+    "widths": [
+      360,
+      375,
+      390,
+      430,
+      768,
+      1024,
+      1280,
+      1440
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "what": "Every stop card inlines its full day-by-day itinerary (e.g. 'Mon 7 Dec'), its accommodation pill, and its Things-to-do items as single-line, fixed-width `truncate` text with no title/aria-label. When a day has two activities, each gets squeezed so hard the label becomes illegible — 'Husky sled safari' and 'Reindeer farm visit & sleigh ride' render as 'Husk…' and 'Reindeer f…' at 360-430px, and are still cut mid-word at 768px ('Tower of London & the Crown Jew…'). The same truncate pattern clips accommodation names ('Arctic Glass Igloo (S…') and to-do items ('Aventine Keyhole view of S…'). This is a direct consequence of Plan embedding the full day list, transport costs and to-do checklist inline for every stop, where the kit's Plan screen only shows a compact per-stop summary card and leaves that detail to the Stop screen. In a stop card's per-day list, some activity names cut off with an ellipsis (e.g. \"Arktikum — Arctic science & Lapland mu...\", \"Northern Lights sno...\") and there's no title/aria-label to read the rest on hover, confirmed by the automatic check at 22 spots across these widths. Each day row does have an expand chevron, so the information isn't fully lost, but there's no affordance telling a Traveller that hovering won't help and they need to expand the row instead. At 1920px and up the extra width means these particular examples fit without truncating.",
+    "where": "[data-testid=\"stop-day-list\"] span.truncate (day activity labels); stop accommodation pill button span.min-w-0.truncate; Things-to-do li span.flex-1.truncate; Stop card day list, [data-testid=\"stop-day-list\"] span.truncate rows",
+    "suggestedFix": "Let the day-row value wrap to two lines or stack label above value instead of truncating to one line in a fixed-width column; add a title/aria-label so the full text is at least available on hover/screen reader. Add a native title attribute (or tooltip) to truncated activity spans so the full name is readable on hover, matching the affordance a Traveller would expect from the ellipsis.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/plan/deep/360-light-part2.png",
+      "crop": {
+        "x": 0,
+        "y": 300,
+        "w": 720,
+        "h": 600
+      }
+    },
+    "sources": [
+      "plan-narrow-1",
+      "plan-wide-3"
+    ],
+    "id": "LA-036"
+  },
+  {
+    "id": "LA-037",
+    "route": "/trips/{id}/plan",
+    "screen": "Plan",
+    "widths": [
+      360,
+      375,
+      390,
+      430
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Icon-only controls throughout Plan are under the 44px touch-target minimum",
+    "what": "Drag handles, the pencil/edit icon, the '…' overflow menu, the cost row's edit/delete (X) icons, and the day-row expand chevrons all measure well under the 44px touch target on phones (70 distinct hits from the automatic check, e.g. drag-handle-transport, drag-handle-stop, and the pencil/'…' pair on every stop and transport card). They don't look broken at a glance, but a traveller reordering or editing a dense itinerary on a phone will regularly mis-tap these tightly packed controls.",
+    "where": "[data-testid=\"drag-handle-transport\"], [data-testid=\"drag-handle-stop\"], stop/transport card pencil + '…' buttons, cost row edit/X buttons, day-row chevrons",
+    "suggestedFix": "Increase the tappable padding around each icon to at least 44×44px without necessarily enlarging the icon glyph itself.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/plan/deep/375-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 1230,
+        "w": 750,
+        "h": 300
+      }
+    },
+    "sources": [
+      "plan-narrow-4"
+    ]
+  },
+  {
+    "id": "LA-038",
+    "route": "/trips/{id}/plan",
+    "screen": "Plan",
+    "widths": [
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Right-hand aside on Plan is empty for the whole page below the stats card",
+    "what": "This is not the known floating-rail/outer-margin issue (ADR 0062) — it's inside the existing two-column layout. At every width from 1024 up, the right column only ever holds the small 'N stops · N nights / hard end date' card near the top; for the rest of the page's height (thousands of px once a trip has several stops) that whole column is blank while the left stop list keeps scrolling. In the empty-trip state there's no card at all, so the entire right ~60% of the screen is blank. The kit's desktop Plan reference (1280) fills this space with the selected stop's detail panel (things to do, in & out, fork note), so at the kit's own reference width this reads as a big empty island next to real content.",
+    "where": "Plan page right aside, e.g. app/trips/[tripId]/plan/page.tsx (stats/hard-end-date card + empty aside column)",
+    "suggestedFix": "Give the aside real content for the full scroll — e.g. a sticky selected-stop detail panel like the kit — or drop the dedicated column and fold the stats card into the header/main column instead.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/empty/plan/empty/1440-light.png",
+      "crop": {
+        "x": 930,
+        "y": 70,
+        "w": 510,
+        "h": 890
+      }
+    },
+    "sources": [
+      "plan-wide-1"
+    ]
+  },
+  {
+    "id": "LA-039",
+    "route": "/trips/{id}/plan",
+    "screen": "Plan",
+    "widths": [
+      1024
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Ugly",
+    "title": "Stop name clipped to \"Rovaniemi (Lapl...\" only at 1024px",
+    "what": "The stop card's h3 title truncates with an ellipsis and no title/aria-label at exactly 1024px width (confirmed by the automatic check: content 181x25 clipped to 159x25), while the same heading shows in full at 1280px and up. The header's row of icons (pin/close/edit/comment/attach/delete/more) doesn't shrink or wrap, so it squeezes the title first at this one breakpoint. The full name is still readable from the transport rows above/below on the same page, so it's an ugly breakpoint glitch rather than fully unreadable.",
+    "where": "Stop card header, [data-testid=\"app-main\"] h3.font-display (stop title) vs. its row of action icons",
+    "suggestedFix": "Let the icon row wrap or collapse into the \"more\" menu before the title truncates, or give the title flex-1/min-w-0 with the icons at a fixed width so it only truncates when the card itself is too narrow, not at one specific breakpoint.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/plan/deep/1024-light-part1.png",
+      "crop": {
+        "x": 150,
+        "y": 615,
+        "w": 510,
+        "h": 100
+      }
+    },
+    "sources": [
+      "plan-wide-2"
+    ]
+  },
+  {
+    "id": "LA-040",
+    "route": "/privacy",
+    "screen": "Privacy",
+    "widths": [
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Legal page text is capped at ~768px, a shrinking island on wide screens",
+    "what": "The Privacy page's own content column stays fixed at roughly 768px wide regardless of viewport, independent of the app shell's rail/container cap (1024-1280px). At 1024px it's a noticeable island; by 1920 and 2560 it's a slim ~728px reading column with hundreds of pixels of blank margin on each side, far more wasted space than any neighbouring screen shows. This is a page-specific max-width, not the already-decided shell cap, so ADR 0062's shell fix would not resolve it.",
+    "where": "components/legal/legal-page.tsx (or its container) — looks like a max-w-3xl/prose wrapper",
+    "suggestedFix": "Widen the legal-page text container (e.g. to match the shell's content cap, or at least max-w-4xl/5xl) so it doesn't shrink to an isolated column on desktop widths.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/privacy/none/1920-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "w": 1920,
+        "h": 420
+      }
+    },
+    "sources": [
+      "privacy-1"
+    ]
+  },
+  {
+    "id": "LA-041",
+    "route": "/share/{token}",
+    "screen": "Public link",
+    "widths": [
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Day-by-day list stays one full-width column, wasting space",
+    "what": "On the public share page's 'Day by day' timeline, every day is a card stretched to the full content width (up to ~1280px), but most cards hold only one or two single-line rows (e.g. 'Louvre Museum', 'Champs-Élysées Christmas lights & Arc de Triomphe'), leaving a large blank strip to the right of the text in every row. The list never breaks into more than one column at any width from 1024 up to 2560, so the wasted space only grows on wider screens.",
+    "where": "share page 'Day by day' section (shared/share.jsx SharePage, day itinerary cards)",
+    "suggestedFix": "Lay the day cards out in a 2-3 column grid (or cap each card's width, e.g. ~600-700px) above a breakpoint instead of one full-bleed column per day.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/share/none/1280-light-part4.png",
+      "crop": {
+        "x": 140,
+        "y": 240,
+        "w": 1000,
+        "h": 210
+      }
+    },
+    "sources": [
+      "share-wide-1"
+    ]
+  },
+  {
+    "id": "LA-042",
+    "route": "/share/8d66c30d-f9e6-4a35-a660-f54c55646299",
+    "screen": "Public link",
+    "widths": [
+      360,
+      375,
+      390,
+      430,
+      768
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Route mini-map is zoomed so far out that every stop overlaps into one blob",
+    "what": "Because the map auto-fits to include the home marker \"H\" (Brisbane, on the far side of the world) along with the six European stops, it renders at world-map zoom. All six stop pins collapse into one overlapping cluster of circles with only \"1\" and \"6\" legible; stops 2–5 are fully hidden behind their neighbours at every width tested (360 through 768, light and dark). This is also why several markers get flagged as small tap targets — they're not just small, they're stacked on top of each other and effectively untappable individually.",
+    "where": "Route card > Leaflet mini-map (stop marker cluster)",
+    "suggestedFix": "Cap the mini-map's auto-fit bounds to the trip stops (exclude the home marker from the fit, or draw it as a separate inset/line) so the actual route is distinguishable at a glance.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/share/none/768-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 1000,
+        "w": 768,
+        "h": 370
+      }
+    },
+    "sources": [
+      "share-narrow-4"
+    ]
+  },
+  {
+    "id": "LA-043",
+    "route": "/share/8d66c30d-f9e6-4a35-a660-f54c55646299",
+    "screen": "Public link",
+    "widths": [
+      360,
+      375,
+      390
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Trip name heading wraps to leave the year alone on its own line",
+    "what": "The hero heading \"EU Christmas 2026\" wraps as \"EU Christmas\" / \"2026\", leaving the lone \"2026\" orphaned on its own line at 360/375/390 (light and dark). At 430px and up it fits on one line with no wrap.",
+    "where": "Hero card > trip name heading (h1)",
+    "suggestedFix": "Tighten the heading's font-size/line-length at these widths, or use a non-breaking space between the last two words so the final line never carries a single short word/number alone.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/share/none/390-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 140,
+        "w": 780,
+        "h": 280
+      }
+    },
+    "sources": [
+      "share-narrow-3"
+    ]
+  },
+  {
+    "id": "LA-044",
+    "route": "/trips/{id}/today",
+    "screen": "Today",
+    "widths": [
+      375,
+      1440
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Ugly",
+    "title": "Empty trip's cover shows a lone grey initial instead of the usual gradient",
+    "what": "Every other trip without an uploaded photo shows a bold two-tone colour gradient as its cover (blue, green, orange, etc.). The 'Layout audit — empty' trip instead shows a plain off-white/cream box with a single small grey letter 'L' adrift near the centre, surrounded by a lot of dead space. It reads as a broken or unfinished placeholder next to the other trips' vivid covers, and is a different treatment of the same cover component.",
+    "where": "Trip cover component on the Home page hero",
+    "suggestedFix": "Give the empty-trip cover the same colour-gradient treatment other trips get, or design a deliberate small 'no stops yet' cover instead of a bare oversized initial.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/empty/today/empty/1440-light.png",
+      "crop": {
+        "x": 280,
+        "y": 330,
+        "w": 1000,
+        "h": 220
+      }
+    },
+    "sources": [
+      "today-2"
+    ]
+  },
+  {
+    "id": "LA-045",
+    "route": "/trips/{id}/today",
+    "screen": "Today",
+    "widths": [
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Two-column Home layout (shown via /today) leaves a large blank gap",
+    "what": "At desktop widths the /today route (which falls back to the trip Home layout whenever there is no live 'today' — planning/sketching/final-prep phases) splits into a left column (cover, countdown, map, Next steps) and a right column (Paid so far, Add a place/Add a cost/Wishlist/Checklists). The right column is much shorter than the left, so a large empty region sits beside Next steps and above Reminders. Worst on the 'deep' trip (EU Christmas 2026), where the gap is several hundred px tall at every desktop width tested (1024 through 2560), in both light and dark; a smaller version of the same gap shows on the final-prep and travelling trips too.",
+    "where": "Home page two-column grid reused at /today; right rail ends after the quick-action button row while the left column continues with the map/Next steps card",
+    "suggestedFix": "Give the right column more content (e.g. move Next steps or Reminders into it) or lay the two columns out as a masonry/equal-height grid so neither column dead-ends early while the other keeps going.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/today/deep/1280-light.png",
+      "crop": {
+        "x": 0,
+        "y": 540,
+        "w": 1280,
+        "h": 820
+      }
+    },
+    "sources": [
+      "today-1"
+    ]
+  },
+  {
+    "id": "LA-046",
+    "route": "/trips/{id}/settings",
+    "screen": "Trip settings",
+    "widths": [
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Settings stays one narrow column at every desktop width",
+    "what": "The kit's desktop reference splits Settings into two columns (Trip details/Home base on the left, Money/Travellers/Share on the right) at 1280. Our build keeps a single ~650px-wide card stack at every width from 1024 to 2560, leaving increasingly large blank space beside it (roughly a third of the viewport at 1280, well over half at 1920/2560) and forcing a very long single scroll through ten stacked cards.",
+    "where": "Trip settings page layout (single-column card stack, no md/lg two-column grid)",
+    "suggestedFix": "Split the settings cards into two columns from ~1024px up, matching the kit's grouping (trip/home-base vs. money/travellers/share/digest/calendar/driving/danger).",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/settings/deep/2560-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "w": 2560,
+        "h": 1000
+      }
+    },
+    "sources": [
+      "settings-3"
+    ]
+  },
+  {
+    "id": "LA-047",
+    "route": "/whats-new",
+    "screen": "What's new",
+    "widths": [
+      768,
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "What's new stays a narrow ~720px card at every desktop width",
+    "what": "From 768px up to 2560px the single release-notes card never grows past roughly 720px wide, leaving a large blank field to its right that gets more absurd as the viewport widens (at 2560 the card occupies barely a quarter of the content column). Account, on the same shell, uses two side-by-side cards that fill the same container width, so this page reads as broken compared to its neighbour.",
+    "where": "app/whats-new (release notes card container)",
+    "suggestedFix": "Cap the card at a sensible reading width but let it sit alongside something (e.g. a second column, or centre it with intentional margins) instead of hard-pinning it to ~720px inside a much wider container; or let it grow with the container like Account's cards do.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/whats-new/none/2560-light.png",
+      "crop": {
+        "x": 0,
+        "y": 40,
+        "w": 1600,
+        "h": 320
+      }
+    },
+    "sources": [
+      "account-whatsnew-1"
+    ]
+  },
+  {
+    "id": "LA-048",
+    "route": "/account",
+    "screen": "Account",
+    "widths": [
+      360
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Polish",
+    "title": "Trip name clipped with ellipsis in digest list at 360px",
+    "what": "In \"Which trips send you a digest\", the row label \"Alpine Road Loop — Spring 2027\" is 3px too wide for its column at 360px and truncates to \"Alpine Road Loop — Spring 20…\", dropping the year. At 375px and up it fits fully, so this is a narrow-width-only rounding issue rather than a systemic problem.",
+    "where": "Account > Which trips send you a digest > row label",
+    "suggestedFix": "Give the label a couple more px of flex-basis or let it wrap to a second line instead of truncating, since losing the trip's year is a minor but real information loss.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/account/none/360-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 1170,
+        "w": 720,
+        "h": 110
+      }
+    },
+    "sources": [
+      "account-whatsnew-2"
+    ]
+  },
+  {
+    "route": "/trips/{id}/budget",
+    "screen": "Across screens",
+    "grade": "Polish",
+    "title": "Checkboxes, toggles, chips and row icons inside pages are under 44px on phones",
+    "widths": [
+      360,
+      375,
+      390,
+      430
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "what": "In-page controls are smaller than a 44px tap target on phones: Money checklist checkboxes, Account digest toggles, Globe marker-row icons, Trip settings icon buttons, category chips and the Rough/Scheduled toggle in forms, and the fork switcher's row icons.",
+    "where": "[data-testid=\"budget-grid\"] li input[type=checkbox]; header logo/nav icon buttons; Digest row toggle (Switch component); header icon buttons; marker-row action icons (attach/edit/delete) and the sticky header's icon controls; Various icon buttons/checkboxes across Trip settings (Travellers list, Invite chip, Calendar feed checkboxes, header); Category chip row (Add Item form) and segmented Rough/S",
+    "suggestedFix": "Make the whole row (or at least a 44px padded area around the checkbox) tappable, and pad the header icon buttons to 44px. Increase the toggle's hit area (padding, not necessarily its visual track) to 44px, and check the header's icon buttons have an equivalent invisible hit-area pad. Bump the tap area (padding, not necessarily the visual icon) on the marker-row action icons to 44×44px, and check the same header icon-button component used across the app. Increase the hit area (padding) on icon-only buttons and checkbox labels to at least 44x44px on phone, without necessarily enlarging the visible icon. Increase the chips' and segmented toggle's vertical padding so they reach 44px tall at phone widths. Increase the chip's vertical padding (or min-height: 44px) on phone widths so it meets the tap-target minimum, matching the height of the inputs it sits beside. Pad each icon button's hit area to at least 44×44px even if the visual icon glyph stays small.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/budget/deep/360-light-part2.png",
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "w": 300,
+        "h": 500
+      }
+    },
+    "sources": [
+      "budget-narrow-5",
+      "account-whatsnew-3",
+      "globe-wishlist-2",
+      "settings-5",
+      "overlays-plan-2",
+      "overlays-other-6",
+      "overlays-shell-8"
+    ],
+    "id": "LA-049"
+  },
+  {
+    "route": "/admin",
+    "screen": "Across screens",
+    "grade": "Polish",
+    "title": "Header icons, avatar stack and floating buttons are under 44px on phones",
+    "widths": [
+      360,
+      375,
+      390,
+      430,
+      768,
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "what": "On every screen at 360–430px the app header's icon buttons (search, theme, avatar), the trip header's avatar stack and bell, and the floating feedback/comment button are smaller than a 44px tap target. One fix in the shared header covers it everywhere. Also on Print (trip header avatars and the Real plan pill).",
+    "where": "app header, icon buttons (theme toggle, avatar) — header.sticky > div.mx-auto > div.flex > button.rounded-full; app header (header.sticky), the icon/link row: search, Globe, theme toggle, avatar; Sticky header (search icon, theme-toggle) and the floating comment button on the cover photo; app header / trip-cover.tsx dismissible card; header icon row (logo/search/Globe/theme toggle/avatar) and the ",
+    "suggestedFix": "Increase the clickable padding around the theme-toggle and avatar buttons to at least 44x44px on touch widths, even if the visible icon/avatar stays the same size. Increase the tappable padding around each header icon/link to at least 44x44px (the visible icon can stay the same size) rather than sizing the hit area to the glyph. Increase the tappable padding around these icon buttons to at least 44x44px without necessarily enlarging the visible icon. Give these icon buttons a 44x44px hit area (extra padding is fine even if the visible icon stays the same size) rather than resizing the icons themselves. Increase the tappable hit area (padding, not necessarily visual size) on the header icon buttons and TOC chips to at least 44x44px on phone widths. Increase vertical padding on the chip/pill button style and the header icon buttons so their hit area reaches 44px, without necessarily growing their visual size. Increase the hit-area padding on these header controls to reach 44x44px on touch widths, without necessarily growing the visible icon size. Pad the hit area of these controls to 44x44px (padding can exceed the visible icon size) without changing their visual size. Pad the avatar chips' hit area out to ~44px on the wrapping button instead of sizing it to the visible 30px circle, and double check the floating add-note button's tap area on phone widths. Increase the hit area (padding/min-h/min-w) of the bell and floating comment buttons to 44px on phone breakpoints; leave map markers and attribution links as-is. Pad these controls (especially the repeated day-heading link) to a 44×44px hit area, keeping the visible glyph/text the same size. Increase the tappable padding around the Leaflet zoom controls and attribution links via custom CSS, and confirm the header logo/day-nav circle buttons meet 44px on phone.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/admin/none/390-light.png",
+      "crop": {
+        "x": 540,
+        "y": 0,
+        "w": 240,
+        "h": 120
+      }
+    },
+    "sources": [
+      "public-a-1",
+      "trips-3",
+      "today-3",
+      "home-3",
+      "help-2",
+      "trip-help-3",
+      "checklists-files-2",
+      "compare-print-5",
+      "journal-activity-1",
+      "summary-narrow-2",
+      "calendar-narrow-3",
+      "day-2"
+    ],
+    "id": "LA-050"
+  },
+  {
+    "route": "/help",
+    "screen": "Across screens",
+    "grade": "Polish",
+    "title": "Some paragraphs run past ~80 characters a line on desktop (Help, Trip settings)",
+    "widths": [
+      768,
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "what": "The page subtitle ('Everything you need, shortest bits first...') and the closing paragraph inside 'The 60-second version' card ('You can stop anywhere in that loop...') sit in a max-w-prose column that stays the same width regardless of viewport, landing at roughly 81 characters per line from 768px all the way to 2560px — just past a comfortable reading measure. Confirmed visually at 768/1024/1280/1440 (both themes)/1920/2560; not present on phone widths where the column is narrower. Explanatory paragraphs (digest, calendar feed, share links, driving estimates, invite copy) aren't width-capped, so as the single column stretches, body text lines get noticeably long and harder to read — consistently flagged from 768px up through 2560px.",
+    "where": "p.max-w-prose under [data-testid=\"app-main\"] (intro subtitle) and the paragraph closing 'The 60-second version' disclosure; Trip settings card body copy (p.text-xs elements throughout the cards)",
+    "suggestedFix": "Tighten those two paragraphs to a shorter fixed measure (e.g. ~60ch) so lines stay under ~80 characters at every desktop width, instead of one prose class shared unchanged across breakpoints. Cap paragraph width (e.g. max-w-prose / ~65ch) inside each card independent of the card's own width.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/help/none/1280-light-part1.png",
+      "crop": {
+        "x": 64,
+        "y": 90,
+        "w": 650,
+        "h": 100
+      }
+    },
+    "sources": [
+      "help-1",
+      "settings-4"
+    ],
+    "id": "LA-051"
+  },
+  {
+    "id": "LA-052",
+    "route": "/trips/{id}/checklists",
+    "screen": "Checklists",
+    "widths": [
+      360,
+      375,
+      390,
+      430
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Polish",
+    "title": "Segmented tab strip is short and its 3rd label clips at 360px",
+    "what": "The Pre-trip/Packing/Booking parser segmented control is under the 44px tall touch-target guideline at all phone widths (auto-check confirms it visually, ~30px tall). At exactly 360px the third tab's label is additionally cut off mid-word ('Booking pars…') with no ellipsis or scroll affordance beyond the partial-letter peek; from 375px up it fits and reads fine.",
+    "where": "Checklists segmented tab control (Pre-trip / Packing / Booking parser)",
+    "suggestedFix": "Add vertical padding to reach a 44px tap height, and at ≤360px either shrink the tab label/padding slightly or add a fade/scroll affordance so the clipped third tab reads as intentionally scrollable rather than cut off.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/checklists/deep/360-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 590,
+        "w": 720,
+        "h": 110
+      }
+    },
+    "sources": [
+      "checklists-files-3"
+    ]
+  },
+  {
+    "id": "LA-053",
+    "route": "/trips/{id}/calendar",
+    "screen": "Days",
+    "widths": [
+      1024
+    ],
+    "themes": [
+      "light"
+    ],
+    "grade": "Polish",
+    "title": "Day-count badge and travel-icon label spill past the day cell edge at 1024px",
+    "what": "At exactly 1024px wide, the '2 things'/'3 things' count pill and the hidden travel-day arrow label in several day cells extend 5-14px past their cell's right edge. It self-corrects by 1280px, so it's a narrow breakpoint-edge fit issue rather than a real overflow a Traveller would likely register, but it affects most cells in the grid at that width.",
+    "where": "Day cell badge (`span.items-center` count pill) and travel-icon label (`span.hidden`) inside the month grid, `/trips/{id}/calendar`",
+    "suggestedFix": "Give the count pill and travel-icon label `min-w-0`/`truncate` or shrink their padding at the 1024px tier so they fit inside the cell before the container's next breakpoint widens it.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/calendar/deep/1024-light.png",
+      "crop": {
+        "x": 140,
+        "y": 395,
+        "w": 600,
+        "h": 170
+      }
+    },
+    "sources": [
+      "calendar-wide-2"
+    ]
+  },
+  {
+    "route": "/signin",
+    "screen": "Sign in & legal pages",
+    "grade": "Polish",
+    "title": "Footer and legal-page links are small, tightly spaced tap targets",
+    "widths": [
+      360,
+      375,
+      390,
+      430,
+      768,
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "what": "The 'Privacy · Terms' link pair under the sign-in card (also on '/', which redirects here), and the equivalent 'Privacy' nav link and inline 'Privacy' link on the Terms page, are plain underlined inline text with a tap height well under 44px and only a single character's gap between them. Easy to mistap the neighbouring link on a phone. The automatic check flagged the header logo link and the 13px \"Terms\" link as under the 44px touch-target minimum on phone widths. Visually both are plain text/icon links with no visible padding box around them, so although the header bar itself is tall, the actual clickable area is just the text glyphs — easy to miss-tap for a Traveller switching between Privacy and Terms.",
+    "where": "sign-in footer links; legal-page header nav link; Terms page inline 'Privacy' link — a.underline, header.border-b-2 a; header.border-b-2 > div.mx-auto > a (logo link and the \"Terms\" text-[13px] link)",
+    "suggestedFix": "Add vertical padding (or wrap each in a larger tap area) and a bit more horizontal gap between 'Privacy' and 'Terms' so the two links don't sit edge-to-edge. Add vertical/horizontal padding to the header logo and nav links (or an invisible hit-slop) so their tap target reaches ~44px, without changing the visible header height.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/stage1/shots/deep/signin/none/390-light.png",
+      "crop": {
+        "x": 180,
+        "y": 1075,
+        "w": 420,
+        "h": 90
+      }
+    },
+    "sources": [
+      "public-a-2",
+      "privacy-2"
+    ],
+    "id": "LA-054"
+  },
+  {
+    "id": "LA-055",
+    "route": "/trips/{id}/print",
+    "screen": "Print",
+    "widths": [
+      768,
+      1024,
+      1280,
+      1440,
+      1920,
+      2560
+    ],
+    "themes": [
+      "light",
+      "dark"
+    ],
+    "grade": "Ugly",
+    "title": "Print page stays a fixed ~750px column at every desktop width",
+    "what": "From 768px up to 2560px the whole print page (intro line, Route cards, Day-by-Day, Budget Summary) sits in one column that never grows past roughly 750px wide. At 1920 and 2560 that leaves over half the browser width as blank cream margin on the right, identical at every width tested. This is not just the shell's known center-and-cap margins (ADR 0062): the content island itself is far narrower than the shell's own capped container (1152-1280px), so widening the window buys the page nothing.",
+    "where": "app/trips/[tripId]/print page content wrapper (looks like a max-w-3xl-style container that never steps up at lg/xl/2xl)",
+    "suggestedFix": "Let the print content container grow with the shell's cap (matching other trip pages), and/or adopt the kit's two-column desktop layout (preview left, options aside right) instead of a single fixed-width column.",
+    "screenshot": {
+      "file": "/tmp/layout-audit/finalfix/shots/deep/print/deep/1920-light-part1.png",
+      "crop": {
+        "x": 0,
+        "y": 0,
+        "w": 1920,
+        "h": 700
+      }
+    },
+    "sources": [
+      "print-screen-wide-1"
+    ]
+  }
+]

@@ -62,6 +62,12 @@ const seedStops: StopCardStop[] = [
   },
 ];
 
+// Delete lives in the Stop card's overflow menu as "Delete {name}".
+async function openDeleteFromMenu(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "More actions for Paris" }));
+  await user.click(await screen.findByRole("menuitem", { name: "Delete Paris" }));
+}
+
 describe("StopsManager — delete confirm flow", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -69,7 +75,7 @@ describe("StopsManager — delete confirm flow", () => {
     const user = userEvent.setup();
     render(<StopsManager tripId="trip-1" initialStops={seedStops} />);
 
-    await user.click(screen.getByRole("button", { name: /delete paris/i }));
+    await openDeleteFromMenu(user);
 
     expect(
       await screen.findByRole("heading", { name: /Delete "Paris"/i }),
@@ -81,7 +87,7 @@ describe("StopsManager — delete confirm flow", () => {
     const user = userEvent.setup();
     render(<StopsManager tripId="trip-1" initialStops={seedStops} />);
 
-    await user.click(screen.getByRole("button", { name: /delete paris/i }));
+    await openDeleteFromMenu(user);
     await screen.findByRole("heading", { name: /Delete "Paris"/i });
 
     await user.click(screen.getByRole("button", { name: /cancel/i }));
@@ -92,7 +98,7 @@ describe("StopsManager — delete confirm flow", () => {
     const user = userEvent.setup();
     render(<StopsManager tripId="trip-1" initialStops={seedStops} />);
 
-    await user.click(screen.getByRole("button", { name: /delete paris/i }));
+    await openDeleteFromMenu(user);
     await screen.findByRole("heading", { name: /Delete "Paris"/i });
 
     await user.click(screen.getByRole("button", { name: "Delete" }));

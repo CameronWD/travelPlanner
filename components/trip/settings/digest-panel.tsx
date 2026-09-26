@@ -188,7 +188,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
 
       {saveError && <p className="text-xs text-destructive">{saveError}</p>}
 
-      <p className="text-xs text-muted-foreground">
+      <p className="max-w-reading text-xs text-muted-foreground">
         One push in the evening, carrying whatever is true that day — a payment
         due, checklist items falling due, that day&rsquo;s reminders, and
         tomorrow&rsquo;s plan once tomorrow falls inside the trip. On a travel
@@ -227,7 +227,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
                 <span>
                   This device recorded no timezone, so there is no local 8pm to
                   send at and it is skipped every run — no digest will ever reach
-                  it. Open TEEPEE on that device and press Enable again to record
+                  it. Open Teepee on that device and press Enable again to record
                   one.
                 </span>
               </p>
@@ -236,7 +236,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
               <p className="flex items-start gap-2 text-xs text-destructive">
                 <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
                 <span>
-                  Nothing is scheduled to reach {storedZone}. TEEPEE dispatches at a few
+                  Nothing is scheduled to reach {storedZone}. Teepee dispatches at a few
                   fixed UTC hours, and today none of them land in that zone&rsquo;s
                   evening or morning — so this device is considered on every run
                   and sent to on none of them, with nothing in the logs to say so.
@@ -251,7 +251,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
                 <span>
                   You are in {liveZone}, but the digest is still scheduled against{" "}
                   {storedZone} — so it arrives at 8pm {storedZone}, which is some
-                  other hour here. TEEPEE re-records the zone every time you open
+                  other hour here. Teepee re-records the zone every time you open
                   the app; reload this page, and if this is still showing, the
                   update is not getting through.
                 </span>
@@ -340,7 +340,7 @@ export function DigestPanel({ tripId, initial }: DigestPanelProps) {
       </div>
 
       {/* ── Why silence is not breakage ── */}
-      <p className="text-xs text-muted-foreground">
+      <p className="max-w-reading text-xs text-muted-foreground">
         A digest is only sent when there is something to say. On a day with no
         payment due, no checklist item, no reminder and nothing coming up, you
         get nothing at all — that is working correctly, not a delivery failure.

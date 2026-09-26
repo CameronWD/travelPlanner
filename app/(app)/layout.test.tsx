@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 
 // ── Module mocks (must be declared before any imports of the mocked modules) ──
 
@@ -104,10 +104,12 @@ describe("AppLayout", () => {
     expect(redirect).toHaveBeenCalledTimes(1);
   });
 
-  it("renders the TEEPEE wordmark link when authenticated", async () => {
+  it("renders the Teepee wordmark link when authenticated", async () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
-    expect(screen.getByText("TEEPEE")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Teepee — go to your trips" }),
+    ).toBeInTheDocument();
   });
 
   it("renders the avatar trigger button for the user menu", async () => {
@@ -117,20 +119,86 @@ describe("AppLayout", () => {
     expect(screen.getByRole("button", { name: /traveller menu/i })).toBeInTheDocument();
   });
 
-  it("renders the tent SVG wordmark", async () => {
+  // LA-050: the header's icon-sized controls get a 44px tap target.
+  it("gives the header's avatar trigger a 44px tap target", async () => {
     const ui = await AppLayout({ children: <div /> });
-    const { container } = render(ui as React.ReactElement);
-    expect(container.querySelector("svg[data-testid='tent-icon']")).toBeInTheDocument();
-    expect(screen.getByText("TEEPEE")).toBeInTheDocument();
+    render(ui as React.ReactElement);
+    // A real 44px box, not tap-target's invisible ::before: flush against the
+    // header's trailing edge, that pseudo poked 4px past a 360px viewport and
+    // made every phone page scroll sideways (Stage 2 diagnosis G).
+    const avatar = screen.getByRole("button", { name: "Open traveller menu" });
+    expect(avatar.className).toContain("size-11");
+    expect(avatar.className).toContain("grid");
+    expect(avatar.className).toContain("place-items-center");
+    expect(avatar.className).not.toContain("tap-target");
   });
 
-  it("ramps the content width up on large screens", async () => {
+  it("fits the header's right-hand controls inside a 360px phone", async () => {
+    // Logo (~131px) + search, theme and avatar must fit 360 - 2 x 16px:
+    // phones get the tighter gap.
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const avatar = screen.getByRole("button", { name: "Open traveller menu" });
+    const cluster = avatar.parentElement as HTMLElement;
+    expect(cluster.className).toContain("gap-1");
+    expect(cluster.className).toContain("sm:gap-2");
+  });
+
+  // Beta feedback G1: the rail is on every page, not only inside a Trip, so
+  // from md up Globe lives there. The rail is md+ only and the phone tab bar
+  // has no Globe, so the header keeps a phones-only (md:hidden) Globe link.
+  it("mounts the Teepee rail (Trips, Globe, You) on a non-trip page", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const rail = screen.getByRole("navigation", { name: "Teepee" });
+    for (const [name, href] of [["Trips", "/trips"], ["Globe", "/globe"], ["You", "/account"]]) {
+      expect(within(rail).getByRole("link", { name }).getAttribute("href")).toBe(href);
+    }
+  });
+
+  it("keeps a phones-only Globe link in the header (md:hidden)", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const header = document.querySelector("header")!;
+    const globe = within(header).getByRole("link", { name: "Globe" });
+    expect(globe.getAttribute("href")).toBe("/globe");
+    expect(globe.className.split(/\s+/)).toContain("md:hidden");
+  });
+
+  it("renders the Logo lockup with a single accessible name for the link", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    // The Link's own aria-label ("Teepee — go to your trips") wins over
+    // Logo's generic self-label ("Teepee") per the accessible-name spec, so
+    // there must be exactly one accessible name for the control — not two.
+    const link = screen.getByRole("link", { name: "Teepee — go to your trips" });
+    expect(screen.queryByRole("link", { name: "Teepee" })).not.toBeInTheDocument();
+    // The lockup itself is still present inside, self-labelled as "Teepee",
+    // with its inner mark + wordmark SVGs kept decorative.
+    const brandImg = within(link).getByRole("img", { name: "Teepee" });
+    const svgs = brandImg.querySelectorAll("svg");
+    expect(svgs.length).toBeGreaterThan(0);
+    svgs.forEach((svg) => expect(svg).toHaveAttribute("aria-hidden", "true"));
+  });
+
+  it("caps non-trip content at the shared wide width and goes full-bleed for the trip shell", async () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
     const main = screen.getByTestId("app-main");
-    expect(main.className).toContain("max-w-5xl");
-    expect(main.className).toContain("lg:max-w-6xl");
-    expect(main.className).toContain("2xl:max-w-7xl");
+    expect(main.className).toContain("max-w-page-wide");
+    expect(main.className).toContain("has-[[data-trip-shell]]:max-w-none");
+    expect(main.className).toContain("has-[[data-trip-shell]]:p-0");
+    // A boundary that supplies its own rail (TripBoundaryRailShell) goes full-bleed too.
+    expect(main.className).toContain("has-[[data-rail-shell]]:max-w-none");
+    expect(main.className).toContain("has-[[data-rail-shell]]:p-0");
+    expect(main.className).not.toMatch(/max-w-(5xl|6xl|7xl)/);
+  });
+
+  it("lets the top bar span the full width", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const header = document.querySelector("header")!;
+    expect(header.innerHTML).not.toMatch(/max-w-(5xl|6xl|7xl)/);
   });
 
   it("mounts the feedback launcher for a signed-in traveller", async () => {

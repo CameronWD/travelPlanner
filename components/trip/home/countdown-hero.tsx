@@ -1,4 +1,6 @@
 import { cn } from "@/lib/cn";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { formatDateRange } from "@/lib/dates";
 import { currencySymbol } from "@/lib/money";
 import type { PhaseDescription } from "@/lib/trip-phase";
@@ -34,48 +36,44 @@ export function CountdownHero({
     ? `${description.countdownValue} ${description.countdownUnit.toLowerCase()}`
     : description.countdownValue;
 
+  // Kit DHome.jsx / Home.jsx hero: coral island Card, white caps chip +
+  // "dates · currency" label, the big display-xl count beside its unit.
   return (
-    <section
+    <Card
+      role="region"
       aria-label="Trip countdown"
-      className="relative overflow-hidden rounded-3xl bg-primary p-5 text-primary-foreground shadow-[0_12px_30px_hsl(12_84%_50%/0.32)] dark:shadow-[0_12px_30px_hsl(0_0%_0%/0.4)]"
+      tone="coral"
+      shadow={3}
+      radius="xl"
+      className="flex flex-col p-[18px] lg:row-span-2 lg:min-h-0 lg:p-[22px]"
     >
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute -right-8 -top-8 size-36 rounded-full bg-white/10"
-      />
-
-      <div className="relative flex items-center justify-between gap-2">
-        <span
-          className={cn(
-            "rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em]",
-            urgent ? "bg-warning text-warning-foreground" : "bg-white/20",
-          )}
-        >
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <Badge caps className={cn(urgent && "bg-warning text-warning-foreground")}>
           {description.label}
-        </span>
-        {range && <span className="text-sm font-semibold opacity-95">{range}</span>}
+        </Badge>
+        {range && <span className="text-label">{range}</span>}
       </div>
 
-      <div role="img" aria-label={ariaCountdown} className="relative mt-3.5 flex items-baseline gap-3">
-        <span className="font-display text-6xl lg:text-7xl font-bold leading-[0.9] tracking-[-0.03em]">
+      <div role="img" aria-label={ariaCountdown} className="mt-3.5 flex items-baseline gap-2.5 lg:mt-auto lg:pt-6">
+        <span className="font-display text-[88px] font-extrabold leading-[0.9] tracking-[-0.06em] lg:text-[120px]">
           {description.countdownValue}
         </span>
         {description.countdownUnit && (
-          <span className="whitespace-pre-line font-display text-sm font-bold uppercase leading-tight tracking-[0.1em]">
-            {description.countdownUnit.replace(" ", "\n")}
+          <span className="whitespace-pre-line font-display text-[22px] font-extrabold leading-[1.05] tracking-[-0.03em] lg:text-[28px]">
+            {description.countdownUnit.toLowerCase().replace(" ", "\n")}
           </span>
         )}
       </div>
 
-      <div className="relative mt-4 flex flex-wrap gap-2">
-        <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold">
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        <Badge>
           {nights} {nights === 1 ? "night" : "nights"}
-        </span>
-        <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold">
+        </Badge>
+        <Badge>
           {stopCount} {stopCount === 1 ? "stop" : "stops"}
-        </span>
-        <span className="rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold">{currencyPill}</span>
+        </Badge>
+        <Badge>{currencyPill}</Badge>
       </div>
-    </section>
+    </Card>
   );
 }

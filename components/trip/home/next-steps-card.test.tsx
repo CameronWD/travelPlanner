@@ -19,11 +19,26 @@ describe("NextStepsCard", () => {
     expect(screen.getByRole("link", { name: /no accommodation for paris/i })).toHaveAttribute("href", "/trips/t/plan");
   });
 
-  it("shows a count badge and severity-hued icon chips", () => {
-    const { container } = render(<NextStepsCard steps={[warn, info]} />);
+  /** The icon tile at the start of a step's row. */
+  const tileOf = (name: RegExp) => screen.getByRole("link", { name }).querySelector("span[aria-hidden='true']")!;
+
+  it("shows a count badge and status-toned tiles: warning takes the status token, info a neutral tile", () => {
+    render(<NextStepsCard steps={[warn, info]} />);
     expect(screen.getByText("2")).toBeInTheDocument();
-    expect(container.querySelector(".bg-amber-500")).toBeTruthy(); // warning chip
-    expect(container.querySelector(".bg-sky-500")).toBeTruthy(); // info chip
+    expect(tileOf(/no accommodation/i).className).toMatch(/\bbg-warning\b/); // status = state
+    expect(tileOf(/packing list/i).className).toMatch(/\bbg-card\b/); // info: neutral, not a hue
+    expect(tileOf(/packing list/i).className).not.toMatch(/bg-hue-/);
+  });
+
+  it("is a kit Card whose rows are ≥44px links with the kit tile shape", () => {
+    const { container } = render(<NextStepsCard steps={[warn]} />);
+    const card = container.firstChild as HTMLElement;
+    expect(card.className).toMatch(/\bborder-2\b/);
+    expect(card.className).toMatch(/\bshadow-hard-\d\b/);
+    const link = screen.getByRole("link", { name: /no accommodation/i });
+    expect(link.className).toMatch(/\bmin-h-11\b/);
+    expect(tileOf(/no accommodation/i).className).toMatch(/\bborder-2\b/);
+    expect(screen.getByRole("heading", { name: /next steps/i })).toBeInTheDocument();
   });
 
   it("renders subtitle line when subtitle is present", () => {
@@ -32,10 +47,10 @@ describe("NextStepsCard", () => {
     expect(screen.getByText("Start firming up the itinerary.")).toBeInTheDocument();
   });
 
-  it("renders a coral (bg-primary) chip for a transport step", () => {
-    const { container } = render(<NextStepsCard steps={[transport]} />);
-    expect(container.querySelector(".bg-primary")).toBeTruthy();
-    // should NOT use sky for transport
-    expect(container.querySelector(".bg-sky-500")).toBeFalsy();
+  it("renders an ink (bg-primary) tile for a transport step", () => {
+    render(<NextStepsCard steps={[transport]} />);
+    expect(tileOf(/book transport/i).className).toMatch(/\bbg-primary\b/);
+    // should NOT use a hue for transport
+    expect(tileOf(/book transport/i).className).not.toMatch(/bg-hue-/);
   });
 });
