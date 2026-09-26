@@ -18,6 +18,8 @@
  * Lives here (not in the "use server" forks.ts) because a "use server" module
  * may only export async functions.
  */
+import { isOnTrip } from "@/lib/enums";
+
 export const MAX_FORKS = 4;
 
 // ---------------------------------------------------------------------------
@@ -111,6 +113,8 @@ export interface ForkSourceCost {
   ownerId: string | null;
   label: string | null;
   category: string | null;
+  /** CONTEXT.md "Settlement"; missing/unknown copies as BEFORE. */
+  settlement?: string;
 }
 
 export interface ForkSource {
@@ -219,6 +223,7 @@ export interface ForkPlan {
       ownerId: null;
       label: string | null;
       category: string | null;
+      settlement: string;
     };
   }>;
 }
@@ -271,6 +276,7 @@ export function buildForkPlan(source: ForkSource): ForkPlan {
       data: {
         costMinor: c.costMinor, paidMinor: null, currency: c.currency, rateToHome: c.rateToHome,
         paidAt: null, ownerType: c.ownerType, ownerId: null /* remapped in tx */, label: c.label, category: c.category,
+        settlement: isOnTrip(c.settlement) ? "ON_TRIP" : "BEFORE",
       },
     })),
   };

@@ -397,6 +397,7 @@ model Cost {
   rateToHome     Float? // snapshotted FX rate at entry, or null if same currency
   paidAt         DateTime?
   dueDate        String? // "YYYY-MM-DD" — when an unpaid cost's money leaves the account (CONTEXT.md "Due date")
+  settlement     String    @default("BEFORE") // lib/enums.ts COST_SETTLEMENTS — BEFORE | ON_TRIP; which side of departure it's paid (CONTEXT.md "Settlement")
   ownerType      String // lib/enums.ts COST_OWNER_TYPES
   ownerId        String? // null when ownerType == OTHER
   label          String? // names an OTHER cost (e.g. "Travel insurance")

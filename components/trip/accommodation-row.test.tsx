@@ -83,6 +83,7 @@ const cost = {
   rateToHome: null,
   paidAt: null as Date | null,
   dueDate: null,
+  settlement: "BEFORE",
   ownerType: "ACCOMMODATION",
   ownerId: "acc1",
   label: null,

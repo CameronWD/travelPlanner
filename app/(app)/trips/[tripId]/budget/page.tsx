@@ -19,7 +19,8 @@ import { buildBudget } from "@/lib/budget";
 import { isRateStale } from "@/lib/fx";
 import type { RateEntry } from "@/components/trip/rates-panel";
 import { ChapterChip } from "@/components/trip/chapter-chip";
-import type { BudgetCost, BudgetStopWithDates, BudgetItem, BudgetAccommodation, BudgetTransport } from "@/lib/budget";
+import type { BudgetCost, BudgetStopWithDates, BudgetItem, BudgetAccommodation, BudgetTransport, BudgetTotals } from "@/lib/budget";
+import { formatMoney } from "@/lib/money";
 import { buildSpendSoFar, legacyPaidCount } from "@/lib/spend-so-far";
 import type { SpendCost } from "@/lib/spend-so-far";
 import { SpendSoFarCard } from "@/components/trip/spend-so-far-card";
@@ -50,6 +51,7 @@ const COST_SELECT = {
   ownerId: true,
   label: true,
   category: true,
+  settlement: true,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -70,6 +72,59 @@ export const BUDGET_CATEGORY_ROW_CLASS =
 /** By destination and the chapter reconciliation rows: label · amounts. */
 export const BUDGET_AMOUNT_ROW_CLASS =
   "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1";
+
+// ---------------------------------------------------------------------------
+// Settlement split (exported for unit tests)
+// ---------------------------------------------------------------------------
+
+/**
+ * The two Settlement kinds side by side (CONTEXT.md "Settlement"): what is
+ * paid before you go and what gets paid on the trip, each with its own
+ * headline total and — on the real plan — what has been paid of it.
+ */
+export function SettlementSplit({
+  totals,
+  homeCurrency,
+  showPaid,
+}: {
+  totals: BudgetTotals;
+  homeCurrency: string;
+  showPaid: boolean;
+}) {
+  const kinds = [
+    { id: "before", title: "Before you go", cost: totals.beforeTotalMinor, paid: totals.beforePaidMinor },
+    { id: "on-trip", title: "On the trip", cost: totals.onTripTotalMinor, paid: totals.onTripPaidMinor },
+  ];
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2" data-testid="settlement-split">
+      {kinds.map((k) => (
+        <section
+          key={k.id}
+          aria-labelledby={`settlement-${k.id}`}
+          className="@container min-w-0 rounded-2xl border border-border bg-card p-4 flex flex-col gap-1"
+        >
+          <h3
+            id={`settlement-${k.id}`}
+            className="text-[11px] font-medium uppercase tracking-[0.1em] text-muted-foreground"
+          >
+            {k.title}
+          </h3>
+          <p className="font-display text-lg @[12rem]:text-2xl font-semibold tabular-nums tracking-tight whitespace-nowrap">
+            {formatMoney(k.cost, homeCurrency)}
+          </p>
+          {showPaid && (
+            <p className="text-xs tabular-nums text-muted-foreground">
+              <span className={k.paid > 0 ? "text-teal-text" : undefined}>
+                {formatMoney(k.paid, homeCurrency)}
+              </span>{" "}
+              paid
+            </p>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Page component
@@ -191,6 +246,7 @@ export default async function BudgetPage({
     ownerId: c.ownerId,
     label: c.label,
     category: c.category,
+    settlement: c.settlement,
   }));
 
   // Non-null at runtime: the query filters rough (date-less) stops out.
@@ -428,6 +484,13 @@ export default async function BudgetPage({
               </CardContent>
             </Card>
           )}
+
+          {/* Settlement split — Before you go / On the trip (CONTEXT.md) */}
+          <SettlementSplit
+            totals={budget.grandTotal}
+            homeCurrency={homeCurrency}
+            showPaid={!activeFork}
+          />
 
           {/* By category */}
           {budget.byCategory.length > 0 && (

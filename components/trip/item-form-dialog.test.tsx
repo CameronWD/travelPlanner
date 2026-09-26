@@ -313,6 +313,20 @@ describe("ItemFormDialog", () => {
     );
   });
 
+  it("sends the chosen Settlement with the inline cost", async () => {
+    const user = userEvent.setup();
+    render(<ItemFormDialog {...baseProps} homeCurrency="AUD" />);
+    await user.type(screen.getByPlaceholderText(/visit the night market/i), "Dinner");
+    await user.type(screen.getByLabelText(/^cost amount$/i), "80.00");
+    await user.click(screen.getByRole("radio", { name: "Paid on the trip" }));
+    await user.click(screen.getByRole("button", { name: /add item/i }));
+    expect(createItem).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 8000, settlement: "ON_TRIP" }),
+      undefined,
+    );
+  });
+
   // -------------------------------------------------------------------------
   // Case 11: no costMinor when amount field is empty
   // -------------------------------------------------------------------------
@@ -345,6 +359,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -378,6 +393,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: new Date("2026-07-02"),
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -415,6 +431,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: new Date("2026-07-02"),
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -555,6 +572,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -593,6 +611,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -633,6 +652,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 1,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -646,6 +666,7 @@ describe("ItemFormDialog", () => {
         rateToHome: 1,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM",
         ownerId: "item-99",
         label: null,
@@ -854,6 +875,7 @@ describe("EditItemButton — homeCurrency + costs forwarding", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "ITEM" as const,
         ownerId: "item-99",
         label: null,

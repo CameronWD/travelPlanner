@@ -24,6 +24,7 @@ import {
 import { MoneyInput } from "@/components/ui/money-input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
+import { isOnTrip, type CostSettlement } from "@/lib/enums";
 import { CURRENCIES } from "@/lib/currencies";
 import { formatMoney, formatMinor, parseAmountToMinor, convertMinor } from "@/lib/money";
 import { todayLocalISO } from "@/lib/dates";
@@ -76,6 +77,12 @@ interface FormState {
   paid: boolean;
   paidAt: string;
   dueDate: string;
+  /**
+   * CONTEXT.md "Settlement". Not editable here yet — carried through so an
+   * edit never resets an On the trip cost to Before you go (costSchema
+   * defaults a missing settlement to BEFORE).
+   */
+  settlement: CostSettlement;
 }
 
 function defaultFormState(defaultCurrency: string): FormState {
@@ -88,6 +95,7 @@ function defaultFormState(defaultCurrency: string): FormState {
     paid: false,
     paidAt: "",
     dueDate: "",
+    settlement: "BEFORE",
   };
 }
 
@@ -107,6 +115,7 @@ function costToFormState(cost: CostRow): FormState {
     paid: Boolean(cost.paidAt),
     paidAt: cost.paidAt ? new Date(cost.paidAt).toISOString().slice(0, 10) : "",
     dueDate: cost.dueDate ?? "",
+    settlement: isOnTrip(cost.settlement) ? "ON_TRIP" : "BEFORE",
   };
 }
 
@@ -144,6 +153,7 @@ function parseFormToInput(form: FormState): CostRawInput | null {
     ownerType: "OTHER",
     label: form.label,
     category: form.category || undefined,
+    settlement: form.settlement,
   };
 }
 

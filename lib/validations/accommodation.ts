@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isDateWithin } from "@/lib/dates";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
+import { costSettlementSchema } from "@/lib/enums";
 
 /** YYYY-MM-DD regex */
 const isoDate = z
@@ -70,6 +71,8 @@ export const accommodationSchema = z
 
     /** ISO date string for when the cost was paid. Optional. */
     paidAt: paidAtDateOnlySchema.nullable().optional(),
+    /** CONTEXT.md "Settlement" for the inline cost. Omitted = leave as is (BEFORE on create). */
+    settlement: costSettlementSchema.optional(),
   })
   .refine((data) => data.checkOut >= data.checkIn, {
     message: "Check-out must be on or after check-in",

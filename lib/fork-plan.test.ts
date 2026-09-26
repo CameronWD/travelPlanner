@@ -41,3 +41,9 @@ it("preserves source ids for FK remapping", () => {
   expect(plan.costs[0].sourceOwnerType).toBe("ACCOMMODATION");
   expect(plan.costs[0].sourceOwnerId).toBe("a1");
 });
+
+it("carries a cost's Settlement into the variant; a missing one copies as BEFORE", () => {
+  const onTrip = buildForkPlan({ ...source, costs: [{ ...source.costs[0], settlement: "ON_TRIP" }] });
+  expect(onTrip.costs[0].data.settlement).toBe("ON_TRIP");
+  expect(buildForkPlan(source).costs[0].data.settlement).toBe("BEFORE");
+});

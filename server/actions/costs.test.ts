@@ -151,6 +151,34 @@ describe("plan-scope: createCost with forkId", () => {
   });
 });
 
+describe("createCost — Settlement", () => {
+  it("persists settlement ON_TRIP when chosen", async () => {
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costCreateMock.mockResolvedValue({ id: "cost-1" });
+
+    await createCost("trip-1", { ...VALID_OTHER_INPUT, settlement: "ON_TRIP" });
+
+    expect(costCreateMock.mock.calls[0][0].data.settlement).toBe("ON_TRIP");
+  });
+
+  it("defaults the Settlement to BEFORE when none is sent", async () => {
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costCreateMock.mockResolvedValue({ id: "cost-1" });
+
+    await createCost("trip-1", VALID_OTHER_INPUT);
+
+    expect(costCreateMock.mock.calls[0][0].data.settlement).toBe("BEFORE");
+  });
+
+  it("rejects an unknown Settlement", async () => {
+    const result = await createCost("trip-1", { ...VALID_OTHER_INPUT, settlement: "LATER" as never });
+    expect(result.success).toBe(false);
+    expect(costCreateMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("createCost", () => {
   it("creates a cost and snapshots rateToHome = 1 when currency === homeCurrency", async () => {
     transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
@@ -544,6 +572,19 @@ describe("updateCost", () => {
     expect(result.success).toBe(true);
     const call = costUpdateMock.mock.calls[0][0];
     expect(call.data.dueDate).toBe("2026-11-20");
+  });
+
+  it("persists the Settlement on update", async () => {
+    costFindUniqueMock.mockResolvedValue({ id: "cost-1", tripId: "trip-1", currency: "AUD" });
+    transportFindUniqueMock.mockResolvedValue({ tripId: "trip-1" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+    costUpdateMock.mockResolvedValue({});
+
+    const result = await updateCost("cost-1", { ...VALID_TRANSPORT_INPUT, settlement: "ON_TRIP" });
+
+    expect(result.success).toBe(true);
+    expect(costUpdateMock.mock.calls[0][0].data.settlement).toBe("ON_TRIP");
   });
 
   it("re-snapshots rate = 1 when updating to same currency as home", async () => {

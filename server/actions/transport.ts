@@ -207,6 +207,7 @@ export async function createTransport(
             paidAt: data.paidAt ? new Date(data.paidAt) : null,
             label: null,
             category: null,
+            settlement: data.settlement ?? "BEFORE",
           },
         });
       });
@@ -344,6 +345,7 @@ export async function updateTransport(
                 paidAt: data.paidAt ? new Date(data.paidAt) : null,
                 label: null,
                 category: null,
+                settlement: data.settlement ?? "BEFORE",
               },
             });
           } else {
@@ -360,6 +362,7 @@ export async function updateTransport(
                 rateToHome: resolved.rate,
                 paidAt: data.paidAt ? new Date(data.paidAt) : null,
                 ...(data.paidMinor !== undefined && { paidMinor: data.paidMinor }),
+                ...(data.settlement !== undefined && { settlement: data.settlement }),
               },
             });
           }

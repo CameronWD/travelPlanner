@@ -234,6 +234,7 @@ export default async function DayPage({
           ownerId: true,
           label: true,
           category: true,
+          settlement: true,
         },
       }),
     ]);

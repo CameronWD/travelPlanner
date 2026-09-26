@@ -17,7 +17,7 @@ import { InlineCostFields } from "@/components/trip/inline-cost-fields";
 import { createCost, updateCost, deleteCost } from "@/server/actions/costs";
 import { formatMinor, parseAmountToMinor } from "@/lib/money";
 import { cn } from "@/lib/cn";
-import type { CostOwnerType } from "@/lib/enums";
+import { isOnTrip, type CostOwnerType, type CostSettlement } from "@/lib/enums";
 import type { CostRow } from "@/server/actions/costs";
 import type { CostRawInput } from "@/lib/validations/cost";
 import { AnimatedList, AnimatedItem } from "@/components/ui/animated-list";
@@ -61,6 +61,8 @@ interface FormState {
   paidAmount: string;
   paidAt: string;
   dueDate: string;
+  /** CONTEXT.md "Settlement". */
+  settlement: CostSettlement;
 }
 
 function defaultFormState(defaultCurrency: string): FormState {
@@ -71,6 +73,7 @@ function defaultFormState(defaultCurrency: string): FormState {
     paidAmount: "",
     paidAt: "",
     dueDate: "",
+    settlement: "BEFORE",
   };
 }
 
@@ -90,6 +93,7 @@ function costToFormState(cost: CostRow): FormState {
       ? new Date(cost.paidAt).toISOString().slice(0, 10)
       : "",
     dueDate: cost.dueDate ?? "",
+    settlement: isOnTrip(cost.settlement) ? "ON_TRIP" : "BEFORE",
   };
 }
 
@@ -163,6 +167,8 @@ function CostDialogForm({
             onPaidAmountChange={(v) => setForm((f) => ({ ...f, paidAmount: v }))}
             paidAt={form.paidAt}
             onPaidAtChange={(v) => setForm((f) => ({ ...f, paidAt: v }))}
+            settlement={form.settlement}
+            onSettlementChange={(v) => setForm((f) => ({ ...f, settlement: v }))}
             errors={errors}
             disabled={submitting}
           />
@@ -268,6 +274,7 @@ export function CostEditor({
       currency: form.currency,
       paidAt: hasPaidAmount ? form.paidAt || undefined : undefined,
       ...(form.dueDate && !form.paid ? { dueDate: form.dueDate } : {}),
+      settlement: form.settlement,
       ownerType,
       ownerId,
     };

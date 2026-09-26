@@ -166,6 +166,7 @@ export default async function PrintPage({
           ownerId: true,
           label: true,
           category: true,
+          settlement: true,
         },
       }),
       db.exchangeRate.findMany({

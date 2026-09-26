@@ -1307,6 +1307,19 @@ describe("createItem: inline cost creation", () => {
     );
   });
 
+  it("persists the Settlement on the inline Cost, BEFORE when none is sent", async () => {
+    itemFindFirstMock.mockResolvedValue(null);
+    itemCreateMock.mockResolvedValue({ id: "item-s", title: "Dinner" });
+    tripFindUniqueMock.mockResolvedValue({ homeCurrency: "AUD" });
+    resolveRateForTripMock.mockResolvedValue({ rate: 1, persist: null });
+
+    await createItem("trip-1", { ...VALID_INPUT, costMinor: 8000, currency: "AUD", settlement: "ON_TRIP" });
+    expect(costCreateMock.mock.calls[0][0].data.settlement).toBe("ON_TRIP");
+
+    await createItem("trip-1", { ...VALID_INPUT, costMinor: 8000, currency: "AUD" });
+    expect(costCreateMock.mock.calls[1][0].data.settlement).toBe("BEFORE");
+  });
+
   it("does NOT create a Cost when no costMinor is provided", async () => {
     itemFindFirstMock.mockResolvedValue(null);
     itemCreateMock.mockResolvedValue({ id: "item-no-cost", title: "Visit the Museum" });

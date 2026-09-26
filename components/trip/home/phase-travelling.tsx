@@ -171,6 +171,7 @@ export async function PhaseTravelling({
         ownerId: true,
         label: true,
         category: true,
+        settlement: true,
       },
     }),
     // A disabled trip renders as if it had no chapters (Task 13) — skip the

@@ -27,6 +27,7 @@ const sampleCost: CostRow = {
   rateToHome: 1,
   paidAt: null,
   dueDate: null,
+  settlement: "BEFORE",
   ownerType: "OTHER",
   ownerId: null,
   label: "Travel insurance",
@@ -216,6 +217,14 @@ describe("OtherCostEditor", () => {
     );
   });
 
+  it("editing keeps an On the trip cost On the trip (the Settlement is not reset to BEFORE)", async () => {
+    const user = userEvent.setup();
+    renderEditor({ costs: [{ ...sampleCost, settlement: "ON_TRIP" }] });
+    await user.click(screen.getByRole("button", { name: /edit travel insurance/i }));
+    await user.click(screen.getByRole("button", { name: /save/i }));
+    expect(updateCost).toHaveBeenCalledWith("cost-1", expect.objectContaining({ settlement: "ON_TRIP" }));
+  });
+
   // ---------------------------------------------------------------------
   // Trap: a legacy row with a paid amount but no paid date must open with
   // Paid already ticked, and resaving untouched must not invent a date.
@@ -289,6 +298,7 @@ describe("OtherCostEditor", () => {
       rateToHome: 0.011,
       paidAt: null,
       dueDate: null,
+      settlement: "BEFORE",
       ownerType: "OTHER",
       ownerId: null,
       label: "Shinkansen ticket",

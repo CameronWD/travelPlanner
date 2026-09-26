@@ -423,6 +423,19 @@ describe("TransportFormDialog", () => {
     );
   });
 
+  it("sends the chosen Settlement with the inline cost", async () => {
+    const user = userEvent.setup();
+    render(<TransportFormDialog {...baseProps} homeCurrency="AUD" />);
+    await user.type(screen.getByLabelText(/^cost amount$/i), "30.00");
+    await user.click(screen.getByRole("radio", { name: "Paid on the trip" }));
+    await user.click(screen.getByRole("button", { name: /add transport/i }));
+    expect(createTransport).toHaveBeenCalledWith(
+      "trip-1",
+      expect.objectContaining({ costMinor: 3000, settlement: "ON_TRIP" }),
+      undefined,
+    );
+  });
+
   // -------------------------------------------------------------------------
   // Case 13: no costMinor when amount field is empty
   // -------------------------------------------------------------------------
@@ -452,6 +465,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,
@@ -485,6 +499,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 0.6,
         paidAt: new Date("2026-07-02"),
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,
@@ -522,6 +537,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 0.6,
         paidAt: new Date("2026-07-02"),
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,
@@ -653,6 +669,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,
@@ -691,6 +708,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 0.6,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,
@@ -731,6 +749,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 1,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,
@@ -744,6 +763,7 @@ describe("TransportFormDialog", () => {
         rateToHome: 1,
         paidAt: null,
         dueDate: null,
+        settlement: "BEFORE",
         ownerType: "TRANSPORT",
         ownerId: "transport-99",
         label: null,

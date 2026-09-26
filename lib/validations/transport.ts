@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TRANSPORT_MODES } from "@/lib/enums";
+import { TRANSPORT_MODES, costSettlementSchema } from "@/lib/enums";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { WALL_TIME_RE } from "@/lib/wall-time";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
@@ -94,6 +94,8 @@ export const transportSchema = z.object({
 
   /** ISO date string for when the cost was paid. Optional. */
   paidAt: paidAtDateOnlySchema.nullable().optional(),
+  /** CONTEXT.md "Settlement" for the inline cost. Omitted = leave as is (BEFORE on create). */
+  settlement: costSettlementSchema.optional(),
 })
   // A Cost cannot be paid without a paid amount (ADR 0037). == null (not
   // === undefined) because paidMinor is nullable, and this must catch both:

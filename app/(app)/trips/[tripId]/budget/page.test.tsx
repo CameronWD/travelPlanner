@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
 
 // budget/page.tsx is a heavy async server component with DB calls.
 // We test the desktop two-column grid className via an exported constant so
@@ -25,7 +26,7 @@ vi.mock("@/components/ui/card", () => ({
   CardTitle: () => null,
 }));
 
-const { BUDGET_DESKTOP_GRID_CLASS, BUDGET_CATEGORY_ROW_CLASS, BUDGET_AMOUNT_ROW_CLASS } =
+const { BUDGET_DESKTOP_GRID_CLASS, BUDGET_CATEGORY_ROW_CLASS, BUDGET_AMOUNT_ROW_CLASS, SettlementSplit } =
   await import("./page");
 
 /** Track count of the grid template that applies at `sm` and up. */
@@ -64,5 +65,30 @@ describe("Budget breakdown rows line their amounts up flush right", () => {
 
   it("label + amounts rows (By destination, reconciliation) use two tracks", () => {
     expect(smTrackCount(BUDGET_AMOUNT_ROW_CLASS)).toBe(2);
+  });
+});
+
+// Settlement (CONTEXT.md): the Money page rolls the two kinds up separately,
+// above "By category".
+describe("Money splits Before you go from On the trip", () => {
+  it("renders a Before you go and an On the trip section, each with its own total", () => {
+    render(
+      <SettlementSplit
+        totals={{
+          costTotalMinor: 14500,
+          paidTotalMinor: 0,
+          beforeTotalMinor: 10500,
+          onTripTotalMinor: 4000,
+          beforePaidMinor: 0,
+          onTripPaidMinor: 0,
+        }}
+        homeCurrency="AUD"
+        showPaid
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Before you go" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "On the trip" })).toBeInTheDocument();
+    expect(screen.getByText(/105\.00/)).toBeInTheDocument();
+    expect(screen.getByText(/40\.00/)).toBeInTheDocument();
   });
 });

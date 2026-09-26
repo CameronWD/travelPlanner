@@ -31,6 +31,21 @@ export const COST_OWNER_TYPES = [
 export type CostOwnerType = (typeof COST_OWNER_TYPES)[number];
 export const costOwnerTypeSchema = z.enum(COST_OWNER_TYPES);
 
+/**
+ * `Cost.settlement` — which side of departure a Cost is paid (CONTEXT.md
+ * "Settlement"): BEFORE = "Before you go" (the default), ON_TRIP = "On the
+ * trip". A plain choice, never derived from dates. A row with any other value
+ * (or none — an old build during the migrate window) counts as BEFORE.
+ */
+export const COST_SETTLEMENTS = ["BEFORE", "ON_TRIP"] as const;
+export type CostSettlement = (typeof COST_SETTLEMENTS)[number];
+export const costSettlementSchema = z.enum(COST_SETTLEMENTS);
+
+/** Whether a Cost is paid on the trip; anything but ON_TRIP counts as BEFORE. */
+export function isOnTrip(settlement: string | null | undefined): boolean {
+  return settlement === "ON_TRIP";
+}
+
 /** `Vote.level` — wishlist enthusiasm. */
 export const VOTE_LEVELS = ["MUST", "KEEN", "MEH"] as const;
 export type VoteLevel = (typeof VOTE_LEVELS)[number];

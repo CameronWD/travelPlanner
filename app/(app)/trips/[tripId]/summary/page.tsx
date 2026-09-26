@@ -66,6 +66,7 @@ const COST_SELECT = {
   ownerId: true,
   label: true,
   category: true,
+  settlement: true,
 } as const;
 
 // ---------------------------------------------------------------------------

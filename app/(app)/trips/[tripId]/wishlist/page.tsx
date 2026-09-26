@@ -133,6 +133,7 @@ export default async function WishlistPage({
             ownerId: true,
             label: true,
             category: true,
+            settlement: true,
           },
         })
       : Promise.resolve([] as CostRow[]),

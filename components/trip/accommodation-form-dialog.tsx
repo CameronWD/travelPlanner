@@ -24,6 +24,7 @@ import type { CostRow } from "@/server/actions/costs";
 import { FormDialog } from "@/components/ui/form-dialog";
 import { useEntityForm } from "@/components/ui/use-entity-form";
 import { InlineCostFields } from "@/components/trip/inline-cost-fields";
+import { isOnTrip, type CostSettlement } from "@/lib/enums";
 import { AttachmentList, type AttachmentView } from "@/components/trip/attachment-list";
 
 // ---------------------------------------------------------------------------
@@ -247,6 +248,11 @@ function AccommodationForm({
   // ticked (ADR 0037). `paidAt` is the sole "is this paid" signal — a legacy
   // row with a paid amount but no date is NOT paid (see CONTEXT.md "Paid").
   const [paid, setPaid] = React.useState(Boolean(singleCost?.paidAt));
+  // Settlement (CONTEXT.md) — seeded from the existing cost; a new cost is
+  // Before you go until the Traveller says otherwise.
+  const [settlement, setSettlement] = React.useState<CostSettlement>(
+    isOnTrip(singleCost?.settlement) ? "ON_TRIP" : "BEFORE",
+  );
 
   // Soft warnings (reactive, non-blocking)
   const dateWarnings: string[] = [];
@@ -299,6 +305,7 @@ function AccommodationForm({
           // explicitly cleared.
           paidMinor: hasPaidAmount ? parsedPaidMinor : undefined,
           paidAt: hasPaidAmount ? paidAt || null : null,
+          settlement,
         }),
       };
 
@@ -442,6 +449,8 @@ function AccommodationForm({
           onPaidAmountChange={setPaidAmount}
           paidAt={paidAt}
           onPaidAtChange={setPaidAt}
+          settlement={settlement}
+          onSettlementChange={setSettlement}
           errors={errors}
           disabled={isPending}
         />

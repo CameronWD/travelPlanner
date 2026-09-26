@@ -3,6 +3,7 @@ import { categorySchema } from "@/lib/categories";
 import { safeWebHref } from "@/lib/url";
 import { CURRENCY_CODES } from "@/lib/currencies";
 import { MAX_AMOUNT_MINOR, paidAtDateOnlySchema } from "@/lib/validations/cost";
+import { costSettlementSchema } from "@/lib/enums";
 
 /** YYYY-MM-DD regex */
 const isoDate = z
@@ -99,6 +100,8 @@ export const itemSchema = z
 
     /** ISO date string for when the cost was paid. Optional. */
     paidAt: paidAtDateOnlySchema.nullable().optional(),
+    /** CONTEXT.md "Settlement" for the inline cost. Omitted = leave as is (BEFORE on create). */
+    settlement: costSettlementSchema.optional(),
   })
   // Drop times when no date is set
   .transform((data) => {
