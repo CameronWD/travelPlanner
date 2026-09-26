@@ -120,10 +120,9 @@ describe("AppLayout", () => {
   });
 
   // LA-050: the header's icon-sized controls get a 44px tap target.
-  it("gives the header's Globe link and avatar trigger a 44px tap target", async () => {
+  it("gives the header's avatar trigger a 44px tap target", async () => {
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
-    expect(screen.getByRole("link", { name: "Globe" }).className).toContain("min-h-11");
     // A real 44px box, not tap-target's invisible ::before: flush against the
     // header's trailing edge, that pseudo poked 4px past a 360px viewport and
     // made every phone page scroll sideways (Stage 2 diagnosis G).
@@ -135,16 +134,28 @@ describe("AppLayout", () => {
   });
 
   it("fits the header's right-hand controls inside a 360px phone", async () => {
-    // Logo (~131px) + search, Globe, theme and avatar (4 x 44px-ish) must fit
-    // 360 - 2 x 16px: phones get the tighter gap and Globe padding back.
+    // Logo (~131px) + search, theme and avatar must fit 360 - 2 x 16px:
+    // phones get the tighter gap.
     const ui = await AppLayout({ children: <div /> });
     render(ui as React.ReactElement);
-    const globe = screen.getByRole("link", { name: "Globe" });
-    expect(globe.className).toContain("px-2");
-    expect(globe.className).toContain("sm:px-3");
-    const cluster = globe.parentElement as HTMLElement;
+    const avatar = screen.getByRole("button", { name: "Open traveller menu" });
+    const cluster = avatar.parentElement as HTMLElement;
     expect(cluster.className).toContain("gap-1");
     expect(cluster.className).toContain("sm:gap-2");
+  });
+
+  // Beta feedback G1: the rail is on every page, not only inside a Trip, so
+  // Globe lives there and the header no longer carries its own Globe link.
+  it("mounts the Teepee rail (Trips, Globe, You) on a non-trip page and drops the header Globe link", async () => {
+    const ui = await AppLayout({ children: <div /> });
+    render(ui as React.ReactElement);
+    const rail = screen.getByRole("navigation", { name: "Teepee" });
+    for (const [name, href] of [["Trips", "/trips"], ["Globe", "/globe"], ["You", "/account"]]) {
+      expect(within(rail).getByRole("link", { name }).getAttribute("href")).toBe(href);
+    }
+    const header = document.querySelector("header")!;
+    expect(within(header).queryByRole("link", { name: "Globe" })).toBeNull();
+    expect(screen.getAllByRole("link", { name: "Globe" })).toHaveLength(1);
   });
 
   it("renders the Logo lockup with a single accessible name for the link", async () => {

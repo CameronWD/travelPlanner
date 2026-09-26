@@ -24,6 +24,7 @@ import { CommandPaletteMount } from "@/components/command-palette-mount";
 import { CommandPaletteTrigger } from "@/components/command-palette-trigger";
 import { FeedbackLauncher } from "@/components/feedback/feedback-launcher";
 import { DeviceSync } from "@/components/account/device-sync";
+import { AppRail } from "@/components/app-rail";
 
 export async function generateMetadata(): Promise<Metadata> { return {}; }
 
@@ -45,6 +46,7 @@ function initials(name?: string | null): string {
  *
  * Keeps the server-side auth gate from the stub layout and adds:
  *   - A sticky top bar with the wordmark + theme toggle + traveller avatar dropdown
+ *   - The md+ rail (AppRail) outside a Trip
  *   - A centered, padded content area
  */
 export default async function AppLayout({
@@ -101,20 +103,8 @@ export default async function AppLayout({
             <Logo variant="lockup" />
           </Link>
 
-          {/*
-            Right-hand controls. The trip rail (components/trip/trip-nav.tsx)
-            has its own muted "Globe" item, but the rail only renders inside
-            a trip at md+ — someone on /trips, or on any route below md, has
-            no other way to Globe, so the link stays here too.
-          */}
           <div className="flex items-center gap-1 sm:gap-2">
             <CommandPaletteTrigger />
-            <Link
-              href="/globe"
-              className="inline-flex min-h-11 items-center rounded-md px-2 text-sm sm:px-3 font-medium text-foreground/80 hover:text-foreground transition-colors"
-            >
-              Globe
-            </Link>
             <ThemeToggle />
 
             {/* Traveller avatar dropdown. A real 44px box around the 36px
@@ -184,14 +174,20 @@ export default async function AppLayout({
       </header>
 
       {/* ── Content area ── */}
-      {/* ADR 0062: non-trip pages cap at the shared wide width; a trip page (which renders
-          [data-trip-shell]) goes full-bleed so its rail sits on the viewport's left edge. */}
-      <main
-        data-testid="app-main"
-        className="mx-auto w-full max-w-page-wide flex-1 px-4 py-8 sm:px-6 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0"
-      >
-        {children}
-      </main>
+      {/* md+: the rail sits left of <main> on every non-trip page (AppRail renders
+          nothing inside a Trip, whose layout mounts TripNav's rail instead).
+          ADR 0062: non-trip pages cap at the shared wide width, centred right of
+          the rail; a trip page (which renders [data-trip-shell]) goes full-bleed
+          so its rail sits on the viewport's left edge. */}
+      <div className="flex flex-1 flex-col md:flex-row">
+        <AppRail />
+        <main
+          data-testid="app-main"
+          className="mx-auto w-full min-w-0 max-w-page-wide flex-1 px-4 py-8 sm:px-6 has-[[data-trip-shell]]:max-w-none has-[[data-trip-shell]]:p-0"
+        >
+          {children}
+        </main>
+      </div>
     </div>
   );
 }

@@ -26,10 +26,6 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-vi.mock("@/components/trip/nav-more-menu", () => ({
-  NavMoreMenu: () => <div data-testid="nav-more-menu" />,
-}));
-
 beforeEach(() => {
   mockUsePathname.mockReturnValue("/trips/t1");
   mockUseSearchParams.mockReturnValue(new URLSearchParams());
@@ -140,5 +136,27 @@ describe("TripNav", () => {
     expect(isDaysActive("/trips/t1/calendar", "/trips/t1/calendar", "/trips/t1")).toBe(true);
     expect(isDaysActive("/trips/t1/calendar", "/trips/t1/daybook", "/trips/t1")).toBe(false);
     expect(isDaysActive("/trips/t1/calendar", "/trips/t1/plan", "/trips/t1")).toBe(false);
+  });
+
+  // Beta feedback G2: More is a page of sections, so the rail's More is a
+  // plain link — lit on any section it holds, and on /more itself.
+  it("links More to the trip's More page", () => {
+    render(<TripNav tripId="t1" />);
+    expect(screen.getByRole("link", { name: "More" })).toHaveAttribute("href", "/trips/t1/more");
+  });
+
+  it.each(["/trips/t1/more", "/trips/t1/journal", "/trips/t1/summary", "/trips/t1/help"])(
+    "lights More on %s",
+    (path) => {
+      mockUsePathname.mockReturnValue(path);
+      render(<TripNav tripId="t1" />);
+      expect(screen.getByRole("link", { name: "More" })).toHaveAttribute("aria-current", "page");
+    },
+  );
+
+  it("does not light More on Plan", () => {
+    mockUsePathname.mockReturnValue("/trips/t1/plan");
+    render(<TripNav tripId="t1" />);
+    expect(screen.getByRole("link", { name: "More" })).not.toHaveAttribute("aria-current");
   });
 });

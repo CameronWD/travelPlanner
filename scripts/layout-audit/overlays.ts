@@ -225,15 +225,6 @@ export const OVERLAYS: OverlayRecipe[] = [
     expect: { role: "dialog", name: "More navigation" },
   },
   {
-    id: "rail-more",
-    route: "/plan",
-    tripScoped: true,
-    only: "desktop",
-    form: false,
-    steps: [{ click: { role: "button", name: "More trip sections", exact: true } }],
-    expect: { role: "menu" },
-  },
-  {
     id: "stop-add",
     route: "/plan",
     tripScoped: true,

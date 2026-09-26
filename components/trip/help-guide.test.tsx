@@ -10,7 +10,6 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/trips/t1",
   useSearchParams: () => new URLSearchParams(),
 }));
-vi.mock("@/components/trip/nav-more-menu", () => ({ NavMoreMenu: () => null }));
 
 import { primaryNav, moreNav } from "@/components/trip/trip-nav";
 
