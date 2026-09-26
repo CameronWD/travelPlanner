@@ -21,7 +21,6 @@ import { homeMapPoint } from "@/lib/route-map";
 import { getTripProjection } from "@/server/actions/stops";
 import { groupStopsByChapter, chapterForStop } from "@/lib/chapters";
 import { orderPlanStops } from "@/lib/plan-order";
-import { chapterColourSwatch } from "@/lib/chapter-colours";
 import { ChapterChip } from "@/components/trip/chapter-chip";
 import { CostAmounts } from "@/components/trip/cost-amounts";
 import type {
@@ -421,8 +420,9 @@ export default async function SummaryPage({
   // Group stops by chapter for the itinerary section
   const stopGroups = groupStopsByChapter(datedStops, datedChapters);
 
-  // Route map stops — resolve chapter colour hex here (server side) so the
-  // client map component stays dumb and receives only a plain hex string.
+  // Route map stops — coloured by the Stop's own sortOrder (lib/stop-colours),
+  // the same rule Days and the plan editor use; the map resolves the hex
+  // client-side.
   const mapStops: RouteMapStop[] = datedStops.map((s) => {
     const ch = chapterForStop(s, datedChapters);
     return {
@@ -432,7 +432,7 @@ export default async function SummaryPage({
       lng: s.lng,
       arriveDate: s.arriveDate,
       departDate: s.departDate,
-      chapterColour: ch ? chapterColourSwatch(ch.colour) : null,
+      sortOrder: s.sortOrder,
       chapterName: ch?.name ?? null,
     };
   });

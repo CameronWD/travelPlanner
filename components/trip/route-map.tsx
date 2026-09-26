@@ -8,8 +8,9 @@
  *
  * Renders:
  *   - CARTO tile layer (Positron / Dark Matter)
- *   - Numbered kit sticker pins (pinHtml "stop") in the chapter colour, and a
- *     pinHtml "home" pin for the home base — recoloured in place on theme flip
+ *   - Numbered kit sticker pins (pinHtml "stop") in the Stop's own colour
+ *     (lib/stop-colours, as the calendar), and a pinHtml "home" pin for the
+ *     home base — recoloured in place on theme flip
  *   - Polyline connecting those stops in order
  *   - Kit popup per marker (.tp-map-popup shell, token classes only)
  *   - Falls back gracefully when fewer than 2 stops have coords
@@ -24,8 +25,8 @@ import { cartoTiles } from "@/lib/map-tiles";
 import { escapeHtml } from "@/lib/escape-html";
 import { applyLeafletIconDefaults } from "@/lib/map-icons";
 import { pinHtml, pinSize } from "@/lib/map-pins";
-import { mapInk, routeStyles } from "@/lib/map-palette";
-import { CHAPTER_COLOURS } from "@/lib/chapter-colours";
+import { routeStyles } from "@/lib/map-palette";
+import { stopHex } from "@/lib/stop-colours";
 
 // Leaflet CSS is imported here; the bundle includes it once.
 import "leaflet/dist/leaflet.css";
@@ -37,8 +38,8 @@ export interface RouteMapStop {
   lng?: number | null;
   arriveDate: string;
   departDate: string;
-  /** chapterColourSwatch(value) for the stop's chapter; the dark swatch is derived in dark mode. */
-  chapterColour?: string | null;
+  /** Stop order — pins and legs take the Stop's own colour (lib/stop-colours), the same as the calendar. */
+  sortOrder: number;
   /** Display name of the chapter this stop belongs to. */
   chapterName?: string | null;
 }
@@ -53,24 +54,13 @@ export interface RouteMapProps {
   showReturn?: boolean;
 }
 
-/**
- * Callers pass the chapter's light swatch (chapterColourSwatch(value)); map it
- * back through the chapter palette so dark mode gets the dark swatch. An
- * unknown colour is used as-is; no chapter → undefined (pinHtml's neutral fill).
- */
-function stopFill(colour: string | null | undefined, dark: boolean): string | undefined {
-  if (!colour) return undefined;
-  const c = colour.toLowerCase();
-  const meta = CHAPTER_COLOURS.find(
-    (m) => m.swatch.toLowerCase() === c || m.swatchDark.toLowerCase() === c,
-  );
-  return meta ? (dark ? meta.swatchDark : meta.swatch) : colour;
-}
+/** The Stop's own hue (lib/stop-colours), by its sortOrder — same rule the calendar uses. */
+const stopFill = (sortOrder: number, dark: boolean) => stopHex(sortOrder, dark);
 
-function stopIcon(L: typeof import("leaflet"), n: number, colour: string | null | undefined, dark: boolean) {
+function stopIcon(L: typeof import("leaflet"), n: number, sortOrder: number, dark: boolean) {
   const size = pinSize("stop");
   return L.divIcon({
-    html: pinHtml({ variant: "stop", fill: stopFill(colour, dark), label: String(n), dark }),
+    html: pinHtml({ variant: "stop", fill: stopFill(sortOrder, dark), label: String(n), dark }),
     className: "",
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
@@ -90,9 +80,9 @@ function homeIcon(L: typeof import("leaflet"), dark: boolean) {
   });
 }
 
-/** Leg colour: the destination's chapter, else the muted ink (visible on both tile sets). */
-function legColour(colour: string | null | undefined, dark: boolean): string {
-  return stopFill(colour, dark) ?? mapInk(dark).muted;
+/** Leg colour: the destination Stop's own colour. */
+function legColour(sortOrder: number, dark: boolean): string {
+  return stopFill(sortOrder, dark);
 }
 
 const homeLegColour = (dark: boolean) => routeStyles(dark).returnLeg.color;
@@ -183,11 +173,11 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
   const overlaysRef = useRef<{
     L: typeof import("leaflet");
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    stopMarkers: { marker: any; n: number; colour: string | null | undefined }[];
+    stopMarkers: { marker: any; n: number; sortOrder: number }[];
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     homeMarker: any;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    legs: { line: any; colour: string | null | undefined; home: boolean }[];
+    legs: { line: any; sortOrder: number; home: boolean }[];
   } | null>(null);
 
   const { theme } = useTheme();
@@ -235,9 +225,9 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
       // Markers and per-segment polylines
       const latlngs: [number, number][] = [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const stopMarkers: { marker: any; n: number; colour: string | null | undefined }[] = [];
+      const stopMarkers: { marker: any; n: number; sortOrder: number }[] = [];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const legs: { line: any; colour: string | null | undefined; home: boolean }[] = [];
+      const legs: { line: any; sortOrder: number; home: boolean }[] = [];
 
       coordStops.forEach((stop, index) => {
         latlngs.push([stop.lat, stop.lng]);
@@ -253,24 +243,24 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
           </div>`;
 
         const marker = lf
-          .marker([stop.lat, stop.lng], { icon: stopIcon(lf, index + 1, stop.chapterColour, isDark) })
+          .marker([stop.lat, stop.lng], { icon: stopIcon(lf, index + 1, stop.sortOrder, isDark) })
           .addTo(mapInstance)
           .bindPopup(popupContent, POPUP);
-        stopMarkers.push({ marker, n: index + 1, colour: stop.chapterColour });
+        stopMarkers.push({ marker, n: index + 1, sortOrder: stop.sortOrder });
       });
 
-      // Per-segment polylines — each segment coloured by the destination stop's chapter
+      // Per-segment polylines — each segment coloured by the destination Stop's colour
       if (latlngs.length >= 2) {
         for (let i = 0; i < latlngs.length - 1; i++) {
           const destStop = coordStops[i + 1];
           const line = lf.polyline([latlngs[i], latlngs[i + 1]], {
-            color: legColour(destStop.chapterColour, isDark),
+            color: legColour(destStop.sortOrder, isDark),
             weight: 3,
             opacity: 0.7,
             dashArray: "6 4",
           });
           line.addTo(mapInstance);
-          legs.push({ line, colour: destStop.chapterColour, home: false });
+          legs.push({ line, sortOrder: destStop.sortOrder, home: false });
         }
       }
 
@@ -301,7 +291,8 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
             dashArray: "8 5",
           });
           line.addTo(mapInstance);
-          legs.push({ line, colour: null, home: true });
+          // sortOrder is unused for a home leg (recoloured via homeLegColour below).
+          legs.push({ line, sortOrder: 0, home: true });
         };
 
         // Outbound leg: home → first stop
@@ -337,7 +328,7 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
   // depending on the theme would rebuild it (losing pan/zoom) on every toggle.
   // The separate setUrl effect below swaps tiles in place.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasEnoughCoords, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.chapterColour ?? ""}:${s.chapterName ?? ""}`).join("|"), home?.lat, home?.lng, home?.name, showReturn]);
+  }, [hasEnoughCoords, stops.map((s) => `${s.id}:${s.lat},${s.lng}:${s.sortOrder}:${s.chapterName ?? ""}`).join("|"), home?.lat, home?.lng, home?.name, showReturn]);
 
   // Swap basemap tiles and recolour pins/legs when the theme flips, without
   // rebuilding the map.
@@ -345,10 +336,10 @@ export function RouteMap({ stops, height = 360, home = null, showReturn = false 
     tileLayerRef.current?.setUrl(cartoTiles(isDark).url);
     const o = overlaysRef.current;
     if (!o) return;
-    for (const { marker, n, colour } of o.stopMarkers) marker.setIcon(stopIcon(o.L, n, colour, isDark));
+    for (const { marker, n, sortOrder } of o.stopMarkers) marker.setIcon(stopIcon(o.L, n, sortOrder, isDark));
     o.homeMarker?.setIcon(homeIcon(o.L, isDark));
-    for (const { line, colour, home: isHome } of o.legs) {
-      line.setStyle({ color: isHome ? homeLegColour(isDark) : legColour(colour, isDark) });
+    for (const { line, sortOrder, home: isHome } of o.legs) {
+      line.setStyle({ color: isHome ? homeLegColour(isDark) : legColour(sortOrder, isDark) });
     }
   }, [isDark]);
 

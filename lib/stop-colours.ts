@@ -1,4 +1,5 @@
 import { HUE_CLASSES, LEGACY_TO_HUE, type Hue } from "@/lib/hues";
+import { hueHex } from "@/lib/map-palette";
 
 /**
  * Per-stop colour bands, keyed by stop.sortOrder. Shared by MonthGrid and the
@@ -37,3 +38,8 @@ const idx = (i: number) => ((i % STOP_HUES.length) + STOP_HUES.length) % STOP_HU
 export function stopBandBorderClass(index: number): string { return BORDER[idx(index)]; }
 export function stopDotClass(index: number): string { return DOT[idx(index)]; }
 export function stopPillClass(index: number): string { return PILL[idx(index)]; }
+
+/** The Stop's hue on the ramp, by its position — the same cycle MonthGrid and StopCard paint. */
+export function stopHue(index: number): Hue { return STOP_HUES[idx(index)]; }
+/** Leaflet hex for the Stop's hue (divIcon HTML and polylines can't take Tailwind classes). */
+export function stopHex(index: number, dark = false): string { return hueHex(stopHue(index), dark); }
